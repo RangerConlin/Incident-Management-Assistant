@@ -1,0 +1,157 @@
+ICS Command Assistant: Mobile App Phase 4 Design Plan
+
+🚀 Phase 4 Overview
+
+Phase 4 introduces situational awareness tools and enhanced command-level coordination, making the mobile app a more operationally robust extension of the command post. Field functionality is supplemented with mapping, task flow visibility, and messaging support.
+
+📅 Phase 4 Feature Scope
+
+1. Map Dashboard (Command Staff)
+
+View location of field users (from Phase 3 live location pings)
+
+Display team markers, last known status, and callsigns
+
+Filter by assignment, role, or team
+
+Show task targets or search sectors
+
+2. Live Task Status Board
+
+Command staff can view tasking status in real-time
+
+Show each task’s current state: Dispatched, En Route, On Scene, Completed
+
+Option to filter by team, priority, or location
+
+Pulls from mobile user updates
+
+3. Command Messaging Console
+
+Centralized command view for messaging all personnel
+
+Filterable by team, role, or user
+
+Sends instant messages and task alerts
+
+Connects with field-side messaging inbox (from Phase 2)
+
+4. Personnel Tracker (Command)
+
+View check-in/check-out status
+
+View user role, team, and time since last activity
+
+Integrates with mission status dashboard
+
+5. Map-Based Team Assignment Tool (Optional Early Preview)
+
+Assign teams to geolocated sectors or markers
+
+Drag-and-drop interface for quick tasking
+
+Experimental preview pending testing
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+DB Table
+
+Map Dashboard
+
+Tracking
+
+GET /api/command/map
+
+LocationLogs, Teams
+
+Task Status Board
+
+Planning / Ops
+
+GET /api/command/tasks-status
+
+Tasks
+
+Messaging Console
+
+Comms
+
+POST /api/command/message
+
+Messages
+
+Personnel Tracker
+
+Personnel
+
+GET /api/command/personnel-status
+
+Users, CheckIns
+
+Team Assignment Tool
+
+Planning
+
+POST /api/command/assign-sector
+
+Tasks, MapZones
+
+🧭 UI & Navigation (Command Side)
+
+New Tabs or Screens:
+
+[🗺️ Map View]
+
+[📋 Task Status Board]
+
+[💬 Messaging Console]
+
+[👥 Personnel Tracker]
+
+[🧭 Assign Teams (preview)]
+
+Field App Impact:
+
+No major changes other than increased backend task integration
+
+⏳ Suggested Timeline (~2–3 Weeks)
+
+Day(s)
+
+Task
+
+1–2
+
+Build map view with live location overlays
+
+3–4
+
+Implement task board with live update polling
+
+5–6
+
+Build messaging console + team filters
+
+7–8
+
+Add personnel tracker with last seen data
+
+9–11
+
+Implement team-to-sector assignment interface
+
+12–14
+
+Backend integration and linking to Phase 2–3 mobile features
+
+15–17
+
+Final QA, bug fixes, and command UI cleanup
+
+

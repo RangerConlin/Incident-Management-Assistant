@@ -1,0 +1,180 @@
+ICS Command Assistant: Mobile App Phase 2 Design Plan
+
+🔄 Phase 2 Overview
+
+Phase 2 of the mobile app extends core field capabilities and introduces command-side awareness tools. It builds on the MVP and lays the foundation for real-time team coordination.
+
+📅 Phase 2 Feature Scope
+
+1. Tasking & Response System (ICS 204 Inspired by Active911)
+
+Field users receive dynamic taskings pushed from command
+
+Task includes:
+
+Location (with optional map pin)
+
+Objective/summary
+
+Priority
+
+Start/end time
+
+Assigned team
+
+Optional attachments (photo, map, reference)
+
+Users can:
+
+Acknowledge receipt
+
+Mark when en route, on scene, completed
+
+Add notes to the task record
+
+Task screen modeled after Active911 style: rapid read-in, minimal taps
+
+2. Comms Plan Viewer (ICS 205 Integration)
+
+Display radio channel assignments by function
+
+Pull from backend database linked to ICS 205 form
+
+View by channel name, function, mode, and notes
+
+Read-only
+
+3. Med Plan Viewer (ICS 206 Integration)
+
+Static or parsed display of medical contacts and emergency instructions
+
+View medevac procedures, hospitals, EMS transport
+
+Read-only
+
+4. Message Inbox (Phase 1 Messaging System Activation)
+
+Receive messages from command or system alerts
+
+Separate from special status messages
+
+View timestamp, sender, and message text
+
+5. ICS 214 Log Entry Support (Field Users)
+
+Field users can add structured or freeform entries to their personal ICS 214 log
+
+Entries include:
+
+Timestamp (auto-filled)
+
+Type of activity or note
+
+Optional location capture
+
+Associated task (if applicable)
+
+Log entries are synced to the backend for inclusion in final ICS 214 generation
+
+If an entry is associated with a task, it will also appear in that task's log for operational review
+
+6. Role-Based Navigation Enhancements
+
+Improve UI structure to support deeper workflows:
+
+Field: Tasks, Status Updates, Comms Plan, Med Plan, Logbook
+
+Command: Task Board, Message Log, Check-In Admin
+
+Add icons and grouping by function
+
+6. Mission Overview (Command Side)
+
+Summary dashboard of mission status
+
+Show current personnel, check-in status, team counts
+
+Read-only overview for situational awareness
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+DB Table
+
+Task Viewer
+
+Planning / ICS 204
+
+GET /api/mobile/tasks
+
+Tasks
+
+Comms Plan Viewer
+
+Comms / ICS 205
+
+GET /api/mobile/comms-plan
+
+CommsChannels
+
+Med Plan Viewer
+
+Safety / ICS 206
+
+GET /api/mobile/med-plan
+
+MedPlan
+
+Message Inbox
+
+Comms
+
+GET /api/mobile/messages
+
+Messages
+
+Mission Overview
+
+Planning
+
+GET /api/mobile/mission-overview
+
+Users, Teams, CheckIns
+
+📊 UI & Navigation Overview
+
+Field Users
+
+Home Tab: [✅ Task List], [✔️ Status], [📻 Comms Plan], [⚕️ Med Plan], [📨 Inbox]
+
+Command Staff
+
+Home Tab: [📊 Mission Overview], [📄 Task Board], [📨 Message Log], [📈 Admin Check-In]
+
+⏳ Suggested Timeline (~2 Weeks)
+
+Day(s)
+
+Task
+
+1–2 Design UI for Task List and Comms/Med Plan viewers
+
+3–4 Implement ICS 204 Task Viewer (Field User)
+
+5–6 Build Comms Plan + Med Plan screens
+
+7 Build Message Inbox screen
+
+8–9 Create Mission Overview dashboard (Command side)
+
+10 Navigation refinements + role-based tab UI
+
+11–12 Testing, polish, bug fixes
+
+13–14 Package new version for distribution
+

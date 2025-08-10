@@ -1,0 +1,197 @@
+CS Command Assistant: Mobile App MVP Plan
+
+📅 Initial MVP Release Scope
+
+The initial mobile app release will focus on the following critical capabilities:
+
+1. Login & Mission Selection Flow
+
+Users log in to the app using credentials
+
+Authenticates with backend (JWT or token-based)
+
+After login, users must select the mission they are joining
+
+If the user is not already signed in on that mission:
+
+They are redirected to the check-in module
+
+User must enter check-in details and select their role:
+
+Command Staff or Field User
+
+If Field User, they must also select their assigned team
+
+Once submitted, they are routed to the appropriate app interface based on role
+
+Messaging is available on both sides; Status Updates are exclusive to Field Users
+
+2. Status Updates
+
+Two-part structure:
+
+Advance Status: Button that progresses user to the next predefined status for their team/tasking (flow logic to be defined later)
+
+Special Status Messages: Manual submission of key status types like "Assistance Needed", "Discovery", etc.
+
+All updates are timestamped and may include location data
+
+3. Admin Check-In/Check-Out Tool
+
+Command staff module for managing personnel check-in/out
+
+Used by Finance/Admin personnel at staging areas or base camps
+
+Supports checking in/out teams or groups of responders
+
+Allows manual entry of role, team, and current status
+
+Intended for Admin Assistants to support field personnel
+
+📝 Integration with Backend Modules
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+DB Table
+
+Login
+
+Personnel / Auth
+
+POST /api/mobile/login
+
+Users
+
+Mission Selection
+
+Mission Mgmt
+
+GET /api/missions
+
+Missions
+
+Role & Team Selection
+
+Personnel
+
+GET /api/roles, GET /api/teams
+
+Users, Teams
+
+Field Check-In
+
+Personnel / ICS 211
+
+POST /api/mobile/checkin
+
+CheckIns
+
+Advance Status
+
+Comms / ICS 213 Msgs
+
+POST /api/mobile/status/advance
+
+StatusLogs
+
+Special Status Message
+
+Comms / ICS 213 Msgs
+
+POST /api/mobile/status/special
+
+StatusLogs
+
+
+
+📊 Architecture Overview
+
+[Mobile App]
+   ├── Login screen → [POST /login]
+   ├── Mission selection screen → [GET /missions]
+   ├── If not signed in on mission:
+   │   └─ Check-In module (user info + role + team) → [POST /checkin]
+   ├── Home screen (role-specific)
+   │   ├─ Field: Status Update, Messaging
+   │   └─ Command: Messaging, Admin Check-In Tool
+
+[Backend (FastAPI)]
+   ├── Auth routes (JWT-based)
+   ├── New Mobile Routes:
+   │   ├─ /api/mobile/login
+   │   ├─ /api/mobile/checkin
+   │   ├─ /api/mobile/status
+   │   ├─ /api/mobile/messages
+   │   ├─ /api/missions
+   │   ├─ /api/roles
+   │   └─ /api/teams
+   └── Connects to:
+       ├─ Users table
+       ├─ Missions table
+       ├─ Teams table
+       ├─ CheckIn table
+       └─ Message/Log table
+
+---
+
+### ⏳ MVP Timeline (~2 Weeks)
+
+| Day(s) | Task                                                                 |
+|--------|----------------------------------------------------------------------|
+| 1      | Initialize React Native app (use Expo)                              |
+| 2–3    | Create login flow, store token securely                             |
+| 4      | Add mission selection screen                                         |
+| 5      | Add role & team selection screen                                    |
+| 6–7    | Build Field Check-In module (triggered after mission join if not signed in) |
+| 8–9    | Build Status Update screen (message input + optional GPS)           |
+
+| 12–13  | Final testing, bug fixes                                            |
+| 14     | Package for TestFlight / Internal Android test                      |
+
+---
+
+### 📱 Mobile UI Overview
+
+**Login Screen**
+- Username + password fields
+- Submit button
+- Store JWT/token securely
+
+**Mission Selection Screen**
+- Dropdown or list of active missions
+- Select mission to join
+- Proceed to check-in if not already signed in
+
+**Field Check-In Module (upon mission join if not signed in)**
+- Full name (autofilled or entered)
+- Role selection: Command Staff or Field User
+- If Field User: team selection
+- Optional notes
+- Submit button
+
+**Role-Based Home Screens**
+- If Field User:
+  - Advance Status Button
+    - Press to move to next status (based on backend flow logic)
+    - Button label updates dynamically based on current task/team
+  - Special Status Message Screen
+    - Predefined message types: Assistance Needed, Discovery, Hazard, etc.
+    - Optional note and GPS toggle
+    - Submit button
+- If Command Staff:
+  - Admin Check-In/Check-Out Module
+    - View personnel assigned to mission
+    - Manually check in/out users
+    - Set role, team, and current status
+    - For use by Admin/Finance at staging or base camp
+
+**Navigation UI**
+- Bottom tab or drawer navigation to access screens based on user role
+- Field: [✔️ Advance Status], [📤 Special Status], [📄 Assigned Tasks]
+- Command: [📋 Admin Check-In], [📄 Mission Overview] (to be expanded in future)
+
+---

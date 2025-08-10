@@ -1,0 +1,164 @@
+ICS Command Assistant: Mobile App Phase 7 Design Plan
+
+🌐 Phase 7 Overview
+
+Phase 7 enables real-time inter-agency collaboration, focusing on operational coordination between multiple jurisdictions, mutual aid teams, and external partners. It introduces shared mission channels, joint visibility tools, and permissions that respect agency boundaries.
+
+📅 Phase 7 Feature Scope
+
+1. Multi-Agency Mission Support
+
+Enable a single mission to include users from multiple distinct organizations
+
+Users retain their home agency affiliation but are assigned to unified mission teams
+
+Support different roles/permissions per agency per mission
+
+2. Shared Ops Channel (Interagency Feed)
+
+Command staff can view a feed of:
+
+Status updates
+
+Field logs
+
+Location pings (if permitted)
+
+Feed can be filtered by agency/team/tasking
+
+Includes agency badge/branding per entry
+
+3. Secure Cross-Agency Messaging
+
+Chat channels scoped to:
+
+All agencies
+
+Specific agency-to-agency
+
+Mission-wide
+
+Encrypted transport
+
+Visibility controlled via roles and agency rules
+
+4. Joint Resource Visibility
+
+View combined personnel, tasking, and assets across participating orgs
+
+Visual indicator of agency origin
+
+Filter resources by affiliation, team, and assignment
+
+5. Agency Role Mapping Tool
+
+Admin UI to map roles across orgs:
+
+“Rescue Tech (Org A)” = “Field User (Unified)”
+
+“Comms Officer (Org B)” = “Comms Lead (Unified)”
+
+Supports consistent access control in mixed missions
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+DB Table
+
+Multi-Agency Missions
+
+Personnel / Auth
+
+POST /api/mission/join
+
+MissionUsers
+
+Shared Ops Feed
+
+Operations / Logs
+
+GET /api/mission/feed
+
+SharedFeed
+
+Messaging System
+
+Comms
+
+POST /api/chat/send
+
+Messages
+
+Resource Viewer
+
+Planning / Ops
+
+GET /api/mission/resources
+
+Users, Teams
+
+Role Mapping Tool
+
+Admin / Auth
+
+POST /api/roles/map, GET /api/roles
+
+RoleMappings
+
+🧭 UI & Navigation
+
+New Tabs or Screens:
+
+[🛰️ Interagency Feed]
+
+[💬 Cross-Agency Messaging]
+
+[👥 Resource Overview]
+
+[🔧 Role Mapping Console] (command only)
+
+Mobile App (Field Side):
+
+Users see badge or label of team/agency on assignments and updates
+
+Access to chat channels per role/agency policy
+
+⏳ Suggested Timeline (~2–3 Weeks)
+
+Day(s)
+
+Task
+
+1–2
+
+Multi-agency mission participation logic
+
+3–4
+
+Build shared ops feed UI + backend
+
+5–6
+
+Implement cross-agency messaging logic
+
+7–8
+
+Create role mapping admin console
+
+9–10
+
+Joint resource viewer & filtering
+
+11–13
+
+Backend permissions + integration testing
+
+14–17
+
+UI polish, documentation, QA
+

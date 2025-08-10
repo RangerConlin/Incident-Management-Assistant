@@ -1,0 +1,168 @@
+ICS Command Assistant: Mobile App Phase 6 Design Plan
+
+🔮 Phase 6 Overview
+
+Phase 6 focuses on analytics, oversight, and inter-agency collaboration. It brings real-time dashboards, role auditing, export tools, and the beginnings of interoperability with external systems (e.g., EOC platforms, CAD, radio gateways).
+
+📅 Phase 6 Feature Scope
+
+1. Mission Analytics Dashboard (Command Only)
+
+Real-time overview of mission status
+
+Charts for:
+
+Active personnel by role/team
+
+Tasking progress (e.g., dispatched vs. completed)
+
+Resource utilization
+
+Safety event count
+
+Auto-refresh, filters for mission/time/team
+
+2. Audit Log & Session Tracking
+
+Every user action logged with timestamp and context
+
+Admins can review login activity, check-in/out, form submissions, message sends
+
+Integrated into backend security model
+
+3. Export & Archive Tools (Mobile & Command)
+
+Generate full mission export including:
+
+ICS forms
+
+Status logs
+
+Messages
+
+Location history
+
+Download as ZIP or submit to archive repository
+
+4. Interoperability API Layer (Preview)
+
+Early interface for integrating with external platforms
+
+RESTful JSON export of selected records (tasking, forms, locations)
+
+Authenticated endpoint for CAD/EOC systems
+
+5. Admin Tools for Role & Access Management
+
+UI to manage:
+
+Roles
+
+Mission-specific permissions
+
+Auto-assignment rules (e.g., team joins default to Field User)
+
+Syncs with backend UserRoles logic
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+DB Table
+
+Mission Analytics
+
+Planning / Intel
+
+GET /api/command/analytics
+
+Aggregated tables
+
+Audit Logs
+
+Security / Admin
+
+GET /api/audit/logs
+
+AuditLogs
+
+Export Tools
+
+Documentation
+
+GET /api/mission/export
+
+All modules
+
+Interop API
+
+External
+
+GET /api/public/interop
+
+Shared views
+
+Role Management
+
+Auth
+
+POST /api/admin/roles
+
+UserRoles
+
+🧭 UI & Navigation
+
+New Tabs or Screens (Command Side):
+
+[📈 Analytics Dashboard]
+
+[🛠️ Admin Tools]
+
+[📤 Export Mission]
+
+[🔒 Audit Logs Viewer]
+
+[🔗 Interop Preview]
+
+Mobile App:
+
+Minimal changes; optional access to Export or AAR history per role
+
+⏳ Suggested Timeline (~2–3 Weeks)
+
+Day(s)
+
+Task
+
+1–2
+
+Build audit log + action tracker
+
+3–4
+
+Develop analytics dashboard views
+
+5–6
+
+Add export engine + ZIP builder
+
+7–9
+
+Interop API preview + secure authentication
+
+10–12
+
+Admin roles tool (assignments, restrictions, logic)
+
+13–15
+
+UI polish, backend linking, testing
+
+16–17
+
+Documentation, rollout package
+
