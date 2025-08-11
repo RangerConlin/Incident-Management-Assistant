@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Slot, Signal
+from PySide6.QtCore import QObject, Slot, QVariant
 
 class QmlSettingsBridge(QObject):
     def __init__(self, manager):
