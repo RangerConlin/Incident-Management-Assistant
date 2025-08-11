@@ -201,15 +201,16 @@ def get_all_active_missions():
 def get_mission_by_id(mission_id):
     import sqlite3
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row #Allows access like a dictionary
-    cursor = conn.cursor
+    conn.row_factory = sqlite3.Row  # Allows access like a dictionary
+    cursor = conn.cursor()
 
     cursor.execute("SELECT * FROM missions WHERE id = ?", (mission_id,))
     row = cursor.fetchone()
-
+    description = cursor.description
     conn.close()
+
     if row:
-        keys = [desc[0] for desc in cursor.description]
+        keys = [desc[0] for desc in description]
         return dict(zip(keys, row))
     return None
 
