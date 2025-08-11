@@ -242,7 +242,7 @@ class MainWindow(QMainWindow):
 
     def open_task_detail(self):
         self.task_window = QQuickView()
-        self.task_window.setSource(QUrl("TaskDetail.qml"))
+        self.task_window.setSource(QUrl("modules/operations/qml/taskdetail.qml"))
         self.task_window.setResizeMode(QQuickView.SizeRootObjectToView)
         self.task_window.setColor("white")
         self.task_window.show()
