@@ -61,4 +61,6 @@ def open_mission_list(main_window=None):
             "missionModel": model,
             "missionHandler": handler
         })
+        root = win.qml_widget.rootObject()
+        root.missionSelected.connect(handler.select_mission)
         win.exec()
