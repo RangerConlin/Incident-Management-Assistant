@@ -203,12 +203,12 @@ class MainWindow(QMainWindow):
         pio_menu.addSeparator()
         pio_menu.addAction(QAction("Comms Log (ICS-309)", self))
 
-        # Liason Menu
-        liason_menu = menu_bar.addMenu("Liason")
-        liason_menu.addAction(QAction("Liason Officer Unit Log (ICS-214)", self))
-        liason_menu.addSeparator()
-        liason_menu.addAction(QAction("Agency Contacts", self))
-        liason_menu.addAction(QAction("Customer Requests", self))
+        # Liaison Menu
+        liaison_menu = menu_bar.addMenu("Liaison")
+        liaison_menu.addAction(QAction("Liaison Officer Unit Log (ICS-214)", self))
+        liaison_menu.addSeparator()
+        liaison_menu.addAction(QAction("Agency Contacts", self))
+        liaison_menu.addAction(QAction("Customer Requests", self))
 
         # Toolkits Menu
         toolkits_menu = menu_bar.addMenu("Toolkits")
