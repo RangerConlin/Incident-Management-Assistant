@@ -269,23 +269,22 @@ class MainWindow(QMainWindow):
     def open_settings_window(self):
         from PySide6.QtQml import QQmlApplicationEngine
 
-        # Store the engine in self so it doesn't get garbage collected
-        self.settings_engine = QQmlApplicationEngine()
-
         # Create engine and attach global context
-        engine = QQmlApplicationEngine()
+        self.settings_engine = QQmlApplicationEngine()
         settings_manager = SettingsManager()
         self.settings_bridge = QmlSettingsBridge(settings_manager)
-        engine.rootContext().setContextProperty("settingsBridge", self.settings_bridge)
+        self.settings_engine.rootContext().setContextProperty(
+            "settingsBridge", self.settings_bridge
+        )
 
         # Load the QML file
-        engine.load(QUrl.fromLocalFile("qml/settingswindow.qml"))
+        self.settings_engine.load(QUrl.fromLocalFile("qml/settingswindow.qml"))
 
-        if not engine.rootObjects():
+        if not self.settings_engine.rootObjects():
             print("[ERROR] Failed to load settings QML.")
             return
 
-        window = engine.rootObjects()[0]
+        window = self.settings_engine.rootObjects()[0]
         window.show()
 
 if __name__ == "__main__":
