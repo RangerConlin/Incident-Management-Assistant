@@ -136,7 +136,6 @@ class MainWindow(QMainWindow):
         operations_menu.addSeparator()
         operations_menu.addAction(QAction("Tasks", self))
         operations_menu.addAction(QAction("Assign Teams", self))
-        operations_menu.addAction(QAction("Assign Teams", self))
 
         # Logistics Menu
         logistics_menu = menu_bar.addMenu("Logistics")
