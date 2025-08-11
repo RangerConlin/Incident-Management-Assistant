@@ -26,7 +26,8 @@ class MainWindow(QMainWindow):
         if active_id:
             mission = get_mission_by_id(active_id)
             if mission:
-                title = "SARApp - {mission['number']} | {mission['name']}"
+                # Use an f-string so the mission details appear in the title
+                title = f"SARApp - {mission['number']} | {mission['name']}"
             else:
                 title = "SARApp - Incident Management Assistant"
         else:
