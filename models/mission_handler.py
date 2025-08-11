@@ -40,7 +40,7 @@ class MissionHandler(QObject):
         AppState.set_active_mission(mission_id)
         mission = get_mission_by_id(mission_id)
         if mission:
-            print("Selected mission: {mission['number']} - {mission['name']}")
+            print(f"Selected mission: {mission['number']} - {mission['name']}")
         else:
             print("Mission ID not found.")
         self.mission_selected.emit(mission_id)  # Notify QML
