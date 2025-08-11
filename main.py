@@ -14,9 +14,15 @@ from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, settings_manager: SettingsManager | None = None,
+                 settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
         self.setStyleSheet("background-color: #f5f5f5;")
+
+        if settings_manager is None:
+            settings_manager = SettingsManager()
+        if settings_bridge is None:
+            settings_bridge = QmlSettingsBridge(settings_manager)
 
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
@@ -289,7 +295,7 @@ if __name__ == "__main__":
         settings_manager = SettingsManager()
         settings_bridge = QmlSettingsBridge(settings_manager)
 
-        win = MainWindow()
+        win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
         win.show()
         sys.exit(app.exec())
 
