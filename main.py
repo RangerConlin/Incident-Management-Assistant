@@ -248,10 +248,6 @@ class MainWindow(QMainWindow):
         self.task_window.setColor("white")
         self.task_window.show()
 
-    def open_mission_list(self):
-        win = QmlWindow("qml/missionlist.qml", "Select Mission")
-        win.exec()
-
     def update_title_with_active_mission(self):
         print("[DEBUG] update_title_with_active_mission called")
         mission_id = AppState.get_active_mission()
