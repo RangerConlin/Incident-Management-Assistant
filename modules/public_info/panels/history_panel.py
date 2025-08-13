@@ -6,7 +6,7 @@ from ..models.repository import PublicInfoRepository
 class HistoryPanel(QWidget):
     """Read-only panel listing published messages."""
 
-    def __init__(self, mission_id: int, parent=None):
+    def __init__(self, mission_id: str, parent=None):
         super().__init__(parent)
         self.repo = PublicInfoRepository(mission_id)
 

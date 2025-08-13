@@ -3,7 +3,7 @@
 from .models.repository import PublicInfoRepository
 
 
-def seed(mission_id: int) -> None:
+def seed(mission_id: str) -> None:
     repo = PublicInfoRepository(mission_id)
     admin = {"id": 1, "roles": ["PIO", "LeadPIO", "IC"]}
 
@@ -47,4 +47,4 @@ def seed(mission_id: int) -> None:
 
 
 if __name__ == "__main__":
-    seed(1)
+    seed("1")

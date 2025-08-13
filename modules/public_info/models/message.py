@@ -26,7 +26,7 @@ class Status(str, Enum):
 @dataclass
 class Message:
     id: Optional[int]
-    mission_id: int
+    mission_id: str
     title: str
     body: str
     type: MessageType
