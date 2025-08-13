@@ -9,10 +9,16 @@ class SettingsManager:
 
     def load(self):
         if os.path.exists(self.filename):
-            with open(self.filename, "r") as f:
-                self.settings = json.load(f)
+            try:
+                with open(self.filename, "r") as f:
+                    self.settings = json.load(f)
+            except json.JSONDecodeError:
+                print(f"Warning: Failed to decode JSON from {self.filename}. Resetting settings.")
+                self.settings = {}
+                self.save()
         else:
             self.settings = {}
+            self.save()
 
     def save(self):
         with open(self.filename, "w") as f:
