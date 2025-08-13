@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import contextmanager
 
 DB_PATH = 'data/master.db'
 
@@ -7,173 +8,117 @@ def get_connection():
     return sqlite3.connect(DB_PATH)
 
 
+@contextmanager
+def get_cursor():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        yield cursor
+
+
 def get_all_sqlite_sequence():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM sqlite_sequence')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM sqlite_sequence')
+        return cursor.fetchall()
 
 def get_all_ranks():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM ranks')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM ranks')
+        return cursor.fetchall()
 
 def get_all_roles():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM roles')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM roles')
+        return cursor.fetchall()
 
 def get_all_equipment():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM equipment')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM equipment')
+        return cursor.fetchall()
 
 def get_all_form_templates():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM form_templates')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM form_templates')
+        return cursor.fetchall()
 
 def get_all_form_fields():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM form_fields')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM form_fields')
+        return cursor.fetchall()
 
 def get_all_agency_contacts():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM agency_contacts')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM agency_contacts')
+        return cursor.fetchall()
 
 def get_all_task_templates():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM task_templates')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM task_templates')
+        return cursor.fetchall()
 
 def get_all_users():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM users')
+        return cursor.fetchall()
 
 def get_all_settings():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM settings')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM settings')
+        return cursor.fetchall()
 
 def get_all_audit_log():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM audit_log')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM audit_log')
+        return cursor.fetchall()
 
 def get_all_comms_resources():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM comms_resources')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM comms_resources')
+        return cursor.fetchall()
 
 def get_all_login():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM login')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM login')
+        return cursor.fetchall()
 
 def get_all_operationalperiods():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM operationalperiods')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM operationalperiods')
+        return cursor.fetchall()
 
 def get_all_incident_objectives():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM incident_objectives')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM incident_objectives')
+        return cursor.fetchall()
 
 def get_all_personnel():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM personnel')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM personnel')
+        return cursor.fetchall()
 
 def get_all_mission_types():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM mission_types')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM mission_types')
+        return cursor.fetchall()
 
 def get_all_certification_types():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM certification_types')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM certification_types')
+        return cursor.fetchall()
 
 def get_all_personnel_certifications():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM personnel_certifications')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM personnel_certifications')
+        return cursor.fetchall()
 
 def get_all_missions():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM missions')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM missions')
+        return cursor.fetchall()
 
 def get_all_vehicles():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM vehicles')
-    results = cursor.fetchall()
-    conn.close()
-    return results
+    with get_cursor() as cursor:
+        cursor.execute('SELECT * FROM vehicles')
+        return cursor.fetchall()
 
 def insert_new_mission(number, name, type, description, icp_location, is_training):
     conn = get_connection()
