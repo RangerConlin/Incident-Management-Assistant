@@ -9,12 +9,12 @@ from utils.state import AppState
 
 @pytest.fixture(autouse=True)
 def reset_state():
-    AppState._active_mission_id = None
+    AppState._active_mission_number = None
     AppState._active_op_period_id = None
     AppState._active_user_id = None
     AppState._active_user_role = None
     yield
-    AppState._active_mission_id = None
+    AppState._active_mission_number = None
     AppState._active_op_period_id = None
     AppState._active_user_id = None
     AppState._active_user_role = None

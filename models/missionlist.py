@@ -37,7 +37,7 @@ class MissionListModel(QAbstractListModel):
             Qt.UserRole + 5: b"icp_location",
         }
 
-    def get_mission_id(self, row):
+    def get_mission_number(self, row):
         if 0 <= row < len(self._missions):
-            return self._missions[row]['id']
+            return self._missions[row]['number']
         return None

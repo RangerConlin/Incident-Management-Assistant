@@ -6,7 +6,7 @@ import os
 
 from models.mission_handler import MissionHandler
 from models.missionlist import MissionListModel
-from models.database import get_all_active_missions, get_mission_by_id
+from models.database import get_all_active_missions, get_mission_by_number
 from utils.state import AppState
 
 
@@ -46,9 +46,9 @@ def open_mission_list(main_window=None):
 
         handler = MissionHandler()
 
-        def handle_selection(mission_id):
-            AppState.set_active_mission(mission_id)
-            mission = get_mission_by_id(mission_id)
+        def handle_selection(mission_number):
+            AppState.set_active_mission(mission_number)
+            mission = get_mission_by_number(mission_number)
             if mission:
                 print(f"✅ Selected mission: {mission['number']} - {mission['name']}")
                 if main_window:
