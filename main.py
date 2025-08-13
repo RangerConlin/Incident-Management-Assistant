@@ -9,7 +9,7 @@ from modules.operations.panels.team_status_panel import TeamStatusPanel
 from modules.operations.panels.task_status_panel import TaskStatusPanel
 from models.qmlwindow import QmlWindow, new_mission_form, open_mission_list
 from utils.state import AppState
-from models.database import get_mission_by_id
+from models.database import get_mission_by_number
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 
@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
         # Try to load the active mission and include it in the title
         active_id = AppState.get_active_mission()
         if active_id:
-            mission = get_mission_by_id(active_id)
+            mission = get_mission_by_number(active_id)
             if mission:
                 # Use an f-string so the mission details appear in the title
                 title = f"SARApp - {mission['number']} | {mission['name']}"
@@ -258,7 +258,7 @@ class MainWindow(QMainWindow):
         mission_id = AppState.get_active_mission()
         print(f"[DEBUG] Active mission ID: {mission_id}")
         if mission_id:
-                mission = get_mission_by_id(mission_id)
+                mission = get_mission_by_number(mission_id)
                 if mission:
                     print(f"[DEBUG] Setting title to: {mission['number']}: {mission['name']}")
                     self.setWindowTitle(f"SARApp - {mission['number']}: {mission['name']}")

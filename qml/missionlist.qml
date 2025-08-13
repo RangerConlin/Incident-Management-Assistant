@@ -7,7 +7,7 @@ Item {
     width: 800
     height: 500
 
-    signal missionSelected(int missionId)
+    signal missionSelected(string missionId)
 
     Rectangle {
         anchors.fill: parent
@@ -91,8 +91,8 @@ Item {
                             if (clickCount === 2) {
                                 clickTimer.stop()
                                 clickCount = 0
-                                console.log("Double-click detected on ID:", model.id)
-                                root.missionSelected(model.id)
+                                console.log("Double-click detected on ID:", model.number)
+                                root.missionSelected(model.number)
                             }
                         }
                     }

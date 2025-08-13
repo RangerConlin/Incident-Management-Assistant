@@ -14,7 +14,7 @@ class MissionListModel(QAbstractListModel):
 
         mission = self._missions[index.row()]
         if role == Qt.UserRole:
-            return mission["id"]
+            return mission["number"]
         elif role == Qt.UserRole + 1:
             return mission["name"]
         elif role == Qt.UserRole + 2:
@@ -39,5 +39,5 @@ class MissionListModel(QAbstractListModel):
 
     def get_mission_id(self, row):
         if 0 <= row < len(self._missions):
-            return self._missions[row]['id']
+            return self._missions[row]['number']
         return None
