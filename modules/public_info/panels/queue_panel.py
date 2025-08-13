@@ -16,7 +16,7 @@ from ..models.repository import PublicInfoRepository
 class QueuePanel(QWidget):
     """UI panel showing list of PIO messages."""
 
-    def __init__(self, mission_id: int, current_user: dict, parent=None):
+    def __init__(self, mission_id: str, current_user: dict, parent=None):
         super().__init__(parent)
         self.repo = PublicInfoRepository(mission_id)
         self.current_user = current_user

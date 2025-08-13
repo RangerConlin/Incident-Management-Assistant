@@ -12,11 +12,13 @@ def _utcnow() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
-def get_db_path(mission_id: int) -> str:
+def get_db_path(mission_id: str) -> str:
+    mission_id = str(mission_id)
     return os.path.join(DB_DIR, f"{mission_id}.db")
 
 
-def get_connection(mission_id: int) -> sqlite3.Connection:
+def get_connection(mission_id: str) -> sqlite3.Connection:
+    mission_id = str(mission_id)
     path = get_db_path(mission_id)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     conn = sqlite3.connect(path)
@@ -24,14 +26,15 @@ def get_connection(mission_id: int) -> sqlite3.Connection:
     return conn
 
 
-def init_db(mission_id: int) -> None:
+def init_db(mission_id: str) -> None:
+    mission_id = str(mission_id)
     conn = get_connection(mission_id)
     cur = conn.cursor()
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS public_info_messages (
             id INTEGER PRIMARY KEY,
-            mission_id INTEGER NOT NULL,
+            mission_id TEXT NOT NULL,
             title TEXT NOT NULL,
             body TEXT NOT NULL,
             type TEXT NOT NULL,
@@ -63,7 +66,8 @@ def init_db(mission_id: int) -> None:
 
 
 class PublicInfoRepository:
-    def __init__(self, mission_id: int):
+    def __init__(self, mission_id: str):
+        mission_id = str(mission_id)
         init_db(mission_id)
         self.mission_id = mission_id
 
