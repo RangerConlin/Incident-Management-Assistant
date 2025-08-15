@@ -1,6 +1,18 @@
 # main.py
 import sys
-from PySide6.QtWidgets import QApplication, QDockWidget, QPushButton, QMainWindow, QMenu, QLabel, QWidget, QVBoxLayout
+import logging
+from typing import Callable
+
+from PySide6.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QPushButton,
+    QMainWindow,
+    QMenu,
+    QLabel,
+    QWidget,
+    QVBoxLayout,
+)
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, QUrl
@@ -13,11 +25,17 @@ from models.database import get_mission_by_number
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 
+
+logger = logging.getLogger(__name__)
+
 class MainWindow(QMainWindow):
     def __init__(self, settings_manager: SettingsManager | None = None,
                  settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
         self.setStyleSheet("background-color: #f5f5f5;")
+
+        # Track any modeless windows opened directly by this window
+        self._open_windows: list[QWidget] = []
 
         if settings_manager is None:
             settings_manager = SettingsManager()
@@ -64,6 +82,27 @@ class MainWindow(QMainWindow):
 
         # Set up the full menu bar
         self.init_menu_bar()
+
+        # Bind menu actions to their handlers when available
+        self._bind_action(["actionLogistics", "Logistics"], self.open_logistics)
+        self._bind_action([
+            "actionSafety",
+            "Safety",
+            "Medical & Safety",
+        ], self.open_safety)
+        self._bind_action(
+            ["actionReferenceLibrary", "Reference Library", "Resource Library"],
+            self.open_reference_library,
+        )
+        self._bind_action(
+            ["actionPlannedToolkit", "Planned Event Toolkit", "Planned Events"],
+            self.open_planned_toolkit,
+        )
+        self._bind_action(["actionFinance", "Finance", "Finance/Admin"], self.open_finance)
+        self._bind_action(
+            ["actionPublicInfo", "Public Information", "PIO"],
+            self.open_public_info,
+        )
 
     def open_ics214(self):
             win = QmlWindow("modules/intel/qml/intellog.qml", "Intel Unit Log (ICS-214)")
@@ -245,6 +284,113 @@ class MainWindow(QMainWindow):
         resource_menu.addSeparator()
         resource_menu.addAction(QAction("User Guide", self))
         resource_menu.addAction(QAction("About SARApp", self))
+        
+
+    def _find_action_by_text(self, texts: list[str]) -> QAction | None:
+        """Search the menu bar for an action matching any text candidate."""
+        targets = {t.strip().lower() for t in texts}
+
+        def search(actions: list[QAction]) -> QAction | None:
+            for act in actions:
+                if act.text().strip().lower() in targets:
+                    return act
+                submenu = act.menu()
+                if submenu:
+                    found = search(submenu.actions())
+                    if found:
+                        return found
+            return None
+
+        return search(self.menuBar().actions())
+
+    def _bind_action(self, name_candidates: list[str], slot: Callable) -> None:
+        """Bind the first matching action to ``slot``."""
+        action: QAction | None = None
+        for candidate in name_candidates:
+            action = self.findChild(QAction, candidate)
+            if action:
+                break
+        if not action:
+            action = self._find_action_by_text(name_candidates)
+
+        if action:
+            try:  # Remove existing connections if any
+                action.triggered.disconnect()
+            except Exception:
+                pass
+            action.triggered.connect(slot)
+        else:
+            logger.warning("Unable to locate action for %s", name_candidates)
+
+    def _open_modeless(self, widget: QWidget, title: str) -> None:
+        """Display *widget* as a modeless window, tracking it for cleanup."""
+        # Attempt to use any provided docking/MDI helpers first
+        if hasattr(self, "docking_helper") and callable(
+            getattr(self.docking_helper, "open_widget", None)
+        ):
+            self.docking_helper.open_widget(widget, title)
+            return
+        if hasattr(self, "mdi_area"):
+            widget.setWindowTitle(title)
+            self.mdi_area.addSubWindow(widget)
+            widget.show()
+            return
+
+        widget.setWindowTitle(title)
+        self._open_windows.append(widget)
+
+        def _cleanup(_: object = None, w: QWidget = widget) -> None:
+            if w in self._open_windows:
+                self._open_windows.remove(w)
+
+        widget.destroyed.connect(_cleanup)
+        widget.show()
+
+    def open_logistics(self) -> None:
+        from modules import logistics
+
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_logistics_panel(mission_id)
+        self._open_modeless(panel, title="Logistics")
+
+    def open_safety(self) -> None:
+        from modules import safety
+
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = safety.get_safety_panel(mission_id)
+        self._open_modeless(panel, title="Safety")
+
+    def open_reference_library(self) -> None:
+        from modules import referencelibrary
+
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = referencelibrary.get_library_panel()
+        self._open_modeless(panel, title="Reference Library")
+
+    def open_planned_toolkit(self) -> None:
+        from modules import plannedtoolkit
+
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = plannedtoolkit.get_planned_toolkit_panel()
+        self._open_modeless(panel, title="Planned Event Toolkit")
+
+    def open_finance(self) -> None:
+        from modules import finance
+
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = finance.get_finance_panel(mission_id)
+        self._open_modeless(panel, title="Finance")
+
+    def open_public_info(self) -> None:
+        mission_id = getattr(self, "current_mission_id", None)
+        try:
+            from modules import public_info
+        except ImportError:
+            logger.warning("Public info module not available")
+            return
+
+        panel = public_info.get_public_info_panel(mission_id)
+        self._open_modeless(panel, title="Public Information")
 
     def open_task_detail(self):
         self.task_window = QQuickView()
