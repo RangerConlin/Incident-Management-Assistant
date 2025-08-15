@@ -1,11 +1,11 @@
 from PySide6.QtCore import QObject, Slot, Signal
 from models.mission import Mission
-from models.database import insert_new_mission, get_mission_by_id
+from models.database import insert_new_mission, get_mission_by_number
 from utils.mission_db import create_mission_database
 from utils.state import AppState
 
 class MissionHandler(QObject):
-    mission_selected = Signal(str)  # Emit mission_id as int
+    mission_selected = Signal(str)  # Emit mission number as str
 
     def __init__(self):
         super().__init__()
@@ -32,15 +32,17 @@ class MissionHandler(QObject):
             new_mission.icp_location,
             new_mission.is_training
         )
-        create_mission_database(mission_id)
-        print(f" Mission '{name}' created with ID {mission_id}")
+        mission_number = new_mission.number
+        create_mission_database(mission_number)
+        AppState.set_active_mission(mission_number)
+        print(f" Mission '{name}' created with ID {mission_id} and number {mission_number}")
 
-    @Slot(int)
-    def select_mission(self, mission_id):
-        AppState.set_active_mission(mission_id)
-        mission = get_mission_by_id(mission_id)
+    @Slot(str)
+    def select_mission(self, mission_number):
+        AppState.set_active_mission(mission_number)
+        mission = get_mission_by_number(mission_number)
         if mission:
             print(f"Selected mission: {mission['number']} - {mission['name']}")
         else:
-            print("Mission ID not found.")
-        self.mission_selected.emit(mission_id)  # Notify QML
+            print("Mission number not found.")
+        self.mission_selected.emit(mission_number)  # Notify QML
