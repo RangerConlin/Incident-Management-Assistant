@@ -16,7 +16,7 @@ from ..models.repository import PublicInfoRepository
 class EditorPanel(QWidget):
     """Editor panel for creating and managing a PIO message."""
 
-    def __init__(self, mission_id: int, current_user: dict, message_id: int | None = None, parent=None):
+    def __init__(self, mission_id: str, current_user: dict, message_id: int | None = None, parent=None):
         super().__init__(parent)
         self.repo = PublicInfoRepository(mission_id)
         self.current_user = current_user
