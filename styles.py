@@ -47,7 +47,7 @@ TEAM_TYPE_COLORS = {
     "UAS":     QColor("#00cec9"),
     "AIR":     QColor("#00a8ff"),
     "K9":      QColor("#8b0000"),
-    "UTIL":    QColor("gray"),
+    "UTIL":    QColor("#7a7a7a"),
 }
 
 # -----------------------------
@@ -66,7 +66,7 @@ LIGHT_MODE = {
 # -----------------------------
 DARK_MODE = {
     "background": QColor("#2c2c2c"),
-    "text":       QColor("#ffffff"),
+    "text":       QColor("#B4B4B4"),
     "primary":    QColor("#003a67"),
     "secondary":  QColor("#424242"),
     "highlight":  QColor("#ffb300")

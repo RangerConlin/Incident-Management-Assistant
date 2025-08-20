@@ -8,6 +8,8 @@ __pycache__/
 .venv/
 venv/
 env/
+.qtcreator/
+.qtc_clangd/
 
 # IDE & editor files
 *.creator

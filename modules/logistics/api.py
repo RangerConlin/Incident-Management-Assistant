@@ -4,8 +4,8 @@
 
 from fastapi import APIRouter
 
-from . import services
-from .models import (
+from modules.logistics import services
+from modules.logistics.models import (
     ResourceRequestCreate,
     ResourceRequestRead,
     RequestApprovalCreate,

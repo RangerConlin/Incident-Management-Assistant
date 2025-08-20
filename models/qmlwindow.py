@@ -50,7 +50,7 @@ def open_mission_list(main_window=None):
             AppState.set_active_mission(mission_number)
             mission = get_mission_by_number(mission_number)
             if mission:
-                print(f"✅ Selected mission: {mission['number']} - {mission['name']}")
+                print(f"Selected mission: {mission['number']} - {mission['name']}")
                 if main_window:
                     main_window.update_title_with_active_mission()
 

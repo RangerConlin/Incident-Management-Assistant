@@ -6,8 +6,8 @@ from fastapi.responses import StreamingResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-from .models.repository import PublicInfoRepository
-from .models.schemas import (
+from modules.public_info.models.repository import PublicInfoRepository
+from modules.public_info.models.schemas import (
     MessageCreate,
     MessageList,
     MessageRead,

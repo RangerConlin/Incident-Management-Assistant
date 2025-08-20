@@ -7,8 +7,8 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile
 
-from . import services
-from .models.schemas import (
+from modules.referencelibrary import services
+from modules.referencelibrary.models.schemas import (
     CollectionCreate,
     CollectionRead,
     DocumentCreate,

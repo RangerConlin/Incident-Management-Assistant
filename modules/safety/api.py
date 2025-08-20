@@ -3,8 +3,8 @@ from typing import List, Optional
 
 from fastapi import APIRouter
 
-from . import services
-from .models import schemas
+from modules.safety import services
+from modules.safety .models import schemas
 
 router = APIRouter()
 

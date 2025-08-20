@@ -3,26 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 
-from . import services
-from .models.schemas import (
-    VendorRead,
-    LaborRateRead,
-    EquipmentRateRead,
-    AccountRead,
-    TimeEntryCreate,
-    TimeEntryUpdate,
-    RequisitionCreate,
-    POCreate,
-    ReceiptCreate,
-    InvoiceCreate,
-    InvoiceUpdate,
-    CostEntryCreate,
-    BudgetCreate,
-    DailyCostFinalizeRequest,
-    ClaimCreate,
-    ClaimUpdate,
-    ReportRequest,
-    ExportArtifactRead,
+from modules.finance import services
+from modules.finance.models.schemas import (
+    VendorRead, LaborRateRead, EquipmentRateRead, AccountRead,
+    TimeEntryCreate, TimeEntryUpdate, RequisitionCreate, POCreate,
+    ReceiptCreate, InvoiceCreate, InvoiceUpdate, CostEntryCreate,
+    BudgetCreate, DailyCostFinalizeRequest, ClaimCreate, ClaimUpdate,
+    ReportRequest, ExportArtifactRead,
 )
 
 router = APIRouter(prefix="/api/finance", tags=["finance"])

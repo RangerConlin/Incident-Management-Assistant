@@ -5,8 +5,8 @@ from typing import List
 
 from fastapi import APIRouter
 
-from . import services, exporter
-from .models import schemas
+from modules.plannedtoolkit import services, exporter
+from modules.plannedtoolkit.models import schemas
 
 router = APIRouter(prefix="/api/planned", tags=["planned"])
 
