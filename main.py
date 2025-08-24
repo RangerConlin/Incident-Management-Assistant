@@ -1,8 +1,8 @@
-# main.py
+# ===== Part 1: Imports & Logging ============================================
 import sys
 import logging
-from typing import Callable, Any, Dict
-from xml.sax import handler
+from typing import Callable
+from xml.sax import handler  # preserved from original
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -18,251 +18,93 @@ from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtQuick import QQuickView
+
+# (Panels previously used directly; retained imports in case you still need them elsewhere)
 from modules.operations.panels.team_status_panel import TeamStatusPanel
 from modules.operations.panels.task_status_panel import TaskStatusPanel
+
+# (QML utilities kept, though handlers now follow panel-factory pattern)
 from models.qmlwindow import QmlWindow, new_mission_form, open_mission_list
 from utils.state import AppState
 from models.database import get_mission_by_number
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 
-
 logger = logging.getLogger(__name__)
 
+
+# ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
 class MainWindow(QMainWindow):
+    """
+    Menu-first structure. Every visible menu item has a corresponding handler method,
+    and ALL handlers follow the same pattern:
+      - import module
+      - mission_id = getattr(self, "current_mission_id", None)
+      - panel = module.get_*_panel(mission_id)
+      - self._open_modeless(panel, title="...")
+    Placeholders are fine if a real module/factory doesn't exist yet.
+    """
     def __init__(self, settings_manager: SettingsManager | None = None,
                  settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
         self.setStyleSheet("background-color: #f5f5f5;")
-
-        # Track any modeless windows opened directly by this window
-        self._open_windows: list[QWidget] = []
+        self._open_windows: list[QWidget] = []  # track modeless windows
 
         if settings_manager is None:
             settings_manager = SettingsManager()
         if settings_bridge is None:
             settings_bridge = QmlSettingsBridge(settings_manager)
-
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
-        # Try to load the active mission and include it in the title
+        # Title includes active mission (if any)
         active_number = AppState.get_active_mission()
         if active_number:
             mission = get_mission_by_number(active_number)
             if mission:
-                # Use an f-string so the mission details appear in the title
                 title = f"SARApp - {mission['number']} | {mission['name']}"
             else:
                 title = "SARApp - Incident Management Assistant"
         else:
             title = "SARApp - Incident Management Assistant"
-
         self.setWindowTitle(title)
         self.resize(1280, 800)
 
+        # Central placeholder
         self.setCentralWidget(QLabel("SARApp Dashboard"))
 
-        # Dock panel example
+        # Example dock panels
         dock = QDockWidget("Teams Panel", self)
         dock.setWidget(QPushButton("Open Task Detail"))
         dock.widget().clicked.connect(self.open_task_detail)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
 
-        # Team Status Dock
         team_panel = TeamStatusPanel()
         dock = QDockWidget("Team Status", self)
         dock.setWidget(team_panel)
         self.addDockWidget(Qt.TopDockWidgetArea, dock)
 
-        # Task Status Dock
         task_panel = TaskStatusPanel()
         dock = QDockWidget("Task Status", self)
         dock.setWidget(task_panel)
         self.addDockWidget(Qt.BottomDockWidgetArea, dock)
 
-        # Set up the full menu bar
-        #self.init_menu_bar()
+        # Build the physical menu bar (visible UI)
         self.init_module_menus()
 
-        # Bind menu actions to their handlers when available
-        self._bind_action(["actionLogistics", "Logistics"], self.open_logistics)
-        self._bind_action([
-            "actionSafety",
-            "Safety",
-            "Medical & Safety",
-        ], self.open_safety)
-        self._bind_action(
-            ["actionReferenceLibrary", "Reference Library", "Resource Library"],
-            self.open_reference_library,
-        )
-        self._bind_action(
-            ["actionPlannedToolkit", "Planned Event Toolkit", "Planned Events"],
-            self.open_planned_toolkit,
-        )
-        self._bind_action(["actionFinance", "Finance", "Finance/Admin"], self.open_finance)
-        self._bind_action(
-            ["actionPublicInfo", "Public Information", "PIO"],
-            self.open_public_info,
-        )
-
-    def open_ics214(self):
-            win = QmlWindow("modules/intel/qml/intellog.qml", "Intel Unit Log (ICS-214)")
-            win.exec()
-
-    def open_clue_log(self):
-            win = QmlWindow("modules/intel/qml/sar134.qml", "Clue Log (SAR-134)")
-            win.exec()
-
-    def open_add_clue(self):
-            win = QmlWindow("modules/intel/qml/sar135.qml", "Add Clue (SAR-135)")
-            win.exec()
-        
-    def open_module(self, key: str):
-        """Central router: swap to the correct panel/window for a module key.
-        Replace prints with your real show-panel logic.
-        """
-        print(f"[OpenModule] {key}")
-
-        # TODO: map keys to real handlers, e.g.:
-        # if key == "operations.taskings":
-        #     self._open_modeless(TaskStatusPanel(self), title="Taskings")
-        # elif key == "logistics.requests":
-        #     self._open_modeless(
-        #         QmlWindow("modules/logistics/qml/requests.qml", "Resource Requests"),
-        #         title="Resource Requests"
-        #     )
-        # else:
-        #     self._open_modeless(QmlWindow("modules/common/qml/placeholder.qml", key), title=key)
-
-        handlers: dict[str, Callable[[], None]] = {
-            # ----- Menu -----
-            "menu.new_mission": lambda: new_mission_form(),
-            "menu.open_mission": lambda: open_mission_list(self),
-            "menu.save_mission": lambda: print("[OpenModule] Save Mission not implemented yet"),
-            "menu.settings": self.open_settings_window,
-            "menu.exit": lambda: QApplication.instance().quit(),
-
-            # ----- Edit -----
-            "edit.ems_hospitals": self.open_settings_window,
-            "edit.canned_comm_entries": self.open_settings_window,
-            "edit.personnel": self.open_logistics,
-            "edit.objectives": self.open_settings_window,
-            "edit.task_types": self.open_settings_window,
-            "edit.team_types": self.open_settings_window,
-            "edit.vehicles": self.open_logistics,
-            "edit.equipment": self.open_logistics,
-            "communications.217": self.open_public_info,  # placeholder
-
-            # ----- Command -----
-            "command.unit_log": self.open_ics214,  # ICS-214
-            "command.incident_overview": lambda: self._open_modeless(TeamStatusPanel(), title="Incident Overview"),
-            "command.iap": self.open_public_info,         # placeholder
-            "command.objectives": lambda: self._open_modeless(TaskStatusPanel(), title="Incident Objectives"),
-            "command.staff_org": self.open_public_info,   # placeholder
-            "command.sitrep": self.open_public_info,      # placeholder
-
-            # ----- Planning -----
-            "planning.unit_log": self.open_ics214,        # ICS-214
-            "planning.dashboard": lambda: self._open_modeless(TaskStatusPanel(), title="Planning Dashboard"),
-            "planning.approvals": self.open_public_info,  # placeholder
-            "planning.forecast": self.open_public_info,   # placeholder
-            "planning.op_manager": self.open_public_info, # placeholder
-            "planning.taskmetrics": lambda: self._open_modeless(TaskStatusPanel(), title="Task Metrics Dashboard"),
-            "planning.strategic_objectives": lambda: self._open_modeless(TaskStatusPanel(), title="Strategic Objective Tracker"),
-            "planning.sitrep": self.open_public_info,     # placeholder
-
-            # ----- Operations -----
-            "operations.unit_log": self.open_ics214,      # ICS-214
-            "operations.dashboard": lambda: self._open_modeless(TeamStatusPanel(), title="Assignments Dashboard"),
-            "operations.team_assignments": lambda: self._open_modeless(TeamStatusPanel(), title="Team Assignments"),
-
-            # ----- Logistics -----
-            "logistics.unit_log": self.open_ics214,       # ICS-214
-            "logistics.dashboard": self.open_logistics,
-            "logistics.211": self.open_logistics,         # Check-In ICS-211 lives in Logistics panel
-            "logistics.requests": self.open_logistics,
-            "logistics.equipment": self.open_logistics,
-            "logistics.213rr": lambda: self._open_modeless(ResourceRequestPanel(), title="Resource Request (ICS-213RR)"),
-
-            # ----- Communications -----
-            "comms.unit_log": self.open_ics214,           # ICS-214
-            "comms.chat": self.open_public_info,          # placeholder until Comms UI
-            "comms.213": self.open_public_info,           # placeholder (ICS-213 messages)
-            "comms.205": self.open_public_info,           # placeholder (ICS-205)
-
-            # ----- Intel -----
-            "intel.unit_log": self.open_ics214,           # ICS-214
-            "intel.dashboard": self.open_ics214,          # placeholder
-            "intel.clue_log": self.open_clue_log,
-            "intel.add_clue": self.open_add_clue,
-
-            # ----- Medical & Safety -----
-            "medical.unit_log": self.open_ics214,
-            "safety.unit_log": self.open_ics214,
-            "medical.206": self.open_safety,              # handled in Safety/Medical panel
-            "safety.208": self.open_safety,
-            "safety.215A": self.open_safety,
-            "safety.caporm": self.open_safety,
-
-            # ----- Liaison -----
-            "liaison.unit_log": self.open_ics214,
-            "liaison.agencies": self.open_public_info,    # placeholder
-            "liaison.requests": self.open_public_info,    # placeholder
-
-            # ----- Public Information -----
-            "public.unit_log": self.open_ics214,
-            "public.media_releases": self.open_public_info,
-            "public.inquiries": self.open_public_info,
-
-            # ----- Finance/Admin -----
-            "finance.unit_log": self.open_ics214,
-            "finance.time": self.open_finance,
-            "finance.procurement": self.open_finance,
-            "finance.summary": self.open_finance,
-
-            # ----- Toolkits -----
-            "toolkit.sar.missing_person": self.open_planned_toolkit,
-            "toolkit.sar.pod": self.open_planned_toolkit,
-            "toolkit.disaster.damage": self.open_planned_toolkit,
-            "toolkit.disaster.urban_interview": self.open_planned_toolkit,
-            "toolkit.disaster.photos": self.open_planned_toolkit,
-            "planned.promotions": self.open_planned_toolkit,
-            "planned.vendors": self.open_planned_toolkit,
-            "planned.safety": self.open_planned_toolkit,
-            "planned.tasking": self.open_planned_toolkit,
-            "planned.health_sanitation": self.open_planned_toolkit,
-            "toolkit.initial.hasty": self.open_planned_toolkit,
-            "toolkit.initial.reflex": self.open_planned_toolkit,
-
-            # ----- Forms & Library -----
-            "forms": self.open_reference_library,         # using Reference Library panel for now
-            "library": self.open_reference_library,
-            "help.user_guide": self.open_public_info,     # placeholder
-
-            # ----- Help -----
-            "help.about": self.open_public_info,          # placeholder
-        }
-
-        handler = handlers.get(key)
-        if handler:
-            handler()
-        else:
-            print(f"[OpenModule] no handler for {key}")
-
-
+    # ----- Part 2.A: Physical Menu Builder ----------------------------------
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
+        """Create a QAction, attach module_key, connect to router, and add to menu."""
         act = QAction(text, self)
         if keyseq:
             act.setShortcut(QKeySequence(keyseq))
-        # store module key so we can enable/disable later
         act.setData({"module_key": module_key})
         act.triggered.connect(lambda: self.open_module(module_key))
         menu.addAction(act)
         return act
 
     def init_module_menus(self):
-        """Builds the full module menu structure in QtWidgets (keeps UI in Python)."""
+        """Build the entire menu tree in one place; handlers live below."""
         mb = self.menuBar()
 
         # ----- Menu -----
@@ -289,7 +131,7 @@ class MainWindow(QMainWindow):
         # ----- Command -----
         m_cmd = mb.addMenu("Command")
         self._add_action(m_cmd, "Command Unit Log ICS-214", None, "command.unit_log")
-        m_cmd.addSeparator()        
+        m_cmd.addSeparator()
         self._add_action(m_cmd, "Incident Overview", None, "command.incident_overview")
         self._add_action(m_cmd, "Incident Action Plan Builder", None, "command.iap")
         self._add_action(m_cmd, "Incident Objectives (ICS 202)", None, "command.objectives")
@@ -321,9 +163,9 @@ class MainWindow(QMainWindow):
         m_log.addSeparator()
         self._add_action(m_log, "Logistics Dashboard", "Ctrl+L", "logistics.dashboard")
         self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
-        self._add_action(m_log, "Resource Requests", "Ctrl+L", "logistics.requests")
+        self._add_action(m_log, "Resource Requests", "Ctrl+Shift+R", "logistics.requests")
         self._add_action(m_log, "Equipment Inventory", None, "logistics.equipment")
-        self._add_action(m_log, "Resource Requests", None, "logistics.213rr")
+        self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
 
         # ----- Communications -----
         m_comms = mb.addMenu("Communications")
@@ -333,7 +175,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
         self._add_action(m_comms, "Communications Plan ICS-205", None, "comms.205")
 
-        # ----- Intel & Mapping -----
+        # ----- Intel -----
         m_intel = mb.addMenu("Intel")
         self._add_action(m_intel, "Intel Unit Log ICS-214", None, "intel.unit_log")
         m_intel.addSeparator()
@@ -396,25 +238,19 @@ class MainWindow(QMainWindow):
         self._add_action(init_menu, "Reflex Taskings", None, "toolkit.initial.reflex")
 
         # ----- Forms & Library -----
-        m_forms = mb.addMenu("Resources")
+        m_forms = self.menuBar().addMenu("Resources")
         self._add_action(m_forms, "Form Library", None, "forms")
         self._add_action(m_forms, "Reference Library", None, "library")
         m_forms.addSeparator()
         self._add_action(m_forms, "User Guide", None, "help.user_guide")
 
         # ----- Help -----
-        m_help = mb.addMenu("Help")
+        m_help = self.menuBar().addMenu("Help")
         self._add_action(m_help, "About", None, "help.about")
         self._add_action(m_help, "User Guide", None, "help.user_guide")
 
-        # Example: grey-out items you haven't built yet
-        self._gate_menus_by_availability({
-           # "mobile": False,
-            #"toolkit.disaster.damage": False,
-           # "planned.promotions": False,
-           # "planned.vendors": False,
-            #"planned.safety": False,
-        })
+        self._gate_menus_by_availability({})
+        # you can toggle feature availability here, e.g.: {"planned.promotions": False}
 
     def _gate_menus_by_availability(self, enabled_map: dict[str, bool]):
         """Grey-out actions whose module keys are disabled in enabled_map."""
@@ -426,45 +262,603 @@ class MainWindow(QMainWindow):
                     if key in enabled_map:
                         act.setEnabled(bool(enabled_map[key]))
 
-    def _find_action_by_text(self, texts: list[str]) -> QAction | None:
-        """Search the menu bar for an action matching any text candidate."""
-        targets = {t.strip().lower() for t in texts}
+    # ===== Part 3: Central Router (module_key -> handler) ====================
+    def open_module(self, key: str):
+        """Central router: call explicit handler for every menu item (panel pattern)."""
+        handlers: dict[str, Callable[[], None]] = {
+            # ----- Menu -----
+            "menu.new_mission": self.open_menu_new_mission,
+            "menu.open_mission": self.open_menu_open_mission,
+            "menu.save_mission": self.open_menu_save_mission,
+            "menu.settings": self.open_menu_settings,
+            "menu.exit": self.open_menu_exit,  # special-case: still exits
 
-        def search(actions: list[QAction]) -> QAction | None:
-            for act in actions:
-                if act.text().strip().lower() in targets:
-                    return act
-                submenu = act.menu()
-                if submenu:
-                    found = search(submenu.actions())
-                    if found:
-                        return found
-            return None
+            # ----- Edit -----
+            "edit.ems_hospitals": self.open_edit_ems_hospitals,
+            "edit.canned_comm_entries": self.open_edit_canned_comm_entries,
+            "edit.personnel": self.open_edit_personnel,
+            "edit.objectives": self.open_edit_objectives,
+            "edit.task_types": self.open_edit_task_types,
+            "edit.team_types": self.open_edit_team_types,
+            "edit.vehicles": self.open_edit_vehicles,
+            "edit.equipment": self.open_edit_equipment,
+            "communications.217": self.open_edit_comms_resources,
 
-        return search(self.menuBar().actions())
+            # ----- Command -----
+            "command.unit_log": self.open_command_unit_log,
+            "command.incident_overview": self.open_command_incident_overview,
+            "command.iap": self.open_command_iap,
+            "command.objectives": self.open_command_objectives,
+            "command.staff_org": self.open_command_staff_org,
+            "command.sitrep": self.open_command_sitrep,
 
-    def _bind_action(self, name_candidates: list[str], slot: Callable) -> None:
-        """Bind the first matching action to ``slot``."""
-        action: QAction | None = None
-        for candidate in name_candidates:
-            action = self.findChild(QAction, candidate)
-            if action:
-                break
-        if not action:
-            action = self._find_action_by_text(name_candidates)
+            # ----- Planning -----
+            "planning.unit_log": self.open_planning_unit_log,
+            "planning.dashboard": self.open_planning_dashboard,
+            "planning.approvals": self.open_planning_approvals,
+            "planning.forecast": self.open_planning_forecast,
+            "planning.op_manager": self.open_planning_op_manager,
+            "planning.taskmetrics": self.open_planning_taskmetrics,
+            "planning.strategic_objectives": self.open_planning_strategic_objectives,
+            "planning.sitrep": self.open_planning_sitrep,
 
-        if action:
-            try:  # Remove existing connections if any
-                action.triggered.disconnect()
-            except Exception:
-                pass
-            action.triggered.connect(slot)
+            # ----- Operations -----
+            "operations.unit_log": self.open_operations_unit_log,
+            "operations.dashboard": self.open_operations_dashboard,
+            "operations.team_assignments": self.open_operations_team_assignments,
+
+            # ----- Logistics -----
+            "logistics.unit_log": self.open_logistics_unit_log,
+            "logistics.dashboard": self.open_logistics_dashboard,
+            "logistics.211": self.open_logistics_211,
+            "logistics.requests": self.open_logistics_requests,
+            "logistics.equipment": self.open_logistics_equipment,
+            "logistics.213rr": self.open_logistics_213rr,
+
+            # ----- Communications -----
+            "comms.unit_log": self.open_comms_unit_log,
+            "comms.chat": self.open_comms_chat,
+            "comms.213": self.open_comms_213,
+            "comms.205": self.open_comms_205,
+
+            # ----- Intel -----
+            "intel.unit_log": self.open_intel_unit_log,
+            "intel.dashboard": self.open_intel_dashboard,
+            "intel.clue_log": self.open_intel_clue_log,
+            "intel.add_clue": self.open_intel_add_clue,
+
+            # ----- Medical & Safety -----
+            "medical.unit_log": self.open_medical_unit_log,
+            "safety.unit_log": self.open_safety_unit_log,
+            "medical.206": self.open_medical_206,
+            "safety.208": self.open_safety_208,
+            "safety.215A": self.open_safety_215A,
+            "safety.caporm": self.open_safety_caporm,
+
+            # ----- Liaison -----
+            "liaison.unit_log": self.open_liaison_unit_log,
+            "liaison.agencies": self.open_liaison_agencies,
+            "liaison.requests": self.open_liaison_requests,
+
+            # ----- Public Information -----
+            "public.unit_log": self.open_public_unit_log,
+            "public.media_releases": self.open_public_media_releases,
+            "public.inquiries": self.open_public_inquiries,
+
+            # ----- Finance/Admin -----
+            "finance.unit_log": self.open_finance_unit_log,
+            "finance.time": self.open_finance_time,
+            "finance.procurement": self.open_finance_procurement,
+            "finance.summary": self.open_finance_summary,
+
+            # ----- Toolkits -----
+            "toolkit.sar.missing_person": self.open_toolkit_sar_missing_person,
+            "toolkit.sar.pod": self.open_toolkit_sar_pod,
+            "toolkit.disaster.damage": self.open_toolkit_disaster_damage,
+            "toolkit.disaster.urban_interview": self.open_toolkit_disaster_urban_interview,
+            "toolkit.disaster.photos": self.open_toolkit_disaster_photos,
+            "planned.promotions": self.open_planned_promotions,
+            "planned.vendors": self.open_planned_vendors,
+            "planned.safety": self.open_planned_safety,
+            "planned.tasking": self.open_planned_tasking,
+            "planned.health_sanitation": self.open_planned_health_sanitation,
+            "toolkit.initial.hasty": self.open_toolkit_initial_hasty,
+            "toolkit.initial.reflex": self.open_toolkit_initial_reflex,
+
+            # ----- Forms & Library -----
+            "forms": self.open_forms,
+            "library": self.open_reference_library,
+            "help.user_guide": self.open_help_user_guide,
+
+            # ----- Help -----
+            "help.about": self.open_help_about,
+        }
+
+        handler = handlers.get(key)
+        if handler:
+            handler()
         else:
-            logger.warning("Unable to locate action for %s", name_candidates)
+            print(f"[OpenModule] no handler for {key}")
 
+# ===== Part 4: Handlers in Menu Order (panel-factory pattern) ============
+# --- 4.1 Menu ------------------------------------------------------------
+    def open_menu_new_mission(self) -> None:
+        from modules import missions
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = missions.get_new_mission_panel(mission_id)
+        self._open_modeless(panel, title="New Mission")
+
+    def open_menu_open_mission(self) -> None:
+        from modules import missions
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = missions.get_mission_list_panel(mission_id)
+        self._open_modeless(panel, title="Open Mission")
+
+    def open_menu_save_mission(self) -> None:
+        from modules import missions
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = missions.get_save_mission_panel(mission_id)
+        self._open_modeless(panel, title="Save Mission")
+
+    def open_menu_settings(self) -> None:
+        from modules import settingsui
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = settingsui.get_settings_panel(mission_id)
+        self._open_modeless(panel, title="Settings")
+
+    def open_menu_exit(self) -> None:
+        # Exit remains a direct action rather than opening a panel.
+        QApplication.instance().quit()
+
+# --- 4.2 Edit ------------------------------------------------------------
+    def open_edit_ems_hospitals(self) -> None:
+        from modules import editpanels
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = editpanels.get_ems_hospitals_panel(mission_id)
+        self._open_modeless(panel, title="EMS & Hospitals")
+
+    def open_edit_canned_comm_entries(self) -> None:
+        from modules import editpanels
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = editpanels.get_canned_comm_entries_panel(mission_id)
+        self._open_modeless(panel, title="Canned Communication Entries")
+
+    def open_edit_personnel(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_personnel_panel(mission_id)
+        self._open_modeless(panel, title="Personnel")
+
+    def open_edit_objectives(self) -> None:
+        from modules import editpanels
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = editpanels.get_objectives_panel(mission_id)
+        self._open_modeless(panel, title="Objectives")
+
+    def open_edit_task_types(self) -> None:
+        from modules import editpanels
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = editpanels.get_task_types_panel(mission_id)
+        self._open_modeless(panel, title="Task Types")
+
+    def open_edit_team_types(self) -> None:
+        from modules import editpanels
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = editpanels.get_team_types_panel(mission_id)
+        self._open_modeless(panel, title="Team Types")
+
+    def open_edit_vehicles(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_vehicles_panel(mission_id)
+        self._open_modeless(panel, title="Vehicles")
+
+    def open_edit_equipment(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_equipment_panel(mission_id)
+        self._open_modeless(panel, title="Equipment")
+
+    def open_edit_comms_resources(self) -> None:
+        from modules import comms
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = comms.get_217_panel(mission_id)
+        self._open_modeless(panel, title="Communications Resources (ICS-217)")
+
+# --- 4.3 Command ---------------------------------------------------------
+    def open_command_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_command_incident_overview(self) -> None:
+        from modules import command
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = command.get_incident_overview_panel(mission_id)
+        self._open_modeless(panel, title="Incident Overview")
+
+    def open_command_iap(self) -> None:
+        from modules import command
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = command.get_iap_builder_panel(mission_id)
+        self._open_modeless(panel, title="Incident Action Plan Builder")
+
+    def open_command_objectives(self) -> None:
+        from modules import command
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = command.get_objectives_panel(mission_id)
+        self._open_modeless(panel, title="Incident Objectives (ICS 202)")
+
+    def open_command_staff_org(self) -> None:
+        from modules import command
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = command.get_staff_org_panel(mission_id)
+        self._open_modeless(panel, title="Command Staff Organization (ICS 203)")
+
+    def open_command_sitrep(self) -> None:
+        from modules import command
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = command.get_sitrep_panel(mission_id)
+        self._open_modeless(panel, title="Situation Report (ICS 209)")
+
+# --- 4.4 Planning --------------------------------------------------------
+    def open_planning_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_planning_dashboard(self) -> None:
+        from modules import planning
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = planning.get_dashboard_panel(mission_id)
+        self._open_modeless(panel, title="Planning Dashboard")
+
+    def open_planning_approvals(self) -> None:
+        from modules import planning
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = planning.get_approvals_panel(mission_id)
+        self._open_modeless(panel, title="Pending Approvals")
+
+    def open_planning_forecast(self) -> None:
+        from modules import planning
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = planning.get_forecast_panel(mission_id)
+        self._open_modeless(panel, title="Planning Forecast")
+
+    def open_planning_op_manager(self) -> None:
+        from modules import planning
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = planning.get_op_manager_panel(mission_id)
+        self._open_modeless(panel, title="Operational Period Manager")
+
+    def open_planning_taskmetrics(self) -> None:
+        from modules import planning
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = planning.get_taskmetrics_panel(mission_id)
+        self._open_modeless(panel, title="Task Metrics Dashboard")
+
+    def open_planning_strategic_objectives(self) -> None:
+        from modules import planning
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = planning.get_strategic_objectives_panel(mission_id)
+        self._open_modeless(panel, title="Strategic Objective Tracker")
+
+    def open_planning_sitrep(self) -> None:
+        from modules import planning
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = planning.get_sitrep_panel(mission_id)
+        self._open_modeless(panel, title="Situation Report")
+
+# --- 4.5 Operations ------------------------------------------------------
+    def open_operations_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_operations_dashboard(self) -> None:
+        from modules import operations
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = operations.get_dashboard_panel(mission_id)
+        self._open_modeless(panel, title="Assignments Dashboard")
+
+    def open_operations_team_assignments(self) -> None:
+        from modules import operations
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = operations.get_team_assignments_panel(mission_id)
+        self._open_modeless(panel, title="Team Assignments")
+
+# --- 4.6 Logistics -------------------------------------------------------
+    def open_logistics_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_logistics_dashboard(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_logistics_panel(mission_id)
+        self._open_modeless(panel, title="Logistics Dashboard")
+
+    def open_logistics_211(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_checkin_panel(mission_id)
+        self._open_modeless(panel, title="Check-In (ICS-211)")
+
+    def open_logistics_requests(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_requests_panel(mission_id)
+        self._open_modeless(panel, title="Resource Requests")
+
+    def open_logistics_equipment(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_equipment_panel(mission_id)
+        self._open_modeless(panel, title="Equipment Inventory")
+
+    def open_logistics_213rr(self) -> None:
+        from modules import logistics
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = logistics.get_213rr_panel(mission_id)
+        self._open_modeless(panel, title="Resource Request (ICS-213RR)")
+
+# --- 4.7 Communications --------------------------------------------------
+    def open_comms_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_comms_chat(self) -> None:
+        from modules import comms
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = comms.get_chat_panel(mission_id)
+        self._open_modeless(panel, title="Messaging")
+
+    def open_comms_213(self) -> None:
+        from modules import comms
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = comms.get_213_panel(mission_id)
+        self._open_modeless(panel, title="ICS 213 Messages")
+
+    def open_comms_205(self) -> None:
+        from modules import comms
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = comms.get_205_panel(mission_id)
+        self._open_modeless(panel, title="Communications Plan (ICS-205)")
+
+# --- 4.8 Intel -----------------------------------------------------------
+    def open_intel_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_intel_dashboard(self) -> None:
+        from modules import intel
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = intel.get_dashboard_panel(mission_id)
+        self._open_modeless(panel, title="Intel Dashboard")
+
+    def open_intel_clue_log(self) -> None:
+        from modules import intel
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = intel.get_clue_log_panel(mission_id)
+        self._open_modeless(panel, title="Clue Log (SAR-134)")
+
+    def open_intel_add_clue(self) -> None:
+        from modules import intel
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = intel.get_add_clue_panel(mission_id)
+        self._open_modeless(panel, title="Add Clue (SAR-135)")
+
+# --- 4.9 Medical & Safety -----------------------------------------------
+    def open_medical_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_safety_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_medical_206(self) -> None:
+        from modules import medical
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = medical.get_206_panel(mission_id)
+        self._open_modeless(panel, title="Medical Plan (ICS 206)")
+
+    def open_safety_208(self) -> None:
+        from modules import safety
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = safety.get_208_panel(mission_id)
+        self._open_modeless(panel, title="Safety Message (ICS-208)")
+
+    def open_safety_215A(self) -> None:
+        from modules import safety
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = safety.get_215A_panel(mission_id)
+        self._open_modeless(panel, title="Incident Safety Analysis (ICS-215A)")
+
+    def open_safety_caporm(self) -> None:
+        from modules import safety
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = safety.get_caporm_panel(mission_id)
+        self._open_modeless(panel, title="CAP ORM")
+
+# --- 4.10 Liaison --------------------------------------------------------
+    def open_liaison_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_liaison_agencies(self) -> None:
+        from modules import liaison
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = liaison.get_agencies_panel(mission_id)
+        self._open_modeless(panel, title="Agency Directory")
+
+    def open_liaison_requests(self) -> None:
+        from modules import liaison
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = liaison.get_requests_panel(mission_id)
+        self._open_modeless(panel, title="Customer Requests")
+
+# --- 4.11 Public Information --------------------------------------------
+    def open_public_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_public_media_releases(self) -> None:
+        from modules import public_info
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = public_info.get_media_releases_panel(mission_id)
+        self._open_modeless(panel, title="Media Releases")
+
+    def open_public_inquiries(self) -> None:
+        from modules import public_info
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = public_info.get_inquiries_panel(mission_id)
+        self._open_modeless(panel, title="Public Inquiries")
+
+# --- 4.12 Finance/Admin --------------------------------------------------
+    def open_finance_unit_log(self) -> None:
+        from modules import ics214
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = ics214.get_ics214_panel(mission_id)
+        self._open_modeless(panel, title="ICS-214 Activity Log")
+
+    def open_finance_time(self) -> None:
+        from modules import finance
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = finance.get_time_panel(mission_id)
+        self._open_modeless(panel, title="Time Tracking")
+
+    def open_finance_procurement(self) -> None:
+        from modules import finance
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = finance.get_procurement_panel(mission_id)
+        self._open_modeless(panel, title="Expenses & Procurement")
+
+    def open_finance_summary(self) -> None:
+        from modules import finance
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = finance.get_summary_panel(mission_id)
+        self._open_modeless(panel, title="Cost Summary")
+
+# --- 4.13 Toolkits -------------------------------------------------------
+    def open_toolkit_sar_missing_person(self) -> None:
+        from modules.sartoolkit import sar
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = sar.get_missing_person_panel(mission_id)
+        self._open_modeless(panel, title="Missing Person Toolkit")
+
+    def open_toolkit_sar_pod(self) -> None:
+        from modules.sartoolkit import sar
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = sar.get_pod_panel(mission_id)
+        self._open_modeless(panel, title="POD Calculator")
+
+    def open_toolkit_disaster_damage(self) -> None:
+        from modules.disasterresponse import disaster
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = disaster.get_damage_panel(mission_id)
+        self._open_modeless(panel, title="Damage Assessment")
+
+    def open_toolkit_disaster_urban_interview(self) -> None:
+        from modules.disasterresponse import disaster
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = disaster.get_urban_interview_panel(mission_id)
+        self._open_modeless(panel, title="Urban Interview Log")
+
+    def open_toolkit_disaster_photos(self) -> None:
+        from modules.disasterresponse import disaster
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = disaster.get_photos_panel(mission_id)
+        self._open_modeless(panel, title="Damage Photos")
+
+    def open_planned_promotions(self) -> None:
+        from modules import plannedtoolkit
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = plannedtoolkit.get_promotions_panel(mission_id)
+        self._open_modeless(panel, title="External Messaging")
+
+    def open_planned_vendors(self) -> None:
+        from modules import plannedtoolkit
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = plannedtoolkit.get_vendors_panel(mission_id)
+        self._open_modeless(panel, title="Vendors & Permits")
+
+    def open_planned_safety(self) -> None:
+        from modules import plannedtoolkit
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = plannedtoolkit.get_safety_panel(mission_id)
+        self._open_modeless(panel, title="Public Safety")
+
+    def open_planned_tasking(self) -> None:
+        from modules import plannedtoolkit
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = plannedtoolkit.get_tasking_panel(mission_id)
+        self._open_modeless(panel, title="Tasking & Assignments")
+
+    def open_planned_health_sanitation(self) -> None:
+        from modules import plannedtoolkit
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = plannedtoolkit.get_health_sanitation_panel(mission_id)
+        self._open_modeless(panel, title="Health & Sanitation")
+
+    def open_toolkit_initial_hasty(self) -> None:
+        from modules.initalresponse import initial
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = initial.get_hasty_panel(mission_id)
+        self._open_modeless(panel, title="Hasty Tools")
+
+    def open_toolkit_initial_reflex(self) -> None:
+        from modules.initalresponse import initial
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = initial.get_reflex_panel(mission_id)
+        self._open_modeless(panel, title="Reflex Taskings")
+
+# --- 4.14 Resources (Forms & Library) -----------------------------------
+    def open_forms(self) -> None:
+        from modules import referencelibrary
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = referencelibrary.get_form_library_panel(mission_id)
+        self._open_modeless(panel, title="Form Library")
+
+    def open_reference_library(self) -> None:
+        from modules import referencelibrary
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = referencelibrary.get_library_panel()
+        self._open_modeless(panel, title="Reference Library")
+
+    def open_help_user_guide(self) -> None:
+        from modules import helpdocs
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = helpdocs.get_user_guide_panel(mission_id)
+        self._open_modeless(panel, title="User Guide")
+
+# --- 4.15 Help -----------------------------------------------------------
+    def open_help_about(self) -> None:
+        from modules import helpdocs
+        mission_id = getattr(self, "current_mission_id", None)
+        panel = helpdocs.get_about_panel(mission_id)
+        self._open_modeless(panel, title="About SARApp")
+
+# ===== Part 5: Shared Windows, Helpers & Utilities =======================
     def _open_modeless(self, widget: QWidget, title: str) -> None:
         """Display *widget* as a modeless window, tracking it for cleanup."""
-        # Attempt to use any provided docking/MDI helpers first
         if hasattr(self, "docking_helper") and callable(
             getattr(self.docking_helper, "open_widget", None)
         ):
@@ -487,13 +881,12 @@ class MainWindow(QMainWindow):
         widget.show()
 
     def _open_docked(self, widget, title: str,
-                 area=Qt.RightDockWidgetArea,
-                 object_name: str | None = None) -> None:
+                     area=Qt.RightDockWidgetArea,
+                     object_name: str | None = None) -> None:
         """Show *widget* in a QDockWidget. Reuse the dock if it already exists."""
         obj_name = object_name or f"dock::{title}"
         existing = self.findChild(QDockWidget, obj_name)
         if existing:
-            # Focus the existing dock; replace content in case caller created a fresh widget
             old = existing.widget()
             if old is not widget:
                 existing.setWidget(widget)
@@ -513,54 +906,8 @@ class MainWindow(QMainWindow):
         self.addDockWidget(area, dock)
         dock.show()
 
-
-    def open_logistics(self) -> None:
-        from modules import logistics
-
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_logistics_panel(mission_id)
-        self._open_modeless(panel, title="Logistics")
-
-    def open_safety(self) -> None:
-        from modules import safety
-
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = safety.get_safety_panel(mission_id)
-        self._open_modeless(panel, title="Safety")
-
-    def open_reference_library(self) -> None:
-        from modules import referencelibrary
-
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = referencelibrary.get_library_panel()
-        self._open_modeless(panel, title="Reference Library")
-
-    def open_planned_toolkit(self) -> None:
-        from modules import plannedtoolkit
-
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = plannedtoolkit.get_planned_toolkit_panel()
-        self._open_modeless(panel, title="Planned Event Toolkit")
-
-    def open_finance(self) -> None:
-        from modules import finance
-
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = finance.get_finance_panel(mission_id)
-        self._open_modeless(panel, title="Finance")
-
-    def open_public_info(self) -> None:
-        mission_id = getattr(self, "current_mission_id", None)
-        try:
-            from modules import public_info
-        except ImportError:
-            logger.warning("Public info module not available")
-            return
-
-        panel = public_info.get_public_info_panel(mission_id)
-        self._open_modeless(panel, title="Public Information")
-
     def open_task_detail(self):
+        """Example QML task detail window launcher (kept for reference)."""
         self.task_window = QQuickView()
         self.task_window.setSource(QUrl("modules/operations/qml/taskdetail.qml"))
         self.task_window.setResizeMode(QQuickView.SizeRootObjectToView)
@@ -568,48 +915,23 @@ class MainWindow(QMainWindow):
         self.task_window.show()
 
     def update_title_with_active_mission(self):
-        print("[DEBUG] update_title_with_active_mission called")
+        """Refresh window title when active mission changes."""
         mission_number = AppState.get_active_mission()
-        print(f"[DEBUG] Active mission number: {mission_number}")
         if mission_number:
-                mission = get_mission_by_number(mission_number)
-                if mission:
-                    print(f"[DEBUG] Setting title to: {mission['number']}: {mission['name']}")
-                    self.setWindowTitle(f"SARApp - {mission['number']}: {mission['name']}")
-                else:
-                    print("[DEBUG] No mission found with that number")
+            mission = get_mission_by_number(mission_number)
+            if mission:
+                self.setWindowTitle(f"SARApp - {mission['number']}: {mission['name']}")
         else:
-                print("[DEBUG] No active mission number set")
+            self.setWindowTitle("SARApp - Incident Management Assistant")
 
-    def open_settings_window(self):
-        from PySide6.QtQml import QQmlApplicationEngine
 
-        # Create engine and attach global context
-        self.settings_engine = QQmlApplicationEngine()
-        settings_manager = SettingsManager()
-        self.settings_bridge = QmlSettingsBridge(settings_manager)
-        self.settings_engine.rootContext().setContextProperty(
-            "settingsBridge", self.settings_bridge
-        )
-
-        # Load the QML file
-        self.settings_engine.load(QUrl.fromLocalFile("qml/settingswindow.qml"))
-
-        if not self.settings_engine.rootObjects():
-            print("[ERROR] Failed to load settings QML.")
-            return
-
-        window = self.settings_engine.rootObjects()[0]
-        window.show()
-
+# ===== Part 6: Application Entrypoint =======================================
 if __name__ == "__main__":
-        app = QApplication(sys.argv)
+    app = QApplication(sys.argv)
 
-        # Global settingsBridge setup
-        settings_manager = SettingsManager()
-        settings_bridge = QmlSettingsBridge(settings_manager)
+    settings_manager = SettingsManager()
+    settings_bridge = QmlSettingsBridge(settings_manager)
 
-        win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
-        win.show()
-        sys.exit(app.exec())
-
+    win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
+    win.show()
+    sys.exit(app.exec())
