@@ -1,11 +1,13 @@
-from __future__ import annotations
+from .windows import (
+    get_time_panel,
+    get_procurement_panel,
+    get_summary_panel,
+    get_finance_panel,
+)
 
-from .api import router
-from .panels.finance_home_panel import FinanceHomePanel
-
-
-def get_finance_panel() -> FinanceHomePanel:
-    """Return the main Finance panel."""
-    return FinanceHomePanel()
-
-__all__ = ["router", "get_finance_panel", "FinanceHomePanel"]
+__all__ = [
+    "get_time_panel",
+    "get_procurement_panel",
+    "get_summary_panel",
+    "get_finance_panel",
+]
