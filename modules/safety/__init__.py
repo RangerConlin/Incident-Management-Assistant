@@ -1,9 +1,13 @@
-from .api import router
-from .panels.safety_dashboard import SafetyDashboard
+from .windows import (
+    get_208_panel,
+    get_215A_panel,
+    get_caporm_panel,
+    get_safety_panel,
+)
 
-
-def get_safety_panel(mission_id: str):
-    """Return an instance of the SafetyDashboard panel."""
-    return SafetyDashboard(mission_id)
-
-__all__ = ["router", "get_safety_panel"]
+__all__ = [
+    "get_208_panel",
+    "get_215A_panel",
+    "get_caporm_panel",
+    "get_safety_panel",
+]
