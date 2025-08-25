@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 from .api import router
-from .panels.PlannedToolkitHome import PlannedToolkitHome
+from .windows import (
+    get_promotions_panel,
+    get_vendors_panel,
+    get_safety_panel,
+    get_tasking_panel,
+    get_health_sanitation_panel,
+    get_planned_toolkit_panel,
+)
 
-
-def get_planned_toolkit_panel():
-    """Return the main panel instance for the Planned Event Toolkit."""
-    return PlannedToolkitHome()
-
-__all__ = ["router", "get_planned_toolkit_panel"]
+__all__ = [
+    "router",
+    "get_promotions_panel",
+    "get_vendors_panel",
+    "get_safety_panel",
+    "get_tasking_panel",
+    "get_health_sanitation_panel",
+    "get_planned_toolkit_panel",
+]
