@@ -21,6 +21,7 @@ env/
 *.njsproj
 *.sln
 *.sw?
+*.pyc
 
 # OS junk
 .DS_Store
