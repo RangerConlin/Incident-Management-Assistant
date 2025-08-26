@@ -11,16 +11,16 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_user_guide_panel(mission_id: object | None = None) -> QWidget:
+def get_user_guide_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for User Guide."""
     return _make_panel(
         "User Guide",
-        f"Documentation — mission: {mission_id}",
+        f"Documentation — incident: {incident_id}",
     )
 
-def get_about_panel(mission_id: object | None = None) -> QWidget:
+def get_about_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for About dialog."""
     return _make_panel(
         "About",
-        f"About this application — mission: {mission_id}",
+        f"About this application — incident: {incident_id}",
     )

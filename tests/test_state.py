@@ -9,21 +9,21 @@ from utils.state import AppState
 
 @pytest.fixture(autouse=True)
 def reset_state():
-    AppState._active_mission_number = None
+    AppState._active_incident_number = None
     AppState._active_op_period_id = None
     AppState._active_user_id = None
     AppState._active_user_role = None
     yield
-    AppState._active_mission_number = None
+    AppState._active_incident_number = None
     AppState._active_op_period_id = None
     AppState._active_user_id = None
     AppState._active_user_role = None
 
 
-def test_active_mission():
-    assert AppState.get_active_mission() is None
-    AppState.set_active_mission("mission1")
-    assert AppState.get_active_mission() == "mission1"
+def test_active_incident():
+    assert AppState.get_active_incident() is None
+    AppState.set_active_incident("incident1")
+    assert AppState.get_active_incident() == "incident1"
 
 
 def test_active_op_period():

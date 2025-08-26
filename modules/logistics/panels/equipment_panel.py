@@ -9,9 +9,9 @@ from PySide6.QtWidgets import QTableWidget, QVBoxLayout, QWidget
 class EquipmentPanel(QWidget):
     """Panel showing equipment items with basic table view."""
 
-    def __init__(self, mission_id: str):
+    def __init__(self, incident_id: str):
         super().__init__()
-        self.mission_id = mission_id
+        self.incident_id = incident_id
         self.setWindowTitle("Equipment Inventory")
 
         layout = QVBoxLayout(self)

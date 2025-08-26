@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker, Session
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 MASTER_DB = DATA_DIR / "master.db"
-MISSIONS_DIR = DATA_DIR / "missions"
+INCIDENTS_DIR = DATA_DIR / "incidents"
 
 # -- table initialization ----------------------------------------------------
 
@@ -63,11 +63,11 @@ MASTER_TABLES = [
     """,
 ]
 
-MISSION_TABLES = [
+INCIDENT_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS time_entries (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         person_id INTEGER,
         role TEXT,
         op_period TEXT,
@@ -85,7 +85,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS requisitions (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         req_number TEXT,
         request_id INTEGER,
         requestor_id INTEGER,
@@ -99,7 +99,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS purchase_orders (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         po_number TEXT,
         vendor_id INTEGER,
         req_id INTEGER,
@@ -111,7 +111,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS receipts (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         po_id INTEGER,
         date DATE,
         qty REAL,
@@ -122,7 +122,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         po_id INTEGER,
         vendor_invoice_no TEXT,
         date DATE,
@@ -133,7 +133,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS cost_entries (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         date DATE,
         account_id INTEGER,
         description TEXT,
@@ -146,7 +146,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS daily_cost_summary (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         date DATE,
         total_labor REAL,
         total_equipment REAL,
@@ -160,7 +160,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS budgets (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         account_id INTEGER,
         amount_budgeted REAL,
         notes TEXT
@@ -169,7 +169,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS claims (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         claim_type TEXT,
         claimant_id INTEGER,
         date_reported DATE,
@@ -182,7 +182,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS approvals (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         entity TEXT,
         entity_id INTEGER,
         step TEXT,
@@ -195,7 +195,7 @@ MISSION_TABLES = [
     """
     CREATE TABLE IF NOT EXISTS finance_audit (
         id INTEGER PRIMARY KEY,
-        mission_id TEXT,
+        incident_id TEXT,
         entity TEXT,
         entity_id INTEGER,
         action TEXT,
@@ -220,11 +220,11 @@ def get_master_engine() -> Engine:
     return engine
 
 
-def get_mission_engine(mission_id: str) -> Engine:
-    mission_path = MISSIONS_DIR / f"{mission_id}.db"
-    mission_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{mission_path}")
-    _init_db(engine, MISSION_TABLES)
+def get_incident_engine(incident_id: str) -> Engine:
+    incident_path = INCIDENTS_DIR / f"{incident_id}.db"
+    incident_path.parent.mkdir(parents=True, exist_ok=True)
+    engine = create_engine(f"sqlite:///{incident_path}")
+    _init_db(engine, INCIDENT_TABLES)
     return engine
 
 
@@ -240,8 +240,8 @@ def with_master_session() -> Generator[Session, None, None]:
 
 
 @contextmanager
-def with_mission_session(mission_id: str) -> Generator[Session, None, None]:
-    engine = get_mission_engine(mission_id)
+def with_incident_session(incident_id: str) -> Generator[Session, None, None]:
+    engine = get_incident_engine(incident_id)
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     session = SessionLocal()
     try:

@@ -11,16 +11,16 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_dashboard_panel(mission_id: object | None = None) -> QWidget:
+def get_dashboard_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Operations Dashboard."""
     return _make_panel(
         "Operations Dashboard",
-        f"Operations overview — mission: {mission_id}",
+        f"Operations overview — incident: {incident_id}",
     )
 
-def get_team_assignments_panel(mission_id: object | None = None) -> QWidget:
+def get_team_assignments_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Team Assignments."""
     return _make_panel(
         "Team Assignments",
-        f"Manage team assignments — mission: {mission_id}",
+        f"Manage team assignments — incident: {incident_id}",
     )

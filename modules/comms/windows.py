@@ -11,30 +11,30 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_chat_panel(mission_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Mission Chat."""
+def get_chat_panel(incident_id: object | None = None) -> QWidget:
+    """Return placeholder QWidget for Incident Chat."""
     return _make_panel(
-        "Mission Chat",
-        f"Chat window — mission: {mission_id}",
+        "Incident Chat",
+        f"Chat window — incident: {incident_id}",
     )
 
-def get_213_panel(mission_id: object | None = None) -> QWidget:
+def get_213_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for General Message (ICS-213)."""
     return _make_panel(
         "General Message (ICS-213)",
-        f"ICS-213 form — mission: {mission_id}",
+        f"ICS-213 form — incident: {incident_id}",
     )
 
-def get_205_panel(mission_id: object | None = None) -> QWidget:
+def get_205_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Communications Plan (ICS-205)."""
     return _make_panel(
         "Communications Plan (ICS-205)",
-        f"ICS-205 form — mission: {mission_id}",
+        f"ICS-205 form — incident: {incident_id}",
     )
 
-def get_217_panel(mission_id: object | None = None) -> QWidget:
+def get_217_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Radio Log (ICS-217)."""
     return _make_panel(
         "Radio Log (ICS-217)",
-        f"ICS-217 log — mission: {mission_id}",
+        f"ICS-217 log — incident: {incident_id}",
     )

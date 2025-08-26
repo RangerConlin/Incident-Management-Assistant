@@ -6,14 +6,14 @@
 from pathlib import Path
 
 from .models import LogisticsResourceRequest
-from .repository import with_mission_session
+from .repository import with_incident_session
 
 
-def generate_pdf(mission_id: str, request_id: int) -> tuple[str, bytes]:
+def generate_pdf(incident_id: str, request_id: int) -> tuple[str, bytes]:
     """Generate a placeholder PDF for the given request."""
-    with with_mission_session(mission_id) as session:
+    with with_incident_session(incident_id) as session:
         session.get(LogisticsResourceRequest, request_id)
-    forms_dir = Path("data") / "missions" / mission_id / "forms"
+    forms_dir = Path("data") / "incidents" / incident_id / "forms"
     forms_dir.mkdir(parents=True, exist_ok=True)
     pdf_path = forms_dir / f"ics213rr_{request_id}.pdf"
     data = b"PDF PLACEHOLDER"

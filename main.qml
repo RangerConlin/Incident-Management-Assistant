@@ -11,8 +11,8 @@ ApplicationWindow {
     menuBar: MenuBar {
             Menu {
                 title: "File"
-                MenuItem { text: "New Mission" }
-                MenuItem { text: "Open Mission" }
+                MenuItem { text: "New Incident" }
+                MenuItem { text: "Open Incident" }
                 MenuItem { text: "Save" }
                 MenuItem { text: "Exit"; onTriggered: Qt.quit() }
             }
@@ -106,7 +106,7 @@ ApplicationWindow {
             anchors.centerIn: parent
 
             Text {
-                text: "Mission Dashboard"
+                text: "Incident Dashboard"
                 font.pixelSize: 30
                 font.bold: true
                 color: "#003a67"

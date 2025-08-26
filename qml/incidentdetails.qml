@@ -20,29 +20,29 @@ Item {
             spacing: 12
 
             Label {
-                text: "Mission Detail"
+                text: "Incident Detail"
                 font.pixelSize: 20
                 font.bold: true
             }
 
             TextField {
-                id: missionName
-                placeholderText: "Mission Name"
+                id: incidentName
+                placeholderText: "Incident Name"
                 Layout.fillWidth: true
             }
 
             TextField {
-                id: missionNumber
-                placeholderText: "Mission Number"
+                id: incidentNumber
+                placeholderText: "Incident Number"
                 Layout.fillWidth: true
             }
 
             ComboBox {
-                id: missionType
+                id: incidentType
                 model: ["SAR", "Disaster Response", "Training", "Planned Event"]
                 currentIndex: -1
                 Layout.fillWidth: true
-                displayText: currentIndex === -1 ? "Mission Type" : model[currentIndex]
+                displayText: currentIndex === -1 ? "Incident Type" : model[currentIndex]
             }
 
             TextField {
@@ -70,22 +70,22 @@ Item {
 
             CheckBox {
                 id: isTraining
-                text: "Is this a training mission?"
+                text: "Is this a training incident?"
                 checked: false
             }
 
             TextArea {
                 id: description
-                placeholderText: "Mission Description"
+                placeholderText: "Incident Description"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 100
             }
 
             ComboBox {
-                id: missionStatus
+                id: incidentStatus
                 model: ["Active", "Standby", "Completed"]
                 Layout.fillWidth: true
-                displayText: currentIndex === -1 ? "Mission Status" : model[currentIndex]
+                displayText: currentIndex === -1 ? "Incident Status" : model[currentIndex]
             }
 
             Rectangle {
@@ -106,9 +106,9 @@ Item {
                 Button {
                     text: "Save"
                     onClicked: {
-                        console.log("Mission saved:")
-                        console.log("Name:", missionName.text)
-                        console.log("Type:", missionType.currentText)
+                        console.log("Incident saved:")
+                        console.log("Name:", incidentName.text)
+                        console.log("Type:", incidentType.currentText)
                         // Hook to backend save logic here
                     }
                 }

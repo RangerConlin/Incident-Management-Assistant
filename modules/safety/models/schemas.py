@@ -136,7 +136,7 @@ class CapOrmCreate(CapOrmBase):
 
 class CapOrmRead(CapOrmBase):
     id: int
-    mission_id: str
+    incident_id: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

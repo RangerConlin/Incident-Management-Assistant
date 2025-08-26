@@ -73,11 +73,11 @@ class ExternalLink(Base):
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
 
-class MissionDocument(Base):
-    __tablename__ = "mission_documents"
+class IncidentDocument(Base):
+    __tablename__ = "incident_documents"
 
     id = Column(Integer, primary_key=True)
-    mission_id = Column(String, nullable=False)
+    incident_id = Column(String, nullable=False)
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
     note = Column(Text)
     added_by = Column(String)

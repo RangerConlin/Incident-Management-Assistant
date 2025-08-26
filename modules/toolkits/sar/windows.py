@@ -11,16 +11,16 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_missing_person_panel(mission_id: object | None = None) -> QWidget:
+def get_missing_person_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Missing Person Report."""
     return _make_panel(
         "Missing Person Report",
-        f"Record missing person data — mission: {mission_id}",
+        f"Record missing person data — incident: {incident_id}",
     )
 
-def get_pod_panel(mission_id: object | None = None) -> QWidget:
+def get_pod_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Probability of Detection (POD)."""
     return _make_panel(
         "Probability of Detection",
-        f"POD calculator — mission: {mission_id}",
+        f"POD calculator — incident: {incident_id}",
     )

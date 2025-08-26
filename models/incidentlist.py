@@ -1,7 +1,7 @@
 """
-Mission selection data model and helpers.
-- Adapts to the existing Mission domain object via COLUMN_MAP.
-- Loads rows from data/master.db (SQLite) using load_missions_from_master().
+Incident selection data model and helpers.
+- Adapts to the existing Incident domain object via COLUMN_MAP.
+- Loads rows from data/master.db (SQLite) using load_incidents_from_master().
 - Exposes a QSortFilterProxyModel for sorting and filtering.
 """
 
@@ -26,7 +26,7 @@ from PySide6.QtCore import (
 # Column resolution configuration
 # ---------------------------------------------------------------------------
 
-# Logical role/column → how to read from the existing Mission object
+# Logical role/column → how to read from the existing Incident object
 # Each value may be: attribute name ("name"), dict key ("[name]"), or a
 # callable: lambda m: ...
 COLUMN_MAP = {
@@ -46,7 +46,7 @@ COLUMN_MAP = {
 
 
 def resolve(m: object, key: str):
-    """Return the value for logical field `key` from Mission `m` using COLUMN_MAP."""
+    """Return the value for logical field `key` from Incident `m` using COLUMN_MAP."""
 
     spec = COLUMN_MAP[key]
     if callable(spec):
@@ -57,17 +57,17 @@ def resolve(m: object, key: str):
 
 
 # ---------------------------------------------------------------------------
-# Mission table model
+# Incident table model
 # ---------------------------------------------------------------------------
 
 
-class MissionListModel(QAbstractTableModel):
-    """Qt table model exposing missions for the selector UI."""
+class IncidentListModel(QAbstractTableModel):
+    """Qt table model exposing incidents for the selector UI."""
 
     headers = [
         "ID",
         "Number",
-        "Mission Name",
+        "Incident Name",
         "Type",
         "Status",
         "Start (UTC)",
@@ -82,13 +82,13 @@ class MissionListModel(QAbstractTableModel):
         for i, name in enumerate(COLUMN_MAP.keys())
     }
 
-    def __init__(self, missions: Sequence[object] | None = None):
+    def __init__(self, incidents: Sequence[object] | None = None):
         super().__init__()
-        self._missions: List[object] = list(missions or [])
+        self._incidents: List[object] = list(incidents or [])
 
     # --- Qt model implementation -----------------------------------------
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
-        return len(self._missions)
+        return len(self._incidents)
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         return len(self.headers)
@@ -96,16 +96,16 @@ class MissionListModel(QAbstractTableModel):
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole):  # type: ignore[override]
         if not index.isValid():
             return None
-        mission = self._missions[index.row()]
+        incident = self._incidents[index.row()]
         if role == Qt.DisplayRole:
             key = list(COLUMN_MAP.keys())[index.column()]
-            value = resolve(mission, key)
+            value = resolve(incident, key)
             if key == "is_training":
                 return "Yes" if bool(value) else "No"
             return value
         elif role in self._roles:
             key = self._roles[role].decode()
-            return resolve(mission, key)
+            return resolve(incident, key)
         return None
 
     def roleNames(self):  # type: ignore[override]
@@ -125,21 +125,21 @@ class MissionListModel(QAbstractTableModel):
         return Qt.ItemIsSelectable | Qt.ItemIsEnabled
 
     # --- Helpers -----------------------------------------------------------
-    def mission_at(self, row: int):
-        """Return mission object at model row."""
+    def incident_at(self, row: int):
+        """Return incident object at model row."""
 
-        if 0 <= row < len(self._missions):
-            return self._missions[row]
+        if 0 <= row < len(self._incidents):
+            return self._incidents[row]
         return None
 
     # --- Data reloading ----------------------------------------------------
     def reload(self, provider: Callable[[], Sequence[object]] | None = None):
         """Repopulate the model using ``provider`` (defaults to DB loader)."""
 
-        provider = provider or load_missions_from_master
-        missions = list(provider())
+        provider = provider or load_incidents_from_master
+        incidents = list(provider())
         self.beginResetModel()
-        self._missions = missions
+        self._incidents = incidents
         self.endResetModel()
 
 
@@ -148,19 +148,19 @@ class MissionListModel(QAbstractTableModel):
 # ---------------------------------------------------------------------------
 
 
-def load_missions_from_master() -> List[object]:
-    """Read missions from data/master.db; return Mission objects or proxies."""
+def load_incidents_from_master() -> List[object]:
+    """Read incidents from data/master.db; return Incident objects or proxies."""
 
     db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "master.db")
     if not os.path.exists(db_path):
         return []
 
     try:
-        from models.mission import Mission  # type: ignore
-    except Exception:  # pragma: no cover - Mission class should exist
-        Mission = None  # type: ignore
+        from models.incident import Incident  # type: ignore
+    except Exception:  # pragma: no cover - Incident class should exist
+        Incident = None  # type: ignore
 
-    missions: List[object] = []
+    incidents: List[object] = []
     try:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
@@ -169,13 +169,13 @@ def load_missions_from_master() -> List[object]:
             """
             SELECT id, name, number, type, description, status,
                    search_area, icp_location, start_time, end_time, is_training
-            FROM missions
+            FROM incidents
             ORDER BY start_time DESC, id DESC
             """
         )
         for row in cur.fetchall():
-            if Mission is not None:
-                mission = Mission(
+            if Incident is not None:
+                incident = Incident(
                     id=row["id"],
                     number=row["number"],
                     name=row["name"],
@@ -187,10 +187,10 @@ def load_missions_from_master() -> List[object]:
                     end_time=row["end_time"],
                     is_training=bool(row["is_training"]),
                 )
-                # Existing Mission class lacks search_area; attach dynamically.
-                setattr(mission, "search_area", row["search_area"])
+                # Existing Incident class lacks search_area; attach dynamically.
+                setattr(incident, "search_area", row["search_area"])
             else:
-                mission = SimpleNamespace(
+                incident = SimpleNamespace(
                     id=row["id"],
                     number=row["number"],
                     name=row["name"],
@@ -203,13 +203,13 @@ def load_missions_from_master() -> List[object]:
                     end_time=row["end_time"],
                     is_training=bool(row["is_training"]),
                 )
-            missions.append(mission)
+            incidents.append(incident)
         conn.close()
     except sqlite3.Error:
         # If the table is missing or unreadable, return empty list.
         return []
 
-    return missions
+    return incidents
 
 
 # ---------------------------------------------------------------------------
@@ -217,8 +217,8 @@ def load_missions_from_master() -> List[object]:
 # ---------------------------------------------------------------------------
 
 
-class MissionProxyModel(QSortFilterProxyModel):
-    """Filtering/sorting proxy for MissionListModel."""
+class IncidentProxyModel(QSortFilterProxyModel):
+    """Filtering/sorting proxy for IncidentListModel."""
 
     def __init__(self):
         super().__init__()
@@ -253,31 +253,31 @@ class MissionProxyModel(QSortFilterProxyModel):
 
     # -- Filter logic ------------------------------------------------------
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
-        model: MissionListModel = self.sourceModel()  # type: ignore[assignment]
-        mission = model.mission_at(source_row)
-        if mission is None:
+        model: IncidentListModel = self.sourceModel()  # type: ignore[assignment]
+        incident = model.incident_at(source_row)
+        if incident is None:
             return False
 
         # Status filter
         if self._status and self._status != "All":
-            if str(resolve(mission, "status")).lower() != self._status.lower():
+            if str(resolve(incident, "status")).lower() != self._status.lower():
                 return False
 
         # Type filter
         if self._type and self._type != "All":
-            if str(resolve(mission, "type")).lower() != self._type.lower():
+            if str(resolve(incident, "type")).lower() != self._type.lower():
                 return False
 
         # Training filter
-        if self._training == 1 and not bool(resolve(mission, "is_training")):
+        if self._training == 1 and not bool(resolve(incident, "is_training")):
             return False
-        if self._training == 2 and bool(resolve(mission, "is_training")):
+        if self._training == 2 and bool(resolve(incident, "is_training")):
             return False
 
         # Text search across multiple fields
         if self._text:
             haystack = " ".join(
-                str(resolve(mission, key) or "")
+                str(resolve(incident, key) or "")
                 for key in [
                     "name",
                     "number",
@@ -297,67 +297,67 @@ class MissionProxyModel(QSortFilterProxyModel):
 # ---------------------------------------------------------------------------
 
 
-class MissionController(QObject):
-    """Controller emitting CRUD-related signals for missions."""
+class IncidentController(QObject):
+    """Controller emitting CRUD-related signals for incidents."""
 
-    missionLoaded = Signal(int)
-    missionEdited = Signal(int)
-    missionDeleted = Signal(int)
-    missionCreated = Signal(int)
+    incidentLoaded = Signal(int)
+    incidentEdited = Signal(int)
+    incidentDeleted = Signal(int)
+    incidentCreated = Signal(int)
     error = Signal(str)
 
-    def __init__(self, model: MissionListModel):
+    def __init__(self, model: IncidentListModel):
         super().__init__()
         self._model = model
 
     # -- Slots used by QML -------------------------------------------------
     @Slot(QObject, int)
-    def loadMission(self, proxy: MissionProxyModel, proxyRow: int):
-        """Emit missionLoaded for the row."""
+    def loadIncident(self, proxy: IncidentProxyModel, proxyRow: int):
+        """Emit incidentLoaded for the row."""
 
-        mission_id = self._mission_id_from_proxy(proxy, proxyRow)
-        if mission_id is not None:
-            self.missionLoaded.emit(mission_id)
-
-    @Slot(QObject, int)
-    def editMission(self, proxy: MissionProxyModel, proxyRow: int):
-        """Emit missionEdited. DB updates will be wired later."""
-
-        mission_id = self._mission_id_from_proxy(proxy, proxyRow)
-        if mission_id is not None:
-            self.missionEdited.emit(mission_id)
+        incident_id = self._incident_id_from_proxy(proxy, proxyRow)
+        if incident_id is not None:
+            self.incidentLoaded.emit(incident_id)
 
     @Slot(QObject, int)
-    def deleteMission(self, proxy: MissionProxyModel, proxyRow: int):
-        """Emit missionDeleted. Actual DB removal will be handled later."""
+    def editIncident(self, proxy: IncidentProxyModel, proxyRow: int):
+        """Emit incidentEdited. DB updates will be wired later."""
 
-        mission_id = self._mission_id_from_proxy(proxy, proxyRow)
-        if mission_id is not None:
-            self.missionDeleted.emit(mission_id)
+        incident_id = self._incident_id_from_proxy(proxy, proxyRow)
+        if incident_id is not None:
+            self.incidentEdited.emit(incident_id)
+
+    @Slot(QObject, int)
+    def deleteIncident(self, proxy: IncidentProxyModel, proxyRow: int):
+        """Emit incidentDeleted. Actual DB removal will be handled later."""
+
+        incident_id = self._incident_id_from_proxy(proxy, proxyRow)
+        if incident_id is not None:
+            self.incidentDeleted.emit(incident_id)
 
     @Slot()
-    def newMission(self):
-        """Emit missionCreated placeholder signal."""
+    def newIncident(self):
+        """Emit incidentCreated placeholder signal."""
 
-        # When a creation dialog is wired up, the new mission ID will be
+        # When a creation dialog is wired up, the new incident ID will be
         # emitted here instead of -1.
-        self.missionCreated.emit(-1)
+        self.incidentCreated.emit(-1)
 
     # -- Internal helpers --------------------------------------------------
-    def _mission_id_from_proxy(self, proxy: MissionProxyModel, proxyRow: int):
+    def _incident_id_from_proxy(self, proxy: IncidentProxyModel, proxyRow: int):
         if proxy is None or proxyRow < 0:
             return None
         source_index = proxy.mapToSource(proxy.index(proxyRow, 0))
-        mission = self._model.mission_at(source_index.row())
-        if mission is None:
+        incident = self._model.incident_at(source_index.row())
+        if incident is None:
             return None
-        return int(resolve(mission, "id"))
+        return int(resolve(incident, "id"))
 
 
 __all__ = [
-    "MissionListModel",
-    "MissionProxyModel",
-    "MissionController",
-    "load_missions_from_master",
+    "IncidentListModel",
+    "IncidentProxyModel",
+    "IncidentController",
+    "load_incidents_from_master",
 ]
 

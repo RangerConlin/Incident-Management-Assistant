@@ -12,9 +12,9 @@ from PySide6.QtQml import QQmlApplicationEngine
 class RequestsPanel(QWidget):
     """Simple table panel for listing resource requests."""
 
-    def __init__(self, mission_id: str):
+    def __init__(self, incident_id: str):
         super().__init__()
-        self.mission_id = mission_id
+        self.incident_id = incident_id
         self.setWindowTitle("Resource Requests")
 
         layout = QVBoxLayout(self)

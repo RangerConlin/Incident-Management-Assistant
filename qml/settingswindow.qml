@@ -25,7 +25,7 @@ ApplicationWindow {
                 ListElement { name: "General" }
                 ListElement { name: "Theme" }
                 ListElement { name: "Notifications" }
-                ListElement { name: "Mission Defaults" }
+                ListElement { name: "Incident Defaults" }
                 ListElement { name: "Mapping & GPS" }
                 ListElement { name: "Personnel & Teams" }
                 ListElement { name: "Communications" }
@@ -66,7 +66,7 @@ ApplicationWindow {
             Loader { source: "../settings/General.qml" }
             Loader { source: "../settings/Theme.qml" }
             Loader { source: "../settings/Notifications.qml" }
-            Loader { source: "../settings/MissionDefaults.qml" }
+            Loader { source: "../settings/IncidentDefaults.qml" }
             Loader { source: "../settings/Mapping.qml" }
             Loader { source: "../settings/Personnel.qml" }
             Loader { source: "../settings/Communications.qml" }

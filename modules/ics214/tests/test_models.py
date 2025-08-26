@@ -5,14 +5,14 @@ from datetime import datetime
 import uuid
 import pytest
 
-from modules._infra.repository import with_mission_session
+from modules._infra.repository import with_incident_session
 from modules.ics214.models import ICS214Stream, ICS214Entry
 
 
 def test_entry_unique_hash():
-    mission_id = "testmission"
-    with with_mission_session(mission_id) as session:
-        stream = ICS214Stream(id=str(uuid.uuid4()), mission_id=mission_id, name="Stream")
+    incident_id = "testincident"
+    with with_incident_session(incident_id) as session:
+        stream = ICS214Stream(id=str(uuid.uuid4()), incident_id=incident_id, name="Stream")
         session.add(stream)
         session.flush()
         e1 = ICS214Entry(id=str(uuid.uuid4()), stream_id=stream.id, timestamp_utc=datetime.utcnow(), text="one", idempotency_hash="h")
@@ -26,9 +26,9 @@ def test_entry_unique_hash():
 
 
 def test_tags_roundtrip():
-    mission_id = "testmission2"
-    with with_mission_session(mission_id) as session:
-        stream = ICS214Stream(id=str(uuid.uuid4()), mission_id=mission_id, name="Stream")
+    incident_id = "testincident2"
+    with with_incident_session(incident_id) as session:
+        stream = ICS214Stream(id=str(uuid.uuid4()), incident_id=incident_id, name="Stream")
         session.add(stream)
         session.flush()
         tags = ["a", "b"]

@@ -1,4 +1,4 @@
-"""Mission database routing helpers for ICS-214 and other modules."""
+"""Incident database routing helpers for ICS-214 and other modules."""
 
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,21 +12,21 @@ from modules.ics214.models import Base  # type: ignore
 _engine_cache: Dict[str, Any] = {}
 
 
-def get_mission_engine(mission_id: str):
-    """Return an engine bound to mission-specific database."""
-    db_path = Path("data") / "missions" / f"{mission_id}.db"
+def get_incident_engine(incident_id: str):
+    """Return an engine bound to incident-specific database."""
+    db_path = Path("data") / "incidents" / f"{incident_id}.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = _engine_cache.get(mission_id)
+    engine = _engine_cache.get(incident_id)
     if engine is None:
         engine = create_engine(f"sqlite:///{db_path}")
         Base.metadata.create_all(engine)
-        _engine_cache[mission_id] = engine
+        _engine_cache[incident_id] = engine
     return engine
 
 
 @contextmanager
-def with_mission_session(mission_id: str):
-    engine = get_mission_engine(mission_id)
+def with_incident_session(incident_id: str):
+    engine = get_incident_engine(incident_id)
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
     session = SessionLocal()
     try:

@@ -10,7 +10,7 @@ from .planned_models import MasterBase, EventBase
 
 DATA_ROOT = Path("data")
 MASTER_DB = DATA_ROOT / "master.db"
-MISSIONS_DIR = DATA_ROOT / "missions"
+INCIDENTS_DIR = DATA_ROOT / "incidents"
 
 
 def get_master_engine():
@@ -21,7 +21,7 @@ def get_master_engine():
 
 
 def get_event_engine(event_id: str):
-    db_path = MISSIONS_DIR / f"{event_id}.db"
+    db_path = INCIDENTS_DIR / f"{event_id}.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(f"sqlite:///{db_path}", future=True)
     EventBase.metadata.create_all(engine)

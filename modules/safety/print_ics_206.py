@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Tuple
 
 
-def generate(mission_id: str, html: str) -> Tuple[bytes, str]:
+def generate(incident_id: str, html: str) -> Tuple[bytes, str]:
     """Generate a PDF from HTML for ICS-206. Stub implementation."""
-    forms_dir = Path("data/missions") / mission_id / "forms"
+    forms_dir = Path("data/incidents") / incident_id / "forms"
     forms_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     pdf_path = forms_dir / f"ICS206-{timestamp}.pdf"

@@ -54,9 +54,9 @@ Prompts for reassignment or team alert
 
 Command dashboard notification and review queue
 
-5. Mission Summary Generation
+5. Incident Summary Generation
 
-Auto-generate mission summary based on:
+Auto-generate incident summary based on:
 
 Logs (ICS 214)
 
@@ -110,11 +110,11 @@ GET /api/tasks/alerts
 
 Tasks
 
-Mission Summary Builder
+Incident Summary Builder
 
 Docs / Logs
 
-GET /api/mission/summary
+GET /api/incident/summary
 
 Logs, Tasks
 

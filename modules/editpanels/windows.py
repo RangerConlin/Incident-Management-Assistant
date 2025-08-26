@@ -17,37 +17,37 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_ems_hospitals_panel(mission_id: object | None = None) -> QWidget:
+def get_ems_hospitals_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for EMS & Hospitals editor."""
     return _make_panel(
         "EMS & Hospitals",
-        f"Edit EMS and hospitals — mission: {mission_id}",
+        f"Edit EMS and hospitals — incident: {incident_id}",
     )
 
-def get_canned_comm_entries_panel(mission_id: object | None = None) -> QWidget:
+def get_canned_comm_entries_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for canned communication entries editor."""
     return _make_panel(
         "Canned Communication Entries",
-        f"Manage canned communication entries — mission: {mission_id}",
+        f"Manage canned communication entries — incident: {incident_id}",
     )
 
-def get_objectives_panel(mission_id: object | None = None) -> QWidget:
+def get_objectives_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for objectives editor."""
     return _make_panel(
         "Objectives Editor",
-        f"Manage mission objectives — mission: {mission_id}",
+        f"Manage incident objectives — incident: {incident_id}",
     )
 
-def get_task_types_panel(mission_id: object | None = None) -> QWidget:
+def get_task_types_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for task types editor."""
     return _make_panel(
         "Task Types Editor",
-        f"Manage task types — mission: {mission_id}",
+        f"Manage task types — incident: {incident_id}",
     )
 
-def get_team_types_panel(mission_id: object | None = None) -> QWidget:
+def get_team_types_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for team types editor."""
     return _make_panel(
         "Team Types Editor",
-        f"Manage team types — mission: {mission_id}",
+        f"Manage team types — incident: {incident_id}",
     )

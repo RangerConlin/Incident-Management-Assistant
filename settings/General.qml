@@ -44,7 +44,7 @@ Item {
             spacing: 10
             Label { text: "Startup Behavior:"; width: 150 }
             ComboBox {
-                model: ["Prompt for Mission", "Load Last Mission", "Create New Mission"]
+                model: ["Prompt for Incident", "Load Last Incident", "Create New Incident"]
                 currentIndex: settingsBridge.getSetting("startupBehaviorIndex") ?? 0
                 onCurrentIndexChanged: settingsBridge.setSetting("startupBehaviorIndex", currentIndex)
             }

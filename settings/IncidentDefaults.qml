@@ -8,7 +8,7 @@ Item {
         anchors.margins: 20
         spacing: 15
 
-        Label { text: "Mission Defaults"; font.pixelSize: 22 }
+        Label { text: "Incident Defaults"; font.pixelSize: 22 }
 
         CheckBox {
             text: "Auto-fill ICS Forms"
@@ -35,9 +35,9 @@ Item {
         }
 
         CheckBox {
-            text: "Show Only Active Missions by Default"
-            checked: settingsBridge.getSetting("filterActiveMissions") ?? true
-            onCheckedChanged: settingsBridge.setSetting("filterActiveMissions", checked)
+            text: "Show Only Active Incidents by Default"
+            checked: settingsBridge.getSetting("filterActiveIncidents") ?? true
+            onCheckedChanged: settingsBridge.setSetting("filterActiveIncidents", checked)
         }
     }
 }

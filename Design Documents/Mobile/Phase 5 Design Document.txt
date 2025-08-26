@@ -10,11 +10,11 @@ Phase 5 focuses on unifying field and command operations with form workflows, re
 
 Field users can access and fill out mobile-friendly ICS forms (e.g., ICS 214, 213)
 
-Forms are tied to user, team, and mission context
+Forms are tied to user, team, and incident context
 
 Auto-fill key metadata (date, time, team, user)
 
-Submit to backend for inclusion in mission package
+Submit to backend for inclusion in incident package
 
 2. Dynamic Form Library (Form Engine Integration)
 
@@ -26,7 +26,7 @@ Submit responses synced to structured backend records
 
 3. After-Action Report (AAR) Submission
 
-At mission end, users can provide structured feedback
+At incident end, users can provide structured feedback
 
 Fielded form includes prompts for:
 
@@ -36,7 +36,7 @@ Safety issues
 
 Recommendations
 
-Submitted responses aid post-mission reviews
+Submitted responses aid post-incident reviews
 
 4. Incident Notifications & Broadcast Alerts
 

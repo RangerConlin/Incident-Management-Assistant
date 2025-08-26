@@ -8,7 +8,7 @@
     "autoAssignEquipment": true,
     "autoSetAvailable": true,
     "autoDemobilize": true,
-    "filterActiveMissions": true,
+    "filterActiveIncidents": true,
     "gridOverlay": true,
     "liveTracking": true,
     "clearAssignmentOutOfService": true,

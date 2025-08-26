@@ -11,10 +11,10 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_missing_person_panel(mission_id=None) -> QWidget:
+def get_missing_person_panel(incident_id=None) -> QWidget:
     """Return placeholder QWidget for Missing Person Toolkit."""
-    return _make_panel("Missing Person Toolkit", f"Toolkit — mission: {mission_id}")
+    return _make_panel("Missing Person Toolkit", f"Toolkit — incident: {incident_id}")
 
-def get_pod_panel(mission_id=None) -> QWidget:
+def get_pod_panel(incident_id=None) -> QWidget:
     """Return placeholder QWidget for POD Calculator."""
-    return _make_panel("POD Calculator", f"POD — mission: {mission_id}")
+    return _make_panel("POD Calculator", f"POD — incident: {incident_id}")

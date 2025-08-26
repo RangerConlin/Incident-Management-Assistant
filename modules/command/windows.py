@@ -17,37 +17,37 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_incident_overview_panel(mission_id: object | None = None) -> QWidget:
+def get_incident_overview_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Incident Overview."""
     return _make_panel(
         "Incident Overview",
-        f"Overview of the incident — mission: {mission_id}",
+        f"Overview of the incident — incident: {incident_id}",
     )
 
-def get_iap_builder_panel(mission_id: object | None = None) -> QWidget:
+def get_iap_builder_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for IAP Builder."""
     return _make_panel(
         "IAP Builder",
-        f"Build an Incident Action Plan — mission: {mission_id}",
+        f"Build an Incident Action Plan — incident: {incident_id}",
     )
 
-def get_objectives_panel(mission_id: object | None = None) -> QWidget:
+def get_objectives_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Incident Objectives."""
     return _make_panel(
         "Incident Objectives",
-        f"Manage incident objectives — mission: {mission_id}",
+        f"Manage incident objectives — incident: {incident_id}",
     )
 
-def get_staff_org_panel(mission_id: object | None = None) -> QWidget:
+def get_staff_org_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Staff Organization."""
     return _make_panel(
         "Staff Organization",
-        f"View organization chart — mission: {mission_id}",
+        f"View organization chart — incident: {incident_id}",
     )
 
-def get_sitrep_panel(mission_id: object | None = None) -> QWidget:
+def get_sitrep_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Situation Report."""
     return _make_panel(
         "Situation Report",
-        f"SITREP — mission: {mission_id}",
+        f"SITREP — incident: {incident_id}",
     )

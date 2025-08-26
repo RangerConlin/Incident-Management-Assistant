@@ -19,51 +19,51 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_dashboard_panel(mission_id: object | None = None) -> QWidget:
+def get_dashboard_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Planning Dashboard."""
     return _make_panel(
         "Planning Dashboard",
-        f"Placeholder panel — mission: {mission_id}",
+        f"Placeholder panel — incident: {incident_id}",
     )
 
-def get_approvals_panel(mission_id: object | None = None) -> QWidget:
+def get_approvals_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Pending Approvals."""
     return _make_panel(
         "Pending Approvals",
-        f"Approvals queue — mission: {mission_id}",
+        f"Approvals queue — incident: {incident_id}",
     )
 
-def get_forecast_panel(mission_id: object | None = None) -> QWidget:
+def get_forecast_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Planning Forecast."""
     return _make_panel(
         "Planning Forecast",
-        f"Forecast tools — mission: {mission_id}",
+        f"Forecast tools — incident: {incident_id}",
     )
 
-def get_op_manager_panel(mission_id: object | None = None) -> QWidget:
+def get_op_manager_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Operational Period Manager."""
     return _make_panel(
         "Operational Period Manager",
-        f"OP builder — mission: {mission_id}",
+        f"OP builder — incident: {incident_id}",
     )
 
-def get_taskmetrics_panel(mission_id: object | None = None) -> QWidget:
+def get_taskmetrics_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Task Metrics Dashboard."""
     return _make_panel(
         "Task Metrics Dashboard",
-        f"Metrics — mission: {mission_id}",
+        f"Metrics — incident: {incident_id}",
     )
 
-def get_strategic_objectives_panel(mission_id: object | None = None) -> QWidget:
+def get_strategic_objectives_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Strategic Objective Tracker."""
     return _make_panel(
         "Strategic Objective Tracker",
-        f"Objectives — mission: {mission_id}",
+        f"Objectives — incident: {incident_id}",
     )
 
-def get_sitrep_panel(mission_id: object | None = None) -> QWidget:
+def get_sitrep_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Situation Report."""
     return _make_panel(
         "Situation Report",
-        f"SITREP — mission: {mission_id}",
+        f"SITREP — incident: {incident_id}",
     )

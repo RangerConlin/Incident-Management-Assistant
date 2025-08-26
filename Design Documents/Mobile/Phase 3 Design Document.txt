@@ -50,7 +50,7 @@ View current status of team members
 
 Show role, last check-in, last known status
 
-Pulled from mission personnel records
+Pulled from incident personnel records
 
 6. Role-Based Lockout and Access Control
 
@@ -74,7 +74,7 @@ Core Sync Engine
 
 POST /api/mobile/sync, GET /api/mobile/payload
 
-All mission tables
+All incident tables
 
 Location Updates
 

@@ -28,7 +28,7 @@ class ChannelRead(ChannelBase):
 
 
 class ChannelAssignment(BaseModel):
-    mission_id: str
+    incident_id: str
     team: str
     channel_id: int
 
@@ -36,7 +36,7 @@ class ChannelAssignment(BaseModel):
 
 
 class MessageLogEntry(BaseModel):
-    mission_id: str
+    incident_id: str
     timestamp: datetime
     sender: str
     recipient: str

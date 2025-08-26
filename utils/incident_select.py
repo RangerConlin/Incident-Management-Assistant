@@ -48,18 +48,18 @@ QTableView::item:selected {
 """
 
 # --- Data layer ------------------------------------------------------------
-class MissionStore:
-    """Provides mission rows. In real use, backed by SQLite."""
+class IncidentStore:
+    """Provides incident rows. In real use, backed by SQLite."""
 
-    def list_missions(self) -> List[Dict]:
+    def list_incidents(self) -> List[Dict]:
         now = datetime.now()
-        missions = [
+        incidents = [
             {
                 "id": i,
-                "name": f"Mission {i}",
+                "name": f"Incident {i}",
                 "type": t,
                 "status": s,
-                "description": f"Detailed description for mission {i}. " * 3,
+                "description": f"Detailed description for incident {i}. " * 3,
                 "created_at": now - timedelta(days=30 + i),
                 "last_opened_at": (now - timedelta(days=i)) if i % 2 == 0 else None,
             }
@@ -79,20 +79,20 @@ class MissionStore:
                 start=1,
             )
         ]
-        missions.sort(key=lambda m: m["last_opened_at"] or datetime.min, reverse=True)
-        return missions
+        incidents.sort(key=lambda m: m["last_opened_at"] or datetime.min, reverse=True)
+        return incidents
 
 # --- Model -----------------------------------------------------------------
-class MissionTableModel(QAbstractTableModel):
+class IncidentTableModel(QAbstractTableModel):
     headers = ["Name", "Type", "Status", "Created", "Last Opened"]
 
-    def __init__(self, missions: List[Dict]):
+    def __init__(self, incidents: List[Dict]):
         super().__init__()
-        self._missions = missions
+        self._incidents = incidents
 
     # Required model implementations
     def rowCount(self, parent=QModelIndex()):
-        return len(self._missions)
+        return len(self._incidents)
 
     def columnCount(self, parent=QModelIndex()):
         return len(self.headers)
@@ -100,25 +100,25 @@ class MissionTableModel(QAbstractTableModel):
     def data(self, index: QModelIndex, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-        mission = self._missions[index.row()]
+        incident = self._incidents[index.row()]
         col = index.column()
         if role == Qt.DisplayRole:
             if col == 0:
-                return mission["name"]
+                return incident["name"]
             if col == 1:
-                return mission["type"]
+                return incident["type"]
             if col == 2:
-                return mission["status"]
+                return incident["status"]
             if col == 3:
-                return mission["created_at"].strftime("%Y-%m-%d")
+                return incident["created_at"].strftime("%Y-%m-%d")
             if col == 4:
                 return (
-                    mission["last_opened_at"].strftime("%Y-%m-%d")
-                    if mission["last_opened_at"]
+                    incident["last_opened_at"].strftime("%Y-%m-%d")
+                    if incident["last_opened_at"]
                     else "-"
                 )
         if role == Qt.ToolTipRole:
-            return mission["description"]
+            return incident["description"]
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
@@ -135,14 +135,14 @@ class MissionTableModel(QAbstractTableModel):
             4: lambda m: m["last_opened_at"] or datetime.min,
         }
         self.layoutAboutToBeChanged.emit()
-        self._missions.sort(key=key_funcs[column], reverse=order == Qt.DescendingOrder)
+        self._incidents.sort(key=key_funcs[column], reverse=order == Qt.DescendingOrder)
         self.layoutChanged.emit()
 
-    def mission_at(self, row: int) -> Dict:
-        return self._missions[row]
+    def incident_at(self, row: int) -> Dict:
+        return self._incidents[row]
 
 # --- Filtering --------------------------------------------------------------
-class MissionFilterProxyModel(QSortFilterProxyModel):
+class IncidentFilterProxyModel(QSortFilterProxyModel):
     def __init__(self):
         super().__init__()
         self.setFilterCaseSensitivity(Qt.CaseInsensitive)
@@ -152,9 +152,9 @@ class MissionFilterProxyModel(QSortFilterProxyModel):
         if not pattern:
             return True
         model = self.sourceModel()
-        mission = model.mission_at(source_row)
+        incident = model.incident_at(source_row)
         for key in ("name", "type", "status"):
-            if pattern in mission[key].lower():
+            if pattern in incident[key].lower():
                 return True
         return False
 
@@ -195,7 +195,7 @@ class LoadingOverlay(QWidget):
         layout.setAlignment(Qt.AlignCenter)
         self.spinner = Spinner()
         layout.addWidget(self.spinner)
-        label = QLabel("Loading mission...")
+        label = QLabel("Loading incident...")
         label.setStyleSheet("color: white; font-weight: bold;")
         layout.addWidget(label)
         self.hide()
@@ -210,12 +210,12 @@ class LoadingOverlay(QWidget):
         super().hideEvent(event)
 
 # --- Main window -----------------------------------------------------------
-class MissionSelectWindow(QMainWindow):
-    def __init__(self, store: MissionStore):
+class IncidentSelectWindow(QMainWindow):
+    def __init__(self, store: IncidentStore):
         super().__init__()
-        self.setWindowTitle("Select Mission")
+        self.setWindowTitle("Select Incident")
         self.store = store
-        self.missions = store.list_missions()
+        self.incidents = store.list_incidents()
         self.resize(900, 500)
         self.last_index: Optional[QModelIndex] = None
 
@@ -235,9 +235,9 @@ class MissionSelectWindow(QMainWindow):
         self.search.setPlaceholderText("Search...")
         left_container.addWidget(self.search)
 
-        if self.missions:
-            self.model = MissionTableModel(self.missions)
-            self.proxy = MissionFilterProxyModel()
+        if self.incidents:
+            self.model = IncidentTableModel(self.incidents)
+            self.proxy = IncidentFilterProxyModel()
             self.proxy.setSourceModel(self.model)
 
             self.table = QTableView()
@@ -255,7 +255,7 @@ class MissionSelectWindow(QMainWindow):
         else:
             self.table = None
             self.proxy = None
-            self.empty_label = QLabel("No missions found")
+            self.empty_label = QLabel("No incidents found")
             self.empty_label.setAlignment(Qt.AlignCenter)
             self.empty_label.setFrameShape(QFrame.StyledPanel)
             left_container.addWidget(self.empty_label)
@@ -264,7 +264,7 @@ class MissionSelectWindow(QMainWindow):
         detail_layout = QVBoxLayout()
         h.addLayout(detail_layout, 2)
 
-        self.detail_name = QLabel("Select a mission…")
+        self.detail_name = QLabel("Select a incident…")
         self.detail_type = QLabel()
         self.detail_status = QLabel()
         self.detail_created = QLabel()
@@ -283,12 +283,12 @@ class MissionSelectWindow(QMainWindow):
         btn_layout = QHBoxLayout()
         detail_layout.addLayout(btn_layout)
         btn_layout.addStretch()
-        self.load_btn = QPushButton("Load Mission")
+        self.load_btn = QPushButton("Load Incident")
         self.cancel_btn = QPushButton("Cancel")
         btn_layout.addWidget(self.load_btn)
         btn_layout.addWidget(self.cancel_btn)
 
-        if not self.missions:
+        if not self.incidents:
             self.load_btn.setEnabled(False)
 
         # Overlay
@@ -321,7 +321,7 @@ class MissionSelectWindow(QMainWindow):
         indexes = self.table.selectionModel().selectedRows()
         if not indexes:
             self.load_btn.setEnabled(False)
-            self.detail_name.setText("Select a mission…")
+            self.detail_name.setText("Select a incident…")
             self.detail_type.clear()
             self.detail_status.clear()
             self.detail_created.clear()
@@ -330,17 +330,17 @@ class MissionSelectWindow(QMainWindow):
             return
         index = indexes[0]
         self.load_btn.setEnabled(True)
-        mission = self.proxy.sourceModel().mission_at(self.proxy.mapToSource(index).row())
-        self.detail_name.setText(f"Name: {mission['name']}")
-        self.detail_type.setText(f"Type: {mission['type']}")
-        self.detail_status.setText(f"Status: {mission['status']}")
+        incident = self.proxy.sourceModel().incident_at(self.proxy.mapToSource(index).row())
+        self.detail_name.setText(f"Name: {incident['name']}")
+        self.detail_type.setText(f"Type: {incident['type']}")
+        self.detail_status.setText(f"Status: {incident['status']}")
         self.detail_created.setText(
-            f"Created: {mission['created_at'].strftime('%Y-%m-%d %H:%M')}"
+            f"Created: {incident['created_at'].strftime('%Y-%m-%d %H:%M')}"
         )
         self.detail_opened.setText(
-            f"Last Opened: {mission['last_opened_at'].strftime('%Y-%m-%d %H:%M') if mission['last_opened_at'] else '-'}"
+            f"Last Opened: {incident['last_opened_at'].strftime('%Y-%m-%d %H:%M') if incident['last_opened_at'] else '-'}"
         )
-        desc = mission['description']
+        desc = incident['description']
         if len(desc) > 500:
             desc = desc[:500] + "…"
         self.detail_desc.setText(f"Description: {desc}")
@@ -354,21 +354,21 @@ class MissionSelectWindow(QMainWindow):
         if not indexes:
             return
         index = indexes[0]
-        mission = self.proxy.sourceModel().mission_at(self.proxy.mapToSource(index).row())
+        incident = self.proxy.sourceModel().incident_at(self.proxy.mapToSource(index).row())
         self.centralWidget().setEnabled(False)
         self.overlay.show()
-        QTimer.singleShot(1200, lambda: self._finish_load(mission))
+        QTimer.singleShot(1200, lambda: self._finish_load(incident))
 
-    def _finish_load(self, mission: Dict):
-        print({"mission_id": mission["id"], "name": mission["name"]})
+    def _finish_load(self, incident: Dict):
+        print({"incident_id": incident["id"], "name": incident["name"]})
         QApplication.instance().quit()
 
 # --- Entry -----------------------------------------------------------------
 def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(STYLES)
-    store = MissionStore()
-    win = MissionSelectWindow(store)
+    store = IncidentStore()
+    win = IncidentSelectWindow(store)
     win.show()
     sys.exit(app.exec())
 

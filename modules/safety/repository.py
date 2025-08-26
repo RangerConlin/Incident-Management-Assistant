@@ -7,20 +7,20 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .models.safety_models import Base
 
-DATA_DIR = Path("data/missions")
+DATA_DIR = Path("data/incidents")
 
 
-def get_mission_engine(mission_id: str):
-    mission_path = DATA_DIR / f"{mission_id}.db"
-    mission_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{mission_path}", future=True)
+def get_incident_engine(incident_id: str):
+    incident_path = DATA_DIR / f"{incident_id}.db"
+    incident_path.parent.mkdir(parents=True, exist_ok=True)
+    engine = create_engine(f"sqlite:///{incident_path}", future=True)
     Base.metadata.create_all(engine)
     return engine
 
 
 @contextmanager
-def with_mission_session(mission_id: str) -> Session:
-    engine = get_mission_engine(mission_id)
+def with_incident_session(incident_id: str) -> Session:
+    engine = get_incident_engine(incident_id)
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
     session = SessionLocal()
     try:

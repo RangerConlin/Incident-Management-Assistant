@@ -25,7 +25,7 @@ class VehicleCheckTransaction(Base):
     id = Column(Integer, primary_key=True)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
     actor_id = Column(Integer, nullable=False)
-    mission_id = Column(String, nullable=False)
+    incident_id = Column(String, nullable=False)
     action = Column(String, nullable=False)  # check_out or check_in
     timestamp = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text)

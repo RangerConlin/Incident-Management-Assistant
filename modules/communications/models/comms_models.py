@@ -21,14 +21,14 @@ class Channel(SQLModel, table=True):
 
 class ChannelAssignment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    mission_id: str
+    incident_id: str
     team: str
     channel_id: int
 
 
 class MessageLogEntry(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    mission_id: str
+    incident_id: str
     timestamp: datetime
     sender: str
     recipient: str

@@ -9,9 +9,9 @@ from PySide6.QtWidgets import QDialog
 
 
 class BulkImportDialog(QDialog):
-    def __init__(self, mission_id: str):
+    def __init__(self, incident_id: str):
         super().__init__()
-        self.mission_id = mission_id
+        self.incident_id = incident_id
         self.setWindowTitle("Bulk Import")
         engine = QQmlApplicationEngine()
         qml_path = Path(__file__).resolve().parents[1] / "qml" / "BulkImportWizard.qml"

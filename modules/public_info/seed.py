@@ -3,8 +3,8 @@
 from .models.repository import PublicInfoRepository
 
 
-def seed(mission_id: str) -> None:
-    repo = PublicInfoRepository(mission_id)
+def seed(incident_id: str) -> None:
+    repo = PublicInfoRepository(incident_id)
     admin = {"id": 1, "roles": ["PIO", "LeadPIO", "IC"]}
 
     # Draft message

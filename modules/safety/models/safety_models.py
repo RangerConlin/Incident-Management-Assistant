@@ -56,7 +56,7 @@ class CapOrmForm(Base):
     __tablename__ = "cap_orm_forms"
 
     id = Column(Integer, primary_key=True)
-    mission_id = Column(String, index=True)
+    incident_id = Column(String, index=True)
     form_type = Column(String)
     activity = Column(String)
     participants_json = Column(Text)

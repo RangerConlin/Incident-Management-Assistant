@@ -30,9 +30,9 @@ def get_master_engine() -> Engine:
     return engine
 
 
-def get_mission_engine(mission_id: str) -> Engine:
-    """Return an engine bound to a mission-specific database."""
-    engine = _build_engine(ROOT_DIR / "data" / "missions" / f"{mission_id}.db")
+def get_incident_engine(incident_id: str) -> Engine:
+    """Return an engine bound to a incident-specific database."""
+    engine = _build_engine(ROOT_DIR / "data" / "incidents" / f"{incident_id}.db")
     ensure_tables(engine)
     return engine
 
@@ -59,9 +59,9 @@ def with_master_session() -> Generator[Session, None, None]:
 
 
 @contextmanager
-def with_mission_session(mission_id: str) -> Generator[Session, None, None]:
-    """Yield a session for a mission database."""
-    engine = get_mission_engine(mission_id)
+def with_incident_session(incident_id: str) -> Generator[Session, None, None]:
+    """Yield a session for a incident database."""
+    engine = get_incident_engine(incident_id)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
     try:

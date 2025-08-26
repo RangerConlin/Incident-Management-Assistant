@@ -30,9 +30,9 @@ def clone_template(template_id: int, req: schemas.CloneFromTemplateRequest | Non
 
 @router.get("/events")
 def list_events():
-    missions_dir = Path("data/missions")
-    missions_dir.mkdir(parents=True, exist_ok=True)
-    return {"events": [p.stem for p in missions_dir.glob("*.db")]}  # simple listing
+    incidents_dir = Path("data/incidents")
+    incidents_dir.mkdir(parents=True, exist_ok=True)
+    return {"events": [p.stem for p in incidents_dir.glob("*.db")]}  # simple listing
 
 
 @router.get("/events/{event_id}", response_model=schemas.EventRead | None)

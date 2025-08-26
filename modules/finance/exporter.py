@@ -11,17 +11,17 @@ from sqlalchemy.orm import Session
 BASE_DIR = Path(__file__).resolve().parent
 
 
-def export_daily_cost_summary(session: Session, mission_id: str, day: str) -> Dict[str, str]:
+def export_daily_cost_summary(session: Session, incident_id: str, day: str) -> Dict[str, str]:
     row = session.execute(
         text(
-            "SELECT total_labor, total_equipment, total_procurement, total_other FROM daily_cost_summary WHERE mission_id=:m AND date=:d"
+            "SELECT total_labor, total_equipment, total_procurement, total_other FROM daily_cost_summary WHERE incident_id=:m AND date=:d"
         ),
-        {"m": mission_id, "d": day},
+        {"m": incident_id, "d": day},
     ).mappings().first()
     if not row:
         row = {"total_labor": 0, "total_equipment": 0, "total_procurement": 0, "total_other": 0}
 
-    export_dir = BASE_DIR / "data" / "missions" / mission_id / "exports" / "finance"
+    export_dir = BASE_DIR / "data" / "incidents" / incident_id / "exports" / "finance"
     export_dir.mkdir(parents=True, exist_ok=True)
     path = export_dir / f"daily_cost_{day}.csv"
     with open(path, "w", newline="") as f:
@@ -31,8 +31,8 @@ def export_daily_cost_summary(session: Session, mission_id: str, day: str) -> Di
     return {"path": str(path), "created_at": datetime.utcnow().isoformat()}
 
 
-def list_artifacts(mission_id: str) -> List[Dict[str, str]]:
-    export_dir = BASE_DIR / "data" / "missions" / mission_id / "exports" / "finance"
+def list_artifacts(incident_id: str) -> List[Dict[str, str]]:
+    export_dir = BASE_DIR / "data" / "incidents" / incident_id / "exports" / "finance"
     if not export_dir.exists():
         return []
     artifacts = []

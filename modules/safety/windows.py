@@ -16,30 +16,30 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_208_panel(mission_id: object | None = None) -> QWidget:
+def get_208_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Safety Plan (ICS-208)."""
     return _make_panel(
         "Safety Plan (ICS-208)",
-        f"ICS-208 form — mission: {mission_id}",
+        f"ICS-208 form — incident: {incident_id}",
     )
 
-def get_215A_panel(mission_id: object | None = None) -> QWidget:
+def get_215A_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Incident Action Safety Analysis (ICS-215A)."""
     return _make_panel(
         "Incident Action Safety Analysis (ICS-215A)",
-        f"ICS-215A form — mission: {mission_id}",
+        f"ICS-215A form — incident: {incident_id}",
     )
 
-def get_caporm_panel(mission_id: object | None = None) -> QWidget:
+def get_caporm_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for CAP ORM."""
     return _make_panel(
         "CAP ORM",
-        f"Operational risk management — mission: {mission_id}",
+        f"Operational risk management — incident: {incident_id}",
     )
 
-def get_safety_panel(mission_id: object | None = None) -> QWidget:
+def get_safety_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Safety Dashboard."""
     return _make_panel(
         "Safety Dashboard",
-        f"Safety overview — mission: {mission_id}",
+        f"Safety overview — incident: {incident_id}",
     )

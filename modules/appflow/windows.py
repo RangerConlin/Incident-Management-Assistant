@@ -11,9 +11,9 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_exit_panel(mission_id: object | None = None) -> QWidget:
+def get_exit_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Exit Workflow."""
     return _make_panel(
         "Exit Workflow",
-        f"Save, discard, or cancel changes — mission: {mission_id}",
+        f"Save, discard, or cancel changes — incident: {incident_id}",
     )

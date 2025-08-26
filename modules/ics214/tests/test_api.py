@@ -14,17 +14,17 @@ client = TestClient(app)
 
 def test_create_entry_ws_and_export(tmp_path):
     # Create stream
-    res = client.post("/api/ics214/streams", json={"mission_id": "m1", "name": "Test"})
+    res = client.post("/api/ics214/streams", json={"incident_id": "m1", "name": "Test"})
     stream_id = res.json()["id"]
 
     with client.websocket_connect(f"/api/ics214/streams/{stream_id}/ws") as ws:
-        client.post(f"/api/ics214/streams/{stream_id}/entries", params={"mission_id": "m1"}, json={"text": "hello"})
+        client.post(f"/api/ics214/streams/{stream_id}/entries", params={"incident_id": "m1"}, json={"text": "hello"})
         data = ws.receive_json()
         assert data["text"] == "hello"
 
-    res = client.get(f"/api/ics214/streams/{stream_id}/entries", params={"mission_id": "m1"})
+    res = client.get(f"/api/ics214/streams/{stream_id}/entries", params={"incident_id": "m1"})
     assert len(res.json()) == 1
 
-    res = client.post(f"/api/ics214/streams/{stream_id}/export", params={"mission_id": "m1"}, json={"include_auto": True, "include_attachments": False})
+    res = client.post(f"/api/ics214/streams/{stream_id}/export", params={"incident_id": "m1"}, json={"include_auto": True, "include_attachments": False})
     path = res.json()["file_path"]
     assert os.path.exists(path)

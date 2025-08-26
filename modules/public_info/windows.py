@@ -15,23 +15,23 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_media_releases_panel(mission_id: object | None = None) -> QWidget:
+def get_media_releases_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Media Releases."""
     return _make_panel(
         "Media Releases",
-        f"Draft and publish releases — mission: {mission_id}",
+        f"Draft and publish releases — incident: {incident_id}",
     )
 
-def get_inquiries_panel(mission_id: object | None = None) -> QWidget:
+def get_inquiries_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Public Inquiries."""
     return _make_panel(
         "Public Inquiries",
-        f"Track inquiries — mission: {mission_id}",
+        f"Track inquiries — incident: {incident_id}",
     )
 
-def get_public_info_panel(mission_id: object | None = None) -> QWidget:
+def get_public_info_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Public Information dashboard."""
     return _make_panel(
         "Public Information Dashboard",
-        f"Public information overview — mission: {mission_id}",
+        f"Public information overview — incident: {incident_id}",
     )

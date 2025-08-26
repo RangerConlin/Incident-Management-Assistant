@@ -16,8 +16,8 @@ from modules.referencelibrary.models.schemas import (
     DocumentUpdate,
     ExternalLinkCreate,
     ExternalLinkRead,
-    MissionDocumentCreate,
-    MissionDocumentRead,
+    IncidentDocumentCreate,
+    IncidentDocumentRead,
     SearchQuery,
     SearchResult,
     ToggleCacheRequest,
@@ -107,10 +107,10 @@ async def list_links() -> List[ExternalLinkRead]:
 
 
 # ---------------------------------------------------------------------------
-# Mission attachments
+# Incident attachments
 # ---------------------------------------------------------------------------
 
 
-@router.post("/mission/attach", response_model=MissionDocumentRead)
-async def attach_to_mission(payload: MissionDocumentCreate) -> MissionDocumentRead:
-    return services.attach_to_mission(payload)
+@router.post("/incident/attach", response_model=IncidentDocumentRead)
+async def attach_to_incident(payload: IncidentDocumentCreate) -> IncidentDocumentRead:
+    return services.attach_to_incident(payload)

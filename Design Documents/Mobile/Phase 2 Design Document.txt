@@ -88,9 +88,9 @@ Command: Task Board, Message Log, Check-In Admin
 
 Add icons and grouping by function
 
-6. Mission Overview (Command Side)
+6. Incident Overview (Command Side)
 
-Summary dashboard of mission status
+Summary dashboard of incident status
 
 Show current personnel, check-in status, team counts
 
@@ -138,11 +138,11 @@ GET /api/mobile/messages
 
 Messages
 
-Mission Overview
+Incident Overview
 
 Planning
 
-GET /api/mobile/mission-overview
+GET /api/mobile/incident-overview
 
 Users, Teams, CheckIns
 
@@ -154,7 +154,7 @@ Home Tab: [✅ Task List], [✔️ Status], [📻 Comms Plan], [⚕️ Med Plan]
 
 Command Staff
 
-Home Tab: [📊 Mission Overview], [📄 Task Board], [📨 Message Log], [📈 Admin Check-In]
+Home Tab: [📊 Incident Overview], [📄 Task Board], [📨 Message Log], [📈 Admin Check-In]
 
 ⏳ Suggested Timeline (~2 Weeks)
 
@@ -170,7 +170,7 @@ Task
 
 7 Build Message Inbox screen
 
-8–9 Create Mission Overview dashboard (Command side)
+8–9 Create Incident Overview dashboard (Command side)
 
 10 Navigation refinements + role-based tab UI
 
