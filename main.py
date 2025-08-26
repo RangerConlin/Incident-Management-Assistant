@@ -383,22 +383,16 @@ class MainWindow(QMainWindow):
 # ===== Part 4: Handlers in Menu Order (panel-factory pattern) ============
 # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_new_mission(self) -> None:
-        from modules import missions
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = missions.get_new_mission_panel(mission_id)
-        self._open_modeless(panel, title="New Mission")
+        from ui_bootstrap.mission_select_bootstrap import show_mission_selector
+        show_mission_selector()
 
     def open_menu_open_mission(self) -> None:
-        from modules import missions
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = missions.get_mission_list_panel(mission_id)
-        self._open_modeless(panel, title="Incident Selection")
+        from ui_bootstrap.mission_select_bootstrap import show_mission_selector
+        show_mission_selector()
 
     def open_menu_save_mission(self) -> None:
-        from modules import missions
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = missions.get_save_mission_panel(mission_id)
-        self._open_modeless(panel, title="Save Mission")
+        from ui_bootstrap.mission_select_bootstrap import show_mission_selector
+        show_mission_selector()
 
     def open_menu_settings(self) -> None:
         from modules import settingsui
