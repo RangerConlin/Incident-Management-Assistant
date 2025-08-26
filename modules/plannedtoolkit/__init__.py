@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from .api import router
+# modules/plannedtoolkit/__init__.py
 from .windows import (
     get_promotions_panel,
     get_vendors_panel,
@@ -11,7 +9,6 @@ from .windows import (
 )
 
 __all__ = [
-    "router",
     "get_promotions_panel",
     "get_vendors_panel",
     "get_safety_panel",
