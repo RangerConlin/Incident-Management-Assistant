@@ -392,7 +392,7 @@ class MainWindow(QMainWindow):
         from modules import missions
         mission_id = getattr(self, "current_mission_id", None)
         panel = missions.get_mission_list_panel(mission_id)
-        self._open_modeless(panel, title="Open Mission")
+        self._open_modeless(panel, title="Incident Selection")
 
     def open_menu_save_mission(self) -> None:
         from modules import missions
@@ -819,13 +819,13 @@ class MainWindow(QMainWindow):
         self._open_modeless(panel, title="Health & Sanitation")
 
     def open_toolkit_initial_hasty(self) -> None:
-        from modules.initalresponse import initial
+        from modules.initialresponse import initial
         mission_id = getattr(self, "current_mission_id", None)
         panel = initial.get_hasty_panel(mission_id)
         self._open_modeless(panel, title="Hasty Tools")
 
     def open_toolkit_initial_reflex(self) -> None:
-        from modules.initalresponse import initial
+        from modules.initialresponse import initial
         mission_id = getattr(self, "current_mission_id", None)
         panel = initial.get_reflex_panel(mission_id)
         self._open_modeless(panel, title="Reflex Taskings")

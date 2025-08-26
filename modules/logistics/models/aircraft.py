@@ -1,34 +1,31 @@
-"""Equipment inventory and check transaction SQLAlchemy models."""
-
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 
 from . import Base
 
-
-class EquipmentItem(Base):
-    __tablename__ = "equipment_items"
+class Aircraft(Base):
+    __tablename__ = "aircraft"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    type_id = Column(String)
-    serial_number = Column(String)
+    make = Column(String, nullable=False)
+    model = Column(String, nullable=False)
+    year = Column(Integer, nullable=False)
+    tail_number = Column(String, unique=True, nullable=False)
     status = Column(String, default="available")
     location = Column(String)
     current_holder_id = Column(Integer)
-    tags = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
-class CheckTransaction(Base):
-    __tablename__ = "check_transactions"
+class AircraftCheckTransaction(Base):
+    __tablename__ = "aircraft_check_transactions"
 
     id = Column(Integer, primary_key=True)
-    equipment_id = Column(Integer, ForeignKey("equipment_items.id"), nullable=False)
+    aircraft_id = Column(Integer, ForeignKey("aircraft.id"), nullable=False)
     actor_id = Column(Integer, nullable=False)
     mission_id = Column(String, nullable=False)
     action = Column(String, nullable=False)  # check_out or check_in
     timestamp = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text)
+
