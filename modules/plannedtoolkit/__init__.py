@@ -1,3 +1,4 @@
+# modules/plannedtoolkit/__init__.py
 from .windows import (
     get_promotions_panel,
     get_vendors_panel,
