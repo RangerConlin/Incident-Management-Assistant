@@ -1,363 +1,352 @@
-"""
-Incident selection data model and helpers.
-- Adapts to the existing Incident domain object via COLUMN_MAP.
-- Loads rows from data/master.db (SQLite) using load_incidents_from_master().
-- Exposes a QSortFilterProxyModel for sorting and filtering.
-"""
-
-from __future__ import annotations
-
-import os
-import sqlite3
-from typing import Callable, List, Sequence
-from types import SimpleNamespace
+# models/incidentlist.py
+# QML-friendly IncidentListModel + filterable IncidentProxyModel + QObject IncidentController
 
 from PySide6.QtCore import (
-    QAbstractTableModel,
-    QSortFilterProxyModel,
-    Qt,
-    QModelIndex,
-    QObject,
-    Signal,
-    Slot,
+    QAbstractListModel, QModelIndex, Qt, QByteArray,
+    QObject, Slot, Signal
 )
+from PySide6.QtCore import QSortFilterProxyModel
+import os, sqlite3
+from types import SimpleNamespace
+from typing import List, Any
 
-# ---------------------------------------------------------------------------
-# Column resolution configuration
-# ---------------------------------------------------------------------------
+__all__ = ["IncidentListModel", "IncidentProxyModel", "IncidentController"]
 
-# Logical role/column → how to read from the existing Incident object
-# Each value may be: attribute name ("name"), dict key ("[name]"), or a
-# callable: lambda m: ...
-COLUMN_MAP = {
-    "id": "id",
-    "number": "number",
-    "name": "name",
-    "type": "type",
-    "status": "status",
-    "start_time": "start_time",  # ISO8601 UTC string
-    "end_time": "end_time",  # ISO8601 UTC string (may be empty)
-    "is_training": "is_training",  # bool or 0/1
-    "icp_location": "icp_location",
-    # Extra fields used for filtering only:
-    "description": "description",
-    "search_area": "search_area",
-}
+# ---------------- Helpers (DB) ---------------- #
 
+def _abs_master_db_path() -> str:
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.normpath(os.path.join(here, os.pardir))
+    return os.path.join(repo_root, "data", "master.db")
 
-def resolve(m: object, key: str):
-    """Return the value for logical field `key` from Incident `m` using COLUMN_MAP."""
+def _table_exists(cur, name: str) -> bool:
+    cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?;", (name,))
+    return cur.fetchone() is not None
 
-    spec = COLUMN_MAP[key]
-    if callable(spec):
-        return spec(m)
-    if isinstance(spec, str) and spec.startswith("[") and spec.endswith("]"):
-        return m[spec[1:-1]]
-    return getattr(m, spec)
+def _cols(cur, table: str) -> set:
+    cur.execute(f"PRAGMA table_info({table});")
+    return {row[1] for row in cur.fetchall()}
 
+def load_incidents_from_master() -> List[SimpleNamespace]:
+    """Load incident rows from the master.db file."""
+    db_path = _abs_master_db_path()
+    rows: List[SimpleNamespace] = []
+    con = None
+    try:
+        if not os.path.exists(db_path):
+            print(f"[incidentlist] DB not found: {db_path}")
+            return rows
 
-# ---------------------------------------------------------------------------
-# Incident table model
-# ---------------------------------------------------------------------------
+        con = sqlite3.connect(db_path)
+        con.row_factory = sqlite3.Row
+        cur = con.cursor()
 
+        table = "incidents" if _table_exists(cur, "incidents") else ("missions" if _table_exists(cur, "missions") else None)
+        if not table:
+            print("[incidentlist] Neither 'incidents' nor 'missions' table exists.")
+            return rows
 
-class IncidentListModel(QAbstractTableModel):
-    """Qt table model exposing incidents for the selector UI."""
+        cset = _cols(cur, table)
+        def col(name, fallback=None, alias=None):
+            chosen = name if name in cset else (fallback if fallback in cset else None)
+            if chosen:
+                return chosen if alias is None else f"{chosen} AS {alias}"
+            safe_alias = alias or name
+            return f"NULL AS {safe_alias}"
 
-    headers = [
-        "ID",
-        "Number",
-        "Incident Name",
-        "Type",
-        "Status",
-        "Start (UTC)",
-        "End (UTC)",
-        "Training",
-        "ICP",
+        select_sql = f"""
+            SELECT
+                {col('id')},
+                {col('number')},
+                {col('name')},
+                {col('type')},
+                {col('status')},
+                {col('start_time', 'start')},
+                {col('end_time', 'end')},
+                {col('is_training', 'training', alias='is_training')},
+                {col('icp_location', 'icp')},
+                {col('description')},
+                {col('search_area', 'area', alias='search_area')}
+            FROM {table}
+            ORDER BY id DESC
+        """
+        try:
+            cur.execute(select_sql)
+        except sqlite3.OperationalError as e:
+            print(f"[incidentlist] Fallback SELECT due to {e}")
+            cur.execute(f"SELECT * FROM {table} ORDER BY id DESC")
+
+        for r in cur.fetchall():
+            rows.append(SimpleNamespace(**{k: r[k] for k in r.keys()}))
+
+        print(f"[incidentlist] Loaded {len(rows)} row(s) from '{table}' in {db_path}")
+        return rows
+    except Exception as e:
+        print(f"[incidentlist] ERROR loading incidents: {e}")
+        return rows
+    finally:
+        try:
+            if con:
+                con.close()
+        except Exception:
+            pass
+
+# ---------------- Base list model ---------------- #
+
+class IncidentListModel(QAbstractListModel):
+    """QML-facing model exposing roles for incidents."""
+    ROLE_NAMES = [
+        "id", "number", "name", "type", "status",
+        "start_time", "end_time", "is_training", "icp_location",
+        "description", "search_area",
     ]
 
-    # Role numbers start at Qt.UserRole
-    _roles = {
-        Qt.UserRole + i: name.encode()
-        for i, name in enumerate(COLUMN_MAP.keys())
-    }
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._rows: List[SimpleNamespace] = []
+        self._role_map = {Qt.UserRole + i + 1: name.encode() for i, name in enumerate(self.ROLE_NAMES)}
 
-    def __init__(self, incidents: Sequence[object] | None = None):
-        super().__init__()
-        self._incidents: List[object] = list(incidents or [])
-
-    # --- Qt model implementation -----------------------------------------
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
-        return len(self._incidents)
-
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
-        return len(self.headers)
-
-    def data(self, index: QModelIndex, role: int = Qt.DisplayRole):  # type: ignore[override]
-        if not index.isValid():
-            return None
-        incident = self._incidents[index.row()]
-        if role == Qt.DisplayRole:
-            key = list(COLUMN_MAP.keys())[index.column()]
-            value = resolve(incident, key)
-            if key == "is_training":
-                return "Yes" if bool(value) else "No"
-            return value
-        elif role in self._roles:
-            key = self._roles[role].decode()
-            return resolve(incident, key)
-        return None
+        return 0 if parent.isValid() else len(self._rows)
 
     def roleNames(self):  # type: ignore[override]
-        return self._roles
+        return {k: QByteArray(v) for k, v in self._role_map.items()}
 
-    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):  # type: ignore[override]
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            try:
-                return self.headers[section]
-            except IndexError:
-                return None
-        return super().headerData(section, orientation, role)
-
-    def flags(self, index: QModelIndex):  # type: ignore[override]
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:  # type: ignore[override]
         if not index.isValid():
-            return Qt.NoItemFlags
-        return Qt.ItemIsSelectable | Qt.ItemIsEnabled
+            return None
+        row = self._rows[index.row()]
+        name = self._role_map.get(role)
+        if not name:
+            return getattr(row, "name", None)
+        key = name.decode() if isinstance(name, (bytes, bytearray)) else name
+        return getattr(row, key, None)
 
-    # --- Helpers -----------------------------------------------------------
-    def incident_at(self, row: int):
-        """Return incident object at model row."""
-
-        if 0 <= row < len(self._incidents):
-            return self._incidents[row]
-        return None
-
-    # --- Data reloading ----------------------------------------------------
-    def reload(self, provider: Callable[[], Sequence[object]] | None = None):
-        """Repopulate the model using ``provider`` (defaults to DB loader)."""
-
-        provider = provider or load_incidents_from_master
-        incidents = list(provider())
+    def refresh(self) -> None:
+        items = load_incidents_from_master()
         self.beginResetModel()
-        self._incidents = incidents
+        self._rows = items
         self.endResetModel()
 
+    # Compatibility shim for older code paths
+    def reload(self, loader=None) -> None:
+        if callable(loader):
+            items = loader()
+        else:
+            items = load_incidents_from_master()
+        self.beginResetModel()
+        self._rows = items or []
+        self.endResetModel()
 
-# ---------------------------------------------------------------------------
-# SQLite loader
-# ---------------------------------------------------------------------------
+    def clear(self) -> None:
+        self.beginResetModel()
+        self._rows.clear()
+        self.endResetModel()
 
+    def count(self) -> int:
+        return len(self._rows)
 
-def load_incidents_from_master() -> List[object]:
-    """Read incidents from data/master.db; return Incident objects or proxies."""
+    def load_sample(self) -> None:
+        from types import SimpleNamespace as NS
+        self.beginResetModel()
+        self._rows = [
+            NS(id=1, number="G-001", name="Test Incident", type="SAR", status="Active",
+               start_time=None, end_time=None, is_training=False, icp_location="HQ",
+               description="This is just a sample row.", search_area="Trail 5"),
+        ]
+        self.endResetModel()
 
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "master.db")
-    if not os.path.exists(db_path):
-        return []
-
-    try:
-        from models.incident import Incident  # type: ignore
-    except Exception:  # pragma: no cover - Incident class should exist
-        Incident = None  # type: ignore
-
-    incidents: List[object] = []
-    try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, name, number, type, description, status,
-                   search_area, icp_location, start_time, end_time, is_training
-            FROM incidents
-            ORDER BY start_time DESC, id DESC
-            """
-        )
-        for row in cur.fetchall():
-            if Incident is not None:
-                incident = Incident(
-                    id=row["id"],
-                    number=row["number"],
-                    name=row["name"],
-                    type=row["type"],
-                    description=row["description"],
-                    status=row["status"],
-                    icp_location=row["icp_location"],
-                    start_time=row["start_time"],
-                    end_time=row["end_time"],
-                    is_training=bool(row["is_training"]),
-                )
-                # Existing Incident class lacks search_area; attach dynamically.
-                setattr(incident, "search_area", row["search_area"])
-            else:
-                incident = SimpleNamespace(
-                    id=row["id"],
-                    number=row["number"],
-                    name=row["name"],
-                    type=row["type"],
-                    description=row["description"],
-                    status=row["status"],
-                    search_area=row["search_area"],
-                    icp_location=row["icp_location"],
-                    start_time=row["start_time"],
-                    end_time=row["end_time"],
-                    is_training=bool(row["is_training"]),
-                )
-            incidents.append(incident)
-        conn.close()
-    except sqlite3.Error:
-        # If the table is missing or unreadable, return empty list.
-        return []
-
-    return incidents
-
-
-# ---------------------------------------------------------------------------
-# Proxy filters
-# ---------------------------------------------------------------------------
-
+# ---------------- Proxy (with QML-callable filters) ---------------- #
 
 class IncidentProxyModel(QSortFilterProxyModel):
-    """Filtering/sorting proxy for IncidentListModel."""
-
-    def __init__(self):
-        super().__init__()
-        self._status = "All"
-        self._type = "All"
-        self._training = 0  # 0=All, 1=Only Training, 2=Only Real
-        self._text = ""
-        self.setFilterCaseSensitivity(Qt.CaseInsensitive)
-        self.setSortCaseSensitivity(Qt.CaseInsensitive)
+    """Proxy with QML-callable filters: status/type/training/text."""
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._text_filter = ""
+        self._status_filter = ""
+        self._type_filter = ""
+        self._training_filter: object | None = None  # None=no filter, True/False filter
         self.setDynamicSortFilter(True)
+        self.setFilterCaseSensitivity(Qt.CaseInsensitive)
 
-    # -- Slots to adjust filters ------------------------------------------
+    # QML-callable slots
     @Slot(str)
-    def setStatusFilter(self, value: str):
-        self._status = value
-        self.invalidateFilter()
-
-    @Slot(str)
-    def setTypeFilter(self, value: str):
-        self._type = value
-        self.invalidateFilter()
-
-    @Slot(int)
-    def setTrainingFilter(self, value: int):
-        self._training = value
+    def setFilterText(self, text: str) -> None:
+        self._text_filter = text or ""
         self.invalidateFilter()
 
     @Slot(str)
-    def setTextFilter(self, value: str):
-        self._text = value.lower()
+    def setTextFilter(self, text: str) -> None:
+        self.setFilterText(text)
+
+    @Slot(str)
+    def setStatusFilter(self, status: str) -> None:
+        self._status_filter = (status or "").strip()
         self.invalidateFilter()
 
-    # -- Filter logic ------------------------------------------------------
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
-        model: IncidentListModel = self.sourceModel()  # type: ignore[assignment]
-        incident = model.incident_at(source_row)
-        if incident is None:
-            return False
+    @Slot(str)
+    def setTypeFilter(self, t: str) -> None:
+        self._type_filter = (t or "").strip()
+        self.invalidateFilter()
+
+    @Slot('QVariant')
+    def setTrainingFilter(self, v) -> None:
+        if isinstance(v, bool):
+            self._training_filter = v
+        else:
+            s = (str(v) if v is not None else "").strip().lower()
+            if s in ("", "all", "any"):
+                self._training_filter = None
+            elif s in ("true", "1", "yes", "y"):
+                self._training_filter = True
+            elif s in ("false", "0", "no", "n"):
+                self._training_filter = False
+            else:
+                self._training_filter = None
+        self.invalidateFilter()
+
+    # helpers
+    def _role_number(self, name_bytes: bytes | str) -> int | None:
+        sm = self.sourceModel()
+        if sm is None:
+            return None
+        rn = sm.roleNames()
+        key = name_bytes.encode() if isinstance(name_bytes, str) else name_bytes
+        for role, rname in rn.items():
+            if bytes(rname) == key:
+                return role
+        return None
+
+    def _get(self, sm, row: int, role_name: bytes):
+        role = self._role_number(role_name)
+        if role is None:
+            return None
+        idx = sm.index(row, 0)
+        return sm.data(idx, role)
+
+    # filtering logic
+    def filterAcceptsRow(self, source_row: int, source_parent) -> bool:  # type: ignore[override]
+        sm = self.sourceModel()
+        if sm is None:
+            return True
+
+        # Text filter across common fields
+        if self._text_filter:
+            needle = self._text_filter.lower()
+            hay = [self._get(sm, source_row, r) for r in (b"name", b"number", b"status", b"type", b"icp_location", b"description", b"search_area")]
+            if not any((str(v).lower().find(needle) != -1) for v in hay if v is not None):
+                return False
 
         # Status filter
-        if self._status and self._status != "All":
-            if str(resolve(incident, "status")).lower() != self._status.lower():
+        if self._status_filter:
+            val = self._get(sm, source_row, b"status")
+            if (val or "").strip() != self._status_filter:
                 return False
 
         # Type filter
-        if self._type and self._type != "All":
-            if str(resolve(incident, "type")).lower() != self._type.lower():
+        if self._type_filter:
+            val = self._get(sm, source_row, b"type")
+            if (val or "").strip() != self._type_filter:
                 return False
 
         # Training filter
-        if self._training == 1 and not bool(resolve(incident, "is_training")):
-            return False
-        if self._training == 2 and bool(resolve(incident, "is_training")):
-            return False
-
-        # Text search across multiple fields
-        if self._text:
-            haystack = " ".join(
-                str(resolve(incident, key) or "")
-                for key in [
-                    "name",
-                    "number",
-                    "description",
-                    "icp_location",
-                    "search_area",
-                ]
-            ).lower()
-            if self._text not in haystack:
+        if self._training_filter is not None:
+            v = self._get(sm, source_row, b"is_training")
+            vb = bool(v) if v is not None else False
+            if vb != bool(self._training_filter):
                 return False
 
         return True
 
+    def lessThan(self, left, right):  # type: ignore[override]
+        sm = self.sourceModel()
+        if sm is None:
+            return False
+        role = self._role_number(b"name") or Qt.DisplayRole
+        l = sm.data(left, role)
+        r = sm.data(right, role)
+        return str(l) < str(r)
 
-# ---------------------------------------------------------------------------
-# Controller slots
-# ---------------------------------------------------------------------------
-
-
+# ---------------- QObject controller (invokable from QML) ---------------- #
 class IncidentController(QObject):
-    """Controller emitting CRUD-related signals for incidents."""
+    incidentSelected = Signal(str)
 
-    incidentLoaded = Signal(int)
-    incidentEdited = Signal(int)
-    incidentDeleted = Signal(int)
-    incidentCreated = Signal(int)
-    error = Signal(str)
-
-    def __init__(self, model: IncidentListModel):
+    def __init__(self) -> None:
         super().__init__()
-        self._model = model
+        self.model = IncidentListModel()
+        self.model.refresh()
+        self.proxy = IncidentProxyModel()
+        self.proxy.setSourceModel(self.model)
 
-    # -- Slots used by QML -------------------------------------------------
+    # Support BOTH call styles:
+    #   - controller.loadIncident(proxy, row)
+    #   - controller.loadIncident("INC-123")
     @Slot(QObject, int)
-    def loadIncident(self, proxy: IncidentProxyModel, proxyRow: int):
-        """Emit incidentLoaded for the row."""
+    @Slot(str)
+    def loadIncident(self, arg1, row: int | None = None) -> None:
+        # Overloaded slot handler
+        if row is None:
+            # Called with a single string
+            incident_number = str(arg1) if arg1 is not None else ""
+            if incident_number:
+                self.incidentSelected.emit(incident_number)
+            return
 
-        incident_id = self._incident_id_from_proxy(proxy, proxyRow)
-        if incident_id is not None:
-            self.incidentLoaded.emit(incident_id)
+        # Called with (model, row)
+        model = arg1
+        if row < 0 or model is None:
+            return
+        try:
+            role = model.roleForName(b"number")
+        except Exception:
+            role = None
+        idx = model.index(row, 0)
+        num = model.data(idx, role) if role is not None else None
+        if num is not None:
+            self.incidentSelected.emit(str(num))
+
+    # --- Stubs so QML buttons don't explode (fill these out later) ---
+    @Slot(QObject, int)
+    def editIncident(self, model, row: int) -> None:
+        print("[IncidentController] editIncident called for row", row)
 
     @Slot(QObject, int)
-    def editIncident(self, proxy: IncidentProxyModel, proxyRow: int):
-        """Emit incidentEdited. DB updates will be wired later."""
-
-        incident_id = self._incident_id_from_proxy(proxy, proxyRow)
-        if incident_id is not None:
-            self.incidentEdited.emit(incident_id)
-
-    @Slot(QObject, int)
-    def deleteIncident(self, proxy: IncidentProxyModel, proxyRow: int):
-        """Emit incidentDeleted. Actual DB removal will be handled later."""
-
-        incident_id = self._incident_id_from_proxy(proxy, proxyRow)
-        if incident_id is not None:
-            self.incidentDeleted.emit(incident_id)
+    def deleteIncident(self, model, row: int) -> None:
+        print("[IncidentController] deleteIncident called for row", row)
 
     @Slot()
-    def newIncident(self):
-        """Emit incidentCreated placeholder signal."""
+    def newIncident(self) -> None:
+        print("[IncidentController] newIncident called")
 
-        # When a creation dialog is wired up, the new incident ID will be
-        # emitted here instead of -1.
-        self.incidentCreated.emit(-1)
+    # Convenience for QML filter bar
+    @Slot()
+    def refresh(self) -> None:
+        self.model.refresh()
 
-    # -- Internal helpers --------------------------------------------------
-    def _incident_id_from_proxy(self, proxy: IncidentProxyModel, proxyRow: int):
-        if proxy is None or proxyRow < 0:
-            return None
-        source_index = proxy.mapToSource(proxy.index(proxyRow, 0))
-        incident = self._model.incident_at(source_index.row())
-        if incident is None:
-            return None
-        return int(resolve(incident, "id"))
+    @Slot(str)
+    def setFilterText(self, text: str) -> None:
+        self.proxy.setFilterText(text)
 
+    @Slot(str)
+    def setStatusFilter(self, status: str) -> None:
+        self.proxy.setStatusFilter(status)
 
-__all__ = [
-    "IncidentListModel",
-    "IncidentProxyModel",
-    "IncidentController",
-    "load_incidents_from_master",
-]
+    @Slot(str)
+    def setTypeFilter(self, t: str) -> None:
+        self.proxy.setTypeFilter(t)
 
+    @Slot('QVariant')
+    def setTrainingFilter(self, v) -> None:
+        # Accept bool/str/int (0=All, 1=Only Training, 2=Only Real)
+        if isinstance(v, int):
+            mapped = None if v == 0 else (True if v == 1 else False)
+            self.proxy.setTrainingFilter(mapped)
+        else:
+            self.proxy.setTrainingFilter(v)
+
+    # getters for Python to pass to QML
+    def getProxy(self):
+        return self.proxy
+
+    def getModel(self):
+        return self.model

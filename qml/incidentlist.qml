@@ -7,7 +7,11 @@ Item {
     width: 800
     height: 500
 
+    // Emitted to Python when a mission is chosen
     signal incidentSelected(string incidentNumber)
+
+    // Tracks which row is highlighted/selected
+    property string selectedIncidentNumber: ""
 
     Rectangle {
         anchors.fill: parent
@@ -30,7 +34,8 @@ Item {
                 Layout.fillHeight: true
                 model: incidentModel
                 spacing: 5
-                 clip: true
+                clip: true
+                focus: true
 
                 delegate: Rectangle {
                     width: listView.width
@@ -42,37 +47,18 @@ Item {
                         anchors.fill: parent
                         spacing: 20
 
-                        Text {
-                            text: model.number
-                            Layout.preferredWidth: 100
-                        }
-
-                        Text {
-                            text: model.name
-                            Layout.fillWidth: true
-                        }
-
-                        Text {
-                            text: model.type
-                            Layout.preferredWidth: 100
-                        }
-
-                        Text {
-                            text: model.status
-                            Layout.preferredWidth: 80
-                        }
-
-                        Text {
-                            text: model.icp_location
-                            Layout.preferredWidth: 200
-                        }
+                        // NOTE: Use role names directly (number/name/etc.)
+                        Text { text: number;       Layout.preferredWidth: 100 }
+                        Text { text: name;         Layout.fillWidth: true }
+                        Text { text: type;         Layout.preferredWidth: 100 }
+                        Text { text: status;       Layout.preferredWidth: 80 }
+                        Text { text: icp_location; Layout.preferredWidth: 200 }
                     }
 
                     MouseArea {
                         id: clickArea
                         anchors.fill: parent
                         property int clickCount: 0
-                        property bool timerRunning: false
 
                         Timer {
                             id: clickTimer
@@ -82,24 +68,40 @@ Item {
                         }
 
                         onClicked: {
+                            // highlight the row and store the incident number
+                            listView.currentIndex = index
+                            root.selectedIncidentNumber = number
+
+                            // double-click detection
                             clickCount += 1
-
-                            if (!clickTimer.running) {
-                                clickTimer.start()
-                            }
-
+                            if (!clickTimer.running) clickTimer.start()
                             if (clickCount === 2) {
                                 clickTimer.stop()
                                 clickCount = 0
-                                console.log("Double-click detected on number:", model.number)
-                                root.incidentSelected(model.number)
+                                root.incidentSelected(number)
                             }
                         }
                     }
+                }
 
-                    }
+                // Enter/Return triggers Select on the highlighted row
+                Keys.onReturnPressed: {
+                    if (root.selectedIncidentNumber !== "")
+                        root.incidentSelected(root.selectedIncidentNumber)
+                }
+            }
+
+            // --- Select button ---
+            Button {
+                id: selectBtn
+                text: "Select"
+                Layout.alignment: Qt.AlignHCenter
+                enabled: root.selectedIncidentNumber !== ""
+                onClicked: {
+                    if (root.selectedIncidentNumber !== "")
+                        root.incidentSelected(root.selectedIncidentNumber)
                 }
             }
         }
     }
-
+}

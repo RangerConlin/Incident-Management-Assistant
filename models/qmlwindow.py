@@ -6,7 +6,7 @@ import os
 
 from models.incident_handler import IncidentHandler
 from models.incidentlist import IncidentListModel
-from models.database import get_all_active_incidents, get_incident_by_number
+from models.database import get_incident_by_number
 from utils.state import AppState
 
 
@@ -21,7 +21,7 @@ class QmlWindow(QDialog):
 
         self.qml_widget = QQuickWidget()
 
-        # ✅ Inject any context data (like models) into QML
+        #Inject any context data (like models) into QML
         if context_data:
             context: QQmlContext = self.qml_widget.rootContext()
             for key, value in context_data.items():
@@ -41,8 +41,8 @@ def new_incident_form():
     win.exec()
 
 def open_incident_list(main_window=None):
-        incidents = get_all_active_incidents()
-        model = IncidentListModel(incidents)
+        model = IncidentListModel()
+        model.refresh()
 
         handler = IncidentHandler()
 

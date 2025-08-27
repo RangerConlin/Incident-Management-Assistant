@@ -2,7 +2,6 @@
 import sys
 import logging
 from typing import Callable
-from xml.sax import handler  # preserved from original
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -18,6 +17,9 @@ from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtQuick import QQuickView
+from PySide6.QtQuickControls2 import QQuickStyle
+QQuickStyle.setStyle("Fusion")
+
 
 # (Panels previously used directly; retained imports in case you still need them elsewhere)
 from modules.operations.panels.team_status_panel import TeamStatusPanel
@@ -184,7 +186,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_intel, "Add Clue", None, "intel.add_clue")
 
         # ----- Medical & Safety -----
-        m_med = mb.addMenu("Medical & Safety")
+        m_med = mb.addMenu("Medical && Safety")
         self._add_action(m_med, "Medical Unit Log ICS-214", None, "medical.unit_log")
         self._add_action(m_med, "Safety Unit Log ICS-214", None, "safety.unit_log")
         m_med.addSeparator()
@@ -212,7 +214,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_fin, "Finance Unit Log ICS-214", None, "finance.unit_log")
         m_fin.addSeparator()
         self._add_action(m_fin, "Time Tracking", None, "finance.time")
-        self._add_action(m_fin, "Expenses & Procurement", None, "finance.procurement")
+        self._add_action(m_fin, "Expenses && Procurement", None, "finance.procurement")
         self._add_action(m_fin, "Cost Summary", None, "finance.summary")
 
         # ----- Toolkits -----
@@ -228,10 +230,10 @@ class MainWindow(QMainWindow):
 
         plan_menu = m_tool.addMenu("Planned Event Toolkit")
         self._add_action(plan_menu, "External Messaging", None, "planned.promotions")
-        self._add_action(plan_menu, "Vendors & Permits", None, "planned.vendors")
+        self._add_action(plan_menu, "Vendors && Permits", None, "planned.vendors")
         self._add_action(plan_menu, "Public Safety", None, "planned.safety")
-        self._add_action(plan_menu, "Tasking & Assignments", None, "planned.tasking")
-        self._add_action(plan_menu, "Health & Sanitation", None, "planned.health_sanitation")
+        self._add_action(plan_menu, "Tasking && Assignments", None, "planned.tasking")
+        self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
 
         init_menu = m_tool.addMenu("Initial Response")
         self._add_action(init_menu, "Hasty Tools", None, "toolkit.initial.hasty")
@@ -386,9 +388,128 @@ class MainWindow(QMainWindow):
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
         show_incident_selector()
 
+        # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_open_incident(self) -> None:
-        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
-        show_incident_selector()
+        from PySide6.QtCore import Qt, QUrl
+        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+        from PySide6.QtQuickWidgets import QQuickWidget
+        from PySide6.QtQml import QQmlContext
+        import importlib
+
+        # Import the incident model/proxy/controller
+        try:
+            from models.incidentlist import (
+                IncidentListModel,
+                IncidentProxyModel,
+                IncidentController,
+                load_incidents_from_master,
+            )
+        except Exception as e:
+        # Friendly error pane if models/incidentlist.py isn't present yet
+            stub = QWidget()
+            lay = QVBoxLayout(stub)
+            msg = QLabel(f"Incident list model not found:\n{e}")
+            msg.setWordWrap(True)
+            lay.addWidget(msg)
+            self._open_modeless(stub, title="Incident Selection")
+            return
+
+        # --- Build a QWidget panel that hosts the QML view ---
+        panel = QWidget(self)
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(0, 0, 0, 0)
+
+        # 🔧 Make the panel large & resizable by default
+        from PySide6.QtWidgets import QSizePolicy
+        from PySide6.QtCore import QSize
+        panel.setMinimumSize(QSize(1000, 640))
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+
+        # Data plumbing
+        model = IncidentListModel()
+        model.reload(load_incidents_from_master)
+
+        proxy = IncidentProxyModel()
+        proxy.setSourceModel(model)
+        # Columns: 0 ID, 1 Number, 2 Name, 3 Type, 4 Status, 5 Start, 6 End, 7 Training, 8 ICP
+        proxy.sort(5, Qt.DescendingOrder)
+
+        # --- Active incident setter: try common hooks, else fall back to window attr ---
+        def _set_active_incident(incident_id: int) -> None:
+            candidates = [
+                ("utils.incident_db", "set_active_incident_id"),
+                ("utils.incident_db", "set_active_incident"),
+                ("utils.incident_db", "set_current_incident"),
+                ("models.database",  "set_active_incident_id"),
+                ("models.database",  "set_active_incident"),
+                ("models.database",  "set_current_incident"),
+            ]
+            for mod_name, fn_name in candidates:
+                try:
+                    mod = importlib.import_module(mod_name)
+                    fn = getattr(mod, fn_name, None)
+                    if callable(fn):
+                        fn(incident_id)
+                        return
+                except Exception:
+                    pass
+            # Fallback: keep it simple
+            setattr(self, "current_incident_id", incident_id)
+
+        # Controller: some impls require model in ctor; others use attachModel
+        try:
+            controller = IncidentController(model)
+        except TypeError:
+            controller = IncidentController()
+            if hasattr(controller, "attachModel"):
+                controller.attachModel(model)
+
+        # Connect the signal so selecting an incident updates the active incident
+        if hasattr(controller, "incidentLoaded"):
+            controller.incidentLoaded.connect(_set_active_incident)
+
+                # --- QML host ---
+        qml = QQuickWidget(panel)
+        qml.setResizeMode(QQuickWidget.SizeRootObjectToView)
+
+        # 🔧 Ensure the QML view expands and is not tiny
+        from PySide6.QtWidgets import QSizePolicy
+        from PySide6.QtCore import QSize
+        qml.setMinimumSize(QSize(1000, 640))
+        qml.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        ctx: QQmlContext = qml.rootContext()
+        ctx.setContextProperty("proxy", proxy)
+        ctx.setContextProperty("controller", controller)
+        qml.setSource(QUrl.fromLocalFile("qml/IncidentSelectWindow.qml"))
+
+        if qml.status() == QQuickWidget.Error:
+            err = "\n".join(str(e.toString()) for e in qml.errors())
+            lay.addWidget(QLabel(f"Error loading QML:\n{err}"))
+        else:
+            # 🔧 Give it stretch = 1 so it occupies all space
+            lay.addWidget(qml, 1)
+
+
+        # Keep refs alive on the panel (avoid GC)
+        panel._incident_model = model
+        panel._incident_proxy = proxy
+        panel._incident_controller = controller
+        panel._incident_qml = qml
+
+        # ✅ Show as a modeless tool window tied to the main window (no app “bounce”)
+        from PySide6.QtCore import Qt, QSize
+        from PySide6.QtWidgets import QSizePolicy
+
+        panel.setWindowFlag(Qt.Tool, True)          # <- Tool window (no separate taskbar entry)
+        panel.setWindowModality(Qt.NonModal)        # modeless
+        panel.setAttribute(Qt.WA_DeleteOnClose, True)
+        panel.setMinimumSize(QSize(1000, 640))
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        panel.show()
+        panel.raise_()
+        panel.activateWindow()
 
     def open_menu_save_incident(self) -> None:
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
@@ -409,7 +530,7 @@ class MainWindow(QMainWindow):
         from modules import editpanels
         incident_id = getattr(self, "current_incident_id", None)
         panel = editpanels.get_ems_hospitals_panel(incident_id)
-        self._open_modeless(panel, title="EMS & Hospitals")
+        self._open_modeless(panel, title="EMS && Hospitals")
 
     def open_edit_canned_comm_entries(self) -> None:
         from modules import editpanels
@@ -743,7 +864,7 @@ class MainWindow(QMainWindow):
         from modules import finance
         incident_id = getattr(self, "current_incident_id", None)
         panel = finance.get_procurement_panel(incident_id)
-        self._open_modeless(panel, title="Expenses & Procurement")
+        self._open_modeless(panel, title="Expenses && Procurement")
 
     def open_finance_summary(self) -> None:
         from modules import finance
@@ -792,7 +913,7 @@ class MainWindow(QMainWindow):
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_vendors_panel(incident_id)
-        self._open_modeless(panel, title="Vendors & Permits")
+        self._open_modeless(panel, title="Vendors && Permits")
 
     def open_planned_safety(self) -> None:
         from modules import plannedtoolkit
@@ -804,13 +925,13 @@ class MainWindow(QMainWindow):
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_tasking_panel(incident_id)
-        self._open_modeless(panel, title="Tasking & Assignments")
+        self._open_modeless(panel, title="Tasking && Assignments")
 
     def open_planned_health_sanitation(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
-        self._open_modeless(panel, title="Health & Sanitation")
+        self._open_modeless(panel, title="Health && Sanitation")
 
     def open_toolkit_initial_hasty(self) -> None:
         from modules.initialresponse import initial
