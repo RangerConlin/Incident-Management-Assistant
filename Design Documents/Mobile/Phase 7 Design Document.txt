@@ -2,17 +2,17 @@ ICS Command Assistant: Mobile App Phase 7 Design Plan
 
 🌐 Phase 7 Overview
 
-Phase 7 enables real-time inter-agency collaboration, focusing on operational coordination between multiple jurisdictions, mutual aid teams, and external partners. It introduces shared mission channels, joint visibility tools, and permissions that respect agency boundaries.
+Phase 7 enables real-time inter-agency collaboration, focusing on operational coordination between multiple jurisdictions, mutual aid teams, and external partners. It introduces shared incident channels, joint visibility tools, and permissions that respect agency boundaries.
 
 📅 Phase 7 Feature Scope
 
-1. Multi-Agency Mission Support
+1. Multi-Agency Incident Support
 
-Enable a single mission to include users from multiple distinct organizations
+Enable a single incident to include users from multiple distinct organizations
 
-Users retain their home agency affiliation but are assigned to unified mission teams
+Users retain their home agency affiliation but are assigned to unified incident teams
 
-Support different roles/permissions per agency per mission
+Support different roles/permissions per agency per incident
 
 2. Shared Ops Channel (Interagency Feed)
 
@@ -36,7 +36,7 @@ All agencies
 
 Specific agency-to-agency
 
-Mission-wide
+Incident-wide
 
 Encrypted transport
 
@@ -58,7 +58,7 @@ Admin UI to map roles across orgs:
 
 “Comms Officer (Org B)” = “Comms Lead (Unified)”
 
-Supports consistent access control in mixed missions
+Supports consistent access control in mixed incidents
 
 📁 Backend/API Additions
 
@@ -70,19 +70,19 @@ Endpoint Needed
 
 DB Table
 
-Multi-Agency Missions
+Multi-Agency Incidents
 
 Personnel / Auth
 
-POST /api/mission/join
+POST /api/incident/join
 
-MissionUsers
+IncidentUsers
 
 Shared Ops Feed
 
 Operations / Logs
 
-GET /api/mission/feed
+GET /api/incident/feed
 
 SharedFeed
 
@@ -98,7 +98,7 @@ Resource Viewer
 
 Planning / Ops
 
-GET /api/mission/resources
+GET /api/incident/resources
 
 Users, Teams
 
@@ -136,7 +136,7 @@ Task
 
 1–2
 
-Multi-agency mission participation logic
+Multi-agency incident participation logic
 
 3–4
 

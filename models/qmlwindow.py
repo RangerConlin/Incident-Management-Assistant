@@ -4,9 +4,9 @@ from PySide6.QtQml import QQmlContext
 from PySide6.QtCore import QUrl
 import os
 
-from models.mission_handler import MissionHandler
-from models.missionlist import MissionListModel
-from models.database import get_all_active_missions, get_mission_by_number
+from models.incident_handler import IncidentHandler
+from models.incidentlist import IncidentListModel
+from models.database import get_all_active_incidents, get_incident_by_number
 from utils.state import AppState
 
 
@@ -33,34 +33,34 @@ class QmlWindow(QDialog):
         layout.addWidget(self.qml_widget)
 
 
-def new_mission_form():
-    path = os.path.abspath("qml/newmissionform.qml")
-    win = QmlWindow(path, "Create New Mission", {
-        "missionHandler": MissionHandler()
+def new_incident_form():
+    path = os.path.abspath("qml/newincidentform.qml")
+    win = QmlWindow(path, "Create New Incident", {
+        "incidentHandler": IncidentHandler()
     })
     win.exec()
 
-def open_mission_list(main_window=None):
-        missions = get_all_active_missions()
-        model = MissionListModel(missions)
+def open_incident_list(main_window=None):
+        incidents = get_all_active_incidents()
+        model = IncidentListModel(incidents)
 
-        handler = MissionHandler()
+        handler = IncidentHandler()
 
-        def handle_selection(mission_number):
-            AppState.set_active_mission(mission_number)
-            mission = get_mission_by_number(mission_number)
-            if mission:
-                print(f"Selected mission: {mission['number']} - {mission['name']}")
+        def handle_selection(incident_number):
+            AppState.set_active_incident(incident_number)
+            incident = get_incident_by_number(incident_number)
+            if incident:
+                print(f"Selected incident: {incident['number']} - {incident['name']}")
                 if main_window:
-                    main_window.update_title_with_active_mission()
+                    main_window.update_title_with_active_incident()
 
-        handler.mission_selected.connect(handle_selection)
+        handler.incident_selected.connect(handle_selection)
 
-        path = os.path.abspath("qml/missionlist.qml")
-        win = QmlWindow(path, "Select Active Mission", {
-            "missionModel": model,
-            "missionHandler": handler
+        path = os.path.abspath("qml/incidentlist.qml")
+        win = QmlWindow(path, "Select Active Incident", {
+            "incidentModel": model,
+            "incidentHandler": handler
         })
         root = win.qml_widget.rootObject()
-        root.missionSelected.connect(handler.select_mission)
+        root.incidentSelected.connect(handler.select_incident)
         win.exec()

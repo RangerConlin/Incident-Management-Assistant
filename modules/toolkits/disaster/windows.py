@@ -15,23 +15,23 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_damage_panel(mission_id: object | None = None) -> QWidget:
+def get_damage_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Damage Assessment."""
     return _make_panel(
         "Damage Assessment",
-        f"Assess damage — mission: {mission_id}",
+        f"Assess damage — incident: {incident_id}",
     )
 
-def get_urban_interview_panel(mission_id: object | None = None) -> QWidget:
+def get_urban_interview_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Urban Interview."""
     return _make_panel(
         "Urban Interview",
-        f"Conduct interviews — mission: {mission_id}",
+        f"Conduct interviews — incident: {incident_id}",
     )
 
-def get_photos_panel(mission_id: object | None = None) -> QWidget:
+def get_photos_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Disaster Photos."""
     return _make_panel(
         "Disaster Photos",
-        f"Photo records — mission: {mission_id}",
+        f"Photo records — incident: {incident_id}",
     )

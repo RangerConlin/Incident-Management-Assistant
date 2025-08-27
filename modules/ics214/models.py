@@ -10,7 +10,7 @@ Base = declarative_base()
 class ICS214Stream(Base):
     __tablename__ = "ics214_streams"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    mission_id: Mapped[str] = mapped_column(String, index=True)
+    incident_id: Mapped[str] = mapped_column(String, index=True)
     name: Mapped[str] = mapped_column(String)
     op_number: Mapped[int] = mapped_column(Integer, default=0, index=True)
     kind: Mapped[str | None] = mapped_column(String, nullable=True, index=True)

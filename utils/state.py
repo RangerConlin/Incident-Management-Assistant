@@ -2,18 +2,18 @@
 # utils/state.py
 
 class AppState:
-    _active_mission_number = None
+    _active_incident_number = None
     _active_op_period_id = None
     _active_user_id = None
     _active_user_role = None
 
     @classmethod
-    def set_active_mission(cls, mission_number):
-        cls._active_mission_number = mission_number
+    def set_active_incident(cls, incident_number):
+        cls._active_incident_number = incident_number
 
     @classmethod
-    def get_active_mission(cls):
-        return cls._active_mission_number
+    def get_active_incident(cls):
+        return cls._active_incident_number
 
     @classmethod
     def set_active_op_period(cls, op_period_id):

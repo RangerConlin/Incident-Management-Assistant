@@ -28,7 +28,7 @@ class MessageUpdate(BaseModel):
 
 class MessageRead(MessageBase):
     id: int
-    mission_id: str
+    incident_id: str
     status: Status
     revision: int
     created_by: int

@@ -3,11 +3,11 @@
 This module provides Public Information Officer (PIO) capabilities for the ICS Command Assistant desktop application.
 
 ## Purpose
-Handles drafting, approval, publishing, and archiving of public information messages for a mission.
+Handles drafting, approval, publishing, and archiving of public information messages for a incident.
 
 ## Running locally
 1. Ensure dependencies are installed: `pip install -r requirements.txt`.
-2. Initialize the mission database and seed sample data:
+2. Initialize the incident database and seed sample data:
    ```bash
    python -m modules.public_info.seed
    ```

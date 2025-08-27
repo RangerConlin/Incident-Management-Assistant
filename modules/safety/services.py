@@ -8,7 +8,7 @@ from typing import Callable, List, Optional
 from .models import safety_models as models
 from .models import schemas
 from .print_ics_206 import generate as generate_ics206_pdf
-from .repository import with_mission_session
+from .repository import with_incident_session
 
 # In-memory audit log and notification hooks
 _audit_log: List[dict] = []
@@ -39,14 +39,14 @@ def _audit(action: str, model: str, data: dict):
 # ---------------------------------------------------------------------------
 
 def list_safety_reports(
-    mission_id: str,
+    incident_id: str,
     severity: Optional[str] = None,
     flagged: Optional[bool] = None,
     q: Optional[str] = None,
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> List[schemas.SafetyReportRead]:
-    with with_mission_session(mission_id) as session:
+    with with_incident_session(incident_id) as session:
         query = session.query(models.SafetyReport)
         if severity:
             query = query.filter_by(severity=severity)
@@ -62,8 +62,8 @@ def list_safety_reports(
         return [schemas.SafetyReportRead.from_orm(r) for r in query.all()]
 
 
-def create_safety_report(mission_id: str, data: schemas.SafetyReportCreate) -> schemas.SafetyReportRead:
-    with with_mission_session(mission_id) as session:
+def create_safety_report(incident_id: str, data: schemas.SafetyReportCreate) -> schemas.SafetyReportRead:
+    with with_incident_session(incident_id) as session:
         report = models.SafetyReport(**data.dict())
         session.add(report)
         session.commit()
@@ -79,14 +79,14 @@ def create_safety_report(mission_id: str, data: schemas.SafetyReportCreate) -> s
 # Medical Incidents
 # ---------------------------------------------------------------------------
 
-def list_medical_incidents(mission_id: str) -> List[schemas.MedicalIncidentRead]:
-    with with_mission_session(mission_id) as session:
+def list_medical_incidents(incident_id: str) -> List[schemas.MedicalIncidentRead]:
+    with with_incident_session(incident_id) as session:
         incidents = session.query(models.MedicalIncident).all()
         return [schemas.MedicalIncidentRead.from_orm(i) for i in incidents]
 
 
-def create_medical_incident(mission_id: str, data: schemas.MedicalIncidentCreate) -> schemas.MedicalIncidentRead:
-    with with_mission_session(mission_id) as session:
+def create_medical_incident(incident_id: str, data: schemas.MedicalIncidentCreate) -> schemas.MedicalIncidentRead:
+    with with_incident_session(incident_id) as session:
         incident = models.MedicalIncident(**data.dict())
         session.add(incident)
         session.commit()
@@ -99,14 +99,14 @@ def create_medical_incident(mission_id: str, data: schemas.MedicalIncidentCreate
 # Triage Entries
 # ---------------------------------------------------------------------------
 
-def list_triage_entries(mission_id: str) -> List[schemas.TriageEntryRead]:
-    with with_mission_session(mission_id) as session:
+def list_triage_entries(incident_id: str) -> List[schemas.TriageEntryRead]:
+    with with_incident_session(incident_id) as session:
         entries = session.query(models.TriageEntry).all()
         return [schemas.TriageEntryRead.from_orm(e) for e in entries]
 
 
-def create_triage_entry(mission_id: str, data: schemas.TriageEntryCreate) -> schemas.TriageEntryRead:
-    with with_mission_session(mission_id) as session:
+def create_triage_entry(incident_id: str, data: schemas.TriageEntryCreate) -> schemas.TriageEntryRead:
+    with with_incident_session(incident_id) as session:
         entry = models.TriageEntry(**data.dict())
         session.add(entry)
         session.commit()
@@ -119,14 +119,14 @@ def create_triage_entry(mission_id: str, data: schemas.TriageEntryCreate) -> sch
 # Hazard Zones
 # ---------------------------------------------------------------------------
 
-def list_hazard_zones(mission_id: str) -> List[schemas.HazardZoneRead]:
-    with with_mission_session(mission_id) as session:
+def list_hazard_zones(incident_id: str) -> List[schemas.HazardZoneRead]:
+    with with_incident_session(incident_id) as session:
         zones = session.query(models.HazardZone).all()
         return [schemas.HazardZoneRead.from_orm(z) for z in zones]
 
 
-def create_hazard_zone(mission_id: str, data: schemas.HazardZoneCreate) -> schemas.HazardZoneRead:
-    with with_mission_session(mission_id) as session:
+def create_hazard_zone(incident_id: str, data: schemas.HazardZoneCreate) -> schemas.HazardZoneRead:
+    with with_incident_session(incident_id) as session:
         zone = models.HazardZone(**data.dict())
         session.add(zone)
         session.commit()
@@ -139,9 +139,9 @@ def create_hazard_zone(mission_id: str, data: schemas.HazardZoneCreate) -> schem
 # CAP ORM
 # ---------------------------------------------------------------------------
 
-def create_cap_orm(mission_id: str, data: schemas.CapOrmCreate) -> schemas.CapOrmRead:
-    with with_mission_session(mission_id) as session:
-        orm = models.CapOrmForm(mission_id=mission_id, **data.dict())
+def create_cap_orm(incident_id: str, data: schemas.CapOrmCreate) -> schemas.CapOrmRead:
+    with with_incident_session(incident_id) as session:
+        orm = models.CapOrmForm(incident_id=incident_id, **data.dict())
         session.add(orm)
         session.commit()
         session.refresh(orm)
@@ -153,10 +153,10 @@ def create_cap_orm(mission_id: str, data: schemas.CapOrmCreate) -> schemas.CapOr
 # ICS-206 Builder
 # ---------------------------------------------------------------------------
 
-def build_ics206(mission_id: str, payload: schemas.ICS206Create) -> schemas.ICS206Read:
+def build_ics206(incident_id: str, payload: schemas.ICS206Create) -> schemas.ICS206Read:
     data = payload.dict()
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    forms_dir = os.path.join("data", "missions", mission_id, "forms")
+    forms_dir = os.path.join("data", "incidents", incident_id, "forms")
     os.makedirs(forms_dir, exist_ok=True)
 
     json_path = os.path.join(forms_dir, f"ICS206-{timestamp}.json")
@@ -164,7 +164,7 @@ def build_ics206(mission_id: str, payload: schemas.ICS206Create) -> schemas.ICS2
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     html = "<html><body><pre>" + json.dumps(data, indent=2) + "</pre></body></html>"
-    generate_ics206_pdf(mission_id, html)
+    generate_ics206_pdf(incident_id, html)
 
     _audit("build", "ICS206", data)
     return schemas.ICS206Read(**data)

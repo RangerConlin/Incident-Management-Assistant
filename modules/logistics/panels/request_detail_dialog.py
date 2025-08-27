@@ -9,9 +9,9 @@ from PySide6.QtWidgets import QDialog
 
 
 class RequestDetailDialog(QDialog):
-    def __init__(self, mission_id: str, request_id: int):
+    def __init__(self, incident_id: str, request_id: int):
         super().__init__()
-        self.mission_id = mission_id
+        self.incident_id = incident_id
         self.request_id = request_id
         self.setWindowTitle("Request Detail")
         engine = QQmlApplicationEngine()

@@ -3,7 +3,7 @@ from typing import Optional
 
 
 @dataclass
-class Mission:
+class Incident:
     id: Optional[int]
     number: str
     name: str

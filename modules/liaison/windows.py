@@ -11,16 +11,16 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_agencies_panel(mission_id: object | None = None) -> QWidget:
+def get_agencies_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Cooperating Agencies."""
     return _make_panel(
         "Cooperating Agencies",
-        f"Track partner agencies — mission: {mission_id}",
+        f"Track partner agencies — incident: {incident_id}",
     )
 
-def get_requests_panel(mission_id: object | None = None) -> QWidget:
+def get_requests_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Liaison Requests."""
     return _make_panel(
         "Liaison Requests",
-        f"Handle external requests — mission: {mission_id}",
+        f"Handle external requests — incident: {incident_id}",
     )

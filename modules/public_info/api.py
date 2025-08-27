@@ -24,8 +24,8 @@ def get_current_user():
     return {"id": 1, "roles": ["PIO", "LeadPIO"]}
 
 
-def get_repo(mission_id: str = "1"):  # mission id would come from app state
-    return PublicInfoRepository(mission_id)
+def get_repo(incident_id: str = "1"):  # incident id would come from app state
+    return PublicInfoRepository(incident_id)
 
 
 # Routes -------------------------------------------------------------------

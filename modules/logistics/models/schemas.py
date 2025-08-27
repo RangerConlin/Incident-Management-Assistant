@@ -20,7 +20,7 @@ class ResourceRequestCreate(BaseModel):
 
 class ResourceRequestRead(ResourceRequestCreate):
     id: int
-    mission_id: str
+    incident_id: str
     status: str
     timestamp: datetime
 

@@ -1,4 +1,4 @@
-"""Panel for mission channel assignments."""
+"""Panel for incident channel assignments."""
 
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 

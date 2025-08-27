@@ -27,7 +27,7 @@ def next_step(chain: List[str], completed: List[str]) -> Optional[str]:
 
 def record_approval(
     session: Session,
-    mission_id: str,
+    incident_id: str,
     entity: str,
     entity_id: int,
     step: str,
@@ -39,12 +39,12 @@ def record_approval(
         text(
             """
             INSERT INTO approvals
-            (mission_id, entity, entity_id, step, actor_id, action, timestamp, comments)
-            VALUES (:mission_id, :entity, :entity_id, :step, :actor_id, :action, :timestamp, :comments)
+            (incident_id, entity, entity_id, step, actor_id, action, timestamp, comments)
+            VALUES (:incident_id, :entity, :entity_id, :step, :actor_id, :action, :timestamp, :comments)
             """
         ),
         {
-            "mission_id": mission_id,
+            "incident_id": incident_id,
             "entity": entity,
             "entity_id": entity_id,
             "step": step,

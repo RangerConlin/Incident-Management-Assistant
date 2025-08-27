@@ -7,7 +7,7 @@ Item {
     width: 800
     height: 500
 
-    signal missionSelected(string missionNumber)
+    signal incidentSelected(string incidentNumber)
 
     Rectangle {
         anchors.fill: parent
@@ -19,7 +19,7 @@ Item {
             spacing: 10
 
             Label {
-                text: "Select Active Mission"
+                text: "Select Active Incident"
                 font.pixelSize: 20
                 Layout.alignment: Qt.AlignHCenter
             }
@@ -28,7 +28,7 @@ Item {
                 id: listView
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                model: missionModel
+                model: incidentModel
                 spacing: 5
                  clip: true
 
@@ -92,7 +92,7 @@ Item {
                                 clickTimer.stop()
                                 clickCount = 0
                                 console.log("Double-click detected on number:", model.number)
-                                root.missionSelected(model.number)
+                                root.incidentSelected(model.number)
                             }
                         }
                     }

@@ -24,9 +24,9 @@ from modules.operations.panels.team_status_panel import TeamStatusPanel
 from modules.operations.panels.task_status_panel import TaskStatusPanel
 
 # (QML utilities kept, though handlers now follow panel-factory pattern)
-from models.qmlwindow import QmlWindow, new_mission_form, open_mission_list
+from models.qmlwindow import QmlWindow, new_incident_form, open_incident_list
 from utils.state import AppState
-from models.database import get_mission_by_number
+from models.database import get_incident_by_number
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 
@@ -39,8 +39,8 @@ class MainWindow(QMainWindow):
     Menu-first structure. Every visible menu item has a corresponding handler method,
     and ALL handlers follow the same pattern:
       - import module
-      - mission_id = getattr(self, "current_mission_id", None)
-      - panel = module.get_*_panel(mission_id)
+      - incident_id = getattr(self, "current_incident_id", None)
+      - panel = module.get_*_panel(incident_id)
       - self._open_modeless(panel, title="...")
     Placeholders are fine if a real module/factory doesn't exist yet.
     """
@@ -57,12 +57,12 @@ class MainWindow(QMainWindow):
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
-        # Title includes active mission (if any)
-        active_number = AppState.get_active_mission()
+        # Title includes active incident (if any)
+        active_number = AppState.get_active_incident()
         if active_number:
-            mission = get_mission_by_number(active_number)
-            if mission:
-                title = f"SARApp - {mission['number']} | {mission['name']}"
+            incident = get_incident_by_number(active_number)
+            if incident:
+                title = f"SARApp - {incident['number']} | {incident['name']}"
             else:
                 title = "SARApp - Incident Management Assistant"
         else:
@@ -109,9 +109,9 @@ class MainWindow(QMainWindow):
 
         # ----- Menu -----
         m_menu = mb.addMenu("Menu")
-        self._add_action(m_menu, "New Mission", "Ctrl+N", "menu.new_mission")
-        self._add_action(m_menu, "Open Mission", "Ctrl+O", "menu.open_mission")
-        self._add_action(m_menu, "Save Mission", "Ctrl+S", "menu.save_mission")
+        self._add_action(m_menu, "New Incident", "Ctrl+N", "menu.new_incident")
+        self._add_action(m_menu, "Open Incident", "Ctrl+O", "menu.open_incident")
+        self._add_action(m_menu, "Save Incident", "Ctrl+S", "menu.save_incident")
         self._add_action(m_menu, "Settings", None, "menu.settings")
         m_menu.addSeparator()
         self._add_action(m_menu, "Exit", "Ctrl+Q", "menu.exit")
@@ -267,9 +267,9 @@ class MainWindow(QMainWindow):
         """Central router: call explicit handler for every menu item (panel pattern)."""
         handlers: dict[str, Callable[[], None]] = {
             # ----- Menu -----
-            "menu.new_mission": self.open_menu_new_mission,
-            "menu.open_mission": self.open_menu_open_mission,
-            "menu.save_mission": self.open_menu_save_mission,
+            "menu.new_incident": self.open_menu_new_incident,
+            "menu.open_incident": self.open_menu_open_incident,
+            "menu.save_incident": self.open_menu_save_incident,
             "menu.settings": self.open_menu_settings,
             "menu.exit": self.open_menu_exit,  # special-case: still exits
 
@@ -382,22 +382,22 @@ class MainWindow(QMainWindow):
 
 # ===== Part 4: Handlers in Menu Order (panel-factory pattern) ============
 # --- 4.1 Menu ------------------------------------------------------------
-    def open_menu_new_mission(self) -> None:
-        from ui_bootstrap.mission_select_bootstrap import show_mission_selector
-        show_mission_selector()
+    def open_menu_new_incident(self) -> None:
+        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
+        show_incident_selector()
 
-    def open_menu_open_mission(self) -> None:
-        from ui_bootstrap.mission_select_bootstrap import show_mission_selector
-        show_mission_selector()
+    def open_menu_open_incident(self) -> None:
+        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
+        show_incident_selector()
 
-    def open_menu_save_mission(self) -> None:
-        from ui_bootstrap.mission_select_bootstrap import show_mission_selector
-        show_mission_selector()
+    def open_menu_save_incident(self) -> None:
+        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
+        show_incident_selector()
 
     def open_menu_settings(self) -> None:
         from modules import settingsui
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = settingsui.get_settings_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = settingsui.get_settings_panel(incident_id)
         self._open_modeless(panel, title="Settings")
 
     def open_menu_exit(self) -> None:
@@ -407,447 +407,447 @@ class MainWindow(QMainWindow):
 # --- 4.2 Edit ------------------------------------------------------------
     def open_edit_ems_hospitals(self) -> None:
         from modules import editpanels
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = editpanels.get_ems_hospitals_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = editpanels.get_ems_hospitals_panel(incident_id)
         self._open_modeless(panel, title="EMS & Hospitals")
 
     def open_edit_canned_comm_entries(self) -> None:
         from modules import editpanels
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = editpanels.get_canned_comm_entries_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = editpanels.get_canned_comm_entries_panel(incident_id)
         self._open_modeless(panel, title="Canned Communication Entries")
 
     def open_edit_personnel(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_personnel_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_personnel_panel(incident_id)
         self._open_modeless(panel, title="Personnel")
 
     def open_edit_objectives(self) -> None:
         from modules import editpanels
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = editpanels.get_objectives_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = editpanels.get_objectives_panel(incident_id)
         self._open_modeless(panel, title="Objectives")
 
     def open_edit_task_types(self) -> None:
         from modules import editpanels
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = editpanels.get_task_types_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = editpanels.get_task_types_panel(incident_id)
         self._open_modeless(panel, title="Task Types")
 
     def open_edit_team_types(self) -> None:
         from modules import editpanels
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = editpanels.get_team_types_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = editpanels.get_team_types_panel(incident_id)
         self._open_modeless(panel, title="Team Types")
 
     def open_edit_vehicles(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_vehicles_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_vehicles_panel(incident_id)
         self._open_modeless(panel, title="Vehicles")
 
     def open_edit_equipment(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_equipment_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_equipment_panel(incident_id)
         self._open_modeless(panel, title="Equipment")
 
     def open_edit_comms_resources(self) -> None:
         from modules import comms
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = comms.get_217_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = comms.get_217_panel(incident_id)
         self._open_modeless(panel, title="Communications Resources (ICS-217)")
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_command_incident_overview(self) -> None:
         from modules import command
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = command.get_incident_overview_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = command.get_incident_overview_panel(incident_id)
         self._open_modeless(panel, title="Incident Overview")
 
     def open_command_iap(self) -> None:
         from modules import command
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = command.get_iap_builder_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = command.get_iap_builder_panel(incident_id)
         self._open_modeless(panel, title="Incident Action Plan Builder")
 
     def open_command_objectives(self) -> None:
         from modules import command
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = command.get_objectives_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = command.get_objectives_panel(incident_id)
         self._open_modeless(panel, title="Incident Objectives (ICS 202)")
 
     def open_command_staff_org(self) -> None:
         from modules import command
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = command.get_staff_org_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = command.get_staff_org_panel(incident_id)
         self._open_modeless(panel, title="Command Staff Organization (ICS 203)")
 
     def open_command_sitrep(self) -> None:
         from modules import command
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = command.get_sitrep_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = command.get_sitrep_panel(incident_id)
         self._open_modeless(panel, title="Situation Report (ICS 209)")
 
 # --- 4.4 Planning --------------------------------------------------------
     def open_planning_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_planning_dashboard(self) -> None:
         from modules import planning
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = planning.get_dashboard_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_dashboard_panel(incident_id)
         self._open_modeless(panel, title="Planning Dashboard")
 
     def open_planning_approvals(self) -> None:
         from modules import planning
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = planning.get_approvals_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_approvals_panel(incident_id)
         self._open_modeless(panel, title="Pending Approvals")
 
     def open_planning_forecast(self) -> None:
         from modules import planning
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = planning.get_forecast_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_forecast_panel(incident_id)
         self._open_modeless(panel, title="Planning Forecast")
 
     def open_planning_op_manager(self) -> None:
         from modules import planning
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = planning.get_op_manager_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_op_manager_panel(incident_id)
         self._open_modeless(panel, title="Operational Period Manager")
 
     def open_planning_taskmetrics(self) -> None:
         from modules import planning
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = planning.get_taskmetrics_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_taskmetrics_panel(incident_id)
         self._open_modeless(panel, title="Task Metrics Dashboard")
 
     def open_planning_strategic_objectives(self) -> None:
         from modules import planning
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = planning.get_strategic_objectives_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_strategic_objectives_panel(incident_id)
         self._open_modeless(panel, title="Strategic Objective Tracker")
 
     def open_planning_sitrep(self) -> None:
         from modules import planning
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = planning.get_sitrep_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_sitrep_panel(incident_id)
         self._open_modeless(panel, title="Situation Report")
 
 # --- 4.5 Operations ------------------------------------------------------
     def open_operations_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_operations_dashboard(self) -> None:
         from modules import operations
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = operations.get_dashboard_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = operations.get_dashboard_panel(incident_id)
         self._open_modeless(panel, title="Assignments Dashboard")
 
     def open_operations_team_assignments(self) -> None:
         from modules import operations
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = operations.get_team_assignments_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = operations.get_team_assignments_panel(incident_id)
         self._open_modeless(panel, title="Team Assignments")
 
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_logistics_dashboard(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_logistics_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_logistics_panel(incident_id)
         self._open_modeless(panel, title="Logistics Dashboard")
 
     def open_logistics_211(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_checkin_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_checkin_panel(incident_id)
         self._open_modeless(panel, title="Check-In (ICS-211)")
 
     def open_logistics_requests(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_requests_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_requests_panel(incident_id)
         self._open_modeless(panel, title="Resource Requests")
 
     def open_logistics_equipment(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_equipment_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_equipment_panel(incident_id)
         self._open_modeless(panel, title="Equipment Inventory")
 
     def open_logistics_213rr(self) -> None:
         from modules import logistics
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = logistics.get_213rr_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_213rr_panel(incident_id)
         self._open_modeless(panel, title="Resource Request (ICS-213RR)")
 
 # --- 4.7 Communications --------------------------------------------------
     def open_comms_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_comms_chat(self) -> None:
         from modules import comms
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = comms.get_chat_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = comms.get_chat_panel(incident_id)
         self._open_modeless(panel, title="Messaging")
 
     def open_comms_213(self) -> None:
         from modules import comms
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = comms.get_213_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = comms.get_213_panel(incident_id)
         self._open_modeless(panel, title="ICS 213 Messages")
 
     def open_comms_205(self) -> None:
         from modules import comms
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = comms.get_205_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = comms.get_205_panel(incident_id)
         self._open_modeless(panel, title="Communications Plan (ICS-205)")
 
 # --- 4.8 Intel -----------------------------------------------------------
     def open_intel_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_intel_dashboard(self) -> None:
         from modules import intel
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = intel.get_dashboard_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = intel.get_dashboard_panel(incident_id)
         self._open_modeless(panel, title="Intel Dashboard")
 
     def open_intel_clue_log(self) -> None:
         from modules import intel
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = intel.get_clue_log_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = intel.get_clue_log_panel(incident_id)
         self._open_modeless(panel, title="Clue Log (SAR-134)")
 
     def open_intel_add_clue(self) -> None:
         from modules import intel
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = intel.get_add_clue_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = intel.get_add_clue_panel(incident_id)
         self._open_modeless(panel, title="Add Clue (SAR-135)")
 
 # --- 4.9 Medical & Safety -----------------------------------------------
     def open_medical_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_safety_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_medical_206(self) -> None:
         from modules import medical
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = medical.get_206_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = medical.get_206_panel(incident_id)
         self._open_modeless(panel, title="Medical Plan (ICS 206)")
 
     def open_safety_208(self) -> None:
         from modules import safety
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = safety.get_208_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = safety.get_208_panel(incident_id)
         self._open_modeless(panel, title="Safety Message (ICS-208)")
 
     def open_safety_215A(self) -> None:
         from modules import safety
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = safety.get_215A_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = safety.get_215A_panel(incident_id)
         self._open_modeless(panel, title="Incident Safety Analysis (ICS-215A)")
 
     def open_safety_caporm(self) -> None:
         from modules import safety
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = safety.get_caporm_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = safety.get_caporm_panel(incident_id)
         self._open_modeless(panel, title="CAP ORM")
 
 # --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_liaison_agencies(self) -> None:
         from modules import liaison
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = liaison.get_agencies_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = liaison.get_agencies_panel(incident_id)
         self._open_modeless(panel, title="Agency Directory")
 
     def open_liaison_requests(self) -> None:
         from modules import liaison
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = liaison.get_requests_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = liaison.get_requests_panel(incident_id)
         self._open_modeless(panel, title="Customer Requests")
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_public_media_releases(self) -> None:
         from modules import public_info
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = public_info.get_media_releases_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = public_info.get_media_releases_panel(incident_id)
         self._open_modeless(panel, title="Media Releases")
 
     def open_public_inquiries(self) -> None:
         from modules import public_info
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = public_info.get_inquiries_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = public_info.get_inquiries_panel(incident_id)
         self._open_modeless(panel, title="Public Inquiries")
 
 # --- 4.12 Finance/Admin --------------------------------------------------
     def open_finance_unit_log(self) -> None:
         from modules import ics214
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = ics214.get_ics214_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = ics214.get_ics214_panel(incident_id)
         self._open_modeless(panel, title="ICS-214 Activity Log")
 
     def open_finance_time(self) -> None:
         from modules import finance
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = finance.get_time_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = finance.get_time_panel(incident_id)
         self._open_modeless(panel, title="Time Tracking")
 
     def open_finance_procurement(self) -> None:
         from modules import finance
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = finance.get_procurement_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = finance.get_procurement_panel(incident_id)
         self._open_modeless(panel, title="Expenses & Procurement")
 
     def open_finance_summary(self) -> None:
         from modules import finance
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = finance.get_summary_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = finance.get_summary_panel(incident_id)
         self._open_modeless(panel, title="Cost Summary")
 
 # --- 4.13 Toolkits -------------------------------------------------------
     def open_toolkit_sar_missing_person(self) -> None:
         from modules.sartoolkit import sar
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = sar.get_missing_person_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = sar.get_missing_person_panel(incident_id)
         self._open_modeless(panel, title="Missing Person Toolkit")
 
     def open_toolkit_sar_pod(self) -> None:
         from modules.sartoolkit import sar
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = sar.get_pod_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = sar.get_pod_panel(incident_id)
         self._open_modeless(panel, title="POD Calculator")
 
     def open_toolkit_disaster_damage(self) -> None:
         from modules.disasterresponse import disaster
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = disaster.get_damage_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = disaster.get_damage_panel(incident_id)
         self._open_modeless(panel, title="Damage Assessment")
 
     def open_toolkit_disaster_urban_interview(self) -> None:
         from modules.disasterresponse import disaster
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = disaster.get_urban_interview_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = disaster.get_urban_interview_panel(incident_id)
         self._open_modeless(panel, title="Urban Interview Log")
 
     def open_toolkit_disaster_photos(self) -> None:
         from modules.disasterresponse import disaster
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = disaster.get_photos_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = disaster.get_photos_panel(incident_id)
         self._open_modeless(panel, title="Damage Photos")
 
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = plannedtoolkit.get_promotions_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_promotions_panel(incident_id)
         self._open_modeless(panel, title="External Messaging")
 
     def open_planned_vendors(self) -> None:
         from modules import plannedtoolkit
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = plannedtoolkit.get_vendors_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_vendors_panel(incident_id)
         self._open_modeless(panel, title="Vendors & Permits")
 
     def open_planned_safety(self) -> None:
         from modules import plannedtoolkit
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = plannedtoolkit.get_safety_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_safety_panel(incident_id)
         self._open_modeless(panel, title="Public Safety")
 
     def open_planned_tasking(self) -> None:
         from modules import plannedtoolkit
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = plannedtoolkit.get_tasking_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_tasking_panel(incident_id)
         self._open_modeless(panel, title="Tasking & Assignments")
 
     def open_planned_health_sanitation(self) -> None:
         from modules import plannedtoolkit
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = plannedtoolkit.get_health_sanitation_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
         self._open_modeless(panel, title="Health & Sanitation")
 
     def open_toolkit_initial_hasty(self) -> None:
         from modules.initialresponse import initial
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = initial.get_hasty_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = initial.get_hasty_panel(incident_id)
         self._open_modeless(panel, title="Hasty Tools")
 
     def open_toolkit_initial_reflex(self) -> None:
         from modules.initialresponse import initial
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = initial.get_reflex_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = initial.get_reflex_panel(incident_id)
         self._open_modeless(panel, title="Reflex Taskings")
 
 # --- 4.14 Resources (Forms & Library) -----------------------------------
     def open_forms(self) -> None:
         from modules import referencelibrary
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = referencelibrary.get_form_library_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = referencelibrary.get_form_library_panel(incident_id)
         self._open_modeless(panel, title="Form Library")
 
     def open_reference_library(self) -> None:
         from modules import referencelibrary
-        mission_id = getattr(self, "current_mission_id", None)
+        incident_id = getattr(self, "current_incident_id", None)
         panel = referencelibrary.get_library_panel()
         self._open_modeless(panel, title="Reference Library")
 
     def open_help_user_guide(self) -> None:
         from modules import helpdocs
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = helpdocs.get_user_guide_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = helpdocs.get_user_guide_panel(incident_id)
         self._open_modeless(panel, title="User Guide")
 
 # --- 4.15 Help -----------------------------------------------------------
     def open_help_about(self) -> None:
         from modules import helpdocs
-        mission_id = getattr(self, "current_mission_id", None)
-        panel = helpdocs.get_about_panel(mission_id)
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = helpdocs.get_about_panel(incident_id)
         self._open_modeless(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
@@ -908,13 +908,13 @@ class MainWindow(QMainWindow):
         self.task_window.setColor("white")
         self.task_window.show()
 
-    def update_title_with_active_mission(self):
-        """Refresh window title when active mission changes."""
-        mission_number = AppState.get_active_mission()
-        if mission_number:
-            mission = get_mission_by_number(mission_number)
-            if mission:
-                self.setWindowTitle(f"SARApp - {mission['number']}: {mission['name']}")
+    def update_title_with_active_incident(self):
+        """Refresh window title when active incident changes."""
+        incident_number = AppState.get_active_incident()
+        if incident_number:
+            incident = get_incident_by_number(incident_number)
+            if incident:
+                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}")
         else:
             self.setWindowTitle("SARApp - Incident Management Assistant")
 

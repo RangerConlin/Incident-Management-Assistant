@@ -2,13 +2,13 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
-// Mission selection window with filtering and CRUD actions
+// Incident selection window with filtering and CRUD actions
 ApplicationWindow {
     id: window
     width: 1100
     height: 700
     visible: true
-    title: "Mission Selection"
+    title: "Incident Selection"
 
     // Currently selected proxy row (-1 means none)
     property int selectedRow: -1
@@ -37,7 +37,7 @@ ApplicationWindow {
             // Type filter
             ComboBox {
                 id: typeBox
-                // Known mission types; expand as needed
+                // Known incident types; expand as needed
                 model: ["All", "Search and Rescue", "Disaster Relief", "Other"]
                 onCurrentTextChanged: proxy.setTypeFilter(currentText)
             }
@@ -72,7 +72,7 @@ ApplicationWindow {
         anchors.margins: 8
         spacing: 8
 
-        // Table of missions
+        // Table of incidents
         TableView {
             id: table
             Layout.fillWidth: true
@@ -100,7 +100,7 @@ ApplicationWindow {
                     onEntered: parent.hovered = true
                     onExited: parent.hovered = false
                     onClicked: window.selectedRow = row
-                    onDoubleClicked: controller.loadMission(proxy, row)
+                    onDoubleClicked: controller.loadIncident(proxy, row)
                 }
             }
 
@@ -133,7 +133,7 @@ ApplicationWindow {
             }
             TableViewColumn {
                 role: "name"
-                title: "Mission Name"
+                title: "Incident Name"
                 width: 200
                 delegate: Text {
                     required property var model
@@ -232,24 +232,24 @@ ApplicationWindow {
             Button {
                 text: "Load"
                 enabled: window.selectedRow >= 0
-                onClicked: controller.loadMission(proxy, window.selectedRow)
+                onClicked: controller.loadIncident(proxy, window.selectedRow)
             }
 
             Button {
                 text: "Edit"
                 enabled: window.selectedRow >= 0
-                onClicked: controller.editMission(proxy, window.selectedRow)
+                onClicked: controller.editIncident(proxy, window.selectedRow)
             }
 
             Button {
                 text: "Delete"
                 enabled: window.selectedRow >= 0
-                onClicked: controller.deleteMission(proxy, window.selectedRow)
+                onClicked: controller.deleteIncident(proxy, window.selectedRow)
             }
 
             Button {
-                text: "New Mission"
-                onClicked: controller.newMission()
+                text: "New Incident"
+                onClicked: controller.newIncident()
             }
         }
     }
@@ -257,7 +257,7 @@ ApplicationWindow {
     // Friendly empty state if model is empty
     Label {
         anchors.centerIn: parent
-        text: "No missions found. Check filters or ensure data/master.db has a missions table."
+        text: "No incidents found. Check filters or ensure data/master.db has a incidents table."
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
         width: parent.width * 0.6

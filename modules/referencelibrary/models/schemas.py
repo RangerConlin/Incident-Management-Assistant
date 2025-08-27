@@ -90,17 +90,17 @@ class ExternalLinkRead(ExternalLinkCreate):
 
 
 # ---------------------------------------------------------------------------
-# Mission documents and cache toggles
+# Incident documents and cache toggles
 # ---------------------------------------------------------------------------
 
 
-class MissionDocumentCreate(BaseModel):
-    mission_id: str
+class IncidentDocumentCreate(BaseModel):
+    incident_id: str
     document_id: int
     note: Optional[str] = None
 
 
-class MissionDocumentRead(MissionDocumentCreate):
+class IncidentDocumentRead(IncidentDocumentCreate):
     id: int
     added_by: Optional[str] = None
     created_at: datetime
@@ -110,13 +110,13 @@ class MissionDocumentRead(MissionDocumentCreate):
 
 
 class ToggleCacheRequest(BaseModel):
-    mission_id: str
+    incident_id: str
     enable: bool = True
 
 
 class ToggleCacheResponse(BaseModel):
     document_id: int
-    mission_id: str
+    incident_id: str
     enabled: bool
 
 

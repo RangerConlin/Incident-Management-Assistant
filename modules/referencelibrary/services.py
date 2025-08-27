@@ -17,7 +17,7 @@ from .models import (
     CollectionDocument,
     Document,
     ExternalLink,
-    MissionDocument,
+    IncidentDocument,
 )
 from .models.schemas import (
     CollectionCreate,
@@ -27,18 +27,18 @@ from .models.schemas import (
     DocumentUpdate,
     ExternalLinkCreate,
     ExternalLinkRead,
-    MissionDocumentCreate,
-    MissionDocumentRead,
+    IncidentDocumentCreate,
+    IncidentDocumentRead,
     SearchQuery,
     SearchResult,
     ToggleCacheRequest,
     ToggleCacheResponse,
 )
-from .repository import ROOT_DIR, with_master_session, with_mission_session
+from .repository import ROOT_DIR, with_master_session, with_incident_session
 from .search_index import index_document, search_documents
 
 FILES_ROOT = ROOT_DIR / "data" / "library" / "files"
-CACHE_ROOT = ROOT_DIR / "data" / "missions"
+CACHE_ROOT = ROOT_DIR / "data" / "incidents"
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +134,7 @@ def toggle_cache(doc_id: int, req: ToggleCacheRequest) -> ToggleCacheResponse:
         if not doc:
             raise ValueError("Document not found")
         src = FILES_ROOT / str(doc.id) / doc.filename
-        cache_dir = CACHE_ROOT / req.mission_id / "cache" / "library" / str(doc.id)
+        cache_dir = CACHE_ROOT / req.incident_id / "cache" / "library" / str(doc.id)
         cache_file = cache_dir / doc.filename
         if req.enable:
             cache_dir.mkdir(parents=True, exist_ok=True)
@@ -149,19 +149,19 @@ def toggle_cache(doc_id: int, req: ToggleCacheRequest) -> ToggleCacheResponse:
             {
                 "action": "cache_toggle",
                 "document_id": doc.id,
-                "mission_id": req.mission_id,
+                "incident_id": req.incident_id,
                 "enabled": req.enable,
             },
         )
     return ToggleCacheResponse(
-        document_id=doc_id, mission_id=req.mission_id, enabled=req.enable
+        document_id=doc_id, incident_id=req.incident_id, enabled=req.enable
     )
 
 
-def attach_to_mission(data: MissionDocumentCreate) -> MissionDocumentRead:
+def attach_to_incident(data: IncidentDocumentCreate) -> IncidentDocumentRead:
     with with_master_session() as session:
-        entry = MissionDocument(
-            mission_id=data.mission_id,
+        entry = IncidentDocument(
+            incident_id=data.incident_id,
             document_id=data.document_id,
             note=data.note,
         )
@@ -170,12 +170,12 @@ def attach_to_mission(data: MissionDocumentCreate) -> MissionDocumentRead:
         _log_audit(
             session,
             {
-                "action": "attach_mission",
+                "action": "attach_incident",
                 "document_id": data.document_id,
-                "mission_id": data.mission_id,
+                "incident_id": data.incident_id,
             },
         )
-        return MissionDocumentRead.from_orm(entry)
+        return IncidentDocumentRead.from_orm(entry)
 
 
 # ---------------------------------------------------------------------------

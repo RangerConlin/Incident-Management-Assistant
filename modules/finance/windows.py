@@ -16,30 +16,30 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_time_panel(mission_id: object | None = None) -> QWidget:
+def get_time_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Time Tracking."""
     return _make_panel(
         "Time Tracking",
-        f"Record time entries — mission: {mission_id}",
+        f"Record time entries — incident: {incident_id}",
     )
 
-def get_procurement_panel(mission_id: object | None = None) -> QWidget:
+def get_procurement_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Procurement."""
     return _make_panel(
         "Procurement",
-        f"Manage purchasing — mission: {mission_id}",
+        f"Manage purchasing — incident: {incident_id}",
     )
 
-def get_summary_panel(mission_id: object | None = None) -> QWidget:
+def get_summary_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Finance Summary."""
     return _make_panel(
         "Finance Summary",
-        f"View summaries — mission: {mission_id}",
+        f"View summaries — incident: {incident_id}",
     )
 
-def get_finance_panel(mission_id: object | None = None) -> QWidget:
+def get_finance_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Finance Dashboard."""
     return _make_panel(
         "Finance Dashboard",
-        f"Finance overview — mission: {mission_id}",
+        f"Finance overview — incident: {incident_id}",
     )

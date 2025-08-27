@@ -7,7 +7,7 @@ QML_PATH = Path(__file__).resolve().parent.parent / "qml" / "InjuryLogEditor.qml
 
 
 class InjuryLogDialog(QObject):
-    def __init__(self, mission_id: str):
+    def __init__(self, incident_id: str):
         super().__init__()
-        self.mission_id = mission_id
+        self.incident_id = incident_id
         self.engine = QQmlApplicationEngine(str(QML_PATH))

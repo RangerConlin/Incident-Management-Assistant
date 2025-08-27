@@ -1,7 +1,7 @@
-"""Bootstrap launcher for the Mission selection window.
+"""Bootstrap launcher for the Incident selection window.
 
 This module wires up the model, proxy and controller before loading the
-``MissionSelectWindow.qml`` screen. It allows the selector to be executed as
+``IncidentSelectWindow.qml`` screen. It allows the selector to be executed as
 standalone for manual testing or integrated into the wider application.
 """
 
@@ -14,16 +14,16 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
-from models.missionlist import (
-    MissionController,
-    MissionListModel,
-    MissionProxyModel,
-    load_missions_from_master,
+from models.incidentlist import (
+    IncidentController,
+    IncidentListModel,
+    IncidentProxyModel,
+    load_incidents_from_master,
 )
 
 
-def show_mission_selector():
-    """Create and display the mission selection window."""
+def show_incident_selector():
+    """Create and display the incident selection window."""
 
     app = QGuiApplication.instance()
     owns_app = False
@@ -32,31 +32,31 @@ def show_mission_selector():
         app = QGuiApplication(sys.argv)
         owns_app = True
 
-    # Base table model loading missions from the master database
-    mission_model = MissionListModel()
-    mission_model.reload(load_missions_from_master)
+    # Base table model loading incidents from the master database
+    incident_model = IncidentListModel()
+    incident_model.reload(load_incidents_from_master)
 
     # Proxy model handles sorting/filtering exposed to QML
-    proxy = MissionProxyModel()
-    proxy.setSourceModel(mission_model)
+    proxy = IncidentProxyModel()
+    proxy.setSourceModel(incident_model)
     proxy.sort(5, Qt.DescendingOrder)  # Default sort: Start time descending
 
     # Controller for CRUD-style signals (actual DB writes added later)
-    controller = MissionController(mission_model)
+    controller = IncidentController(incident_model)
 
     # Prepare QML engine and expose context properties
     engine = QQmlApplicationEngine()
     ctx = engine.rootContext()
-    ctx.setContextProperty("missionModel", mission_model)
+    ctx.setContextProperty("incidentModel", incident_model)
     ctx.setContextProperty("proxy", proxy)
     ctx.setContextProperty("controller", controller)
 
     # Resolve QML file on disk and load it
-    qml_file = Path(__file__).resolve().parents[1] / "qml" / "MissionSelectWindow.qml"
+    qml_file = Path(__file__).resolve().parents[1] / "qml" / "IncidentSelectWindow.qml"
     engine.load(QUrl.fromLocalFile(str(qml_file)))
 
     if not engine.rootObjects():
-        raise RuntimeError("Failed to load MissionSelectWindow.qml")
+        raise RuntimeError("Failed to load IncidentSelectWindow.qml")
 
     if owns_app:
         # Execute application event loop if we created the QGuiApplication
@@ -65,5 +65,5 @@ def show_mission_selector():
 
 if __name__ == "__main__":
     # Allow manual testing when run directly
-    show_mission_selector()
+    show_incident_selector()
 

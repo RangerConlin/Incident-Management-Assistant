@@ -11,10 +11,10 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_hasty_panel(mission_id=None) -> QWidget:
+def get_hasty_panel(incident_id=None) -> QWidget:
     """Return placeholder QWidget for Hasty Tools."""
-    return _make_panel("Hasty Tools", f"Hasty tools — mission: {mission_id}")
+    return _make_panel("Hasty Tools", f"Hasty tools — incident: {incident_id}")
 
-def get_reflex_panel(mission_id=None) -> QWidget:
+def get_reflex_panel(incident_id=None) -> QWidget:
     """Return placeholder QWidget for Reflex Taskings."""
-    return _make_panel("Reflex Taskings", f"Reflex taskings — mission: {mission_id}")
+    return _make_panel("Reflex Taskings", f"Reflex taskings — incident: {incident_id}")

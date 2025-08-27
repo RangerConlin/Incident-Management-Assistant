@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Item {
     width:400
     height:250
-    signal createMission(string number, string name, string type, string description, string location, bool isTraining)
+    signal createIncident(string number, string name, string type, string description, string location, bool isTraining)
 
 Rectangle {
     id: rectangle
@@ -24,8 +24,8 @@ Rectangle {
         anchors.topMargin: 20
         spacing: 10
 
-        TextField { id: nameField; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 0; anchors.rightMargin: 0; placeholderText: "Mission Name" }
-        TextField { id: nnumberField; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 0; anchors.rightMargin: 0; placeholderText: "Mission Number" }
+        TextField { id: nameField; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 0; anchors.rightMargin: 0; placeholderText: "Incident Name" }
+        TextField { id: nnumberField; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 0; anchors.rightMargin: 0; placeholderText: "Incident Number" }
         ComboBox {
             id: comboBox
             model:["SAR", "Disaster Response"]
@@ -34,13 +34,13 @@ Rectangle {
             anchors.leftMargin: 0
             anchors.rightMargin: 0
             currentIndex: -1
-            displayText: currentIndex === -1 ? "Mission Type" : model[currentIndex]
+            displayText: currentIndex === -1 ? "Incident Type" : model[currentIndex]
             editable: false
         }
 
         TextField { id: descriptionField; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 0; anchors.rightMargin: 0; placeholderText: "Description" }
         TextField { id: locationField; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 0; anchors.rightMargin: 0; placeholderText: "Incident Command Post Location" }
-        CheckBox  { id: trainingCheck; text: "Training Mission?" ; anchors.left: parent.left; anchors.right: parent.right;anchors.leftMargin: 0 ;anchors.rightMargin: 0 }
+        CheckBox  { id: trainingCheck; text: "Training Incident?" ; anchors.left: parent.left; anchors.right: parent.right;anchors.leftMargin: 0 ;anchors.rightMargin: 0 }
 
         RowLayout {
             id: rowLayout
@@ -57,11 +57,11 @@ Rectangle {
 
             Button {
                 id: createbutton
-                text: "Create Mission"
+                text: "Create Incident"
                 Layout.fillWidth: true
                 onClicked: {
 
-                    missionHandler.create_mission(nnumberField.text, nameField.text, comboBox.currentText, descriptionField.text, locationField.text, trainingCheck.checked)
+                    incidentHandler.create_incident(nnumberField.text, nameField.text, comboBox.currentText, descriptionField.text, locationField.text, trainingCheck.checked)
                 }
             }
         }

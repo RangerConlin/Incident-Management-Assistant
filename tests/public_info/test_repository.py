@@ -8,8 +8,8 @@ import pytest
 
 from modules.public_info.models.repository import PublicInfoRepository
 
-TEST_MISSION_ID = 999
-DB_PATH = Path("data/missions") / f"{TEST_MISSION_ID}.db"
+TEST_INCIDENT_ID = 999
+DB_PATH = Path("data/incidents") / f"{TEST_INCIDENT_ID}.db"
 
 
 def setup_module(module):
@@ -23,7 +23,7 @@ def teardown_module(module):
 
 
 def test_state_transitions_and_revision():
-    repo = PublicInfoRepository(TEST_MISSION_ID)
+    repo = PublicInfoRepository(TEST_INCIDENT_ID)
     msg = repo.create_message(
         {
             "title": "Initial",
@@ -49,7 +49,7 @@ def test_state_transitions_and_revision():
 
 
 def test_permission_checks():
-    repo = PublicInfoRepository(TEST_MISSION_ID)
+    repo = PublicInfoRepository(TEST_INCIDENT_ID)
     msg = repo.create_message(
         {
             "title": "Test",

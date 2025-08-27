@@ -29,7 +29,7 @@ TEAM_STATUS_COLORS = {
     "returning":      {"bg": QBrush(QColor("#0288d1")), "fg": QBrush(QColor("#e1e1e1"))},
     "tol":            {"bg": QBrush(QColor("#085ec7")), "fg": QBrush(QColor("#e0e0e0"))},
     "wheels down":    {"bg": QBrush(QColor("#0288d1")), "fg": QBrush(QColor("#e1e1e1"))},
-    "post mission":   {"bg": QBrush(QColor("#ce93d8")), "fg": QBrush(QColor("#333333"))},
+    "post incident":   {"bg": QBrush(QColor("#ce93d8")), "fg": QBrush(QColor("#333333"))},
     "find":           {"bg": QBrush(QColor("#ffa000")), "fg": QBrush(QColor("#333333"))},
     "complete":       {"bg": QBrush(QColor("#386a3c")), "fg": QBrush(QColor("#333333"))},
     }

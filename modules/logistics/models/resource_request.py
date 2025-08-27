@@ -14,7 +14,7 @@ class LogisticsResourceRequest(Base):
     __tablename__ = "logistics_resource_requests"
 
     id = Column(Integer, primary_key=True)
-    mission_id = Column(String, nullable=False)
+    incident_id = Column(String, nullable=False)
     requestor_id = Column(Integer, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
     item_code = Column(String, nullable=False)

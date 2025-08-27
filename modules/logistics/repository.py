@@ -1,6 +1,6 @@
 # AUTO-GENERATED: Logistics module for Incident Management Assistant
 # NOTE: Module code lives under /modules/logistics (not /backend).
-"""Mission database routing helpers for logistics."""
+"""Incident database routing helpers for logistics."""
 
 from contextlib import contextmanager
 from pathlib import Path
@@ -14,22 +14,22 @@ from .models import Base
 _engine_cache: Dict[str, Any] = {}
 
 
-def get_mission_engine(mission_id: str):
-    """Return an engine bound to the mission-specific database."""
-    db_path = Path("data") / "missions" / f"{mission_id}.db"
+def get_incident_engine(incident_id: str):
+    """Return an engine bound to the incident-specific database."""
+    db_path = Path("data") / "incidents" / f"{incident_id}.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = _engine_cache.get(mission_id)
+    engine = _engine_cache.get(incident_id)
     if engine is None:
         engine = create_engine(f"sqlite:///{db_path}")
         Base.metadata.create_all(engine)
-        _engine_cache[mission_id] = engine
+        _engine_cache[incident_id] = engine
     return engine
 
 
 @contextmanager
-def with_mission_session(mission_id: str):
-    """Context manager yielding a session for the mission database."""
-    engine = get_mission_engine(mission_id)
+def with_incident_session(incident_id: str):
+    """Context manager yielding a session for the incident database."""
+    engine = get_incident_engine(incident_id)
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
     session = SessionLocal()
     try:

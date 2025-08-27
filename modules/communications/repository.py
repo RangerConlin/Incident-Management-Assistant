@@ -5,7 +5,7 @@ from sqlmodel import SQLModel, create_engine
 
 DATA_DIR = Path("data")
 MASTER_DB = DATA_DIR / "master.db"
-MISSIONS_DIR = DATA_DIR / "missions"
+INCIDENTS_DIR = DATA_DIR / "incidents"
 
 
 def get_engine(path: Path):
@@ -20,9 +20,9 @@ def get_master_engine():
     return engine
 
 
-def get_mission_engine(mission_id: str):
-    """Return engine for a mission-specific database."""
-    path = MISSIONS_DIR / f"{mission_id}.db"
+def get_incident_engine(incident_id: str):
+    """Return engine for a incident-specific database."""
+    path = INCIDENTS_DIR / f"{incident_id}.db"
     engine = get_engine(path)
     SQLModel.metadata.create_all(engine)
     return engine

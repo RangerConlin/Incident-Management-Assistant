@@ -11,9 +11,9 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
-def get_206_panel(mission_id: object | None = None) -> QWidget:
+def get_206_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Medical Plan (ICS-206)."""
     return _make_panel(
         "Medical Plan (ICS-206)",
-        f"ICS-206 form — mission: {mission_id}",
+        f"ICS-206 form — incident: {incident_id}",
     )

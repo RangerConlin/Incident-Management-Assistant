@@ -42,7 +42,7 @@ View check-in/check-out status
 
 View user role, team, and time since last activity
 
-Integrates with mission status dashboard
+Integrates with incident status dashboard
 
 5. Map-Based Team Assignment Tool (Optional Early Preview)
 

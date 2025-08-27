@@ -1,7 +1,7 @@
 import os
 
-def ensure_mission_dir():
-    mission_dir = os.path.abspath("data/missions")
-    if not os.path.exists(mission_dir):
-        os.makedirs(mission_dir)
-    return mission_dir
+def ensure_incident_dir():
+    incident_dir = os.path.abspath("data/incidents")
+    if not os.path.exists(incident_dir):
+        os.makedirs(incident_dir)
+    return incident_dir

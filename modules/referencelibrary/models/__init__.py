@@ -6,7 +6,7 @@ from .library_models import (
     Collection,
     CollectionDocument,
     ExternalLink,
-    MissionDocument,
+    IncidentDocument,
     AuditEntry,
 )
 
@@ -16,6 +16,6 @@ __all__ = [
     "Collection",
     "CollectionDocument",
     "ExternalLink",
-    "MissionDocument",
+    "IncidentDocument",
     "AuditEntry",
 ]

@@ -7,9 +7,9 @@ from PySide6.QtWidgets import QDialog, QLabel, QPushButton, QVBoxLayout
 
 
 class CheckInCheckoutDialog(QDialog):
-    def __init__(self, mission_id: str, equipment_id: int):
+    def __init__(self, incident_id: str, equipment_id: int):
         super().__init__()
-        self.mission_id = mission_id
+        self.incident_id = incident_id
         self.equipment_id = equipment_id
         self.setWindowTitle("Check In/Out")
 

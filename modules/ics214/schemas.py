@@ -6,7 +6,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 class StreamBase(BaseModel):
-    mission_id: str
+    incident_id: str
     name: str
     op_number: int = 0
     kind: Optional[str] = None

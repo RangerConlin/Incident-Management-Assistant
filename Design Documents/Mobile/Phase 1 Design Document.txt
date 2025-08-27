@@ -4,15 +4,15 @@ CS Command Assistant: Mobile App MVP Plan
 
 The initial mobile app release will focus on the following critical capabilities:
 
-1. Login & Mission Selection Flow
+1. Login & Incident Selection Flow
 
 Users log in to the app using credentials
 
 Authenticates with backend (JWT or token-based)
 
-After login, users must select the mission they are joining
+After login, users must select the incident they are joining
 
-If the user is not already signed in on that mission:
+If the user is not already signed in on that incident:
 
 They are redirected to the check-in module
 
@@ -66,13 +66,13 @@ POST /api/mobile/login
 
 Users
 
-Mission Selection
+Incident Selection
 
-Mission Mgmt
+Incident Mgmt
 
-GET /api/missions
+GET /api/incidents
 
-Missions
+Incidents
 
 Role & Team Selection
 
@@ -112,8 +112,8 @@ StatusLogs
 
 [Mobile App]
    ├── Login screen → [POST /login]
-   ├── Mission selection screen → [GET /missions]
-   ├── If not signed in on mission:
+   ├── Incident selection screen → [GET /incidents]
+   ├── If not signed in on incident:
    │   └─ Check-In module (user info + role + team) → [POST /checkin]
    ├── Home screen (role-specific)
    │   ├─ Field: Status Update, Messaging
@@ -126,12 +126,12 @@ StatusLogs
    │   ├─ /api/mobile/checkin
    │   ├─ /api/mobile/status
    │   ├─ /api/mobile/messages
-   │   ├─ /api/missions
+   │   ├─ /api/incidents
    │   ├─ /api/roles
    │   └─ /api/teams
    └── Connects to:
        ├─ Users table
-       ├─ Missions table
+       ├─ Incidents table
        ├─ Teams table
        ├─ CheckIn table
        └─ Message/Log table
@@ -144,9 +144,9 @@ StatusLogs
 |--------|----------------------------------------------------------------------|
 | 1      | Initialize React Native app (use Expo)                              |
 | 2–3    | Create login flow, store token securely                             |
-| 4      | Add mission selection screen                                         |
+| 4      | Add incident selection screen                                         |
 | 5      | Add role & team selection screen                                    |
-| 6–7    | Build Field Check-In module (triggered after mission join if not signed in) |
+| 6–7    | Build Field Check-In module (triggered after incident join if not signed in) |
 | 8–9    | Build Status Update screen (message input + optional GPS)           |
 
 | 12–13  | Final testing, bug fixes                                            |
@@ -161,12 +161,12 @@ StatusLogs
 - Submit button
 - Store JWT/token securely
 
-**Mission Selection Screen**
-- Dropdown or list of active missions
-- Select mission to join
+**Incident Selection Screen**
+- Dropdown or list of active incidents
+- Select incident to join
 - Proceed to check-in if not already signed in
 
-**Field Check-In Module (upon mission join if not signed in)**
+**Field Check-In Module (upon incident join if not signed in)**
 - Full name (autofilled or entered)
 - Role selection: Command Staff or Field User
 - If Field User: team selection
@@ -184,7 +184,7 @@ StatusLogs
     - Submit button
 - If Command Staff:
   - Admin Check-In/Check-Out Module
-    - View personnel assigned to mission
+    - View personnel assigned to incident
     - Manually check in/out users
     - Set role, team, and current status
     - For use by Admin/Finance at staging or base camp
@@ -192,6 +192,6 @@ StatusLogs
 **Navigation UI**
 - Bottom tab or drawer navigation to access screens based on user role
 - Field: [✔️ Advance Status], [📤 Special Status], [📄 Assigned Tasks]
-- Command: [📋 Admin Check-In], [📄 Mission Overview] (to be expanded in future)
+- Command: [📋 Admin Check-In], [📄 Incident Overview] (to be expanded in future)
 
 ---

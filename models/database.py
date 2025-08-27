@@ -95,9 +95,9 @@ def get_all_personnel():
         cursor.execute('SELECT * FROM personnel')
         return cursor.fetchall()
 
-def get_all_mission_types():
+def get_all_incident_types():
     with get_cursor() as cursor:
-        cursor.execute('SELECT * FROM mission_types')
+        cursor.execute('SELECT * FROM incident_types')
         return cursor.fetchall()
 
 def get_all_certification_types():
@@ -110,9 +110,9 @@ def get_all_personnel_certifications():
         cursor.execute('SELECT * FROM personnel_certifications')
         return cursor.fetchall()
 
-def get_all_missions():
+def get_all_incidents():
     with get_cursor() as cursor:
-        cursor.execute('SELECT * FROM missions')
+        cursor.execute('SELECT * FROM incidents')
         return cursor.fetchall()
 
 def get_all_vehicles():
@@ -120,36 +120,36 @@ def get_all_vehicles():
         cursor.execute('SELECT * FROM vehicles')
         return cursor.fetchall()
 
-def insert_new_mission(number, name, type, description, icp_location, is_training):
+def insert_new_incident(number, name, type, description, icp_location, is_training):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO missions (number, name, type, description, status, icp_location, start_time, end_time, is_training)
+        INSERT INTO incidents (number, name, type, description, status, icp_location, start_time, end_time, is_training)
         VALUES (?, ?, ?, ?, 'Active', ?, datetime('now'), NULL, ?)
     ''', (number, name, type, description, icp_location, int(is_training)))
     conn.commit()
-    mission_id = cursor.lastrowid
+    incident_id = cursor.lastrowid
     conn.close()
-    return mission_id
+    return incident_id
 
-def get_all_active_missions():
+def get_all_active_incidents():
     conn = get_connection()
     conn.row_factory = sqlite3.Row  # Makes rows behave like dictionaries
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM missions WHERE status = 'Active'")
+    cursor.execute("SELECT * FROM incidents WHERE status = 'Active'")
     results = cursor.fetchall()
     conn.close()
     rows = [dict(row) for row in results]
-    print("DEBUG ACTIVE MISSIONS:", rows[0] if rows else "None")
+    print("DEBUG ACTIVE INCIDENTS:", rows[0] if rows else "None")
     return rows
 
-def get_mission_by_number(mission_number):
+def get_incident_by_number(incident_number):
     import sqlite3
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row  # Allows access like a dictionary
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM missions WHERE number = ?", (mission_number,))
+    cursor.execute("SELECT * FROM incidents WHERE number = ?", (incident_number,))
     row = cursor.fetchone()
     description = cursor.description
     conn.close()

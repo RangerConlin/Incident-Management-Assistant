@@ -12,7 +12,7 @@ from .repository import with_event_session
 
 
 def export_iap(event_id: str, request: schemas.IapBuildRequest) -> models.ExportArtifact:
-    exports_dir = Path("data/missions") / event_id / "exports"
+    exports_dir = Path("data/incidents") / event_id / "exports"
     exports_dir.mkdir(parents=True, exist_ok=True)
     ts = int(dt.datetime.utcnow().timestamp())
     pdf_path = exports_dir / f"iap_{ts}.pdf"
