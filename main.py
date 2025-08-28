@@ -33,6 +33,10 @@ from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
+)
 
 
 # ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
@@ -404,15 +408,16 @@ class MainWindow(QMainWindow):
                 IncidentController,
                 load_incidents_from_master,
             )
-        except Exception as e:
-        # Friendly error pane if models/incidentlist.py isn't present yet
+        except Exception:
+            logger.exception("Incident list model import failed")
             stub = QWidget()
             lay = QVBoxLayout(stub)
-            msg = QLabel(f"Incident list model not found:\n{e}")
+            msg = QLabel("Incident list model not found (see log for details).")
             msg.setWordWrap(True)
             lay.addWidget(msg)
             self._open_modeless(stub, title="Incident Selection")
             return
+
 
         # --- Build a QWidget panel that hosts the QML view ---
         panel = QWidget(self)
@@ -436,7 +441,8 @@ class MainWindow(QMainWindow):
         proxy.sort(5, Qt.DescendingOrder)
 
         # --- Active incident setter: try common hooks, else fall back to window attr ---
-        def _set_active_incident(incident_id: int) -> None:
+        def _set_active_incident(incident_id: str) -> None:
+            logger.info("Setting active incident to %r", incident_id)
             candidates = [
                 ("utils.incident_db", "set_active_incident_id"),
                 ("utils.incident_db", "set_active_incident"),
@@ -450,12 +456,15 @@ class MainWindow(QMainWindow):
                     mod = importlib.import_module(mod_name)
                     fn = getattr(mod, fn_name, None)
                     if callable(fn):
+                        logger.debug("Calling %s.%s(%r)", mod_name, fn_name, incident_id)
                         fn(incident_id)
+                        logger.info("Active incident set via %s.%s", mod_name, fn_name)
                         return
                 except Exception:
-                    pass
+                    logger.exception("Failed calling %s.%s", mod_name, fn_name)
             # Fallback: keep it simple
             setattr(self, "current_incident_id", incident_id)
+            logger.warning("Fell back to setting self.current_incident_id=%r", incident_id)
 
         # Controller: some impls require model in ctor; others use attachModel
         try:
@@ -467,7 +476,10 @@ class MainWindow(QMainWindow):
 
         # Connect the signal so selecting an incident updates the active incident
         if hasattr(controller, "incidentselected"):
+            logger.debug("Connecting controller.incidentselected -> _set_active_incident")
             controller.incidentselected.connect(_set_active_incident)
+        else:
+            logger.error("Controller missing 'incidentselected' signal")
 
                 # --- QML host ---
         qml = QQuickWidget(panel)
@@ -486,9 +498,10 @@ class MainWindow(QMainWindow):
 
         if qml.status() == QQuickWidget.Error:
             err = "\n".join(str(e.toString()) for e in qml.errors())
+            logger.error("Error loading IncidentSelectWindow.qml:\n%s", err)
             lay.addWidget(QLabel(f"Error loading QML:\n{err}"))
         else:
-            # 🔧 Give it stretch = 1 so it occupies all space
+            logger.info("IncidentSelectWindow.qml loaded OK")
             lay.addWidget(qml, 1)
 
 

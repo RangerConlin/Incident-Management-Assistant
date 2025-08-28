@@ -2,6 +2,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQml 2.15
 
 // Python must provide these as context properties:
 //   proxy: IncidentProxyModel
@@ -349,8 +350,12 @@ Item {
 
                     Button {
                         text: "Select"
-                        enabled: root.selectedRow >= 0 && proxy.rowCount() > 0
-                        onClicked: controller.loadIncident(proxy, root.selectedRow)
+                        enabled: root.selectedRow >= 0
+                        onClicked: {
+                            if (root.selectedRow >= 0) {
+                                controller.loadIncident(proxy, root.selectedRow)
+                            }
+                        }
                     }
                     Button {
                         text: "Load"
@@ -375,4 +380,61 @@ Item {
             }
         }
     }
-}    
+// ---- DEBUG OVERLAY ----
+Rectangle {
+    id: dbg
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.bottom: parent.bottom
+    height: 90
+    color: "#111827"
+    border.color: "#374151"
+    z: 9999
+
+    RowLayout {
+        anchors.fill: parent
+        anchors.margins: 8
+        spacing: 10
+
+        Label {
+            text: "rowCount=" + (proxy && proxy.rowCount ? proxy.rowCount() : "N/A")
+                  + " | selectedRow=" + root.selectedRow
+            color: "#e5e7eb"
+            Layout.fillWidth: true
+        }
+
+        Button {
+            text: "DBG: call loadIncident(selectedRow)"
+            enabled: root.selectedRow >= 0
+            onClicked: {
+                console.log("DBG: calling controller.loadIncident(proxy,", root.selectedRow, ")");
+                controller.loadIncident(proxy, root.selectedRow);
+            }
+        }
+
+        Button {
+            text: "DBG: call loadIncident(0)"
+            onClicked: {
+                console.log("DBG: calling controller.loadIncident(proxy, 0)");
+                controller.loadIncident(proxy, 0);
+            }
+        }
+    }
+}
+
+// Extra logging on list selection change
+Connections {
+    target: list
+    function onCurrentIndexChanged() {
+        console.log("QML list.currentIndex ->", list.currentIndex);
+    }
+}
+
+// Already present, keep it:
+Connections {
+    target: controller
+    function onIncidentselected(num) {
+        console.log("QML saw incidentselected:", num)
+    }
+}
+}

@@ -5,10 +5,13 @@ from PySide6.QtCore import (
     QAbstractListModel, QModelIndex, Qt, QByteArray,
     QObject, Slot, Signal
 )
-from PySide6.QtCore import QSortFilterProxyModel
+from PySide6.QtCore import QSortFilterProxyModel, QObject, Signal, Slot, QModelIndex
 import os, sqlite3
 from types import SimpleNamespace
 from typing import List, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["IncidentListModel", "IncidentProxyModel", "IncidentController"]
 
@@ -304,6 +307,79 @@ class IncidentController(QObject):
         num = model.data(idx, role) if role is not None else None
         if num is not None:
             self.incidentselected.emit(str(num))
+
+            # ---- OVERLOAD 1: very permissive (catches QML when types are fuzzy) ----
+    @Slot('QVariant', 'QVariant')
+    def loadIncident(self, proxy_any, row_any):
+        print("DEBUG: loadIncident(QVariant,QVariant) called:", proxy_any, row_any, flush=True)
+        try:
+            row = int(row_any) if row_any is not None else -1
+        except Exception:
+            row = -1
+        self._emit_from_proxy_row(proxy_any, row)
+
+    # ---- OVERLOAD 2: explicit QObject + int ----
+    @Slot(QObject, int)
+    def loadIncident2(self, proxy_obj, row):
+        print("DEBUG: loadIncident(QObject,int) called:", proxy_obj, row, flush=True)
+        self._emit_from_proxy_row(proxy_obj, row)
+
+    # ---- OVERLOAD 3: accept just a row, use a proxy set earlier if you want ----
+    @Slot(int)
+    def loadIncidentByRow(self, row):
+        print("DEBUG: loadIncidentByRow(int) called:", row, flush=True)
+        # If you store a proxy on the controller (e.g., self._proxy = proxy),
+        # you can use it here. Otherwise just no-op with a warning.
+        proxy = getattr(self, "_proxy", None)
+        if proxy is None:
+            print("DEBUG: no stored proxy on controller", flush=True)
+            return
+        self._emit_from_proxy_row(proxy, row)
+
+    # ---- OVERLOAD 4: accept a number string directly ----
+    @Slot(str)
+    def loadIncidentByNumber(self, number):
+        print("DEBUG: loadIncidentByNumber(str) called:", number, flush=True)
+        if not number:
+            print("DEBUG: empty number; ignoring", flush=True)
+            return
+        logger.info("Emitting incidentselected with %r (direct number)", number)
+        self.incidentselected.emit(str(number))
+
+    # ---- Shared worker ----
+    def _emit_from_proxy_row(self, proxy, row: int):
+        try:
+            if proxy is None:
+                print("DEBUG: proxy is None", flush=True)
+                return
+            if not hasattr(proxy, "mapToSource"):
+                print("DEBUG: proxy has no mapToSource; type:", type(proxy), flush=True)
+                return
+            if row is None or row < 0:
+                print("DEBUG: invalid row:", row, flush=True)
+                return
+
+            # Map proxy row to source index
+            src_index: QModelIndex = proxy.mapToSource(proxy.index(int(row), 0))
+            src_model = proxy.sourceModel()
+            if not src_index.isValid() or src_model is None:
+                print("DEBUG: invalid src_index or no sourceModel", src_index, src_model, flush=True)
+                return
+
+            # Try to read "number" role; fall back to DisplayRole
+            role = src_model.roleForName(b"number") if hasattr(src_model, "roleForName") else None
+            if role is None:
+                number = src_model.data(src_index)  # DisplayRole
+            else:
+                number = src_model.data(src_index, role)
+
+            print("DEBUG: resolved incident number:", number, flush=True)
+            logger.info("Emitting incidentselected with %r", number)
+            self.incidentselected.emit(str(number))
+        except Exception as e:
+            import traceback
+            print("DEBUG: _emit_from_proxy_row exception:", e, flush=True)
+            traceback.print_exc()
 
     # --- Stubs so QML buttons don't explode (fill these out later) ---
     @Slot(QObject, int)
