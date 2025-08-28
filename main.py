@@ -466,8 +466,8 @@ class MainWindow(QMainWindow):
                 controller.attachModel(model)
 
         # Connect the signal so selecting an incident updates the active incident
-        if hasattr(controller, "incidentLoaded"):
-            controller.incidentLoaded.connect(_set_active_incident)
+        if hasattr(controller, "incidentselected"):
+            controller.incidentselected.connect(_set_active_incident)
 
                 # --- QML host ---
         qml = QQuickWidget(panel)

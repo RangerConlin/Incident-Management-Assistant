@@ -269,7 +269,7 @@ class IncidentProxyModel(QSortFilterProxyModel):
 
 # ---------------- QObject controller (invokable from QML) ---------------- #
 class IncidentController(QObject):
-    incidentSelected = Signal(str)
+    incidentselected = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -289,7 +289,7 @@ class IncidentController(QObject):
             # Called with a single string
             incident_number = str(arg1) if arg1 is not None else ""
             if incident_number:
-                self.incidentSelected.emit(incident_number)
+                self.incidentselected.emit(incident_number)
             return
 
         # Called with (model, row)
@@ -303,7 +303,7 @@ class IncidentController(QObject):
         idx = model.index(row, 0)
         num = model.data(idx, role) if role is not None else None
         if num is not None:
-            self.incidentSelected.emit(str(num))
+            self.incidentselected.emit(str(num))
 
     # --- Stubs so QML buttons don't explode (fill these out later) ---
     @Slot(QObject, int)

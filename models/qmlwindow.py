@@ -62,5 +62,5 @@ def open_incident_list(main_window=None):
             "incidentHandler": handler
         })
         root = win.qml_widget.rootObject()
-        root.incidentSelected.connect(handler.select_incident)
+        root.incidentselected.connect(handler.select_incident)
         win.exec()
