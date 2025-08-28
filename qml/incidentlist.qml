@@ -8,7 +8,7 @@ Item {
     height: 500
 
     // Emitted to Python when a mission is chosen
-    signal incidentSelected(string incidentNumber)
+    signal incidentselected(string incidentNumber)
 
     // Tracks which row is highlighted/selected
     property string selectedIncidentNumber: ""
@@ -78,7 +78,7 @@ Item {
                             if (clickCount === 2) {
                                 clickTimer.stop()
                                 clickCount = 0
-                                root.incidentSelected(number)
+                                root.incidentselected(number)
                             }
                         }
                     }
@@ -87,7 +87,7 @@ Item {
                 // Enter/Return triggers Select on the highlighted row
                 Keys.onReturnPressed: {
                     if (root.selectedIncidentNumber !== "")
-                        root.incidentSelected(root.selectedIncidentNumber)
+                        root.incidentselected(root.selectedIncidentNumber)
                 }
             }
 
@@ -99,7 +99,7 @@ Item {
                 enabled: root.selectedIncidentNumber !== ""
                 onClicked: {
                     if (root.selectedIncidentNumber !== "")
-                        root.incidentSelected(root.selectedIncidentNumber)
+                        root.incidentselected(root.selectedIncidentNumber)
                 }
             }
         }

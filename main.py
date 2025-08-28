@@ -443,6 +443,7 @@ class MainWindow(QMainWindow):
         # --- Active incident setter: try common hooks, else fall back to window attr ---
         def _set_active_incident(incident_id: str) -> None:
             logger.info("Setting active incident to %r", incident_id)
+            setattr(self, "current_incident_id", incident_id)
             candidates = [
                 ("utils.incident_db", "set_active_incident_id"),
                 ("utils.incident_db", "set_active_incident"),
@@ -459,12 +460,21 @@ class MainWindow(QMainWindow):
                         logger.debug("Calling %s.%s(%r)", mod_name, fn_name, incident_id)
                         fn(incident_id)
                         logger.info("Active incident set via %s.%s", mod_name, fn_name)
-                        return
+                        break
                 except Exception:
                     logger.exception("Failed calling %s.%s", mod_name, fn_name)
-            # Fallback: keep it simple
-            setattr(self, "current_incident_id", incident_id)
-            logger.warning("Fell back to setting self.current_incident_id=%r", incident_id)
+            try:
+                incident = get_incident_by_number(incident_id)
+                if incident:
+                    self.setWindowTitle(f"SARApp - {incident['number']} | {incident['name']}")
+                else:
+                    self.setWindowTitle(f"SARApp - Incident {incident_id}")
+            except Exception:
+                logger.exception("Failed to update window title for %r", incident_id)
+            try:
+                panel.close()
+            except Exception:
+                logger.exception("Failed to close incident selector window")
 
         # Controller: some impls require model in ctor; others use attachModel
         try:

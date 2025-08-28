@@ -281,34 +281,6 @@ class IncidentController(QObject):
         self.proxy = IncidentProxyModel()
         self.proxy.setSourceModel(self.model)
 
-    # Support BOTH call styles:
-    #   - controller.loadIncident(proxy, row)
-    #   - controller.loadIncident("INC-123")
-    @Slot(QObject, int)
-    @Slot(str)
-    def loadIncident(self, arg1, row: int | None = None) -> None:
-        # Overloaded slot handler
-        if row is None:
-            # Called with a single string
-            incident_number = str(arg1) if arg1 is not None else ""
-            if incident_number:
-                self.incidentselected.emit(incident_number)
-            return
-
-        # Called with (model, row)
-        model = arg1
-        if row < 0 or model is None:
-            return
-        try:
-            role = model.roleForName(b"number")
-        except Exception:
-            role = None
-        idx = model.index(row, 0)
-        num = model.data(idx, role) if role is not None else None
-        if num is not None:
-            self.incidentselected.emit(str(num))
-
-            # ---- OVERLOAD 1: very permissive (catches QML when types are fuzzy) ----
     @Slot('QVariant', 'QVariant')
     def loadIncident(self, proxy_any, row_any):
         print("DEBUG: loadIncident(QVariant,QVariant) called:", proxy_any, row_any, flush=True)

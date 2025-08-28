@@ -54,7 +54,7 @@ def open_incident_list(main_window=None):
                 if main_window:
                     main_window.update_title_with_active_incident()
 
-        handler.incident_selected.connect(handle_selection)
+        handler.incidentselected.connect(handle_selection)
 
         path = os.path.abspath("qml/incidentlist.qml")
         win = QmlWindow(path, "Select Active Incident", {

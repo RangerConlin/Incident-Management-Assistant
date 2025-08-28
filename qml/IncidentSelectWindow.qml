@@ -339,7 +339,7 @@ Item {
                     spacing: 10
 
                     Label {
-                        text: (root.selectedRow >= 0 && proxy.rowCount() > 0)
+                        text: (root.selectedRow >= 0 && proxy && proxy.rowCount && proxy.rowCount() > 0)
                               ? "Row " + (root.selectedRow + 1) + " selected"
                               : "Select an incident to enable actions"
                         color: cText
@@ -359,17 +359,17 @@ Item {
                     }
                     Button {
                         text: "Load"
-                        enabled: root.selectedRow >= 0 && proxy.rowCount() > 0
+                        enabled: root.selectedRow >= 0 && proxy && proxy.rowCount && proxy.rowCount() > 0
                         onClicked: controller.loadIncident(proxy, root.selectedRow)
                     }
                     Button {
                         text: "Edit"
-                        enabled: root.selectedRow >= 0 && proxy.rowCount() > 0
+                        enabled: root.selectedRow >= 0 && proxy && proxy.rowCount && proxy.rowCount() > 0
                         onClicked: controller.editIncident(proxy, root.selectedRow)
                     }
                     Button {
                         text: "Delete"
-                        enabled: root.selectedRow >= 0 && proxy.rowCount() > 0
+                        enabled: root.selectedRow >= 0 && proxy && proxy.rowCount && proxy.rowCount() > 0
                         onClicked: controller.deleteIncident(proxy, root.selectedRow)
                     }
                     Button {

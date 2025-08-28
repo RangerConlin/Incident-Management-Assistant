@@ -4,8 +4,9 @@ from models.database import insert_new_incident, get_incident_by_number
 from utils.incident_db import create_incident_database
 from utils.state import AppState
 
+
 class IncidentHandler(QObject):
-    incident_selected = Signal(str)  # Emit incident number as str
+    incidentselected = Signal(str)  # Emit incident number as str
 
     def __init__(self):
         super().__init__()
@@ -45,4 +46,4 @@ class IncidentHandler(QObject):
             print(f"Selected incident: {incident['number']} - {incident['name']}")
         else:
             print("Incident number not found.")
-        self.incident_selected.emit(incident_number)  # Notify QML
+        self.incidentselected.emit(incident_number)  # Notify QML
