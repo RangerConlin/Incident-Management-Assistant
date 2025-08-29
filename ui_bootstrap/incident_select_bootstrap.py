@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuick import QQuickView
 from PySide6.QtWidgets import QApplication
+from utils.state import AppState
 
 from models.incidentlist import (
     IncidentController,
@@ -61,6 +62,10 @@ def show_incident_selector():
     controller.proxy = proxy
     # Optional: if you ever call controller.loadIncidentByRow, set its private proxy too
     controller._proxy = proxy
+
+    # NEW: when controller announces a selection, set global AppState
+    if hasattr(controller, "incidentselected"):
+        controller.incidentselected.connect(AppState.set_active_incident)
 
     # Host the root Item in a QQuickView (creates a window)
     view = QQuickView()
