@@ -415,12 +415,9 @@ class MainWindow(QMainWindow):
         # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_open_incident(self) -> None:
         """Launch the Incident Selection window."""
-        from utils.incident_select import IncidentSelectWindow, IncidentStore
+        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
 
-        store = IncidentStore()
-        win = IncidentSelectWindow(store)
-        win.show()
-        self.incident_selection_window = win
+        show_incident_selector()
 
     def open_menu_save_incident(self) -> None:
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
