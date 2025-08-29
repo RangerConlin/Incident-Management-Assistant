@@ -12,7 +12,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuick import QQuickView
+from PySide6.QtWidgets import QApplication
 
 from models.incidentlist import (
     IncidentController,
@@ -23,15 +24,23 @@ from models.incidentlist import (
 
 from modules.missions.new_incident_dialog import NewIncidentDialog
 
+# Keep strong references to views so they aren't GC'd when called modelessly
+_open_views: list[QQuickView] = []
+
 
 def show_incident_selector():
-    """Create and display the incident selection window."""
+    """Create and display the incident selection window.
 
-    app = QGuiApplication.instance()
+    Loads the root Item QML into a QQuickView so it shows in its own
+    window when run standalone, while preserving context properties and
+    signal wiring.
+    """
+
+    app = QApplication.instance()
     owns_app = False
     if app is None:
         # Create an application if one is not already running
-        app = QGuiApplication(sys.argv)
+        app = QApplication(sys.argv)
         owns_app = True
 
     # Base table model loading incidents from the master database
@@ -44,23 +53,31 @@ def show_incident_selector():
     proxy.sort(5, Qt.DescendingOrder)  # Default sort: Start time descending
 
     # Controller for CRUD-style signals (actual DB writes added later)
-    controller = IncidentController(incident_model)
+    controller = IncidentController()
 
-    # Prepare QML engine and expose context properties
-    engine = QQmlApplicationEngine()
-    ctx = engine.rootContext()
+    # Host the root Item in a QQuickView (creates a window)
+    view = QQuickView()
+    view.setTitle("Select Incident")
+    # Size to content so the root Item's width/height are respected
+    try:
+        view.setResizeMode(QQuickView.SizeRootObjectToView)
+    except Exception:
+        pass
+
+    # Expose context properties before loading QML
+    ctx = view.rootContext()
     ctx.setContextProperty("incidentModel", incident_model)
     ctx.setContextProperty("proxy", proxy)
     ctx.setContextProperty("controller", controller)
 
     # Resolve QML file on disk and load it
     qml_file = Path(__file__).resolve().parents[1] / "qml" / "IncidentSelectWindow.qml"
-    engine.load(QUrl.fromLocalFile(str(qml_file)))
+    view.setSource(QUrl.fromLocalFile(str(qml_file)))
 
-    if not engine.rootObjects():
+    # Verify load success and wire root-level signals
+    root_obj = view.rootObject()
+    if root_obj is None:
         raise RuntimeError("Failed to load IncidentSelectWindow.qml")
-
-    root_obj = engine.rootObjects()[0]
 
     def _handle_create_requested():
         dialog = NewIncidentDialog()
@@ -69,6 +86,11 @@ def show_incident_selector():
 
     if hasattr(root_obj, "createRequested"):
         root_obj.createRequested.connect(_handle_create_requested)
+
+    # Show the window and keep a strong reference if we don't own the app loop
+    view.show()
+    if not owns_app:
+        _open_views.append(view)
 
     if owns_app:
         # Execute application event loop if we created the QGuiApplication

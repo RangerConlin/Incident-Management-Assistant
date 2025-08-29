@@ -1,20 +1,38 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 
-// Main window with tabs for each entity type
 Item {
     width: 600
     height: 400
 
-    TabView {
+    Column {
         anchors.fill: parent
-        Tab { title: "Personnel"; Loader { source: "components/LookupPanel.qml"; property string entityType: "personnel" } }
-        Tab { title: "Equipment"; Loader { source: "components/LookupPanel.qml"; property string entityType: "equipment" } }
-        Tab { title: "Vehicles"; Loader { source: "components/LookupPanel.qml"; property string entityType: "vehicle" } }
-        Tab { title: "Aircraft"; Loader { source: "components/LookupPanel.qml"; property string entityType: "aircraft" } }
+
+        // Tab selector
+        TabBar {
+            id: tabBar
+            width: parent.width
+
+            TabButton { text: "Personnel" }
+            TabButton { text: "Equipment" }
+            TabButton { text: "Vehicles" }
+            TabButton { text: "Aircraft" }
+        }
+
+        // Pages that change with the TabBar
+        SwipeView {
+            id: swipeView
+            currentIndex: tabBar.currentIndex
+            anchors.fill: parent
+
+            Loader { source: "components/LookupPanel.qml"; property string entityType: "personnel" }
+            Loader { source: "components/LookupPanel.qml"; property string entityType: "equipment" }
+            Loader { source: "components/LookupPanel.qml"; property string entityType: "vehicle" }
+            Loader { source: "components/LookupPanel.qml"; property string entityType: "aircraft" }
+        }
     }
 
-    // Toast message overlay
+    // Toast overlay
     Loader {
         id: toastLoader
         source: "components/Toast.qml"
@@ -24,6 +42,8 @@ Item {
 
     Connections {
         target: checkInBridge
-        function onToast(msg) { toastLoader.item.show(msg) }
+        function onToast(msg) {
+            if (toastLoader.item) toastLoader.item.show(msg)
+        }
     }
 }
