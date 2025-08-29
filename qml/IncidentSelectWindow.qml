@@ -13,6 +13,8 @@ Item {
     width: 1000
     height: 640
 
+    signal createRequested()
+
     // ---- Palette ----
     property color cBg:           "#0b1220"
     property color cHeaderBg:     "#111827"
@@ -373,8 +375,8 @@ Item {
                         onClicked: controller.deleteIncident(proxy, root.selectedRow)
                     }
                     Button {
-                        text: "New Incident"
-                        onClicked: controller.newIncident()
+                        text: "New"
+                        onClicked: root.createRequested()
                     }
                 }
             }

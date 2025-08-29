@@ -21,6 +21,8 @@ from models.incidentlist import (
     load_incidents_from_master,
 )
 
+from modules.missions.new_incident_dialog import NewIncidentDialog
+
 
 def show_incident_selector():
     """Create and display the incident selection window."""
@@ -57,6 +59,16 @@ def show_incident_selector():
 
     if not engine.rootObjects():
         raise RuntimeError("Failed to load IncidentSelectWindow.qml")
+
+    root_obj = engine.rootObjects()[0]
+
+    def _handle_create_requested():
+        dialog = NewIncidentDialog()
+        dialog.created.connect(lambda *_: incident_model.refresh())
+        dialog.exec()
+
+    if hasattr(root_obj, "createRequested"):
+        root_obj.createRequested.connect(_handle_create_requested)
 
     if owns_app:
         # Execute application event loop if we created the QGuiApplication
