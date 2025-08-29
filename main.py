@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QWidget,
     QVBoxLayout,
+    QMessageBox,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QKeySequence
@@ -389,150 +390,37 @@ class MainWindow(QMainWindow):
 # ===== Part 4: Handlers in Menu Order (panel-factory pattern) ============
 # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_new_incident(self) -> None:
-        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
-        show_incident_selector()
+        from modules.missions.new_incident_dialog import NewIncidentDialog
+
+        dlg = NewIncidentDialog(self)
+        dlg.created.connect(self._on_incident_created)
+        dlg.show()
+
+    def _on_incident_created(self, meta, db_path: str) -> None:
+        """Handle mission creation from the New Incident dialog."""
+        QMessageBox.information(
+            self,
+            "Mission Created",
+            f"Mission '{meta.name}' created.\nDB path: {db_path}",
+        )
+        # TODO: Add to master.db
+        if hasattr(self, "incident_selection_window") and hasattr(
+            self.incident_selection_window, "reload_missions"
+        ):
+            try:
+                self.incident_selection_window.reload_missions(select_slug=meta.slug())
+            except Exception:
+                logger.exception("Failed to refresh incident selection window")
 
         # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_open_incident(self) -> None:
-        from PySide6.QtCore import Qt, QUrl
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-        from PySide6.QtQuickWidgets import QQuickWidget
-        from PySide6.QtQml import QQmlContext
-        import importlib
+        """Launch the Incident Selection window."""
+        from utils.incident_select import IncidentSelectWindow, IncidentStore
 
-        # Import the incident model/proxy/controller
-        try:
-            from models.incidentlist import (
-                IncidentListModel,
-                IncidentProxyModel,
-                IncidentController,
-                load_incidents_from_master,
-            )
-        except Exception:
-            logger.exception("Incident list model import failed")
-            stub = QWidget()
-            lay = QVBoxLayout(stub)
-            msg = QLabel("Incident list model not found (see log for details).")
-            msg.setWordWrap(True)
-            lay.addWidget(msg)
-            self._open_modeless(stub, title="Incident Selection")
-            return
-
-
-        # --- Build a QWidget panel that hosts the QML view ---
-        panel = QWidget(self)
-        lay = QVBoxLayout(panel)
-        lay.setContentsMargins(0, 0, 0, 0)
-
-        # 🔧 Make the panel large & resizable by default
-        from PySide6.QtWidgets import QSizePolicy
-        from PySide6.QtCore import QSize
-        panel.setMinimumSize(QSize(1000, 640))
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-
-        # Data plumbing
-        model = IncidentListModel()
-        model.reload(load_incidents_from_master)
-
-        proxy = IncidentProxyModel()
-        proxy.setSourceModel(model)
-        # Columns: 0 ID, 1 Number, 2 Name, 3 Type, 4 Status, 5 Start, 6 End, 7 Training, 8 ICP
-        proxy.sort(5, Qt.DescendingOrder)
-
-        # --- Active incident setter: try common hooks, else fall back to window attr ---
-        def _set_active_incident(incident_id: str) -> None:
-            logger.info("Setting active incident to %r", incident_id)
-            setattr(self, "current_incident_id", incident_id)
-            candidates = [
-                ("utils.incident_db", "set_active_incident_id"),
-                ("utils.incident_db", "set_active_incident"),
-                ("utils.incident_db", "set_current_incident"),
-                ("models.database",  "set_active_incident_id"),
-                ("models.database",  "set_active_incident"),
-                ("models.database",  "set_current_incident"),
-            ]
-            for mod_name, fn_name in candidates:
-                try:
-                    mod = importlib.import_module(mod_name)
-                    fn = getattr(mod, fn_name, None)
-                    if callable(fn):
-                        logger.debug("Calling %s.%s(%r)", mod_name, fn_name, incident_id)
-                        fn(incident_id)
-                        logger.info("Active incident set via %s.%s", mod_name, fn_name)
-                        break
-                except Exception:
-                    logger.exception("Failed calling %s.%s", mod_name, fn_name)
-            try:
-                incident = get_incident_by_number(incident_id)
-                if incident:
-                    self.setWindowTitle(f"SARApp - {incident['number']} | {incident['name']}")
-                else:
-                    self.setWindowTitle(f"SARApp - Incident {incident_id}")
-            except Exception:
-                logger.exception("Failed to update window title for %r", incident_id)
-            try:
-                panel.close()
-            except Exception:
-                logger.exception("Failed to close incident selector window")
-
-        # Controller: some impls require model in ctor; others use attachModel
-        try:
-            controller = IncidentController(model)
-        except TypeError:
-            controller = IncidentController()
-            if hasattr(controller, "attachModel"):
-                controller.attachModel(model)
-
-        # Connect the signal so selecting an incident updates the active incident
-        if hasattr(controller, "incidentselected"):
-            logger.debug("Connecting controller.incidentselected -> _set_active_incident")
-            controller.incidentselected.connect(_set_active_incident)
-        else:
-            logger.error("Controller missing 'incidentselected' signal")
-
-                # --- QML host ---
-        qml = QQuickWidget(panel)
-        qml.setResizeMode(QQuickWidget.SizeRootObjectToView)
-
-        # 🔧 Ensure the QML view expands and is not tiny
-        from PySide6.QtWidgets import QSizePolicy
-        from PySide6.QtCore import QSize
-        qml.setMinimumSize(QSize(1000, 640))
-        qml.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        ctx: QQmlContext = qml.rootContext()
-        ctx.setContextProperty("proxy", proxy)
-        ctx.setContextProperty("controller", controller)
-        qml.setSource(QUrl.fromLocalFile("qml/IncidentSelectWindow.qml"))
-
-        if qml.status() == QQuickWidget.Error:
-            err = "\n".join(str(e.toString()) for e in qml.errors())
-            logger.error("Error loading IncidentSelectWindow.qml:\n%s", err)
-            lay.addWidget(QLabel(f"Error loading QML:\n{err}"))
-        else:
-            logger.info("IncidentSelectWindow.qml loaded OK")
-            lay.addWidget(qml, 1)
-
-
-        # Keep refs alive on the panel (avoid GC)
-        panel._incident_model = model
-        panel._incident_proxy = proxy
-        panel._incident_controller = controller
-        panel._incident_qml = qml
-
-        # ✅ Show as a modeless tool window tied to the main window (no app “bounce”)
-        from PySide6.QtCore import Qt, QSize
-        from PySide6.QtWidgets import QSizePolicy
-
-        panel.setWindowFlag(Qt.Tool, True)          # <- Tool window (no separate taskbar entry)
-        panel.setWindowModality(Qt.NonModal)        # modeless
-        panel.setAttribute(Qt.WA_DeleteOnClose, True)
-        panel.setMinimumSize(QSize(1000, 640))
-        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        panel.show()
-        panel.raise_()
-        panel.activateWindow()
+        store = IncidentStore()
+        win = IncidentSelectWindow(store)
+        win.show()
+        self.incident_selection_window = win
 
     def open_menu_save_incident(self) -> None:
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
