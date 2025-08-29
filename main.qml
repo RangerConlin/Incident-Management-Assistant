@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import "qml/components" as Components
 
 ApplicationWindow {
     id: mainWindow
@@ -9,14 +10,14 @@ ApplicationWindow {
     title: "SARApp - Incident Management Assistant"
 
     menuBar: MenuBar {
-            Menu {
+            Components.StyledTitleMenu {
                 title: "File"
                 MenuItem { text: "New Incident" }
                 MenuItem { text: "Open Incident" }
                 MenuItem { text: "Save" }
                 MenuItem { text: "Exit"; onTriggered: Qt.quit() }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Edit"
                 MenuItem { text: "Preferences" }
                 MenuItem {
@@ -26,11 +27,11 @@ ApplicationWindow {
                 }
                 MenuItem { text: "Canned Comm Log Entries" }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Command"
                 MenuItem { text: "Incident Overview" }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Planning"
                 MenuItem { text: "Situation Reports" }
                 MenuItem {
@@ -47,40 +48,40 @@ ApplicationWindow {
                         }
                     }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Operations"
                 MenuItem { text: "Assign Teams" }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Logistics"
                 MenuItem { text: "Resource Tracker" }
                 MenuItem { text: "Member Needs" }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Communications"
                 MenuItem { text: "Comms Log" }
                 MenuSeparator {}
                 MenuItem { text: "ICS-205 Comms Plan" }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Safety"
                 MenuItem { text: "Incident Hazards" }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Medical"
                 MenuItem { text: "ICS-206 Medical Plan" }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Toolkits"
-                Menu { title: "SAR Toolkit"
+                Components.StyledTitleMenu { title: "SAR Toolkit"
                     MenuItem { text: "Matteson"}
                     MenuItem { text: "POD Calculator"}
                     }
-                Menu { title: "Disaster Response Toolkit"
+                Components.StyledTitleMenu { title: "Disaster Response Toolkit"
                     MenuItem { text: "Matteson"}
                     MenuItem { text: "POD Calculator"}
                     }
-                Menu { title: "Planned Event Toolkit"
+                Components.StyledTitleMenu { title: "Planned Event Toolkit"
                     MenuItem { text: "Event Promotion and Communication"}
                     MenuItem { text: "Vendor & Permitting Coordination"}
                     MenuItem { text: "Public Safety & Incident Management"}
@@ -88,7 +89,7 @@ ApplicationWindow {
                     MenuItem { text: "Public Health & Sanitation Oversight"}
                     }
             }
-            Menu {
+            Components.StyledTitleMenu {
                 title: "Help"
                 MenuItem { text: "User Guide" }
                 MenuItem { text: "About SARApp" }

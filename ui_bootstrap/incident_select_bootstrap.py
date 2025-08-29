@@ -55,6 +55,13 @@ def show_incident_selector():
     # Controller for CRUD-style signals (actual DB writes added later)
     controller = IncidentController()
 
+    # Attach our model and proxy to the controller so its filtering calls affect
+    # the same data that the QML is displaying
+    controller.model = incident_model
+    controller.proxy = proxy
+    # Optional: if you ever call controller.loadIncidentByRow, set its private proxy too
+    controller._proxy = proxy
+
     # Host the root Item in a QQuickView (creates a window)
     view = QQuickView()
     view.setTitle("Select Incident")
@@ -89,6 +96,12 @@ def show_incident_selector():
 
     # Show the window and keep a strong reference if we don't own the app loop
     view.show()
+
+    # Persist the model, proxy and controller by attaching them to the view
+    view._incident_model = incident_model
+    view._proxy = proxy
+    view._controller = controller
+
     if not owns_app:
         _open_views.append(view)
 

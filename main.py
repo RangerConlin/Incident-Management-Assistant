@@ -64,6 +64,20 @@ class MainWindow(QMainWindow):
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
+        # NEW: create a dockable panel to display active incident information
+        self.active_incident_label = QLabel()
+        active_widget = QWidget()
+        active_layout = QVBoxLayout(active_widget)
+        active_layout.addWidget(self.active_incident_label)
+        active_layout.addStretch()
+        self.active_incident_dock = QDockWidget("Active Incident", self)
+        self.active_incident_dock.setWidget(active_widget)
+        # Dock this panel on the right side by default (similar to other panels)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.active_incident_dock)
+
+        # Initialize the panel with the current incident (if any)
+        self.update_active_incident_label()
+
         # Title includes active incident (if any)
         active_number = AppState.get_active_incident()
         if active_number:
@@ -947,6 +961,38 @@ class MainWindow(QMainWindow):
         else:
             self.setWindowTitle("SARApp - Incident Management Assistant")
 
+        # Also update the active incident label so it stays in sync with the title
+        # (this will only have an effect if the debug panel has been created)
+        if hasattr(self, "update_active_incident_label"):
+            self.update_active_incident_label()
+
+    def update_active_incident_label(self):
+        """
+        Update the active incident debug label with the current incident details.
+
+        If the main window has a current_incident_id attribute, use it to look up
+        the incident; otherwise fall back to whatever AppState reports as the
+        active incident. The label will show the incident number and name if
+        available, or indicate that no incident is active.
+        """
+        # Determine the incident number via current_incident_id or AppState
+        incident_id = getattr(self, "current_incident_id", None)
+        if incident_id:
+            incident = get_incident_by_number(incident_id)
+        else:
+            incident_number = AppState.get_active_incident()
+            incident = get_incident_by_number(incident_number) if incident_number else None
+
+        # Construct the display text based on the result
+        if incident:
+            text = f"Active incident: {incident['number']} | {incident['name']}"
+        else:
+            text = "Active incident: None"
+
+        # Update the label if it exists (e.g. if the debug panel was created)
+        if hasattr(self, "active_incident_label"):
+            self.active_incident_label.setText(text)
+
 
 # ===== Part 6: Application Entrypoint =======================================
 if __name__ == "__main__":
@@ -958,3 +1004,4 @@ if __name__ == "__main__":
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
     win.show()
     sys.exit(app.exec())
+
