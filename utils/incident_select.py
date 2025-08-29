@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QAbstractItemView,
     QFrame,
+    QMessageBox,
 )
 
 # --- Styling ---------------------------------------------------------------
@@ -283,8 +284,10 @@ class IncidentSelectWindow(QMainWindow):
         btn_layout = QHBoxLayout()
         detail_layout.addLayout(btn_layout)
         btn_layout.addStretch()
+        self.new_btn = QPushButton("New")
         self.load_btn = QPushButton("Load Incident")
         self.cancel_btn = QPushButton("Cancel")
+        btn_layout.addWidget(self.new_btn)
         btn_layout.addWidget(self.load_btn)
         btn_layout.addWidget(self.cancel_btn)
 
@@ -306,6 +309,7 @@ class IncidentSelectWindow(QMainWindow):
 
         self.load_btn.clicked.connect(self.load_selected)
         self.cancel_btn.clicked.connect(self.close)
+        self.new_btn.clicked.connect(self.open_new_incident)
 
     # --- UI helpers -----------------------------------------------------
     def showEvent(self, event):
@@ -362,6 +366,50 @@ class IncidentSelectWindow(QMainWindow):
     def _finish_load(self, incident: Dict):
         print({"incident_id": incident["id"], "name": incident["name"]})
         QApplication.instance().quit()
+
+    # --- New incident flow -------------------------------------------------
+    def open_new_incident(self) -> None:
+        """Open the New Incident dialog."""
+        from modules.missions.new_incident_dialog import NewIncidentDialog
+
+        dlg = NewIncidentDialog(self)
+        dlg.created.connect(self._on_created)
+        dlg.cancelled.connect(lambda: None)
+        dlg.show()
+
+    def _on_created(self, meta: "MissionMeta", db_path: str) -> None:
+        """Handle completion of the New Incident dialog."""
+        QMessageBox.information(
+            self,
+            "Mission Created",
+            f"Mission '{meta.name}' created.\nDB path: {db_path}",
+        )
+        self.reload_missions(select_slug=meta.slug())
+
+    def reload_missions(self, select_slug: Optional[str] = None) -> None:
+        """Reload missions from the backing store.
+
+        Parameters
+        ----------
+        select_slug:
+            If provided, attempt to select the mission matching this slug.
+
+        Notes
+        -----
+        The current implementation uses the placeholder :class:`IncidentStore`.
+        Future work will query ``master.db``.
+        """
+        self.incidents = self.store.list_incidents()
+        if self.table:
+            self.model = IncidentTableModel(self.incidents)
+            if self.proxy is None:
+                self.proxy = IncidentFilterProxyModel()
+            self.proxy.setSourceModel(self.model)
+            # TODO: Select newly created mission by slug
+        else:
+            # Table wasn't previously shown; rebuild UI (simple approach)
+            self._build_ui()
+            self._connect_signals()
 
 # --- Entry -----------------------------------------------------------------
 def main():
