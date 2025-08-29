@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from utils import mission_context
 
 __all__ = [
     "get_logistics_panel",
@@ -10,6 +11,7 @@ __all__ = [
     "get_vehicles_panel",
 ]
 
+
 def _make_panel(title: str, body: str) -> QWidget:
     w = QWidget()
     layout = QVBoxLayout(w)
@@ -19,6 +21,13 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
+
+def _get_checkin_panel():
+    # Lazy import to avoid circular imports at module load time
+    from modules.logistics.checkin import CheckInPanel
+    return CheckInPanel
+
+
 def get_logistics_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Logistics Dashboard."""
     return _make_panel(
@@ -26,19 +35,13 @@ def get_logistics_panel(incident_id: object | None = None) -> QWidget:
         f"Logistics overview — incident: {incident_id}",
     )
 
-def get_checkin_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Check-In (ICS-211)."""
-    return _make_panel(
-        "Check-In (ICS-211)",
-        f"Personnel check-in — incident: {incident_id}",
-    )
 
-def get_requests_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Resource Requests."""
-    return _make_panel(
-        "Resource Requests",
-        f"Submit and track requests — incident: {incident_id}",
-    )
+def get_checkin_panel(incident_id: object | None = None) -> QWidget:
+    if incident_id is not None:
+        mission_context.set_active_mission(str(incident_id))
+    CheckInPanel = _get_checkin_panel()
+    return CheckInPanel()
+
 
 def get_equipment_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Equipment Management."""
@@ -47,12 +50,14 @@ def get_equipment_panel(incident_id: object | None = None) -> QWidget:
         f"Manage equipment — incident: {incident_id}",
     )
 
+
 def get_213rr_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Resource Request (ICS-213RR)."""
     return _make_panel(
         "Resource Request (ICS-213RR)",
         f"ICS-213RR form — incident: {incident_id}",
     )
+
 
 def get_personnel_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Personnel Manager."""
@@ -61,9 +66,11 @@ def get_personnel_panel(incident_id: object | None = None) -> QWidget:
         f"Manage personnel — incident: {incident_id}",
     )
 
+
 def get_vehicles_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Vehicle Roster."""
     return _make_panel(
         "Vehicle Roster",
         f"Manage vehicles — incident: {incident_id}",
     )
+

@@ -9,7 +9,7 @@ from PySide6.QtCore import (
     QSortFilterProxyModel,
     QTimer,
 )
-from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence
+from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QShortcut,
     QTableView,
     QVBoxLayout,
     QWidget,
