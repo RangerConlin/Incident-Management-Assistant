@@ -1,0 +1,220 @@
+    def open_finance_summary(self) -> None:
+        from modules import finance
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = finance.get_summary_panel(incident_id)
+        self._open_modeless(panel, title="Cost Summary")
+
+# --- 4.13 Toolkits -------------------------------------------------------
+    def open_toolkit_sar_missing_person(self) -> None:
+        from modules.sartoolkit import sar
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = sar.get_missing_person_panel(incident_id)
+        self._open_modeless(panel, title="Missing Person Toolkit")
+
+    def open_toolkit_sar_pod(self) -> None:
+        from modules.sartoolkit import sar
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = sar.get_pod_panel(incident_id)
+        self._open_modeless(panel, title="POD Calculator")
+
+    def open_toolkit_disaster_damage(self) -> None:
+        from modules.disasterresponse import disaster
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = disaster.get_damage_panel(incident_id)
+        self._open_modeless(panel, title="Damage Assessment")
+
+    def open_toolkit_disaster_urban_interview(self) -> None:
+        from modules.disasterresponse import disaster
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = disaster.get_urban_interview_panel(incident_id)
+        self._open_modeless(panel, title="Urban Interview Log")
+
+    def open_toolkit_disaster_photos(self) -> None:
+        from modules.disasterresponse import disaster
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = disaster.get_photos_panel(incident_id)
+        self._open_modeless(panel, title="Damage Photos")
+
+    def open_planned_promotions(self) -> None:
+        from modules import plannedtoolkit
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_promotions_panel(incident_id)
+        self._open_modeless(panel, title="External Messaging")
+
+    def open_planned_vendors(self) -> None:
+        from modules import plannedtoolkit
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_vendors_panel(incident_id)
+        self._open_modeless(panel, title="Vendors && Permits")
+
+    def open_planned_safety(self) -> None:
+        from modules import plannedtoolkit
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_safety_panel(incident_id)
+        self._open_modeless(panel, title="Public Safety")
+
+    def open_planned_tasking(self) -> None:
+        from modules import plannedtoolkit
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_tasking_panel(incident_id)
+        self._open_modeless(panel, title="Tasking && Assignments")
+
+    def open_planned_health_sanitation(self) -> None:
+        from modules import plannedtoolkit
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
+        self._open_modeless(panel, title="Health && Sanitation")
+
+    def open_toolkit_initial_hasty(self) -> None:
+        from modules.initialresponse import initial
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = initial.get_hasty_panel(incident_id)
+        self._open_modeless(panel, title="Hasty Tools")
+
+    def open_toolkit_initial_reflex(self) -> None:
+        from modules.initialresponse import initial
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = initial.get_reflex_panel(incident_id)
+        self._open_modeless(panel, title="Reflex Taskings")
+
+# --- 4.14 Resources (Forms & Library) -----------------------------------
+    def open_forms(self) -> None:
+        from modules import referencelibrary
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = referencelibrary.get_form_library_panel(incident_id)
+        self._open_modeless(panel, title="Form Library")
+
+    def open_reference_library(self) -> None:
+        from modules import referencelibrary
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = referencelibrary.get_library_panel()
+        self._open_modeless(panel, title="Reference Library")
+
+    def open_help_user_guide(self) -> None:
+        from modules import helpdocs
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = helpdocs.get_user_guide_panel(incident_id)
+        self._open_modeless(panel, title="User Guide")
+
+# --- 4.15 Help -----------------------------------------------------------
+    def open_help_about(self) -> None:
+        from modules import helpdocs
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = helpdocs.get_about_panel(incident_id)
+        self._open_modeless(panel, title="About SARApp")
+
+# ===== Part 5: Shared Windows, Helpers & Utilities =======================
+    def _open_modeless(self, widget: QWidget, title: str) -> None:
+        """Display *widget* as a modeless window, tracking it for cleanup."""
+        if hasattr(self, "docking_helper") and callable(
+            getattr(self.docking_helper, "open_widget", None)
+        ):
+            self.docking_helper.open_widget(widget, title)
+            return
+        if hasattr(self, "mdi_area"):
+            widget.setWindowTitle(title)
+            self.mdi_area.addSubWindow(widget)
+            widget.show()
+            return
+
+        widget.setWindowTitle(title)
+        self._open_windows.append(widget)
+
+        def _cleanup(_: object = None, w: QWidget = widget) -> None:
+            if w in self._open_windows:
+                self._open_windows.remove(w)
+
+        widget.destroyed.connect(_cleanup)
+        widget.show()
+
+    def _open_docked(self, widget, title: str,
+                     area=Qt.RightDockWidgetArea,
+                     object_name: str | None = None) -> None:
+        """Show *widget* in a QDockWidget. Reuse the dock if it already exists."""
+        obj_name = object_name or f"dock::{title}"
+        existing = self.findChild(QDockWidget, obj_name)
+        if existing:
+            old = existing.widget()
+            if old is not widget:
+                existing.setWidget(widget)
+            existing.setWindowTitle(title)
+            existing.raise_()
+            existing.show()
+            return
+
+        dock = QDockWidget(title, self)
+        dock.setObjectName(obj_name)
+        dock.setFeatures(QDockWidget.DockWidgetMovable |
+                         QDockWidget.DockWidgetFloatable |
+                         QDockWidget.DockWidgetClosable)
+        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea |
+                             Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
+        dock.setWidget(widget)
+        self.addDockWidget(area, dock)
+        dock.show()
+
+    def open_task_detail(self):
+        """Example QML task detail window launcher (kept for reference)."""
+        self.task_window = QQuickView()
+        self.task_window.setSource(QUrl("modules/operations/qml/taskdetail.qml"))
+        self.task_window.setResizeMode(QQuickView.SizeRootObjectToView)
+        self.task_window.setColor("white")
+        self.task_window.show()
+
+    def update_title_with_active_incident(self):
+        """Refresh window title when active incident changes."""
+        incident_number = AppState.get_active_incident()
+        if incident_number:
+            incident = get_incident_by_number(incident_number)
+            if incident:
+                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}")
+        else:
+            self.setWindowTitle("SARApp - Incident Management Assistant")
+
+        # Also update the active incident label so it stays in sync with the title
+        # (this will only have an effect if the debug panel has been created)
+        if hasattr(self, "update_active_incident_label"):
+            self.update_active_incident_label()
+
+        # Instrumentation
+        print(f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, self.current_incident_id={getattr(self,'current_incident_id',None)}")
+
+    def update_active_incident_label(self):
+        """
+        Update the active incident debug label with the current incident details.
+
+        If the main window has a current_incident_id attribute, use it to look up
+        the incident; otherwise fall back to whatever AppState reports as the
+        active incident. The label will show the incident number and name if
+        available, or indicate that no incident is active.
+        """
+        # Determine the incident number via current_incident_id or AppState
+        incident_id = getattr(self, "current_incident_id", None)
+        if incident_id:
+            incident = get_incident_by_number(incident_id)
+        else:
+            incident_number = AppState.get_active_incident()
+            incident = get_incident_by_number(incident_number) if incident_number else None
+
+        # Construct the display text based on the result
+        if incident:
+            text = f"Active incident: {incident['number']} | {incident['name']}"
+        else:
+            text = "Active incident: None"
+
+        # Update the label if it exists (e.g. if the debug panel was created)
+        if hasattr(self, "active_incident_label"):
+            self.active_incident_label.setText(text)
+
+
+# ===== Part 6: Application Entrypoint =======================================
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    settings_manager = SettingsManager()
+    settings_bridge = QmlSettingsBridge(settings_manager)
+
+    win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
+    win.show()
+    sys.exit(app.exec())
+
