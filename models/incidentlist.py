@@ -271,8 +271,18 @@ class IncidentProxyModel(QSortFilterProxyModel):
         return str(l) < str(r)
 
 # ---------------- QObject controller (invokable from QML) ---------------- #
+
+def _role_id(model, role_name: bytes) -> int:
+    for rid, name in model.roleNames().items():
+        # name may be QByteArray; compare bytes
+        if name == role_name or bytes(name) == role_name:
+            return rid
+    raise KeyError(f"Role {role_name!r} not found in {model.roleNames()}")
+
+
 class IncidentController(QObject):
-    incidentselected = Signal(str)
+    # Emit the real incident number/id (primitive int/str)
+    incidentselected = Signal(object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -282,13 +292,34 @@ class IncidentController(QObject):
         self.proxy.setSourceModel(self.model)
 
     @Slot('QVariant', 'QVariant')
-    def loadIncident(self, proxy_any, row_any):
-        print("DEBUG: loadIncident(QVariant,QVariant) called:", proxy_any, row_any, flush=True)
+    def loadIncident(self, proxy, row):
+        from PySide6.QtCore import Qt, QModelIndex
+        print(f"[controller] loadIncident: row={row}")
+        # validate row
         try:
-            row = int(row_any) if row_any is not None else -1
+            row = int(row) if row is not None else -1
         except Exception:
             row = -1
-        self._emit_from_proxy_row(proxy_any, row)
+        if row is None or row < 0:
+            print("[controller] loadIncident: invalid row")
+            return
+
+        # 1) map proxy index to source
+        pidx: QModelIndex = proxy.index(row, 0)
+        sidx: QModelIndex = proxy.mapToSource(pidx)
+
+        # 2) get incident number/id from SOURCE model by role
+        try:
+            role_number = _role_id(self.model, b"number")
+        except KeyError:
+            role_number = _role_id(self.model, b"id")
+
+        value = self.model.data(sidx, role_number)
+        print(f"[controller] resolved row={row} → number/id={value!r}")
+
+        # 3) emit the correct primitive (str/int), NOT the name
+        self.incidentselected.emit(value)
+        print(f"[controller] emitted incidentselected({value!r})")
 
     # ---- OVERLOAD 2: explicit QObject + int ----
     @Slot(QObject, int)
@@ -315,8 +346,10 @@ class IncidentController(QObject):
         if not number:
             print("DEBUG: empty number; ignoring", flush=True)
             return
-        logger.info("Emitting incidentselected with %r (direct number)", number)
+        # Instrument and emit
+        print(f"[controller] loadIncident: resolved row=-1 → number={number}")
         self.incidentselected.emit(str(number))
+        print(f"[controller] emitted incidentselected({number})")
 
     # ---- Shared worker ----
     def _emit_from_proxy_row(self, proxy, row: int):
@@ -345,9 +378,10 @@ class IncidentController(QObject):
             else:
                 number = src_model.data(src_index, role)
 
-            print("DEBUG: resolved incident number:", number, flush=True)
-            logger.info("Emitting incidentselected with %r", number)
+            # Instrumentation: print resolution and emit
+            print(f"[controller] loadIncident: resolved row={row} → number={number}")
             self.incidentselected.emit(str(number))
+            print(f"[controller] emitted incidentselected({number})")
         except Exception as e:
             import traceback
             print("DEBUG: _emit_from_proxy_row exception:", e, flush=True)

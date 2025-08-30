@@ -9,10 +9,12 @@ class AppState:
 
     @classmethod
     def set_active_incident(cls, incident_number):
+        print(f"[state] set_active_incident({incident_number}) (from {getattr(cls, '_active_incident_number', None)})")
         cls._active_incident_number = incident_number
 
     @classmethod
     def get_active_incident(cls):
+        print(f"[state] get_active_incident -> {getattr(cls, '_active_incident_number', None)}")
         return cls._active_incident_number
 
     @classmethod

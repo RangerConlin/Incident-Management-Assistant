@@ -8,8 +8,8 @@ API, and a QML based user interface.
 ## Usage
 
 * Persistent data is stored in `data/master.db`.
-* Each mission/incident has its own database under `data/missions/<id>.db`.
-* Activate a mission via `utils.mission_context.set_active_mission("MISSION_ID")`.
+* Each incident has its own database under `data/incidents/<id>.db`.
+* Activate an incident via `utils.incident_context.set_active_incident("INCIDENT_ID")`.
 * Interact with the repository or API modules to lookup or check-in
   personnel and assets.  The `checkin_bridge` exposes these services to
   QML.

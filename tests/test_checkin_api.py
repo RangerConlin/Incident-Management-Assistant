@@ -13,9 +13,9 @@ sys.path.append(str(ROOT))
 
 def setup_api(tmp_path, monkeypatch):
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
-    import utils.mission_context as mc
+    import utils.incident_context as ic
     import utils.db as db
-    importlib.reload(mc)
+    importlib.reload(ic)
     importlib.reload(db)
 
     modules_pkg = types.ModuleType("modules")
@@ -44,22 +44,22 @@ def setup_api(tmp_path, monkeypatch):
     sys.modules[spec_api.name] = api
     spec_api.loader.exec_module(api)
 
-    mc.set_active_mission("m1")
-    return api, repo, mc
+    ic.set_active_incident("m1")
+    return api, repo, ic
 
 
 def test_check_in_flow(tmp_path, monkeypatch):
-    api, repo, mc = setup_api(tmp_path, monkeypatch)
+    api, repo, ic = setup_api(tmp_path, monkeypatch)
     master_payload = {"id": "P2", "first_name": "Bob", "last_name": "Jones"}
     repo.create_or_update_personnel_master(master_payload)
 
-    # Existing record should copy to mission
+    # Existing record should copy to incident
     result = api.check_in_entity("personnel", {"mode": "id", "value": "P2"})
     assert result["success"] and result["was_copied"]
 
-    mission_db = tmp_path / "missions" / "m1.db"
-    with sqlite3.connect(mission_db) as conn:
-        assert conn.execute("SELECT count(*) FROM personnel_mission WHERE id='P2'").fetchone()[0] == 1
+    incident_db = tmp_path / "incidents" / "m1.db"
+    with sqlite3.connect(incident_db) as conn:
+        assert conn.execute("SELECT count(*) FROM personnel_incident WHERE id='P2'").fetchone()[0] == 1
 
     # Non existing should request creation
     result = api.check_in_entity("personnel", {"mode": "id", "value": "P3"})
@@ -67,10 +67,10 @@ def test_check_in_flow(tmp_path, monkeypatch):
 
     # Create new record and ensure it exists in both DBs
     payload = {"id": "P3", "first_name": "Eve", "last_name": "Doe"}
-    res2 = api.create_master_plus_mission("personnel", payload)
+    res2 = api.create_master_plus_incident("personnel", payload)
     assert res2["success"] and res2["was_created"]
-    with sqlite3.connect(mission_db) as conn:
-        assert conn.execute("SELECT count(*) FROM personnel_mission WHERE id='P3'").fetchone()[0] == 1
+    with sqlite3.connect(incident_db) as conn:
+        assert conn.execute("SELECT count(*) FROM personnel_incident WHERE id='P3'").fetchone()[0] == 1
     master_db = tmp_path / "master.db"
     with sqlite3.connect(master_db) as conn:
         assert conn.execute("SELECT count(*) FROM personnel_master WHERE id='P3'").fetchone()[0] == 1

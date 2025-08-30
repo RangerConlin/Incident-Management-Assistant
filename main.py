@@ -270,6 +270,12 @@ class MainWindow(QMainWindow):
         self._add_action(m_help, "About", None, "help.about")
         self._add_action(m_help, "User Guide", None, "help.user_guide")
 
+        # ----- Debug -----
+        self.menuDebug = self.menuBar().addMenu("Debug")
+        act = QAction("Print Active Incident", self)
+        act.triggered.connect(lambda: print(f"[debug] MainWindow current_incident_id={getattr(self,'current_incident_id',None)}; AppState={AppState.get_active_incident()}"))
+        self.menuDebug.addAction(act)
+
         self._gate_menus_by_availability({})
         # you can toggle feature availability here, e.g.: {"planned.promotions": False}
 
@@ -430,8 +436,13 @@ class MainWindow(QMainWindow):
     def open_menu_open_incident(self) -> None:
         """Launch the Incident Selection window."""
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
+        def _apply_active(number: int) -> None:
+            print(f"[main] on_select callback received: {number}")
+            self.current_incident_id = number
+            AppState.set_active_incident(number)
+            self.update_title_with_active_incident()
 
-        show_incident_selector()
+        show_incident_selector(on_select=_apply_active)
 
     def open_menu_save_incident(self) -> None:
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
@@ -965,6 +976,9 @@ class MainWindow(QMainWindow):
         # (this will only have an effect if the debug panel has been created)
         if hasattr(self, "update_active_incident_label"):
             self.update_active_incident_label()
+
+        # Instrumentation
+        print(f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, self.current_incident_id={getattr(self,'current_incident_id',None)}")
 
     def update_active_incident_label(self):
         """

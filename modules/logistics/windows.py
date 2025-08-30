@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from utils import mission_context
+from utils import incident_context
 
 __all__ = [
     "get_logistics_panel",
@@ -38,7 +38,7 @@ def get_logistics_panel(incident_id: object | None = None) -> QWidget:
 
 def get_checkin_panel(incident_id: object | None = None) -> QWidget:
     if incident_id is not None:
-        mission_context.set_active_mission(str(incident_id))
+        incident_context.set_active_incident(str(incident_id))
     CheckInPanel = _get_checkin_panel()
     return CheckInPanel()
 

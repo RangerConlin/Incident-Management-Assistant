@@ -11,7 +11,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-from . import mission_context
+from . import incident_context
 
 # Base directory for data storage.  Defaults to ``data`` in the
 # repository root but can be overridden for tests by the environment
@@ -32,7 +32,7 @@ def get_master_conn() -> sqlite3.Connection:
     return _connect(_DATA_DIR / "master.db")
 
 
-def get_mission_conn() -> sqlite3.Connection:
-    """Return a connection to the active mission database."""
-    mission_path = mission_context.get_active_mission_db_path()
-    return _connect(mission_path)
+def get_incident_conn() -> sqlite3.Connection:
+    """Return a connection to the active incident database."""
+    incident_path = incident_context.get_active_incident_db_path()
+    return _connect(incident_path)

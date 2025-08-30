@@ -1,0 +1,44 @@
+merge: unify Mission/Incident duplicates and normalize to Incident
+
+Pairs merged:
+- utils/mission_db.py <-> utils/incident_db.py (py) — canonical: utils/incident_db.py; kept Incident naming and API (create_incident_database); removed Mission variant. Similarity: low (different storage patterns).
+
+Singletons handled:
+- utils/mission_context.py — replaced by utils/incident_context.py (renamed API: set_active_incident/get_active_incident_id/get_active_incident_db_path); all call sites updated.
+- modules/missions/new_incident_dialog.py — moved to modules/incidents/new_incident_dialog.py; renamed MissionMeta->IncidentMeta; switched to utils.incident_db.
+
+Files modified:
+- utils/incident_context.py: new Incident context module.
+- utils/db.py: get_mission_conn -> get_incident_conn; switched to incident_context.
+- utils/schema_placeholders.py: *_mission tables -> *_incident; ensure_mission_tables_exist -> ensure_incident_tables_exist.
+- modules/logistics/windows.py: switched to incident_context.set_active_incident.
+- modules/logistics/checkin/repository.py: mission->incident across imports, helpers, SQL, and function names.
+- modules/logistics/checkin/api.py: COPY_TO_MISSION -> COPY_TO_INCIDENT; create_master_plus_mission -> create_master_plus_incident; update_mission_status -> update_incident_status; table names updated.
+- modules/logistics/checkin/checkin_bridge.py: updated to new API name.
+- ui_bootstrap/incident_select_bootstrap.py: import path updated to modules.incidents.
+- modules/incidents/new_incident_dialog.py: added unified dialog (renamed dataclass and DB call).
+- modules/incidents/__init__.py: new package.
+- modules/logistics/checkin/README.md: updated usage to incidents.
+- qml/incidentlist.qml: comment normalized.
+- tests/test_checkin_repository.py: updated to incident_context, paths, and table names.
+- tests/test_checkin_api.py: updated to incident semantics and API names.
+
+Files deleted:
+- utils/mission_db.py
+- utils/mission_context.py
+- modules/missions/__init__.py
+- modules/missions/new_incident_dialog.py
+
+Call-site updates:
+- mission_context -> incident_context: 4 locations (windows.py, repository import, 2 tests).
+- get_mission_conn -> get_incident_conn: 2 locations (repository, api inline import).
+- ensure_mission_tables_exist -> ensure_incident_tables_exist: 1 location.
+- copy_*_to_mission -> copy_*_to_incident: 4 functions plus API mapping and tests.
+- Table names *_mission -> *_incident: 4 entities (personnel, equipment, vehicle, aircraft) across repository, api, tests.
+
+Final grep results:
+- No Mission* filenames remain.
+- No app-logic identifiers for mission remain (permission-related identifiers excluded).
+
+New Incident button path:
+- QML button (qml/IncidentSelectWindow.qml signal createRequested) -> Python slot (ui_bootstrap/incident_select_bootstrap.py: _handle_create_requested) -> dialog (modules/incidents/new_incident_dialog.py: NewIncidentDialog) -> incident creation (utils/incident_db.create_incident_database) -> state update (utils/state.AppState via bootstrap selection wiring) -> list refresh (IncidentListModel.refresh on dialog.created).

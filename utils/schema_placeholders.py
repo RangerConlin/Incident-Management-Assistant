@@ -60,12 +60,12 @@ _MASTER_TABLES = {
     """,
 }
 
-# SQL fragments for mission tables
-_MISSION_TABLES = {
+# SQL fragments for incident tables
+_INCIDENT_TABLES = {
     "personnel": """
-        CREATE TABLE IF NOT EXISTS personnel_mission (
+        CREATE TABLE IF NOT EXISTS personnel_incident (
             id TEXT PRIMARY KEY,
-            mission_id TEXT,
+            incident_id TEXT,
             first_name TEXT,
             last_name TEXT,
             callsign TEXT,
@@ -76,9 +76,9 @@ _MISSION_TABLES = {
         )
     """,
     "equipment": """
-        CREATE TABLE IF NOT EXISTS equipment_mission (
+        CREATE TABLE IF NOT EXISTS equipment_incident (
             id TEXT PRIMARY KEY,
-            mission_id TEXT,
+            incident_id TEXT,
             name TEXT,
             type TEXT,
             status TEXT,
@@ -88,9 +88,9 @@ _MISSION_TABLES = {
         )
     """,
     "vehicle": """
-        CREATE TABLE IF NOT EXISTS vehicle_mission (
+        CREATE TABLE IF NOT EXISTS vehicle_incident (
             id TEXT PRIMARY KEY,
-            mission_id TEXT,
+            incident_id TEXT,
             name TEXT,
             type TEXT,
             status TEXT,
@@ -101,9 +101,9 @@ _MISSION_TABLES = {
         )
     """,
     "aircraft": """
-        CREATE TABLE IF NOT EXISTS aircraft_mission (
+        CREATE TABLE IF NOT EXISTS aircraft_incident (
             id TEXT PRIMARY KEY,
-            mission_id TEXT,
+            incident_id TEXT,
             tail_number TEXT,
             type TEXT,
             status TEXT,
@@ -124,9 +124,9 @@ def ensure_master_tables_exist(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def ensure_mission_tables_exist(conn: sqlite3.Connection) -> None:
-    """Create placeholder mission tables if they do not exist."""
+def ensure_incident_tables_exist(conn: sqlite3.Connection) -> None:
+    """Create placeholder incident tables if they do not exist."""
     cur = conn.cursor()
-    for ddl in _MISSION_TABLES.values():
+    for ddl in _INCIDENT_TABLES.values():
         cur.execute(ddl)
     conn.commit()

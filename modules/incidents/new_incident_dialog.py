@@ -1,8 +1,8 @@
-"""Dialog for creating a new mission/incident.
+"""Dialog for creating a new incident.
 
 Both the main menu action and the Incident Selection window reuse this
-dialog. It gathers basic mission metadata and creates a placeholder
-SQLite database for the mission.
+dialog. It gathers basic incident metadata and creates a placeholder
+SQLite database for the incident.
 """
 from __future__ import annotations
 
@@ -22,12 +22,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from utils.mission_db import create_mission_db
+from utils.incident_db import create_incident_database
 
 
 @dataclass(slots=True)
-class MissionMeta:
-    """Simple container for mission metadata."""
+class IncidentMeta:
+    """Simple container for incident metadata."""
 
     number: str
     name: str
@@ -39,19 +39,19 @@ class MissionMeta:
     def slug(self) -> str:
         """Return a filesystem-friendly slug.
 
-        Uses the mission number if available; otherwise falls back to the
+        Uses the incident number if available; otherwise falls back to the
         name. Non-alphanumeric characters are replaced with hyphens and the
         result is lowercased.
         """
         base = self.number or self.name
         slug = re.sub(r"[^A-Za-z0-9]+", "-", base).strip("-").lower()
-        return slug or "mission"
+        return slug or "incident"
 
 
 class NewIncidentDialog(QDialog):
-    """Collect mission metadata and emit a creation signal."""
+    """Collect incident metadata and emit a creation signal."""
 
-    created = Signal(MissionMeta, str)
+    created = Signal(IncidentMeta, str)
     cancelled = Signal()
 
     def __init__(self, parent: None | QWidget = None) -> None:
@@ -85,7 +85,7 @@ class NewIncidentDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _handle_accept(self) -> None:
-        meta = MissionMeta(
+        meta = IncidentMeta(
             number=self._number.text().strip(),
             name=self._name.text().strip(),
             type=self._type.currentText().strip(),
@@ -98,8 +98,8 @@ class NewIncidentDialog(QDialog):
             return
 
         slug = meta.slug()
-        db_path = create_mission_db(slug)
-        # TODO: register mission metadata in master.db
+        db_path = create_incident_database(slug)
+        # TODO: register incident metadata in master.db
 
         self.created.emit(meta, str(db_path))
         self.accept()
@@ -109,4 +109,5 @@ class NewIncidentDialog(QDialog):
         self.reject()
 
 
-__all__ = ["MissionMeta", "NewIncidentDialog"]
+__all__ = ["IncidentMeta", "NewIncidentDialog"]
+

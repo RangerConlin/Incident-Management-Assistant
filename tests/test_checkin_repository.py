@@ -13,9 +13,9 @@ sys.path.append(str(ROOT))
 
 def setup_repo(tmp_path, monkeypatch):
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
-    import utils.mission_context as mc
+    import utils.incident_context as ic
     import utils.db as db
-    importlib.reload(mc)
+    importlib.reload(ic)
     importlib.reload(db)
 
     # Create lightweight package hierarchy to avoid heavy imports
@@ -37,12 +37,12 @@ def setup_repo(tmp_path, monkeypatch):
     sys.modules[spec.name] = repo
     spec.loader.exec_module(repo)
 
-    mc.set_active_mission("test_mission")
-    return repo, mc
+    ic.set_active_incident("test_incident")
+    return repo, ic
 
 
 def test_tables_created_and_copy(tmp_path, monkeypatch):
-    repo, mc = setup_repo(tmp_path, monkeypatch)
+    repo, ic = setup_repo(tmp_path, monkeypatch)
 
     payload = {
         "id": "P1",
@@ -50,10 +50,10 @@ def test_tables_created_and_copy(tmp_path, monkeypatch):
         "last_name": "Smith",
     }
     repo.create_or_update_personnel_master(payload)
-    repo.copy_personnel_to_mission(payload)
+    repo.copy_personnel_to_incident(payload)
 
     master_db = tmp_path / "master.db"
-    mission_db = tmp_path / "missions" / "test_mission.db"
+    mission_db = tmp_path / "incidents" / "test_incident.db"
 
     assert master_db.exists()
     assert mission_db.exists()
@@ -61,5 +61,5 @@ def test_tables_created_and_copy(tmp_path, monkeypatch):
     with sqlite3.connect(master_db) as conn:
         assert conn.execute("SELECT count(*) FROM personnel_master").fetchone()[0] == 1
     with sqlite3.connect(mission_db) as conn:
-        row = conn.execute("SELECT status FROM personnel_mission WHERE id = 'P1'").fetchone()
+        row = conn.execute("SELECT status FROM personnel_incident WHERE id = 'P1'").fetchone()
         assert row[0] == "Checked-In"

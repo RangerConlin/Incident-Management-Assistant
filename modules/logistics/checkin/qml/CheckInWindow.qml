@@ -9,7 +9,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
-import QtGraphicalEffects 1.15
+import Qt5Compat.GraphicalEffects
 
 Item {
     id: root
@@ -21,8 +21,8 @@ Item {
     property string currentEntityType: ["personnel","equipment","vehicle","aircraft"][tabBar.currentIndex]
 
     // Shared status enums (mirror backend constants if available)
-    readonly property var CHECKIN_STATUSES: ["Pending", "Checked In", "No Show", "Demobilized"]
-    readonly property var PERSONNEL_STATUSES: [
+    readonly property var checkin_statuses: ["Pending", "Checked In", "No Show", "Demobilized"]
+    readonly property var personnel_statuses: [
         // UI hints — backend enforces the autosync rules (Pending->status Pending, No Show->Unavailable, Demobilized->Demobilized, default->Available)
         {label: "Available", value: "Available"},
         {label: "Assigned", value: "Assigned"},

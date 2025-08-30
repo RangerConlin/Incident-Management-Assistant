@@ -20,11 +20,11 @@ FIND_BY_NAME = {
     "aircraft": repository.find_aircraft_by_tail,
 }
 
-COPY_TO_MISSION = {
-    "personnel": repository.copy_personnel_to_mission,
-    "equipment": repository.copy_equipment_to_mission,
-    "vehicle": repository.copy_vehicle_to_mission,
-    "aircraft": repository.copy_aircraft_to_mission,
+COPY_TO_INCIDENT = {
+    "personnel": repository.copy_personnel_to_incident,
+    "equipment": repository.copy_equipment_to_incident,
+    "vehicle": repository.copy_vehicle_to_incident,
+    "aircraft": repository.copy_aircraft_to_incident,
 }
 
 CREATE_MASTER = {
@@ -66,9 +66,9 @@ def check_in_entity(entity_type: str, lookup_key: Dict, payload: Dict | None = N
     params = {k: v for k, v in lookup_key.items() if k != "mode"}
     candidates = lookup_entity(entity_type, mode, **params)
     if candidates:
-        # Found in master -> copy to mission
+        # Found in master -> copy to incident
         entity = candidates[0]
-        COPY_TO_MISSION[entity_type](entity)
+        COPY_TO_INCIDENT[entity_type](entity)
         return {
             "success": True,
             "message": "Checked in",
@@ -80,10 +80,10 @@ def check_in_entity(entity_type: str, lookup_key: Dict, payload: Dict | None = N
         return {"success": False, "requiresCreate": True, "message": "Not found"}
 
 
-def create_master_plus_mission(entity_type: str, payload: Dict) -> Dict:
-    """Create a new master record and copy it to the mission DB."""
+def create_master_plus_incident(entity_type: str, payload: Dict) -> Dict:
+    """Create a new master record and copy it to the incident DB."""
     CREATE_MASTER[entity_type](payload)
-    COPY_TO_MISSION[entity_type](payload)
+    COPY_TO_INCIDENT[entity_type](payload)
     return {
         "success": True,
         "message": "Created and checked in",
@@ -93,15 +93,15 @@ def create_master_plus_mission(entity_type: str, payload: Dict) -> Dict:
     }
 
 
-def update_mission_status(entity_type: str, entity_id: str, status: str) -> None:
-    """Update the status for a mission record."""
+def update_incident_status(entity_type: str, entity_id: str, status: str) -> None:
+    """Update the status for an incident record."""
     sql_map = {
-        "personnel": "UPDATE personnel_mission SET status = ? WHERE id = ?",
-        "equipment": "UPDATE equipment_mission SET status = ? WHERE id = ?",
-        "vehicle": "UPDATE vehicle_mission SET status = ? WHERE id = ?",
-        "aircraft": "UPDATE aircraft_mission SET status = ? WHERE id = ?",
+        "personnel": "UPDATE personnel_incident SET status = ? WHERE id = ?",
+        "equipment": "UPDATE equipment_incident SET status = ? WHERE id = ?",
+        "vehicle": "UPDATE vehicle_incident SET status = ? WHERE id = ?",
+        "aircraft": "UPDATE aircraft_incident SET status = ? WHERE id = ?",
     }
-    from utils.db import get_mission_conn
-    with get_mission_conn() as conn:
+    from utils.db import get_incident_conn
+    with get_incident_conn() as conn:
         conn.execute(sql_map[entity_type], (status, entity_id))
         conn.commit()

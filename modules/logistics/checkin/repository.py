@@ -1,7 +1,7 @@
 """Database access layer for the check-in module.
 
 This module exposes simple functions that interact with both the
-persistent master database and the currently active mission database.
+persistent master database and the currently active incident database.
 Functions are intentionally straightforward and heavily commented so
 that they can be expanded in future iterations without major refactors.
 """
@@ -11,9 +11,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import sqlite3
 
-from utils.db import get_master_conn, get_mission_conn
-from utils import mission_context
-from utils.schema_placeholders import ensure_master_tables_exist, ensure_mission_tables_exist
+from utils.db import get_master_conn, get_incident_conn
+from utils import incident_context
+from utils.schema_placeholders import ensure_master_tables_exist, ensure_incident_tables_exist
 
 # ---------------------------------------------------------------------------
 # Lookup helpers
@@ -196,22 +196,22 @@ def create_or_update_aircraft_master(data: Dict) -> None:
         conn.commit()
 
 # ---------------------------------------------------------------------------
-# Mission copy helpers
+# Incident copy helpers
 # ---------------------------------------------------------------------------
 
-def _mission_insert(sql: str, payload: Dict) -> None:
-    with get_mission_conn() as conn:
-        ensure_mission_tables_exist(conn)
+def _incident_insert(sql: str, payload: Dict) -> None:
+    with get_incident_conn() as conn:
+        ensure_incident_tables_exist(conn)
         conn.execute(sql, payload)
         conn.commit()
 
 
-def copy_personnel_to_mission(personnel: Dict) -> None:
-    mission_id = mission_context.get_active_mission_id()
+def copy_personnel_to_incident(personnel: Dict) -> None:
+    incident_id = incident_context.get_active_incident_id()
     payload = personnel.copy()
     payload.update(
         {
-            "mission_id": mission_id,
+            "incident_id": incident_id,
             "status": "Checked-In",
             "checked_in_at": _timestamp(),
             "updated_at": _timestamp(),
@@ -219,12 +219,12 @@ def copy_personnel_to_mission(personnel: Dict) -> None:
     )
     payload.setdefault("callsign", None)
     payload.setdefault("role", None)
-    _mission_insert(
+    _incident_insert(
         """
-        INSERT INTO personnel_mission (id, mission_id, first_name, last_name, callsign, role, status, checked_in_at, updated_at)
-        VALUES (:id, :mission_id, :first_name, :last_name, :callsign, :role, :status, :checked_in_at, :updated_at)
+        INSERT INTO personnel_incident (id, incident_id, first_name, last_name, callsign, role, status, checked_in_at, updated_at)
+        VALUES (:id, :incident_id, :first_name, :last_name, :callsign, :role, :status, :checked_in_at, :updated_at)
         ON CONFLICT(id) DO UPDATE SET
-            mission_id=excluded.mission_id,
+            incident_id=excluded.incident_id,
             first_name=excluded.first_name,
             last_name=excluded.last_name,
             callsign=excluded.callsign,
@@ -237,12 +237,12 @@ def copy_personnel_to_mission(personnel: Dict) -> None:
     )
 
 
-def copy_equipment_to_mission(equipment: Dict) -> None:
-    mission_id = mission_context.get_active_mission_id()
+def copy_equipment_to_incident(equipment: Dict) -> None:
+    incident_id = incident_context.get_active_incident_id()
     payload = equipment.copy()
     payload.update(
         {
-            "mission_id": mission_id,
+            "incident_id": incident_id,
             "status": "Checked-In",
             "checked_in_at": _timestamp(),
             "updated_at": _timestamp(),
@@ -250,12 +250,12 @@ def copy_equipment_to_mission(equipment: Dict) -> None:
     )
     payload.setdefault("type", None)
     payload.setdefault("assigned_to", None)
-    _mission_insert(
+    _incident_insert(
         """
-        INSERT INTO equipment_mission (id, mission_id, name, type, status, assigned_to, checked_in_at, updated_at)
-        VALUES (:id, :mission_id, :name, :type, :status, :assigned_to, :checked_in_at, :updated_at)
+        INSERT INTO equipment_incident (id, incident_id, name, type, status, assigned_to, checked_in_at, updated_at)
+        VALUES (:id, :incident_id, :name, :type, :status, :assigned_to, :checked_in_at, :updated_at)
         ON CONFLICT(id) DO UPDATE SET
-            mission_id=excluded.mission_id,
+            incident_id=excluded.incident_id,
             name=excluded.name,
             type=excluded.type,
             status=excluded.status,
@@ -267,12 +267,12 @@ def copy_equipment_to_mission(equipment: Dict) -> None:
     )
 
 
-def copy_vehicle_to_mission(vehicle: Dict) -> None:
-    mission_id = mission_context.get_active_mission_id()
+def copy_vehicle_to_incident(vehicle: Dict) -> None:
+    incident_id = incident_context.get_active_incident_id()
     payload = vehicle.copy()
     payload.update(
         {
-            "mission_id": mission_id,
+            "incident_id": incident_id,
             "status": "Checked-In",
             "checked_in_at": _timestamp(),
             "updated_at": _timestamp(),
@@ -281,12 +281,12 @@ def copy_vehicle_to_mission(vehicle: Dict) -> None:
     payload.setdefault("type", None)
     payload.setdefault("callsign", None)
     payload.setdefault("assigned_to", None)
-    _mission_insert(
+    _incident_insert(
         """
-        INSERT INTO vehicle_mission (id, mission_id, name, type, status, callsign, assigned_to, checked_in_at, updated_at)
-        VALUES (:id, :mission_id, :name, :type, :status, :callsign, :assigned_to, :checked_in_at, :updated_at)
+        INSERT INTO vehicle_incident (id, incident_id, name, type, status, callsign, assigned_to, checked_in_at, updated_at)
+        VALUES (:id, :incident_id, :name, :type, :status, :callsign, :assigned_to, :checked_in_at, :updated_at)
         ON CONFLICT(id) DO UPDATE SET
-            mission_id=excluded.mission_id,
+            incident_id=excluded.incident_id,
             name=excluded.name,
             type=excluded.type,
             status=excluded.status,
@@ -299,12 +299,12 @@ def copy_vehicle_to_mission(vehicle: Dict) -> None:
     )
 
 
-def copy_aircraft_to_mission(aircraft: Dict) -> None:
-    mission_id = mission_context.get_active_mission_id()
+def copy_aircraft_to_incident(aircraft: Dict) -> None:
+    incident_id = incident_context.get_active_incident_id()
     payload = aircraft.copy()
     payload.update(
         {
-            "mission_id": mission_id,
+            "incident_id": incident_id,
             "status": "Checked-In",
             "checked_in_at": _timestamp(),
             "updated_at": _timestamp(),
@@ -314,12 +314,12 @@ def copy_aircraft_to_mission(aircraft: Dict) -> None:
     payload.setdefault("type", None)
     payload.setdefault("callsign", None)
     payload.setdefault("assigned_to", None)
-    _mission_insert(
+    _incident_insert(
         """
-        INSERT INTO aircraft_mission (id, mission_id, tail_number, type, status, callsign, assigned_to, checked_in_at, updated_at)
-        VALUES (:id, :mission_id, :tail_number, :type, :status, :callsign, :assigned_to, :checked_in_at, :updated_at)
+        INSERT INTO aircraft_incident (id, incident_id, tail_number, type, status, callsign, assigned_to, checked_in_at, updated_at)
+        VALUES (:id, :incident_id, :tail_number, :type, :status, :callsign, :assigned_to, :checked_in_at, :updated_at)
         ON CONFLICT(id) DO UPDATE SET
-            mission_id=excluded.mission_id,
+            incident_id=excluded.incident_id,
             tail_number=excluded.tail_number,
             type=excluded.type,
             status=excluded.status,
