@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QMessageBox,
+    QDialog,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QKeySequence
@@ -32,6 +33,10 @@ from utils.state import AppState
 from models.database import get_incident_by_number
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
+from bridge.catalog_bridge import CatalogBridge
+from models.sqlite_table_model import SqliteTableModel
+import sqlite3
+import os
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -80,14 +85,17 @@ class MainWindow(QMainWindow):
 
         # Title includes active incident (if any)
         active_number = AppState.get_active_incident()
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
         if active_number:
             incident = get_incident_by_number(active_number)
             if incident:
-                title = f"SARApp - {incident['number']} | {incident['name']}"
+                title = f"SARApp - {incident['number']} | {incident['name']}{suffix}"
             else:
-                title = "SARApp - Incident Management Assistant"
+                title = f"SARApp - Incident Management Assistant{suffix}"
         else:
-            title = "SARApp - Incident Management Assistant"
+            title = f"SARApp - Incident Management Assistant{suffix}"
         self.setWindowTitle(title)
         self.resize(1280, 800)
 
@@ -139,7 +147,8 @@ class MainWindow(QMainWindow):
 
         # ----- Edit -----
         m_edit = mb.addMenu("Edit")
-        self._add_action(m_edit, "EMS and Hospitals", None, "edit.ems_hospitals")
+        self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
+        self._add_action(m_edit, "Hospitals", None, "edit.hospitals")
         self._add_action(m_edit, "Canned Communication Entries", None, "edit.canned_comm_entries")
         self._add_action(m_edit, "Personnel", None, "edit.personnel")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
@@ -147,7 +156,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Team Types", None, "edit.team_types")
         self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
         self._add_action(m_edit, "Equipment", None, "edit.equipment")
-        self._add_action(m_edit, "Communications Resources", None, "communications.217")
+        self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
+        self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
 
         # ----- Command -----
         m_cmd = mb.addMenu("Command")
@@ -270,6 +280,12 @@ class MainWindow(QMainWindow):
         self._add_action(m_help, "About", None, "help.about")
         self._add_action(m_help, "User Guide", None, "help.user_guide")
 
+        # ----- Debug -----
+        self.menuDebug = self.menuBar().addMenu("Debug")
+        act = QAction("Print Active Incident", self)
+        act.triggered.connect(lambda: print(f"[debug] MainWindow current_incident_id={getattr(self,'current_incident_id',None)}; AppState={AppState.get_active_incident()}"))
+        self.menuDebug.addAction(act)
+
         self._gate_menus_by_availability({})
         # you can toggle feature availability here, e.g.: {"planned.promotions": False}
 
@@ -295,7 +311,8 @@ class MainWindow(QMainWindow):
             "menu.exit": self.open_menu_exit,  # special-case: still exits
 
             # ----- Edit -----
-            "edit.ems_hospitals": self.open_edit_ems_hospitals,
+            "edit.ems": self.open_edit_ems,
+            "edit.hospitals": self.open_edit_hospitals,
             "edit.canned_comm_entries": self.open_edit_canned_comm_entries,
             "edit.personnel": self.open_edit_personnel,
             "edit.objectives": self.open_edit_objectives,
@@ -304,6 +321,7 @@ class MainWindow(QMainWindow):
             "edit.vehicles": self.open_edit_vehicles,
             "edit.equipment": self.open_edit_equipment,
             "communications.217": self.open_edit_comms_resources,
+            "edit.safety_templates": self.open_edit_safety_templates,
 
             # ----- Command -----
             "command.unit_log": self.open_command_unit_log,
@@ -404,7 +422,7 @@ class MainWindow(QMainWindow):
 # ===== Part 4: Handlers in Menu Order (panel-factory pattern) ============
 # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_new_incident(self) -> None:
-        from modules.missions.new_incident_dialog import NewIncidentDialog
+        from modules.incidents.new_incident_dialog import NewIncidentDialog
 
         dlg = NewIncidentDialog(self)
         dlg.created.connect(self._on_incident_created)
@@ -430,8 +448,13 @@ class MainWindow(QMainWindow):
     def open_menu_open_incident(self) -> None:
         """Launch the Incident Selection window."""
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
+        def _apply_active(number: int) -> None:
+            print(f"[main] on_select callback received: {number}")
+            self.current_incident_id = number
+            AppState.set_active_incident(number)
+            self.update_title_with_active_incident()
 
-        show_incident_selector()
+        show_incident_selector(on_select=_apply_active)
 
     def open_menu_save_incident(self) -> None:
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
@@ -448,59 +471,38 @@ class MainWindow(QMainWindow):
         QApplication.instance().quit()
 
 # --- 4.2 Edit ------------------------------------------------------------
-    def open_edit_ems_hospitals(self) -> None:
-        from modules import editpanels
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = editpanels.get_ems_hospitals_panel(incident_id)
-        self._open_modeless(panel, title="EMS && Hospitals")
+    def open_edit_ems(self) -> None:
+        self._open_qml_modal("qml/EmsWindow.qml", title="EMS Agencies")
+
+    def open_edit_hospitals(self) -> None:
+        self._open_qml_modal("qml/HospitalsWindow.qml", title="Hospitals")
 
     def open_edit_canned_comm_entries(self) -> None:
-        from modules import editpanels
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = editpanels.get_canned_comm_entries_panel(incident_id)
-        self._open_modeless(panel, title="Canned Communication Entries")
+        self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
 
     def open_edit_personnel(self) -> None:
-        from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = logistics.get_personnel_panel(incident_id)
-        self._open_modeless(panel, title="Personnel")
+        self._open_qml_modal("qml/PersonnelWindow.qml", title="Personnel")
 
     def open_edit_objectives(self) -> None:
-        from modules import editpanels
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = editpanels.get_objectives_panel(incident_id)
-        self._open_modeless(panel, title="Objectives")
+        self._open_qml_modal("qml/ObjectivesWindow.qml", title="Objectives")
 
     def open_edit_task_types(self) -> None:
-        from modules import editpanels
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = editpanels.get_task_types_panel(incident_id)
-        self._open_modeless(panel, title="Task Types")
+        self._open_qml_modal("qml/TaskTypesWindow.qml", title="Task Types")
 
     def open_edit_team_types(self) -> None:
-        from modules import editpanels
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = editpanels.get_team_types_panel(incident_id)
-        self._open_modeless(panel, title="Team Types")
+        self._open_qml_modal("qml/TeamTypesWindow.qml", title="Team Types")
 
     def open_edit_vehicles(self) -> None:
-        from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = logistics.get_vehicles_panel(incident_id)
-        self._open_modeless(panel, title="Vehicles")
+        self._open_qml_modal("qml/VehiclesWindow.qml", title="Vehicles")
 
     def open_edit_equipment(self) -> None:
-        from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = logistics.get_equipment_panel(incident_id)
-        self._open_modeless(panel, title="Equipment")
+        self._open_qml_modal("qml/EquipmentWindow.qml", title="Equipment")
 
     def open_edit_comms_resources(self) -> None:
-        from modules import comms
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = comms.get_217_panel(incident_id)
-        self._open_modeless(panel, title="Communications Resources (ICS-217)")
+        self._open_qml_modal("qml/CommsResourcesWindow.qml", title="Communications Resources (ICS-217)")
+
+    def open_edit_safety_templates(self) -> None:
+        self._open_qml_modal("qml/SafetyTemplatesWindow.qml", title="Incident Safety Analysis (ICS-215A)")
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
@@ -917,6 +919,98 @@ class MainWindow(QMainWindow):
         widget.destroyed.connect(_cleanup)
         widget.show()
 
+    def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
+        """Open a QML Window (as a modal dialog) and inject the catalog bridge."""
+        view = QQuickView()
+        view.setTitle(title)
+        try:
+            view.setResizeMode(QQuickView.SizeRootObjectToView)
+        except Exception:
+            pass
+
+        if not hasattr(self, "_catalog_bridge"):
+            self._catalog_bridge = CatalogBridge(db_path="data/master.db")
+
+        ctx = view.rootContext()
+        ctx.setContextProperty("catalogBridge", self._catalog_bridge)
+
+        # Inject per-window SQLite models for master catalog windows
+        try:
+            base = os.path.basename(qml_rel_path)
+            name = base[:-9] if base.endswith("Window.qml") else os.path.splitext(base)[0]
+            # Map window base name -> table name (validate against sqlite_master)
+            table = self._resolve_master_table(name)
+            if table:
+                model_name = f"{name}Model"
+                model = SqliteTableModel("data/master.db")
+                model.load_query(f"SELECT * FROM {table}")
+                ctx.setContextProperty(model_name, model)
+        except Exception as e:
+            print(f"[main] model injection error for {qml_rel_path}: {e}")
+
+        from pathlib import Path
+        qml_file = Path(__file__).resolve().parent / qml_rel_path
+        view.setSource(QUrl.fromLocalFile(str(qml_file)))
+        view.show()
+        if not hasattr(self, "_open_qml_views"):
+            self._open_qml_views = []
+        self._open_qml_views.append(view)
+
+    def _resolve_master_table(self, base_name: str) -> str | None:
+        """Resolve a master.db table name for a given Window base name.
+        Uses sqlite_master to confirm existence and tries sensible mappings,
+        including canonical names from master_catalog where applicable.
+        """
+        # List all tables from master.db
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
+        tables: set[str] = set()
+        try:
+            con = sqlite3.connect(db_path)
+            cur = con.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = {r[0] for r in cur.fetchall()}
+            con.close()
+        except Exception as e:
+            print(f"[main] _resolve_master_table: unable to read tables: {e}")
+            return None
+
+        # Canonical known mappings
+        canonical = {
+            "Personnel": "personnel",
+            "Vehicles": "vehicles",
+            "Equipment": "equipment",
+            "CommsResources": "comms_resources",
+            "Objectives": "incident_objectives",
+            "Certifications": "certification_types",
+            "TeamTypes": "team_types",
+            "TaskTypes": "task_types",
+            "CannedCommEntries": "canned_comm_entries",
+            "Ems": "ems",
+            "Hospitals": "ems",  # window displays EMS-style contacts
+            "SafetyTemplates": "safety_templates",
+        }
+
+        # 1) Try canonical mapping
+        tbl = canonical.get(base_name)
+        if tbl and tbl in tables:
+            return tbl
+
+        # 2) Try snake_case of base name
+        import re
+        snake = re.sub(r"(?<!^)([A-Z])", r"_\1", base_name).lower()
+        if snake in tables:
+            return snake
+
+        # 3) Try simple lowercase/plural checks
+        low = base_name.lower()
+        if low in tables:
+            return low
+        if f"{low}s" in tables:
+            return f"{low}s"
+
+        # 4) Nothing matched
+        return None
+
     def _open_docked(self, widget, title: str,
                      area=Qt.RightDockWidgetArea,
                      object_name: str | None = None) -> None:
@@ -954,17 +1048,28 @@ class MainWindow(QMainWindow):
     def update_title_with_active_incident(self):
         """Refresh window title when active incident changes."""
         incident_number = AppState.get_active_incident()
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
         if incident_number:
             incident = get_incident_by_number(incident_number)
             if incident:
-                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}")
+                suffix = ""
+                if user_id or user_role:
+                    suffix = f" — User: {user_id or ''} ({user_role or ''})"
+                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
         else:
-            self.setWindowTitle("SARApp - Incident Management Assistant")
+            suffix = ""
+            if user_id or user_role:
+                suffix = f" — User: {user_id or ''} ({user_role or ''})"
+            self.setWindowTitle(f"SARApp - Incident Management Assistant{suffix}")
 
         # Also update the active incident label so it stays in sync with the title
         # (this will only have an effect if the debug panel has been created)
         if hasattr(self, "update_active_incident_label"):
             self.update_active_incident_label()
+
+        # Instrumentation
+        print(f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, self.current_incident_id={getattr(self,'current_incident_id',None)}")
 
     def update_active_incident_label(self):
         """
@@ -984,10 +1089,12 @@ class MainWindow(QMainWindow):
             incident = get_incident_by_number(incident_number) if incident_number else None
 
         # Construct the display text based on the result
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
         if incident:
-            text = f"Active incident: {incident['number']} | {incident['name']}"
+            text = f"Incident: {incident['number']} | {incident['name']}  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
         else:
-            text = "Active incident: None"
+            text = f"Incident: None  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
 
         # Update the label if it exists (e.g. if the debug panel was created)
         if hasattr(self, "active_incident_label"):
@@ -996,12 +1103,45 @@ class MainWindow(QMainWindow):
 
 # ===== Part 6: Application Entrypoint =======================================
 if __name__ == "__main__":
+    import argparse
     app = QApplication(sys.argv)
 
+    # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
+    DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+    DEBUG_INCIDENT_ID = "2025-FAIR"
+    DEBUG_USER_ID = "405021"
+    DEBUG_ROLE = "Incident Commander"
+    # =========================================================
+
+    # Optional demo mode: relax validation on the login dialog
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--demo", action="store_true", help="Start in demo mode (relaxed login validation)")
+    try:
+        args, _ = parser.parse_known_args()
+    except SystemExit:
+        class _Args: demo = False
+        args = _Args()
+
+    if DEBUG_BYPASS_LOGIN:
+        # Insert your session management or state setup here
+        # For example:
+        from utils import state
+        AppState.set_active_incident(DEBUG_INCIDENT_ID)
+        AppState.set_active_user_id(DEBUG_USER_ID)
+        AppState.set_active_user_role(DEBUG_ROLE)
+        print("[debug] Login bypass enabled: loaded test credentials.")
+    else:
+        from modules.session.login_dialog import LoginDialog
+        login = LoginDialog(demo_mode=bool(getattr(args, "demo", False)))
+        if login.exec() != QDialog.Accepted:
+            sys.exit(0)
+
+    # Build main window after session is established
     settings_manager = SettingsManager()
     settings_bridge = QmlSettingsBridge(settings_manager)
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
     win.show()
     sys.exit(app.exec())
+
 

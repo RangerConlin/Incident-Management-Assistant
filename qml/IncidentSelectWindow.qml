@@ -110,6 +110,12 @@ Item {
     } // close Frame (filterBar)
 
     // ---------------- Main content ----------------
+    // Preserve selection across model resets
+    property int _lastIndex: -1
+    function loadSelected() {
+        _lastIndex = list.currentIndex
+        controller.loadIncident(proxy, _lastIndex)
+    }
     Item {
         id: content
         anchors.top: filterBar.bottom
@@ -233,6 +239,7 @@ Item {
                 Flickable {
                     id: bodyF
                     anchors.fill: parent
+                    clip: true
                     contentWidth: totalColumnWidth()
                     contentHeight: list.contentHeight
                     flickableDirection: Flickable.HorizontalAndVerticalFlick
@@ -362,7 +369,7 @@ Item {
                     Button {
                         text: "Load"
                         enabled: root.selectedRow >= 0 && proxy && proxy.rowCount && proxy.rowCount() > 0
-                        onClicked: controller.loadIncident(proxy, root.selectedRow)
+                        onClicked: loadSelected()
                     }
                     Button {
                         text: "Edit"
@@ -391,11 +398,31 @@ Connections {
     }
 }
 
-// Already present, keep it:
 Connections {
     target: controller
     function onIncidentselected(num) {
-        console.log("QML saw incidentselected:", num)
+        console.log("[qml] saw incidentselected:", num)
     }
+}
+
+// Restore selection when the proxy/model resets
+Connections {
+    target: proxy
+    function onModelReset() {
+        if (root._lastIndex >= 0 && root._lastIndex < list.count)
+            list.currentIndex = root._lastIndex
+    }
+}
+
+// Hide any potential debug overlay element
+Rectangle {
+    id: dbg
+    visible: false
+    z: 9999
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.bottom: parent.bottom
+    height: 90
+    color: "transparent"
 }
 }

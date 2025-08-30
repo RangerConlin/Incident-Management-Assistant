@@ -7,7 +7,7 @@ Item {
     width: 800
     height: 500
 
-    // Emitted to Python when a mission is chosen
+    // Emitted to Python when a incident is chosen
     signal incidentselected(string incidentNumber)
 
     // Tracks which row is highlighted/selected

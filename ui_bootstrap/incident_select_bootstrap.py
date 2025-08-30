@@ -1,4 +1,4 @@
-"""Bootstrap launcher for the Incident selection window.
+﻿"""Bootstrap launcher for the Incident selection window.
 
 This module wires up the model, proxy and controller before loading the
 ``IncidentSelectWindow.qml`` screen. It allows the selector to be executed as
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Optional, Callable
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QGuiApplication
@@ -23,13 +24,13 @@ from models.incidentlist import (
     load_incidents_from_master,
 )
 
-from modules.missions.new_incident_dialog import NewIncidentDialog
+from modules.incidents.new_incident_dialog import NewIncidentDialog
 
 # Keep strong references to views so they aren't GC'd when called modelessly
 _open_views: list[QQuickView] = []
 
 
-def show_incident_selector():
+def show_incident_selector(on_select: Optional[Callable[[int], None]] = None):
     """Create and display the incident selection window.
 
     Loads the root Item QML into a QQuickView so it shows in its own
@@ -63,9 +64,25 @@ def show_incident_selector():
     # Optional: if you ever call controller.loadIncidentByRow, set its private proxy too
     controller._proxy = proxy
 
-    # NEW: when controller announces a selection, set global AppState
+    # Wire controller selection to AppState and optional callback
     if hasattr(controller, "incidentselected"):
-        controller.incidentselected.connect(AppState.set_active_incident)
+        def _to_appstate(number: int):
+            print(f"[bootstrap] incidentselected({number}) → AppState.set_active_incident")
+            AppState.set_active_incident(number)
+
+        controller.incidentselected.connect(_to_appstate)
+
+        if on_select is not None:
+            def _to_callback(number: int):
+                print(f"[bootstrap] incidentselected({number}) → on_select callback")
+                on_select(number)
+
+            controller.incidentselected.connect(_to_callback)
+
+    def _close_after_select(*_):
+        print("[bootstrap] closing selector window after selection")
+        view.close()
+    controller.incidentselected.connect(_close_after_select)
 
     # Host the root Item in a QQuickView (creates a window)
     view = QQuickView()
@@ -118,4 +135,7 @@ def show_incident_selector():
 if __name__ == "__main__":
     # Allow manual testing when run directly
     show_incident_selector()
+
+
+
 

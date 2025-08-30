@@ -40,7 +40,7 @@ class CheckInBridge(QObject):
     @Slot(str, dict)
     def createNew(self, entityType: str, payload: dict) -> None:
         try:
-            result = api.create_master_plus_mission(entityType, payload)
+            result = api.create_master_plus_incident(entityType, payload)
             self.checkInResult.emit(result)
             self.toast.emit("Created")
         except Exception as exc:  # pragma: no cover
