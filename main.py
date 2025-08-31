@@ -5,8 +5,6 @@ from typing import Callable
 
 from PySide6.QtWidgets import (
     QApplication,
-    QDockWidget,
-    QPushButton,
     QMainWindow,
     QMenu,
     QLabel,
@@ -20,12 +18,10 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtQuick import QQuickView
 from PySide6.QtQuickControls2 import QQuickStyle
+from PySide6QtAds import CDockManager, CDockWidget, LeftDockWidgetArea
 QQuickStyle.setStyle("Fusion")
 
 
-# (Panels previously used directly; retained imports in case you still need them elsewhere)
-from modules.operations.panels.team_status_panel import TeamStatusPanel
-from modules.operations.panels.task_status_panel import TaskStatusPanel
 
 # (QML utilities kept, though handlers now follow panel-factory pattern)
 from models.qmlwindow import QmlWindow, new_incident_form, open_incident_list
@@ -53,14 +49,13 @@ class MainWindow(QMainWindow):
       - import module
       - incident_id = getattr(self, "current_incident_id", None)
       - panel = module.get_*_panel(incident_id)
-      - self._open_modeless(panel, title="...")
+      - self._open_dock_widget(panel, title="...")
     Placeholders are fine if a real module/factory doesn't exist yet.
     """
     def __init__(self, settings_manager: SettingsManager | None = None,
                  settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
         self.setStyleSheet("background-color: #f5f5f5;")
-        self._open_windows: list[QWidget] = []  # track modeless windows
 
         if settings_manager is None:
             settings_manager = SettingsManager()
@@ -69,17 +64,8 @@ class MainWindow(QMainWindow):
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
-        # NEW: create a dockable panel to display active incident information
+        # Persistent header for active incident information
         self.active_incident_label = QLabel()
-        active_widget = QWidget()
-        active_layout = QVBoxLayout(active_widget)
-        active_layout.addWidget(self.active_incident_label)
-        active_layout.addStretch()
-        self.active_incident_dock = QDockWidget("Active Incident", self)
-        self.active_incident_dock.setWidget(active_widget)
-        # Dock this panel on the right side by default (similar to other panels)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.active_incident_dock)
-
         # Initialize the panel with the current incident (if any)
         self.update_active_incident_label()
 
@@ -99,24 +85,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(title)
         self.resize(1280, 800)
 
-        # Central placeholder
-        self.setCentralWidget(QLabel("SARApp Dashboard"))
+        # Central widget with persistent header and ADS dock manager
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.addWidget(self.active_incident_label)
+        self._dock_container = QWidget()
+        central_layout.addWidget(self._dock_container)
+        central_layout.setStretch(1, 1)
+        self.setCentralWidget(central)
 
-        # Example dock panels
-        dock = QDockWidget("Teams Panel", self)
-        dock.setWidget(QPushButton("Open Task Detail"))
-        dock.widget().clicked.connect(self.open_task_detail)
-        self.addDockWidget(Qt.LeftDockWidgetArea, dock)
+        self.dock_manager = CDockManager(self._dock_container)
 
-        team_panel = TeamStatusPanel()
-        dock = QDockWidget("Team Status", self)
-        dock.setWidget(team_panel)
-        self.addDockWidget(Qt.TopDockWidgetArea, dock)
-
-        task_panel = TaskStatusPanel()
-        dock = QDockWidget("Task Status", self)
-        dock.setWidget(task_panel)
-        self.addDockWidget(Qt.BottomDockWidgetArea, dock)
+        # Load persisted perspectives if available
+        self._perspective_file = os.path.join("settings", "ads_perspectives.ini")
+        if os.path.exists(self._perspective_file):
+            with open(self._perspective_file, "r", encoding="utf-8") as f:
+                self.dock_manager.loadPerspectives(f.read())
+            if "default" in self.dock_manager.perspectiveNames():
+                self.dock_manager.openPerspective("default")
 
         # Build the physical menu bar (visible UI)
         self.init_module_menus()
@@ -187,6 +173,8 @@ class MainWindow(QMainWindow):
         m_ops.addSeparator()
         self._add_action(m_ops, "Assignments Dashboard", "Ctrl+1", "operations.dashboard")
         self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
+        self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
+        self._add_action(m_ops, "Task Board", None, "operations.task_board")
 
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
@@ -345,6 +333,8 @@ class MainWindow(QMainWindow):
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
             "operations.team_assignments": self.open_operations_team_assignments,
+            "operations.team_status": self.open_operations_team_status,
+            "operations.task_board": self.open_operations_task_board,
 
             # ----- Logistics -----
             "logistics.unit_log": self.open_logistics_unit_log,
@@ -464,7 +454,7 @@ class MainWindow(QMainWindow):
         from modules import settingsui
         incident_id = getattr(self, "current_incident_id", None)
         panel = settingsui.get_settings_panel(incident_id)
-        self._open_modeless(panel, title="Settings")
+        self._open_dock_widget(panel, title="Settings")
 
     def open_menu_exit(self) -> None:
         # Exit remains a direct action rather than opening a panel.
@@ -509,415 +499,422 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_command_incident_overview(self) -> None:
         from modules import command
         incident_id = getattr(self, "current_incident_id", None)
         panel = command.get_incident_overview_panel(incident_id)
-        self._open_modeless(panel, title="Incident Overview")
+        self._open_dock_widget(panel, title="Incident Overview")
 
     def open_command_iap(self) -> None:
         from modules import command
         incident_id = getattr(self, "current_incident_id", None)
         panel = command.get_iap_builder_panel(incident_id)
-        self._open_modeless(panel, title="Incident Action Plan Builder")
+        self._open_dock_widget(panel, title="Incident Action Plan Builder")
 
     def open_command_objectives(self) -> None:
         from modules import command
         incident_id = getattr(self, "current_incident_id", None)
         panel = command.get_objectives_panel(incident_id)
-        self._open_modeless(panel, title="Incident Objectives (ICS 202)")
+        self._open_dock_widget(panel, title="Incident Objectives (ICS 202)")
 
     def open_command_staff_org(self) -> None:
         from modules import command
         incident_id = getattr(self, "current_incident_id", None)
         panel = command.get_staff_org_panel(incident_id)
-        self._open_modeless(panel, title="Command Staff Organization (ICS 203)")
+        self._open_dock_widget(panel, title="Command Staff Organization (ICS 203)")
 
     def open_command_sitrep(self) -> None:
         from modules import command
         incident_id = getattr(self, "current_incident_id", None)
         panel = command.get_sitrep_panel(incident_id)
-        self._open_modeless(panel, title="Situation Report (ICS 209)")
+        self._open_dock_widget(panel, title="Situation Report (ICS 209)")
 
 # --- 4.4 Planning --------------------------------------------------------
     def open_planning_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_planning_dashboard(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_dashboard_panel(incident_id)
-        self._open_modeless(panel, title="Planning Dashboard")
+        self._open_dock_widget(panel, title="Planning Dashboard")
 
     def open_planning_approvals(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_approvals_panel(incident_id)
-        self._open_modeless(panel, title="Pending Approvals")
+        self._open_dock_widget(panel, title="Pending Approvals")
 
     def open_planning_forecast(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_forecast_panel(incident_id)
-        self._open_modeless(panel, title="Planning Forecast")
+        self._open_dock_widget(panel, title="Planning Forecast")
 
     def open_planning_op_manager(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_op_manager_panel(incident_id)
-        self._open_modeless(panel, title="Operational Period Manager")
+        self._open_dock_widget(panel, title="Operational Period Manager")
 
     def open_planning_taskmetrics(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_taskmetrics_panel(incident_id)
-        self._open_modeless(panel, title="Task Metrics Dashboard")
+        self._open_dock_widget(panel, title="Task Metrics Dashboard")
 
     def open_planning_strategic_objectives(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_strategic_objectives_panel(incident_id)
-        self._open_modeless(panel, title="Strategic Objective Tracker")
+        self._open_dock_widget(panel, title="Strategic Objective Tracker")
 
     def open_planning_sitrep(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_sitrep_panel(incident_id)
-        self._open_modeless(panel, title="Situation Report")
+        self._open_dock_widget(panel, title="Situation Report")
 
 # --- 4.5 Operations ------------------------------------------------------
     def open_operations_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_operations_dashboard(self) -> None:
         from modules import operations
         incident_id = getattr(self, "current_incident_id", None)
         panel = operations.get_dashboard_panel(incident_id)
-        self._open_modeless(panel, title="Assignments Dashboard")
+        self._open_dock_widget(panel, title="Assignments Dashboard")
 
     def open_operations_team_assignments(self) -> None:
         from modules import operations
         incident_id = getattr(self, "current_incident_id", None)
         panel = operations.get_team_assignments_panel(incident_id)
-        self._open_modeless(panel, title="Team Assignments")
+        self._open_dock_widget(panel, title="Team Assignments")
+
+    def open_operations_team_status(self) -> None:
+        qml_file = os.path.join("modules", "operations", "qml", "team_status_board.qml")
+        self._open_dock_from_qml(qml_file, "Team Status")
+
+    def open_operations_task_board(self) -> None:
+        qml_file = os.path.join("modules", "operations", "qml", "task_board.qml")
+        self._open_dock_from_qml(qml_file, "Task Board")
 
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_logistics_dashboard(self) -> None:
         from modules import logistics
         incident_id = getattr(self, "current_incident_id", None)
         panel = logistics.get_logistics_panel(incident_id)
-        self._open_modeless(panel, title="Logistics Dashboard")
+        self._open_dock_widget(panel, title="Logistics Dashboard")
 
     def open_logistics_211(self) -> None:
         from modules import logistics
         incident_id = getattr(self, "current_incident_id", None)
         panel = logistics.get_checkin_panel(incident_id)
-        self._open_modeless(panel, title="Check-In (ICS-211)")
+        self._open_dock_widget(panel, title="Check-In (ICS-211)")
 
     def open_logistics_requests(self) -> None:
         from modules import logistics
         incident_id = getattr(self, "current_incident_id", None)
         panel = logistics.get_requests_panel(incident_id)
-        self._open_modeless(panel, title="Resource Requests")
+        self._open_dock_widget(panel, title="Resource Requests")
 
     def open_logistics_equipment(self) -> None:
         from modules import logistics
         incident_id = getattr(self, "current_incident_id", None)
         panel = logistics.get_equipment_panel(incident_id)
-        self._open_modeless(panel, title="Equipment Inventory")
+        self._open_dock_widget(panel, title="Equipment Inventory")
 
     def open_logistics_213rr(self) -> None:
         from modules import logistics
         incident_id = getattr(self, "current_incident_id", None)
         panel = logistics.get_213rr_panel(incident_id)
-        self._open_modeless(panel, title="Resource Request (ICS-213RR)")
+        self._open_dock_widget(panel, title="Resource Request (ICS-213RR)")
 
 # --- 4.7 Communications --------------------------------------------------
     def open_comms_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_comms_chat(self) -> None:
         from modules import comms
         incident_id = getattr(self, "current_incident_id", None)
         panel = comms.get_chat_panel(incident_id)
-        self._open_modeless(panel, title="Messaging")
+        self._open_dock_widget(panel, title="Messaging")
 
     def open_comms_213(self) -> None:
         from modules import comms
         incident_id = getattr(self, "current_incident_id", None)
         panel = comms.get_213_panel(incident_id)
-        self._open_modeless(panel, title="ICS 213 Messages")
+        self._open_dock_widget(panel, title="ICS 213 Messages")
 
     def open_comms_205(self) -> None:
         from modules import comms
         incident_id = getattr(self, "current_incident_id", None)
         panel = comms.get_205_panel(incident_id)
-        self._open_modeless(panel, title="Communications Plan (ICS-205)")
+        self._open_dock_widget(panel, title="Communications Plan (ICS-205)")
 
 # --- 4.8 Intel -----------------------------------------------------------
     def open_intel_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_intel_dashboard(self) -> None:
         from modules import intel
         incident_id = getattr(self, "current_incident_id", None)
         panel = intel.get_dashboard_panel(incident_id)
-        self._open_modeless(panel, title="Intel Dashboard")
+        self._open_dock_widget(panel, title="Intel Dashboard")
 
     def open_intel_clue_log(self) -> None:
         from modules import intel
         incident_id = getattr(self, "current_incident_id", None)
         panel = intel.get_clue_log_panel(incident_id)
-        self._open_modeless(panel, title="Clue Log (SAR-134)")
+        self._open_dock_widget(panel, title="Clue Log (SAR-134)")
 
     def open_intel_add_clue(self) -> None:
         from modules import intel
         incident_id = getattr(self, "current_incident_id", None)
         panel = intel.get_add_clue_panel(incident_id)
-        self._open_modeless(panel, title="Add Clue (SAR-135)")
+        self._open_dock_widget(panel, title="Add Clue (SAR-135)")
 
 # --- 4.9 Medical & Safety -----------------------------------------------
     def open_medical_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_safety_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_medical_206(self) -> None:
         from modules import medical
         incident_id = getattr(self, "current_incident_id", None)
         panel = medical.get_206_panel(incident_id)
-        self._open_modeless(panel, title="Medical Plan (ICS 206)")
+        self._open_dock_widget(panel, title="Medical Plan (ICS 206)")
 
     def open_safety_208(self) -> None:
         from modules import safety
         incident_id = getattr(self, "current_incident_id", None)
         panel = safety.get_208_panel(incident_id)
-        self._open_modeless(panel, title="Safety Message (ICS-208)")
+        self._open_dock_widget(panel, title="Safety Message (ICS-208)")
 
     def open_safety_215A(self) -> None:
         from modules import safety
         incident_id = getattr(self, "current_incident_id", None)
         panel = safety.get_215A_panel(incident_id)
-        self._open_modeless(panel, title="Incident Safety Analysis (ICS-215A)")
+        self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
 
     def open_safety_caporm(self) -> None:
         from modules import safety
         incident_id = getattr(self, "current_incident_id", None)
         panel = safety.get_caporm_panel(incident_id)
-        self._open_modeless(panel, title="CAP ORM")
+        self._open_dock_widget(panel, title="CAP ORM")
 
 # --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_liaison_agencies(self) -> None:
         from modules import liaison
         incident_id = getattr(self, "current_incident_id", None)
         panel = liaison.get_agencies_panel(incident_id)
-        self._open_modeless(panel, title="Agency Directory")
+        self._open_dock_widget(panel, title="Agency Directory")
 
     def open_liaison_requests(self) -> None:
         from modules import liaison
         incident_id = getattr(self, "current_incident_id", None)
         panel = liaison.get_requests_panel(incident_id)
-        self._open_modeless(panel, title="Customer Requests")
+        self._open_dock_widget(panel, title="Customer Requests")
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_public_media_releases(self) -> None:
         from modules import public_info
         incident_id = getattr(self, "current_incident_id", None)
         panel = public_info.get_media_releases_panel(incident_id)
-        self._open_modeless(panel, title="Media Releases")
+        self._open_dock_widget(panel, title="Media Releases")
 
     def open_public_inquiries(self) -> None:
         from modules import public_info
         incident_id = getattr(self, "current_incident_id", None)
         panel = public_info.get_inquiries_panel(incident_id)
-        self._open_modeless(panel, title="Public Inquiries")
+        self._open_dock_widget(panel, title="Public Inquiries")
 
 # --- 4.12 Finance/Admin --------------------------------------------------
     def open_finance_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
-        self._open_modeless(panel, title="ICS-214 Activity Log")
+        self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_finance_time(self) -> None:
         from modules import finance
         incident_id = getattr(self, "current_incident_id", None)
         panel = finance.get_time_panel(incident_id)
-        self._open_modeless(panel, title="Time Tracking")
+        self._open_dock_widget(panel, title="Time Tracking")
 
     def open_finance_procurement(self) -> None:
         from modules import finance
         incident_id = getattr(self, "current_incident_id", None)
         panel = finance.get_procurement_panel(incident_id)
-        self._open_modeless(panel, title="Expenses && Procurement")
+        self._open_dock_widget(panel, title="Expenses && Procurement")
 
     def open_finance_summary(self) -> None:
         from modules import finance
         incident_id = getattr(self, "current_incident_id", None)
         panel = finance.get_summary_panel(incident_id)
-        self._open_modeless(panel, title="Cost Summary")
+        self._open_dock_widget(panel, title="Cost Summary")
 
 # --- 4.13 Toolkits -------------------------------------------------------
     def open_toolkit_sar_missing_person(self) -> None:
         from modules.sartoolkit import sar
         incident_id = getattr(self, "current_incident_id", None)
         panel = sar.get_missing_person_panel(incident_id)
-        self._open_modeless(panel, title="Missing Person Toolkit")
+        self._open_dock_widget(panel, title="Missing Person Toolkit")
 
     def open_toolkit_sar_pod(self) -> None:
         from modules.sartoolkit import sar
         incident_id = getattr(self, "current_incident_id", None)
         panel = sar.get_pod_panel(incident_id)
-        self._open_modeless(panel, title="POD Calculator")
+        self._open_dock_widget(panel, title="POD Calculator")
 
     def open_toolkit_disaster_damage(self) -> None:
         from modules.disasterresponse import disaster
         incident_id = getattr(self, "current_incident_id", None)
         panel = disaster.get_damage_panel(incident_id)
-        self._open_modeless(panel, title="Damage Assessment")
+        self._open_dock_widget(panel, title="Damage Assessment")
 
     def open_toolkit_disaster_urban_interview(self) -> None:
         from modules.disasterresponse import disaster
         incident_id = getattr(self, "current_incident_id", None)
         panel = disaster.get_urban_interview_panel(incident_id)
-        self._open_modeless(panel, title="Urban Interview Log")
+        self._open_dock_widget(panel, title="Urban Interview Log")
 
     def open_toolkit_disaster_photos(self) -> None:
         from modules.disasterresponse import disaster
         incident_id = getattr(self, "current_incident_id", None)
         panel = disaster.get_photos_panel(incident_id)
-        self._open_modeless(panel, title="Damage Photos")
+        self._open_dock_widget(panel, title="Damage Photos")
 
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_promotions_panel(incident_id)
-        self._open_modeless(panel, title="External Messaging")
+        self._open_dock_widget(panel, title="External Messaging")
 
     def open_planned_vendors(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_vendors_panel(incident_id)
-        self._open_modeless(panel, title="Vendors && Permits")
+        self._open_dock_widget(panel, title="Vendors && Permits")
 
     def open_planned_safety(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_safety_panel(incident_id)
-        self._open_modeless(panel, title="Public Safety")
+        self._open_dock_widget(panel, title="Public Safety")
 
     def open_planned_tasking(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_tasking_panel(incident_id)
-        self._open_modeless(panel, title="Tasking && Assignments")
+        self._open_dock_widget(panel, title="Tasking && Assignments")
 
     def open_planned_health_sanitation(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
         panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
-        self._open_modeless(panel, title="Health && Sanitation")
+        self._open_dock_widget(panel, title="Health && Sanitation")
 
     def open_toolkit_initial_hasty(self) -> None:
         from modules.initialresponse import initial
         incident_id = getattr(self, "current_incident_id", None)
         panel = initial.get_hasty_panel(incident_id)
-        self._open_modeless(panel, title="Hasty Tools")
+        self._open_dock_widget(panel, title="Hasty Tools")
 
     def open_toolkit_initial_reflex(self) -> None:
         from modules.initialresponse import initial
         incident_id = getattr(self, "current_incident_id", None)
         panel = initial.get_reflex_panel(incident_id)
-        self._open_modeless(panel, title="Reflex Taskings")
+        self._open_dock_widget(panel, title="Reflex Taskings")
 
 # --- 4.14 Resources (Forms & Library) -----------------------------------
     def open_forms(self) -> None:
         from modules import referencelibrary
         incident_id = getattr(self, "current_incident_id", None)
         panel = referencelibrary.get_form_library_panel(incident_id)
-        self._open_modeless(panel, title="Form Library")
+        self._open_dock_widget(panel, title="Form Library")
 
     def open_reference_library(self) -> None:
         from modules import referencelibrary
         incident_id = getattr(self, "current_incident_id", None)
         panel = referencelibrary.get_library_panel()
-        self._open_modeless(panel, title="Reference Library")
+        self._open_dock_widget(panel, title="Reference Library")
 
     def open_help_user_guide(self) -> None:
         from modules import helpdocs
         incident_id = getattr(self, "current_incident_id", None)
         panel = helpdocs.get_user_guide_panel(incident_id)
-        self._open_modeless(panel, title="User Guide")
+        self._open_dock_widget(panel, title="User Guide")
 
 # --- 4.15 Help -----------------------------------------------------------
     def open_help_about(self) -> None:
         from modules import helpdocs
         incident_id = getattr(self, "current_incident_id", None)
         panel = helpdocs.get_about_panel(incident_id)
-        self._open_modeless(panel, title="About SARApp")
+        self._open_dock_widget(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
-    def _open_modeless(self, widget: QWidget, title: str) -> None:
-        """Display *widget* as a modeless window, tracking it for cleanup."""
-        if hasattr(self, "docking_helper") and callable(
-            getattr(self.docking_helper, "open_widget", None)
-        ):
-            self.docking_helper.open_widget(widget, title)
-            return
-        if hasattr(self, "mdi_area"):
-            widget.setWindowTitle(title)
-            self.mdi_area.addSubWindow(widget)
-            widget.show()
-            return
+    def _open_dock_widget(self, widget: QWidget, title: str) -> None:
+        """Embed *widget* in an ADS dock panel."""
+        dock = CDockWidget(title)
+        dock.setWidget(widget)
+        self.dock_manager.addDockWidget(LeftDockWidgetArea, dock)
+        dock.show()
 
-        widget.setWindowTitle(title)
-        self._open_windows.append(widget)
+    def _open_dock_from_qml(self, qml_rel_path: str, title: str) -> None:
+        widget = QQuickWidget()
+        widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
+        widget.setSource(QUrl.fromLocalFile(os.path.abspath(qml_rel_path)))
+        dock = CDockWidget(title)
+        dock.setWidget(widget)
+        self.dock_manager.addDockWidget(LeftDockWidgetArea, dock)
+        dock.show()
 
-        def _cleanup(_: object = None, w: QWidget = widget) -> None:
-            if w in self._open_windows:
-                self._open_windows.remove(w)
-
-        widget.destroyed.connect(_cleanup)
-        widget.show()
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        self.dock_manager.addPerspective("default")
+        with open(self._perspective_file, "w", encoding="utf-8") as f:
+            f.write(self.dock_manager.savePerspectives())
+        super().closeEvent(event)
 
     def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
         """Open a QML Window (as a modal dialog) and inject the catalog bridge."""
@@ -1011,39 +1008,6 @@ class MainWindow(QMainWindow):
         # 4) Nothing matched
         return None
 
-    def _open_docked(self, widget, title: str,
-                     area=Qt.RightDockWidgetArea,
-                     object_name: str | None = None) -> None:
-        """Show *widget* in a QDockWidget. Reuse the dock if it already exists."""
-        obj_name = object_name or f"dock::{title}"
-        existing = self.findChild(QDockWidget, obj_name)
-        if existing:
-            old = existing.widget()
-            if old is not widget:
-                existing.setWidget(widget)
-            existing.setWindowTitle(title)
-            existing.raise_()
-            existing.show()
-            return
-
-        dock = QDockWidget(title, self)
-        dock.setObjectName(obj_name)
-        dock.setFeatures(QDockWidget.DockWidgetMovable |
-                         QDockWidget.DockWidgetFloatable |
-                         QDockWidget.DockWidgetClosable)
-        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea |
-                             Qt.TopDockWidgetArea | Qt.BottomDockWidgetArea)
-        dock.setWidget(widget)
-        self.addDockWidget(area, dock)
-        dock.show()
-
-    def open_task_detail(self):
-        """Example QML task detail window launcher (kept for reference)."""
-        self.task_window = QQuickView()
-        self.task_window.setSource(QUrl("modules/operations/qml/taskdetail.qml"))
-        self.task_window.setResizeMode(QQuickView.SizeRootObjectToView)
-        self.task_window.setColor("white")
-        self.task_window.show()
 
     def update_title_with_active_incident(self):
         """Refresh window title when active incident changes."""
