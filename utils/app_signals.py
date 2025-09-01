@@ -1,0 +1,23 @@
+from __future__ import annotations
+
+from PySide6.QtCore import QObject, Signal
+
+
+class AppSignals(QObject):
+    """Global Qt signals for app-wide events.
+
+    Panels can subscribe to these to stay in sync with application state.
+    """
+
+    incidentChanged = Signal(str)  # emits the incident number (string)
+    # Emitted when a communications message is logged; provide sender and recipient labels
+    messageLogged = Signal(str, str)
+    # Emitted when a team status is changed elsewhere in the app; provide team_id
+    teamStatusChanged = Signal(int)
+
+
+# Global singleton instance
+app_signals = AppSignals()
+
+
+__all__ = ["app_signals", "AppSignals"]

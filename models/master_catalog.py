@@ -163,8 +163,8 @@ ENTITY_CONFIGS: Dict[str, Dict[str, Any]] = {
     "canned_comm_entries": {
         "table": "canned_comm_entries",
         "pk": "id",
-        "searchFields": ["title", "id"],
-        "columns": ["id", "title", "category", "body", "delivery_channels", "notes", "is_active"],
+        "searchFields": ["title", "category", "message", "id"],
+        "columns": ["id", "title", "category", "message", "notification_level", "status_update", "is_active"],
         "defaultSort": {"key": "title", "order": "asc"},
     },
     "task_types": {

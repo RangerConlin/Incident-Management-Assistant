@@ -2,6 +2,12 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 
 Item {
-    width: 400; height: 300
-    Text { text: "Radio Plan Builder"; anchors.centerIn: parent }
+    anchors.fill: parent
+    Column {
+        anchors.fill: parent; anchors.margins: 16; spacing: 8
+        Label { text: "Radio Plan Builder"; font.bold: true; font.pointSize: 14 }
+        TextArea { text: "Placeholder for operational period radio plan (ICS-205/217) builder."; readOnly: true; wrapMode: Text.WordWrap
+            background: Rectangle { color: "transparent"; border.color: "#ccc"; radius: 6 } }
+    }
 }
+

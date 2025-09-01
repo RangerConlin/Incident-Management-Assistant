@@ -1,4 +1,5 @@
 # ===== Part 1: Imports & Logging ============================================
+import os
 import sys
 import logging
 from typing import Callable
@@ -12,15 +13,31 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QMessageBox,
     QDialog,
+    QListWidget,
+    QPushButton,
+    QHBoxLayout,
+    QInputDialog,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, QSettings, QTimer
 from PySide6.QtQuick import QQuickView
 from PySide6.QtQuickControls2 import QQuickStyle
-from PySide6QtAds import CDockManager, CDockWidget, LeftDockWidgetArea
+from PySide6.QtQuick import QQuickWindow
+from PySide6QtAds import (
+    CDockManager,
+    CDockWidget,
+    LeftDockWidgetArea,
+    RightDockWidgetArea,
+    TopDockWidgetArea,
+    BottomDockWidgetArea,
+    CenterDockWidgetArea,
+)
 QQuickStyle.setStyle("Fusion")
 
+
+# Force a known-good default dock layout on startup (ignores saved layouts)
+FORCE_DEFAULT_LAYOUT = True
 
 
 # (QML utilities kept, though handlers now follow panel-factory pattern)
@@ -30,15 +47,17 @@ from models.database import get_incident_by_number
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
+from bridge.incident_bridge import IncidentBridge
 from models.sqlite_table_model import SqliteTableModel
 import sqlite3
-import os
+# 'os' imported earlier for env setup
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
+
 
 
 # ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
@@ -64,9 +83,8 @@ class MainWindow(QMainWindow):
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
-        # Persistent header for active incident information
+        # Prepare a Mission Status label (will live inside a dock, not fixed)
         self.active_incident_label = QLabel()
-        # Initialize the panel with the current incident (if any)
         self.update_active_incident_label()
 
         # Title includes active incident (if any)
@@ -79,33 +97,85 @@ class MainWindow(QMainWindow):
             if incident:
                 title = f"SARApp - {incident['number']} | {incident['name']}{suffix}"
             else:
-                title = f"SARApp - Incident Management Assistant{suffix}"
+                title = f"SARApp - No Incident Loaded{suffix}"
         else:
-            title = f"SARApp - Incident Management Assistant{suffix}"
+            title = f"SARApp - No Incident Loaded{suffix}"
         self.setWindowTitle(title)
         self.resize(1280, 800)
 
         # Central widget with persistent header and ADS dock manager
         central = QWidget()
         central_layout = QVBoxLayout(central)
-        central_layout.addWidget(self.active_incident_label)
+        try:
+            central_layout.setContentsMargins(0, 0, 0, 0)
+            central_layout.setSpacing(0)
+        except Exception:
+            pass
+        # Only a dock container in the central area; status goes to a dock
         self._dock_container = QWidget()
         central_layout.addWidget(self._dock_container)
-        central_layout.setStretch(1, 1)
+        try:
+            cont_layout = QVBoxLayout(self._dock_container)
+            cont_layout.setContentsMargins(0, 0, 0, 0)
+            cont_layout.setSpacing(0)
+        except Exception:
+            pass
         self.setCentralWidget(central)
 
         self.dock_manager = CDockManager(self._dock_container)
+        # If CDockManager is a QWidget, add to container layout to fill area
+        try:
+            cont_layout.addWidget(self.dock_manager)  # type: ignore[name-defined]
+        except Exception:
+            pass
 
-        # Load persisted perspectives if available
+        # Load persisted perspectives if available (unless forced default)
         self._perspective_file = os.path.join("settings", "ads_perspectives.ini")
-        if os.path.exists(self._perspective_file):
-            with open(self._perspective_file, "r", encoding="utf-8") as f:
-                self.dock_manager.loadPerspectives(f.read())
-            if "default" in self.dock_manager.perspectiveNames():
-                self.dock_manager.openPerspective("default")
+        opened_default = False
+        if FORCE_DEFAULT_LAYOUT:
+            # Clear any saved layout and seed defaults immediately
+            try:
+                settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+                settings_obj.clear()
+            except Exception:
+                pass
+            self._reset_layout()
+            opened_default = True
+        else:
+            try:
+                settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+                self.dock_manager.loadPerspectives(settings_obj)
+                names = []
+                try:
+                    names = list(self.dock_manager.perspectiveNames())
+                except Exception:
+                    names = []
+                if "default" in names:
+                    try:
+                        rv = self.dock_manager.openPerspective("default")
+                        opened_default = bool(rv) if rv is not None else True
+                    except Exception:
+                        opened_default = False
+            except Exception as e:
+                logger.warning("Failed to load ADS perspectives: %s", e)
 
         # Build the physical menu bar (visible UI)
         self.init_module_menus()
+
+        # If no saved layout was opened, create some default docks to play with
+        # Seed defaults if not forced and no perspective opened or nothing is docked
+        if not FORCE_DEFAULT_LAYOUT:
+            try:
+                names = []
+                try:
+                    names = list(self.dock_manager.perspectiveNames())
+                except Exception:
+                    names = []
+                has_any_docks = bool(self.findChildren(CDockWidget))
+                if (not opened_default) or (not has_any_docks):
+                    self._create_default_docks()
+            except Exception:
+                self._create_default_docks()
 
     # ----- Part 2.A: Physical Menu Builder ----------------------------------
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
@@ -175,6 +245,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
+        self._add_action(m_ops, "Narrative", None, "operations.narrative")
 
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
@@ -268,11 +339,78 @@ class MainWindow(QMainWindow):
         self._add_action(m_help, "About", None, "help.about")
         self._add_action(m_help, "User Guide", None, "help.user_guide")
 
+        # ----- Window -----
+        m_window = self.menuBar().addMenu("Window")
+        self._add_action(m_window, "Home Dashboard", "Ctrl+H", "window.home_dashboard")
+
+        # Widgets submenu: list all registry widgets for ad-hoc placement
+        try:
+            from ui.widgets import registry as W
+        except Exception:
+            W = None  # type: ignore
+        m_widgets = m_window.addMenu("Widgets")
+        if W and hasattr(W, "REGISTRY"):
+            for wid, spec in sorted(W.REGISTRY.items(), key=lambda kv: kv[1].title.lower()):
+                if wid == "quickEntryCLI":
+                    # CLI is embedded inside Quick Entry per spec; skip standalone menu item
+                    continue
+                self._add_action(m_widgets, spec.title, None, f"widgets.{wid}")
+
+        # Templates manager for saving/loading/deleting ADS perspectives
+        act_templates = QAction("Display Templates...", self)
+        act_templates.triggered.connect(self.open_display_templates_dialog)
+        m_window.addAction(act_templates)
+
+        # Lock/Unlock docking interactions
+        self.act_lock_docking = QAction("Lock Docking", self)
+        self.act_lock_docking.setCheckable(True)
+        self.act_lock_docking.setChecked(False)
+        self.act_lock_docking.toggled.connect(self.toggle_dock_lock)
+        m_window.addAction(self.act_lock_docking)
+
+        m_window.addSeparator()
+
+        # Existing: open a new floating workspace window
+        act_new_ws = QAction("New Workspace Window", self)
+        act_new_ws.triggered.connect(self.open_new_workspace_window)
+        m_window.addAction(act_new_ws)
+
         # ----- Debug -----
         self.menuDebug = self.menuBar().addMenu("Debug")
         act = QAction("Print Active Incident", self)
         act.triggered.connect(lambda: print(f"[debug] MainWindow current_incident_id={getattr(self,'current_incident_id',None)}; AppState={AppState.get_active_incident()}"))
         self.menuDebug.addAction(act)
+
+        # Quick way to add sample docks to play with ADS
+        act_defaults = QAction("Open Default Docks", self)
+        act_defaults.triggered.connect(self._create_default_docks)
+        self.menuDebug.addAction(act_defaults)
+
+        act_reset = QAction("Reset Layout (Default)", self)
+        act_reset.triggered.connect(self._reset_layout)
+        self.menuDebug.addAction(act_reset)
+
+        # Quick QML-openers for troubleshooting (bypass QWidget panels)
+        act_team_qml = QAction("Open Team Status (QML)", self)
+        act_team_qml.triggered.connect(lambda: self._open_team_status_qml_debug())
+        self.menuDebug.addAction(act_team_qml)
+        act_task_qml = QAction("Open Task Status (QML)", self)
+        act_task_qml.triggered.connect(lambda: self._open_task_status_qml_debug())
+        self.menuDebug.addAction(act_task_qml)
+
+        # Debug: Open Team Detail by ID
+        act_team_detail = QAction("Open Team Detail (Team ID…)", self)
+        def _open_team_detail_prompt():
+            try:
+                from PySide6.QtWidgets import QInputDialog
+                team_id, ok = QInputDialog.getInt(self, "Open Team Detail", "Team ID:", 1, 1, 10_000_000, 1)
+                if ok:
+                    from modules.operations.teams.windows import open_team_detail_window
+                    open_team_detail_window(int(team_id))
+            except Exception as e:
+                print(f"[debug] failed to open Team Detail: {e}")
+        act_team_detail.triggered.connect(_open_team_detail_prompt)
+        self.menuDebug.addAction(act_team_detail)
 
         self._gate_menus_by_availability({})
         # you can toggle feature availability here, e.g.: {"planned.promotions": False}
@@ -290,6 +428,10 @@ class MainWindow(QMainWindow):
     # ===== Part 3: Central Router (module_key -> handler) ====================
     def open_module(self, key: str):
         """Central router: call explicit handler for every menu item (panel pattern)."""
+        # Dynamic widget openers
+        if key.startswith("widgets."):
+            widget_id = key.split(".", 1)[1]
+            return self.open_widget_with_id(widget_id)
         handlers: dict[str, Callable[[], None]] = {
             # ----- Menu -----
             "menu.new_incident": self.open_menu_new_incident,
@@ -335,6 +477,7 @@ class MainWindow(QMainWindow):
             "operations.team_assignments": self.open_operations_team_assignments,
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
+            "operations.narrative": self.open_operations_narrative,
 
             # ----- Logistics -----
             "logistics.unit_log": self.open_logistics_unit_log,
@@ -401,6 +544,9 @@ class MainWindow(QMainWindow):
 
             # ----- Help -----
             "help.about": self.open_help_about,
+
+            # ----- Window -----
+            "window.home_dashboard": self.open_home_dashboard,
         }
 
         handler = handlers.get(key)
@@ -420,12 +566,45 @@ class MainWindow(QMainWindow):
 
     def _on_incident_created(self, meta, db_path: str) -> None:
         """Handle mission creation from the New Incident dialog."""
+        # 1) Register in master.db so it shows up in selectors
+        try:
+            from models.database import insert_new_incident, get_incident_by_number
+            # Avoid duplicate records if one already exists
+            if not get_incident_by_number(meta.number):
+                insert_new_incident(
+                    number=meta.number,
+                    name=meta.name,
+                    type=meta.type,
+                    description=meta.description,
+                    icp_location=meta.location,
+                    is_training=meta.is_training,
+                )
+        except Exception as e:
+            logger.exception("Failed to register incident in master.db: %s", e)
+            QMessageBox.warning(
+                self,
+                "Database Error",
+                f"Mission database created but failed to register in master.db:\n{e}",
+            )
+
+        # 2) Set as the active incident immediately
+        try:
+            from utils import incident_context
+            self.current_incident_id = meta.number
+            AppState.set_active_incident(meta.number)
+            incident_context.set_active_incident(str(meta.number))
+            self.update_title_with_active_incident()
+        except Exception:
+            logger.exception("Failed to set active incident context")
+
+        # 3) Notify user (after attempting registration + activation)
         QMessageBox.information(
             self,
             "Mission Created",
-            f"Mission '{meta.name}' created.\nDB path: {db_path}",
+            f"Mission '{meta.name}' created and activated.\nDB path: {db_path}",
         )
-        # TODO: Add to master.db
+
+        # 4) If the incident selection window is open, refresh it and select
         if hasattr(self, "incident_selection_window") and hasattr(
             self.incident_selection_window, "reload_missions"
         ):
@@ -451,10 +630,42 @@ class MainWindow(QMainWindow):
         show_incident_selector()
 
     def open_menu_settings(self) -> None:
-        from modules import settingsui
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = settingsui.get_settings_panel(incident_id)
-        self._open_dock_widget(panel, title="Settings")
+        # Open the existing QML settings window (ApplicationWindow root) via QQuickView as a modal window
+        from pathlib import Path
+        from PySide6.QtQml import QQmlApplicationEngine
+
+        engine = QQmlApplicationEngine()
+        # Inject settings bridge so settings pages can read/write
+        engine.rootContext().setContextProperty("settingsBridge", self.settings_bridge)
+
+        qml_file = Path(__file__).resolve().parent / "qml" / "settingswindow.qml"
+        engine.load(QUrl.fromLocalFile(str(qml_file)))
+
+        if not engine.rootObjects():
+            logger.error("Settings window failed to load: %s", qml_file)
+            return
+
+        win = engine.rootObjects()[0]
+        # Tie to main window and make modal if possible
+        try:
+            if hasattr(win, "setTitle"):
+                win.setTitle("Settings")
+            if self.windowHandle() and hasattr(win, "setTransientParent"):
+                win.setTransientParent(self.windowHandle())
+            if hasattr(win, "setModality"):
+                win.setModality(Qt.ApplicationModal)
+            if hasattr(win, "show"):
+                win.show()
+        except Exception:
+            pass
+
+        # Keep references alive
+        if not hasattr(self, "_open_qml_engines"):
+            self._open_qml_engines = []
+        if not hasattr(self, "_open_qml_windows"):
+            self._open_qml_windows = []
+        self._open_qml_engines.append(engine)
+        self._open_qml_windows.append(win)
 
     def open_menu_exit(self) -> None:
         # Exit remains a direct action rather than opening a panel.
@@ -600,12 +811,59 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Team Assignments")
 
     def open_operations_team_status(self) -> None:
-        qml_file = os.path.join("modules", "operations", "qml", "team_status_board.qml")
-        self._open_dock_from_qml(qml_file, "Team Status")
+        # Prefer the QWidget panel version to avoid QQuickWidget rendering issues
+        try:
+            from modules.operations.panels.team_status_panel import TeamStatusPanel
+            panel = TeamStatusPanel(self)
+            self._open_dock_widget(panel, title="Team Status")
+            return
+        except Exception:
+            pass
+        # Fallback to QML if panel import fails (prefer QQuickView container)
+        from data.sample_data import TEAM_ROWS, TEAM_HEADERS
+        qml_file = os.path.join("modules", "operations", "qml", "TeamStatus.qml")
+        ctx = {"teamRows": TEAM_ROWS, "teamHeaders": TEAM_HEADERS, "statusColumn": 4}
+        self._open_dock_from_qml_view(qml_file, "Team Status", context=ctx)
 
     def open_operations_task_board(self) -> None:
-        qml_file = os.path.join("modules", "operations", "qml", "task_board.qml")
-        self._open_dock_from_qml(qml_file, "Task Board")
+        # Prefer the QWidget panel version to avoid QQuickWidget rendering issues
+        try:
+            from modules.operations.panels.task_status_panel import TaskStatusPanel
+            panel = TaskStatusPanel(self)
+            self._open_dock_widget(panel, title="Task Status")
+            return
+        except Exception:
+            pass
+        # Fallback to QML if panel import fails (prefer QQuickView container)
+        from data.sample_data import TASK_ROWS, TASK_HEADERS
+        qml_file = os.path.join("modules", "operations", "qml", "TaskStatus.qml")
+        try:
+            status_idx = TASK_HEADERS.index("Status")
+        except ValueError:
+            status_idx = 2
+        ctx = {"taskRows": TASK_ROWS, "taskHeaders": TASK_HEADERS, "statusColumn": status_idx}
+        self._open_dock_from_qml_view(qml_file, "Task Board", context=ctx)
+
+    def open_operations_narrative(self) -> None:
+        # Open the narrative window (incident-scoped)
+        self._open_qml_modal("qml/NarrativeWindow.qml", title="Narrative")
+
+    # Debug helpers to open QML boards directly (QQuickView)
+    def _open_team_status_qml_debug(self) -> None:
+        from data.sample_data import TEAM_ROWS, TEAM_HEADERS
+        qml_file = os.path.join("modules", "operations", "qml", "TeamStatus.qml")
+        ctx = {"teamRows": TEAM_ROWS, "teamHeaders": TEAM_HEADERS, "statusColumn": 4}
+        self._open_dock_from_qml_view(qml_file, "Team Status (QML)", context=ctx)
+
+    def _open_task_status_qml_debug(self) -> None:
+        from data.sample_data import TASK_ROWS, TASK_HEADERS
+        qml_file = os.path.join("modules", "operations", "qml", "TaskStatus.qml")
+        try:
+            status_idx = TASK_HEADERS.index("Status")
+        except ValueError:
+            status_idx = 2
+        ctx = {"taskRows": TASK_ROWS, "taskHeaders": TASK_HEADERS, "statusColumn": status_idx}
+        self._open_dock_from_qml_view(qml_file, "Task Status (QML)", context=ctx)
 
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
@@ -894,27 +1152,705 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
-    def _open_dock_widget(self, widget: QWidget, title: str) -> None:
-        """Embed *widget* in an ADS dock panel."""
-        dock = CDockWidget(title)
+    def _open_dock_widget(self, widget: QWidget, title: str, float_on_open: bool | None = True) -> None:
+        """Embed widget in an ADS dock panel.
+        By default, menu-launched panels open floating (undocked). Use float_on_open=False to dock.
+        """
+        dock = CDockWidget(self.dock_manager, title)
         dock.setWidget(widget)
-        self.dock_manager.addDockWidget(LeftDockWidgetArea, dock)
+        if float_on_open:
+            # Preferred: directly add as floating if ADS supports it
+            try:
+                self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
+                dock.show()
+                return
+            except Exception:
+                pass
+            # Alternate: create an explicit floating container
+            try:
+                container = self.dock_manager.createFloatingDockContainer(dock)  # type: ignore[attr-defined]
+                try:
+                    from PySide6.QtGui import QCursor
+                    container.move(QCursor.pos())  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                try:
+                    container.show()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                return
+            except Exception:
+                # Fallback: add then toggle floating
+                area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
+                self.dock_manager.addDockWidget(area, dock)
+                try:
+                    dock.setFloating(True)
+                except Exception:
+                    pass
+                dock.show()
+                return
+        # Docked open
+        area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
+        self.dock_manager.addDockWidget(area, dock)
         dock.show()
 
-    def _open_dock_from_qml(self, qml_rel_path: str, title: str) -> None:
+    def _open_dock_from_qml_view(self, qml_rel_path: str, title: str, float_on_open: bool | None = True, context: dict | None = None) -> None:
+        """Open QML using QQuickView + QWidget::createWindowContainer to avoid QQuickWidget text issues."""
+        try:
+            view = QQuickView()
+        except Exception:
+            # Fallback to original path if QQuickView unavailable
+            self._open_dock_from_qml(qml_rel_path, title, float_on_open=float_on_open, context=context)
+            return
+        try:
+            view.setResizeMode(QQuickView.SizeRootObjectToView)
+        except Exception:
+            pass
+        try:
+            if context:
+                ctx = view.rootContext()
+                for k, v in context.items():
+                    ctx.setContextProperty(k, v)
+        except Exception:
+            pass
+        view.setSource(QUrl.fromLocalFile(os.path.abspath(qml_rel_path)))
+        container = QWidget.createWindowContainer(view)
+        try:
+            container.setMinimumSize(200, 120)
+            container.setFocusPolicy(Qt.StrongFocus)
+        except Exception:
+            pass
+        dock = CDockWidget(self.dock_manager, title)
+        dock.setWidget(container)
+        if float_on_open:
+            try:
+                self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
+                dock.show()
+                return
+            except Exception:
+                pass
+        area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
+        self.dock_manager.addDockWidget(area, dock)
+        dock.show()
+
+    def _open_dock_from_qml(self, qml_rel_path: str, title: str, float_on_open: bool | None = True, context: dict | None = None) -> None:
         widget = QQuickWidget()
         widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
+        try:
+            if context:
+                # Use QQuickWidget.rootContext() so properties are visible to this component
+                ctx = widget.rootContext()
+                for k, v in context.items():
+                    ctx.setContextProperty(k, v)
+        except Exception:
+            pass
         widget.setSource(QUrl.fromLocalFile(os.path.abspath(qml_rel_path)))
-        dock = CDockWidget(title)
+        dock = CDockWidget(self.dock_manager, title)
         dock.setWidget(widget)
-        self.dock_manager.addDockWidget(LeftDockWidgetArea, dock)
+        if float_on_open:
+            # Preferred: add as floating
+            try:
+                self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
+                dock.show()
+                return
+            except Exception:
+                pass
+            # Alternate: floating container
+            try:
+                container = self.dock_manager.createFloatingDockContainer(dock)  # type: ignore[attr-defined]
+                try:
+                    from PySide6.QtGui import QCursor
+                    container.move(QCursor.pos())  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                try:
+                    container.show()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                return
+            except Exception:
+                area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
+                self.dock_manager.addDockWidget(area, dock)
+                try:
+                    dock.setFloating(True)
+                except Exception:
+                    pass
+                dock.show()
+                return
+        area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
+        self.dock_manager.addDockWidget(area, dock)
         dock.show()
 
+    def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
+        """Open a QML Window (as a modal dialog) and inject the catalog bridge.
+
+        This is used by Edit > Master Catalog windows (EMS, Hospitals, etc.).
+        """
+        view = QQuickView()
+        view.setTitle(title)
+        try:
+            view.setResizeMode(QQuickView.SizeRootObjectToView)
+        except Exception:
+            pass
+
+        # Create/reuse a shared CatalogBridge for master catalog windows
+        if not hasattr(self, "_catalog_bridge"):
+            self._catalog_bridge = CatalogBridge(db_path="data/master.db")
+
+        # Expose bridges and models to QML
+        ctx = view.rootContext()
+        ctx.setContextProperty("catalogBridge", self._catalog_bridge)
+        # Incident bridge (incident-scoped CRUD)
+        try:
+            if not hasattr(self, "_incident_bridge"):
+                self._incident_bridge = IncidentBridge()
+            ctx.setContextProperty("incidentBridge", self._incident_bridge)
+        except Exception as e:
+            print("[main] IncidentBridge init failed:", e)
+
+        # Inject a per-window SqliteTableModel when we can map the window to a table
+        try:
+            base = os.path.basename(qml_rel_path)
+            # Strip the full suffix "Window.qml" (10 chars) to get the base name
+            name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
+            table = self._resolve_master_table(name)
+            print(f"[main._open_qml_modal] qml='{qml_rel_path}', base='{base}', name='{name}', resolved_table='{table}'")
+            if table:
+                model_name = f"{name}Model"
+                model = SqliteTableModel("data/master.db")
+                sql = f"SELECT * FROM {table}"
+                print(f"[main._open_qml_modal] injecting model '{model_name}' with sql: {sql}")
+                model.load_query(sql)
+                ctx.setContextProperty(model_name, model)
+                try:
+                    print(f"[main._open_qml_modal] model '{model_name}' rowCount={model.rowCount()}")
+                except Exception:
+                    pass
+            elif name == "Narrative":
+                # Inject incident-scoped model for narrative
+                try:
+                    from utils import incident_context
+                    db_path = str(incident_context.get_active_incident_db_path())
+                    model_name = "NarrativeModel"
+                    model = SqliteTableModel(db_path)
+                    sql = "SELECT id, taskid, timestamp, narrative, entered_by, team_num, critical FROM narrative_entries ORDER BY timestamp DESC"
+                    print(f"[main._open_qml_modal] injecting INCIDENT model '{model_name}' with sql: {sql}")
+                    model.load_query(sql)
+                    ctx.setContextProperty(model_name, model)
+                except Exception as e:
+                    print("[main._open_qml_modal] failed to inject NarrativeModel:", e)
+            else:
+                # Log available tables to aid debugging
+                try:
+                    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
+                    con = sqlite3.connect(db_path)
+                    cur = con.cursor()
+                    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    tbls = [r[0] for r in cur.fetchall()]
+                    con.close()
+                    print(f"[main._open_qml_modal] no table for '{name}'. sqlite tables: {tbls}")
+                except Exception as e:
+                    print(f"[main._open_qml_modal] failed to enumerate tables: {e}")
+        except Exception as e:
+            print(f"[main] model injection error for {qml_rel_path}: {e}")
+
+        from pathlib import Path
+        qml_file = Path(__file__).resolve().parent / qml_rel_path
+        view.setSource(QUrl.fromLocalFile(str(qml_file)))
+        view.show()
+        if not hasattr(self, "_open_qml_views"):
+            self._open_qml_views = []
+        self._open_qml_views.append(view)
+
+    def _resolve_master_table(self, base_name: str) -> str | None:
+        """Resolve a master.db table name for a given Window base name.
+        Uses sqlite_master to confirm existence and tries sensible mappings,
+        including canonical names from master_catalog where applicable.
+        """
+        # List all tables from master.db
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
+        tables: set[str] = set()
+        try:
+            con = sqlite3.connect(db_path)
+            cur = con.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = {r[0] for r in cur.fetchall()}
+            con.close()
+        except Exception as e:
+            print(f"[main] _resolve_master_table: unable to read tables: {e}")
+            return None
+
+        # Canonical known mappings
+        canonical = {
+            "Personnel": "personnel",
+            "Vehicles": "vehicles",
+            "Equipment": "equipment",
+            "CommsResources": "comms_resources",
+            "Objectives": "incident_objectives",
+            "Certifications": "certification_types",
+            "TeamTypes": "team_types",
+            "TaskTypes": "task_types",
+            "CannedCommEntries": "canned_comm_entries",
+            "Ems": "ems",
+            "Hospitals": "ems",  # window displays EMS-style contacts
+            "SafetyTemplates": "safety_templates",
+        }
+
+        # 1) Try canonical mapping
+        tbl = canonical.get(base_name)
+        if tbl and tbl in tables:
+            return tbl
+
+        # 2) Try snake_case of base name
+        import re
+        snake = re.sub(r"(?<!^)([A-Z])", r"_\1", base_name).lower()
+        if snake in tables:
+            return snake
+
+        # 3) Try simple lowercase/plural checks
+        low = base_name.lower()
+        if low in tables:
+            return low
+        if f"{low}s" in tables:
+            return f"{low}s"
+
+        # 4) Nothing matched
+        return None
+
     def closeEvent(self, event) -> None:  # type: ignore[override]
-        self.dock_manager.addPerspective("default")
-        with open(self._perspective_file, "w", encoding="utf-8") as f:
-            f.write(self.dock_manager.savePerspectives())
+        # Save perspectives via QSettings to match ADS API
+        try:
+            self.dock_manager.addPerspective("default")
+            settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+            self.dock_manager.savePerspectives(settings_obj)
+        except Exception as e:
+            logger.warning("Failed to save ADS perspectives: %s", e)
         super().closeEvent(event)
+
+    def _create_default_docks(self) -> None:
+        """Create a few sample docks (Mission Status, Team Status, Task Status)."""
+        # Use full-featured panels for default docks
+        try:
+            from modules.operations.panels.team_status_panel import TeamStatusPanel
+        except Exception:
+            TeamStatusPanel = None  # type: ignore
+        try:
+            from modules.operations.panels.task_status_panel import TaskStatusPanel
+        except Exception:
+            TaskStatusPanel = None  # type: ignore
+
+        # Mission Status dock uses the active_incident_label prepared in __init__
+        status_container = QWidget()
+        status_layout = QVBoxLayout(status_container)
+        status_layout.setContentsMargins(8, 8, 8, 8)
+        status_layout.addWidget(self.active_incident_label)
+        # Make Mission Status the central area so other docks can dock around the window
+        status_dock = CDockWidget(self.dock_manager, "Mission Status")
+        status_dock.setWidget(status_container)
+        self.dock_manager.addDockWidget(CenterDockWidgetArea, status_dock)
+        status_dock.show()
+
+        # Optional sample boards: prefer QWidget panels; fallback to QML
+        if TeamStatusPanel:
+            try:
+                team_panel = TeamStatusPanel(self)
+                team_dock = CDockWidget(self.dock_manager, "Team Status")
+                team_dock.setWidget(team_panel)
+                self.dock_manager.addDockWidget(LeftDockWidgetArea, team_dock)
+                team_dock.show()
+            except Exception:
+                pass
+        else:
+            try:
+                from data.sample_data import TEAM_ROWS, TEAM_HEADERS
+                qml_team = os.path.join("modules", "operations", "qml", "TeamStatus.qml")
+                team_ctx = {"teamRows": TEAM_ROWS, "teamHeaders": TEAM_HEADERS, "statusColumn": 4}
+                self._open_dock_from_qml_view(qml_team, "Team Status", float_on_open=False, context=team_ctx)
+            except Exception:
+                pass
+
+        if TaskStatusPanel:
+            try:
+                task_panel = TaskStatusPanel(self)
+                task_dock = CDockWidget(self.dock_manager, "Task Status")
+                task_dock.setWidget(task_panel)
+                self.dock_manager.addDockWidget(BottomDockWidgetArea, task_dock)
+                task_dock.show()
+            except Exception:
+                pass
+        else:
+            try:
+                from data.sample_data import TASK_ROWS, TASK_HEADERS
+                qml_task = os.path.join("modules", "operations", "qml", "TaskStatus.qml")
+                try:
+                    status_idx = TASK_HEADERS.index("Status")
+                except ValueError:
+                    status_idx = 2
+                task_ctx = {"taskRows": TASK_ROWS, "taskHeaders": TASK_HEADERS, "statusColumn": status_idx}
+                self._open_dock_from_qml_view(qml_task, "Task Status", float_on_open=False, context=task_ctx)
+            except Exception:
+                pass
+
+    def open_new_workspace_window(self) -> None:
+        """Create a blank floating dock window you can move to another monitor.
+        Other panels can be docked into it by dragging.
+        """
+        # Minimal placeholder instructing the user
+        placeholder_widget = QWidget()
+        v = QVBoxLayout(placeholder_widget)
+        v.setContentsMargins(24, 24, 24, 24)
+        lbl = QLabel("Drop panels here")
+        v.addWidget(lbl)
+
+        placeholder = CDockWidget(self.dock_manager, "Workspace")
+        placeholder.setWidget(placeholder_widget)
+
+        # Prefer creating a true floating dock container if ADS supports it
+        try:
+            container = self.dock_manager.createFloatingDockContainer(placeholder)  # type: ignore[attr-defined]
+            try:
+                from PySide6.QtGui import QCursor
+                container.move(QCursor.pos())  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                container.show()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        except Exception:
+            # Fallback: add and float the placeholder dock itself
+            self.dock_manager.addDockWidget(LeftDockWidgetArea, placeholder)
+            try:
+                placeholder.setFloating(True)
+            except Exception:
+                pass
+            placeholder.show()
+
+        if TaskStatusPanel:
+            try:
+                task_panel = TaskStatusPanel(self)
+                task_dock = CDockWidget(self.dock_manager, "Task Status")
+                task_dock.setWidget(task_panel)
+                self.dock_manager.addDockWidget(BottomDockWidgetArea, task_dock)
+                task_dock.show()
+            except Exception:
+                pass
+
+    def _reset_layout(self) -> None:
+        """Clear current perspectives and rebuild default docks."""
+        try:
+            # Try to remove perspectives by saving empty
+            settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+            # Overwrite with nothing and clear the file
+            settings_obj.clear()
+        except Exception:
+            pass
+        # Remove existing dock widgets (best-effort)
+        for dw in list(self.findChildren(CDockWidget)):
+            try:
+                dw.close()
+                dw.deleteLater()
+            except Exception:
+                pass
+        self._create_default_docks()
+
+    def open_display_templates_dialog(self) -> None:
+        """Open a modal dialog to manage dock layout templates (ADS perspectives)."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Display Templates")
+        v = QVBoxLayout(dlg)
+
+        # List available perspectives
+        lst = QListWidget(dlg)
+        perspective_names = []
+        try:
+            perspective_names = list(self.dock_manager.perspectiveNames())
+        except Exception:
+            perspective_names = []
+        for name in perspective_names:
+            lst.addItem(name)
+        v.addWidget(lst)
+
+        # Buttons: Load, Save As, Delete, Close
+        btn_row = QHBoxLayout()
+        btn_load = QPushButton("Load")
+        btn_save = QPushButton("Save As…")
+        btn_delete = QPushButton("Delete")
+        btn_close = QPushButton("Close")
+        btn_row.addWidget(btn_load)
+        btn_row.addWidget(btn_save)
+        btn_row.addWidget(btn_delete)
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_close)
+        v.addLayout(btn_row)
+
+        def refresh_list():
+            lst.clear()
+            try:
+                names = list(self.dock_manager.perspectiveNames())
+            except Exception:
+                names = []
+            for nm in names:
+                lst.addItem(nm)
+
+        def persist_perspectives():
+            try:
+                settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+                self.dock_manager.savePerspectives(settings_obj)
+            except Exception:
+                pass
+
+        def on_load():
+            item = lst.currentItem()
+            if not item:
+                return
+            name = item.text()
+            try:
+                self.dock_manager.openPerspective(name)
+            except Exception:
+                # Fallback: try reloading from disk first then open
+                try:
+                    settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+                    self.dock_manager.loadPerspectives(settings_obj)
+                    self.dock_manager.openPerspective(name)
+                except Exception:
+                    QMessageBox.warning(dlg, "Load Failed", f"Could not load template '{name}'.")
+
+        def on_save():
+            name, ok = QInputDialog.getText(dlg, "Save Template", "Template name:")
+            if not ok or not str(name).strip():
+                return
+            name = str(name).strip()
+            try:
+                # If name exists, remove before adding to overwrite
+                try:
+                    self.dock_manager.removePerspective(name)
+                except Exception:
+                    pass
+                self.dock_manager.addPerspective(name)
+                persist_perspectives()
+                refresh_list()
+                # Select the saved item
+                matches = lst.findItems(name, Qt.MatchExactly)
+                if matches:
+                    lst.setCurrentItem(matches[0])
+            except Exception:
+                QMessageBox.warning(dlg, "Save Failed", f"Could not save template '{name}'.")
+
+        def on_delete():
+            item = lst.currentItem()
+            if not item:
+                return
+            name = item.text()
+            try:
+                self.dock_manager.removePerspective(name)
+                persist_perspectives()
+                refresh_list()
+            except Exception:
+                # Attempt manual removal via QSettings if ADS API not available
+                try:
+                    settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+                    settings_obj.beginGroup("perspectives")
+                    settings_obj.remove(name)
+                    settings_obj.endGroup()
+                    persist_perspectives()
+                    refresh_list()
+                except Exception:
+                    QMessageBox.warning(dlg, "Delete Failed", f"Could not delete template '{name}'.")
+
+        btn_load.clicked.connect(on_load)
+        btn_save.clicked.connect(on_save)
+        btn_delete.clicked.connect(on_delete)
+        btn_close.clicked.connect(dlg.accept)
+
+        dlg.setModal(True)
+        dlg.resize(420, 300)
+        dlg.exec()
+
+    def toggle_dock_lock(self, locked: bool) -> None:
+        """Lock/unlock docking so docks can't be dragged or re-arranged."""
+        # Preferred: global docking enable/disable on the manager
+        try:
+            if hasattr(self.dock_manager, "setDockingEnabled"):
+                self.dock_manager.setDockingEnabled(not locked)
+                return
+        except Exception:
+            pass
+
+        # Fallback: adjust features on individual dock widgets if available
+        for dw in self.findChildren(CDockWidget):
+            try:
+                # Try common API patterns
+                if hasattr(dw, "setMovable"):
+                    dw.setMovable(not locked)  # type: ignore[attr-defined]
+                if hasattr(dw, "setFloatable"):
+                    dw.setFloatable(not locked)  # type: ignore[attr-defined]
+                if hasattr(dw, "setClosable"):
+                    # Keep closable regardless of lock to avoid trapping users
+                    pass
+                # ADS specific: toggle features bitmask if present
+                if hasattr(dw, "setFeatures") and hasattr(dw, "features"):
+                    try:
+                        feats = dw.features()
+                        # Heuristic: features enum likely has these attributes
+                        movable = getattr(type(feats), "DockWidgetMovable", None)
+                        floatable = getattr(type(feats), "DockWidgetFloatable", None)
+                        if movable is not None:
+                            if locked and (feats & movable):
+                                feats = feats & (~movable)
+                            elif not locked and not (feats & movable):
+                                feats = feats | movable
+                        if floatable is not None:
+                            if locked and (feats & floatable):
+                                feats = feats & (~floatable)
+                            elif not locked and not (feats & floatable):
+                                feats = feats | floatable
+                        dw.setFeatures(feats)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+
+    def update_title_with_active_incident(self):
+        """Refresh window title when active incident changes."""
+        incident_number = AppState.get_active_incident()
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        if incident_number:
+            incident = get_incident_by_number(incident_number)
+            if incident:
+                suffix = ""
+                if user_id or user_role:
+                    suffix = f"  •  User: {user_id or ''} ({user_role or ''})"
+                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
+        else:
+            suffix = ""
+            if user_id or user_role:
+                suffix = f"  •  User: {user_id or ''} ({user_role or ''})"
+            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
+
+        # Also update the active incident label so it stays in sync with the title
+        if hasattr(self, "update_active_incident_label"):
+            self.update_active_incident_label()
+
+        # Instrumentation
+        print(
+            f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, "
+            f"self.current_incident_id={getattr(self,'current_incident_id',None)}"
+        )
+
+    def update_active_incident_label(self):
+        """Update the active incident debug label with the current incident details."""
+        # Determine the incident number via current_incident_id or AppState
+        incident_id = getattr(self, "current_incident_id", None)
+        if incident_id:
+            incident = get_incident_by_number(incident_id)
+        else:
+            incident_number = AppState.get_active_incident()
+            incident = get_incident_by_number(incident_number) if incident_number else None
+
+        # Construct the display text based on the result
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        if incident:
+            text = (
+                f"Incident: {incident['number']} | {incident['name']}  •  "
+                f"User: {user_id or '-'}  •  Role: {user_role or '-'}"
+            )
+        else:
+            text = f"Incident: None  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+
+        # Normalize no-incident text
+        try:
+            if 'Incident: None' in text:
+                text = text.replace('Incident: None', 'Incident: No Incident Loaded', 1)
+        except Exception:
+            pass
+
+        # Normalize no-incident text
+        try:
+            if 'Incident: None' in text:
+                text = text.replace('Incident: None', 'Incident: No Incident Loaded', 1)
+        except Exception:
+            pass
+
+        # Update the label if it exists (e.g. if the debug panel was created)
+        if hasattr(self, "active_incident_label"):
+            self.active_incident_label.setText(text)
+
+    # --- Metric Widgets (simple counters) ---------------------------------
+    def open_home_dashboard(self) -> None:
+        from ui.dashboard.home_dashboard import HomeDashboard
+        panel = HomeDashboard(self.settings_manager)
+        # docked by default
+        self._open_dock_widget(panel, title="Home Dashboard", float_on_open=False)
+
+    def open_widget_with_id(self, widget_id: str) -> None:
+        """Instantiate a registered widget by id and open it in a dock."""
+        try:
+            from ui.widgets import registry as W
+            from ui.widgets.components import QuickEntryWidget
+            from ui.actions.quick_entry_actions import dispatch as qe_dispatch, execute_cli as qe_cli
+        except Exception as e:
+            QMessageBox.critical(self, "Widgets", f"Widget system unavailable: {e}")
+            return
+
+        spec = W.REGISTRY.get(widget_id)
+        if not spec:
+            QMessageBox.warning(self, "Widgets", f"Unknown widget: {widget_id}")
+            return
+
+        # Construct component
+        try:
+            if widget_id == "quickEntry":
+                comp = QuickEntryWidget(qe_dispatch, qe_cli)
+            else:
+                comp_factory = spec.component
+                comp = comp_factory() if callable(comp_factory) else comp_factory  # type: ignore
+                if comp is None:
+                    raise RuntimeError("Widget component not available")
+        except Exception as e:
+            QMessageBox.critical(self, spec.title, f"Failed to render widget: {e}")
+            return
+
+        self._open_dock_widget(comp, title=spec.title, float_on_open=False)
+
+    def _count_open_tasks(self) -> int:
+        """Best-effort count of tasks not complete. Uses sample data fallback."""
+        try:
+            from data.sample_data import sample_tasks
+            return sum(1 for t in sample_tasks if str(getattr(t, 'status', '')).lower() not in {"complete", "completed"})
+        except Exception:
+            try:
+                from data.sample_data import TASK_ROWS, TASK_HEADERS
+                si = TASK_HEADERS.index("Status") if "Status" in TASK_HEADERS else 2
+                return sum(1 for row in TASK_ROWS if str(row[si]).lower() not in {"complete", "completed"})
+            except Exception:
+                return 0
+
+    def _count_active_teams(self) -> int:
+        """Best-effort count of teams considered active (not Out of Service)."""
+        try:
+            from data.sample_data import sample_teams
+            return sum(1 for t in sample_teams if str(getattr(t, 'status', '')).lower() not in {"out of service", "offline"})
+        except Exception:
+            try:
+                from data.sample_data import TEAM_ROWS, TEAM_HEADERS
+                si = TEAM_HEADERS.index("Status") if "Status" in TEAM_HEADERS else 4
+                return sum(1 for row in TEAM_ROWS if str(row[si]).lower() not in {"out of service", "offline"})
+            except Exception:
+                return 0
+
+
+# Lightweight widget used by the Widgets submenu for simple metrics
+class MetricWidget(QWidget):
+    """Deprecated simple widget (kept to avoid breaking imports)."""
+    def __init__(self, *args, **kwargs):  # pragma: no cover
+        super().__init__()
+        lab = QLabel("Deprecated widget. Use Home Dashboard.")
+        lay = QVBoxLayout(self)
+        lay.addWidget(lab)
 
     def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
         """Open a QML Window (as a modal dialog) and inject the catalog bridge."""
@@ -934,14 +1870,33 @@ class MainWindow(QMainWindow):
         # Inject per-window SQLite models for master catalog windows
         try:
             base = os.path.basename(qml_rel_path)
-            name = base[:-9] if base.endswith("Window.qml") else os.path.splitext(base)[0]
+            # Strip the full suffix "Window.qml" (10 chars) to get the base name
+            name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
             # Map window base name -> table name (validate against sqlite_master)
             table = self._resolve_master_table(name)
+            print(f"[main._open_qml_modal:MetricWidget] qml='{qml_rel_path}', base='{base}', name='{name}', resolved_table='{table}'")
             if table:
                 model_name = f"{name}Model"
                 model = SqliteTableModel("data/master.db")
-                model.load_query(f"SELECT * FROM {table}")
+                sql = f"SELECT * FROM {table}"
+                print(f"[main._open_qml_modal:MetricWidget] injecting model '{model_name}' with sql: {sql}")
+                model.load_query(sql)
                 ctx.setContextProperty(model_name, model)
+                try:
+                    print(f"[main._open_qml_modal:MetricWidget] model '{model_name}' rowCount={model.rowCount()}")
+                except Exception:
+                    pass
+            else:
+                try:
+                    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
+                    con = sqlite3.connect(db_path)
+                    cur = con.cursor()
+                    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    tbls = [r[0] for r in cur.fetchall()]
+                    con.close()
+                    print(f"[main._open_qml_modal:MetricWidget] no table for '{name}'. sqlite tables: {tbls}")
+                except Exception as e:
+                    print(f"[main._open_qml_modal:MetricWidget] failed to enumerate tables: {e}")
         except Exception as e:
             print(f"[main] model injection error for {qml_rel_path}: {e}")
 
@@ -952,6 +1907,39 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "_open_qml_views"):
             self._open_qml_views = []
         self._open_qml_views.append(view)
+
+    def _open_qml_placeholder(self, title: str, body: str, float_on_open: bool = True) -> None:
+        qml_file = os.path.join("ui", "qml", "PlaceholderPanel.qml")
+        ctx = {"panelTitle": title, "panelBody": body}
+        self._open_dock_from_qml(qml_file, title, float_on_open=float_on_open, context=ctx)
+
+    # (Deprecated widget openers removed in favor of Home Dashboard)
+
+    def _count_open_tasks(self) -> int:
+        """Best-effort count of tasks not complete. Uses sample data fallback."""
+        try:
+            from data.sample_data import sample_tasks
+            return sum(1 for t in sample_tasks if str(getattr(t, 'status', '')).lower() not in {"complete", "completed"})
+        except Exception:
+            try:
+                from data.sample_data import TASK_ROWS, TASK_HEADERS
+                si = TASK_HEADERS.index("Status") if "Status" in TASK_HEADERS else 2
+                return sum(1 for row in TASK_ROWS if str(row[si]).lower() not in {"complete", "completed"})
+            except Exception:
+                return 0
+
+    def _count_active_teams(self) -> int:
+        """Best-effort count of teams considered active (not Out of Service)."""
+        try:
+            from data.sample_data import sample_teams
+            return sum(1 for t in sample_teams if str(getattr(t, 'status', '')).lower() not in {"out of service", "offline"})
+        except Exception:
+            try:
+                from data.sample_data import TEAM_ROWS, TEAM_HEADERS
+                si = TEAM_HEADERS.index("Status") if "Status" in TEAM_HEADERS else 4
+                return sum(1 for row in TEAM_ROWS if str(row[si]).lower() not in {"out of service", "offline"})
+            except Exception:
+                return 0
 
     def _resolve_master_table(self, base_name: str) -> str | None:
         """Resolve a master.db table name for a given Window base name.
@@ -1025,7 +2013,7 @@ class MainWindow(QMainWindow):
             suffix = ""
             if user_id or user_role:
                 suffix = f" — User: {user_id or ''} ({user_role or ''})"
-            self.setWindowTitle(f"SARApp - Incident Management Assistant{suffix}")
+            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
 
         # Also update the active incident label so it stays in sync with the title
         # (this will only have an effect if the debug panel has been created)

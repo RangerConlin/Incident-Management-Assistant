@@ -9,6 +9,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "name", order: "asc" })
   model: TeamTypesModel
+  bridgeListFn: function(q) { return catalogBridge.listTeamTypes(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createTeamType(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateTeamType(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteTeamType(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "type_short", label: "Name", type: "text", editable: true, required: true, width: 240 },

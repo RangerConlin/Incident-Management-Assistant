@@ -6,6 +6,7 @@ from PySide6.QtCore import (
     QObject, Slot, Signal
 )
 from PySide6.QtCore import QSortFilterProxyModel, QObject, Signal, Slot, QModelIndex
+from PySide6.QtWidgets import QMessageBox
 import os, sqlite3
 from types import SimpleNamespace
 from typing import List, Any
@@ -292,6 +293,7 @@ class IncidentController(QObject):
         self.proxy.setSourceModel(self.model)
 
     @Slot('QVariant', 'QVariant')
+    @Slot(QObject, int)
     def loadIncident(self, proxy, row):
         from PySide6.QtCore import Qt, QModelIndex
         print(f"[controller] loadIncident: row={row}")
@@ -394,7 +396,74 @@ class IncidentController(QObject):
 
     @Slot(QObject, int)
     def deleteIncident(self, model, row: int) -> None:
-        print("[IncidentController] deleteIncident called for row", row)
+        try:
+            if self.model is None or self.proxy is None:
+                print("[IncidentController] deleteIncident: model/proxy not set")
+                return
+            # Map row to source index
+            pidx: QModelIndex = self.proxy.index(int(row), 0)
+            sidx: QModelIndex = self.proxy.mapToSource(pidx)
+            if not sidx.isValid():
+                print("[IncidentController] deleteIncident: invalid source index")
+                return
+            # Extract number and name from source model
+            role_number = _role_id(self.model, b"number")
+            role_name = _role_id(self.model, b"name")
+            number = self.model.data(sidx, role_number)
+            name = self.model.data(sidx, role_name)
+            if not number:
+                print("[IncidentController] deleteIncident: no number resolved")
+                return
+
+            # Confirm with user
+            resp = QMessageBox.question(
+                None,
+                "Delete Incident",
+                f"Delete incident '{name}' (#{number})?\n\nThis will remove it from the list and delete its incident database.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if resp != QMessageBox.Yes:
+                return
+
+            # Delete from master.db
+            db_path = _abs_master_db_path()
+            con = sqlite3.connect(db_path)
+            cur = con.cursor()
+            try:
+                cur.execute("DELETE FROM incidents WHERE number = ?", (str(number),))
+                con.commit()
+            finally:
+                con.close()
+
+            # Delete incident DB file
+            inc_path = os.path.join(os.path.dirname(db_path), "incidents", f"{number}.db")
+            try:
+                if os.path.exists(inc_path):
+                    os.remove(inc_path)
+            except Exception as e:
+                print(f"[IncidentController] Warning: failed to delete incident DB: {e}")
+
+            # If the deleted incident was the active one, clear app/session state
+            try:
+                from utils.state import AppState
+                active = AppState.get_active_incident()
+                if str(active) == str(number):
+                    AppState.set_active_incident(None)
+                    try:
+                        from utils import incident_context
+                        incident_context.set_active_incident(None)  # type: ignore[arg-type]
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # Refresh model
+            self.model.refresh()
+        except Exception as e:
+            import traceback
+            print("[IncidentController] deleteIncident error:", e)
+            traceback.print_exc()
 
     @Slot()
     def newIncident(self) -> None:

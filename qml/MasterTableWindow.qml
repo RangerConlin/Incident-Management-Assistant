@@ -10,7 +10,9 @@ Item {
 
     // Injected API/config
     property string windowTitle: "Master Catalog"
-    property var columns: []                 // [{ key, label, width?, editable?, type?, required? }]
+    property var columns: []                 // [{ key, label, width?, editable?, type?, required?, valueMap? }]
+    // Resizable columns: user overrides applied on top of column.width
+    property var columnWidthOverrides: []    // number[] same length as columns
     property string primaryKey: "id"
     property string searchPlaceholder: "Search..."
     property var bridgeListFn: function(q){ return [] }
@@ -20,10 +22,16 @@ Item {
     // Optional Qt model (QAbstractItemModel). When set, rows[] is ignored for display.
     property var model: null
     property var defaultSort: ({ key: primaryKey, order: "asc" })
+    // Optional: enable model-driven ORDER BY when a Qt model is provided
+    property string tableName: ""
+    // Optional: override select columns; defaults to '*' when empty
+    property var selectColumns: []
     property string editFormTitle: "Edit"
 
     width: 1000
     height: 640
+
+    // initial refresh handled at end of component
 
     signal rowsRefreshed(int count)
 
@@ -32,10 +40,21 @@ Item {
     property var selectedId: null
 
     // Sum of configured column widths (fallback 140 each)
+    function _colWidth(i) {
+        var defw = (columns[i] && columns[i].width) ? columns[i].width : 140;
+        if (columnWidthOverrides && columnWidthOverrides.length > i && columnWidthOverrides[i] > 0) return columnWidthOverrides[i];
+        return defw;
+    }
     function columnsTotalWidth() {
         var w = 0;
-        for (var i=0; i<columns.length; ++i) w += (columns[i].width || 140);
+        for (var i=0; i<columns.length; ++i) w += _colWidth(i);
         return w;
+    }
+    function setColumnWidth(i, w) {
+        var arr = columnWidthOverrides ? columnWidthOverrides.slice() : [];
+        while (arr.length <= i) arr.push(0);
+        arr[i] = Math.max(60, Math.floor(w));
+        columnWidthOverrides = arr; // reassign to trigger bindings
     }
 
     function _sortRows(list) {
@@ -56,14 +75,43 @@ Item {
         });
     }
 
+    function _isNumericKey(k) {
+        for (var i=0; i<columns.length; ++i) {
+            if (columns[i].key === k) {
+                var t = (columns[i].type || "").toLowerCase();
+                return (t === "int" || t === "number");
+            }
+        }
+        return false;
+    }
+
+    function _orderClause() {
+        var k = defaultSort && defaultSort.key ? defaultSort.key : primaryKey;
+        var ord = !defaultSort || (defaultSort.order || "asc") === "asc" ? "ASC" : "DESC";
+        return _isNumericKey(k) ? (k + " " + ord) : (k + " COLLATE NOCASE " + ord);
+    }
+
     function refresh(q) {
         var keepSelId = (selectedRow >= 0 && rows[selectedRow]) ? rows[selectedRow][primaryKey] : null;
         var keepY = table.contentY;
 
         if (model) {
-            // In Qt model mode, Python side handles refresh; just emit count if available
+            // In Qt model mode, if tableName is provided, build a sorted SELECT
             try {
-                rowsRefreshed(model.rowCount ? model.rowCount() : 0)
+                if (tableName && model.setQuery) {
+                    var cols = (selectColumns && selectColumns.length > 0)
+                              ? selectColumns.join(", ")
+                              : "*";
+                    var sql = "SELECT " + cols + " FROM " + tableName + " ORDER BY " + _orderClause();
+                    model.setQuery(sql);
+                } else if (model.reload) {
+                    model.reload();
+                }
+            } catch (e) { /* ignore */ }
+            try {
+                var cnt = model.rowCount ? model.rowCount() : 0;
+                rowsRefreshed(cnt)
+                console.log('[MasterTableWindow] model mode refresh; rowCount=', cnt)
             } catch (e) { rowsRefreshed(0) }
         } else {
             try {
@@ -71,6 +119,7 @@ Item {
                 _sortRows(data);
                 rows = data;
                 rowsRefreshed(rows.length);
+                console.log('[MasterTableWindow] list mode refresh; rows=', rows.length)
             } catch (e) { console.log("list error:", e); }
         }
 
@@ -97,8 +146,15 @@ Item {
     }
 
     function editRow() {
-        if (selectedRow < 0 || selectedRow >= rows.length) return;
-        var current = rows[selectedRow];
+        if (selectedRow < 0) return;
+        var current = null;
+        if (root.model && root.model.rowMap) {
+            try { current = root.model.rowMap(selectedRow); } catch (e) { current = null }
+        }
+        if (!current) {
+            if (selectedRow >= 0 && selectedRow < rows.length) current = rows[selectedRow];
+        }
+        if (!current) return;
         editor.titleText = editFormTitle || "Edit";
         editor.data = current;
         editor.onSubmit = function(map){
@@ -159,9 +215,9 @@ Item {
             Item {
                 id: tableContainer
                 implicitWidth: columnsTotalWidth()
-                implicitHeight: headerBar.height + table.contentHeight
+                implicitHeight: headerBar.height + table.height
                 width: implicitWidth
-                height: Math.max(hScroll.height, implicitHeight)
+                height: hScroll.height
 
                 Rectangle {
                     id: headerBar
@@ -180,7 +236,7 @@ Item {
                         Repeater {
                             model: columns
                             delegate: Rectangle {
-                                width: (modelData.width || 140)
+                                width: _colWidth(index)
                                 height: 28
                                 color: "transparent"
                                 border.color: "#d0d0d0"
@@ -189,6 +245,37 @@ Item {
                                     text: modelData.label || modelData.key
                                     font.bold: true
                                     elide: Text.ElideRight
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: function() {
+                                        var k = modelData.key;
+                                        if (!k) return;
+                                        if (defaultSort && defaultSort.key === k) {
+                                            defaultSort = { key: k, order: ((defaultSort.order || "asc") === "asc" ? "desc" : "asc") };
+                                        } else {
+                                            defaultSort = { key: k, order: "asc" };
+                                        }
+                                        refresh("");
+                                    }
+                                }
+                                // Resize handle on the right edge
+                                MouseArea {
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.right: parent.right
+                                    width: 6
+                                    cursorShape: Qt.SplitHCursor
+                                    acceptedButtons: Qt.LeftButton
+                                    property real __startX
+                                    property real __startW
+                                    onPressed: { __startX = mouse.x; __startW = parent.width; }
+                                    onPositionChanged: {
+                                        if (!pressed) return;
+                                        var dx = mouse.x - __startX;
+                                        setColumnWidth(index, __startW + dx);
+                                    }
                                 }
                             }
                         }
@@ -203,7 +290,7 @@ Item {
                     height: Math.max(0, hScroll.height - headerBar.height)
                     clip: true
                     model: (root.model ? root.model : rows)
-                    boundsBehavior: Flickable.DragAndOvershootBounds
+                    boundsBehavior: Flickable.StopAtBounds
                     flickableDirection: Flickable.VerticalFlick
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                     highlight: Rectangle { color: "#e0f0ff" }
@@ -212,33 +299,39 @@ Item {
                     delegate: Item {
                         width: columnsTotalWidth()
                         height: 28
-                        Rectangle { anchors.fill: parent; color: (index % 2 === 0 ? "#ffffff" : "#f7f7f7"); border.color: "#eaeaea" }
+                        Rectangle { anchors.fill: parent; color: (rowIndex === selectedRow ? "#dbeafe" : (index % 2 === 0 ? "#ffffff" : "#f7f7f7")); border.color: "#eaeaea" }
 
                         property int rowIndex: index
+                        // When using a Qt model, fetch values per cell via model.value(row,key)
 
                         Row {
-                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.fill: parent
                             spacing: 0
                             Repeater {
                                 model: columns
                                 delegate: Rectangle {
-                                    width: (modelData.width || 140)
+                                    width: _colWidth(index)
                                     height: 28
                                     color: "transparent"
                                     border.color: "#eaeaea"
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: 6
-                                        // New binding: in Qt-model mode, use __row map
-                                        text: root.model
-                                              ? ((__row && __row[modelData.key] !== undefined && __row[modelData.key] !== null)
-                                                  ? String(__row[modelData.key]) : "")
-                                              : ((rows[rowIndex] && rows[rowIndex][modelData.key] !== undefined && rows[rowIndex][modelData.key] !== null)
-                                                  ? String(rows[rowIndex][modelData.key]) : "")
-                                        elide: Text.ElideRight
-                                    }
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.leftMargin: 6
+                                    anchors.topMargin: 6
+                                    // In Qt-model mode, query by role name via value(row,key)
+                                    text: (function(){
+                                        var v = root.model
+                                                ? root.model.value(rowIndex, modelData.key)
+                                                : (rows[rowIndex] ? rows[rowIndex][modelData.key] : null);
+                                        if (modelData.valueMap) {
+                                            try { if (v in modelData.valueMap) return String(modelData.valueMap[v]); } catch(e) {}
+                                        }
+                                        return (v !== undefined && v !== null) ? String(v) : "";
+                                    })()
+                                    elide: Text.ElideRight
                                 }
+                            }
                             }
                         }
 
@@ -247,7 +340,7 @@ Item {
                             onClicked: {
                                 selectedRow = index;
                                 if (root.model) {
-                                    try { selectedId = __row && __row[primaryKey] !== undefined ? __row[primaryKey] : null; }
+                                    try { var v = root.model.value(index, primaryKey); selectedId = (v !== undefined && v !== null) ? v : null; }
                                     catch (e) { selectedId = null }
                                 } else {
                                     selectedId = (rows[index] ? rows[index][primaryKey] : null)
@@ -284,5 +377,6 @@ Item {
 
     Shared.MasterEditDialog { id: editor; columns: root.columns }
 
-    Component.onCompleted: refresh("")
+    // Trigger initial load after the event loop ticks to ensure context models are ready
+    Component.onCompleted: Qt.callLater(function(){ refresh("") })
 }

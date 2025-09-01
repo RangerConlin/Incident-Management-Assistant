@@ -4,7 +4,7 @@ import os
 import sqlite3
 from typing import Any, List, Sequence, Tuple
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QByteArray
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QByteArray, Slot
 
 
 class SqliteTableModel(QAbstractTableModel):
@@ -23,6 +23,8 @@ class SqliteTableModel(QAbstractTableModel):
         self._db_path = db_path
         self._headers: List[str] = []
         self._rows: List[Tuple[Any, ...]] = []
+        self._last_sql: str | None = None
+        self._last_params: Sequence[Any] | None = None
 
     # --- Qt model API ---
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
@@ -69,6 +71,9 @@ class SqliteTableModel(QAbstractTableModel):
         try:
             con = sqlite3.connect(db_path)
             cur = con.cursor()
+            # Remember the last query so we can refresh from QML
+            self._last_sql = sql
+            self._last_params = tuple(params)
             cur.execute(sql, tuple(params))
             headers = [d[0] for d in (cur.description or [])]
             for row in cur.fetchall():
@@ -87,4 +92,47 @@ class SqliteTableModel(QAbstractTableModel):
         self._headers = headers
         self._rows = rows
         self.endResetModel()
+        try:
+            print(f"[SqliteTableModel] loaded {len(rows)} rows from '{db_path}' with headers={headers} for sql='{sql.strip()}'")
+        except Exception:
+            pass
+
+    @Slot()
+    def reload(self) -> None:
+        """Reload the last executed SELECT query (for QML refresh)."""
+        if not self._last_sql:
+            return
+        try:
+            self.load_query(self._last_sql, self._last_params or ())
+        except Exception:
+            # Best-effort; any error already logged in load_query
+            pass
+
+    @Slot(int, result='QVariant')
+    def rowMap(self, row: int):
+        """Return a dict mapping column name -> value for a given row index."""
+        if row < 0 or row >= len(self._rows):
+            return {}
+        return {h: self._rows[row][i] for i, h in enumerate(self._headers)}
+
+    @Slot(int, str, result='QVariant')
+    def value(self, row: int, key: str):
+        """Return a single cell by row index and column name (for QML)."""
+        try:
+            if row < 0 or row >= len(self._rows):
+                return None
+            if key not in self._headers:
+                return None
+            col = self._headers.index(key)
+            return self._rows[row][col]
+        except Exception:
+            return None
+
+    @Slot(str)
+    def setQuery(self, sql: str) -> None:
+        """Set a new SELECT query and load it (for QML)."""
+        try:
+            self.load_query(sql)
+        except Exception:
+            pass
 

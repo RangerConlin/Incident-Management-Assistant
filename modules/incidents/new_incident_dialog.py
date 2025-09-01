@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from utils.incident_db import create_incident_database
+from models.database import get_incident_by_number
 
 
 @dataclass(slots=True)
@@ -97,9 +98,26 @@ class NewIncidentDialog(QDialog):
             QMessageBox.warning(self, "Missing Data", "Name and Number are required.")
             return
 
-        slug = meta.slug()
-        db_path = create_incident_database(slug)
-        # TODO: register incident metadata in master.db
+        # Prevent duplicates: check master for existing incident number
+        try:
+            existing = get_incident_by_number(meta.number)
+            if existing:
+                QMessageBox.warning(
+                    self,
+                    "Duplicate Incident",
+                    f"An incident with number '{meta.number}' already exists.",
+                )
+                return
+        except Exception:
+            # If master.db is unavailable, still proceed to file-level check
+            pass
+
+        # Create incident DB named after the incident number; prevent overwrite
+        try:
+            db_path = create_incident_database(meta.number)
+        except FileExistsError as e:
+            QMessageBox.warning(self, "Already Exists", str(e))
+            return
 
         self.created.emit(meta, str(db_path))
         self.accept()

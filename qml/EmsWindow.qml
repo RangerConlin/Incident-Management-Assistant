@@ -9,6 +9,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "name", order: "asc" })
   model: EmsModel
+  bridgeListFn: function(q) { return catalogBridge.listEms(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createEms(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateEms(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteEms(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "name", label: "Name", type: "text", editable: true, required: true, width: 220 },
@@ -24,5 +28,5 @@ Shared.MasterTableWindow {
     { key: "notes", label: "Notes", type: "multiline", editable: true, width: 260 },
     { key: "is_active", label: "Active", type: "int", editable: true, width: 80 }
   ]
-  // viewing via model; bridge remains unused here
+  // wired to bridge for add/edit/delete
 }

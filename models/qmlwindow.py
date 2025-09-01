@@ -59,7 +59,7 @@ def _window_model_map():
         "CannedCommEntriesWindow.qml": (
             "CannedCommEntriesModel",
             lambda: _make_model("""
-                SELECT id, title, category, body, delivery_channels, notes, is_active
+                SELECT id, title, category, message, notification_level, status_update, is_active
                 FROM canned_comm_entries
                 ORDER BY category COLLATE NOCASE, title COLLATE NOCASE;
             """)

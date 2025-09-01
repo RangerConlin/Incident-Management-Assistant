@@ -1,11 +1,12 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 
-Item {
-    width: 400
-    height: 300
+Item { anchors.fill: parent
     Column {
-        anchors.centerIn: parent
-        Text { text: "Logistics Assignment Dashboard" }
+        anchors.fill: parent; anchors.margins: 16; spacing: 8
+        Label { text: "Assignment Dashboard"; font.bold: true; font.pointSize: 14 }
+        TextArea { text: "Placeholder for assignments overview dashboard."; readOnly: true; wrapMode: Text.WordWrap
+            background: Rectangle { color: "transparent"; border.color: "#ccc"; radius: 6 } }
     }
 }
+

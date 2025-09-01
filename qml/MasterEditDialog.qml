@@ -11,6 +11,9 @@ Dialog {
     property var onSubmit: function(map) { return false }
 
     modal: true
+    // Ensure dialog is large enough and buttons remain visible
+    width: Math.min((parent ? parent.width : Screen.width) - 80, 900)
+    height: Math.min((parent ? parent.height : Screen.height) - 120, 640)
     x: (parent ? parent.width : Screen.width) / 2 - width/2
     y: (parent ? parent.height : Screen.height) / 2 - height/2
     title: titleText
@@ -26,31 +29,51 @@ Dialog {
         anchors.margins: 16
         spacing: 10
 
-        Repeater {
-            model: root._editables
-            delegate: RowLayout {
+        // Scrollable field area
+        ScrollView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+            ColumnLayout {
+                id: fieldsColumn
+                width: parent ? parent.width : undefined
                 spacing: 10
-                property var col: modelData
-                Label { text: col.label || col.key; Layout.preferredWidth: 140 }
+                Repeater {
+                    model: root._editables
+                    delegate: RowLayout {
+                        spacing: 10
+                        property var col: modelData
+                        Label { text: col.label || col.key; Layout.preferredWidth: 140 }
 
                 Loader {
                     Layout.fillWidth: true
-                    sourceComponent: {
-                        switch ((col.type || "text")) {
-                        case "multiline": return areaDelegate
-                        case "int": return intDelegate
-                        case "float": return floatDelegate
-                        case "enum": return enumDelegate
-                        case "tel": return textDelegate
-                        case "email": return textDelegate
-                        default: return textDelegate
-                        }
-                    }
+                    sourceComponent: (col && col.valueMap) ? enumDelegate : (
+                        (function(){
+                            switch ((col.type || "text")) {
+                                case "multiline": return areaDelegate;
+                                case "int": return intDelegate;
+                                case "float": return floatDelegate;
+                                case "enum": return enumDelegate;
+                                case "tel": return textDelegate;
+                                case "email": return textDelegate;
+                                default: return textDelegate;
+                            }
+                        })()
+                    )
                     onLoaded: {
-                        if (item && root.data && root.data.hasOwnProperty(col.key)) {
-                            if (item.hasOwnProperty('text')) item.text = String(root.data[col.key] ?? "");
-                            if (item.hasOwnProperty('value')) item.value = root.data[col.key];
+                        if (!item) return;
+                        if (item.hasOwnProperty('col')) { item.col = col; }
+                        var has = root.data && root.data.hasOwnProperty(col.key);
+                        if (has) {
+                            if (item.hasOwnProperty('prefill')) {
+                                item.prefill(root.data[col.key]);
+                            } else {
+                                if (item.hasOwnProperty('text')) item.text = String(root.data[col.key] ?? "");
+                                if (item.hasOwnProperty('value')) item.value = root.data[col.key];
+                            }
                         }
+                        if (item && item.rebuild) { item.rebuild(); }
                         item.objectName = "field::" + col.key
                     }
                 }
@@ -78,7 +101,9 @@ Dialog {
                             if (ch.objectName && ch.objectName === 'field::' + k) { editor = ch; break;}
                         }
                         var v = editor && (editor.value !== undefined ? editor.value : editor.text);
-                        if (required && (!v || String(v).trim().length === 0)) {
+                        // Treat blank strings in enums as null (for optional fields)
+                        if (v === "") v = null;
+                        if (required && (v === null || v === undefined || (typeof v === 'string' && String(v).trim().length === 0))) {
                             ok = false;
                             editor && editor.forceActiveFocus && editor.forceActiveFocus();
                             break;
@@ -114,7 +139,54 @@ Dialog {
         TextField { Layout.fillWidth: true; inputMethodHints: Qt.ImhFormattedNumbersOnly }
     }
     Component { id: enumDelegate
-        ComboBox { Layout.fillWidth: true; model: col && col.options ? col.options : [] }
+        ComboBox {
+            id: cb
+            Layout.fillWidth: true
+            // receive column config from loader
+            property var col: null
+            property var _keys: []
+            property var _labels: []
+            property var value: null
+            function rebuild() {
+                if (col && col.valueMap) {
+                    _keys = Object.keys(col.valueMap).map(function(k){ return parseInt(k) });
+                    _labels = _keys.map(function(k){ return String(col.valueMap[k]) });
+                    model = _labels;
+                    if (currentIndex < 0) currentIndex = 0;
+                    value = _keys.length > 0 ? _keys[currentIndex] : null;
+                } else if (col && col.options) {
+                    model = col.options;
+                    if (currentIndex < 0) currentIndex = 0;
+                    value = (model && model.length > 0) ? model[currentIndex] : null;
+                }
+            }
+            function prefill(v) {
+                if (col && col.valueMap) {
+                    _keys = Object.keys(col.valueMap).map(function(k){ return parseInt(k) });
+                    _labels = _keys.map(function(k){ return String(col.valueMap[k]) });
+                    model = _labels;
+                    var idx = _keys.indexOf(Number(v));
+                    currentIndex = (idx >= 0 ? idx : 0);
+                    value = _keys[currentIndex];
+                } else if (col && col.options) {
+                    model = col.options;
+                    var ix = (typeof v === 'string') ? model.indexOf(v) : -1;
+                    currentIndex = (ix >= 0 ? ix : 0);
+                    value = model[currentIndex];
+                }
+            }
+            Component.onCompleted: {
+                rebuild();
+            }
+            onColChanged: rebuild()
+            onCurrentIndexChanged: {
+                if (col && col.valueMap) {
+                    value = (_keys && _keys.length > currentIndex && currentIndex >= 0) ? _keys[currentIndex] : null;
+                } else if (col && col.options) {
+                    value = (model && model.length > currentIndex && currentIndex >= 0) ? model[currentIndex] : null;
+                }
+            }
+        }
     }
 }
 

@@ -1,0 +1,180 @@
+# ===== Part 1: Imports & Logging ============================================
+import os
+import sys
+import logging
+from typing import Callable
+
+from PySide6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QMenu,
+    QLabel,
+    QWidget,
+    QVBoxLayout,
+    QMessageBox,
+    QDialog,
+    QListWidget,
+    QPushButton,
+    QHBoxLayout,
+    QInputDialog,
+)
+from PySide6.QtQuickWidgets import QQuickWidget
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import Qt, QUrl, QSettings, QTimer
+from PySide6.QtQuick import QQuickView
+from PySide6.QtQuickControls2 import QQuickStyle
+from PySide6.QtQuick import QQuickWindow
+from PySide6QtAds import (
+    CDockManager,
+    CDockWidget,
+    LeftDockWidgetArea,
+    RightDockWidgetArea,
+    TopDockWidgetArea,
+    BottomDockWidgetArea,
+    CenterDockWidgetArea,
+)
+QQuickStyle.setStyle("Fusion")
+
+
+# Force a known-good default dock layout on startup (ignores saved layouts)
+FORCE_DEFAULT_LAYOUT = True
+
+
+# (QML utilities kept, though handlers now follow panel-factory pattern)
+from models.qmlwindow import QmlWindow, new_incident_form, open_incident_list
+from utils.state import AppState
+from models.database import get_incident_by_number
+from bridge.settings_bridge import QmlSettingsBridge
+from utils.settingsmanager import SettingsManager
+from bridge.catalog_bridge import CatalogBridge
+from bridge.incident_bridge import IncidentBridge
+from models.sqlite_table_model import SqliteTableModel
+import sqlite3
+# 'os' imported earlier for env setup
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
+)
+
+
+
+# ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
+class MainWindow(QMainWindow):
+    """
+    Menu-first structure. Every visible menu item has a corresponding handler method,
+    and ALL handlers follow the same pattern:
+      - import module
+      - incident_id = getattr(self, "current_incident_id", None)
+      - panel = module.get_*_panel(incident_id)
+      - self._open_dock_widget(panel, title="...")
+    Placeholders are fine if a real module/factory doesn't exist yet.
+    """
+    def __init__(self, settings_manager: SettingsManager | None = None,
+                 settings_bridge: QmlSettingsBridge | None = None):
+        super().__init__()
+        self.setStyleSheet("background-color: #f5f5f5;")
+
+        if settings_manager is None:
+            settings_manager = SettingsManager()
+        if settings_bridge is None:
+            settings_bridge = QmlSettingsBridge(settings_manager)
+        self.settings_manager = settings_manager
+        self.settings_bridge = settings_bridge
+
+        # Prepare a Mission Status label (will live inside a dock, not fixed)
+        self.active_incident_label = QLabel()
+        self.update_active_incident_label()
+
+        # Title includes active incident (if any)
+        active_number = AppState.get_active_incident()
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
+        if active_number:
+            incident = get_incident_by_number(active_number)
+            if incident:
+                title = f"SARApp - {incident['number']} | {incident['name']}{suffix}"
+            else:
+                title = f"SARApp - No Incident Loaded{suffix}"
+        else:
+            title = f"SARApp - No Incident Loaded{suffix}"
+        self.setWindowTitle(title)
+        self.resize(1280, 800)
+
+        # Central widget with persistent header and ADS dock manager
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        try:
+            central_layout.setContentsMargins(0, 0, 0, 0)
+            central_layout.setSpacing(0)
+        except Exception:
+            pass
+        # Only a dock container in the central area; status goes to a dock
+        self._dock_container = QWidget()
+        central_layout.addWidget(self._dock_container)
+        try:
+            cont_layout = QVBoxLayout(self._dock_container)
+            cont_layout.setContentsMargins(0, 0, 0, 0)
+            cont_layout.setSpacing(0)
+        except Exception:
+            pass
+        self.setCentralWidget(central)
+
+        self.dock_manager = CDockManager(self._dock_container)
+        # If CDockManager is a QWidget, add to container layout to fill area
+        try:
+            cont_layout.addWidget(self.dock_manager)  # type: ignore[name-defined]
+        except Exception:
+            pass
+
+        # Load persisted perspectives if available (unless forced default)
+        self._perspective_file = os.path.join("settings", "ads_perspectives.ini")
+        opened_default = False
+        if FORCE_DEFAULT_LAYOUT:
+            # Clear any saved layout and seed defaults immediately
+            try:
+                settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+                settings_obj.clear()
+            except Exception:
+                pass
+            self._reset_layout()
+            opened_default = True
+        else:
+            try:
+                settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+                self.dock_manager.loadPerspectives(settings_obj)
+                names = []
+                try:
+                    names = list(self.dock_manager.perspectiveNames())
+                except Exception:
+                    names = []
+                if "default" in names:
+                    try:
+                        rv = self.dock_manager.openPerspective("default")
+                        opened_default = bool(rv) if rv is not None else True
+                    except Exception:
+                        opened_default = False
+            except Exception as e:
+                logger.warning("Failed to load ADS perspectives: %s", e)
+
+        # Build the physical menu bar (visible UI)
+        self.init_module_menus()
+
+        # If no saved layout was opened, create some default docks to play with
+        # Seed defaults if not forced and no perspective opened or nothing is docked
+        if not FORCE_DEFAULT_LAYOUT:
+            try:
+                names = []
+                try:
+                    names = list(self.dock_manager.perspectiveNames())
+                except Exception:
+                    names = []
+                has_any_docks = bool(self.findChildren(CDockWidget))
+                if (not opened_default) or (not has_any_docks):
+                    self._create_default_docks()
+            except Exception:
+                self._create_default_docks()
+
+    # ----- Part 2.A: Physical Menu Builder ----------------------------------

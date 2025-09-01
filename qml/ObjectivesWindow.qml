@@ -9,6 +9,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "priority", order: "desc" })
   model: ObjectivesModel
+  bridgeListFn: function(q) { return catalogBridge.listObjectives(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createObjectives(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateObjectives(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteObjectives(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "description", label: "Description", type: "multiline", editable: true, required: true, width: 420 },

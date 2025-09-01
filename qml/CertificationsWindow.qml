@@ -11,6 +11,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "code", order: "asc" })
   model: CertificationsModel
+  bridgeListFn: function(q) { return catalogBridge.listCertifications(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createCertification(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateCertification(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteCertification(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "code", label: "Code", type: "text", editable: true, required: true, width: 120 },

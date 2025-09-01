@@ -163,7 +163,12 @@ class CatalogBridge(QObject):
 
     @Slot(str, result=list)
     def listCannedCommEntries(self, searchText: str = "") -> List[Dict[str, Any]]:
-        return self._svc("canned_comm_entries").list(searchText)
+        rows = self._svc("canned_comm_entries").list(searchText)
+        try:
+            print(f"[CatalogBridge.listCannedCommEntries] returning {len(rows)} rows for search='{searchText}'")
+        except Exception:
+            pass
+        return rows
 
     @Slot(dict, result=int)
     def createCannedCommEntry(self, data: Dict[str, Any]) -> int:

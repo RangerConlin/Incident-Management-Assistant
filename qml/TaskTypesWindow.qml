@@ -9,6 +9,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "name", order: "asc" })
   model: TaskTypesModel
+  bridgeListFn: function(q) { return catalogBridge.listTaskTypes(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createTaskType(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateTaskType(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteTaskType(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "name", label: "Name", type: "text", editable: true, required: true, width: 220 },

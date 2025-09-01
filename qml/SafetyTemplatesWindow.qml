@@ -9,6 +9,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "name", order: "asc" })
   model: SafetyTemplatesModel
+  bridgeListFn: function(q) { return catalogBridge.listSafetyTemplates(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createSafetyTemplate(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateSafetyTemplate(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteSafetyTemplate(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "name", label: "Name", type: "text", editable: true, required: true, width: 240 },

@@ -22,11 +22,43 @@
     "aiRecommendations": true,
     "lanCollaboration": true,
     "basemapSource": 0,
-    "uiTemplateIndex": 0,
+    "uiTemplateIndex": 3,
     "colorProfileIndex": 0,
-    "themeIndex": 0,
+    "themeIndex": 1,
     "startupBehaviorIndex": 0,
     "unitIndex": 0,
     "dateFormatIndex": 0,
-    "languageIndex": 0
+    "languageIndex": 0,
+    "user_layouts": {
+        "home": [
+            {
+                "widgetId": "quickEntry",
+                "x": 0,
+                "y": 0,
+                "w": 8,
+                "h": 1
+            },
+            {
+                "widgetId": "clockDual",
+                "x": 8,
+                "y": 0,
+                "w": 4,
+                "h": 1
+            },
+            {
+                "widgetId": "incidentinfo",
+                "x": 0,
+                "y": 1,
+                "w": 6,
+                "h": 1
+            },
+            {
+                "widgetId": "teamstatusboard",
+                "x": 6,
+                "y": 1,
+                "w": 6,
+                "h": 1
+            }
+        ]
+    }
 }

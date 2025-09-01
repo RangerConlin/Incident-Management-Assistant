@@ -110,7 +110,34 @@ def show_incident_selector(on_select: Optional[Callable[[int], None]] = None):
 
     def _handle_create_requested():
         dialog = NewIncidentDialog()
-        dialog.created.connect(lambda *_: incident_model.refresh())
+
+        def _on_created(meta, db_path: str):
+            # Register in master.db so it appears in the list
+            try:
+                from models.database import insert_new_incident, get_incident_by_number
+                if not get_incident_by_number(meta.number):
+                    insert_new_incident(
+                        number=meta.number,
+                        name=meta.name,
+                        type=meta.type,
+                        description=meta.description,
+                        icp_location=meta.location,
+                        is_training=meta.is_training,
+                    )
+            except Exception as e:
+                # Best-effort: still refresh; the user may retry
+                print(f"[bootstrap] failed to register incident in master.db: {e}")
+
+            # Refresh model to include new mission
+            incident_model.refresh()
+
+            # Auto-load the newly created incident
+            try:
+                controller.loadIncidentByNumber(str(meta.number))
+            except Exception as e:
+                print(f"[bootstrap] failed to auto-load incident: {e}")
+
+        dialog.created.connect(_on_created)
         dialog.exec()
 
     if hasattr(root_obj, "createRequested"):

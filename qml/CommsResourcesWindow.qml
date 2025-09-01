@@ -9,6 +9,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "alpha_tag", order: "asc" })
   model: CommsResourcesModel
+  bridgeListFn: function(q) { return catalogBridge.listCommsResources(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createCommsResources(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateCommsResources(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteCommsResources(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "alpha_tag", label: "Alpha Tag", type: "text", editable: true, required: true, width: 140 },

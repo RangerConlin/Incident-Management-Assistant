@@ -3,20 +3,22 @@ import QtQuick.Controls 2.15
 import QtQuick.Window 2.15
 
 Window {
-    id: strategicTasksWindow
+    id: teamDetailWindow
+    property int teamId: -1
     visible: true
-    width: 800
-    height: 600
-    title: "Strategic Tasks"
+    width: 600
+    height: 360
+    title: teamId > 0 ? `Team Detail - #${teamId}` : "Team Detail"
 
     Rectangle {
         anchors.fill: parent
         color: "white"
 
-        Text {
+        Column {
             anchors.centerIn: parent
-            text: "Strategic Tasks Module"
-            font.pixelSize: 28
+            spacing: 12
+            Text { text: teamId > 0 ? `Team ID: ${teamId}` : "No Team Selected"; font.pixelSize: 20 }
+            Text { text: "Placeholder window. Full Team Detail coming soon."; font.pixelSize: 14; color: "#555" }
         }
     }
 }

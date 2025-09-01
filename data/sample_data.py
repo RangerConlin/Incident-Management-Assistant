@@ -100,3 +100,22 @@ TASK_ROWS: list[list[Any]] = [
         "St. Claire Shoreline",
     ],
 ]
+
+# ---- Optional sample structures for taskings module ----
+try:
+    SAMPLE_TASKS
+except NameError:
+    SAMPLE_TASKS = [
+        {
+            "task_id": "T-001",
+            "title": "Hasty Search — Trailhead",
+            "description": "Search initial approach trails for subject sign.",
+            "category": "Ground SAR",
+            "task_type": "Hasty",
+            "priority": "High",
+            "status": "Planned",
+            "location": "North Trailhead",
+            "created_by": "P123",
+            "created_at": "2025-08-30T12:00:00Z",
+        }
+    ]

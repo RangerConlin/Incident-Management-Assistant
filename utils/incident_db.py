@@ -12,10 +12,19 @@ def get_active_incident_id():
     return _active_incident_id
 
 
-def create_incident_database(incident_name: str) -> Path:
+def create_incident_database(incident_number: str) -> Path:
+    """Create an incident database named after the incident number.
+
+    The file will be created at data/incidents/<incident_number>.db. If a file
+    with that name already exists, a FileExistsError is raised and nothing is
+    modified.
+    """
     base = Path("data") / "incidents"
     base.mkdir(parents=True, exist_ok=True)
-    db_path = base / f"{incident_name}.db"
-    if not db_path.exists():
-        db_path.touch()
+    # Use the raw number to keep 1:1 mapping; light sanitation for filesystem
+    safe_number = str(incident_number).strip().replace("/", "-")
+    db_path = base / f"{safe_number}.db"
+    if db_path.exists():
+        raise FileExistsError(f"Incident database already exists: {db_path}")
+    db_path.touch()
     return db_path
