@@ -45,6 +45,27 @@ Window {
                         onTextChanged: if (teamBridge) teamBridge.updateFromQml({ name: text })
                     }
                 }
+                // Team Type dropdown
+                ColumnLayout {
+                    spacing: 4
+                    Text { text: "Team Type"; font.pixelSize: 12 }
+                    ComboBox {
+                        id: cbTeamType
+                        model: ["New Team", "Ground", "Aircraft"]
+                        onActivated: {
+                            var key = (index === 1) ? "ground" : (index === 2 ? "aircraft" : "")
+                            if (teamBridge) teamBridge.updateFromQml({ team_type: key })
+                        }
+                        Component.onCompleted: {
+                            if (teamBridge && teamBridge.team) {
+                                var tt = (teamBridge.team.team_type || "").toLowerCase()
+                                if (tt === "ground") currentIndex = 1
+                                else if (tt === "aircraft") currentIndex = 2
+                                else currentIndex = 0
+                            }
+                        }
+                    }
+                }
                 // Leader chip (readonly button placeholder)
                 ColumnLayout {
                     spacing: 4
@@ -52,6 +73,17 @@ Window {
                     Button {
                         text: (teamBridge && teamBridge.team && teamBridge.team.team_leader_id) ? `#${teamBridge.team.team_leader_id}` : "Not Set"
                         onClicked: tabs.currentIndex = 0 // focus personnel tab
+                    }
+                }
+                // Leader Phone input
+                ColumnLayout {
+                    spacing: 4
+                    Text { text: "Leader Phone"; font.pixelSize: 12 }
+                    TextField {
+                        id: tfLeaderPhone
+                        Layout.preferredWidth: 120
+                        text: (teamBridge && teamBridge.team) ? (teamBridge.team.team_leader_phone || "") : ""
+                        onTextChanged: if (teamBridge) teamBridge.updateFromQml({ team_leader_phone: text })
                     }
                 }
                 // Status pill + dropdown
@@ -87,6 +119,36 @@ Window {
                                 }
                             }
                         }
+                    }
+                }
+                // Last Contact timestamp
+                ColumnLayout {
+                    spacing: 4
+                    Text { text: "Last Contact"; font.pixelSize: 12 }
+                    Text { text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_update_ts || "") : "" }
+                }
+                // Primary Task field
+                ColumnLayout {
+                    spacing: 4
+                    Text { text: "Primary Task"; font.pixelSize: 12 }
+                    TextField {
+                        id: tfPrimaryTask
+                        Layout.preferredWidth: 150
+                        enabled: (teamBridge && teamBridge.team && teamBridge.team.current_task_id)
+                        text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? (teamBridge.team.primary_task || "") : ""
+                        onTextChanged: if (teamBridge) teamBridge.updateFromQml({ primary_task: text })
+                    }
+                }
+                // Assignment field
+                ColumnLayout {
+                    spacing: 4
+                    Text { text: "Assignment"; font.pixelSize: 12 }
+                    TextField {
+                        id: tfAssignment
+                        Layout.preferredWidth: 180
+                        enabled: (teamBridge && teamBridge.team && teamBridge.team.current_task_id)
+                        text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? (teamBridge.team.assignment || "") : ""
+                        onTextChanged: if (teamBridge) teamBridge.updateFromQml({ assignment: text })
                     }
                 }
                 // Clocks (local/UTC) simple labels
