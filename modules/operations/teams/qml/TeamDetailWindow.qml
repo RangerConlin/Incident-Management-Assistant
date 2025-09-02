@@ -37,7 +37,7 @@ Window {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 4
-                    Text { text: "Team Name"; font.pixelSize: 12 }
+                    Text { text: (teamBridge && teamBridge.isAircraftTeam) ? "Callsign" : "Team Name"; font.pixelSize: 12 }
                     TextField {
                         id: tfName
                         Layout.fillWidth: true
@@ -48,7 +48,7 @@ Window {
                 // Leader chip (readonly button placeholder)
                 ColumnLayout {
                     spacing: 4
-                    Text { text: "Team Leader"; font.pixelSize: 12 }
+                    Text { text: (teamBridge && teamBridge.isAircraftTeam) ? "Pilot" : "Team Leader"; font.pixelSize: 12 }
                     Button {
                         text: (teamBridge && teamBridge.team && teamBridge.team.team_leader_id) ? `#${teamBridge.team.team_leader_id}` : "Not Set"
                         onClicked: tabs.currentIndex = 0 // focus personnel tab
@@ -194,7 +194,7 @@ Window {
                                         }
                                     }
                                     Button {
-                                        text: "Set as Team Leader"
+                                        text: teamBridge.isAircraftTeam ? "Set as Pilot" : "Set as Team Leader"
                                         onClicked: {
                                             var id = (membersList.currentIndex >= 0) ? membersList.model[membersList.currentIndex] : null
                                             if (id !== null && id !== undefined) teamBridge.setTeamLeader(id)

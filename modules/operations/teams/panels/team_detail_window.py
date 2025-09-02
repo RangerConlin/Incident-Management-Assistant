@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 from datetime import datetime
+import os
+import sqlite3
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
@@ -58,7 +60,8 @@ class TeamDetailBridge(QObject):
 
     @Property(bool, notify=teamChanged)
     def isAircraftTeam(self) -> bool:
-        return (self._team.team_type or "ground").lower() == "aircraft"
+        t = (self._team.team_type or "ground").lower()
+        return t in {"air", "aircraft", "helo", "helicopter"}
 
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
@@ -71,6 +74,30 @@ class TeamDetailBridge(QObject):
             bg, fg = "#888888", "#000000"
         return {"bg": bg, "fg": fg}
 
+    # ---- Helpers -----------------------------------------------------
+    def _get_person_role(self, person_id: int) -> Optional[str]:
+        try:
+            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            db_path = os.path.join(base, "data", "master.db")
+            with sqlite3.connect(db_path) as con:
+                cur = con.execute("SELECT role FROM personnel WHERE id=?", (int(person_id),))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return str(row[0]).strip()
+        except Exception:
+            pass
+        return None
+
+    def _auto_set_pilot(self) -> None:
+        if not self.isAircraftTeam:
+            return
+        roles = {int(m): (self._get_person_role(m) or "").strip().upper() for m in self._team.members}
+        pic_members = [pid for pid, role in roles.items() if role == "PIC"]
+        if pic_members:
+            pilot_id = pic_members[-1]
+            self._team.team_leader_id = pilot_id
+            self._team.members = [m for m in self._team.members if roles[int(m)] != "PIC" or int(m) == pilot_id]
+
     # ---- Load/save ----
     @Slot(int)
     def loadTeam(self, team_id: int) -> None:
@@ -80,6 +107,7 @@ class TeamDetailBridge(QObject):
                 self._team = t if t else Team(team_id=int(team_id))
             else:
                 self._team = Team()
+            self._auto_set_pilot()
             self.teamChanged.emit()
             self.statusChanged.emit(self._team.status)
         except Exception as e:
@@ -145,11 +173,15 @@ class TeamDetailBridge(QObject):
     def addMember(self, person_id: int) -> None:
         if person_id not in self._team.members:
             self._team.members.append(int(person_id))
+            self._auto_set_pilot()
             self.teamChanged.emit()
 
     @Slot(int)
     def removeMember(self, person_id: int) -> None:
         self._team.members = [p for p in self._team.members if int(p) != int(person_id)]
+        if self._team.team_leader_id == int(person_id):
+            self._team.team_leader_id = None
+        self._auto_set_pilot()
         self.teamChanged.emit()
 
     @Slot(str)
