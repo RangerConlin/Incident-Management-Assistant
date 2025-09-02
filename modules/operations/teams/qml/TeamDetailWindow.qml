@@ -255,11 +255,49 @@ Window {
                                 }
                             }
                             // 4: Log
-                            ColumnLayout { Layout.margins: 8; spacing: 6; Layout.fillWidth: true; Layout.fillHeight: true
-                                ListView { Layout.fillWidth: true; Layout.fillHeight: true; model: [] }
-                                RowLayout { spacing: 6
-                                    Button { text: "Quick Log Entry"; onClicked: if (teamBridge) teamBridge.openQuickLog(null) }
-                                    Button { text: "Filter…" }
+                            TabView {
+                                Layout.margins: 8
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+
+                                Tab {
+                                    title: "Unit Log"
+                                    ListView {
+                                        anchors.fill: parent
+                                        model: teamBridge ? teamBridge.unitLog() : []
+                                    }
+                                }
+                                Tab {
+                                    title: "Task History"
+                                    ListView {
+                                        anchors.fill: parent
+                                        model: teamBridge ? teamBridge.taskHistory() : []
+                                    }
+                                }
+                                Tab {
+                                    title: "Status History"
+                                    ListView {
+                                        anchors.fill: parent
+                                        model: teamBridge ? teamBridge.statusHistory() : []
+                                    }
+                                }
+                                Tab {
+                                    title: "ICS-214"
+                                    ColumnLayout {
+                                        anchors.fill: parent
+                                        spacing: 6
+                                        ListView {
+                                            Layout.fillWidth: true
+                                            Layout.fillHeight: true
+                                            model: teamBridge ? teamBridge.ics214Entries() : []
+                                        }
+                                        RowLayout { spacing: 6
+                                            Button {
+                                                text: "➕ Add ICS 214 Note"
+                                                onClicked: if (teamBridge) teamBridge.addIcs214Note()
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             // 5: Attachments

@@ -289,6 +289,31 @@ class TeamDetailBridge(QObject):
         # Future: open Canned Comm Entry dialog
         pass
 
+    @Slot(result='QVariant')
+    def unitLog(self) -> list[dict]:
+        """Return unit log entries for the team."""
+        return []
+
+    @Slot(result='QVariant')
+    def taskHistory(self) -> list[dict]:
+        """Return task history entries for the team."""
+        return []
+
+    @Slot(result='QVariant')
+    def statusHistory(self) -> list[dict]:
+        """Return status history entries for the team."""
+        return []
+
+    @Slot(result='QVariant')
+    def ics214Entries(self) -> list[dict]:
+        """Return ICS 214 note entries for the team."""
+        return []
+
+    @Slot()
+    def addIcs214Note(self) -> None:  # placeholder
+        """Open dialog to add an ICS 214 note."""
+        pass
+
     @Slot(int)
     def setTeamLeader(self, person_id: int) -> None:
         try:
