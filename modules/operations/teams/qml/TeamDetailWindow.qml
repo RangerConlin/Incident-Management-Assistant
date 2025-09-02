@@ -9,9 +9,28 @@ Window {
     width: 1280; height: 800
     minimumWidth: 1280; minimumHeight: 800
     visible: true
-    title: (teamBridge && teamBridge.team && teamBridge.team.name) ? `Team Detail - ${teamBridge.team.name}` : "Team Detail"
+    title: teamBridge && teamBridge.team ?
+        `${teamTypeCode(teamBridge.team.team_type)} \u2013 ${teamBridge.team.name || ""} \u2013 ${leaderName(teamBridge.team.team_leader_id)}` :
+        "Team Detail"
 
     property int teamId: -1
+
+    function teamTypeCode(typeStr) {
+        return (typeStr || "").toString().toUpperCase()
+    }
+
+    function leaderName(leaderId) {
+        if (leaderId === null || leaderId === undefined || !catalogBridge)
+            return ""
+        try {
+            var ppl = catalogBridge.listPersonnel(String(leaderId))
+            for (var i = 0; i < ppl.length; ++i) {
+                if (ppl[i].id == leaderId)
+                    return ppl[i].name || ""
+            }
+        } catch (e) {}
+        return ""
+    }
 
     Component.onCompleted: {
         if (teamId > 0 && teamBridge && teamBridge.loadTeam) teamBridge.loadTeam(teamId)
