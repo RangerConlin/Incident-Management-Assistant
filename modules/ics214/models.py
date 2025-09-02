@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from sqlalchemy.orm import declarative_base, relationship, Mapped, mapped_column
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy import DateTime, String, Integer, Boolean, ForeignKey, JSON, Index, UniqueConstraint
 
-Base = declarative_base()
+from modules._infra.base import Base
 
 class ICS214Stream(Base):
     __tablename__ = "ics214_streams"
