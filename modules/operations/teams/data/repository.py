@@ -62,6 +62,8 @@ def _ensure_team_columns(con: sqlite3.Connection) -> None:
     # Type
     if "team_type" not in cols:
         to_add.append(("team_type", "TEXT"))
+    if "last_comm_ping" not in cols:
+        to_add.append(("last_comm_ping", "TEXT"))
 
     for col, typ in to_add:
         try:
@@ -120,4 +122,30 @@ def set_team_status(team_id: int, status_key: str) -> None:
     # Delegate to the existing operations repository, which also stamps task_teams
     from modules.operations.data.repository import set_team_status as _set
     _set(int(team_id), str(status_key))
+
+
+def reset_team_comm_timer(team_id: int, when: datetime | None = None) -> None:
+    """Update the team's last communication ping to ``when`` or now."""
+    ts = (when or datetime.utcnow()).isoformat()
+    with _incident_connect() as con:
+        _ensure_team_columns(con)
+        con.execute(
+            "UPDATE teams SET last_comm_ping=? WHERE id=?",
+            (str(ts), int(team_id)),
+        )
+        con.commit()
+
+
+def find_team_ids_by_label(label: str) -> list[int]:
+    """Return team ids matching a name or callsign (case-insensitive)."""
+    if not label:
+        return []
+    term = str(label).strip().lower()
+    with _incident_connect() as con:
+        _ensure_team_columns(con)
+        rows = con.execute(
+            "SELECT id FROM teams WHERE lower(name)=? OR lower(callsign)=?",
+            (term, term),
+        ).fetchall()
+    return [int(r["id"]) for r in rows]
 

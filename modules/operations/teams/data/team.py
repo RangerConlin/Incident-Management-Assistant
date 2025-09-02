@@ -25,6 +25,7 @@ class Team:
     phone: Optional[str] = None
     notes: Optional[str] = None
     last_update_ts: datetime = field(default_factory=datetime.utcnow)
+    last_comm_ts: Optional[datetime] = None
     last_known_lat: Optional[float] = None
     last_known_lon: Optional[float] = None
     members: List[int] = field(default_factory=list)
@@ -56,6 +57,7 @@ class Team:
             "phone": self.phone,
             "notes": self.notes,
             "status_updated": (self.last_update_ts or datetime.utcnow()).isoformat(),
+            "last_comm_ping": (self.last_comm_ts.isoformat() if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
             "members_json": json.dumps(list(self.members or [])),
@@ -104,6 +106,12 @@ class Team:
         except Exception:
             last_ts = datetime.utcnow()
 
+        comm_ts = _get("last_comm_ping")
+        try:
+            comm_dt = datetime.fromisoformat(comm_ts) if comm_ts else None
+        except Exception:
+            comm_dt = None
+
         return Team(
             team_id=int(_get("id")) if _get("id") is not None else None,
             name=str(_get("name") or ""),
@@ -116,6 +124,7 @@ class Team:
             phone=_get("phone"),
             notes=_get("notes"),
             last_update_ts=last_ts,
+            last_comm_ts=comm_dt,
             last_known_lat=(float(_get("last_known_lat")) if _get("last_known_lat") is not None else None),
             last_known_lon=(float(_get("last_known_lon")) if _get("last_known_lon") is not None else None),
             members=_parse_json(_get("members_json")),
@@ -142,6 +151,7 @@ class Team:
             "phone": self.phone,
             "notes": self.notes,
             "last_update_ts": (self.last_update_ts or datetime.utcnow()).isoformat(),
+            "last_comm_ts": (self.last_comm_ts.isoformat() if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
             "members": list(self.members or []),
