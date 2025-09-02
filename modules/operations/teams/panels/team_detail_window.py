@@ -99,16 +99,6 @@ class TeamDetailBridge(QObject):
         except Exception:
             return "#888888"
 
-    @Property(bool, constant=True)
-    def isPlannedEvent(self) -> bool:
-        try:
-            inc_num = AppState.get_active_incident()
-            if inc_num:
-                inc = get_incident_by_number(inc_num)
-                return str(inc.get("type", "")).lower() == "planned event" if inc else False
-        except Exception:
-            return False
-        return False
 
     # ---- Load/save ----
     @Slot(int)
