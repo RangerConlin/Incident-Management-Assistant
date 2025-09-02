@@ -5,8 +5,10 @@ from datetime import datetime
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
-from styles import TEAM_STATUS_COLORS
+from styles import TEAM_STATUS_COLORS, TEAM_TYPE_COLORS
+from models.database import get_incident_by_number
 from utils import incident_context
+from utils.state import AppState
 from modules.operations.teams.data.team import Team
 from modules.operations.teams.data import repository as team_repo
 
@@ -47,6 +49,19 @@ class TeamDetailBridge(QObject):
             {"label": "Complete", "key": "complete"},
         ]
 
+        self._team_type_options: list[dict[str, object]] = [
+            {"code": "GT", "label": "Ground Team", "color": TEAM_TYPE_COLORS["GT"].name(), "planned_only": False},
+            {"code": "UDF", "label": "Urban DF Team", "color": TEAM_TYPE_COLORS["UDF"].name(), "planned_only": False},
+            {"code": "LSAR", "label": "Land SAR", "color": TEAM_TYPE_COLORS["LSAR"].name(), "planned_only": False},
+            {"code": "DF", "label": "Disaster Field Team", "color": TEAM_TYPE_COLORS["DF"].name(), "planned_only": False},
+            {"code": "GT/UAS", "label": "Ground/UAS Team", "color": TEAM_TYPE_COLORS["GT/UAS"].name(), "planned_only": False},
+            {"code": "UDF/UAS", "label": "Urban DF/UAS Team", "color": TEAM_TYPE_COLORS["UDF/UAS"].name(), "planned_only": False},
+            {"code": "UAS", "label": "UAS Team", "color": TEAM_TYPE_COLORS["UAS"].name(), "planned_only": False},
+            {"code": "AIR", "label": "Air Support", "color": TEAM_TYPE_COLORS["AIR"].name(), "planned_only": False},
+            {"code": "K9", "label": "K9 Team", "color": TEAM_TYPE_COLORS["K9"].name(), "planned_only": False},
+            {"code": "UTIL", "label": "Utility/Support", "color": TEAM_TYPE_COLORS["UTIL"].name(), "planned_only": True},
+        ]
+
     # ---- Properties exposed to QML ----
     @Property('QVariant', notify=teamChanged)
     def team(self) -> Dict[str, Any]:
@@ -58,7 +73,8 @@ class TeamDetailBridge(QObject):
 
     @Property(bool, notify=teamChanged)
     def isAircraftTeam(self) -> bool:
-        return (self._team.team_type or "ground").lower() == "aircraft"
+        t = (self._team.team_type or "").upper()
+        return t in {"AIR", "UAS", "GT/UAS", "UDF/UAS"}
 
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
@@ -70,6 +86,29 @@ class TeamDetailBridge(QObject):
         except Exception:
             bg, fg = "#888888", "#000000"
         return {"bg": bg, "fg": fg}
+
+    @Property('QVariant', constant=True)
+    def teamTypeList(self) -> list[dict]:
+        return self._team_type_options
+
+    @Property(str, notify=teamChanged)
+    def teamTypeColor(self) -> str:
+        col = TEAM_TYPE_COLORS.get(self._team.team_type)
+        try:
+            return col.name() if col else "#888888"
+        except Exception:
+            return "#888888"
+
+    @Property(bool, constant=True)
+    def isPlannedEvent(self) -> bool:
+        try:
+            inc_num = AppState.get_active_incident()
+            if inc_num:
+                inc = get_incident_by_number(inc_num)
+                return str(inc.get("type", "")).lower() == "planned event" if inc else False
+        except Exception:
+            return False
+        return False
 
     # ---- Load/save ----
     @Slot(int)
@@ -139,6 +178,11 @@ class TeamDetailBridge(QObject):
                 pass
         except Exception as e:
             self.error.emit(f"Status change failed: {e}")
+
+    @Slot(str)
+    def setTeamType(self, code: str) -> None:
+        self._team.team_type = str(code)
+        self.teamChanged.emit()
 
     # ---- Member/asset management ----
     @Slot(int)
