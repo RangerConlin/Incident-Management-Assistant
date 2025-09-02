@@ -14,6 +14,9 @@ Window {
         "Team Detail"
 
     property int teamId: -1
+    property bool isNew: true
+
+    onTeamIdChanged: isNew = teamId <= 0
 
     function teamTypeCode(typeStr) {
         return (typeStr || "").toString().toUpperCase()
@@ -33,7 +36,22 @@ Window {
     }
 
     Component.onCompleted: {
-        if (teamId > 0 && teamBridge && teamBridge.loadTeam) teamBridge.loadTeam(teamId)
+        if (teamId > 0 && teamBridge && teamBridge.loadTeam) {
+            teamBridge.loadTeam(teamId)
+            isNew = false
+        } else {
+            isNew = true
+        }
+    }
+
+    Connections {
+        target: teamBridge
+        function onSaved() {
+            if (isNew && teamBridge && teamBridge.team && teamBridge.team.team_id) {
+                teamId = teamBridge.team.team_id
+                isNew = false
+            }
+        }
     }
 
     Rectangle { anchors.fill: parent; color: "#ffffff" }
@@ -61,6 +79,7 @@ Window {
                         id: tfName
                         Layout.fillWidth: true
                         text: (teamBridge && teamBridge.team) ? (teamBridge.team.name || "") : ""
+                        readOnly: !isNew
                         onTextChanged: if (teamBridge) teamBridge.updateFromQml({ name: text })
                     }
                 }
@@ -91,6 +110,7 @@ Window {
                     Text { text: (teamBridge && teamBridge.isAircraftTeam) ? "Pilot" : "Team Leader"; font.pixelSize: 12 }
                     Button {
                         text: (teamBridge && teamBridge.team && teamBridge.team.team_leader_id) ? `#${teamBridge.team.team_leader_id}` : "Not Set"
+                        enabled: isNew
                         onClicked: tabs.currentIndex = 0 // focus personnel tab
                     }
                 }
@@ -119,7 +139,6 @@ Window {
                         ComboBox {
                             id: cbStatus
                             model: teamBridge ? teamBridge.statusList : []
-                            // Provide delegate + display for JS array model
                             delegate: ItemDelegate { text: (modelData && modelData.label) ? modelData.label : String(modelData) }
                             displayText: (currentIndex >= 0 && teamBridge && teamBridge.statusList && teamBridge.statusList[currentIndex]) ? teamBridge.statusList[currentIndex].label : ""
                             onActivated: {
@@ -128,7 +147,6 @@ Window {
                                 if (teamBridge) teamBridge.setStatus(key)
                             }
                             Component.onCompleted: {
-                                // try match current status to index
                                 if (teamBridge && teamBridge.team) {
                                     var s = (teamBridge.team.status||"").toLowerCase()
                                     for (var i=0;i<count;i++) {
@@ -206,7 +224,9 @@ Window {
                     Rectangle {
                         Layout.fillWidth: true
                         border.color: "#cccccc"; radius: 4
-                        ColumnLayout { anchors.fill: parent; anchors.margins: 8; spacing: 6
+                        ColumnLayout {
+                            anchors.fill: parent; anchors.margins: 8; spacing: 6
+                            enabled: isNew
                             RowLayout {
                                 spacing: 12
                                 Text { text: "Team Type:" }
@@ -237,28 +257,27 @@ Window {
                                 Text { text: "Priority:" }
                                 SpinBox { id: sbPriority; from: 0; to: 5; value: (teamBridge && teamBridge.team && teamBridge.team.priority) ? teamBridge.team.priority : 0; onValueChanged: if (teamBridge) teamBridge.updateFromQml({ priority: value }) }
                             }
-                    RowLayout {
-                        spacing: 12
-                        Text { text: "Callsign:" }
-                        TextField { id: tfCall; width: 160; text: (teamBridge && teamBridge.team) ? (teamBridge.team.callsign || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ callsign: text }) }
-                        Text { text: "Phone:" }
-                        TextField { id: tfPhone; width: 160; text: (teamBridge && teamBridge.team) ? (teamBridge.team.phone || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ phone: text }) }
+                            RowLayout {
+                                spacing: 12
+                                Text { text: "Callsign:" }
+                                TextField { id: tfCall; width: 160; text: (teamBridge && teamBridge.team) ? (teamBridge.team.callsign || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ callsign: text }) }
+                                Text { text: "Phone:" }
+                                TextField { id: tfPhone; width: 160; text: (teamBridge && teamBridge.team) ? (teamBridge.team.phone || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ phone: text }) }
+                            }
+                            ColumnLayout {
+                                spacing: 4
+                                Text { text: "Notes:" }
+                                TextArea { id: taNotes; Layout.fillWidth: true; Layout.preferredHeight: 100; text: (teamBridge && teamBridge.team) ? (teamBridge.team.notes || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ notes: text }) }
+                            }
+                        }
                     }
-                    ColumnLayout {
-                        spacing: 4
-                        Text { text: "Notes:" }
-                        TextArea { id: taNotes; Layout.fillWidth: true; Layout.preferredHeight: 100; text: (teamBridge && teamBridge.team) ? (teamBridge.team.notes || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ notes: text }) }
-                    }
-                }
-            }
 
                     // Tabs (Ground vs Aircraft) using TabBar + StackLayout
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         spacing: 0
-                        TabBar {
-                            id: tabs; Layout.fillWidth: true
+                        TabBar { id: tabs; Layout.fillWidth: true; enabled: !isNew
                             TabButton { text: (teamBridge && teamBridge.isAircraftTeam) ? "Aircrew" : "Personnel" }
                             Loader { sourceComponent: (teamBridge && teamBridge.isAircraftTeam) ? aircraftTabButton : vehicleTabButton }
                             TabButton { text: "Equipment" }
@@ -266,7 +285,7 @@ Window {
                             TabButton { text: "Log" }
                             TabButton { text: "Attachments" }
                         }
-                        StackLayout { id: tabStack; Layout.fillWidth: true; Layout.fillHeight: true; currentIndex: tabs.currentIndex
+                        StackLayout { id: tabStack; Layout.fillWidth: true; Layout.fillHeight: true; currentIndex: tabs.currentIndex; enabled: !isNew
                             // 0: Personnel / Aircrew
                             ColumnLayout { Layout.margins: 8; spacing: 6; Layout.fillWidth: true; Layout.fillHeight: true
                                 property int selectedMemberId: -1
@@ -468,22 +487,22 @@ Window {
                 contentWidth: rightCol.implicitWidth
                 contentHeight: rightCol.implicitHeight
                 clip: true
-                ColumnLayout { id: rightCol; width: parent.width; spacing: 8
+                ColumnLayout { id: rightCol; width: parent.width; spacing: 8; enabled: !isNew
                     // Location & Movement
                     Rectangle { Layout.fillWidth: true; border.color: "#ccc"; radius: 4
                         ColumnLayout { anchors.fill: parent; anchors.margins: 8; spacing: 6
                             Text { text: "Location & Movement"; font.bold: true }
                             RowLayout { spacing: 8
                                 Text { text: "Lat:" }
-                                TextField { width: 100; text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_known_lat || "") : ""; inputMethodHints: Qt.ImhFormattedNumbersOnly; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ last_known_lat: text }) }
+                                TextField { width: 100; text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_known_lat || "") : ""; inputMethodHints: Qt.ImhFormattedNumbersOnly; readOnly: isNew; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ last_known_lat: text }) }
                                 Text { text: "Lon:" }
-                                TextField { width: 100; text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_known_lon || "") : ""; inputMethodHints: Qt.ImhFormattedNumbersOnly; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ last_known_lon: text }) }
+                                TextField { width: 100; text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_known_lon || "") : ""; inputMethodHints: Qt.ImhFormattedNumbersOnly; readOnly: isNew; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ last_known_lon: text }) }
                                 Text { text: "Updated:" }
                                 Text { text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_update_ts || "") : "" }
                             }
                             RowLayout { spacing: 8
                                 Text { text: "Route/ETA:" }
-                                TextField { Layout.fillWidth: true; text: (teamBridge && teamBridge.team) ? (teamBridge.team.route || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ route: text }) }
+                                TextField { Layout.fillWidth: true; text: (teamBridge && teamBridge.team) ? (teamBridge.team.route || "") : ""; readOnly: isNew; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ route: text }) }
                             }
                             ColumnLayout { spacing: 4
                                 Text { text: "Recent Updates:" }
@@ -497,11 +516,11 @@ Window {
                             Text { text: "Communications"; font.bold: true }
                             RowLayout { spacing: 8
                                 Text { text: "Radio IDs:" }
-                                TextField { Layout.fillWidth: true; text: (teamBridge && teamBridge.team) ? (teamBridge.team.radio_ids || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ radio_ids: text }) }
+                                TextField { Layout.fillWidth: true; text: (teamBridge && teamBridge.team) ? (teamBridge.team.radio_ids || "") : ""; readOnly: isNew; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ radio_ids: text }) }
                             }
                             RowLayout { spacing: 8
                                 Text { text: "Preset:" }
-                                ComboBox { width: 240; model: ["(placeholder)"] }
+                                ComboBox { width: 240; model: ["(placeholder)"]; enabled: !isNew }
                                 Button { text: "Open ICS 205"; onClicked: if (teamBridge) teamBridge.openICS205Preview() }
                             }
                         }
@@ -513,12 +532,13 @@ Window {
         // Footer -------------------------------------------------------------
         Rectangle { Layout.fillWidth: true; height: 56; color: "#f7f7f7"; border.color: "#cccccc"; radius: 4
             RowLayout { anchors.fill: parent; anchors.margins: 8; spacing: 8
-                Button { id: btnSave; text: "Save"; onClicked: if (teamBridge) teamBridge.save() }
-                Button { id: btnSaveClose; text: "Save & Close"; onClicked: { if (teamBridge) teamBridge.save(); win.close(); } }
-                Button { id: btnCancel; text: "Cancel"; onClicked: win.close() }
+                Button { id: btnCreate; text: "Create"; visible: isNew; onClicked: if (teamBridge) teamBridge.save() }
+                Button { id: btnSave; text: "Save"; visible: !isNew; onClicked: if (teamBridge) teamBridge.save() }
+                Button { id: btnSaveClose; text: "Save & Close"; visible: !isNew; onClicked: { if (teamBridge) teamBridge.save(); win.close(); } }
+                Button { id: btnCancel; text: isNew ? "Cancel" : "Close"; onClicked: win.close() }
                 Item { Layout.fillWidth: true }
-                Button { id: btnQuickStatus; text: "Quick Status Change"; onClicked: cbStatus.popup.open() }
-                Button { id: btnPrint; text: "Print Summary"; onClicked: if (teamBridge) teamBridge.printSummary() }
+                Button { id: btnQuickStatus; text: "Quick Status Change"; onClicked: cbStatus.popup.open(); visible: !isNew }
+                Button { id: btnPrint; text: "Print Summary"; onClicked: if (teamBridge) teamBridge.printSummary(); visible: !isNew }
             }
         }
     }
