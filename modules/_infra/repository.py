@@ -7,7 +7,10 @@ from typing import Dict, Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from modules.ics214.models import Base  # type: ignore
+from modules._infra.base import Base
+# Import model modules so tables are registered on Base metadata
+import modules.ics214.models  # noqa: F401
+import modules.org.models  # noqa: F401
 
 _engine_cache: Dict[str, Any] = {}
 
