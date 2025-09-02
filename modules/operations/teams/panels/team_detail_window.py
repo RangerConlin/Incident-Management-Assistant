@@ -7,8 +7,10 @@ import sqlite3
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
-from styles import TEAM_STATUS_COLORS
+from styles import TEAM_STATUS_COLORS, TEAM_TYPE_COLORS
+from models.database import get_incident_by_number
 from utils import incident_context
+from utils.state import AppState
 from modules.operations.teams.data.team import Team
 from modules.operations.teams.data import repository as team_repo
 
@@ -49,6 +51,19 @@ class TeamDetailBridge(QObject):
             {"label": "Complete", "key": "complete"},
         ]
 
+        self._team_type_options: list[dict[str, object]] = [
+            {"code": "GT", "label": "Ground Team", "color": TEAM_TYPE_COLORS["GT"].name(), "planned_only": False},
+            {"code": "UDF", "label": "Urban DF Team", "color": TEAM_TYPE_COLORS["UDF"].name(), "planned_only": False},
+            {"code": "LSAR", "label": "Land SAR", "color": TEAM_TYPE_COLORS["LSAR"].name(), "planned_only": False},
+            {"code": "DF", "label": "Disaster Field Team", "color": TEAM_TYPE_COLORS["DF"].name(), "planned_only": False},
+            {"code": "GT/UAS", "label": "Ground/UAS Team", "color": TEAM_TYPE_COLORS["GT/UAS"].name(), "planned_only": False},
+            {"code": "UDF/UAS", "label": "Urban DF/UAS Team", "color": TEAM_TYPE_COLORS["UDF/UAS"].name(), "planned_only": False},
+            {"code": "UAS", "label": "UAS Team", "color": TEAM_TYPE_COLORS["UAS"].name(), "planned_only": False},
+            {"code": "AIR", "label": "Air Support", "color": TEAM_TYPE_COLORS["AIR"].name(), "planned_only": False},
+            {"code": "K9", "label": "K9 Team", "color": TEAM_TYPE_COLORS["K9"].name(), "planned_only": False},
+            {"code": "UTIL", "label": "Utility/Support", "color": TEAM_TYPE_COLORS["UTIL"].name(), "planned_only": True},
+        ]
+
     # ---- Properties exposed to QML ----
     @Property('QVariant', notify=teamChanged)
     def team(self) -> Dict[str, Any]:
@@ -60,18 +75,6 @@ class TeamDetailBridge(QObject):
 
     @Property(bool, notify=teamChanged)
     def isAircraftTeam(self) -> bool:
-        t = (self._team.team_type or "ground").lower()
-        return t in {"air", "aircraft", "helo", "helicopter"}
-
-    @Property('QVariant', notify=teamChanged)
-    def personnelList(self) -> list[int]:
-        """Return members list filtered for valid roles."""
-        return [int(p) for p in (self._team.members or [])]
-
-    @Property(str, notify=teamChanged)
-    def memberRoleFilter(self) -> str:
-        """Role hint for QML pickers based on team type."""
-        return "air" if self.isAircraftTeam else "ground"
 
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
@@ -84,29 +87,6 @@ class TeamDetailBridge(QObject):
             bg, fg = "#888888", "#000000"
         return {"bg": bg, "fg": fg}
 
-    # ---- Helpers -----------------------------------------------------
-    def _get_person_role(self, person_id: int) -> Optional[str]:
-        try:
-            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-            db_path = os.path.join(base, "data", "master.db")
-            with sqlite3.connect(db_path) as con:
-                cur = con.execute("SELECT role FROM personnel WHERE id=?", (int(person_id),))
-                row = cur.fetchone()
-                if row and row[0]:
-                    return str(row[0]).strip()
-        except Exception:
-            pass
-        return None
-
-    def _auto_set_pilot(self) -> None:
-        if not self.isAircraftTeam:
-            return
-        roles = {int(m): (self._get_person_role(m) or "").strip().upper() for m in self._team.members}
-        pic_members = [pid for pid, role in roles.items() if role == "PIC"]
-        if pic_members:
-            pilot_id = pic_members[-1]
-            self._team.team_leader_id = pilot_id
-            self._team.members = [m for m in self._team.members if roles[int(m)] != "PIC" or int(m) == pilot_id]
 
     # ---- Load/save ----
     @Slot(int)
@@ -177,6 +157,11 @@ class TeamDetailBridge(QObject):
                 pass
         except Exception as e:
             self.error.emit(f"Status change failed: {e}")
+
+    @Slot(str)
+    def setTeamType(self, code: str) -> None:
+        self._team.team_type = str(code)
+        self.teamChanged.emit()
 
     # ---- Member/asset management ----
     def _is_member_role_valid(self, person_id: int) -> bool:

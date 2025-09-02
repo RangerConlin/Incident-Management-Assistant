@@ -36,7 +36,7 @@ class Team:
     equipment: List[str] = field(default_factory=list)
     aircraft: List[str] = field(default_factory=list)
     comms_preset_id: Optional[int] = None
-    team_type: str = "ground"  # "ground" or "aircraft"
+    team_type: str = "GT"  # e.g., GT, UDF, AIR
     radio_ids: Optional[str] = None  # free-form text for now
     route: Optional[str] = None
 
@@ -141,7 +141,10 @@ class Team:
             equipment=_parse_json(_get("equipment_json")),
             aircraft=_parse_json(_get("aircraft_json")),
             comms_preset_id=(int(_get("comms_preset_id")) if _get("comms_preset_id") is not None else None),
-            team_type=str(_get("team_type") or "ground"),
+            team_type={
+                "ground": "GT",
+                "aircraft": "AIR",
+            }.get(str(_get("team_type") or "GT").lower(), str(_get("team_type") or "GT")),
             radio_ids=_get("radio_ids"),
             route=_get("route"),
         )

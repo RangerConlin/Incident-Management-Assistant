@@ -209,14 +209,34 @@ Window {
                         ColumnLayout { anchors.fill: parent; anchors.margins: 8; spacing: 6
                             RowLayout {
                                 spacing: 12
-                        Text { text: `Team Type: ${((teamBridge && teamBridge.isAircraftTeam)? 'Aircraft':'Ground')}` }
-                        Text { text: "Role:" }
-                        TextField { id: tfRole; width: 180; text: (teamBridge && teamBridge.team) ? (teamBridge.team.role || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ role: text }) }
-                        Text { text: "Current Task:" }
-                        Button { text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? `#${teamBridge.team.current_task_id}`: "Link…"; onClicked: {/* placeholder */} }
-                        Text { text: "Priority:" }
-                        SpinBox { id: sbPriority; from: 0; to: 5; value: (teamBridge && teamBridge.team && teamBridge.team.priority) ? teamBridge.team.priority : 0; onValueChanged: if (teamBridge) teamBridge.updateFromQml({ priority: value }) }
-                    }
+                                Text { text: "Team Type:" }
+                                Rectangle {
+                                    width: 18; height: 18; radius: 9
+                                    color: teamBridge ? teamBridge.teamTypeColor : "#888"
+                                    border.color: "#444"
+                                }
+                                ComboBox {
+                                    id: cbType
+                                    model: teamBridge ? teamBridge.teamTypeList.filter(function(it){ return teamBridge.isPlannedEvent || !it.planned_only }) : []
+                                    delegate: ItemDelegate { text: `${modelData.code} - ${modelData.label}` }
+                                    displayText: (currentIndex >= 0 && model[currentIndex]) ? `${model[currentIndex].code} - ${model[currentIndex].label}` : ""
+                                    onActivated: if (teamBridge) teamBridge.setTeamType(model[index].code)
+                                    Component.onCompleted: {
+                                        if (teamBridge && teamBridge.team && teamBridge.team.team_type) {
+                                            var code = teamBridge.team.team_type
+                                            for (var i=0;i<count;i++) {
+                                                if (model[i] && model[i].code === code) { currentIndex = i; break }
+                                            }
+                                        }
+                                    }
+                                }
+                                Text { text: "Role:" }
+                                TextField { id: tfRole; width: 180; text: (teamBridge && teamBridge.team) ? (teamBridge.team.role || "") : ""; onTextChanged: if (teamBridge) teamBridge.updateFromQml({ role: text }) }
+                                Text { text: "Current Task:" }
+                                Button { text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? `#${teamBridge.team.current_task_id}`: "Link…"; onClicked: {/* placeholder */} }
+                                Text { text: "Priority:" }
+                                SpinBox { id: sbPriority; from: 0; to: 5; value: (teamBridge && teamBridge.team && teamBridge.team.priority) ? teamBridge.team.priority : 0; onValueChanged: if (teamBridge) teamBridge.updateFromQml({ priority: value }) }
+                            }
                     RowLayout {
                         spacing: 12
                         Text { text: "Callsign:" }
