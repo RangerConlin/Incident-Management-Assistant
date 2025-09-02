@@ -156,9 +156,10 @@ Window {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         spacing: 0
-                        TabBar { id: tabs; Layout.fillWidth: true
+                        TabBar {
+                            id: tabs; Layout.fillWidth: true
                             TabButton { text: (teamBridge && teamBridge.isAircraftTeam) ? "Aircrew" : "Personnel" }
-                            TabButton { text: (teamBridge && teamBridge.isAircraftTeam) ? "Aircraft" : "Vehicles" }
+                            Loader { sourceComponent: (teamBridge && teamBridge.isAircraftTeam) ? aircraftTabButton : vehicleTabButton }
                             TabButton { text: "Equipment" }
                             TabButton { text: "Tasks" }
                             TabButton { text: "Log" }
@@ -171,7 +172,7 @@ Window {
                                 ListView {
                                     id: membersList
                                     Layout.fillWidth: true; Layout.fillHeight: true
-                                    model: (teamBridge && teamBridge.team && teamBridge.team.members) ? teamBridge.team.members : []
+                                    model: teamBridge ? teamBridge.personnelList : []
                                     delegate: ItemDelegate {
                                         width: ListView.view.width
                                         text: `ID ${modelData}`
@@ -201,27 +202,14 @@ Window {
                                         }
                                     }
                                 }
-                                Dialogs.PersonnelPicker { id: personnelPicker; onPicked: function(personId){ teamBridge.addMember(personId) } }
-                            }
-                            // 1: Vehicles / Aircraft
-                            ColumnLayout { Layout.margins: 8; spacing: 6; Layout.fillWidth: true; Layout.fillHeight: true
-                                ListView { id: listVehicles; Layout.fillWidth: true; Layout.fillHeight: true; model: (teamBridge && teamBridge.isAircraftTeam) ? ((teamBridge.team && teamBridge.team.aircraft) ? teamBridge.team.aircraft : []) : ((teamBridge && teamBridge.team && teamBridge.team.vehicles) ? teamBridge.team.vehicles : [])
-                                    delegate: ItemDelegate { width: ListView.view.width; text: String(modelData); onClicked: listVehicles.currentIndex = index }
+                                Dialogs.PersonnelPicker {
+                                    id: personnelPicker
+                                    roleFilter: teamBridge ? teamBridge.memberRoleFilter : ""
+                                    onPicked: function(personId){ teamBridge.addMember(personId) }
                                 }
-                                RowLayout { spacing: 6
-                                    Button { text: teamBridge.isAircraftTeam ? "+ Add Aircraft" : "+ Add Vehicle"; onClicked: { if (teamBridge.isAircraftTeam) aircraftPicker.open(); else vehiclePicker.open(); } }
-                                    Button {
-                                        text: "− Remove"
-                                        onClicked: {
-                                            var id = (listVehicles.currentIndex >= 0) ? listVehicles.model[listVehicles.currentIndex] : null
-                                            if (id === null || id === undefined) return
-                                            if (teamBridge.isAircraftTeam) teamBridge.removeAircraft(id); else teamBridge.removeVehicle(id)
-                                        }
-                                    }
-                                }
-                                Dialogs.VehiclePicker { id: vehiclePicker; onPicked: function(vehicleId){ teamBridge.addVehicle(vehicleId) } }
-                                Dialogs.AircraftPicker { id: aircraftPicker; onPicked: function(aircraftId){ teamBridge.addAircraft(aircraftId) } }
                             }
+                            // 1: Vehicles or Aircraft page loaded dynamically
+                            Loader { sourceComponent: (teamBridge && teamBridge.isAircraftTeam) ? aircraftPage : vehiclePage }
                             // 2: Equipment
                             ColumnLayout { Layout.margins: 8; spacing: 6; Layout.fillWidth: true; Layout.fillHeight: true
                                 ListView { id: listEquip; Layout.fillWidth: true; Layout.fillHeight: true; model: (teamBridge && teamBridge.team && teamBridge.team.equipment) ? teamBridge.team.equipment : []
@@ -283,6 +271,52 @@ Window {
                                     Button { text: "Remove"; enabled: false }
                                     Button { text: "Show in Explorer"; enabled: false }
                                 }
+                            }
+                        }
+
+                        // Dynamic tab components for vehicles/aircraft
+                        Component { id: vehicleTabButton
+                            TabButton { text: "Vehicles" }
+                        }
+                        Component { id: aircraftTabButton
+                            TabButton { text: "Aircraft" }
+                        }
+                        Component { id: vehiclePage
+                            ColumnLayout { Layout.margins: 8; spacing: 6; Layout.fillWidth: true; Layout.fillHeight: true
+                                ListView { id: listVehicles; Layout.fillWidth: true; Layout.fillHeight: true;
+                                    model: (teamBridge && teamBridge.team && teamBridge.team.vehicles) ? teamBridge.team.vehicles : []
+                                    delegate: ItemDelegate { width: ListView.view.width; text: String(modelData); onClicked: listVehicles.currentIndex = index }
+                                }
+                                RowLayout { spacing: 6
+                                    Button { text: "+ Add Vehicle"; onClicked: vehiclePicker.open() }
+                                    Button {
+                                        text: "− Remove"
+                                        onClicked: {
+                                            var id = (listVehicles.currentIndex >= 0) ? listVehicles.model[listVehicles.currentIndex] : null
+                                            if (id !== null && id !== undefined) teamBridge.removeVehicle(id)
+                                        }
+                                    }
+                                }
+                                Dialogs.VehiclePicker { id: vehiclePicker; onPicked: function(vehicleId){ teamBridge.addVehicle(vehicleId) } }
+                            }
+                        }
+                        Component { id: aircraftPage
+                            ColumnLayout { Layout.margins: 8; spacing: 6; Layout.fillWidth: true; Layout.fillHeight: true
+                                ListView { id: listAircraft; Layout.fillWidth: true; Layout.fillHeight: true;
+                                    model: (teamBridge && teamBridge.team && teamBridge.team.aircraft) ? teamBridge.team.aircraft : []
+                                    delegate: ItemDelegate { width: ListView.view.width; text: String(modelData); onClicked: listAircraft.currentIndex = index }
+                                }
+                                RowLayout { spacing: 6
+                                    Button { text: "+ Add Aircraft"; onClicked: aircraftPicker.open() }
+                                    Button {
+                                        text: "− Remove"
+                                        onClicked: {
+                                            var id = (listAircraft.currentIndex >= 0) ? listAircraft.model[listAircraft.currentIndex] : null
+                                            if (id !== null && id !== undefined) teamBridge.removeAircraft(id)
+                                        }
+                                    }
+                                }
+                                Dialogs.AircraftPicker { id: aircraftPicker; onPicked: function(aircraftId){ teamBridge.addAircraft(aircraftId) } }
                             }
                         }
                     }

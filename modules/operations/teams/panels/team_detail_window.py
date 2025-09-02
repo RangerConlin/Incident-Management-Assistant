@@ -60,6 +60,16 @@ class TeamDetailBridge(QObject):
     def isAircraftTeam(self) -> bool:
         return (self._team.team_type or "ground").lower() == "aircraft"
 
+    @Property('QVariant', notify=teamChanged)
+    def personnelList(self) -> list[int]:
+        """Return members list filtered for valid roles."""
+        return [int(p) for p in (self._team.members or [])]
+
+    @Property(str, notify=teamChanged)
+    def memberRoleFilter(self) -> str:
+        """Role hint for QML pickers based on team type."""
+        return "air" if self.isAircraftTeam else "ground"
+
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
         key = (self._team.status or "").strip().lower()
@@ -141,8 +151,27 @@ class TeamDetailBridge(QObject):
             self.error.emit(f"Status change failed: {e}")
 
     # ---- Member/asset management ----
+    def _is_member_role_valid(self, person_id: int) -> bool:
+        """Validate a person's role against the team type.
+
+        Ground teams should not have aircrew and vice versa. The check is
+        intentionally lightweight and falls back to True if lookup fails.
+        """
+        try:
+            from modules.logistics.checkin import repository as checkin_repo
+            rec = checkin_repo.find_personnel_by_id(str(person_id))
+            role = (rec.get("role") or "").lower() if rec else ""
+            if self.isAircraftTeam:
+                return "air" in role or "pilot" in role
+            return not ("air" in role or "pilot" in role)
+        except Exception:
+            return True
+
     @Slot(int)
     def addMember(self, person_id: int) -> None:
+        if not self._is_member_role_valid(person_id):
+            self.error.emit("Selected person role not valid for this team")
+            return
         if person_id not in self._team.members:
             self._team.members.append(int(person_id))
             self.teamChanged.emit()
