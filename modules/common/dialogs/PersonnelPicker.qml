@@ -7,6 +7,9 @@ Dialog {
     modal: true
     standardButtons: Dialog.Ok | Dialog.Cancel
     property int selectedId: -1
+    // Optional role filter used by TeamDetailWindow to restrict
+    // personnel selection based on team type (e.g. aircrew vs ground).
+    property string roleFilter: ""
     signal picked(int personId)
 
     contentItem: Column {
