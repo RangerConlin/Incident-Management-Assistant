@@ -21,7 +21,10 @@ class Team:
     status: str = "available"
     priority: Optional[int] = None
     current_task_id: Optional[int] = None
+    primary_task: Optional[str] = None
+    assignment: Optional[str] = None
     team_leader_id: Optional[int] = None  # FK to personnel.id
+    team_leader_phone: Optional[str] = None
     phone: Optional[str] = None
     notes: Optional[str] = None
     last_update_ts: datetime = field(default_factory=datetime.utcnow)
@@ -52,7 +55,10 @@ class Team:
             "status": (self.status or "").strip().lower() if self.status else None,
             "priority": self.priority,
             "current_task_id": self.current_task_id,
+            "primary_task": self.primary_task,
+            "assignment": self.assignment,
             "team_leader": self.team_leader_id,
+            "leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
             "status_updated": (self.last_update_ts or datetime.utcnow()).isoformat(),
@@ -112,7 +118,10 @@ class Team:
             status=status_norm,
             priority=(int(_get("priority")) if _get("priority") is not None else None),
             current_task_id=(int(_get("current_task_id")) if _get("current_task_id") is not None else None),
+            primary_task=_get("primary_task"),
+            assignment=_get("assignment"),
             team_leader_id=(int(_get("team_leader")) if _get("team_leader") is not None else None),
+            team_leader_phone=_get("leader_phone"),
             phone=_get("phone"),
             notes=_get("notes"),
             last_update_ts=last_ts,
@@ -138,7 +147,10 @@ class Team:
             "status": self.status,
             "priority": self.priority,
             "current_task_id": self.current_task_id,
+            "primary_task": self.primary_task,
+            "assignment": self.assignment,
             "team_leader_id": self.team_leader_id,
+            "team_leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
             "last_update_ts": (self.last_update_ts or datetime.utcnow()).isoformat(),

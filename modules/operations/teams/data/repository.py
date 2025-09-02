@@ -28,6 +28,8 @@ def _ensure_team_columns(con: sqlite3.Connection) -> None:
         to_add.append(("priority", "INTEGER"))
     if "team_leader" not in cols:
         to_add.append(("team_leader", "INTEGER"))
+    if "leader_phone" not in cols:
+        to_add.append(("leader_phone", "TEXT"))
     if "phone" not in cols:
         to_add.append(("phone", "TEXT"))
     if "notes" not in cols:
@@ -38,6 +40,10 @@ def _ensure_team_columns(con: sqlite3.Connection) -> None:
         to_add.append(("status_updated", "TEXT"))
     if "current_task_id" not in cols:
         to_add.append(("current_task_id", "INTEGER"))
+    if "primary_task" not in cols:
+        to_add.append(("primary_task", "TEXT"))
+    if "assignment" not in cols:
+        to_add.append(("assignment", "TEXT"))
     # Geo / movement
     if "last_known_lat" not in cols:
         to_add.append(("last_known_lat", "REAL"))

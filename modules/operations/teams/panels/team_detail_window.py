@@ -211,6 +211,10 @@ class TeamDetailBridge(QObject):
             self._team.role = data.get("role") or None
             self._team.priority = int(data.get("priority")) if data.get("priority") not in (None, "") else None
             self._team.team_leader_id = int(data.get("team_leader_id")) if data.get("team_leader_id") not in (None, "") else None
+            self._team.team_type = data.get("team_type", self._team.team_type)
+            self._team.primary_task = data.get("primary_task") or None
+            self._team.assignment = data.get("assignment") or None
+            self._team.team_leader_phone = data.get("team_leader_phone") or None
             self._team.phone = data.get("phone") or None
             self._team.notes = data.get("notes") or None
             lat = data.get("last_known_lat")
