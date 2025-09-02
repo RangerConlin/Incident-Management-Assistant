@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Window 2.15
 
 Dialog {
     id: root
@@ -89,16 +90,17 @@ Dialog {
                 onClicked: {
                     var map = {};
                     var ok = true;
-                    for (var i=0;i<form.children.length;i++) {
-                        var row = form.children[i];
+                    for (var i=0; i < fieldsColumn.children.length; i++) {
+                        var row = fieldsColumn.children[i];
                         if (!row || !row.hasOwnProperty('col')) continue;
                         var k = row.col.key;
                         var required = !!row.col.required;
-                        // find editor by objectName
+                        // find editor by objectName (loader items or direct children)
                         var editor = null;
-                        for (var j=0;j<row.children.length;j++) {
+                        for (var j = 0; j < row.children.length; j++) {
                             var ch = row.children[j];
-                            if (ch.objectName && ch.objectName === 'field::' + k) { editor = ch; break;}
+                            if (ch.item && ch.item.objectName === 'field::' + k) { editor = ch.item; break; }
+                            if (ch.objectName && ch.objectName === 'field::' + k) { editor = ch; break; }
                         }
                         var v = editor && (editor.value !== undefined ? editor.value : editor.text);
                         // Treat blank strings in enums as null (for optional fields)
