@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 from datetime import datetime
+import os
+import sqlite3
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
-from styles import TEAM_STATUS_COLORS
+from styles import TEAM_STATUS_COLORS, TEAM_TYPE_COLORS
+from models.database import get_incident_by_number
 from utils import incident_context
+from utils.state import AppState
 from modules.operations.teams.data.team import Team
 from modules.operations.teams.data import repository as team_repo
 
@@ -47,6 +51,19 @@ class TeamDetailBridge(QObject):
             {"label": "Complete", "key": "complete"},
         ]
 
+        self._team_type_options: list[dict[str, object]] = [
+            {"code": "GT", "label": "Ground Team", "color": TEAM_TYPE_COLORS["GT"].name(), "planned_only": False},
+            {"code": "UDF", "label": "Urban DF Team", "color": TEAM_TYPE_COLORS["UDF"].name(), "planned_only": False},
+            {"code": "LSAR", "label": "Land SAR", "color": TEAM_TYPE_COLORS["LSAR"].name(), "planned_only": False},
+            {"code": "DF", "label": "Disaster Field Team", "color": TEAM_TYPE_COLORS["DF"].name(), "planned_only": False},
+            {"code": "GT/UAS", "label": "Ground/UAS Team", "color": TEAM_TYPE_COLORS["GT/UAS"].name(), "planned_only": False},
+            {"code": "UDF/UAS", "label": "Urban DF/UAS Team", "color": TEAM_TYPE_COLORS["UDF/UAS"].name(), "planned_only": False},
+            {"code": "UAS", "label": "UAS Team", "color": TEAM_TYPE_COLORS["UAS"].name(), "planned_only": False},
+            {"code": "AIR", "label": "Air Support", "color": TEAM_TYPE_COLORS["AIR"].name(), "planned_only": False},
+            {"code": "K9", "label": "K9 Team", "color": TEAM_TYPE_COLORS["K9"].name(), "planned_only": False},
+            {"code": "UTIL", "label": "Utility/Support", "color": TEAM_TYPE_COLORS["UTIL"].name(), "planned_only": True},
+        ]
+
     # ---- Properties exposed to QML ----
     @Property('QVariant', notify=teamChanged)
     def team(self) -> Dict[str, Any]:
@@ -58,7 +75,6 @@ class TeamDetailBridge(QObject):
 
     @Property(bool, notify=teamChanged)
     def isAircraftTeam(self) -> bool:
-        return (self._team.team_type or "ground").lower() == "aircraft"
 
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
@@ -71,6 +87,7 @@ class TeamDetailBridge(QObject):
             bg, fg = "#888888", "#000000"
         return {"bg": bg, "fg": fg}
 
+
     # ---- Load/save ----
     @Slot(int)
     def loadTeam(self, team_id: int) -> None:
@@ -80,6 +97,7 @@ class TeamDetailBridge(QObject):
                 self._team = t if t else Team(team_id=int(team_id))
             else:
                 self._team = Team()
+            self._auto_set_pilot()
             self.teamChanged.emit()
             self.statusChanged.emit(self._team.status)
         except Exception as e:
@@ -140,16 +158,44 @@ class TeamDetailBridge(QObject):
         except Exception as e:
             self.error.emit(f"Status change failed: {e}")
 
+    @Slot(str)
+    def setTeamType(self, code: str) -> None:
+        self._team.team_type = str(code)
+        self.teamChanged.emit()
+
     # ---- Member/asset management ----
+    def _is_member_role_valid(self, person_id: int) -> bool:
+        """Validate a person's role against the team type.
+
+        Ground teams should not have aircrew and vice versa. The check is
+        intentionally lightweight and falls back to True if lookup fails.
+        """
+        try:
+            from modules.logistics.checkin import repository as checkin_repo
+            rec = checkin_repo.find_personnel_by_id(str(person_id))
+            role = (rec.get("role") or "").lower() if rec else ""
+            if self.isAircraftTeam:
+                return "air" in role or "pilot" in role
+            return not ("air" in role or "pilot" in role)
+        except Exception:
+            return True
+
     @Slot(int)
     def addMember(self, person_id: int) -> None:
+        if not self._is_member_role_valid(person_id):
+            self.error.emit("Selected person role not valid for this team")
+            return
         if person_id not in self._team.members:
             self._team.members.append(int(person_id))
+            self._auto_set_pilot()
             self.teamChanged.emit()
 
     @Slot(int)
     def removeMember(self, person_id: int) -> None:
         self._team.members = [p for p in self._team.members if int(p) != int(person_id)]
+        if self._team.team_leader_id == int(person_id):
+            self._team.team_leader_id = None
+        self._auto_set_pilot()
         self.teamChanged.emit()
 
     @Slot(str)
@@ -211,6 +257,10 @@ class TeamDetailBridge(QObject):
             self._team.role = data.get("role") or None
             self._team.priority = int(data.get("priority")) if data.get("priority") not in (None, "") else None
             self._team.team_leader_id = int(data.get("team_leader_id")) if data.get("team_leader_id") not in (None, "") else None
+            self._team.team_type = data.get("team_type", self._team.team_type)
+            self._team.primary_task = data.get("primary_task") or None
+            self._team.assignment = data.get("assignment") or None
+            self._team.team_leader_phone = data.get("team_leader_phone") or None
             self._team.phone = data.get("phone") or None
             self._team.notes = data.get("notes") or None
             lat = data.get("last_known_lat")
@@ -226,6 +276,31 @@ class TeamDetailBridge(QObject):
     @Slot('QVariant')
     def openQuickLog(self, template_id: Optional[int] = None) -> None:  # placeholder
         # Future: open Canned Comm Entry dialog
+        pass
+
+    @Slot(result='QVariant')
+    def unitLog(self) -> list[dict]:
+        """Return unit log entries for the team."""
+        return []
+
+    @Slot(result='QVariant')
+    def taskHistory(self) -> list[dict]:
+        """Return task history entries for the team."""
+        return []
+
+    @Slot(result='QVariant')
+    def statusHistory(self) -> list[dict]:
+        """Return status history entries for the team."""
+        return []
+
+    @Slot(result='QVariant')
+    def ics214Entries(self) -> list[dict]:
+        """Return ICS 214 note entries for the team."""
+        return []
+
+    @Slot()
+    def addIcs214Note(self) -> None:  # placeholder
+        """Open dialog to add an ICS 214 note."""
         pass
 
     @Slot(int)

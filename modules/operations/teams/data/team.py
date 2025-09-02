@@ -21,10 +21,14 @@ class Team:
     status: str = "available"
     priority: Optional[int] = None
     current_task_id: Optional[int] = None
+    primary_task: Optional[str] = None
+    assignment: Optional[str] = None
     team_leader_id: Optional[int] = None  # FK to personnel.id
+    team_leader_phone: Optional[str] = None
     phone: Optional[str] = None
     notes: Optional[str] = None
     last_update_ts: datetime = field(default_factory=datetime.utcnow)
+    last_comm_ts: Optional[datetime] = None
     last_known_lat: Optional[float] = None
     last_known_lon: Optional[float] = None
     members: List[int] = field(default_factory=list)
@@ -32,7 +36,7 @@ class Team:
     equipment: List[str] = field(default_factory=list)
     aircraft: List[str] = field(default_factory=list)
     comms_preset_id: Optional[int] = None
-    team_type: str = "ground"  # "ground" or "aircraft"
+    team_type: str = "GT"  # e.g., GT, UDF, AIR
     radio_ids: Optional[str] = None  # free-form text for now
     route: Optional[str] = None
 
@@ -52,10 +56,14 @@ class Team:
             "status": (self.status or "").strip().lower() if self.status else None,
             "priority": self.priority,
             "current_task_id": self.current_task_id,
+            "primary_task": self.primary_task,
+            "assignment": self.assignment,
             "team_leader": self.team_leader_id,
+            "leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
             "status_updated": (self.last_update_ts or datetime.utcnow()).isoformat(),
+            "last_comm_ping": (self.last_comm_ts.isoformat() if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
             "members_json": json.dumps(list(self.members or [])),
@@ -104,6 +112,12 @@ class Team:
         except Exception:
             last_ts = datetime.utcnow()
 
+        comm_ts = _get("last_comm_ping")
+        try:
+            comm_dt = datetime.fromisoformat(comm_ts) if comm_ts else None
+        except Exception:
+            comm_dt = None
+
         return Team(
             team_id=int(_get("id")) if _get("id") is not None else None,
             name=str(_get("name") or ""),
@@ -112,10 +126,14 @@ class Team:
             status=status_norm,
             priority=(int(_get("priority")) if _get("priority") is not None else None),
             current_task_id=(int(_get("current_task_id")) if _get("current_task_id") is not None else None),
+            primary_task=_get("primary_task"),
+            assignment=_get("assignment"),
             team_leader_id=(int(_get("team_leader")) if _get("team_leader") is not None else None),
+            team_leader_phone=_get("leader_phone"),
             phone=_get("phone"),
             notes=_get("notes"),
             last_update_ts=last_ts,
+            last_comm_ts=comm_dt,
             last_known_lat=(float(_get("last_known_lat")) if _get("last_known_lat") is not None else None),
             last_known_lon=(float(_get("last_known_lon")) if _get("last_known_lon") is not None else None),
             members=_parse_json(_get("members_json")),
@@ -123,7 +141,10 @@ class Team:
             equipment=_parse_json(_get("equipment_json")),
             aircraft=_parse_json(_get("aircraft_json")),
             comms_preset_id=(int(_get("comms_preset_id")) if _get("comms_preset_id") is not None else None),
-            team_type=str(_get("team_type") or "ground"),
+            team_type={
+                "ground": "GT",
+                "aircraft": "AIR",
+            }.get(str(_get("team_type") or "GT").lower(), str(_get("team_type") or "GT")),
             radio_ids=_get("radio_ids"),
             route=_get("route"),
         )
@@ -138,10 +159,14 @@ class Team:
             "status": self.status,
             "priority": self.priority,
             "current_task_id": self.current_task_id,
+            "primary_task": self.primary_task,
+            "assignment": self.assignment,
             "team_leader_id": self.team_leader_id,
+            "team_leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
             "last_update_ts": (self.last_update_ts or datetime.utcnow()).isoformat(),
+            "last_comm_ts": (self.last_comm_ts.isoformat() if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
             "members": list(self.members or []),

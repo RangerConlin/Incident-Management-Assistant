@@ -3,3 +3,5 @@ fastapi
 pydantic
 reportlab
 PySide6-QtAds
+httpx
+sqlalchemy
