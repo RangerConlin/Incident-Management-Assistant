@@ -17,7 +17,7 @@ FIND_BY_NAME = {
     "personnel": repository.find_personnel_by_name,
     "equipment": repository.find_equipment_by_name,
     "vehicle": repository.find_vehicle_by_name,
-    "aircraft": repository.find_aircraft_by_tail,
+    "aircraft": repository.find_aircraft_by_callsign,
 }
 
 COPY_TO_INCIDENT = {

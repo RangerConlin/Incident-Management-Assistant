@@ -15,8 +15,10 @@ def setup_repo(tmp_path, monkeypatch):
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
     import utils.incident_context as ic
     import utils.db as db
+    import utils.state as state
     importlib.reload(ic)
     importlib.reload(db)
+    importlib.reload(state)
 
     # Create lightweight package hierarchy to avoid heavy imports
     modules_pkg = types.ModuleType("modules")
@@ -37,12 +39,12 @@ def setup_repo(tmp_path, monkeypatch):
     sys.modules[spec.name] = repo
     spec.loader.exec_module(repo)
 
-    ic.set_active_incident("test_incident")
-    return repo, ic
+    state.AppState.set_active_incident("test_incident")
+    return repo
 
 
 def test_tables_created_and_copy(tmp_path, monkeypatch):
-    repo, ic = setup_repo(tmp_path, monkeypatch)
+    repo = setup_repo(tmp_path, monkeypatch)
 
     payload = {
         "id": "P1",

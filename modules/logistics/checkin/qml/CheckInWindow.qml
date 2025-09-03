@@ -52,7 +52,10 @@ Item {
                 id: refreshBtn
                 text: "Refresh"
                 onClicked: {
-                    swipeView.itemAt(tabBar.currentIndex).refresh()
+                    var loader = stackLayout.children[tabBar.currentIndex]
+                    if (loader && loader.item && loader.item.refresh) {
+                        loader.item.refresh()
+                    }
                 }
             }
             Button {
@@ -79,15 +82,11 @@ Item {
             TabButton { text: "Equipment" }
             TabButton { text: "Vehicles" }
             TabButton { text: "Aircraft" }
-            onCurrentIndexChanged: {
-                swipeView.currentIndex = currentIndex
-                // reset any per-tab overlays if needed
-            }
         }
 
         // Pages that change with the TabBar
-        SwipeView {
-            id: swipeView
+        StackLayout {
+            id: stackLayout
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: tabBar.currentIndex

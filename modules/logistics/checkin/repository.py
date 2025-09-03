@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import sqlite3
 
 from utils.db import get_master_conn, get_incident_conn
-from utils import incident_context
+from utils.state import AppState
 from utils.schema_placeholders import ensure_master_tables_exist, ensure_incident_tables_exist
 
 # ---------------------------------------------------------------------------
@@ -76,10 +76,10 @@ def find_aircraft_by_id(aid: str) -> Optional[Dict]:
         return _row_to_dict(cur.fetchone())
 
 
-def find_aircraft_by_tail(tail_number: str) -> List[Dict]:
+def find_aircraft_by_callsign(callsign: str) -> List[Dict]:
     with get_master_conn() as conn:
         ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM aircraft_master WHERE tail_number = ?", (tail_number,))
+        cur = conn.execute("SELECT * FROM aircraft_master WHERE callsign = ?", (callsign,))
         return [dict(row) for row in cur.fetchall()]
 
 # ---------------------------------------------------------------------------
@@ -120,6 +120,7 @@ def create_or_update_equipment_master(data: Dict) -> None:
     with get_master_conn() as conn:
         ensure_master_tables_exist(conn)
         payload = data.copy()
+        payload.setdefault("name", None)
         payload.setdefault("type", None)
         payload.setdefault("assigned_to", None)
         payload.setdefault("status", "Available")
@@ -145,6 +146,7 @@ def create_or_update_vehicle_master(data: Dict) -> None:
     with get_master_conn() as conn:
         ensure_master_tables_exist(conn)
         payload = data.copy()
+        payload.setdefault("name", None)
         payload.setdefault("type", None)
         payload.setdefault("callsign", None)
         payload.setdefault("assigned_to", None)
@@ -172,9 +174,13 @@ def create_or_update_aircraft_master(data: Dict) -> None:
     with get_master_conn() as conn:
         ensure_master_tables_exist(conn)
         payload = data.copy()
-        payload.setdefault("tail_number", data.get("tail_number"))
+        # Allow callers to provide only a callsign; use it for id/tail if missing
+        if "callsign" in payload:
+            payload.setdefault("id", payload.get("callsign"))
+            payload.setdefault("tail_number", payload.get("callsign"))
+        else:
+            payload.setdefault("callsign", None)
         payload.setdefault("type", None)
-        payload.setdefault("callsign", None)
         payload.setdefault("assigned_to", None)
         payload.setdefault("status", "Available")
         payload.setdefault("created_at", _timestamp())
@@ -207,7 +213,9 @@ def _incident_insert(sql: str, payload: Dict) -> None:
 
 
 def copy_personnel_to_incident(personnel: Dict) -> None:
-    incident_id = incident_context.get_active_incident_id()
+    incident_id = AppState.get_active_incident()
+    if incident_id is None:
+        raise RuntimeError("Active incident not set")
     payload = personnel.copy()
     payload.update(
         {
@@ -238,7 +246,9 @@ def copy_personnel_to_incident(personnel: Dict) -> None:
 
 
 def copy_equipment_to_incident(equipment: Dict) -> None:
-    incident_id = incident_context.get_active_incident_id()
+    incident_id = AppState.get_active_incident()
+    if incident_id is None:
+        raise RuntimeError("Active incident not set")
     payload = equipment.copy()
     payload.update(
         {
@@ -268,7 +278,9 @@ def copy_equipment_to_incident(equipment: Dict) -> None:
 
 
 def copy_vehicle_to_incident(vehicle: Dict) -> None:
-    incident_id = incident_context.get_active_incident_id()
+    incident_id = AppState.get_active_incident()
+    if incident_id is None:
+        raise RuntimeError("Active incident not set")
     payload = vehicle.copy()
     payload.update(
         {
@@ -300,7 +312,9 @@ def copy_vehicle_to_incident(vehicle: Dict) -> None:
 
 
 def copy_aircraft_to_incident(aircraft: Dict) -> None:
-    incident_id = incident_context.get_active_incident_id()
+    incident_id = AppState.get_active_incident()
+    if incident_id is None:
+        raise RuntimeError("Active incident not set")
     payload = aircraft.copy()
     payload.update(
         {
