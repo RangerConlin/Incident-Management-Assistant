@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
 from utils.state import AppState
 from models.database import get_connection, insert_new_incident
 from modules.incidents.new_incident_dialog import NewIncidentDialog
+from utils.audit import write_audit
+from utils.session import start_session
 
 
 # Static list of roles (not used for permissions, only for logging/documentation)
@@ -160,6 +162,10 @@ class LoginDialog(QDialog):
                 )
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Failed to register incident: {e}")
+            try:
+                write_audit("incident.create", {"number": meta.number, "name": meta.name})
+            except Exception:
+                pass
             # Always refresh after dialog
             self._load_incidents()
             # Select the newly created incident by number if present
@@ -201,11 +207,11 @@ class LoginDialog(QDialog):
         AppState.set_active_user_role(role)
 
         try:
-            # Optional: log the login event
-            from utils.audit import log_action
-            log_action("login", details="User opened session")
+            sid = start_session(int(user_id))
+            write_audit("session.start", {"session_id": sid}, prefer_mission=False)
+            write_audit("login.success", {"role": role, "personnel_id": user_id}, prefer_mission=False)
+            write_audit("incident.select", {"number": incident_number})
         except Exception:
-            # Audit is best-effort; continue silently on failure
             pass
 
         # Signal and close

@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
-from styles import TASK_STATUS_COLORS
 from PySide6.QtCore import Qt
+from utils.styles import task_status_colors, subscribe_theme
+from utils.audit import write_audit
 
 # Require incident DB repository (no sample fallback)
 try:
@@ -63,6 +64,10 @@ class TaskStatusPanel(QWidget):
             app_signals.incidentChanged.connect(lambda *_: self.reload())
         except Exception:
             pass
+        try:
+            subscribe_theme(self, lambda *_: self._recolor_all())
+        except Exception:
+            pass
 
     def add_task(self, task):
         row = self.table.rowCount()
@@ -122,7 +127,7 @@ class TaskStatusPanel(QWidget):
             QMessageBox.critical(self, "Task Board Error", f"Failed to load tasks from incident DB:\n{e}")
 
     def set_row_color_by_status(self, row, status):
-        style = TASK_STATUS_COLORS.get(status.lower())
+        style = task_status_colors().get(status.lower())
         if not style:
             return
 
@@ -131,6 +136,17 @@ class TaskStatusPanel(QWidget):
             if item:
                 item.setBackground(style["bg"])
                 item.setForeground(style["fg"])
+
+    def _recolor_all(self) -> None:
+        try:
+            status_col = 3
+            rows = self.table.rowCount()
+            for r in range(rows):
+                item = self.table.item(r, status_col)
+                status = (item.text() if item else "").strip().lower()
+                self.set_row_color_by_status(r, status)
+        except Exception:
+            pass
 
     def show_context_menu(self, position):
         row = self.table.indexAt(position).row()
@@ -146,7 +162,7 @@ class TaskStatusPanel(QWidget):
         menu.addSeparator()
 
         # Flat list of status options
-        for status in TASK_STATUS_COLORS:
+        for status in task_status_colors():
             menu.addAction(status.title(), lambda s=status: self.change_status(row, s))
 
         # Show the menu
@@ -175,11 +191,14 @@ class TaskStatusPanel(QWidget):
                 raise RuntimeError("No task id associated with row")
             if not set_task_status:
                 raise RuntimeError("DB repository not available")
+            item_status = self.table.item(row, 3)
+            old_status = (item_status.text() if item_status else "").strip().lower()
             set_task_status(task_id, str(new_status))
             # Update UI
             display = str(new_status).title()
             self.table.item(row, 3).setText(display)
             self.set_row_color_by_status(row, str(new_status))
+            write_audit("status.change", {"panel": "task", "id": task_id, "old": old_status, "new": str(new_status)})
         except Exception as e:
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
             QMessageBox.critical(self, "Update Failed", f"Unable to update task status in DB:\n{e}")

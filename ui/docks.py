@@ -4,7 +4,7 @@ from typing import Iterable
 
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu
 from PySide6.QtCore import Qt
-from styles import TEAM_STATUS_COLORS, TASK_STATUS_COLORS
+from utils.styles import team_status_colors, task_status_colors, subscribe_theme
 from PySide6QtAds import CDockWidget
 
 from data.sample_data import (
@@ -110,14 +110,19 @@ def create_team_status_dock(parent=None):
     try:
         headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
         status_idx = headers.index("Status") if "Status" in headers else 4
-        _apply_row_colors(table, status_idx, TEAM_STATUS_COLORS)
-        table.itemChanged.connect(_on_status_changed(table, status_idx, TEAM_STATUS_COLORS))
+        palette = team_status_colors()
+        _apply_row_colors(table, status_idx, palette)
+        table.itemChanged.connect(_on_status_changed(table, status_idx, palette))
         _attach_status_context_menu(
             table,
             status_idx,
-            TEAM_STATUS_COLORS,
+            palette,
             on_view_detail=lambda r: print(f"[Team] View detail row={r}"),
         )
+        try:
+            subscribe_theme(table, lambda *_: _apply_row_colors(table, status_idx, team_status_colors()))
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -135,14 +140,19 @@ def create_task_status_dock(parent=None):
     try:
         headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
         status_idx = headers.index("Status") if "Status" in headers else 2
-        _apply_row_colors(table, status_idx, TASK_STATUS_COLORS)
-        table.itemChanged.connect(_on_status_changed(table, status_idx, TASK_STATUS_COLORS))
+        palette = task_status_colors()
+        _apply_row_colors(table, status_idx, palette)
+        table.itemChanged.connect(_on_status_changed(table, status_idx, palette))
         _attach_status_context_menu(
             table,
             status_idx,
-            TASK_STATUS_COLORS,
+            palette,
             on_view_detail=lambda r: print(f"[Task] View detail row={r}"),
         )
+        try:
+            subscribe_theme(table, lambda *_: _apply_row_colors(table, status_idx, task_status_colors()))
+        except Exception:
+            pass
     except Exception:
         pass
 

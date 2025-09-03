@@ -7,7 +7,7 @@ import sqlite3
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
-from styles import TEAM_STATUS_COLORS, TEAM_TYPE_COLORS
+from utils.styles import team_status_colors, TEAM_TYPE_COLORS, subscribe_theme
 from models.database import get_incident_by_number
 from utils import incident_context
 from utils.state import AppState
@@ -63,6 +63,10 @@ class TeamDetailBridge(QObject):
             {"code": "K9", "label": "K9 Team", "color": TEAM_TYPE_COLORS["K9"].name(), "planned_only": False},
             {"code": "UTIL", "label": "Utility/Support", "color": TEAM_TYPE_COLORS["UTIL"].name(), "planned_only": True},
         ]
+        try:
+            subscribe_theme(self, lambda *_: self.statusChanged.emit(self._team.status))
+        except Exception:
+            pass
 
     # ---- Properties exposed to QML ----
     @Property('QVariant', notify=teamChanged)
@@ -80,7 +84,7 @@ class TeamDetailBridge(QObject):
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
         key = (self._team.status or "").strip().lower()
-        st = TEAM_STATUS_COLORS.get(key)
+        st = team_status_colors().get(key)
         try:
             bg = st["bg"].color().name() if st else "#888888"
             fg = st["fg"].color().name() if st else "#000000"

@@ -51,6 +51,9 @@ from bridge.incident_bridge import IncidentBridge
 from models.sqlite_table_model import SqliteTableModel
 import sqlite3
 # 'os' imported earlier for env setup
+from utils.styles import set_theme, apply_app_palette, THEME_NAME
+from utils.audit import fetch_last_audit_rows, write_audit
+from utils.session import end_session
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -215,6 +218,22 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Equipment", None, "edit.equipment")
         self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
+
+        # ----- View -----
+        m_view = mb.addMenu("View")
+        theme_menu = m_view.addMenu("Theme")
+        act_light = QAction("Light", self)
+        act_light.setCheckable(True)
+        act_dark = QAction("Dark", self)
+        act_dark.setCheckable(True)
+        if THEME_NAME == "light":
+            act_light.setChecked(True)
+        else:
+            act_dark.setChecked(True)
+        act_light.triggered.connect(lambda: (set_theme("light"), apply_app_palette(QApplication.instance())))
+        act_dark.triggered.connect(lambda: (set_theme("dark"), apply_app_palette(QApplication.instance())))
+        theme_menu.addAction(act_light)
+        theme_menu.addAction(act_dark)
 
         # ----- Command -----
         m_cmd = mb.addMenu("Command")
@@ -398,6 +417,17 @@ class MainWindow(QMainWindow):
         act_task_qml = QAction("Open Task Status (QML)", self)
         act_task_qml.triggered.connect(lambda: self._open_task_status_qml_debug())
         self.menuDebug.addAction(act_task_qml)
+
+        act_audit = QAction("Audit Console", self)
+        def _show_audit():
+            try:
+                rows = fetch_last_audit_rows()
+                for row in rows:
+                    print(dict(row))
+            except Exception as e:
+                print(f"[debug] failed to fetch audit logs: {e}")
+        act_audit.triggered.connect(_show_audit)
+        self.menuDebug.addAction(act_audit)
 
         # Debug: Open Team Detail by ID
         act_team_detail = QAction("Open Team Detail (Team ID…)", self)
@@ -2064,6 +2094,17 @@ class MetricWidget(QWidget):
 if __name__ == "__main__":
     import argparse
     app = QApplication(sys.argv)
+    apply_app_palette(app)
+
+    def _on_quit():
+        try:
+            sid = AppState.get_active_session_id()
+            if sid is not None:
+                end_session()
+                write_audit("session.end", {"session_id": sid}, prefer_mission=False)
+        except Exception:
+            pass
+    app.aboutToQuit.connect(_on_quit)
 
     # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
     DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
