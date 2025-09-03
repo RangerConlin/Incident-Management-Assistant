@@ -60,6 +60,23 @@ class CatalogBridge(QObject):
     def deleteVehicles(self, id_value: int) -> bool:
         return self._svc("vehicles").delete(id_value)
 
+    # --- Aircraft -----------------------------------------------------
+    @Slot(str, result=list)
+    def listAircraft(self, searchText: str = "") -> List[Dict[str, Any]]:
+        return self._svc("aircraft").list(searchText)
+
+    @Slot(dict, result=int)
+    def createAircraft(self, data: Dict[str, Any]) -> int:
+        return self._svc("aircraft").create(data)
+
+    @Slot(int, dict, result=bool)
+    def updateAircraft(self, id_value: int, data: Dict[str, Any]) -> bool:
+        return self._svc("aircraft").update(id_value, data)
+
+    @Slot(int, result=bool)
+    def deleteAircraft(self, id_value: int) -> bool:
+        return self._svc("aircraft").delete(id_value)
+
     # --- Equipment -----------------------------------------------------
     @Slot(str, result=list)
     def listEquipment(self, searchText: str = "") -> List[Dict[str, Any]]:
