@@ -3,14 +3,17 @@ from __future__ import annotations
 from typing import Dict
 
 
-class PermissionError(Exception):
+class QuickEntryPermissionError(Exception):
+    """Raised when a quick entry action is not permitted."""
+
     pass
 
 
 def dispatch(action: str, payload: Dict):
     """Route quick entry actions to modules. Replace with real integrations.
 
-    Do not hide options by role; raise PermissionError at action time when needed.
+    Do not hide options by role; raise :class:`QuickEntryPermissionError` at
+    action time when needed.
     """
     # TODO: integrate with actual panels/modules
     # For now, just simulate success for known actions
@@ -24,7 +27,9 @@ def dispatch(action: str, payload: Dict):
         "files.upload",
     }
     if action not in allowed:
-        raise PermissionError(f"Action not permitted or unknown: {action}")
+        raise QuickEntryPermissionError(
+            f"Action not permitted or unknown: {action}"
+        )
     # In a real implementation, open the relevant wizard/panel here
     return True
 

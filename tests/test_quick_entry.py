@@ -1,4 +1,8 @@
-from ui.actions.quick_entry_actions import dispatch, execute_cli, PermissionError
+from ui.actions.quick_entry_actions import (
+    QuickEntryPermissionError,
+    dispatch,
+    execute_cli,
+)
 
 
 def test_quick_entry_dispatch_known_actions():
@@ -17,8 +21,8 @@ def test_quick_entry_dispatch_known_actions():
 def test_quick_entry_dispatch_unknown_action():
     try:
         dispatch("unknown.action", {})
-        assert False, "Expected PermissionError"
-    except PermissionError:
+        assert False, "Expected QuickEntryPermissionError"
+    except QuickEntryPermissionError:
         pass
 
 
