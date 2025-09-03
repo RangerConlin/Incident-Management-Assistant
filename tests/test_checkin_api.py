@@ -15,8 +15,10 @@ def setup_api(tmp_path, monkeypatch):
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
     import utils.incident_context as ic
     import utils.db as db
+    import utils.state as state
     importlib.reload(ic)
     importlib.reload(db)
+    importlib.reload(state)
 
     modules_pkg = types.ModuleType("modules")
     modules_pkg.__path__ = []
@@ -44,12 +46,12 @@ def setup_api(tmp_path, monkeypatch):
     sys.modules[spec_api.name] = api
     spec_api.loader.exec_module(api)
 
-    ic.set_active_incident("m1")
-    return api, repo, ic
+    state.AppState.set_active_incident("m1")
+    return api, repo
 
 
 def test_check_in_flow(tmp_path, monkeypatch):
-    api, repo, ic = setup_api(tmp_path, monkeypatch)
+    api, repo = setup_api(tmp_path, monkeypatch)
     master_payload = {"id": "P2", "first_name": "Bob", "last_name": "Jones"}
     repo.create_or_update_personnel_master(master_payload)
 
