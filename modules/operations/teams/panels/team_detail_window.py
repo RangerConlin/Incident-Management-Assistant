@@ -163,6 +163,36 @@ class TeamDetailBridge(QObject):
     def setTeamType(self, code: str) -> None:
         self._team.team_type = str(code)
         self.teamChanged.emit()
+    def _auto_set_pilot(self) -> None:
+        """Ensure team_leader_id remains valid and pick a default.
+
+        For aircraft teams, prefer a member whose check-in role contains
+        "pilot". For all teams, if the existing leader is missing or no
+        suitable pilot is found, fall back to the first member.
+        """
+        try:
+            members = [int(m) for m in self._team.members]
+            # Existing leader still valid?
+            if self._team.team_leader_id in members:
+                return
+            self._team.team_leader_id = None
+            if not members:
+                return
+            if self.isAircraftTeam:
+                try:
+                    from modules.logistics.checkin import repository as checkin_repo
+                    for pid in members:
+                        rec = checkin_repo.find_personnel_by_id(str(pid))
+                        role = (rec.get("role") or "").lower() if rec else ""
+                        if "pilot" in role:
+                            self._team.team_leader_id = int(pid)
+                            break
+                except Exception:
+                    pass
+            if self._team.team_leader_id is None:
+                self._team.team_leader_id = members[0]
+        except Exception:
+            pass
 
     # ---- Member/asset management ----
     def _is_member_role_valid(self, person_id: int) -> bool:
