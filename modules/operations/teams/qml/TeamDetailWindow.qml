@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
+import QtQuick.Controls.Material 2.15
 import "../../../common/dialogs" as Dialogs
 
 Window {
@@ -9,6 +10,9 @@ Window {
     width: 1280; height: 800
     minimumWidth: 1280; minimumHeight: 800
     visible: true
+    Material.theme: Material.Light
+    Material.primary: "#2b5797"
+    Material.accent: "#0078d4"
     title: teamBridge && teamBridge.team ?
         `${teamTypeCode(teamBridge.team.team_type)} \u2013 ${teamBridge.team.name || ""} \u2013 ${leaderName(teamBridge.team.team_leader_id)}` :
         "Team Detail"
@@ -54,7 +58,7 @@ Window {
         }
     }
 
-    Rectangle { anchors.fill: parent; color: "#ffffff" }
+    Rectangle { anchors.fill: parent; color: "#fdfdfd" }
 
     ColumnLayout {
         anchors.fill: parent
@@ -62,144 +66,153 @@ Window {
         // Header -------------------------------------------------------------
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: headerRow.implicitHeight + 12
-            border.color: "#cccccc"
+            implicitHeight: headerLayout.implicitHeight + 12
+            border.color: "#dddddd"
+            color: "#f5f5f5"
             radius: 4
-            RowLayout {
-                id: headerRow
+            ColumnLayout {
+                id: headerLayout
                 anchors.fill: parent
                 anchors.margins: 8
-                spacing: 12
-                // Name
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-                    Text { text: (teamBridge && teamBridge.isAircraftTeam) ? "Callsign" : "Team Name"; font.pixelSize: 12 }
-                    TextField {
-                        id: tfName
+                spacing: 8
+
+                RowLayout {
+                    spacing: 12
+                    // Name
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        text: (teamBridge && teamBridge.team) ? (teamBridge.team.name || "") : ""
-                        readOnly: !isNew
-                        onTextChanged: if (teamBridge) teamBridge.updateFromQml({ name: text })
-                    }
-                }
-                // Team Type dropdown
-                ColumnLayout {
-                    spacing: 4
-                    Text { text: "Team Type"; font.pixelSize: 12 }
-                    ComboBox {
-                        id: cbTeamType
-                        model: ["New Team", "Ground", "Aircraft"]
-                        onActivated: {
-                            var key = (index === 1) ? "ground" : (index === 2 ? "aircraft" : "")
-                            if (teamBridge) teamBridge.updateFromQml({ team_type: key })
-                        }
-                        Component.onCompleted: {
-                            if (teamBridge && teamBridge.team) {
-                                var tt = (teamBridge.team.team_type || "").toLowerCase()
-                                if (tt === "ground") currentIndex = 1
-                                else if (tt === "aircraft") currentIndex = 2
-                                else currentIndex = 0
-                            }
+                        spacing: 4
+                        Text { text: (teamBridge && teamBridge.isAircraftTeam) ? "Callsign" : "Team Name"; font.pixelSize: 12 }
+                        TextField {
+                            id: tfName
+                            Layout.fillWidth: true
+                            text: (teamBridge && teamBridge.team) ? (teamBridge.team.name || "") : ""
+                            readOnly: !isNew
+                            onTextChanged: if (teamBridge) teamBridge.updateFromQml({ name: text })
                         }
                     }
-                }
-                // Leader chip (readonly button placeholder)
-                ColumnLayout {
-                    spacing: 4
-                    Text { text: (teamBridge && teamBridge.isAircraftTeam) ? "Pilot" : "Team Leader"; font.pixelSize: 12 }
-                    Button {
-                        text: (teamBridge && teamBridge.team && teamBridge.team.team_leader_id) ? `#${teamBridge.team.team_leader_id}` : "Not Set"
-                        enabled: isNew
-                        onClicked: tabs.currentIndex = 0 // focus personnel tab
-                    }
-                }
-                // Leader Phone input
-                ColumnLayout {
-                    spacing: 4
-                    Text { text: "Leader Phone"; font.pixelSize: 12 }
-                    TextField {
-                        id: tfLeaderPhone
-                        Layout.preferredWidth: 120
-                        text: (teamBridge && teamBridge.team) ? (teamBridge.team.team_leader_phone || "") : ""
-                        onTextChanged: if (teamBridge) teamBridge.updateFromQml({ team_leader_phone: text })
-                    }
-                }
-                // Status pill + dropdown
-                ColumnLayout {
-                    spacing: 4
-                    Text { text: "Status"; font.pixelSize: 12 }
-                    RowLayout {
-                        spacing: 6
-                        Rectangle {
-                            width: 18; height: 18; radius: 9
-                            color: teamBridge ? teamBridge.teamStatusColor.bg : "#888"
-                            border.color: "#444"
-                        }
+                    // Team Type dropdown
+                    ColumnLayout {
+                        spacing: 4
+                        Text { text: "Team Type"; font.pixelSize: 12 }
                         ComboBox {
-                            id: cbStatus
-                            model: teamBridge ? teamBridge.statusList : []
-                            delegate: ItemDelegate { text: (modelData && modelData.label) ? modelData.label : String(modelData) }
-                            displayText: (currentIndex >= 0 && teamBridge && teamBridge.statusList && teamBridge.statusList[currentIndex]) ? teamBridge.statusList[currentIndex].label : ""
+                            id: cbTeamType
+                            model: ["New Team", "Ground", "Aircraft"]
                             onActivated: {
-                                var item = model[index]
-                                var key = (item && item.key) ? item.key : (displayText || "")
-                                if (teamBridge) teamBridge.setStatus(key)
+                                var key = (index === 1) ? "ground" : (index === 2 ? "aircraft" : "")
+                                if (teamBridge) teamBridge.updateFromQml({ team_type: key })
                             }
                             Component.onCompleted: {
                                 if (teamBridge && teamBridge.team) {
-                                    var s = (teamBridge.team.status||"").toLowerCase()
-                                    for (var i=0;i<count;i++) {
-                                        var it = model[i]
-                                        if (it && it.key && it.key.toLowerCase()===s) { currentIndex = i; break }
+                                    var tt = (teamBridge.team.team_type || "").toLowerCase()
+                                    if (tt === "ground") currentIndex = 1
+                                    else if (tt === "aircraft") currentIndex = 2
+                                    else currentIndex = 0
+                                }
+                            }
+                        }
+                    }
+                    // Leader chip (readonly button placeholder)
+                    ColumnLayout {
+                        spacing: 4
+                        Text { text: (teamBridge && teamBridge.isAircraftTeam) ? "Pilot" : "Team Leader"; font.pixelSize: 12 }
+                        Button {
+                            text: (teamBridge && teamBridge.team && teamBridge.team.team_leader_id) ? `#${teamBridge.team.team_leader_id}` : "Not Set"
+                            enabled: isNew
+                            onClicked: tabs.currentIndex = 0 // focus personnel tab
+                        }
+                    }
+                    // Leader Phone input
+                    ColumnLayout {
+                        spacing: 4
+                        Text { text: "Leader Phone"; font.pixelSize: 12 }
+                        TextField {
+                            id: tfLeaderPhone
+                            Layout.preferredWidth: 120
+                            text: (teamBridge && teamBridge.team) ? (teamBridge.team.team_leader_phone || "") : ""
+                            onTextChanged: if (teamBridge) teamBridge.updateFromQml({ team_leader_phone: text })
+                        }
+                    }
+                    // Status pill + dropdown
+                    ColumnLayout {
+                        spacing: 4
+                        Text { text: "Status"; font.pixelSize: 12 }
+                        RowLayout {
+                            spacing: 6
+                            Rectangle {
+                                width: 18; height: 18; radius: 9
+                                color: teamBridge ? teamBridge.teamStatusColor.bg : "#888"
+                                border.color: "#444"
+                            }
+                            ComboBox {
+                                id: cbStatus
+                                model: teamBridge ? teamBridge.statusList : []
+                                delegate: ItemDelegate { text: (modelData && modelData.label) ? modelData.label : String(modelData) }
+                                displayText: (currentIndex >= 0 && teamBridge && teamBridge.statusList && teamBridge.statusList[currentIndex]) ? teamBridge.statusList[currentIndex].label : ""
+                                onActivated: {
+                                    var item = model[index]
+                                    var key = (item && item.key) ? item.key : (displayText || "")
+                                    if (teamBridge) teamBridge.setStatus(key)
+                                }
+                                Component.onCompleted: {
+                                    if (teamBridge && teamBridge.team) {
+                                        var s = (teamBridge.team.status||"").toLowerCase()
+                                        for (var i=0;i<count;i++) {
+                                            var it = model[i]
+                                            if (it && it.key && it.key.toLowerCase()===s) { currentIndex = i; break }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-                // Last Contact timestamp
-                ColumnLayout {
-                    spacing: 4
-                    Text { text: "Last Contact"; font.pixelSize: 12 }
-                    Text { text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_update_ts || "") : "" }
-                }
-                // Primary Task field
-                ColumnLayout {
-                    spacing: 4
-                    Text { text: "Primary Task"; font.pixelSize: 12 }
-                    TextField {
-                        id: tfPrimaryTask
-                        Layout.preferredWidth: 150
-                        enabled: (teamBridge && teamBridge.team && teamBridge.team.current_task_id)
-                        text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? (teamBridge.team.primary_task || "") : ""
-                        onTextChanged: if (teamBridge) teamBridge.updateFromQml({ primary_task: text })
+
+                RowLayout {
+                    spacing: 12
+                    // Last Contact timestamp
+                    ColumnLayout {
+                        spacing: 4
+                        Text { text: "Last Contact"; font.pixelSize: 12 }
+                        Text { text: (teamBridge && teamBridge.team) ? (teamBridge.team.last_update_ts || "") : "" }
                     }
-                }
-                // Assignment field
-                ColumnLayout {
-                    spacing: 4
-                    Text { text: "Assignment"; font.pixelSize: 12 }
-                    TextField {
-                        id: tfAssignment
-                        Layout.preferredWidth: 180
-                        enabled: (teamBridge && teamBridge.team && teamBridge.team.current_task_id)
-                        text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? (teamBridge.team.assignment || "") : ""
-                        onTextChanged: if (teamBridge) teamBridge.updateFromQml({ assignment: text })
+                    // Primary Task field
+                    ColumnLayout {
+                        spacing: 4
+                        Text { text: "Primary Task"; font.pixelSize: 12 }
+                        TextField {
+                            id: tfPrimaryTask
+                            Layout.preferredWidth: 150
+                            enabled: (teamBridge && teamBridge.team && teamBridge.team.current_task_id)
+                            text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? (teamBridge.team.primary_task || "") : ""
+                            onTextChanged: if (teamBridge) teamBridge.updateFromQml({ primary_task: text })
+                        }
                     }
-                }
-                // Clocks (local/UTC) simple labels
-                ColumnLayout {
-                    spacing: 2
-                    Text { text: "Local"; font.pixelSize: 12 }
-                    Text { id: lblLocal; text: new Date().toLocaleTimeString() }
-                    Timer { interval: 1000; running: true; repeat: true; onTriggered: lblLocal.text = new Date().toLocaleTimeString() }
-                }
-                ColumnLayout {
-                    spacing: 2
-                    Text { text: "UTC"; font.pixelSize: 12 }
-                    Text { id: lblUTC; text: new Date().toUTCString().split(" ")[4] }
-                    Timer { interval: 1000; running: true; repeat: true; onTriggered: lblUTC.text = new Date().toUTCString().split(" ")[4] }
+                    // Assignment field
+                    ColumnLayout {
+                        spacing: 4
+                        Text { text: "Assignment"; font.pixelSize: 12 }
+                        TextField {
+                            id: tfAssignment
+                            Layout.preferredWidth: 180
+                            enabled: (teamBridge && teamBridge.team && teamBridge.team.current_task_id)
+                            text: (teamBridge && teamBridge.team && teamBridge.team.current_task_id) ? (teamBridge.team.assignment || "") : ""
+                            onTextChanged: if (teamBridge) teamBridge.updateFromQml({ assignment: text })
+                        }
+                    }
+                    // Clocks (local/UTC) simple labels
+                    ColumnLayout {
+                        spacing: 2
+                        Text { text: "Local"; font.pixelSize: 12 }
+                        Text { id: lblLocal; text: new Date().toLocaleTimeString() }
+                        Timer { interval: 1000; running: true; repeat: true; onTriggered: lblLocal.text = new Date().toLocaleTimeString() }
+                    }
+                    ColumnLayout {
+                        spacing: 2
+                        Text { text: "UTC"; font.pixelSize: 12 }
+                        Text { id: lblUTC; text: new Date().toUTCString().split(" ")[4] }
+                        Timer { interval: 1000; running: true; repeat: true; onTriggered: lblUTC.text = new Date().toUTCString().split(" ")[4] }
+                    }
                 }
             }
         }
