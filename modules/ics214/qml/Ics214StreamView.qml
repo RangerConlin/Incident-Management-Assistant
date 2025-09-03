@@ -4,11 +4,33 @@ import QtQuick.Controls
 Item {
     width: 600
     height: 400
-    TabView {
+    ColumnLayout {
         anchors.fill: parent
-        Tab { title: "Narrative"; ListView { anchors.fill: parent } }
-        Tab { title: "Related" }
-        Tab { title: "Rules" }
-        Tab { title: "Export"; Ics214ExportDialog { anchors.fill: parent } }
+        spacing: 0
+        TabBar {
+            id: tabs
+            Layout.fillWidth: true
+            TabButton { text: "Narrative" }
+            TabButton { text: "Related" }
+            TabButton { text: "Rules" }
+            TabButton { text: "Export" }
+        }
+        StackLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            currentIndex: tabs.currentIndex
+            ListView {
+                anchors.fill: parent
+            }
+            Item {
+                anchors.fill: parent
+            }
+            Item {
+                anchors.fill: parent
+            }
+            Ics214ExportDialog {
+                anchors.fill: parent
+            }
+        }
     }
 }
