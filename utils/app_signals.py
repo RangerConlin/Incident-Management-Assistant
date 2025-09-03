@@ -10,6 +10,8 @@ class AppSignals(QObject):
     """
 
     incidentChanged = Signal(str)  # emits the incident number (string)
+    userChanged = Signal(object, object)  # user_id, role
+    opPeriodChanged = Signal(object)  # op period id
     # Emitted when a communications message is logged; provide sender and recipient labels
     messageLogged = Signal(str, str)
     # Emitted when a team status is changed elsewhere in the app; provide team_id

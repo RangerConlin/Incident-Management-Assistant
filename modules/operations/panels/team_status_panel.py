@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
-from styles import TEAM_STATUS_COLORS
 from PySide6.QtCore import Qt, QTimer
+from utils.styles import team_status_colors, subscribe_theme
+from utils.audit import write_audit
 from datetime import datetime, timezone
 
 # Use incident DB only (no sample fallback)
@@ -84,6 +85,11 @@ class TeamStatusPanel(QWidget):
                 app_signals.teamStatusChanged.connect(self._on_team_status_changed)
             except Exception:
                 pass
+        except Exception:
+            pass
+        # Theme changes recolor rows
+        try:
+            subscribe_theme(self, lambda *_: self._recolor_all())
         except Exception:
             pass
 
@@ -237,7 +243,7 @@ class TeamStatusPanel(QWidget):
             pass
 
     def set_row_color_by_status(self, row, status):  # ✅ Now correctly placed
-        style = TEAM_STATUS_COLORS.get(status.lower())
+        style = team_status_colors().get(status.lower())
         if not style:
             return
 
@@ -246,6 +252,17 @@ class TeamStatusPanel(QWidget):
             if item:
                 item.setBackground(style["bg"])
                 item.setForeground(style["fg"])
+
+    def _recolor_all(self) -> None:
+        try:
+            status_col = 5
+            rows = self.table.rowCount()
+            for r in range(rows):
+                item = self.table.item(r, status_col)
+                status = (item.text() if item else "").strip().lower()
+                self.set_row_color_by_status(r, status)
+        except Exception:
+            pass
 
     def show_context_menu(self, position):
         row = self.table.indexAt(position).row()
@@ -262,7 +279,7 @@ class TeamStatusPanel(QWidget):
         menu.addSeparator()
 
         # Flat list of status options
-        for status in TEAM_STATUS_COLORS:
+        for status in team_status_colors():
             menu.addAction(status.title(), lambda s=status: self.change_status(row, s))
 
         # Timer utilities
@@ -300,6 +317,8 @@ class TeamStatusPanel(QWidget):
             team_id = int(item.data(Qt.UserRole + 2)) if item and item.data(Qt.UserRole + 2) is not None else None
             if not team_id:
                 raise RuntimeError("No team id associated with row")
+            item_status = self.table.item(row, 5)
+            old_status = (item_status.text() if item_status else "").strip().lower()
             try:
                 from modules.operations.data.repository import set_team_status  # local import to avoid cycles
             except Exception:
@@ -312,6 +331,7 @@ class TeamStatusPanel(QWidget):
             # Status column index is 5 after adding Needs Attention at 0
             self.table.item(row, 5).setText(display)
             self.set_row_color_by_status(row, str(new_status))
+            write_audit("status.change", {"panel": "team", "id": team_id, "old": old_status, "new": str(new_status)})
         except Exception as e:
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
             QMessageBox.critical(self, "Update Failed", f"Unable to update team status in DB:\n{e}")
