@@ -211,6 +211,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
         self._add_action(m_edit, "Team Types", None, "edit.team_types")
         self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
+        self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
         self._add_action(m_edit, "Equipment", None, "edit.equipment")
         self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
@@ -449,6 +450,7 @@ class MainWindow(QMainWindow):
             "edit.task_types": self.open_edit_task_types,
             "edit.team_types": self.open_edit_team_types,
             "edit.vehicles": self.open_edit_vehicles,
+            "edit.aircraft": self.open_edit_aircraft,
             "edit.equipment": self.open_edit_equipment,
             "communications.217": self.open_edit_comms_resources,
             "edit.safety_templates": self.open_edit_safety_templates,
@@ -695,6 +697,9 @@ class MainWindow(QMainWindow):
 
     def open_edit_vehicles(self) -> None:
         self._open_qml_modal("qml/VehiclesWindow.qml", title="Vehicles")
+
+    def open_edit_aircraft(self) -> None:
+        self._open_qml_modal("qml/AircraftWindow.qml", title="Aircraft")
 
     def open_edit_equipment(self) -> None:
         self._open_qml_modal("qml/EquipmentWindow.qml", title="Equipment")
@@ -1384,6 +1389,7 @@ class MainWindow(QMainWindow):
         canonical = {
             "Personnel": "personnel",
             "Vehicles": "vehicles",
+            "Aircraft": "aircraft",
             "Equipment": "equipment",
             "CommsResources": "comms_resources",
             "Objectives": "incident_objectives",
@@ -1963,6 +1969,7 @@ class MetricWidget(QWidget):
         canonical = {
             "Personnel": "personnel",
             "Vehicles": "vehicles",
+            "Aircraft": "aircraft",
             "Equipment": "equipment",
             "CommsResources": "comms_resources",
             "Objectives": "incident_objectives",
