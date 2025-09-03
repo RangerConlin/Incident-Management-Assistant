@@ -375,34 +375,35 @@ Window {
                                 }
                             }
                             // 4: Log
-                            TabView {
+                            ColumnLayout {
                                 Layout.margins: 8
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-
-                                Tab {
-                                    title: "Unit Log"
+                                spacing: 0
+                                TabBar {
+                                    id: logTabs
+                                    Layout.fillWidth: true
+                                    TabButton { text: "Unit Log" }
+                                    TabButton { text: "Task History" }
+                                    TabButton { text: "Status History" }
+                                    TabButton { text: "ICS-214" }
+                                }
+                                StackLayout {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    currentIndex: logTabs.currentIndex
                                     ListView {
                                         anchors.fill: parent
                                         model: teamBridge ? teamBridge.unitLog() : []
                                     }
-                                }
-                                Tab {
-                                    title: "Task History"
                                     ListView {
                                         anchors.fill: parent
                                         model: teamBridge ? teamBridge.taskHistory() : []
                                     }
-                                }
-                                Tab {
-                                    title: "Status History"
                                     ListView {
                                         anchors.fill: parent
                                         model: teamBridge ? teamBridge.statusHistory() : []
                                     }
-                                }
-                                Tab {
-                                    title: "ICS-214"
                                     ColumnLayout {
                                         anchors.fill: parent
                                         spacing: 6
@@ -411,7 +412,8 @@ Window {
                                             Layout.fillHeight: true
                                             model: teamBridge ? teamBridge.ics214Entries() : []
                                         }
-                                        RowLayout { spacing: 6
+                                        RowLayout {
+                                            spacing: 6
                                             Button {
                                                 text: "➕ Add ICS 214 Note"
                                                 onClicked: if (teamBridge) teamBridge.addIcs214Note()
