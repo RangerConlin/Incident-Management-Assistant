@@ -4,7 +4,12 @@ Also exposes a small helper to notify the rest of the app when a
 communications message is logged so boards can react immediately.
 """
 
+import logging
+
 from .api import router
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_comms_panel(parent=None):
@@ -28,6 +33,11 @@ def notify_message_logged(sender: str, recipient: str) -> None:
     """
     try:
         from utils.app_signals import app_signals
+    except Exception:
+        logger.exception("Failed to import app_signals")
+        raise
+    try:
         app_signals.messageLogged.emit(str(sender or ""), str(recipient or ""))
     except Exception:
-        pass
+        logger.exception("Failed to emit messageLogged signal")
+        raise

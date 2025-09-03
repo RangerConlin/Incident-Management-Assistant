@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 import re
 from typing import Iterable
 
@@ -9,6 +10,9 @@ from sqlmodel import Session
 from .models.comms_models import MessageLogEntry
 from .repository import get_incident_engine
 from modules.operations.teams.data import repository as team_repo
+
+
+logger = logging.getLogger(__name__)
 
 
 def _reset_comm_timers(text: str) -> None:
@@ -66,9 +70,12 @@ def log_radio_entry(
 
     try:
         from . import notify_message_logged
-
-        notify_message_logged(sender, recipient)
-    except Exception:
-        pass
+    except ImportError:
+        logger.exception("notify_message_logged import failed")
+    else:
+        try:
+            notify_message_logged(sender, recipient)
+        except Exception:
+            logger.exception("notify_message_logged execution failed")
 
     return entry
