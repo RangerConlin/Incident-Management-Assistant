@@ -75,7 +75,8 @@ class TeamDetailBridge(QObject):
 
     @Property(bool, notify=teamChanged)
     def isAircraftTeam(self) -> bool:
-
+        code = (self._team.team_type or "").upper()
+        return ("AIR" in code) or ("UAS" in code)
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
         key = (self._team.status or "").strip().lower()
