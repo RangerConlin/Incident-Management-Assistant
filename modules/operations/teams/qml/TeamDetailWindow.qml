@@ -34,11 +34,13 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import Qt5Compat.GraphicalEffects
+import QtQuick.Window 2.15
 
-Item {
-  id: root
+ApplicationWindow {
+  id: rootWindow
   width: 980
   height: 700
+  visible: true
 
   readonly property var t: teamBridge ? teamBridge.team : null
   readonly property bool isAir: (t && t.team_type) ? (String(t.team_type).toUpperCase().indexOf("AIR") === 0) : false
@@ -64,7 +66,10 @@ Item {
               + (t && t.team_leader_id ? (" – " + leaderName(t.team_leader_id)) : "")
       }
       Item { Layout.fillWidth: true }
-      Button { text: "Close"; onClicked: rootWindow && rootWindow.close ? rootWindow.close() : (parent && parent.Window ? parent.Window.close() : null) }
+      Button {
+        text: "Close"
+        onClicked: rootWindow.close()
+      }
     }
 
     Frame {
