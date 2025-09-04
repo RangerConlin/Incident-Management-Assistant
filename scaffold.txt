@@ -241,10 +241,6 @@ C:.
 �   �           TimeUnit.qml
 �   �           __init__.py
 �   �           
-�   ����helpdocs
-�   �       windows.py
-�   �       __init__.py
-�   �       
 �   ����ics214
 �   �   �   api.py
 �   �   �   export_pdf.py
