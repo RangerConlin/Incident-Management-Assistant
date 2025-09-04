@@ -8,6 +8,7 @@ from .api.public_api import (
     list_collections,
 )
 from .ui.library_window import LibraryWindow
+from .helpdocs import get_user_guide_panel, get_about_panel
 
 
 def get_library_panel(incident_id: object | None = None):
@@ -28,4 +29,6 @@ __all__ = [
     "list_collections",
     "get_library_panel",
     "get_form_library_panel",
+    "get_user_guide_panel",
+    "get_about_panel",
 ]

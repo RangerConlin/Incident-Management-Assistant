@@ -1174,16 +1174,16 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Reference Library")
 
     def open_help_user_guide(self) -> None:
-        from modules import helpdocs
+        from modules import referencelibrary
         incident_id = getattr(self, "current_incident_id", None)
-        panel = helpdocs.get_user_guide_panel(incident_id)
+        panel = referencelibrary.get_user_guide_panel(incident_id)
         self._open_dock_widget(panel, title="User Guide")
 
 # --- 4.15 Help -----------------------------------------------------------
     def open_help_about(self) -> None:
-        from modules import helpdocs
+        from modules import referencelibrary
         incident_id = getattr(self, "current_incident_id", None)
-        panel = helpdocs.get_about_panel(incident_id)
+        panel = referencelibrary.get_about_panel(incident_id)
         self._open_dock_widget(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
