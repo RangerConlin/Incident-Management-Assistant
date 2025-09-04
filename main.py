@@ -2131,7 +2131,7 @@ if __name__ == "__main__":
         AppState.set_active_user_role(DEBUG_ROLE)
         print("[debug] Login bypass enabled: loaded test credentials.")
     else:
-        from modules.session.login_dialog import LoginDialog
+        from modules.login_dialog import LoginDialog
         login = LoginDialog(demo_mode=bool(getattr(args, "demo", False)))
         if login.exec() != QDialog.Accepted:
             sys.exit(0)
