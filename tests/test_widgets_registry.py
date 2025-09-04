@@ -6,7 +6,7 @@ def test_registry_contains_all_ids():
         # Incident Context
         "incidentinfo",
         # Status & Operations
-        "teamstatusboard", "taskstatusboard", "personnelavailablility", "equipmentsnapshot", "vehairsnapshot", "opsDashboardFeed",
+        "teamstatusboard", "taskstatusboard", "personnelavailability", "equipmentsnapshot", "vehairsnapshot", "opsDashboardFeed",
         # Communications
         "recentmessages", "notifications", "ics205commplan", "commlogfeed",
         # Planning & Documentation
