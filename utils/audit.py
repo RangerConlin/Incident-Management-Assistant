@@ -34,6 +34,18 @@ def _get_conn(prefer_mission: bool) -> sqlite3.Connection:
     else:
         conn = master_db()
     conn.execute(SCHEMA)
+    # Ensure legacy databases have required columns
+    try:
+        cur = conn.execute("PRAGMA table_info(audit_logs)")
+        cols = [row[1] for row in cur.fetchall()]
+        if "ts_utc" not in cols:
+            conn.execute("ALTER TABLE audit_logs ADD COLUMN ts_utc TEXT")
+            # migrate existing timestamp column if present
+            if "ts" in cols:
+                conn.execute("UPDATE audit_logs SET ts_utc = ts WHERE ts_utc IS NULL AND ts IS NOT NULL")
+            conn.commit()
+    except Exception:
+        pass
     return conn
 
 

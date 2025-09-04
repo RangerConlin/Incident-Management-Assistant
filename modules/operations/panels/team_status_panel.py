@@ -1,4 +1,15 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QMenu,
+    QAbstractItemView,
+    QHBoxLayout,
+    QPushButton,
+    QHeaderView,
+    QMessageBox,
+)
 from PySide6.QtCore import Qt, QTimer
 from utils.styles import team_status_colors, subscribe_theme
 from utils.audit import write_audit
@@ -333,7 +344,7 @@ class TeamStatusPanel(QWidget):
             self.set_row_color_by_status(row, str(new_status))
             write_audit("status.change", {"panel": "team", "id": team_id, "old": old_status, "new": str(new_status)})
         except Exception as e:
-            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
+            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
             QMessageBox.critical(self, "Update Failed", f"Unable to update team status in DB:\n{e}")
         else:
             # Any status change resets the Last Update timer baseline
@@ -356,7 +367,7 @@ class TeamStatusPanel(QWidget):
         if row < 0 and self.table.selectedIndexes():
             row = self.table.selectedIndexes()[0].row()
         if row < 0:
-            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
+            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
             QMessageBox.information(self, "Open Detail", "Select a team row first.")
             return
         self.view_team_detail(row)
@@ -370,7 +381,7 @@ class TeamStatusPanel(QWidget):
             from modules.operations.teams.windows import open_team_detail_window
             open_team_detail_window(new_id)
         except Exception as e:
-            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
+            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
             QMessageBox.critical(self, "New Team", f"Failed to create new team:\n{e}")
 
     def reload(self) -> None:
@@ -383,7 +394,7 @@ class TeamStatusPanel(QWidget):
             for data in rows:
                 self._add_team_row(data)
         except Exception as e:
-            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
+            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
             QMessageBox.critical(self, "Team Board Error", f"Failed to load team assignments from incident DB:\n{e}")
 
 
