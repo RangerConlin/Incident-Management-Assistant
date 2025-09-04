@@ -1,13 +1,13 @@
-"""Database models for the reference library."""
+"""Models for the Reference Library."""
 
-from .library_models import (
+from .reference_models import (
     Base,
     Document,
     Collection,
     CollectionDocument,
-    ExternalLink,
-    IncidentDocument,
-    AuditEntry,
+    get_engine,
+    get_session,
+    Metadata,
 )
 
 __all__ = [
@@ -15,7 +15,7 @@ __all__ = [
     "Document",
     "Collection",
     "CollectionDocument",
-    "ExternalLink",
-    "IncidentDocument",
-    "AuditEntry",
+    "get_engine",
+    "get_session",
+    "Metadata",
 ]
