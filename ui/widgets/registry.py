@@ -82,8 +82,8 @@ REGISTRY: Dict[str, WidgetSpec] = {
         component=lambda: TaskStatusBoardWidget(title="Task Status", items=_task_status_items()),  # type: ignore
         data_hooks={"tasks.getSummary": dp.tasks_getSummary_active},
     ),
-    "personnelavailablility": WidgetSpec(
-        id="personnelavailablility",
+    "personnelavailability": WidgetSpec(
+        id="personnelavailability",
         title="Personnel Checked In",
         default_size=Size(4, 1),
         min_size=Size(3, 1),
