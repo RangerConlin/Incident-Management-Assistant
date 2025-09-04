@@ -1,6 +1,12 @@
 
 # utils/state.py
 
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+
 class AppState:
     _active_incident_number = None
     _active_op_period_id = None
@@ -10,7 +16,11 @@ class AppState:
 
     @classmethod
     def set_active_incident(cls, incident_number):
-        print(f"[state] set_active_incident({incident_number}) (from {getattr(cls, '_active_incident_number', None)})")
+        logger.debug(
+            "[state] set_active_incident(%s) (from %s)",
+            incident_number,
+            getattr(cls, "_active_incident_number", None),
+        )
         cls._active_incident_number = incident_number
         # Keep incident_context (DB path provider) in sync
         try:
@@ -18,18 +28,21 @@ class AppState:
             incident_context.set_active_incident(incident_number)  # type: ignore[arg-type]
         except Exception as e:
             # Non-fatal: selection UI should still work; DB-backed views may error until set
-            print(f"[state] warning: failed to sync incident_context: {e}")
+            logger.warning("[state] failed to sync incident_context: %s", e)
         # Emit Qt signal for interested panels
         try:
             from utils.app_signals import app_signals
             if incident_number is not None:
                 app_signals.incidentChanged.emit(str(incident_number))
         except Exception as e:
-            print(f"[state] warning: failed to emit incidentChanged: {e}")
+            logger.warning("[state] failed to emit incidentChanged: %s", e)
 
     @classmethod
     def get_active_incident(cls):
-        print(f"[state] get_active_incident -> {getattr(cls, '_active_incident_number', None)}")
+        logger.debug(
+            "[state] get_active_incident -> %s",
+            getattr(cls, "_active_incident_number", None),
+        )
         return cls._active_incident_number
 
     @classmethod
@@ -38,8 +51,8 @@ class AppState:
         try:
             from utils.app_signals import app_signals
             app_signals.opPeriodChanged.emit(op_period_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("[state] failed to emit opPeriodChanged: %s", e)
 
     @classmethod
     def get_active_op_period(cls):
@@ -50,9 +63,11 @@ class AppState:
         cls._active_user_id = user_id
         try:
             from utils.app_signals import app_signals
-            app_signals.userChanged.emit(cls._active_user_id, cls._active_user_role)
-        except Exception:
-            pass
+            app_signals.userChanged.emit(
+                cls._active_user_id, cls._active_user_role
+            )
+        except Exception as e:
+            logger.warning("[state] failed to emit userChanged: %s", e)
 
     @classmethod
     def get_active_user_id(cls):
@@ -63,9 +78,11 @@ class AppState:
         cls._active_user_role = user_role
         try:
             from utils.app_signals import app_signals
-            app_signals.userChanged.emit(cls._active_user_id, cls._active_user_role)
-        except Exception:
-            pass
+            app_signals.userChanged.emit(
+                cls._active_user_id, cls._active_user_role
+            )
+        except Exception as e:
+            logger.warning("[state] failed to emit userChanged: %s", e)
 
     @classmethod
     def get_active_user_role(cls):
