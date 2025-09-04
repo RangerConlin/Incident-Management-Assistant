@@ -3,9 +3,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import DateTime, String, Integer, Boolean, ForeignKey, JSON, Index, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    String,
+    Integer,
+    Boolean,
+    ForeignKey,
+    JSON,
+    Index,
+    UniqueConstraint,
+)
 
 from modules._infra.base import Base
+
 
 class ICS214Stream(Base):
     __tablename__ = "ics214_streams"
@@ -14,10 +24,19 @@ class ICS214Stream(Base):
     name: Mapped[str] = mapped_column(String)
     op_number: Mapped[int] = mapped_column(Integer, default=0, index=True)
     kind: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    section: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    entries = relationship("ICS214Entry", back_populates="stream", cascade="all, delete-orphan")
+    section: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    entries = relationship(
+        "ICS214Entry", back_populates="stream", cascade="all, delete-orphan"
+    )
+
 
 class ICS214Entry(Base):
     __tablename__ = "ics214_entries"
@@ -26,7 +45,9 @@ class ICS214Entry(Base):
         Index("ix_entries_stream_time", "stream_id", "timestamp_utc"),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    stream_id: Mapped[str] = mapped_column(ForeignKey("ics214_streams.id", ondelete="CASCADE"), index=True)
+    stream_id: Mapped[str] = mapped_column(
+        ForeignKey("ics214_streams.id", ondelete="CASCADE"), index=True
+    )
     timestamp_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
     text: Mapped[str] = mapped_column(String)
     source: Mapped[str] = mapped_column(String, default="manual")
@@ -36,27 +57,42 @@ class ICS214Entry(Base):
     idempotency_hash: Mapped[str] = mapped_column(String)
     tags: Mapped[list | None] = mapped_column(JSON, default=list)
     stream = relationship("ICS214Stream", back_populates="entries")
-    attachments = relationship("ICS214EntryAttachment", back_populates="entry", cascade="all, delete-orphan")
+    attachments = relationship(
+        "ICS214EntryAttachment",
+        back_populates="entry",
+        cascade="all, delete-orphan",
+    )
+
 
 class ICS214EntryAttachment(Base):
     __tablename__ = "ics214_entry_attachments"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    entry_id: Mapped[str] = mapped_column(ForeignKey("ics214_entries.id", ondelete="CASCADE"), index=True)
+    entry_id: Mapped[str] = mapped_column(
+        ForeignKey("ics214_entries.id", ondelete="CASCADE"), index=True
+    )
     filename: Mapped[str] = mapped_column(String)
     path: Mapped[str] = mapped_column(String)
     entry = relationship("ICS214Entry", back_populates="attachments")
 
+
 class ICS214IngestRule(Base):
     __tablename__ = "ics214_ingest_rules"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    stream_id: Mapped[str] = mapped_column(ForeignKey("ics214_streams.id", ondelete="CASCADE"), index=True)
+    stream_id: Mapped[str] = mapped_column(
+        ForeignKey("ics214_streams.id", ondelete="CASCADE"), index=True
+    )
     topic: Mapped[str] = mapped_column(String)
     template: Mapped[str] = mapped_column(String)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
+
 class ICS214Export(Base):
     __tablename__ = "ics214_exports"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    stream_id: Mapped[str] = mapped_column(ForeignKey("ics214_streams.id", ondelete="CASCADE"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    stream_id: Mapped[str] = mapped_column(
+        ForeignKey("ics214_streams.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow
+    )
     file_path: Mapped[str] = mapped_column(String)
