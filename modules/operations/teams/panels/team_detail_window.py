@@ -13,6 +13,7 @@ from utils import incident_context
 from utils.state import AppState
 from modules.operations.teams.data.team import Team
 from modules.operations.teams.data import repository as team_repo
+from utils.constants import TEAM_STATUSES
 
 
 class TeamDetailBridge(QObject):
@@ -32,23 +33,19 @@ class TeamDetailBridge(QObject):
         self._team: Team = Team()
 
         # Display labels mapped to color/status keys used in palette
+        overrides = {
+            "at other location": "aol",
+            "to other location": "tol",
+            "rest": "crew rest",
+            "returning to base": "returning",
+            "post incident management": "post incident",
+        }
         self._status_options: list[dict[str, str]] = [
-            {"label": "At Other Location", "key": "aol"},
-            {"label": "Arrival", "key": "arrival"},
-            {"label": "Assigned", "key": "assigned"},
-            {"label": "Available", "key": "available"},
-            {"label": "Break", "key": "break"},
-            {"label": "Briefed", "key": "briefed"},
-            {"label": "Rest", "key": "crew rest"},
-            {"label": "Enroute", "key": "enroute"},
-            {"label": "Out of Service", "key": "out of service"},
-            {"label": "Report Writing", "key": "report writing"},
-            {"label": "Returning to Base", "key": "returning"},
-            {"label": "To Other Location", "key": "tol"},
-            {"label": "Wheels Down", "key": "wheels down"},
-            {"label": "Post Incident Management", "key": "post incident"},
-            {"label": "Find", "key": "find"},
-            {"label": "Complete", "key": "complete"},
+            {
+                "label": lbl,
+                "key": overrides.get(lbl.lower(), lbl.lower()),
+            }
+            for lbl in TEAM_STATUSES
         ]
 
         self._team_type_options: list[dict[str, object]] = [

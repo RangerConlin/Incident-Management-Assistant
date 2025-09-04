@@ -64,7 +64,7 @@ Dialog {
                                               : (col && col.type === "int") ? intDelegate
                                               : (col && col.type === "float") ? floatDelegate
                                               : textDelegate
-                            onLoaded: {
+                            function _apply() {
                                 if (!item) return;
                                 if (item.hasOwnProperty('col')) { item.col = col; }
 
@@ -76,10 +76,15 @@ Dialog {
                                         if (item.hasOwnProperty('text')) item.text = String(root.data[col.key] === undefined ? "" : root.data[col.key]);
                                         if (item.hasOwnProperty('value')) item.value = root.data[col.key];
                                     }
+                                } else {
+                                    if (item.hasOwnProperty('text')) item.text = "";
+                                    if (item.hasOwnProperty('value')) item.value = null;
                                 }
                                 if (item && item.rebuild) { item.rebuild(); }
                                 item.objectName = "field::" + col.key;
                             }
+                            onLoaded: _apply()
+                            Connections { target: root; function onDataChanged() { _apply() } }
                         }
                     }
                 }

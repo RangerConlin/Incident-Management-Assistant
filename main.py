@@ -54,6 +54,7 @@ import sqlite3
 from utils.styles import set_theme, apply_app_palette, THEME_NAME
 from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
+from utils.constants import TEAM_STATUSES
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -1341,6 +1342,19 @@ class MainWindow(QMainWindow):
         # Expose bridges and models to QML
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
+<<<<<<< ours
+        ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+=======
+
+        base = os.path.basename(qml_rel_path)
+        if base == "CannedCommEntriesWindow.qml":
+            try:
+                from utils.constants import TEAM_STATUSES
+                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+            except Exception:
+                pass
+
+>>>>>>> theirs
         # Incident bridge (incident-scoped CRUD)
         try:
             if not hasattr(self, "_incident_bridge"):
@@ -1351,7 +1365,6 @@ class MainWindow(QMainWindow):
 
         # Inject a per-window SqliteTableModel when we can map the window to a table
         try:
-            base = os.path.basename(qml_rel_path)
             # Strip the full suffix "Window.qml" (10 chars) to get the base name
             name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
             table = self._resolve_master_table(name)
@@ -1908,10 +1921,18 @@ class MetricWidget(QWidget):
 
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
+        ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+
+        base = os.path.basename(qml_rel_path)
+        if base == "CannedCommEntriesWindow.qml":
+            try:
+                from utils.constants import TEAM_STATUSES
+                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+            except Exception:
+                pass
 
         # Inject per-window SQLite models for master catalog windows
         try:
-            base = os.path.basename(qml_rel_path)
             # Strip the full suffix "Window.qml" (10 chars) to get the base name
             name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
             # Map window base name -> table name (validate against sqlite_master)

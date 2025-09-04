@@ -9,11 +9,10 @@ Shared.MasterTableWindow {
   primaryKey: "id"
   defaultSort: ({ key: "name", order: "asc" })
   model: HospitalsModel
-  // TEMP: uses EMS service underneath
-  bridgeListFn: function(q) { return catalogBridge.listEms(q) }
-  bridgeCreateFn: function(m) { return catalogBridge.createEms(m) }
-  bridgeUpdateFn: function(id, m) { return catalogBridge.updateEms(id, m) }
-  bridgeDeleteFn: function(id) { return catalogBridge.deleteEms(id) }
+  bridgeListFn: function(q) { return catalogBridge.listHospitals(q) }
+  bridgeCreateFn: function(m) { return catalogBridge.createHospital(m) }
+  bridgeUpdateFn: function(id, m) { return catalogBridge.updateHospital(id, m) }
+  bridgeDeleteFn: function(id) { return catalogBridge.deleteHospital(id) }
   columns: [
     { key: "id", label: "ID", type: "int", editable: false, width: 60 },
     { key: "name", label: "Name", type: "text", editable: true, required: true, width: 220 },

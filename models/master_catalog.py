@@ -181,6 +181,16 @@ ENTITY_CONFIGS: Dict[str, Dict[str, Any]] = {
         ],
         "defaultSort": {"key": "name", "order": "asc"},
     },
+    "hospitals": {
+        "table": "hospitals",
+        "pk": "id",
+        "searchFields": ["name", "id"],
+        "columns": [
+            "id", "name", "type", "phone", "fax", "email", "contact",
+            "address", "city", "state", "zip", "notes", "is_active"
+        ],
+        "defaultSort": {"key": "name", "order": "asc"},
+    },
     "canned_comm_entries": {
         "table": "canned_comm_entries",
         "pk": "id",

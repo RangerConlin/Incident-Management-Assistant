@@ -20,7 +20,7 @@ Shared.MasterTableWindow {
     { key: "category", label: "Category", type: "text", editable: true, width: 160 },
     { key: "message", label: "Message", type: "multiline", editable: true, required: true, width: 420 },
     { key: "notification_level", label: "Notify Level", type: "enum", editable: true, width: 200, valueMap: ({ 0: "None", 1: "Notification", 2: "Emergency Alert" }) },
-    { key: "status_update", label: "Status Update", type: "enum", editable: true, width: 220, options: ["", "Active", "Resolved", "Closed"] }
+    { key: "status_update", label: "Status Update", type: "enum", editable: true, width: 220, options: [""].concat(teamStatuses) }
   ]
   // Hint for model-driven ORDER BY sorting
   tableName: "canned_comm_entries"

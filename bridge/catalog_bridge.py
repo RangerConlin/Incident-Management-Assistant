@@ -179,6 +179,22 @@ class CatalogBridge(QObject):
         return self._svc("ems").delete(id_value)
 
     @Slot(str, result=list)
+    def listHospitals(self, searchText: str = "") -> List[Dict[str, Any]]:
+        return self._svc("hospitals").list(searchText)
+
+    @Slot(dict, result=int)
+    def createHospital(self, data: Dict[str, Any]) -> int:
+        return self._svc("hospitals").create(data)
+
+    @Slot(int, dict, result=bool)
+    def updateHospital(self, id_value: int, data: Dict[str, Any]) -> bool:
+        return self._svc("hospitals").update(id_value, data)
+
+    @Slot(int, result=bool)
+    def deleteHospital(self, id_value: int) -> bool:
+        return self._svc("hospitals").delete(id_value)
+
+    @Slot(str, result=list)
     def listCannedCommEntries(self, searchText: str = "") -> List[Dict[str, Any]]:
         rows = self._svc("canned_comm_entries").list(searchText)
         try:
