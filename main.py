@@ -1342,9 +1342,6 @@ class MainWindow(QMainWindow):
         # Expose bridges and models to QML
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
-<<<<<<< ours
-        ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-=======
 
         base = os.path.basename(qml_rel_path)
         if base == "CannedCommEntriesWindow.qml":
@@ -1354,7 +1351,6 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
->>>>>>> theirs
         # Incident bridge (incident-scoped CRUD)
         try:
             if not hasattr(self, "_incident_bridge"):
