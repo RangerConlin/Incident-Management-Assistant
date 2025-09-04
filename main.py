@@ -945,21 +945,27 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_comms_chat(self) -> None:
-        from modules import comms
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = comms.get_chat_panel(incident_id)
+        from modules.communications.panels import MessageLogPanel
+
+        # TODO: incident-specific scoping for communications panels
+        _incident_id = getattr(self, "current_incident_id", None)
+        panel = MessageLogPanel()
         self._open_dock_widget(panel, title="Messaging")
 
     def open_comms_213(self) -> None:
-        from modules import comms
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = comms.get_213_panel(incident_id)
+        from modules.communications.panels import MessageLogPanel
+
+        # TODO: incident-specific scoping for communications panels
+        _incident_id = getattr(self, "current_incident_id", None)
+        panel = MessageLogPanel()
         self._open_dock_widget(panel, title="ICS 213 Messages")
 
     def open_comms_205(self) -> None:
-        from modules import comms
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = comms.get_205_panel(incident_id)
+        from modules.communications.panels import RadioPlanBuilder
+
+        # TODO: incident-specific scoping for communications panels
+        _incident_id = getattr(self, "current_incident_id", None)
+        panel = RadioPlanBuilder()
         self._open_dock_widget(panel, title="Communications Plan (ICS-205)")
 
 # --- 4.8 Intel -----------------------------------------------------------
