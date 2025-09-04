@@ -13,7 +13,6 @@ C:.
 �   tmp_check_smoke.py
 �   tmp_part1.txt
 �   tmp_part2.txt
-�   _schema_dump.py
 �   
 ����.vscode
 �       settings.json
