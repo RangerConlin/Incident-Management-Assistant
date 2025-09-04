@@ -132,9 +132,18 @@ def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
 def subscribe_theme(widget: QWidget, callback: Callable[[str], None]) -> None:
     """Subscribe to theme changes and auto-disconnect on widget destruction."""
     style_bus.THEME_CHANGED.connect(callback)
+    def _disconnect() -> None:
+        """Safely disconnect the callback when the widget is destroyed."""
+        try:
+            style_bus.THEME_CHANGED.disconnect(callback)
+        except (RuntimeError, TypeError):
+            # The signal source may already be deleted during application shutdown
+            pass
+
     try:
-        widget.destroyed.connect(lambda: style_bus.THEME_CHANGED.disconnect(callback))
+        widget.destroyed.connect(_disconnect)
     except Exception:
+        # In case the widget does not support the destroyed signal
         pass
     callback(THEME_NAME)
 
