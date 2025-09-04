@@ -1,5 +1,7 @@
 import sys
 from pathlib import Path
+import logging
+from types import SimpleNamespace
 
 import pytest
 
@@ -42,3 +44,41 @@ def test_active_user_role():
     assert AppState.get_active_user_role() is None
     AppState.set_active_user_role("admin")
     assert AppState.get_active_user_role() == "admin"
+
+
+class _BoomSignal:
+    def emit(self, *args, **kwargs):
+        raise RuntimeError("boom")
+
+
+def test_set_active_incident_logs_warning_on_signal_failure(monkeypatch, caplog):
+    failing = SimpleNamespace(incidentChanged=_BoomSignal())
+    monkeypatch.setattr("utils.app_signals.app_signals", failing)
+    monkeypatch.setattr("utils.incident_context.set_active_incident", lambda *_: None)
+    with caplog.at_level(logging.WARNING):
+        AppState.set_active_incident("incident1")
+    assert "failed to emit incidentChanged" in caplog.text
+
+
+def test_set_active_op_period_logs_warning_on_signal_failure(monkeypatch, caplog):
+    failing = SimpleNamespace(opPeriodChanged=_BoomSignal())
+    monkeypatch.setattr("utils.app_signals.app_signals", failing)
+    with caplog.at_level(logging.WARNING):
+        AppState.set_active_op_period("op1")
+    assert "failed to emit opPeriodChanged" in caplog.text
+
+
+def test_set_active_user_id_logs_warning_on_signal_failure(monkeypatch, caplog):
+    failing = SimpleNamespace(userChanged=_BoomSignal())
+    monkeypatch.setattr("utils.app_signals.app_signals", failing)
+    with caplog.at_level(logging.WARNING):
+        AppState.set_active_user_id("user1")
+    assert "failed to emit userChanged" in caplog.text
+
+
+def test_set_active_user_role_logs_warning_on_signal_failure(monkeypatch, caplog):
+    failing = SimpleNamespace(userChanged=_BoomSignal())
+    monkeypatch.setattr("utils.app_signals.app_signals", failing)
+    with caplog.at_level(logging.WARNING):
+        AppState.set_active_user_role("admin")
+    assert "failed to emit userChanged" in caplog.text
