@@ -28,12 +28,19 @@ def _get_checkin_panel():
     return CheckInPanel
 
 
+def _get_home_panel():
+    """Return the concrete QWidget class for the dashboard."""
+    from .panels.logistics_home_panel import LogisticsHomePanel
+
+    return LogisticsHomePanel
+
+
 def get_logistics_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Logistics Dashboard."""
-    return _make_panel(
-        "Logistics Dashboard",
-        f"Logistics overview — incident: {incident_id}",
-    )
+    """Return the main Logistics dashboard panel."""
+
+    HomePanel = _get_home_panel()
+    incident = str(incident_id) if incident_id is not None else None
+    return HomePanel(incident)
 
 
 def get_checkin_panel(incident_id: object | None = None) -> QWidget:

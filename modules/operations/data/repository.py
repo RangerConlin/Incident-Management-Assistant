@@ -166,12 +166,24 @@ def fetch_task_rows() -> List[Dict[str, Any]]:
         ).fetchall()
         # Preload assignments grouped by task_id
         tt_rows = con.execute(
-            "SELECT task_id, teamid, sortie_id FROM task_teams ORDER BY id"
+            """
+            SELECT tt.task_id,
+                   tt.teamid,
+                   tt.sortie_id,
+                   tm.name AS team_name
+              FROM task_teams tt
+         LEFT JOIN teams tm ON tt.teamid = tm.id
+             ORDER BY tt.id
+            """
         ).fetchall()
 
     assigned_map: Dict[int, List[str]] = {}
     for r in tt_rows:
-        label = r["sortie_id"] or (f"Team {r['teamid']}" if r["teamid"] is not None else "Team")
+        label = (
+            r["team_name"]
+            or r["sortie_id"]
+            or (f"Team {r['teamid']}" if r["teamid"] is not None else "Team")
+        )
         assigned_map.setdefault(int(r["task_id"]), []).append(str(label))
 
     out: List[Dict[str, Any]] = []

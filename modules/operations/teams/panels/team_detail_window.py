@@ -13,7 +13,7 @@ from utils import incident_context
 from utils.state import AppState
 from modules.operations.teams.data.team import Team
 from modules.operations.teams.data import repository as team_repo
-from utils.constants import TEAM_STATUSES
+from utils.constants import TEAM_STATUSES, TEAM_TYPE_DETAILS
 
 
 class TeamDetailBridge(QObject):
@@ -48,17 +48,10 @@ class TeamDetailBridge(QObject):
             for lbl in TEAM_STATUSES
         ]
 
-        self._team_type_options: list[dict[str, object]] = [
-            {"code": "GT", "label": "Ground Team", "color": TEAM_TYPE_COLORS["GT"].name(), "planned_only": False},
-            {"code": "UDF", "label": "Urban DF Team", "color": TEAM_TYPE_COLORS["UDF"].name(), "planned_only": False},
-            {"code": "LSAR", "label": "Land SAR", "color": TEAM_TYPE_COLORS["LSAR"].name(), "planned_only": False},
-            {"code": "DF", "label": "Disaster Field Team", "color": TEAM_TYPE_COLORS["DF"].name(), "planned_only": False},
-            {"code": "GT/UAS", "label": "Ground/UAS Team", "color": TEAM_TYPE_COLORS["GT/UAS"].name(), "planned_only": False},
-            {"code": "UDF/UAS", "label": "Urban DF/UAS Team", "color": TEAM_TYPE_COLORS["UDF/UAS"].name(), "planned_only": False},
-            {"code": "UAS", "label": "UAS Team", "color": TEAM_TYPE_COLORS["UAS"].name(), "planned_only": False},
-            {"code": "AIR", "label": "Air Support", "color": TEAM_TYPE_COLORS["AIR"].name(), "planned_only": False},
-            {"code": "K9", "label": "K9 Team", "color": TEAM_TYPE_COLORS["K9"].name(), "planned_only": False},
-            {"code": "UTIL", "label": "Utility/Support", "color": TEAM_TYPE_COLORS["UTIL"].name(), "planned_only": True},
+        self._team_type_list: list[dict[str, str]] = [
+            {"code": code, "label": info["label"]}
+            for code, info in TEAM_TYPE_DETAILS.items()
+            if not info.get("planned_only")
         ]
         try:
             subscribe_theme(self, lambda *_: self.statusChanged.emit(self._team.status))
@@ -74,10 +67,26 @@ class TeamDetailBridge(QObject):
     def statusList(self) -> list[dict]:
         return self._status_options
 
+    @Property('QVariant', constant=True)
+    def teamTypeList(self) -> list[dict[str, str]]:
+        """Return available team type options for the combo box."""
+        return self._team_type_list
+
+    @Property(str, notify=teamChanged)
+    def teamTypeColor(self) -> str:
+        """Color representing the current team type."""
+        try:
+            code = (self._team.team_type or "").upper()
+            color = TEAM_TYPE_COLORS.get(code)
+            return color.name() if color else "#5b8efc"
+        except Exception:
+            return "#5b8efc"
+
     @Property(bool, notify=teamChanged)
     def isAircraftTeam(self) -> bool:
         code = (self._team.team_type or "").upper()
-        return ("AIR" in code) or ("UAS" in code)
+        info = TEAM_TYPE_DETAILS.get(code)
+        return bool(info and info.get("is_aircraft"))
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
         key = (self._team.status or "").strip().lower()

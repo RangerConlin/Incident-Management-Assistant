@@ -3,7 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional, Dict, Any, Type
 
-from PySide6.QtWidgets import QWidget
+# The widget registry is used in both GUI and headless test environments.  In
+# the latter PySide6 (and its OpenGL dependencies) might not be available.  To
+# allow importing the registry without a full Qt installation we fall back to a
+# very small dummy ``QWidget`` replacement when the import fails.
+try:  # pragma: no cover - exercised only when Qt is installed
+    from PySide6.QtWidgets import QWidget
+except Exception:  # pragma: no cover - no Qt available
+    class QWidget:  # type: ignore[misc]
+        """Minimal stub used when PySide6 is unavailable."""
+
+        def __init__(self, *args, **kwargs) -> None:  # pragma: no cover - trivial
+            pass
 
 
 @dataclass(frozen=True)

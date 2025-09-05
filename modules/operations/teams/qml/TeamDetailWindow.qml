@@ -41,9 +41,26 @@ ApplicationWindow {
   width: 980
   height: 700
   visible: true
+  color: teamBridge && teamBridge.teamTypeColor ? teamBridge.teamTypeColor : "#ffffff"
+
+  // Team ID injected from Python (open_team_detail_window)
+  // When set, request the bridge to load the team so `teamBridge.team`
+  // populates and the UI binds correctly.
+  property int teamId: 0
 
   readonly property var t: teamBridge ? teamBridge.team : null
-  readonly property bool isAir: (t && t.team_type) ? (String(t.team_type).toUpperCase().indexOf("AIR") === 0) : false
+  readonly property bool isAir: teamBridge ? teamBridge.isAircraftTeam : false
+
+  function loadTeam() {
+    if (teamBridge && teamId) {
+      teamBridge.loadTeam(teamId)
+    }
+  }
+
+  // QML may set teamId after component creation; only load when a valid
+  // id is present to avoid resetting the bridge with a blank team.
+  Component.onCompleted: loadTeam()
+  onTeamIdChanged: loadTeam()
 
   ColumnLayout {
     anchors.fill: parent
@@ -53,10 +70,6 @@ ApplicationWindow {
     RowLayout {
       Layout.fillWidth: true
       spacing: 12
-      Rectangle {
-        width: 14; height: 14; radius: 7
-        color: teamBridge && teamBridge.teamTypeColor ? teamBridge.teamTypeColor : "#5b8efc"
-      }
       Label {
         font.bold: true
         font.pixelSize: 20
@@ -66,6 +79,11 @@ ApplicationWindow {
               + (t && t.team_leader_id ? (" – " + leaderName(t.team_leader_id)) : "")
       }
       Item { Layout.fillWidth: true }
+      Button {
+        text: "Save"
+        enabled: !!teamBridge
+        onClicked: teamBridge.save()
+      }
       Button {
         text: "Close"
         onClicked: rootWindow.close()
@@ -87,19 +105,23 @@ ApplicationWindow {
             RowLayout {
               spacing: 8
               Label { text: "Team Type"; Layout.preferredWidth: 110 }
-              ComboBox {
-                id: cbTeamType
-                Layout.preferredWidth: 220
-                model: (teamBridge && teamBridge.teamTypeList) ? teamBridge.teamTypeList : ["GT","AIR","UDF","LOG"]
-                currentIndex: {
-                  var arr = (teamBridge && teamBridge.teamTypeList) ? teamBridge.teamTypeList : ["GT","AIR","UDF","LOG"]
-                  var val = (t && t.team_type) ? String(t.team_type) : ""
-                  var i = arr.indexOf(val)
-                  return (i >= 0) ? i : 0
+                ComboBox {
+                  id: cbTeamType
+                  Layout.preferredWidth: 220
+                  model: teamBridge ? teamBridge.teamTypeList : []
+                  textRole: "label"
+                  valueRole: "code"
+                  currentIndex: {
+                    if (!teamBridge || !model || typeof model.length === "undefined") return 0
+                    var val = (t && t.team_type) ? String(t.team_type) : ""
+                    for (var i = 0; i < model.length; ++i)
+                      if (model[i].code === val)
+                        return i
+                    return 0
+                  }
+                  onActivated: if (teamBridge) teamBridge.setTeamType(model[index].code)
                 }
-                onActivated: { if (teamBridge && t) teamBridge.updateFromQml({ team_type: currentText }) }
-              }
-            }
+                }
 
             RowLayout {
               spacing: 8
@@ -150,7 +172,11 @@ ApplicationWindow {
                   for (var i=0;i<model.length;i++) if (model[i].key === t.status) return i
                   return 0
                 }
-                onActivated: if (teamBridge && model[index]) teamBridge.setStatus(model[index].key)
+                onActivated: function(index) {
+                  if (teamBridge && model[index]) {
+                    teamBridge.setStatus(model[index].key)
+                  }
+                }
               }
             }
           }

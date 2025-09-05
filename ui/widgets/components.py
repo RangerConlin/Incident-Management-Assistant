@@ -8,11 +8,80 @@ try:
 except Exception:  # pragma: no cover
     ZoneInfo = None  # type: ignore
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QHBoxLayout,
-    QPushButton, QLineEdit, QMessageBox
-)
-from PySide6.QtCore import Qt, QTimer
+# Similar to other modules, the widget components need to operate in environments
+# where PySide6 might not be installed (e.g. during automated unit tests).  We
+# therefore try to import the real Qt classes but gracefully degrade to very
+# small stubs that provide the minimal API used in the tests.  These stubs do
+# not implement any GUI behaviour; they merely allow the module to be imported
+# without raising ImportError.
+try:  # pragma: no cover - real Qt path
+    from PySide6.QtWidgets import (
+        QWidget, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QHBoxLayout,
+        QPushButton, QLineEdit, QMessageBox
+    )
+    from PySide6.QtCore import Qt, QTimer
+except Exception:  # pragma: no cover - headless fallback
+    class QWidget:  # type: ignore[misc]
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class _Layout:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def addWidget(self, *args, **kwargs) -> None:
+            pass
+
+        def setContentsMargins(self, *args, **kwargs) -> None:
+            pass
+
+        def setSpacing(self, *args, **kwargs) -> None:
+            pass
+
+    class QVBoxLayout(_Layout):
+        pass
+
+    class QHBoxLayout(_Layout):
+        pass
+
+    class QLabel:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class QListWidget(QWidget):
+        pass
+
+    class QListWidgetItem:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class QPushButton(QWidget):
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class QLineEdit(QWidget):
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class QMessageBox(QWidget):
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+    class QTimer:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def setInterval(self, *args, **kwargs) -> None:
+            pass
+
+        def timeout(self):
+            return lambda: None
+
+        def start(self, *args, **kwargs) -> None:
+            pass
+
+    class Qt:  # minimal subset used in components
+        AlignCenter = 0
 
 from utils.settingsmanager import SettingsManager
 

@@ -82,6 +82,71 @@ def find_aircraft_by_callsign(callsign: str) -> List[Dict]:
         cur = conn.execute("SELECT * FROM aircraft_master WHERE callsign = ?", (callsign,))
         return [dict(row) for row in cur.fetchall()]
 
+
+def search_personnel(term: str, status: str = "") -> List[Dict]:
+    """Search personnel by id, name, or callsign."""
+    with get_master_conn() as conn:
+        ensure_master_tables_exist(conn)
+        q = f"%{term}%"
+        sql = (
+            "SELECT * FROM personnel_master WHERE "
+            "(id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR callsign LIKE ?)"
+        )
+        params = [q, q, q, q]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        cur = conn.execute(sql, params)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def search_equipment(term: str, status: str = "") -> List[Dict]:
+    """Search equipment by id or name."""
+    with get_master_conn() as conn:
+        ensure_master_tables_exist(conn)
+        q = f"%{term}%"
+        sql = "SELECT * FROM equipment_master WHERE (id LIKE ? OR name LIKE ?)"
+        params = [q, q]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        cur = conn.execute(sql, params)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def search_vehicle(term: str, status: str = "") -> List[Dict]:
+    """Search vehicles by id, name, or callsign."""
+    with get_master_conn() as conn:
+        ensure_master_tables_exist(conn)
+        q = f"%{term}%"
+        sql = (
+            "SELECT * FROM vehicle_master WHERE "
+            "(id LIKE ? OR name LIKE ? OR callsign LIKE ?)"
+        )
+        params = [q, q, q]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        cur = conn.execute(sql, params)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def search_aircraft(term: str, status: str = "") -> List[Dict]:
+    """Search aircraft by id, tail number, or callsign."""
+    with get_master_conn() as conn:
+        ensure_master_tables_exist(conn)
+        q = f"%{term}%"
+        sql = (
+            "SELECT * FROM aircraft_master WHERE "
+            "(id LIKE ? OR tail_number LIKE ? OR callsign LIKE ?)"
+        )
+        params = [q, q, q]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        cur = conn.execute(sql, params)
+        return [dict(row) for row in cur.fetchall()]
+
 # ---------------------------------------------------------------------------
 # Master creation helpers
 # ---------------------------------------------------------------------------

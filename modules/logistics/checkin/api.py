@@ -34,6 +34,13 @@ CREATE_MASTER = {
     "aircraft": repository.create_or_update_aircraft_master,
 }
 
+SEARCH = {
+    "personnel": repository.search_personnel,
+    "equipment": repository.search_equipment,
+    "vehicle": repository.search_vehicle,
+    "aircraft": repository.search_aircraft,
+}
+
 
 def lookup_entity(entity_type: str, mode: str, **kwargs) -> List[Dict]:
     """Lookup entities for display in the UI."""
@@ -46,6 +53,28 @@ def lookup_entity(entity_type: str, mode: str, **kwargs) -> List[Dict]:
         if entity_type == "personnel":
             return FIND_BY_NAME[entity_type](kwargs.get("first"), kwargs.get("last"))
         return FIND_BY_NAME[entity_type](kwargs.get("value"))
+
+
+def search_entities(entity_type: str, term: str, status: str = "") -> List[Dict]:
+    """Perform a fuzzy search of entities for the UI."""
+    rows = SEARCH[entity_type](term, status)
+    results: List[Dict] = []
+    for r in rows:
+        if entity_type == "personnel":
+            display = f"{r.get('first_name', '')} {r.get('last_name', '')} ({r.get('id')})"
+        elif entity_type == "equipment":
+            display = f"{r.get('name', '')} ({r.get('id')})"
+        elif entity_type == "vehicle":
+            display = f"{r.get('name', '')} ({r.get('id')})"
+        else:  # aircraft
+            display = f"{r.get('callsign') or r.get('tail_number', '')} ({r.get('id')})"
+        results.append({"id": r.get("id"), "display": display})
+    return results
+
+
+def get_entity_details(entity_type: str, entity_id: str) -> Dict:
+    """Fetch full details for a single entity from the master DB."""
+    return FIND_BY_ID[entity_type](entity_id) or {}
 
 
 def check_in_entity(entity_type: str, lookup_key: Dict, payload: Dict | None = None) -> Dict:

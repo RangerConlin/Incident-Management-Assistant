@@ -26,6 +26,13 @@ def open_team_detail_window(team_id: Optional[int] = None):
     bridge = TeamDetailBridge()
     engine.rootContext().setContextProperty("teamBridge", bridge)
     engine.load(QUrl.fromLocalFile(qml_path))
+    # If a team id was provided, load it immediately so the bridge
+    # has data even if QML hasn't yet reacted to the property change.
+    if team_id is not None:
+        try:
+            bridge.loadTeam(int(team_id))
+        except Exception:
+            pass
     roots = engine.rootObjects()
     if roots:
         root = roots[0]

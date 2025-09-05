@@ -39,15 +39,20 @@ TEAM_STATUSES = [
     "Find",
     "Complete"
 ]
-TEAM_TYPES = [
-    "GT",      # Ground Team
-    "UDF",     # Urban Disaster Field Team
-    "LSAR",    # Land Search and Rescue
-    "DF",      # Disaster Field Team
-    "GT/UAS",  # Ground Team with UAS capability
-    "UDF/UAS", # Urban Disaster Field Team with UAS capability
-    "UAS",     # Unmanned Aerial System (Drone) Team
-    "AIR",     # Air Support Team
-    "K9",      # Canine Search Team
-    "UTIL"     # Utility or Support Team
-]
+# Detailed team type metadata used throughout the UI. The `planned_only`
+# flag hides options that are not yet fully supported.
+TEAM_TYPE_DETAILS = {
+    "GT": {"label": "Ground Team", "is_aircraft": False},
+    "UDF": {"label": "Urban DF Team", "is_aircraft": False},
+    "LSAR": {"label": "Land SAR", "is_aircraft": False},
+    "DF": {"label": "Disaster Field Team", "is_aircraft": False},
+    "GT/UAS": {"label": "Ground/UAS Team", "is_aircraft": True},
+    "UDF/UAS": {"label": "Urban DF/UAS Team", "is_aircraft": True},
+    "UAS": {"label": "UAS Team", "is_aircraft": True},
+    "AIR": {"label": "Air Support", "is_aircraft": True},
+    "K9": {"label": "K9 Team", "is_aircraft": False},
+    "UTIL": {"label": "Utility/Support", "is_aircraft": False, "planned_only": True},
+}
+
+# Convenience list of codes in case callers need just the identifier set.
+TEAM_TYPES = list(TEAM_TYPE_DETAILS.keys())

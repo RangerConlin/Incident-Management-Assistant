@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Dict
 
-from PySide6.QtWidgets import QWidget
-
 from .base import WidgetSpec, Size
 from . import data_providers as dp
 from .components import (

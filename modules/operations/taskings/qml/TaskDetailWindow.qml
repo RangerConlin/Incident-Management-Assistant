@@ -230,14 +230,14 @@ C.ApplicationWindow {
                             }
                             delegate: Rectangle {
                                 width: ListView.view.width; height: 36
-                                color: (critical_flag===true || model.critical===true) ? "#d32f2f" : "#ffffff"
+                                color: (model.critical_flag===true || model.critical===true) ? "#d32f2f" : "#ffffff"
                                 border.color: "#c0c0c0"
                                 Row { anchors.fill: parent; anchors.margins: 6; spacing: 12
-                                    C.Label { text: (timestamp||time||""); width: 100; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: (entry_text||text||""); Layout.fillWidth: true; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: (entered_by||by||""); width: 140; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: (team_name||team||""); width: 120; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: ((critical_flag||model.critical)?"Yes":"No"); width: 70; horizontalAlignment: Text.AlignHCenter; color: (parent.color==="#d32f2f"?"#fff":"#000") }
+                                    C.Label { text: (model.timestamp || model.time || ""); width: 100; color: (parent.color==="#d32f2f"?"#fff":"#000") }
+                                    C.Label { text: (model.entry_text || model.text || ""); Layout.fillWidth: true; color: (parent.color==="#d32f2f"?"#fff":"#000") }
+                                    C.Label { text: (model.entered_by || model.by || ""); width: 140; color: (parent.color==="#d32f2f"?"#fff":"#000") }
+                                    C.Label { text: (model.team_name || model.team || ""); width: 120; color: (parent.color==="#d32f2f"?"#fff":"#000") }
+                                    C.Label { text: ((model.critical_flag || model.critical) ? "Yes" : "No"); width: 70; horizontalAlignment: Text.AlignHCenter; color: (parent.color==="#d32f2f"?"#fff":"#000") }
                                 }
                             }
                         }
@@ -263,18 +263,18 @@ C.ApplicationWindow {
                                     width: teamList.width; height: 32
                                     color: index % 2 ? "#fafafa" : "#ffffff"; border.color: "#ddd"
                                     Row { anchors.fill: parent; anchors.margins: 6; spacing: 10
-                                        C.Label { text: (sortie_number||""); width: 100 }
-                                        C.Label { text: (primary?"*":""); width: 24; horizontalAlignment: Text.AlignHCenter }
-                                        C.Label { text: (team_name||""); width: 160 }
-                                        C.Label { text: (team_leader||""); width: 180 }
-                                        C.Label { text: (team_leader_phone||""); width: 120 }
-                                        C.Label { text: (status||""); width: 120 }
-                                        C.Label { text: (assigned_ts||""); width: 120 }
-                                        C.Label { text: (briefed_ts||""); width: 120 }
-                                        C.Label { text: (enroute_ts||""); width: 120 }
-                                        C.Label { text: (arrival_ts||""); width: 120 }
-                                        C.Label { text: (discovery_ts||""); width: 120 }
-                                        C.Label { text: (complete_ts||""); width: 120 }
+                                        C.Label { text: (model.sortie_number || ""); width: 100 }
+                                        C.Label { text: (model.primary ? "*" : ""); width: 24; horizontalAlignment: Text.AlignHCenter }
+                                        C.Label { text: (model.team_name || ""); width: 160 }
+                                        C.Label { text: (model.team_leader || ""); width: 180 }
+                                        C.Label { text: (model.team_leader_phone || ""); width: 120 }
+                                        C.Label { text: (model.status || ""); width: 120 }
+                                        C.Label { text: (model.assigned_ts || ""); width: 120 }
+                                        C.Label { text: (model.briefed_ts || ""); width: 120 }
+                                        C.Label { text: (model.enroute_ts || ""); width: 120 }
+                                        C.Label { text: (model.arrival_ts || ""); width: 120 }
+                                        C.Label { text: (model.discovery_ts || ""); width: 120 }
+                                        C.Label { text: (model.complete_ts || ""); width: 120 }
                                     }
                                     MouseArea { anchors.fill: parent; acceptedButtons: Qt.RightButton
                                         onPressed: function(m){ if(m.button===Qt.RightButton){ teamMenu.rowIndex=index; teamMenu.popup() } }
