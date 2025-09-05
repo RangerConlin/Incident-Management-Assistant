@@ -54,6 +54,7 @@ import sqlite3
 from utils.styles import set_theme, apply_app_palette, THEME_NAME
 from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
+from utils.constants import TEAM_STATUSES
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -1916,6 +1917,15 @@ class MetricWidget(QWidget):
 
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
+        ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+
+        base = os.path.basename(qml_rel_path)
+        if base == "CannedCommEntriesWindow.qml":
+            try:
+                from utils.constants import TEAM_STATUSES
+                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+            except Exception:
+                pass
 
         base = os.path.basename(qml_rel_path)
         if base == "CannedCommEntriesWindow.qml":

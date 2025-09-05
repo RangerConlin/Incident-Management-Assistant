@@ -14,7 +14,7 @@ Shared.MasterTableWindow {
   bridgeUpdateFn: function(id, m) { return catalogBridge.updateVehicles(id, m) }
   bridgeDeleteFn: function(id) { return catalogBridge.deleteVehicles(id) }
   columns: [
-    { key: "id", label: "ID", type: "int", editable: false, width: 70 },
+    { key: "id", label: "ID", type: "text", editable: true, required: true, width: 70 },
     { key: "vin", label: "VIN", type: "text", editable: true, width: 200 },
     { key: "license_plate", label: "Plate", type: "text", editable: true, width: 120 },
     { key: "year", label: "Year", type: "int", editable: true, width: 80 },
@@ -22,7 +22,7 @@ Shared.MasterTableWindow {
     { key: "model", label: "Model", type: "text", editable: true, width: 140 },
     { key: "capacity", label: "Capacity", type: "int", editable: true, width: 100 },
     { key: "type_id", label: "Type ID", type: "int", editable: true, width: 90 },
-    { key: "status_id", label: "Status ID", type: "int", editable: true, width: 90 },
+    { key: "status_id", label: "Status", type: "enum", editable: true, required: true, width: 120, options: teamStatuses },
     { key: "tags", label: "Tags", type: "text", editable: true, width: 160 },
     { key: "organization", label: "Org", type: "text", editable: true, width: 150 }
   ]

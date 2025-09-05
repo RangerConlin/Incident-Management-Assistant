@@ -33,12 +33,19 @@ def _window_model_map():
     Returns a dict keyed by QML filename (basename) to a tuple of:
       (context_property_name, model_factory_callable)
     """
-    # Reuse EMS model for Hospitals until a dedicated table exists
     def _ems():
         return _make_model("""
             SELECT id, name, type, phone, fax, email, contact,
                    address, city, state, zip, notes, is_active
             FROM ems
+            ORDER BY name COLLATE NOCASE;
+        """)
+
+    def _hospitals():
+        return _make_model("""
+            SELECT id, name, type, phone, fax, email, contact,
+                   address, city, state, zip, notes, is_active
+            FROM hospitals
             ORDER BY name COLLATE NOCASE;
         """)
 
@@ -124,10 +131,10 @@ def _window_model_map():
             _ems
         ),
 
-        # Hospitals (TEMP → reuse EMS data)
+        # Hospitals
         "HospitalsWindow.qml": (
             "HospitalsModel",
-            _ems
+            _hospitals
         ),
 
         # Certifications
@@ -284,9 +291,8 @@ def open_ems():
     win.exec()
 
 def open_hospitals():
-    # TEMP: uses EMS data until a hospitals table exists
     path = os.path.abspath("qml/HospitalsWindow.qml")
-    win = QmlWindow(path, "Hospitals (EMS Catalog)")
+    win = QmlWindow(path, "Hospitals Catalog")
     win.exec()
 
 def open_certifications():

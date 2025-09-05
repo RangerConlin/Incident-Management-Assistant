@@ -13,8 +13,8 @@
 //
 // Backend expectations on `teamBridge` (implement as needed):
 //   team: {
-//     id, team_type, team_name, callsign, team_leader_id, status,
-//     leader_phone, last_contact_ts, primary_task_id, assignment,
+//     id, team_type, name, callsign, team_leader_id, status,
+//     team_leader_phone, last_contact_ts, primary_task_id, assignment,
 //     notes
 //   }
 //   currentUserDisplay : string
@@ -62,7 +62,7 @@ ApplicationWindow {
         font.pixelSize: 20
         text: (isAir ? "AIR" : (t && t.team_type ? t.team_type.toString().toUpperCase() : ""))
               + " – "
-              + (isAir ? (t && t.callsign ? t.callsign : "") : (t && t.team_name ? t.team_name : ""))
+              + (isAir ? (t && t.callsign ? t.callsign : "") : (t && t.name ? t.name : ""))
               + (t && t.team_leader_id ? (" – " + leaderName(t.team_leader_id)) : "")
       }
       Item { Layout.fillWidth: true }
@@ -106,11 +106,11 @@ ApplicationWindow {
               Label { text: isAir ? "Callsign" : "Team Name"; Layout.preferredWidth: 110 }
               TextField {
                 Layout.preferredWidth: 220
-                text: isAir ? (t && t.callsign ? t.callsign : "") : (t && t.team_name ? t.team_name : "")
+                text: isAir ? (t && t.callsign ? t.callsign : "") : (t && t.name ? t.name : "")
                 onEditingFinished: {
                   if (!teamBridge) return
                   if (isAir) teamBridge.updateFromQml({ callsign: text })
-                  else teamBridge.updateFromQml({ team_name: text })
+                  else teamBridge.updateFromQml({ name: text })
                 }
               }
             }
@@ -130,9 +130,9 @@ ApplicationWindow {
               Label { text: "Phone"; Layout.preferredWidth: 110 }
               TextField {
                 Layout.preferredWidth: 220
-                text: t && t.leader_phone ? t.leader_phone : ""
+                text: t && t.team_leader_phone ? t.team_leader_phone : ""
                 inputMethodHints: Qt.ImhDialableCharactersOnly
-                onEditingFinished: if (teamBridge) teamBridge.updateFromQml({ leader_phone: text })
+                onEditingFinished: if (teamBridge) teamBridge.updateFromQml({ team_leader_phone: text })
               }
             }
 
