@@ -1341,6 +1341,15 @@ class MainWindow(QMainWindow):
         # Expose bridges and models to QML
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
+
+        base = os.path.basename(qml_rel_path)
+        if base == "CannedCommEntriesWindow.qml":
+            try:
+                from utils.constants import TEAM_STATUSES
+                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+            except Exception:
+                pass
+
         # Incident bridge (incident-scoped CRUD)
         try:
             if not hasattr(self, "_incident_bridge"):
@@ -1351,7 +1360,6 @@ class MainWindow(QMainWindow):
 
         # Inject a per-window SqliteTableModel when we can map the window to a table
         try:
-            base = os.path.basename(qml_rel_path)
             # Strip the full suffix "Window.qml" (10 chars) to get the base name
             name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
             table = self._resolve_master_table(name)
@@ -1909,9 +1917,16 @@ class MetricWidget(QWidget):
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
 
+        base = os.path.basename(qml_rel_path)
+        if base == "CannedCommEntriesWindow.qml":
+            try:
+                from utils.constants import TEAM_STATUSES
+                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+            except Exception:
+                pass
+
         # Inject per-window SQLite models for master catalog windows
         try:
-            base = os.path.basename(qml_rel_path)
             # Strip the full suffix "Window.qml" (10 chars) to get the base name
             name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
             # Map window base name -> table name (validate against sqlite_master)
