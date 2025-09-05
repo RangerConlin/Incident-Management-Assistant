@@ -16,6 +16,10 @@ class AppSignals(QObject):
     messageLogged = Signal(str, str)
     # Emitted when a team status is changed elsewhere in the app; provide team_id
     teamStatusChanged = Signal(int)
+    # Emitted when team asset assignments change (personnel, vehicles, equipment, aircraft)
+    teamAssetsChanged = Signal(int)
+    # Emitted when a team's leader changes
+    teamLeaderChanged = Signal(int)
 
 
 # Global singleton instance

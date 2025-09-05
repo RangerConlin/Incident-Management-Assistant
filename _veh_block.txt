@@ -1,0 +1,12 @@
+            RowLayout { anchors.fill: parent; spacing: 8
+              Label { text: (modelData && modelData.id !== undefined ? String(modelData.id) : ""); Layout.preferredWidth: 60 }
+              Label { text: (isAir ? (modelData.tail || modelData.callsign) : (modelData.callsign || modelData.name)) || ""; Layout.preferredWidth: 160 }
+              Label { text: modelData.type || ""; Layout.preferredWidth: 140 }
+              Label { text: isAir ? (modelData.base || "") : (modelData.driver || ""); Layout.preferredWidth: 160 }
+              Label { text: modelData.comms || modelData.phone || ""; Layout.preferredWidth: 160 }
+              Button { text: "⋮"; onClicked: assetMenu.open() }
+              Menu { id: assetMenu
+                MenuItem { text: "Details"; onTriggered: teamBridge && teamBridge.openAsset && teamBridge.openAsset(modelData.id) }
+                MenuItem { text: "Remove"; onTriggered: teamBridge && teamBridge.removeAsset && teamBridge.removeAsset(modelData.id) }
+              }
+            }

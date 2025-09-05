@@ -43,30 +43,6 @@ TEAM_STATUSES = [
     "Find",
     "Complete"
 ]
-TASK_STATUSES = [
-    "Created"
-    "Assigned",
-    "In Progress",
-    "Completed",
-    "Cancelled"
-]
-EQUIPMENT_STATUSES = [
-    "Available",
-    "In Use",
-    "Under Maintenance",
-    "Out of Service",
-    "Lost",
-    "Damaged"
-]
-PERSONNEL_STATUSES = [
-    "Available",
-    "Assigned",
-    "Pending",
-    "Unavailable",
-    "Demobilized",
-]    
-
-
 # Detailed team type metadata used throughout the UI. The `planned_only`
 # flag hides options that are not yet fully supported.
 TEAM_TYPE_DETAILS = {
@@ -79,7 +55,7 @@ TEAM_TYPE_DETAILS = {
     "UAS": {"label": "UAS Team", "is_aircraft": False},
     "AIR": {"label": "Aircraft", "is_aircraft": True},
     "K9": {"label": "K9 Team", "is_aircraft": False},
-    "UTIL": {"label": "Utility/Support", "is_aircraft": False},
+    "UTIL": {"label": "Utility/Support", "is_aircraft": False, "planned_only": False},
 }
 
 # Convenience list of codes in case callers need just the identifier set.
@@ -116,6 +92,8 @@ UAS_ROLES = [
     "UAST"
 ]
 AIR_ROLES = [
+    "PIC",
+    "CP",
     "PILOT",
     "CO-PILOT",
     "OBS",
@@ -136,5 +114,3 @@ UTIL_ROLES = [
     "EQUIP",
     "OTHER",
 ]
-GT_UAS_ROLES = GT_ROLES + UAS_ROLES
-UDF_UAS_ROLES = UDF_ROLES + UAS_ROLES

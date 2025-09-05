@@ -13,6 +13,33 @@ from utils import incident_context
 from utils.state import AppState
 from modules.operations.teams.data.team import Team
 from modules.operations.teams.data import repository as team_repo
+from models.queries import (
+    fetch_team_personnel,
+    fetch_team_vehicles,
+    fetch_team_equipment,
+    fetch_team_aircraft,
+    fetch_team_leader_id,
+    set_person_team,
+    set_vehicle_team,
+    set_equipment_team,
+    set_aircraft_team,
+    set_team_leader,
+    set_person_role,
+    set_team_leader_phone,
+)
+from utils.app_signals import app_signals
+from utils.constants import (
+    GT_ROLES,
+    UDF_ROLES,
+    LSAR_ROLES,
+    DF_ROLES,
+    UAS_ROLES,
+    AIR_ROLES,
+    K9_ROLES,
+    UTIL_ROLES,
+    GT_UAS_ROLES,
+    UDF_UAS_ROLES,
+)
 from utils.constants import TEAM_STATUSES, TEAM_TYPE_DETAILS
 
 
@@ -31,6 +58,11 @@ class TeamDetailBridge(QObject):
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._team: Team = Team()
+        # Cached lists for QML list views
+        self._personnel: list[dict[str, Any]] = []
+        self._vehicles: list[dict[str, Any]] = []
+        self._equipment: list[dict[str, Any]] = []
+        self._aircraft: list[dict[str, Any]] = []
 
         # Display labels mapped to color/status keys used in palette
         overrides = {
@@ -55,6 +87,12 @@ class TeamDetailBridge(QObject):
         ]
         try:
             subscribe_theme(self, lambda *_: self.statusChanged.emit(self._team.status))
+        except Exception:
+            pass
+        # Refresh assets when signaled elsewhere in the app
+        try:
+            app_signals.teamAssetsChanged.connect(self._on_assets_changed)
+            app_signals.teamLeaderChanged.connect(self._on_leader_changed)
         except Exception:
             pass
 
@@ -108,6 +146,15 @@ class TeamDetailBridge(QObject):
                 self._team = t if t else Team(team_id=int(team_id))
             else:
                 self._team = Team()
+            # If legacy DB stores leader_id rather than team_leader, fallback
+            try:
+                if self._team.team_leader_id is None and team_id:
+                    lid = fetch_team_leader_id(int(team_id))
+                    if lid is not None:
+                        self._team.team_leader_id = int(lid)
+            except Exception:
+                pass
+            self._refresh_assets()
             self._auto_set_pilot()
             self.teamChanged.emit()
             self.statusChanged.emit(self._team.status)
@@ -173,6 +220,179 @@ class TeamDetailBridge(QObject):
     def setTeamType(self, code: str) -> None:
         self._team.team_type = str(code)
         self.teamChanged.emit()
+
+    # ---- Asset list providers (QML binds to these) ----
+    @Slot(result='QVariant')
+    def groundMembers(self) -> list[dict]:
+        # Personnel for non-aircraft teams
+        out: list[dict[str, Any]] = []
+        lid = int(self._team.team_leader_id) if self._team.team_leader_id is not None else None
+        for r in self._personnel:
+            out.append(
+                {
+                    "id": r.get("id"),
+                    "name": r.get("name"),
+                    "role": r.get("role"),
+                    "phone": r.get("phone"),
+                    "isLeader": (lid is not None and int(r.get("id")) == lid),
+                    "isMedic": bool(r.get("is_medic")),
+                }
+            )
+        return out
+
+    @Slot(result='QVariant')
+    def aircrewMembers(self) -> list[dict]:
+        # For AIR teams show same people, flag PIC as leader and leave certs blank
+        out: list[dict[str, Any]] = []
+        lid = int(self._team.team_leader_id) if self._team.team_leader_id is not None else None
+        for r in self._personnel:
+            out.append(
+                {
+                    "id": r.get("id"),
+                    "name": r.get("name"),
+                    "role": r.get("role"),
+                    "phone": r.get("phone"),
+                    "certs": "",  # not modeled in incident db here
+                    "isPIC": (lid is not None and int(r.get("id")) == lid),
+                }
+            )
+        return out
+
+    @Slot(result='QVariant')
+    def vehicles(self) -> list[dict]:
+        out: list[dict[str, Any]] = []
+        for r in self._vehicles:
+            out.append(
+                {
+                    "id": r.get("id"),
+                    "name": r.get("name"),
+                    "callsign": r.get("callsign"),
+                    "type": r.get("type"),
+                    "driver": "",
+                    "phone": "",
+                }
+            )
+        return out
+
+    @Slot(result='QVariant')
+    def aircraft(self) -> list[dict]:
+        out: list[dict[str, Any]] = []
+        for r in self._aircraft:
+            out.append(
+                {
+                    "id": r.get("id"),
+                    "tail": r.get("tail_number"),
+                    "callsign": r.get("callsign"),
+                    "type": r.get("type"),
+                    "base": "",
+                    "comms": "",
+                }
+            )
+        return out
+
+    @Slot(result='QVariant')
+    def equipment(self) -> list[dict]:
+        out: list[dict[str, Any]] = []
+        for r in self._equipment:
+            out.append(
+                {
+                    "id": r.get("id"),
+                    "name": r.get("name"),
+                    # Provide additional fields for current QML layout
+                    "qty": 1,
+                    "notes": f"{r.get('type') or ''} {('('+str(r.get('serial'))+')') if r.get('serial') else ''}".strip(),
+                }
+            )
+        return out
+
+    @Slot(result='QVariant')
+    def leaderOptions(self) -> list[dict]:
+        try:
+            return [
+                {"id": r.get("id"), "name": r.get("name")}
+                for r in (self._personnel or [])
+            ]
+        except Exception:
+            return []
+
+    @Slot(int, result=str)
+    def leaderName(self, person_id: int) -> str:
+        try:
+            pid = int(person_id) if person_id is not None else None
+            if pid is None:
+                return ""
+            for r in (self._personnel or []):
+                try:
+                    if int(r.get("id")) == pid:
+                        return str(r.get("name") or f"#{pid}")
+                except Exception:
+                    continue
+            return f"#{pid}"
+        except Exception:
+            return ""
+
+    @Slot(result='QVariant')
+    def teamRoleOptions(self) -> list[str]:
+        try:
+            code = (self._team.team_type or "").upper()
+            return {
+                "GT": GT_ROLES,
+                "UDF": UDF_ROLES,
+                "LSAR": LSAR_ROLES,
+                "DF": DF_ROLES,
+                "UAS": UAS_ROLES,
+                "AIR": AIR_ROLES,
+                "K9": K9_ROLES,
+                "UTIL": UTIL_ROLES,
+                "GT/UAS": GT_UAS_ROLES,
+                "UDF/UAS": UDF_UAS_ROLES,
+            }.get(code, [])
+        except Exception:
+            return []
+
+    def _refresh_assets(self) -> None:
+        try:
+            tid = int(self._team.team_id) if self._team.team_id is not None else None
+            if not tid:
+                self._personnel = []
+                self._vehicles = []
+                self._equipment = []
+                self._aircraft = []
+                return
+            self._personnel = fetch_team_personnel(tid)
+            self._vehicles = fetch_team_vehicles(tid)
+            self._equipment = fetch_team_equipment(tid)
+            self._aircraft = fetch_team_aircraft(tid)
+        except Exception:
+            # Keep previous values on error
+            pass
+
+    @Slot(int)
+    def _on_assets_changed(self, team_id: int) -> None:
+        try:
+            if self._team.team_id and int(team_id) == int(self._team.team_id):
+                # If legacy DB stores leader_id rather than team_leader, fallback
+                try:
+                    if self._team.team_leader_id is None and team_id:
+                        lid = fetch_team_leader_id(int(team_id))
+                        if lid is not None:
+                            self._team.team_leader_id = int(lid)
+                except Exception:
+                    pass
+                self._refresh_assets()
+                self.teamChanged.emit()
+        except Exception:
+            pass
+
+    @Slot(int)
+    def _on_leader_changed(self, team_id: int) -> None:
+        try:
+            if self._team.team_id and int(team_id) == int(self._team.team_id):
+                lid = fetch_team_leader_id(int(team_id))
+                self._team.team_leader_id = int(lid) if lid is not None else None
+                self.teamChanged.emit()
+        except Exception:
+            pass
     def _auto_set_pilot(self) -> None:
         """Ensure team_leader_id remains valid and pick a default.
 
@@ -221,56 +441,125 @@ class TeamDetailBridge(QObject):
         except Exception:
             return True
 
-    @Slot(int)
-    def addMember(self, person_id: int) -> None:
-        if not self._is_member_role_valid(person_id):
-            self.error.emit("Selected person role not valid for this team")
-            return
-        if person_id not in self._team.members:
-            self._team.members.append(int(person_id))
-            self._auto_set_pilot()
-            self.teamChanged.emit()
+    @Slot('QVariant')
+    def addMember(self, person_id: Any = None) -> None:
+        """Assign a person to this team by setting their team_id."""
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            if person_id is None:
+                # No-op placeholder for UI without selector wired yet
+                return
+            if not self._is_member_role_valid(int(person_id)):
+                self.error.emit("Selected person role not valid for this team")
+                return
+            set_person_team(int(person_id), int(self._team.team_id))
+            app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to add member: {e}")
 
     @Slot(int)
     def removeMember(self, person_id: int) -> None:
-        self._team.members = [p for p in self._team.members if int(p) != int(person_id)]
-        if self._team.team_leader_id == int(person_id):
-            self._team.team_leader_id = None
-        self._auto_set_pilot()
-        self.teamChanged.emit()
+        """Unassign a person from this team (set team_id = NULL)."""
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            set_person_team(int(person_id), None)
+            # Clear leader if removing current leader
+            if self._team.team_leader_id == int(person_id):
+                set_team_leader(int(self._team.team_id), None)
+                self._team.team_leader_id = None
+                app_signals.teamLeaderChanged.emit(int(self._team.team_id))
+            app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to remove member: {e}")
 
-    @Slot(str)
-    def addVehicle(self, vehicle_id: str) -> None:
-        if vehicle_id and vehicle_id not in self._team.vehicles:
-            self._team.vehicles.append(str(vehicle_id))
-            self.teamChanged.emit()
+    @Slot('QVariant')
+    def addVehicle(self, vehicle_id: Any) -> None:
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            if vehicle_id is not None and str(vehicle_id) != "":
+                set_vehicle_team(int(vehicle_id), int(self._team.team_id))
+                app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to add vehicle: {e}")
 
-    @Slot(str)
-    def removeVehicle(self, vehicle_id: str) -> None:
-        self._team.vehicles = [v for v in self._team.vehicles if str(v) != str(vehicle_id)]
-        self.teamChanged.emit()
+    # Convenience for QML unified action in Vehicles/Aircraft tab
+    @Slot('QVariant')
+    def addAsset(self, asset_id: Any = None) -> None:
+        try:
+            code = (self._team.team_type or "").upper()
+            if code == "AIR":
+                self.addAircraft(asset_id)
+            else:
+                self.addVehicle(asset_id)
+        except Exception as e:
+            self.error.emit(f"Failed to add asset: {e}")
 
-    @Slot(str)
-    def addEquipment(self, eq_id: str) -> None:
-        if eq_id and eq_id not in self._team.equipment:
-            self._team.equipment.append(str(eq_id))
-            self.teamChanged.emit()
+    @Slot('QVariant')
+    def removeVehicle(self, vehicle_id: Any) -> None:
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            set_vehicle_team(int(vehicle_id), None)
+            app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to remove vehicle: {e}")
 
-    @Slot(str)
-    def removeEquipment(self, eq_id: str) -> None:
-        self._team.equipment = [e for e in self._team.equipment if str(e) != str(eq_id)]
-        self.teamChanged.emit()
+    # Convenience for QML unified action in Vehicles/Aircraft tab
+    @Slot('QVariant')
+    def removeAsset(self, asset_id: Any) -> None:
+        try:
+            code = (self._team.team_type or "").upper()
+            if code == "AIR":
+                self.removeAircraft(asset_id)
+            else:
+                self.removeVehicle(asset_id)
+        except Exception as e:
+            self.error.emit(f"Failed to remove asset: {e}")
 
-    @Slot(str)
-    def addAircraft(self, ac_id: str) -> None:
-        if ac_id and ac_id not in self._team.aircraft:
-            self._team.aircraft.append(str(ac_id))
-            self.teamChanged.emit()
+    @Slot('QVariant')
+    def addEquipment(self, eq_id: Any) -> None:
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            if eq_id is not None and str(eq_id) != "":
+                set_equipment_team(int(eq_id), int(self._team.team_id))
+                app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to add equipment: {e}")
 
-    @Slot(str)
-    def removeAircraft(self, ac_id: str) -> None:
-        self._team.aircraft = [a for a in self._team.aircraft if str(a) != str(ac_id)]
-        self.teamChanged.emit()
+    @Slot('QVariant')
+    def removeEquipment(self, eq_id: Any) -> None:
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            set_equipment_team(int(eq_id), None)
+            app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to remove equipment: {e}")
+
+    @Slot('QVariant')
+    def addAircraft(self, ac_id: Any) -> None:
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            if ac_id is not None and str(ac_id) != "":
+                set_aircraft_team(int(ac_id), int(self._team.team_id))
+                app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to add aircraft: {e}")
+
+    @Slot('QVariant')
+    def removeAircraft(self, ac_id: Any) -> None:
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            set_aircraft_team(int(ac_id), None)
+            app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to remove aircraft: {e}")
 
     @Slot(int)
     def linkTask(self, task_id: int) -> None:
@@ -349,13 +638,57 @@ class TeamDetailBridge(QObject):
         try:
             if person_id is None:
                 return
-            if int(person_id) not in [int(p) for p in self._team.members]:
-                # auto-add if not present
-                self._team.members.append(int(person_id))
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            # Ensure the leader is assigned to this team
+            try:
+                set_person_team(int(person_id), int(self._team.team_id))
+            except Exception:
+                pass
+            # Persist leader on team row and refresh badge
+            set_team_leader(int(self._team.team_id), int(person_id))
             self._team.team_leader_id = int(person_id)
+            try:
+                phone = None
+                for r in (self._personnel or []):
+                    try:
+                        if int(r.get('id')) == int(person_id):
+                            phone = r.get('phone')
+                            break
+                    except Exception:
+                        continue
+                if phone is not None:
+                    self._team.team_leader_phone = str(phone)
+                    set_team_leader_phone(int(self._team.team_id), str(phone))
+            except Exception:
+                pass
             self.teamChanged.emit()
+            app_signals.teamLeaderChanged.emit(int(self._team.team_id))
+            app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+            try:
+                inc = incident_context.get_active_incident_id()
+                if inc:
+                    from utils.app_signals import app_signals as _sig
+                    _sig.incidentChanged.emit(str(inc))
+            except Exception:
+                pass
         except Exception as e:
             self.error.emit(f"Failed to set leader: {e}")
+
+    # Alias expected by QML menu
+    @Slot(int)
+    def setLeader(self, person_id: int) -> None:
+        self.setTeamLeader(person_id)
+
+    @Slot(int, str)
+    def setPersonRole(self, person_id: int, role: str) -> None:
+        try:
+            set_person_role(int(person_id), str(role) if role is not None else None)
+            # Refresh personnel list
+            if self._team.team_id:
+                app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to set role: {e}")
 
     @Slot()
     def openTaskDetail(self) -> None:
@@ -378,3 +711,8 @@ class TeamDetailBridge(QObject):
     def printSummary(self) -> None:
         # Placeholder for PDF/HTML export
         pass
+
+
+
+
+

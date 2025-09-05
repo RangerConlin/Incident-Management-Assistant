@@ -51,6 +51,27 @@ ApplicationWindow {
   readonly property var t: teamBridge ? teamBridge.team : null
   readonly property bool isAir: teamBridge ? teamBridge.isAircraftTeam : false
 
+  // Column widths for headers/rows (kept in sync for alignment)
+  property int pIdW: 60
+  property int pNameW: 200
+  property int pRoleW: 100
+  property int pPhoneW: 160
+  property int pCertW: 160
+  property int pLeadW: 80
+  property int pMedW: 80
+  property int pActW: 80
+
+  property int vIdW: 60
+  property int vLabelW: 160
+  property int vTypeW: 140
+  property int vDriverW: 160
+  property int vCommsW: 160
+  property int vActW: 80
+
+  property int eIdW: 60
+  property int eNameW: 240
+  property int eQtyW: 80
+
   function loadTeam() {
     if (teamBridge && teamId) {
       teamBridge.loadTeam(teamId)
@@ -73,10 +94,9 @@ ApplicationWindow {
       Label {
         font.bold: true
         font.pixelSize: 20
-        text: (isAir ? "AIR" : (t && t.team_type ? t.team_type.toString().toUpperCase() : ""))
-              + " – "
-              + (isAir ? (t && t.callsign ? t.callsign : "") : (t && t.name ? t.name : ""))
-              + (t && t.team_leader_id ? (" – " + leaderName(t.team_leader_id)) : "")
+        text: (t && t.team_type ? String(t.team_type).toUpperCase() : (isAir ? 'AIR' : ''))
+              + ' - ' + ((t && t.name) ? t.name : (isAir ? (t && t.callsign ? t.callsign : '') : ''))
+              + (t && t.team_leader_id ? (function(){ var full = teamBridge ? teamBridge.leaderName(t.team_leader_id) : ''; if (!full) return ''; var parts = String(full).trim().split(/\s+/); var last = parts.length ? parts[parts.length-1] : ''; return last ? (' - ' + last) : ''; })() : '')
       }
       Item { Layout.fillWidth: true }
       Button {
@@ -140,10 +160,21 @@ ApplicationWindow {
             RowLayout {
               spacing: 8
               Label { text: isAir ? "Pilot" : "Team Leader"; Layout.preferredWidth: 110 }
-              Button {
+              ComboBox {
+                id: cbLeader
                 Layout.preferredWidth: 220
-                text: t && t.team_leader_id ? leaderName(t.team_leader_id) : "Not Set"
-                onClicked: tabs.currentIndex = 0
+                model: teamBridge ? teamBridge.leaderOptions() : []
+                textRole: "name"
+                valueRole: "id"
+                currentIndex: {
+                  var m = (teamBridge ? teamBridge.leaderOptions() : [])
+                  var val = (t && t.team_leader_id) ? String(t.team_leader_id) : ""
+                  for (var i = 0; i < m.length; ++i) {
+                    if (String(m[i].id) === val) return i
+                  }
+                  return -1
+                }
+                onActivated: if (teamBridge && model[index]) teamBridge.setTeamLeader(model[index].id)
               }
             }
 
@@ -254,40 +285,136 @@ ApplicationWindow {
           Item { Layout.fillWidth: true }
           Button { text: "Detail"; onClicked: teamBridge && teamBridge.openSelectedMember && teamBridge.openSelectedMember() }
         }
-        RowLayout { Layout.fillWidth: true; spacing: 8
-          Label { text: "ID"; Layout.preferredWidth: 60; font.bold: true }
-          Label { text: "Name"; Layout.preferredWidth: 200; font.bold: true }
-          Label { text: "Role"; Layout.preferredWidth: 100; font.bold: true }
-          Label { text: "Phone Number"; Layout.preferredWidth: 160; font.bold: true }
-          Label { text: isAir ? "Certifications" : ""; visible: isAir; Layout.preferredWidth: 160; font.bold: true }
-          Label { text: isAir ? "PIC" : "Leader"; Layout.preferredWidth: 80; font.bold: true }
-          Label { text: isAir ? "" : "Medic"; visible: !isAir; Layout.preferredWidth: 80; font.bold: true }
-          Label { text: "Actions"; Layout.preferredWidth: 80; font.bold: true }
+        // Personnel/Aircrew header
+        Rectangle {
+          Layout.fillWidth: true
+          height: 28
+          color: "#000000"
+          RowLayout { anchors.fill: parent; spacing: 0
+            Label { color: "#ffffff"; text: "ID"; Layout.preferredWidth: pIdW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+                property real startX: 0; property int startW: 0
+                onPressed: { startX = mouseX; startW = pIdW }
+                onPositionChanged: { var dx = mouseX - startX; pIdW = Math.max(40, startW + dx) }
+              }
+            }
+            Label { color: "#ffffff"; text: "Name"; Layout.preferredWidth: pNameW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+                property real startX: 0; property int startW: 0
+                onPressed: { startX = mouseX; startW = pNameW }
+                onPositionChanged: { var dx = mouseX - startX; pNameW = Math.max(60, startW + dx) }
+              }
+            }
+            Label { color: "#ffffff"; text: "Role"; Layout.preferredWidth: pRoleW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+                property real startX: 0; property int startW: 0
+                onPressed: { startX = mouseX; startW = pRoleW }
+                onPositionChanged: { var dx = mouseX - startX; pRoleW = Math.max(60, startW + dx) }
+              }
+            }
+            Label { color: "#ffffff"; text: "Phone Number"; Layout.preferredWidth: pPhoneW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              visible: true
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+                property real startX: 0; property int startW: 0
+                onPressed: { startX = mouseX; startW = pPhoneW }
+                onPositionChanged: { var dx = mouseX - startX; pPhoneW = Math.max(80, startW + dx) }
+              }
+            }
+            Label { color: "#ffffff"; text: isAir ? "Certifications" : ""; visible: isAir; Layout.preferredWidth: pCertW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+                property real startX: 0; property int startW: 0
+                onPressed: { startX = mouseX; startW = pCertW }
+                onPositionChanged: { var dx = mouseX - startX; pCertW = Math.max(60, startW + dx) }
+              }
+            }
+            Label { color: "#ffffff"; text: isAir ? "PIC" : "Leader"; Layout.preferredWidth: pLeadW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+                property real startX: 0; property int startW: 0
+                onPressed: { startX = mouseX; startW = pLeadW }
+                onPositionChanged: { var dx = mouseX - startX; pLeadW = Math.max(40, startW + dx) }
+              }
+            }
+            Label { color: "#ffffff"; text: !isAir ? "Medic" : ""; visible: !isAir; Layout.preferredWidth: pMedW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+                property real startX: 0; property int startW: 0
+                onPressed: { startX = mouseX; startW = pMedW }
+                onPositionChanged: { var dx = mouseX - startX; pMedW = Math.max(40, startW + dx) }
+              }
+            }
+            Label { color: "#ffffff"; text: "Actions"; Layout.preferredWidth: pActW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+          }
         }
         ListView {
           id: lvMembers
           Layout.fillWidth: true
           Layout.fillHeight: true
           clip: true
-          model: isAir
-            ? (teamBridge ? (typeof teamBridge.aircrewMembers === "function" ? teamBridge.aircrewMembers() : (teamBridge.aircrewMembers || [])) : [])
-            : (teamBridge ? (typeof teamBridge.groundMembers === "function" ? teamBridge.groundMembers() : (teamBridge.groundMembers || [])) : [])
+          // Re-evaluate when `t` changes (teamChanged from bridge)
+          model: t ? (isAir ? teamBridge.aircrewMembers() : teamBridge.groundMembers()) : []
           delegate: Frame {
             width: ListView.view.width
-            padding: 6
-            RowLayout { anchors.fill: parent; spacing: 8
-              Label { text: model.id; Layout.preferredWidth: 60 }
-              Label { text: model.name; Layout.preferredWidth: 200 }
-              Label { text: model.role; Layout.preferredWidth: 100 }
-              Label { text: model.phone; Layout.preferredWidth: 160 }
-              Label { visible: isAir; text: model.certs || ""; Layout.preferredWidth: 160 }
-              CheckBox { checked: !!(isAir ? model && model.isPIC : model && model.isLeader); enabled: false; Layout.preferredWidth: 80 }
-              CheckBox { visible: !isAir; checked: !!(model && model.isMedic); enabled: false; Layout.preferredWidth: 80 }
-              Button { text: "⋮"; Layout.preferredWidth: 40; onClicked: memberMenu.open() }
+            padding: 0
+            RowLayout { anchors.fill: parent; spacing: 0
+              Label { text: (modelData && modelData.id !== undefined ? String(modelData.id) : ""); Layout.preferredWidth: pIdW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: (modelData && modelData.name !== undefined ? String(modelData.name) : ""); Layout.preferredWidth: pNameW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              ComboBox {
+                Layout.preferredWidth: pRoleW
+                model: teamBridge ? teamBridge.teamRoleOptions() : []
+                currentIndex: {
+                  var m = (teamBridge ? teamBridge.teamRoleOptions() : [])
+                  var val = (modelData && modelData.role) ? String(modelData.role) : ""
+                  for (var i = 0; i < m.length; ++i) {
+                    if (m[i] === val)
+                      return i
+                  }
+                  return (m.length > 0 ? 0 : -1)
+                }
+                onActivated: if (teamBridge) teamBridge.setPersonRole(modelData.id, model[index])
+              }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: (modelData && modelData.phone !== undefined ? String(modelData.phone) : ""); Layout.preferredWidth: pPhoneW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0"; visible: isAir }
+              Label { visible: isAir; text: modelData.certs || ""; Layout.preferredWidth: pCertW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              CheckBox { checked: !!(isAir ? (modelData && modelData.isPIC) : (modelData && modelData.isLeader)); enabled: false; Layout.preferredWidth: pLeadW }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0"; visible: !isAir }
+              CheckBox { visible: !isAir; checked: !!(modelData && modelData.isMedic); enabled: false; Layout.preferredWidth: pMedW }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Button { text: "⋮"; Layout.preferredWidth: pActW; onClicked: memberMenu.open() }
               Menu { id: memberMenu
-                MenuItem { text: "Set as Leader/PIC"; onTriggered: teamBridge && teamBridge.setLeader && teamBridge.setLeader(model.id) }
-                MenuItem { visible: !isAir; text: "Toggle Medic"; onTriggered: teamBridge && teamBridge.toggleMedic && teamBridge.toggleMedic(model.id) }
-                MenuItem { text: "Remove"; onTriggered: teamBridge && teamBridge.removeMember && teamBridge.removeMember(model.id) }
+                MenuItem { text: "Set as Leader/PIC"; onTriggered: teamBridge && teamBridge.setLeader && teamBridge.setLeader(modelData.id) }
+                MenuItem { visible: !isAir; text: "Toggle Medic"; onTriggered: teamBridge && teamBridge.toggleMedic && teamBridge.toggleMedic(modelData.id) }
+                MenuItem { text: "Remove"; onTriggered: teamBridge && teamBridge.removeMember && teamBridge.removeMember(modelData.id) }
               }
             }
           }
@@ -298,25 +425,67 @@ ApplicationWindow {
         RowLayout { Layout.fillWidth: true
           Button { text: isAir ? "Add Aircraft" : "Add Vehicle"; onClicked: teamBridge && teamBridge.addAsset && teamBridge.addAsset() }
         }
+        Rectangle {
+          Layout.fillWidth: true
+          height: 28
+          color: "#000000"
+          RowLayout { anchors.fill: parent; spacing: 0
+            Label { color: "#ffffff"; text: "ID"; Layout.preferredWidth: vIdW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor; property real startX: 0; property int startW: 0; onPressed: { startX = mouseX; startW = vIdW } onPositionChanged: { var dx = mouseX - startX; vIdW = Math.max(40, startW + dx) } }
+            }
+            Label { color: "#ffffff"; text: isAir ? "Tail/Callsign" : "Callsign/Name"; Layout.preferredWidth: vLabelW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor; property real startX: 0; property int startW: 0; onPressed: { startX = mouseX; startW = vLabelW } onPositionChanged: { var dx = mouseX - startX; vLabelW = Math.max(80, startW + dx) } }
+            }
+            Label { color: "#ffffff"; text: "Type"; Layout.preferredWidth: vTypeW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor; property real startX: 0; property int startW: 0; onPressed: { startX = mouseX; startW = vTypeW } onPositionChanged: { var dx = mouseX - startX; vTypeW = Math.max(60, startW + dx) } }
+            }
+            Label { color: "#ffffff"; text: isAir ? "Base" : "Driver"; Layout.preferredWidth: vDriverW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor; property real startX: 0; property int startW: 0; onPressed: { startX = mouseX; startW = vDriverW } onPositionChanged: { var dx = mouseX - startX; vDriverW = Math.max(60, startW + dx) } }
+            }
+            Label { color: "#ffffff"; text: "Comms/Phone"; Layout.preferredWidth: vCommsW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle {
+              width: 6; Layout.preferredWidth: 6; color: "transparent"
+              Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" }
+              MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor; property real startX: 0; property int startW: 0; onPressed: { startX = mouseX; startW = vCommsW } onPositionChanged: { var dx = mouseX - startX; vCommsW = Math.max(60, startW + dx) } }
+            }
+            Label { color: "#ffffff"; text: "Actions"; Layout.preferredWidth: vActW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+          }
+        }
         ListView {
           Layout.fillWidth: true
           Layout.fillHeight: true
           clip: true
-          model: isAir
-            ? (teamBridge ? (typeof teamBridge.aircraft === "function" ? teamBridge.aircraft() : (teamBridge.aircraft || [])) : [])
-            : (teamBridge ? (typeof teamBridge.vehicles === "function" ? teamBridge.vehicles() : (teamBridge.vehicles || [])) : [])
+          // Re-evaluate when `t` changes (teamChanged from bridge)
+          model: t ? (isAir ? teamBridge.aircraft() : teamBridge.vehicles()) : []
           delegate: Frame {
-            width: ListView.view.width; padding: 6
-            RowLayout { anchors.fill: parent; spacing: 8
-              Label { text: model.id; Layout.preferredWidth: 60 }
-              Label { text: isAir ? (model.tail || model.callsign) : (model.callsign || model.name); Layout.preferredWidth: 160 }
-              Label { text: model.type || ""; Layout.preferredWidth: 140 }
-              Label { text: isAir ? (model.base || "") : (model.driver || ""); Layout.preferredWidth: 160 }
-              Label { text: model.comms || model.phone || ""; Layout.preferredWidth: 160 }
-              Button { text: "⋮"; onClicked: assetMenu.open() }
+            width: ListView.view.width; padding: 0
+            RowLayout { anchors.fill: parent; spacing: 0
+              Label { text: (modelData && modelData.id !== undefined ? String(modelData.id) : ""); Layout.preferredWidth: vIdW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: (isAir ? (modelData.tail || modelData.callsign) : (modelData.callsign || modelData.name)) || ""; Layout.preferredWidth: vLabelW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: modelData.type || ""; Layout.preferredWidth: vTypeW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: isAir ? (modelData.base || "") : (modelData.driver || ""); Layout.preferredWidth: vDriverW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: modelData.comms || modelData.phone || ""; Layout.preferredWidth: vCommsW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Button { text: "?"; Layout.preferredWidth: vActW; onClicked: assetMenu.open() }
               Menu { id: assetMenu
-                MenuItem { text: "Details"; onTriggered: teamBridge && teamBridge.openAsset && teamBridge.openAsset(model.id) }
-                MenuItem { text: "Remove"; onTriggered: teamBridge && teamBridge.removeAsset && teamBridge.removeAsset(model.id) }
+                MenuItem { text: "Details"; onTriggered: teamBridge && teamBridge.openAsset && teamBridge.openAsset(modelData.id) }
+                MenuItem { text: "Remove"; onTriggered: teamBridge && teamBridge.removeAsset && teamBridge.removeAsset(modelData.id) }
               }
             }
           }
@@ -327,17 +496,35 @@ ApplicationWindow {
         RowLayout { Layout.fillWidth: true
           Button { text: "Add Equipment"; onClicked: teamBridge && teamBridge.addEquipment && teamBridge.addEquipment() }
         }
+        Rectangle {
+          Layout.fillWidth: true
+          height: 28
+          color: "#000000"
+          RowLayout { anchors.fill: parent; spacing: 0
+            Label { color: "#ffffff"; text: "ID"; Layout.preferredWidth: eIdW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle { width: 6; Layout.preferredWidth: 6; color: "transparent"; Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" } }
+            Label { color: "#ffffff"; text: "Name"; Layout.preferredWidth: eNameW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle { width: 6; Layout.preferredWidth: 6; color: "transparent"; Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" } }
+            Label { color: "#ffffff"; text: "Qty"; Layout.preferredWidth: eQtyW; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+            Rectangle { width: 6; Layout.preferredWidth: 6; color: "transparent"; Rectangle { anchors.centerIn: parent; width: 1; height: parent.height; color: "#303030" } }
+            Label { color: "#ffffff"; text: "Notes"; Layout.fillWidth: true; font.bold: true; verticalAlignment: Text.AlignVCenter; leftPadding: 6 }
+          }
+        }
         ListView {
           Layout.fillWidth: true
           Layout.fillHeight: true
           clip: true
-          model: teamBridge ? (typeof teamBridge.equipment === "function" ? teamBridge.equipment() : (teamBridge.equipment || [])) : []
-          delegate: Frame { width: ListView.view.width; padding: 6
-            RowLayout { anchors.fill: parent; spacing: 8
-              Label { text: model.id; Layout.preferredWidth: 60 }
-              Label { text: model.name; Layout.preferredWidth: 240 }
-              Label { text: model.qty; Layout.preferredWidth: 80 }
-              Text  { text: model.notes || ""; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+          // Re-evaluate when `t` changes (teamChanged from bridge)
+          model: t ? teamBridge.equipment() : []
+          delegate: Frame { width: ListView.view.width; padding: 0
+            RowLayout { anchors.fill: parent; spacing: 0
+              Label { text: (modelData && modelData.id !== undefined ? String(modelData.id) : ""); Layout.preferredWidth: eIdW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: (modelData && modelData.name !== undefined ? String(modelData.name) : ""); Layout.preferredWidth: eNameW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Label { text: (modelData && modelData.qty !== undefined ? String(modelData.qty) : ""); Layout.preferredWidth: eQtyW; leftPadding: 6 }
+              Rectangle { width: 1; height: parent.height; color: "#d0d0d0" }
+              Text  { text: modelData.notes || ""; Layout.fillWidth: true; wrapMode: Text.WordWrap; leftPadding: 6 }
             }
           }
         }
@@ -349,7 +536,7 @@ ApplicationWindow {
   }
 
   function leaderName(id) {
-    if (!catalogBridge || id === null || id === undefined) return ""
+    if (typeof catalogBridge === 'undefined' || !catalogBridge || id === null || id === undefined) return ""
     try {
       var ppl = catalogBridge.listPersonnel("")
       for (var i=0; i<ppl.length; ++i) if (String(ppl[i].id) === String(id)) return ppl[i].name || ("#"+id)
@@ -357,3 +544,17 @@ ApplicationWindow {
     return "#"+id
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

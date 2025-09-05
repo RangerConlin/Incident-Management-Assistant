@@ -1,0 +1,358 @@
+   1: // TeamDetailWindow — Full Redesign (matches 5 uploaded mockups)
+   2: // Notes:
+   3: // - No TabView, only TabBar + StackLayout (per project constraint)
+   4: // - Dynamically adapts to team type (AIR vs GT/others)
+   5: // - Overview panel mirrors screenshots (Team Type, Name/Callsign, Leader/Pilot, Phone, Status, Last Contact, Primary Task, Assignment)
+   6: // - Notes promoted under Overview
+   7: // - Action row: [Edit Team] [Needs Assistance] [Update Status] [View Task]
+   8: // - Tabs:
+   9: //     Ground:  Personnel (Ground) | Vehicles | Equipment | Logs
+  10: //     Air:     Aircrew | Aircraft | Equipment | Logs
+  11: // - Logs tab is the same drop‑in from the prior canvas (copy‑to‑214 behavior, immutable, print button)
+  12: // - Replace your existing TeamDetailWindow.qml with this file OR merge the <Logs> section if you already adopted it.
+  13: //
+  14: // Backend expectations on `teamBridge` (implement as needed):
+  15: //   team: {
+  16: //     id, team_type, name, callsign, team_leader_id, status,
+  17: //     team_leader_phone, last_contact_ts, primary_task_id, assignment,
+  18: //     notes
+  19: //   }
+  20: //   currentUserDisplay : string
+  21: //   statusList         : array of { key, label }
+  22: //   // Personnel / Aircrew lists should return objects like:
+  23: //   groundMembers()    : array of { id, name, role, phone, isLeader, isMedic }
+  24: //   aircrewMembers()   : array of { id, name, role, phone, certs, isPIC }
+  25: //   vehicles()         : array of { id, callsign, type, driver, phone }
+  26: //   aircraft()         : array of { id, tail, type, base, comms }
+  27: //   equipment()        : array of { id, name, qty, notes }
+  28: //   // Actions:
+  29: //   openTaskDetail(), linkTaskDialog (optional), setStatus(key), raiseNeedsAssist(), openEditTeam()
+  30: //   // Logs API (see bottom section):
+  31: //   unitLog(), taskHistory(), statusHistory(), ics214Entries(), copyLogToIcs214(id), addIcs214Note(obj), printIcs214()
+  32: 
+  33: import QtQuick 2.15
+  34: import QtQuick.Controls 2.15
+  35: import QtQuick.Layouts 1.15
+  36: import Qt5Compat.GraphicalEffects
+  37: import QtQuick.Window 2.15
+  38: 
+  39: ApplicationWindow {
+  40:   id: rootWindow
+  41:   width: 980
+  42:   height: 700
+  43:   visible: true
+  44:   color: teamBridge && teamBridge.teamTypeColor ? teamBridge.teamTypeColor : "#ffffff"
+  45: 
+  46:   // Team ID injected from Python (open_team_detail_window)
+  47:   // When set, request the bridge to load the team so `teamBridge.team`
+  48:   // populates and the UI binds correctly.
+  49:   property int teamId: 0
+  50: 
+  51:   readonly property var t: teamBridge ? teamBridge.team : null
+  52:   readonly property bool isAir: teamBridge ? teamBridge.isAircraftTeam : false
+  53: 
+  54:   function loadTeam() {
+  55:     if (teamBridge && teamId) {
+  56:       teamBridge.loadTeam(teamId)
+  57:     }
+  58:   }
+  59: 
+  60:   // QML may set teamId after component creation; only load when a valid
+  61:   // id is present to avoid resetting the bridge with a blank team.
+  62:   Component.onCompleted: loadTeam()
+  63:   onTeamIdChanged: loadTeam()
+  64: 
+  65:   ColumnLayout {
+  66:     anchors.fill: parent
+  67:     anchors.margins: 12
+  68:     spacing: 10
+  69: 
+  70:     RowLayout {
+  71:       Layout.fillWidth: true
+  72:       spacing: 12
+  73:       Label {
+  74:         font.bold: true
+  75:         font.pixelSize: 20
+  76:         text: (isAir ? "AIR" : (t && t.team_type ? t.team_type.toString().toUpperCase() : ""))
+  77:               + " – "
+  78:               + (isAir ? (t && t.callsign ? t.callsign : "") : (t && t.name ? t.name : ""))
+  79:               + (t && t.team_leader_id ? (" – " + leaderName(t.team_leader_id)) : "")
+  80:       }
+  81:       Item { Layout.fillWidth: true }
+  82:       Button {
+  83:         text: "Save"
+  84:         enabled: !!teamBridge
+  85:         onClicked: teamBridge.save()
+  86:       }
+  87:       Button {
+  88:         text: "Close"
+  89:         onClicked: rootWindow.close()
+  90:       }
+  91:     }
+  92: 
+  93:     Frame {
+  94:       Layout.fillWidth: true
+  95:       padding: 10
+  96:       ColumnLayout {
+  97:         spacing: 8
+  98:         GridLayout {
+  99:           columns: 2
+ 100:           columnSpacing: 24
+ 101:           rowSpacing: 8
+ 102: 
+ 103:           ColumnLayout {
+ 104:             spacing: 8
+ 105:             RowLayout {
+ 106:               spacing: 8
+ 107:               Label { text: "Team Type"; Layout.preferredWidth: 110 }
+ 108:                 ComboBox {
+ 109:                   id: cbTeamType
+ 110:                   Layout.preferredWidth: 220
+ 111:                   model: teamBridge ? teamBridge.teamTypeList : []
+ 112:                   textRole: "label"
+ 113:                   valueRole: "code"
+ 114:                   currentIndex: {
+ 115:                     if (!teamBridge || !model || typeof model.length === "undefined") return 0
+ 116:                     var val = (t && t.team_type) ? String(t.team_type) : ""
+ 117:                     for (var i = 0; i < model.length; ++i)
+ 118:                       if (model[i].code === val)
+ 119:                         return i
+ 120:                     return 0
+ 121:                   }
+ 122:                   onActivated: if (teamBridge) teamBridge.setTeamType(model[index].code)
+ 123:                 }
+ 124:                 }
+ 125: 
+ 126:             RowLayout {
+ 127:               spacing: 8
+ 128:               Label { text: isAir ? "Callsign" : "Team Name"; Layout.preferredWidth: 110 }
+ 129:               TextField {
+ 130:                 Layout.preferredWidth: 220
+ 131:                 text: isAir ? (t && t.callsign ? t.callsign : "") : (t && t.name ? t.name : "")
+ 132:                 onEditingFinished: {
+ 133:                   if (!teamBridge) return
+ 134:                   if (isAir) teamBridge.updateFromQml({ callsign: text })
+ 135:                   else teamBridge.updateFromQml({ name: text })
+ 136:                 }
+ 137:               }
+ 138:             }
+ 139: 
+ 140:             RowLayout {
+ 141:               spacing: 8
+ 142:               Label { text: isAir ? "Pilot" : "Team Leader"; Layout.preferredWidth: 110 }
+ 143:               Button {
+ 144:                 Layout.preferredWidth: 220
+ 145:                 text: t && t.team_leader_id ? leaderName(t.team_leader_id) : "Not Set"
+ 146:                 onClicked: tabs.currentIndex = 0
+ 147:               }
+ 148:             }
+ 149: 
+ 150:             RowLayout {
+ 151:               spacing: 8
+ 152:               Label { text: "Phone"; Layout.preferredWidth: 110 }
+ 153:               TextField {
+ 154:                 Layout.preferredWidth: 220
+ 155:                 text: t && t.team_leader_phone ? t.team_leader_phone : ""
+ 156:                 inputMethodHints: Qt.ImhDialableCharactersOnly
+ 157:                 onEditingFinished: if (teamBridge) teamBridge.updateFromQml({ team_leader_phone: text })
+ 158:               }
+ 159:             }
+ 160: 
+ 161:             RowLayout {
+ 162:               spacing: 8
+ 163:               Label { text: "Status"; Layout.preferredWidth: 110 }
+ 164:               ComboBox {
+ 165:                 Layout.preferredWidth: 220
+ 166:                 id: cbStatus
+ 167:                 model: teamBridge ? teamBridge.statusList : []
+ 168:                 textRole: "label"
+ 169:                 valueRole: "key"
+ 170:                 currentIndex: {
+ 171:                   if (!teamBridge || !t || !model || typeof model.length === "undefined") return 0
+ 172:                   for (var i=0;i<model.length;i++) if (model[i].key === t.status) return i
+ 173:                   return 0
+ 174:                 }
+ 175:                 onActivated: function(index) {
+ 176:                   if (teamBridge && model[index]) {
+ 177:                     teamBridge.setStatus(model[index].key)
+ 178:                   }
+ 179:                 }
+ 180:               }
+ 181:             }
+ 182:           }
+ 183: 
+ 184:           ColumnLayout {
+ 185:             spacing: 8
+ 186:             RowLayout { spacing: 8
+ 187:               Label { text: "Last Contact"; Layout.preferredWidth: 120 }
+ 188:               Label { text: t && t.last_contact_ts ? t.last_contact_ts : "—"; Layout.preferredWidth: 220 }
+ 189:             }
+ 190:             RowLayout { spacing: 8
+ 191:               Label { text: "Primary Task"; Layout.preferredWidth: 120 }
+ 192:               RowLayout { spacing: 6
+ 193:                 TextField {
+ 194:                   Layout.preferredWidth: 220
+ 195:                   readOnly: true
+ 196:                   text: teamBridge && t && t.primary_task_id ? String(t.primary_task_id) : "—"
+ 197:                 }
+ 198:                 Button {
+ 199:                   text: (teamBridge && t && t.primary_task_id) ? "Open" : "Link…"
+ 200:                   enabled: !!teamBridge
+ 201:                   onClicked: teamBridge && (t && t.primary_task_id ? teamBridge.openTaskDetail() : (teamBridge.linkTaskDialog ? teamBridge.linkTaskDialog.open() : null))
+ 202:                 }
+ 203:                 Button {
+ 204:                   visible: !!(teamBridge && t && t.primary_task_id)
+ 205:                   text: "Unlink"
+ 206:                   onClicked: teamBridge && teamBridge.unlinkTask ? teamBridge.unlinkTask(t.primary_task_id) : null
+ 207:                 }
+ 208:               }
+ 209:             }
+ 210:             RowLayout { spacing: 8
+ 211:               Label { text: "Assignment"; Layout.preferredWidth: 120 }
+ 212:               TextField {
+ 213:                 Layout.preferredWidth: 300
+ 214:                 text: t && t.assignment ? t.assignment : ""
+ 215:                 onEditingFinished: if (teamBridge) teamBridge.updateFromQml({ assignment: text })
+ 216:               }
+ 217:             }
+ 218:           }
+ 219:         }
+ 220: 
+ 221:         ColumnLayout { spacing: 6; Layout.fillWidth: true; Layout.topMargin: 8
+ 222:           Label { text: "Notes" }
+ 223:           TextArea {
+ 224:             Layout.fillWidth: true
+ 225:             Layout.preferredHeight: 90
+ 226:             wrapMode: TextArea.Wrap
+ 227:             text: t && t.notes ? t.notes : ""
+ 228:             onTextChanged: notesTimer.restart()
+ 229:           }
+ 230:           Timer { id: notesTimer; interval: 500; repeat: false; onTriggered: if (teamBridge) teamBridge.updateFromQml({ notes: parent.parent.children[1].text }) }
+ 231:         }
+ 232:       }
+ 233:     }
+ 234: 
+ 235:     RowLayout { Layout.fillWidth: true; spacing: 8
+ 236:       Button { text: "Edit Team"; onClicked: teamBridge && teamBridge.openEditTeam ? teamBridge.openEditTeam() : null }
+ 237:       Button { text: "Flag Needs Assistance"; onClicked: teamBridge && teamBridge.raiseNeedsAssist ? teamBridge.raiseNeedsAssist() : null }
+ 238:       Button { text: "Update Status"; onClicked: cbStatus.popup.open() }
+ 239:       Button { text: "View Task"; enabled: !!(teamBridge && t && t.primary_task_id); onClicked: teamBridge && teamBridge.openTaskDetail() }
+ 240:     }
+ 241: 
+ 242:     TabBar { id: tabs; Layout.fillWidth: true
+ 243:       TabButton { text: isAir ? "Aircrew" : "Personnel (Ground)" }
+ 244:       TabButton { text: isAir ? "Aircraft" : "Vehicles" }
+ 245:       TabButton { text: "Equipment" }
+ 246:       TabButton { text: "Logs" }
+ 247:     }
+ 248: 
+ 249:     StackLayout { Layout.fillWidth: true; Layout.fillHeight: true; currentIndex: tabs.currentIndex
+ 250: 
+ 251:       ColumnLayout { spacing: 8
+ 252:         RowLayout { Layout.fillWidth: true
+ 253:           Button { text: isAir ? "Add Aircrew" : "Add Personnel"; onClicked: teamBridge && teamBridge.addMember && teamBridge.addMember() }
+ 254:           Item { Layout.fillWidth: true }
+ 255:           Button { text: "Detail"; onClicked: teamBridge && teamBridge.openSelectedMember && teamBridge.openSelectedMember() }
+ 256:         }
+ 257:         RowLayout { Layout.fillWidth: true; spacing: 8
+ 258:           Label { text: "ID"; Layout.preferredWidth: 60; font.bold: true }
+ 259:           Label { text: "Name"; Layout.preferredWidth: 200; font.bold: true }
+ 260:           Label { text: "Role"; Layout.preferredWidth: 100; font.bold: true }
+ 261:           Label { text: "Phone Number"; Layout.preferredWidth: 160; font.bold: true }
+ 262:           Label { text: isAir ? "Certifications" : ""; visible: isAir; Layout.preferredWidth: 160; font.bold: true }
+ 263:           Label { text: isAir ? "PIC" : "Leader"; Layout.preferredWidth: 80; font.bold: true }
+ 264:           Label { text: isAir ? "" : "Medic"; visible: !isAir; Layout.preferredWidth: 80; font.bold: true }
+ 265:           Label { text: "Actions"; Layout.preferredWidth: 80; font.bold: true }
+ 266:         }
+ 267:         ListView {
+ 268:           id: lvMembers
+ 269:           Layout.fillWidth: true
+ 270:           Layout.fillHeight: true
+ 271:           clip: true
+ 272:           // Re-evaluate when `t` changes (teamChanged from bridge)
+ 273:           model: t ? (isAir ? teamBridge.aircrewMembers() : teamBridge.groundMembers()) : []
+ 274:           delegate: Frame {
+ 275:             width: ListView.view.width
+ 276:             padding: 6
+ 277:             RowLayout { anchors.fill: parent; spacing: 8
+ 278:               Label { text: (model && model.id !== undefined ? String(model.id) : ""); Layout.preferredWidth: 60 }
+ 279:               Label { text: (model && model.name !== undefined ? String(model.name) : ""); Layout.preferredWidth: 200 }
+ 280:               Label { text: (model && model.role !== undefined ? String(model.role) : ""); Layout.preferredWidth: 100 }
+ 281:               Label { text: (model && model.phone !== undefined ? String(model.phone) : ""); Layout.preferredWidth: 160 }
+ 282:               Label { visible: isAir; text: model.certs || ""; Layout.preferredWidth: 160 }
+ 283:               CheckBox { checked: !!(isAir ? model && model.isPIC : model && model.isLeader); enabled: false; Layout.preferredWidth: 80 }
+ 284:               CheckBox { visible: !isAir; checked: !!(model && model.isMedic); enabled: false; Layout.preferredWidth: 80 }
+ 285:               Button { text: "⋮"; Layout.preferredWidth: 40; onClicked: memberMenu.open() }
+ 286:               Menu { id: memberMenu
+ 287:                 MenuItem { text: "Set as Leader/PIC"; onTriggered: teamBridge && teamBridge.setLeader && teamBridge.setLeader(model.id) }
+ 288:                 MenuItem { visible: !isAir; text: "Toggle Medic"; onTriggered: teamBridge && teamBridge.toggleMedic && teamBridge.toggleMedic(model.id) }
+ 289:                 MenuItem { text: "Remove"; onTriggered: teamBridge && teamBridge.removeMember && teamBridge.removeMember(model.id) }
+ 290:               }
+ 291:             }
+ 292:           }
+ 293:         }
+ 294:       }
+ 295: 
+ 296:       ColumnLayout { spacing: 8
+ 297:         RowLayout { Layout.fillWidth: true
+ 298:           Button { text: isAir ? "Add Aircraft" : "Add Vehicle"; onClicked: teamBridge && teamBridge.addAsset && teamBridge.addAsset() }
+ 299:         }
+ 300:         ListView {
+ 301:           Layout.fillWidth: true
+ 302:           Layout.fillHeight: true
+ 303:           clip: true
+ 304:           // Re-evaluate when `t` changes (teamChanged from bridge)
+ 305:           model: t ? (isAir ? teamBridge.aircraft() : teamBridge.vehicles()) : []
+ 306:           delegate: Frame {
+ 307:             width: ListView.view.width; padding: 6
+ 308:             RowLayout { anchors.fill: parent; spacing: 8
+ 309:               Label { text: (model && model.id !== undefined ? String(model.id) : ""); Layout.preferredWidth: 60 }
+ 310:               Label { text: (isAir ? (model.tail || model.callsign) : (model.callsign || model.name)) || ""; Layout.preferredWidth: 160 }
+ 311:               Label { text: model.type || ""; Layout.preferredWidth: 140 }
+ 312:               Label { text: isAir ? (model.base || "") : (model.driver || ""); Layout.preferredWidth: 160 }
+ 313:               Label { text: model.comms || model.phone || ""; Layout.preferredWidth: 160 }
+ 314:               Button { text: "⋮"; onClicked: assetMenu.open() }
+ 315:               Menu { id: assetMenu
+ 316:                 MenuItem { text: "Details"; onTriggered: teamBridge && teamBridge.openAsset && teamBridge.openAsset(model.id) }
+ 317:                 MenuItem { text: "Remove"; onTriggered: teamBridge && teamBridge.removeAsset && teamBridge.removeAsset(model.id) }
+ 318:               }
+ 319:             }
+ 320:           }
+ 321:         }
+ 322:       }
+ 323: 
+ 324:       ColumnLayout { spacing: 8
+ 325:         RowLayout { Layout.fillWidth: true
+ 326:           Button { text: "Add Equipment"; onClicked: teamBridge && teamBridge.addEquipment && teamBridge.addEquipment() }
+ 327:         }
+ 328:         ListView {
+ 329:           Layout.fillWidth: true
+ 330:           Layout.fillHeight: true
+ 331:           clip: true
+ 332:           // Re-evaluate when `t` changes (teamChanged from bridge)
+ 333:           model: t ? teamBridge.equipment() : []
+ 334:           delegate: Frame { width: ListView.view.width; padding: 6
+ 335:             RowLayout { anchors.fill: parent; spacing: 8
+ 336:               Label { text: (model && model.id !== undefined ? String(model.id) : ""); Layout.preferredWidth: 60 }
+ 337:               Label { text: (model && model.name !== undefined ? String(model.name) : ""); Layout.preferredWidth: 240 }
+ 338:               Label { text: (model && model.qty !== undefined ? String(model.qty) : ""); Layout.preferredWidth: 80 }
+ 339:               Text  { text: model.notes || ""; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+ 340:             }
+ 341:           }
+ 342:         }
+ 343:       }
+ 344: 
+ 345:       // Logs unchanged (already hardened)
+ 346:       // ...
+ 347:     }
+ 348:   }
+ 349: 
+ 350:   function leaderName(id) {
+ 351:     if (!catalogBridge || id === null || id === undefined) return ""
+ 352:     try {
+ 353:       var ppl = catalogBridge.listPersonnel("")
+ 354:       for (var i=0; i<ppl.length; ++i) if (String(ppl[i].id) === String(id)) return ppl[i].name || ("#"+id)
+ 355:     } catch (e) {}
+ 356:     return "#"+id
+ 357:   }
+ 358: }
