@@ -1927,6 +1927,14 @@ class MetricWidget(QWidget):
             except Exception:
                 pass
 
+        base = os.path.basename(qml_rel_path)
+        if base == "CannedCommEntriesWindow.qml":
+            try:
+                from utils.constants import TEAM_STATUSES
+                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+            except Exception:
+                pass
+
         # Inject per-window SQLite models for master catalog windows
         try:
             # Strip the full suffix "Window.qml" (10 chars) to get the base name

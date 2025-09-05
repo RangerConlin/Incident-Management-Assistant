@@ -84,6 +84,7 @@ Dialog {
                                 item.objectName = "field::" + col.key;
                             }
                             onLoaded: _apply()
+
                             Connections {
                                 target: root
                                 function onDataChanged() { parent._apply() }
