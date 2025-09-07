@@ -22,7 +22,7 @@ Shared.MasterTableWindow {
     { key: "model", label: "Model", type: "text", editable: true, width: 140 },
     { key: "capacity", label: "Capacity", type: "int", editable: true, width: 100 },
     { key: "type_id", label: "Type ID", type: "int", editable: true, width: 90 },
-    { key: "status_id", label: "Status", type: "enum", editable: true, required: true, width: 120, options: teamStatuses },
+    { key: "status_id", label: "Status", type: "enum", editable: true, required: true, width: 120, options: (typeof teamStatuses !== 'undefined' ? teamStatuses : []) },
     { key: "tags", label: "Tags", type: "text", editable: true, width: 160 },
     { key: "organization", label: "Org", type: "text", editable: true, width: 150 }
   ]

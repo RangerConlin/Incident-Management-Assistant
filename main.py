@@ -1342,6 +1342,11 @@ class MainWindow(QMainWindow):
         # Expose bridges and models to QML
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
+        # Provide team status options to all master catalog windows (used by multiple QML files)
+        try:
+            ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
+        except Exception:
+            pass
 
         base = os.path.basename(qml_rel_path)
         if base == "CannedCommEntriesWindow.qml":

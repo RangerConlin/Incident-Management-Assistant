@@ -41,13 +41,15 @@ Item {
 
     // Sum of configured column widths (fallback 140 each)
     function _colWidth(i) {
-        var defw = (columns[i] && columns[i].width) ? columns[i].width : 140;
+        var hasCols = (columns && columns.length !== undefined);
+        var defw = (hasCols && columns[i] && columns[i].width) ? columns[i].width : 140;
         if (columnWidthOverrides && columnWidthOverrides.length > i && columnWidthOverrides[i] > 0) return columnWidthOverrides[i];
         return defw;
     }
     function columnsTotalWidth() {
         var w = 0;
-        for (var i=0; i<columns.length; ++i) w += _colWidth(i);
+        var cols = (columns && columns.length !== undefined) ? columns : [];
+        for (var i=0; i<cols.length; ++i) w += _colWidth(i);
         return w;
     }
     function setColumnWidth(i, w) {
@@ -76,9 +78,10 @@ Item {
     }
 
     function _isNumericKey(k) {
-        for (var i=0; i<columns.length; ++i) {
-            if (columns[i].key === k) {
-                var t = (columns[i].type || "").toLowerCase();
+        var cols = (columns && columns.length !== undefined) ? columns : [];
+        for (var i=0; i<cols.length; ++i) {
+            if (cols[i].key === k) {
+                var t = (cols[i].type || "").toLowerCase();
                 return (t === "int" || t === "number");
             }
         }
@@ -234,7 +237,7 @@ Item {
                         anchors.fill: parent
                         spacing: 0
                         Repeater {
-                            model: columns
+                            model: (columns || [])
                             delegate: Rectangle {
                                 width: _colWidth(index)
                                 height: 28
@@ -308,7 +311,7 @@ Item {
                             anchors.fill: parent
                             spacing: 0
                             Repeater {
-                                model: columns
+                                model: (columns || [])
                                 delegate: Rectangle {
                                     width: _colWidth(index)
                                     height: 28
