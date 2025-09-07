@@ -50,6 +50,8 @@ ApplicationWindow {
 
   readonly property var t: teamBridge ? teamBridge.team : null
   readonly property bool isAir: teamBridge ? teamBridge.isAircraftTeam : false
+  readonly property bool needsAssistActive:
+    (teamBridge && teamBridge.needsAssistActive === true) || (t && t.needs_assist === true)
 
   // Column widths for headers/rows (kept in sync for alignment)
   property int pIdW: 60
@@ -96,17 +98,44 @@ ApplicationWindow {
         font.pixelSize: 20
         text: (t && t.team_type ? String(t.team_type).toUpperCase() : (isAir ? 'AIR' : ''))
               + ' - ' + ((t && t.name) ? t.name : (isAir ? (t && t.callsign ? t.callsign : '') : ''))
-              + (t && t.team_leader_id ? (function(){ var full = teamBridge ? teamBridge.leaderName(t.team_leader_id) : ''; if (!full) return ''; var parts = String(full).trim().split(/\s+/); var last = parts.length ? parts[parts.length-1] : ''; return last ? (' - ' + last) : ''; })() : '')
+              + (t && t.team_leader_id ? (function(){ var full = leaderName(t.team_leader_id); if (!full) return ''; var parts = String(full).trim().split(/\s+/); var last = parts.length ? parts[parts.length-1] : ''; return last ? (' - ' + last) : ''; })() : '')
       }
       Item { Layout.fillWidth: true }
-      Button {
-        text: "Save"
-        enabled: !!teamBridge
-        onClicked: teamBridge.save()
+    }
+
+    Rectangle {
+      visible: needsAssistActive
+      Layout.fillWidth: true
+      height: 34
+      radius: 6
+      color: "#7a001a"
+      border.color: "#ffb3c1"
+      border.width: 1
+
+      RowLayout {
+        anchors.fill: parent
+        spacing: 8
+        Label {
+          leftPadding: 10
+          text: "⚠️  NEEDS ASSISTANCE"
+          color: "white"
+          font.bold: true
+        }
+        Item { Layout.fillWidth: true }
       }
-      Button {
-        text: "Close"
-        onClicked: rootWindow.close()
+
+      Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 3
+        radius: 2
+        color: "#ff4d6d"
+        SequentialAnimation on opacity {
+          loops: Animation.Infinite
+          NumberAnimation { from: 0.2; to: 1.0; duration: 700; easing.type: Easing.InOutQuad }
+          NumberAnimation { from: 1.0; to: 0.2; duration: 700; easing.type: Easing.InOutQuad }
+        }
       }
     }
 
@@ -157,35 +186,28 @@ ApplicationWindow {
               }
             }
 
+            // Leader / Pilot (read-only display)
             RowLayout {
               spacing: 8
               Label { text: isAir ? "Pilot" : "Team Leader"; Layout.preferredWidth: 110 }
-              ComboBox {
-                id: cbLeader
+              TextField {
                 Layout.preferredWidth: 220
-                model: teamBridge ? teamBridge.leaderOptions() : []
-                textRole: "name"
-                valueRole: "id"
-                currentIndex: {
-                  var m = (teamBridge ? teamBridge.leaderOptions() : [])
-                  var val = (t && t.team_leader_id) ? String(t.team_leader_id) : ""
-                  for (var i = 0; i < m.length; ++i) {
-                    if (String(m[i].id) === val) return i
-                  }
-                  return -1
-                }
-                onActivated: if (teamBridge && model[index]) teamBridge.setTeamLeader(model[index].id)
+                readOnly: true
+                text: (t && t.team_leader_id) ? leaderName(t.team_leader_id) : ""
+                ToolTip.visible: hovered
+                ToolTip.text: "Change the leader from the Personnel/Aircrew list menu (⋮ → Set as Leader/PIC)."
               }
             }
 
+            // Phone (read-only, from leader)
             RowLayout {
               spacing: 8
               Label { text: "Phone"; Layout.preferredWidth: 110 }
               TextField {
                 Layout.preferredWidth: 220
-                text: t && t.team_leader_phone ? t.team_leader_phone : ""
-                inputMethodHints: Qt.ImhDialableCharactersOnly
-                onEditingFinished: if (teamBridge) teamBridge.updateFromQml({ team_leader_phone: text })
+                readOnly: true
+                inputMethodHints: Qt.ImhNoPredictiveText
+                text: (t && t.team_leader_id) ? leaderPhone(t.team_leader_id) : ""
               }
             }
 
@@ -253,7 +275,7 @@ ApplicationWindow {
           Label { text: "Notes" }
           TextArea {
             Layout.fillWidth: true
-            Layout.preferredHeight: 90
+            Layout.preferredHeight: 60
             wrapMode: TextArea.Wrap
             text: t && t.notes ? t.notes : ""
             onTextChanged: notesTimer.restart()
@@ -265,7 +287,23 @@ ApplicationWindow {
 
     RowLayout { Layout.fillWidth: true; spacing: 8
       Button { text: "Edit Team"; onClicked: teamBridge && teamBridge.openEditTeam ? teamBridge.openEditTeam() : null }
-      Button { text: "Flag Needs Assistance"; onClicked: teamBridge && teamBridge.raiseNeedsAssist ? teamBridge.raiseNeedsAssist() : null }
+      Button {
+        id: needsAssistButton
+        text: needsAssistActive ? "NEEDS ASSISTANCE" : "Flag Needs Assistance"
+        onClicked: teamBridge && teamBridge.raiseNeedsAssist ? teamBridge.raiseNeedsAssist() : null
+        background: Rectangle {
+          implicitWidth: 120; implicitHeight: 32; radius: 6
+          color: needsAssistActive ? "#c1121f" : needsAssistButton.palette.button
+          border.color: needsAssistActive ? "#ffd9de" : "#606060"
+        }
+        contentItem: Label {
+          text: needsAssistButton.text
+          color: needsAssistActive ? "white" : needsAssistButton.palette.buttonText
+          font.bold: needsAssistActive
+          horizontalAlignment: Text.AlignHCenter
+          verticalAlignment: Text.AlignVCenter
+        }
+      }
       Button { text: "Update Status"; onClicked: cbStatus.popup.open() }
       Button { text: "View Task"; enabled: !!(teamBridge && t && t.primary_task_id); onClicked: teamBridge && teamBridge.openTaskDetail() }
     }
@@ -536,12 +574,37 @@ ApplicationWindow {
   }
 
   function leaderName(id) {
-    if (typeof catalogBridge === 'undefined' || !catalogBridge || id === null || id === undefined) return ""
+    if (!id) return ""
     try {
-      var ppl = catalogBridge.listPersonnel("")
-      for (var i=0; i<ppl.length; ++i) if (String(ppl[i].id) === String(id)) return ppl[i].name || ("#"+id)
-    } catch (e) {}
-    return "#"+id
+      var list = isAir
+          ? (teamBridge ? teamBridge.aircrewMembers() : [])
+          : (teamBridge ? teamBridge.groundMembers() : [])
+      for (var i = 0; i < list.length; ++i)
+          if (String(list[i].id) === String(id)) return list[i].name || ""
+      if (typeof catalogBridge !== "undefined" && catalogBridge) {
+          var ppl = catalogBridge.listPersonnel("")
+          for (var j = 0; j < ppl.length; ++j)
+              if (String(ppl[j].id) === String(id)) return ppl[j].name || ""
+      }
+    } catch(e) {}
+    return ""
+  }
+
+  function leaderPhone(id) {
+    if (!id) return ""
+    try {
+      var list = isAir
+          ? (teamBridge ? teamBridge.aircrewMembers() : [])
+          : (teamBridge ? teamBridge.groundMembers() : [])
+      for (var i = 0; i < list.length; ++i)
+          if (String(list[i].id) === String(id)) return list[i].phone || ""
+      if (typeof catalogBridge !== "undefined" && catalogBridge) {
+          var ppl = catalogBridge.listPersonnel("")
+          for (var j = 0; j < ppl.length; ++j)
+              if (String(ppl[j].id) === String(id)) return ppl[j].phone || ""
+      }
+    } catch(e) {}
+    return ""
   }
 }
 

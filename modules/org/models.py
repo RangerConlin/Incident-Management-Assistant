@@ -68,7 +68,7 @@ class OrgAssignment(Base):
     op_id: Mapped[int] = mapped_column(Integer, index=True)
     node_id: Mapped[int] = mapped_column(ForeignKey("org_structures.id", ondelete="CASCADE"), index=True)
     person_id: Mapped[str] = mapped_column(String)
-    assignment_role: Mapped[str] = mapped_column(String, default="primary")
+    assignment_role: Mapped[str] = mapped_column(String, default="primary", nullable=False)
     start_ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     end_ts: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
