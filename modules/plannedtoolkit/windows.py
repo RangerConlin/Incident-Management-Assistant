@@ -9,83 +9,61 @@ __all__ = [
     "get_planned_toolkit_panel",
 ]
 
+
 def _make_panel(title: str, body: str) -> QWidget:
     w = QWidget()
     layout = QVBoxLayout(w)
-    t = QLabel(title)
-    t.setStyleSheet("font-size: 18px; font-weight: 600;")
-    layout.addWidget(t)
-    layout.addWidget(QLabel(body))
-    return w
-
-def get_promotions_panel(incident_id=None) -> QWidget:
-    """Return placeholder QWidget for External Messaging."""
-    return _make_panel("External Messaging", f"Promotions — incident: {incident_id}")
-
-def get_vendors_panel(incident_id=None) -> QWidget:
-    """Return placeholder QWidget for Vendors & Permits."""
-    return _make_panel("Vendors & Permits", f"Vendors — incident: {incident_id}")
-
-def get_safety_panel(incident_id=None) -> QWidget:
-    """Return placeholder QWidget for Public Safety."""
-    return _make_panel("Public Safety", f"Safety — incident: {incident_id}")
-
-def get_tasking_panel(incident_id=None) -> QWidget:
-    """Return placeholder QWidget for Tasking & Assignments."""
-    return _make_panel("Tasking & Assignments", f"Tasking — incident: {incident_id}")
-
-def get_health_sanitation_panel(incident_id=None) -> QWidget:
-    """Return placeholder QWidget for Health & Sanitation."""
-    return _make_panel("Health & Sanitation", f"Health & sanitation — incident: {incident_id}")
-
-def get_planned_toolkit_panel(incident_id=None) -> QWidget:
-    """Return placeholder QWidget for Planned Event Toolkit."""
-    return _make_panel("Planned Event Toolkit", f"Toolkit — incident: {incident_id}")
-=======
     title_lbl = QLabel(title)
     title_lbl.setStyleSheet("font-size: 18px; font-weight: 600;")
     layout.addWidget(title_lbl)
     layout.addWidget(QLabel(body))
     return w
 
+
 def get_promotions_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Promotions Manager."""
+    """Return placeholder QWidget for External Messaging."""
     return _make_panel(
-        "Promotions Manager",
-        f"Handle promotions — incident: {incident_id}",
+        "External Messaging",
+        f"Promotions — incident: {incident_id}",
     )
+
 
 def get_vendors_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Vendors Manager."""
+    """Return placeholder QWidget for Vendors & Permits."""
     return _make_panel(
-        "Vendors Manager",
-        f"Manage vendors — incident: {incident_id}",
+        "Vendors & Permits",
+        f"Vendors — incident: {incident_id}",
     )
+
 
 def get_safety_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Event Safety."""
+    """Return placeholder QWidget for Public Safety."""
     return _make_panel(
-        "Event Safety",
-        f"Safety planning — incident: {incident_id}",
+        "Public Safety",
+        f"Safety — incident: {incident_id}",
     )
 
+
 def get_tasking_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Event Tasking."""
+    """Return placeholder QWidget for Tasking & Assignments."""
     return _make_panel(
-        "Event Tasking",
-        f"Task assignments — incident: {incident_id}",
+        "Tasking & Assignments",
+        f"Tasking — incident: {incident_id}",
     )
+
 
 def get_health_sanitation_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Health & Sanitation."""
     return _make_panel(
         "Health & Sanitation",
-        f"Health measures — incident: {incident_id}",
+        f"Health & sanitation — incident: {incident_id}",
     )
+
 
 def get_planned_toolkit_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Planned Event Toolkit."""
     return _make_panel(
         "Planned Event Toolkit",
-        f"Toolkit overview — incident: {incident_id}",
+        f"Toolkit — incident: {incident_id}",
     )
+
