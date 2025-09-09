@@ -4,7 +4,10 @@ from PySide6.QtCore import QUrl
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from .panels.incident_dashboard_panel import IncidentDashboardPanel
+
 __all__ = [
+    "get_incident_dashboard_panel",
     "get_incident_overview_panel",
     "get_iap_builder_panel",
     "get_objectives_panel",
@@ -21,6 +24,14 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(title_lbl)
     layout.addWidget(QLabel(body))
     return w
+
+
+def get_incident_dashboard_panel(incident_id: object | None = None) -> QWidget:
+    """Return the dockable Incident Dashboard panel.
+
+    TODO: pass ``incident_id`` to panel once wired to real data stores.
+    """
+    return IncidentDashboardPanel()
 
 
 def get_incident_overview_panel(incident_id: object | None = None) -> QWidget:
