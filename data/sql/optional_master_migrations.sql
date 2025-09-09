@@ -11,6 +11,27 @@ CREATE TABLE IF NOT EXISTS ems (
   is_active INTEGER DEFAULT 1
 );
 
+-- hospitals
+CREATE TABLE IF NOT EXISTS hospitals (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  address TEXT,
+  contact_name TEXT,
+  phone_er TEXT,
+  phone_switchboard TEXT,
+  travel_time_min INTEGER,
+  helipad INTEGER,
+  trauma_level TEXT,
+  burn_center INTEGER,
+  pediatric_capability INTEGER,
+  bed_available INTEGER,
+  diversion_status TEXT,
+  ambulance_radio_channel TEXT,
+  notes TEXT,
+  lat REAL,
+  lon REAL
+);
+
 -- canned_comm_entries
 CREATE TABLE IF NOT EXISTS canned_comm_entries (
   id INTEGER PRIMARY KEY,

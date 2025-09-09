@@ -1448,7 +1448,7 @@ class MainWindow(QMainWindow):
             "TaskTypes": "task_types",
             "CannedCommEntries": "canned_comm_entries",
             "Ems": "ems",
-            "Hospitals": "ems",  # window displays EMS-style contacts
+            "Hospitals": "hospitals",
             "SafetyTemplates": "safety_templates",
         }
 
@@ -2044,7 +2044,7 @@ class MetricWidget(QWidget):
             "TaskTypes": "task_types",
             "CannedCommEntries": "canned_comm_entries",
             "Ems": "ems",
-            "Hospitals": "ems",  # window displays EMS-style contacts
+            "Hospitals": "hospitals",
             "SafetyTemplates": "safety_templates",
         }
 
