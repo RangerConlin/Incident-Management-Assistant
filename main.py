@@ -240,6 +240,9 @@ class MainWindow(QMainWindow):
         m_cmd = mb.addMenu("Command")
         self._add_action(m_cmd, "Command Unit Log ICS-214", None, "command.unit_log")
         m_cmd.addSeparator()
+        self._add_action(
+            m_cmd, "Incident Dashboard — Command", None, "command.incident_dashboard"
+        )
         self._add_action(m_cmd, "Incident Overview", None, "command.incident_overview")
         self._add_action(m_cmd, "Incident Action Plan Builder", None, "command.iap")
         self._add_action(m_cmd, "Incident Objectives (ICS 202)", None, "command.objectives")
@@ -488,6 +491,7 @@ class MainWindow(QMainWindow):
 
             # ----- Command -----
             "command.unit_log": self.open_command_unit_log,
+            "command.incident_dashboard": self.open_command_incident_dashboard,
             "command.incident_overview": self.open_command_incident_overview,
             "command.iap": self.open_command_iap,
             "command.objectives": self.open_command_objectives,
@@ -747,6 +751,12 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = ics214.get_ics214_panel(incident_id)
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
+
+    def open_command_incident_dashboard(self) -> None:
+        from modules import command
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = command.get_incident_dashboard_panel(incident_id)
+        self._open_dock_widget(panel, title="Incident Dashboard — Command")
 
     def open_command_incident_overview(self) -> None:
         from modules import command
