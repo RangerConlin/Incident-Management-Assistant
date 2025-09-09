@@ -204,7 +204,6 @@ class HospitalBase(BaseModel):
     contact_name: Optional[str] = None
     phone_er: Optional[str] = Field(None, description="ED/ER direct line")
     phone_switchboard: Optional[str] = None
-    travel_time_min: Optional[int] = Field(None, description="Estimated travel time in minutes")
     helipad: Optional[bool] = Field(None, description="Helipad/LZ availability")
     trauma_level: TraumaLevel = "None"
     burn_center: Optional[bool] = None
