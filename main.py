@@ -36,8 +36,9 @@ from PySide6QtAds import (
 QQuickStyle.setStyle("Fusion")
 
 
-# Force a known-good default dock layout on startup (ignores saved layouts)
-FORCE_DEFAULT_LAYOUT = True
+# Respect saved dock layouts (ADS perspectives) across sessions
+# Set to True only for one-off debugging to reset layout on startup.
+FORCE_DEFAULT_LAYOUT = False
 
 
 # (QML utilities kept, though handlers now follow panel-factory pattern)
@@ -105,7 +106,8 @@ class MainWindow(QMainWindow):
         else:
             title = f"SARApp - No Incident Loaded{suffix}"
         self.setWindowTitle(title)
-        self.resize(1280, 800)
+        # Widen default window to accommodate richer objectives panel
+        self.resize(1600, 950)
 
         # Central widget with persistent header and ADS dock manager
         central = QWidget()
@@ -135,6 +137,11 @@ class MainWindow(QMainWindow):
 
         # Load persisted perspectives if available (unless forced default)
         self._perspective_file = os.path.join("settings", "ads_perspectives.ini")
+        # Ensure settings directory exists for INI persistence
+        try:
+            os.makedirs(os.path.dirname(self._perspective_file), exist_ok=True)
+        except Exception:
+            pass
         opened_default = False
         if FORCE_DEFAULT_LAYOUT:
             # Clear any saved layout and seed defaults immediately
@@ -147,19 +154,31 @@ class MainWindow(QMainWindow):
             opened_default = True
         else:
             try:
+                # First, ensure a baseline set of docks exist so a saved perspective
+                # can re-arrange them. ADS cannot create missing widgets on restore.
+                self._create_default_docks()
+
                 settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
                 self.dock_manager.loadPerspectives(settings_obj)
-                names = []
+                # Attempt to apply the saved 'default' perspective to the created docks
                 try:
-                    names = list(self.dock_manager.perspectiveNames())
+                    rv = self.dock_manager.openPerspective("default")
+                    opened_default = bool(rv) if rv is not None else True
                 except Exception:
-                    names = []
-                if "default" in names:
+                    opened_default = False
+
+                # If 'default' does not exist yet, persist current as 'default' for next time
+                if not opened_default:
                     try:
-                        rv = self.dock_manager.openPerspective("default")
-                        opened_default = bool(rv) if rv is not None else True
+                        self.dock_manager.addPerspective("default")
+                        self.dock_manager.savePerspectives(settings_obj)
+                        try:
+                            self.dock_manager.openPerspective("default")
+                            opened_default = True
+                        except Exception:
+                            pass
                     except Exception:
-                        opened_default = False
+                        pass
             except Exception as e:
                 logger.warning("Failed to load ADS perspectives: %s", e)
 
@@ -169,17 +188,8 @@ class MainWindow(QMainWindow):
         # If no saved layout was opened, create some default docks to play with
         # Seed defaults if not forced and no perspective opened or nothing is docked
         if not FORCE_DEFAULT_LAYOUT:
-            try:
-                names = []
-                try:
-                    names = list(self.dock_manager.perspectiveNames())
-                except Exception:
-                    names = []
-                has_any_docks = bool(self.findChildren(CDockWidget))
-                if (not opened_default) or (not has_any_docks):
-                    self._create_default_docks()
-            except Exception:
-                self._create_default_docks()
+            # Baseline docks were created above; no need to seed again here.
+            pass
 
     # ----- Part 2.A: Physical Menu Builder ----------------------------------
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
@@ -384,6 +394,11 @@ class MainWindow(QMainWindow):
         act_templates = QAction("Display Templates...", self)
         act_templates.triggered.connect(self.open_display_templates_dialog)
         m_window.addAction(act_templates)
+
+        # Save current layout as the default perspective
+        act_set_default = QAction("Set Current Layout as Default", self)
+        act_set_default.triggered.connect(self.set_current_layout_as_default)
+        m_window.addAction(act_set_default)
 
         # Lock/Unlock docking interactions
         self.act_lock_docking = QAction("Lock Docking", self)
@@ -1732,6 +1747,27 @@ class MainWindow(QMainWindow):
         dlg.setModal(True)
         dlg.resize(420, 300)
         dlg.exec()
+
+    def set_current_layout_as_default(self) -> None:
+        """Capture current dock layout as the 'default' template and persist it."""
+        try:
+            # Ensure perspectives are loaded from disk first (merges with existing)
+            settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+            try:
+                self.dock_manager.loadPerspectives(settings_obj)
+            except Exception:
+                pass
+
+            # Overwrite any existing 'default' with current layout
+            try:
+                self.dock_manager.removePerspective("default")
+            except Exception:
+                pass
+            self.dock_manager.addPerspective("default")
+            self.dock_manager.savePerspectives(settings_obj)
+            QMessageBox.information(self, "Default Saved", "Current layout saved as 'default'.")
+        except Exception as e:
+            QMessageBox.warning(self, "Save Failed", f"Could not set default layout.\n{e}")
 
     def toggle_dock_lock(self, locked: bool) -> None:
         """Lock/unlock docking so docks can't be dragged or re-arranged."""

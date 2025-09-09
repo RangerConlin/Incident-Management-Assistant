@@ -51,5 +51,7 @@ class ObjectiveListModel(SimpleListModel):
     """List model for incident objectives shown in the objective panel."""
 
     def __init__(self, rows: List[Dict[str, Any]] | None = None, parent=None) -> None:
-        roles = ["id", "code", "priority", "status", "customer", "due"]
+        # Use 'oid' instead of 'id' to avoid clashing with QML 'id' keyword in delegates
+        # Include description and section so list and details can render without extra queries
+        roles = ["oid", "code", "description", "priority", "status", "customer", "section", "due"]
         super().__init__(roles, rows or [], parent)

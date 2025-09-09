@@ -352,18 +352,53 @@ class _DashboardBridge(QObject):
             self._timeLeftHHMMSS = "0" + self._timeLeftHHMMSS
         self.timeLeftChanged.emit()
 
-    @Slot() def openPlanningObjectives(self): print("openPlanningObjectives()")
-    @Slot() def openOpsLogs(self): print("openOpsLogs()")
-    @Slot() def openCommsCenter(self): print("openCommsCenter()")
-    @Slot() def rollOp(self): print("rollOp()")
-    @Slot() def openOpScheduler(self): print("openOpScheduler()")
-    @Slot() def createObjective(self): print("createObjective()")
-    @Slot() def create214Entry(self): print("create214Entry()")
-    @Slot() def pauseIncident(self): print("pauseIncident()")
-    @Slot() def terminateIncident(self): print("terminateIncident()")
-    @Slot() def exportSnapshot(self): print("exportSnapshot()")
-    @Slot('QVariant') def selectOp(self, which): print(f"selectOp({which})")
-    @Slot(str) def openLogAt(self, timestamp: str): print(f"openLogAt({timestamp})")
+    @Slot()
+    def openPlanningObjectives(self) -> None:
+        print("openPlanningObjectives()")
+
+    @Slot()
+    def openOpsLogs(self) -> None:
+        print("openOpsLogs()")
+
+    @Slot()
+    def openCommsCenter(self) -> None:
+        print("openCommsCenter()")
+
+    @Slot()
+    def rollOp(self) -> None:
+        print("rollOp()")
+
+    @Slot()
+    def openOpScheduler(self) -> None:
+        print("openOpScheduler()")
+
+    @Slot()
+    def createObjective(self) -> None:
+        print("createObjective()")
+
+    @Slot()
+    def create214Entry(self) -> None:
+        print("create214Entry()")
+
+    @Slot()
+    def pauseIncident(self) -> None:
+        print("pauseIncident()")
+
+    @Slot()
+    def terminateIncident(self) -> None:
+        print("terminateIncident()")
+
+    @Slot()
+    def exportSnapshot(self) -> None:
+        print("exportSnapshot()")
+
+    @Slot("QVariant")
+    def selectOp(self, which) -> None:
+        print(f"selectOp({which})")
+
+    @Slot(str)
+    def openLogAt(self, timestamp: str) -> None:
+        print(f"openLogAt({timestamp})")
 
 
 class IncidentDashboardPanel(CDockWidget):

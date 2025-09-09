@@ -99,7 +99,11 @@ ENTITY_CONFIGS: Dict[str, Dict[str, Any]] = {
         "table": "personnel",
         "pk": "id",
         "searchFields": ["name", "id"],
-        "columns": ["id", "name", "callsign", "role", "phone", "email", "organization"],
+        # Personnel records do not currently include an organization field in the
+        # default database schema. Requesting it causes SELECT queries to fail
+        # with "no such column: organization". Limit the columns to those that
+        # exist to ensure the catalog can list personnel records.
+        "columns": ["id", "name", "callsign", "role", "phone", "email"],
         "defaultSort": {"key": "name", "order": "asc"},
     },
     "vehicles": {

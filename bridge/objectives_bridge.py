@@ -47,27 +47,108 @@ class ObjectiveBridge(QObject):
         return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def ensure_migration(self) -> None:
-        sql = r"""
-        CREATE TABLE IF NOT EXISTS objective_comments (
-            id INTEGER PRIMARY KEY,
-            objective_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            timestamp TEXT NOT NULL,
-            text TEXT NOT NULL,
-            parent_id INTEGER NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_objective_comments_obj ON objective_comments(objective_id);
-        CREATE TABLE IF NOT EXISTS objective_logs (
-            objective_id INTEGER NOT NULL,
-            planning_log_id INTEGER NOT NULL,
-            PRIMARY KEY (objective_id, planning_log_id)
-        );
-        CREATE INDEX IF NOT EXISTS idx_incident_objectives_mission ON incident_objectives(mission_id);
-        CREATE INDEX IF NOT EXISTS idx_incident_objectives_status ON incident_objectives(status);
-        CREATE INDEX IF NOT EXISTS idx_planning_logs_incident ON planning_logs(incident_id);
+        """Ensure required tables exist or are minimally provisioned.
+
+        - Creates the bridge's own tables unconditionally.
+        - Creates minimal versions of base tables if missing so the UI can
+          function without crashing on new databases.
+        - Adds helpful indexes when tables exist.
         """
         with self.conn() as c:
-            c.executescript(sql)
+            # Our own tables -------------------------------------------------
+            c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS objective_comments (
+                    id INTEGER PRIMARY KEY,
+                    objective_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    parent_id INTEGER NULL
+                )
+                """
+            )
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_objective_comments_obj ON objective_comments(objective_id)"
+            )
+            c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS objective_logs (
+                    objective_id INTEGER NOT NULL,
+                    planning_log_id INTEGER NOT NULL,
+                    PRIMARY KEY (objective_id, planning_log_id)
+                )
+                """
+            )
+
+            # Inspect existing tables --------------------------------------
+            existing = {
+                row[0]
+                for row in c.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+
+            # Minimal base tables (only if missing) ------------------------
+            if "incident_objectives" not in existing:
+                c.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS incident_objectives (
+                        id INTEGER PRIMARY KEY,
+                        mission_id INTEGER,
+                        description TEXT,
+                        status TEXT,
+                        priority TEXT,
+                        created_by INTEGER,
+                        created_at TEXT,
+                        due_time TEXT,
+                        customer TEXT,
+                        assigned_section TEXT,
+                        closed_at TEXT
+                    )
+                    """
+                )
+            if "planning_logs" not in existing:
+                c.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS planning_logs (
+                        id INTEGER PRIMARY KEY,
+                        incident_id INTEGER,
+                        text TEXT,
+                        timestamp TEXT,
+                        entered_by INTEGER
+                    )
+                    """
+                )
+            if "audit_logs" not in existing:
+                c.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS audit_logs (
+                        id INTEGER PRIMARY KEY,
+                        taskid INTEGER,
+                        field_changed TEXT,
+                        old_value TEXT,
+                        new_value TEXT,
+                        changed_by INTEGER,
+                        timestamp TEXT
+                    )
+                    """
+                )
+
+            # Helpful indexes (when tables exist) --------------------------
+            try:
+                c.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_incident_objectives_mission ON incident_objectives(mission_id)"
+                )
+                c.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_incident_objectives_status ON incident_objectives(status)"
+                )
+                c.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_planning_logs_incident ON planning_logs(incident_id)"
+                )
+            except sqlite3.OperationalError:
+                # Ignore index creation errors; proceed without blocking the UI
+                pass
             c.commit()
 
     # ------------------------------------------------------------------
@@ -100,8 +181,9 @@ class ObjectiveBridge(QObject):
     def loadObjectives(self, status_filter: str = "All", priority_filter: str = "All", section_filter: str = "All") -> None:
         q = [
             "SELECT id, printf('%s-%02d', CASE WHEN assigned_section IS 'AIR' THEN 'A' ELSE 'G' END, id) AS code,",
+            "description,",
             "CASE WHEN priority IS NULL THEN 'Normal' ELSE priority END AS priority,",
-            "status, customer, COALESCE(due_time,'') AS due",
+            "status, customer, COALESCE(assigned_section,'') AS section, COALESCE(due_time,'') AS due",
             "FROM incident_objectives",
         ]
         where, params = [], []
@@ -120,6 +202,10 @@ class ObjectiveBridge(QObject):
         sql = "\n".join(q)
         with self.conn() as c:
             rows = [dict(r) for r in c.execute(sql, params)]
+        # Rename primary key to 'oid' to avoid QML id conflicts
+        for r in rows:
+            if "id" in r:
+                r["oid"] = r.pop("id")
         self._list_model.replace(rows)
         self.objectivesChanged.emit()
 
@@ -130,6 +216,43 @@ class ObjectiveBridge(QObject):
             cur = c.execute(
                 "INSERT INTO incident_objectives (mission_id, description, status, priority, created_by, created_at) VALUES (?,?,?,?,?,?)",
                 (mission_id, description, "Pending", priority, self._uid, ts),
+            )
+            oid = cur.lastrowid
+            c.execute(
+                "INSERT INTO audit_logs (taskid, field_changed, old_value, new_value, changed_by, timestamp) VALUES (?,?,?,?,?,?)",
+                (oid, "objective.action", "", "create", self._uid, ts),
+            )
+            c.commit()
+        self.toast.emit("Objective created")
+        self.loadObjectives()
+        self.loadObjectiveDetail(oid)
+
+    @Slot(str, str)
+    def createObjectiveSimple(self, description: str, priority: str = "Normal") -> None:
+        """Convenience wrapper for QML to avoid int conversion issues."""
+        try:
+            import sys
+            print(f"[objectives] createObjectiveSimple called: desc='{description}', priority='{priority}'", file=sys.stderr)
+            self.createObjective(description, priority, 1)
+        except Exception as e:
+            # Surface an error to the UI
+            self.toast.emit(f"Create failed: {e}")
+            import sys, traceback
+            print(f"[objectives] createObjectiveSimple error: {e}", file=sys.stderr)
+            traceback.print_exc()
+
+    @Slot(str, str, str, str)
+    def createObjectiveFull(self, description: str, priority: str, customer: str, section: str) -> None:
+        """Create an objective with additional fields from the UI."""
+        ts = self.now()
+        with self.conn() as c:
+            cur = c.execute(
+                """
+                INSERT INTO incident_objectives
+                (mission_id, description, status, priority, customer, assigned_section, created_by, created_at)
+                VALUES (?,?,?,?,?,?,?,?)
+                """,
+                (1, description, "Pending", priority or "Normal", customer or "", section or None, self._uid, ts),
             )
             oid = cur.lastrowid
             c.execute(
