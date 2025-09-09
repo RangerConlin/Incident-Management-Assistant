@@ -43,8 +43,11 @@ def _window_model_map():
 
     def _hospitals():
         return _make_model("""
-            SELECT id, name, type, phone, fax, email, contact,
-                   address, city, state, zip, notes, is_active
+            SELECT id, name, address, contact_name,
+                   phone_er, phone_switchboard, travel_time_min,
+                   helipad, trauma_level, burn_center, pediatric_capability,
+                   bed_available, diversion_status, ambulance_radio_channel,
+                   notes, lat, lon
             FROM hospitals
             ORDER BY name COLLATE NOCASE;
         """)

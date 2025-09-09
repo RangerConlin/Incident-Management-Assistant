@@ -16,17 +16,21 @@ def _create_tables(conn):
         CREATE TABLE hospitals (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            type TEXT,
-            phone TEXT,
-            fax TEXT,
-            email TEXT,
-            contact TEXT,
             address TEXT,
-            city TEXT,
-            state TEXT,
-            zip TEXT,
+            contact_name TEXT,
+            phone_er TEXT,
+            phone_switchboard TEXT,
+            travel_time_min INTEGER,
+            helipad INTEGER,
+            trauma_level TEXT,
+            burn_center INTEGER,
+            pediatric_capability INTEGER,
+            bed_available INTEGER,
+            diversion_status TEXT,
+            ambulance_radio_channel TEXT,
             notes TEXT,
-            is_active INTEGER DEFAULT 1
+            lat REAL,
+            lon REAL
         )
         """
     )

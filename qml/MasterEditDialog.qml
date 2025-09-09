@@ -57,39 +57,42 @@ Dialog {
                             Layout.preferredWidth: 140
                         }
 
-                        Loader {
-                            Layout.fillWidth: true
-                            sourceComponent: (col && (col.type === "enum" || col.valueMap || col.options)) ? enumDelegate
-                                              : (col && col.type === "multiline") ? areaDelegate
-                                              : (col && col.type === "int") ? intDelegate
-                                              : (col && col.type === "float") ? floatDelegate
-                                              : textDelegate
-                            function _apply() {
-                                if (!item) return;
-                                if (item.hasOwnProperty('col')) { item.col = col; }
+                    Loader {
+                        id: fieldLoader
+                        Layout.fillWidth: true
+                        sourceComponent: (col && (col.type === "enum" || col.valueMap || col.options)) ? enumDelegate
+                                          : (col && col.type === "multiline") ? areaDelegate
+                                          : (col && col.type === "int") ? intDelegate
+                                          : (col && col.type === "float") ? floatDelegate
+                                          : textDelegate
+                        function _apply() {
+                            if (!item) return;
+                            if (item.hasOwnProperty('col')) { item.col = col; }
 
-                                var has = root.data && col && root.data.hasOwnProperty(col.key);
-                                if (has) {
-                                    if (item.hasOwnProperty('prefill')) {
-                                        item.prefill(root.data[col.key]);
-                                    } else {
-                                        if (item.hasOwnProperty('text')) item.text = String(root.data[col.key] === undefined ? "" : root.data[col.key]);
-                                        if (item.hasOwnProperty('value')) item.value = root.data[col.key];
-                                    }
+                            var has = root.data && col && root.data.hasOwnProperty(col.key);
+                            if (has) {
+                                if (item.hasOwnProperty('prefill')) {
+                                    item.prefill(root.data[col.key]);
                                 } else {
-                                    if (item.hasOwnProperty('text')) item.text = "";
-                                    if (item.hasOwnProperty('value')) item.value = null;
+                                    if (item.hasOwnProperty('text')) item.text = String(root.data[col.key] === undefined ? "" : root.data[col.key]);
+                                    if (item.hasOwnProperty('value')) item.value = root.data[col.key];
                                 }
-                                if (item && item.rebuild) { item.rebuild(); }
-                                item.objectName = "field::" + col.key;
+                            } else {
+                                if (item.hasOwnProperty('text')) item.text = "";
+                                if (item.hasOwnProperty('value')) {
+                                    item.value = (typeof item.value === 'number') ? 0 : null;
+                                }
                             }
-                            onLoaded: _apply()
-
-                            Connections {
-                                target: root
-                                function onDataChanged() { parent._apply() }
-                            }
+                            if (item && item.rebuild) { item.rebuild(); }
+                            item.objectName = "field::" + col.key;
                         }
+                        onLoaded: _apply()
+
+                        Connections {
+                            target: root
+                            function onDataChanged() { fieldLoader._apply() }
+                        }
+                    }
                     }
                 }
             }
