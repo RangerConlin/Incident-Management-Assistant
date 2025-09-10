@@ -56,6 +56,7 @@ from utils.styles import set_theme, apply_app_palette, THEME_NAME
 from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
 from utils.constants import TEAM_STATUSES
+from notifications.services import get_notifier
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -190,6 +191,8 @@ class MainWindow(QMainWindow):
         if not FORCE_DEFAULT_LAYOUT:
             # Baseline docks were created above; no need to seed again here.
             pass
+
+        self._init_notifications()
 
     # ----- Part 2.A: Physical Menu Builder ----------------------------------
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
@@ -1880,6 +1883,46 @@ class MainWindow(QMainWindow):
         # Update the label if it exists (e.g. if the debug panel was created)
         if hasattr(self, "active_incident_label"):
             self.active_incident_label.setText(text)
+
+    def _init_notifications(self) -> None:
+        """Prepare toast container and hook up notifier signals."""
+        self._toast_widget = QQuickWidget(self)
+        self._toast_widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
+        qml_path = os.path.abspath(os.path.join("notifications", "qml", "ToastContainer.qml"))
+        self._toast_widget.setSource(QUrl.fromLocalFile(os.path.abspath(qml_path)))
+        try:
+            self._toast_widget.setAttribute(Qt.WA_TranslucentBackground, True)
+            self._toast_widget.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        except Exception:
+            pass
+        self._toast_widget.setGeometry(self.width() - 360, 0, 360, self.height())
+        self._toast_widget.lower()
+        notifier = get_notifier()
+        notifier.showToast.connect(self._forward_toast)
+
+    def _forward_toast(self, payload: dict) -> None:
+        root = self._toast_widget.rootObject()
+        if root is not None:
+            try:
+                root.pushToast(payload)
+            except Exception:
+                pass
+
+    def resizeEvent(self, event):  # noqa: N802
+        super().resizeEvent(event)
+        if hasattr(self, "_toast_widget"):
+            self._toast_widget.setGeometry(
+                self.width() - self._toast_widget.width(),
+                0,
+                self._toast_widget.width(),
+                self.height(),
+            )
+            root = self._toast_widget.rootObject()
+            if root is not None:
+                try:
+                    root.setProperty("height", self._toast_widget.height())
+                except Exception:
+                    pass
 
     # --- Metric Widgets (simple counters) ---------------------------------
     def open_home_dashboard(self) -> None:
