@@ -7,13 +7,13 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
-    QListWidget,
     QPushButton,
-    QLabel,
     QSplitter,
+    QListWidgetItem,
 )
 
 from .dialogs import AddEditDialog
+from .widgets import FiltersWidget, ResultsWidget, PreviewWidget
 
 
 class LibraryWindow(QMainWindow):
@@ -34,12 +34,14 @@ class LibraryWindow(QMainWindow):
         add_btn.clicked.connect(self._open_add_dialog)
 
         splitter = QSplitter()
-        filters = QListWidget()
-        results = QListWidget()
-        preview = QLabel("Select a document to preview")
-        splitter.addWidget(filters)
-        splitter.addWidget(results)
-        splitter.addWidget(preview)
+        self.filters = FiltersWidget()
+        self.results = ResultsWidget()
+        self.preview = PreviewWidget()
+        splitter.addWidget(self.filters)
+        splitter.addWidget(self.results)
+        splitter.addWidget(self.preview)
+
+        self.results.currentItemChanged.connect(self._on_result_selected)
 
         central = QWidget()
         central_layout = QVBoxLayout(central)
@@ -50,3 +52,16 @@ class LibraryWindow(QMainWindow):
     def _open_add_dialog(self) -> None:
         dialog = AddEditDialog(self)
         dialog.exec()
+
+    def _on_result_selected(
+        self, current: QListWidgetItem | None, previous: QListWidgetItem | None
+    ) -> None:
+        """Update preview pane when a result is selected."""
+        if current is None:
+            self.preview.setText("Select a document")
+            return
+        try:
+            # ``ItemCard`` stores extra attributes such as category
+            self.preview.setText(current.text())
+        except Exception:
+            self.preview.setText(str(current))
