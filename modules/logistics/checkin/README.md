@@ -3,7 +3,7 @@
 This module provides a minimal offline-first check-in workflow for
 SARApp / ICS Command Assistant.  It follows the design document's
 structure with a clean separation between models, repository, service
-API, and a QML based user interface.
+API, and a Qt Widgets based user interface.
 
 ## Usage
 
@@ -11,8 +11,8 @@ API, and a QML based user interface.
 * Each incident has its own database under `data/incidents/<id>.db`.
 * Activate an incident via `utils.incident_context.set_active_incident("INCIDENT_ID")`.
 * Interact with the repository or API modules to lookup or check-in
-  personnel and assets.  The `checkin_bridge` exposes these services to
-  QML.
+  personnel and assets.  The user interface is provided by the
+  :class:`CheckInPanel` widget.
 
 ## Tests
 

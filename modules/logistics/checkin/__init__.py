@@ -6,7 +6,7 @@ heavily commented so it can serve as a starting point for future
 expansion.
 """
 
-# Re-export the QWidget wrapper for the QML Check-In window so callers can do:
+# Re-export the QWidget wrapper for the Check-In window so callers can do:
 #   from modules.logistics.checkin import CheckInPanel
 from .panels.CheckInPanel import CheckInPanel
 
