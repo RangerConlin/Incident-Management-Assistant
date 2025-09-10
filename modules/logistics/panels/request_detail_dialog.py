@@ -2,10 +2,7 @@
 # NOTE: Module code lives under /modules/logistics (not /backend).
 """Modeless dialog controller for resource request detail."""
 
-from pathlib import Path
-
-from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
 
 class RequestDetailDialog(QDialog):
@@ -14,6 +11,6 @@ class RequestDetailDialog(QDialog):
         self.incident_id = incident_id
         self.request_id = request_id
         self.setWindowTitle("Request Detail")
-        engine = QQmlApplicationEngine()
-        qml_path = Path(__file__).resolve().parents[1] / "qml" / "RequestDetail.qml"
-        engine.load(str(qml_path))
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"Request detail placeholder for {request_id}"))

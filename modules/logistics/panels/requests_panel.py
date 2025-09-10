@@ -3,10 +3,9 @@
 
 """Resource request status board panel."""
 
-from pathlib import Path
-
 from PySide6.QtWidgets import QPushButton, QTableWidget, QVBoxLayout, QWidget
-from PySide6.QtQml import QQmlApplicationEngine
+
+from .request_detail_dialog import RequestDetailDialog
 
 
 class RequestsPanel(QWidget):
@@ -26,7 +25,6 @@ class RequestsPanel(QWidget):
         self.new_btn.clicked.connect(self.open_detail)
 
     def open_detail(self) -> None:
-        """Open the detail dialog using QML."""
-        engine = QQmlApplicationEngine()
-        qml_path = Path(__file__).resolve().parents[1] / "qml" / "RequestDetail.qml"
-        engine.load(str(qml_path))
+        """Open the detail dialog using a standard widget."""
+        dialog = RequestDetailDialog(self.incident_id, request_id=0)
+        dialog.exec()

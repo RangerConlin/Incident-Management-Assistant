@@ -2,33 +2,30 @@
 # NOTE: Module code lives under /modules/logistics (not /backend).
 """Logistics dashboard home panel with quick access actions.
 
-This panel is intentionally lightweight but demonstrates how a real
-implementation would embed a QML component providing buttons for common
-logistics tasks.  The panel is safe to import when Qt is not available; in
-such scenarios a simple placeholder widget is returned.
+This panel is intentionally lightweight but previously demonstrated how a real
+implementation could embed a QML component providing buttons for common
+logistics tasks.  The QML dependency made the widget unusable in headless test
+environments so the panel now relies solely on standard Qt widgets.  It is safe
+to import even when Qt's Quick/QML modules are unavailable.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
 try:  # pragma: no cover - UI is not exercised in tests
-    from PySide6.QtCore import QUrl
-    from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
-    from PySide6.QtQuickWidgets import QQuickWidget
+    from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget, QPushButton
 except Exception:  # pragma: no cover - Qt is unavailable
-    QLabel = QVBoxLayout = QWidget = object  # type: ignore
-    QQuickWidget = None  # type: ignore
+    QLabel = QVBoxLayout = QWidget = QPushButton = object  # type: ignore
 
 
 class LogisticsHomePanel(QWidget):
     """Top level dashboard for the Logistics section.
 
-    The widget embeds ``LogisticsQuickActions.qml`` which renders a column of
-    push buttons for frequently performed actions like raising a requisition or
-    opening the equipment board.  When the Qt libraries are not installed the
-    panel degrades gracefully to a simple label making it safe to import in a
-    headless environment.
+    The widget presents a set of push buttons for frequently performed actions
+    like raising a requisition or opening the equipment board.  The previous
+    implementation embedded a QML scene to render these controls, however the
+    test environment does not provide the required Qt Quick libraries.  By
+    using only traditional widgets the panel now degrades gracefully and
+    remains safe to import in headless environments.
     """
 
     def __init__(self, incident_id: str | None = None):
@@ -38,15 +35,14 @@ class LogisticsHomePanel(QWidget):
 
         layout = QVBoxLayout(self)
 
-        if QQuickWidget is None:  # Qt not present – placeholder text only
-            layout.addWidget(QLabel("QtQuick not available"))
-            return
-
-        qml_widget = QQuickWidget()
-        qml_widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
-        qml_path = Path(__file__).resolve().parent.parent / "qml" / "LogisticsQuickActions.qml"
-        qml_widget.setSource(QUrl.fromLocalFile(qml_path.as_posix()))
-        layout.addWidget(qml_widget)
+        # Basic quick-action buttons that previously lived in a QML scene.
+        for label in [
+            "New Request",
+            "Equipment Board",
+            "Check-In",
+        ]:
+            btn = QPushButton(label)
+            layout.addWidget(btn)
 
         if incident_id:
             # Simple heading indicating the active incident; real implementation
