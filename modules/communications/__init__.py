@@ -25,6 +25,16 @@ def get_comms_panel(parent=None):
     return ChannelsPanel(parent)
 
 
+def create_ics205_panel(parent=None):
+    """Create the ICS-205 panel as a standalone window."""
+    from PySide6.QtCore import Qt
+    from .panels.ICS205Panel import ICS205Panel
+
+    panel = ICS205Panel(parent)
+    panel.setWindowFlag(Qt.Window)
+    return panel
+
+
 def notify_message_logged(sender: str, recipient: str) -> None:
     """Emit a global signal that a comms message was logged.
 
