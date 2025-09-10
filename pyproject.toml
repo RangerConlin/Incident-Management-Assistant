@@ -1,5 +1,15 @@
 [project]
 name = "PySide QtQuick Project"
+dependencies = [
+    "PySide6",
+    "fastapi",
+    "pydantic",
+    "reportlab",
+    "PySide6-QtAds",
+    "httpx",
+    "sqlalchemy",
+    "sqlmodel>=0.0.8"
+]
 
 [tool.pyside6-project]
 

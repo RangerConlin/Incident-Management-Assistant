@@ -3,9 +3,9 @@ import QtQuick.Controls 6.5
 
 Item {
     id: container
-    anchors.right: parent.right
-    anchors.bottom: parent.bottom
-    width: 360; height: parent.height
+    // Root item is hosted in a QQuickWidget; it has no QML parent.
+    // Size is controlled by the widget; avoid anchoring to a null parent.
+    width: 360
 
     property int spacing: 8
 

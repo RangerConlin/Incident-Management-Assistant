@@ -13,15 +13,37 @@ Item {
             Button { text: "Remove" }
             Button { text: "Import"; onClicked: ics206Bridge.import_ambulance_services() }
         }
-        TableView {
+        // Header row
+        Row {
+            id: header
+            spacing: 0
             anchors.left: parent.left; anchors.right: parent.right
-            anchors.top: parent.top; anchors.bottom: notes.top
+            anchors.top: parent.top
+            height: 30
+            Rectangle { width: 50; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "white"; text: "ID" } }
+            Rectangle { width: 220; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "white"; text: "Service" } }
+            Rectangle { width: 120; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "white"; text: "Type" } }
+            Rectangle { width: 120; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "white"; text: "Phone" } }
+            Rectangle { width: 200; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "white"; text: "Location" } }
+            Rectangle { anchors.right: parent.right; width: Math.max(0, parent.width - (50+220+120+120+200)); height: parent.height; color: "#333"; border.color: "#555" }
+        }
+        // Rows
+        ListView {
+            id: list
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.top: header.bottom; anchors.bottom: notes.top
+            clip: true
             model: ambulanceModel
-            TableViewColumn { role: "id"; title: "ID"; width: 50 }
-            TableViewColumn { role: "name"; title: "Service"; width: 220 }
-            TableViewColumn { role: "type"; title: "Type"; width: 120 }
-            TableViewColumn { role: "phone"; title: "Phone"; width: 120 }
-            TableViewColumn { role: "location"; title: "Location"; width: 200 }
+            delegate: Row {
+                spacing: 0
+                height: 28
+                Rectangle { width: 50; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.id } }
+                Rectangle { width: 220; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 6; color: "#ddd"; text: model.name } }
+                Rectangle { width: 120; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.type } }
+                Rectangle { width: 120; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.phone } }
+                Rectangle { width: 200; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 6; color: "#ddd"; text: model.location } }
+                Rectangle { anchors.right: parent.right; width: Math.max(0, list.width - (50+220+120+120+200)); height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444" }
+            }
         }
         TextArea {
             id: notes

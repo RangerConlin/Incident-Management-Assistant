@@ -52,7 +52,9 @@ from bridge.incident_bridge import IncidentBridge
 from models.sqlite_table_model import SqliteTableModel
 import sqlite3
 # 'os' imported earlier for env setup
-from utils.styles import set_theme, apply_app_palette, THEME_NAME
+from utils.theme_manager import ThemeManager
+from bridge.theme_bridge import ThemeBridge
+from styles.qss_helpers import global_qss
 from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
 from utils.constants import TEAM_STATUSES
@@ -80,7 +82,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings_manager: SettingsManager | None = None,
                  settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
-        self.setStyleSheet("background-color: #f5f5f5;")
+        # Theme wiring is applied after settings bridge is available
 
         if settings_manager is None:
             settings_manager = SettingsManager()
@@ -88,6 +90,34 @@ class MainWindow(QMainWindow):
             settings_bridge = QmlSettingsBridge(settings_manager)
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
+
+        # Initialize theme manager/bridge using persisted setting
+        try:
+            app = QApplication.instance()
+            saved_theme = str(self.settings_bridge.getSetting('themeName') or 'light').lower()
+            if saved_theme not in {"light", "dark"}:
+                saved_theme = "light"
+            self.theme_manager = ThemeManager(app, initial_theme=saved_theme)
+            self.theme_bridge = ThemeBridge(self.theme_manager.tokens())
+            # Apply initial QSS derived from tokens
+            if app is not None:
+                app.setStyleSheet(global_qss(self.theme_manager.tokens()))
+            # Keep QSS and QML bridge in sync with theme changes
+            self.theme_manager.themeChanged.connect(lambda _:
+                (self.theme_bridge.updateTokens(self.theme_manager.tokens()),
+                 app.setStyleSheet(global_qss(self.theme_manager.tokens())) if app is not None else None)
+            )
+            # React to settings changes (persisted toggle) to drive ThemeManager
+            try:
+                self.settings_bridge.settingChanged.connect(
+                    lambda key, value: self.theme_manager.setTheme(str(value)) if key == 'themeName' else None
+                )
+            except Exception:
+                pass
+        except Exception:
+            # Non-fatal; app will still run
+            self.theme_manager = None  # type: ignore[assignment]
+            self.theme_bridge = None   # type: ignore[assignment]
 
         # Prepare a Mission Status label (will live inside a dock, not fixed)
         self.active_incident_label = QLabel()
@@ -240,12 +270,17 @@ class MainWindow(QMainWindow):
         act_light.setCheckable(True)
         act_dark = QAction("Dark", self)
         act_dark.setCheckable(True)
-        if THEME_NAME == "light":
+        try:
+            current_theme = self.theme_manager.theme if self.theme_manager else 'light'
+        except Exception:
+            current_theme = 'light'
+        if current_theme == "light":
             act_light.setChecked(True)
         else:
             act_dark.setChecked(True)
-        act_light.triggered.connect(lambda: (set_theme("light"), apply_app_palette(QApplication.instance())))
-        act_dark.triggered.connect(lambda: (set_theme("dark"), apply_app_palette(QApplication.instance())))
+        # Persist selection via settings bridge which drives ThemeManager
+        act_light.triggered.connect(lambda: self.settings_bridge.setSetting('themeName', 'light'))
+        act_dark.triggered.connect(lambda: self.settings_bridge.setSetting('themeName', 'dark'))
         theme_menu.addAction(act_light)
         theme_menu.addAction(act_dark)
 
@@ -690,8 +725,13 @@ class MainWindow(QMainWindow):
         from PySide6.QtQml import QQmlApplicationEngine
 
         engine = QQmlApplicationEngine()
-        # Inject settings bridge so settings pages can read/write
+        # Inject settings + theme bridges so settings pages can read/write and see colors
         engine.rootContext().setContextProperty("settingsBridge", self.settings_bridge)
+        try:
+            if hasattr(self, 'theme_bridge') and self.theme_bridge:
+                engine.rootContext().setContextProperty("themeBridge", self.theme_bridge)
+        except Exception:
+            pass
 
         qml_file = Path(__file__).resolve().parent / "qml" / "settingswindow.qml"
         engine.load(QUrl.fromLocalFile(str(qml_file)))
@@ -1036,10 +1076,15 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_medical_206(self) -> None:
+        # Open the full-featured QML ICS 206 window
         from modules import medical
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = medical.get_206_panel(incident_id)
-        self._open_dock_widget(panel, title="Medical Plan (ICS 206)")
+        try:
+            medical.open_206_window()
+        except Exception as e:
+            # Fallback: show placeholder dock panel if QML fails
+            incident_id = getattr(self, "current_incident_id", None)
+            panel = medical.get_206_panel(incident_id)
+            self._open_dock_widget(panel, title="Medical Plan (ICS 206)")
 
     def open_safety_208(self) -> None:
         from modules import safety
@@ -1277,8 +1322,19 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         try:
+            ctx = view.rootContext()
+            # Always expose shared bridges
+            try:
+                if hasattr(self, 'settings_bridge') and self.settings_bridge:
+                    ctx.setContextProperty("settingsBridge", self.settings_bridge)
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'theme_bridge') and self.theme_bridge:
+                    ctx.setContextProperty("themeBridge", self.theme_bridge)
+            except Exception:
+                pass
             if context:
-                ctx = view.rootContext()
                 for k, v in context.items():
                     ctx.setContextProperty(k, v)
         except Exception:
@@ -1307,9 +1363,19 @@ class MainWindow(QMainWindow):
         widget = QQuickWidget()
         widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
         try:
+            # Use QQuickWidget.rootContext() so properties are visible to this component
+            ctx = widget.rootContext()
+            try:
+                if hasattr(self, 'settings_bridge') and self.settings_bridge:
+                    ctx.setContextProperty("settingsBridge", self.settings_bridge)
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'theme_bridge') and self.theme_bridge:
+                    ctx.setContextProperty("themeBridge", self.theme_bridge)
+            except Exception:
+                pass
             if context:
-                # Use QQuickWidget.rootContext() so properties are visible to this component
-                ctx = widget.rootContext()
                 for k, v in context.items():
                     ctx.setContextProperty(k, v)
         except Exception:
@@ -1369,6 +1435,17 @@ class MainWindow(QMainWindow):
 
         # Expose bridges and models to QML
         ctx = view.rootContext()
+        # Shared bridges
+        try:
+            if hasattr(self, 'settings_bridge') and self.settings_bridge:
+                ctx.setContextProperty("settingsBridge", self.settings_bridge)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'theme_bridge') and self.theme_bridge:
+                ctx.setContextProperty("themeBridge", self.theme_bridge)
+        except Exception:
+            pass
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
         # Provide team status options to all master catalog windows (used by multiple QML files)
         try:
@@ -2219,7 +2296,6 @@ class MetricWidget(QWidget):
 if __name__ == "__main__":
     import argparse
     app = QApplication(sys.argv)
-    apply_app_palette(app)
 
     def _on_quit():
         try:
@@ -2265,7 +2341,41 @@ if __name__ == "__main__":
     settings_manager = SettingsManager()
     settings_bridge = QmlSettingsBridge(settings_manager)
 
+    # Initialize theme manager/bridge at app level as well
+    try:
+        saved = settings_bridge.getSetting('themeName') or 'light'
+        saved = str(saved).lower()
+        if saved not in {"light", "dark"}:
+            saved = "light"
+        _theme_manager = ThemeManager(app, initial_theme=saved)
+        _theme_bridge = ThemeBridge(_theme_manager.tokens())
+        from styles.qss_helpers import global_qss as _global_qss
+        app.setStyleSheet(_global_qss(_theme_manager.tokens()))
+        # Keep app QSS + bridge updated on theme changes
+        _theme_manager.themeChanged.connect(lambda _:
+            (_theme_bridge.updateTokens(_theme_manager.tokens()),
+             app.setStyleSheet(_global_qss(_theme_manager.tokens())))
+        )
+        # React to settings bridge updates
+        try:
+            settings_bridge.settingChanged.connect(
+                lambda key, value: _theme_manager.setTheme(str(value)) if key == 'themeName' else None
+            )
+        except Exception:
+            pass
+    except Exception:
+        _theme_manager = None  # type: ignore[assignment]
+        _theme_bridge = None   # type: ignore[assignment]
+
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
+    # Share the app-level theme objects with the window (used to inject into QML contexts)
+    try:
+        if _theme_manager:
+            win.theme_manager = _theme_manager
+        if _theme_bridge:
+            win.theme_bridge = _theme_bridge
+    except Exception:
+        pass
     win.show()
     sys.exit(app.exec())
 

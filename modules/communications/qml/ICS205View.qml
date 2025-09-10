@@ -41,37 +41,57 @@ Item {
                 }
             }
 
-            // Plan table --------------------------------------------------
-            TableView {
-                id: planView
+        // Plan table --------------------------------------------------
+            Column {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                model: ics205.planModel
-                clip: true
-                selectionModel: ItemSelectionModel {}
-                columnSpacing: 1
-                rowSpacing: 1
+                spacing: 0
 
-                delegate: Rectangle {
-                    implicitHeight: 28
-                    color: (planView.selectionModel.currentIndex.row === row && planView.selectionModel.currentIndex.column === column) ? "#d0eaff" : "transparent"
-                    border.color: "#cccccc"
-                    Text {
-                        anchors.centerIn: parent
-                        text: model.display || model[planView.columns[column].role] || ""
-                    }
+                // Header
+                Row {
+                    id: header
+                    spacing: 0
+                    Layout.fillWidth: true
+                    height: 30
+                    Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Chan" } }
+                    Rectangle { width: 120; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Function" } }
+                    Rectangle { width: 80;  height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Div" } }
+                    Rectangle { width: 80;  height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Team" } }
+                    Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "RX" } }
+                    Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "TX" } }
+                    Rectangle { width: 80;  height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Mode" } }
+                    Rectangle { width: 80;  height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Band" } }
+                    Rectangle { Layout.fillWidth: true; height: parent.height; color: "#333"; border.color: "#555" }
                 }
 
-                columns: [
-                    TableViewColumn { role: "channel"; title: "Chan"; width: 100 },
-                    TableViewColumn { role: "function"; title: "Function"; width: 120 },
-                    TableViewColumn { role: "assignment_division"; title: "Div"; width: 80 },
-                    TableViewColumn { role: "assignment_team"; title: "Team"; width: 80 },
-                    TableViewColumn { role: "rx_freq"; title: "RX"; width: 100 },
-                    TableViewColumn { role: "tx_freq"; title: "TX"; width: 100 },
-                    TableViewColumn { role: "mode"; title: "Mode"; width: 80 },
-                    TableViewColumn { role: "band"; title: "Band"; width: 80 }
-                ]
+                // Rows
+                ListView {
+                    id: planList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    model: ics205.planModel
+                    currentIndex: -1
+                    delegate: MouseArea {
+                        hoverEnabled: true
+                        onClicked: planList.currentIndex = index
+                        height: 28
+                        width: parent ? parent.width : 0
+                        Row {
+                            anchors.fill: parent
+                            spacing: 0
+                            Rectangle { width: 100; height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.centerIn: parent; color: "#111"; text: model.channel || "" } }
+                            Rectangle { width: 120; height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 6; color: "#ddd"; text: model.function || "" } }
+                            Rectangle { width: 80;  height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.assignment_division || "" } }
+                            Rectangle { width: 80;  height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.assignment_team || "" } }
+                            Rectangle { width: 100; height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.rx_freq || "" } }
+                            Rectangle { width: 100; height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.tx_freq || "" } }
+                            Rectangle { width: 80;  height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.mode || "" } }
+                            Rectangle { width: 80;  height: parent.height; color: index === planList.currentIndex ? "#d0eaff" : (index % 2 ? "#232323" : "#1e1e1e"); border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.band || "" } }
+                            Rectangle { Layout.fillWidth: true; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444" }
+                        }
+                    }
+                }
             }
         }
 
@@ -98,26 +118,26 @@ Item {
                     Label { text: "Channel:" }
                     TextField {
                         width: 150
-                        text: ics205.getPlanRow(planView.selectionModel.currentIndex.row).channel || ""
-                        onEditingFinished: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "channel", text)
+                        text: ics205.getPlanRow(planList.currentIndex).channel || ""
+                        onEditingFinished: ics205.updatePlanCell(planList.currentIndex, "channel", text)
                     }
                     Label { text: "Function:" }
                     TextField {
                         width: 120
-                        text: ics205.getPlanRow(planView.selectionModel.currentIndex.row).function || ""
-                        onEditingFinished: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "function", text)
+                        text: ics205.getPlanRow(planList.currentIndex).function || ""
+                        onEditingFinished: ics205.updatePlanCell(planList.currentIndex, "function", text)
                     }
                     Label { text: "Division:" }
                     TextField {
                         width: 80
-                        text: ics205.getPlanRow(planView.selectionModel.currentIndex.row).assignment_division || ""
-                        onEditingFinished: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "assignment_division", text)
+                        text: ics205.getPlanRow(planList.currentIndex).assignment_division || ""
+                        onEditingFinished: ics205.updatePlanCell(planList.currentIndex, "assignment_division", text)
                     }
                     Label { text: "Team:" }
                     TextField {
                         width: 80
-                        text: ics205.getPlanRow(planView.selectionModel.currentIndex.row).assignment_team || ""
-                        onEditingFinished: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "assignment_team", text)
+                        text: ics205.getPlanRow(planList.currentIndex).assignment_team || ""
+                        onEditingFinished: ics205.updatePlanCell(planList.currentIndex, "assignment_team", text)
                     }
                 }
 
@@ -126,25 +146,25 @@ Item {
                     Label { text: "RX:" }
                     TextField {
                         width: 100
-                        text: ics205.getPlanRow(planView.selectionModel.currentIndex.row).rx_freq || ""
-                        onEditingFinished: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "rx_freq", parseFloat(text))
+                        text: ics205.getPlanRow(planList.currentIndex).rx_freq || ""
+                        onEditingFinished: ics205.updatePlanCell(planList.currentIndex, "rx_freq", parseFloat(text))
                     }
                     Label { text: "TX:" }
                     TextField {
                         width: 100
-                        text: ics205.getPlanRow(planView.selectionModel.currentIndex.row).tx_freq || ""
-                        onEditingFinished: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "tx_freq", parseFloat(text))
+                        text: ics205.getPlanRow(planList.currentIndex).tx_freq || ""
+                        onEditingFinished: ics205.updatePlanCell(planList.currentIndex, "tx_freq", parseFloat(text))
                     }
                     Label { text: "Mode:" }
                     TextField {
                         width: 80
-                        text: ics205.getPlanRow(planView.selectionModel.currentIndex.row).mode || ""
-                        onEditingFinished: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "mode", text)
+                        text: ics205.getPlanRow(planList.currentIndex).mode || ""
+                        onEditingFinished: ics205.updatePlanCell(planList.currentIndex, "mode", text)
                     }
                     CheckBox {
                         text: "Include on 205"
-                        checked: ics205.getPlanRow(planView.selectionModel.currentIndex.row).include_on_205 || false
-                        onToggled: ics205.updatePlanCell(planView.selectionModel.currentIndex.row, "include_on_205", checked ? 1 : 0)
+                        checked: ics205.getPlanRow(planList.currentIndex).include_on_205 || false
+                        onToggled: ics205.updatePlanCell(planList.currentIndex, "include_on_205", checked ? 1 : 0)
                     }
                 }
             }

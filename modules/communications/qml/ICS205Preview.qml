@@ -24,30 +24,51 @@ Item {
         anchors.fill: parent
         spacing: 4
 
-        TableView {
-            id: table
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            model: previewModel
-            clip: true
-            columnSpacing: 1
-            rowSpacing: 1
-            delegate: Rectangle {
-                implicitHeight: 28
-                border.color: "#cccccc"
-                Text { anchors.centerIn: parent; text: model.display || model[table.columns[column].role] }
+            spacing: 0
+
+            // Header
+            Row {
+                id: header
+                spacing: 0
+                Layout.fillWidth: true
+                height: 30
+                Rectangle { width: 120; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Function" } }
+                Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Channel" } }
+                Rectangle { width: 120; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Assignment" } }
+                Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "RX" } }
+                Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "TX" } }
+                Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Tone/NAC" } }
+                Rectangle { width: 80;  height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Mode" } }
+                Rectangle { width: 100; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Encryption" } }
+                Rectangle { width: 160; height: parent.height; color: "#333"; border.color: "#555"; Text { anchors.centerIn: parent; color: "#fff"; text: "Notes" } }
+                Rectangle { Layout.fillWidth: true; height: parent.height; color: "#333"; border.color: "#555" }
             }
-            columns: [
-                TableViewColumn { role: "Function"; title: "Function"; width: 120 },
-                TableViewColumn { role: "Channel"; title: "Channel"; width: 100 },
-                TableViewColumn { role: "Assignment"; title: "Assignment"; width: 120 },
-                TableViewColumn { role: "RX"; title: "RX"; width: 100 },
-                TableViewColumn { role: "TX"; title: "TX"; width: 100 },
-                TableViewColumn { role: "ToneNAC"; title: "Tone/NAC"; width: 100 },
-                TableViewColumn { role: "Mode"; title: "Mode"; width: 80 },
-                TableViewColumn { role: "Encryption"; title: "Encryption"; width: 100 },
-                TableViewColumn { role: "Notes"; title: "Notes"; width: 160 }
-            ]
+
+            // Rows
+            ListView {
+                id: list
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                model: previewModel
+                delegate: Row {
+                    spacing: 0
+                    height: 28
+                    Rectangle { width: 120; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 6; color: "#ddd"; text: model.Function } }
+                    Rectangle { width: 100; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.Channel } }
+                    Rectangle { width: 120; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 6; color: "#ddd"; text: model.Assignment } }
+                    Rectangle { width: 100; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.RX } }
+                    Rectangle { width: 100; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.TX } }
+                    Rectangle { width: 100; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.ToneNAC } }
+                    Rectangle { width: 80;  height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.Mode } }
+                    Rectangle { width: 100; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.centerIn: parent; color: "#ddd"; text: model.Encryption } }
+                    Rectangle { width: 160; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444"; Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 6; color: "#ddd"; text: model.Notes } }
+                    Rectangle { Layout.fillWidth: true; height: parent.height; color: index % 2 ? "#232323" : "#1e1e1e"; border.color: "#444" }
+                }
+            }
         }
 
         Row {

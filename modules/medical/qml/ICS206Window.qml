@@ -1,11 +1,12 @@
 import QtQuick 6.5
 import QtQuick.Controls 6.5
+import QtQuick.Layouts 1.15
 import "."
 
 ApplicationWindow {
     id: window
     visible: true
-    title: "ICS 206 — Medical Plan"
+    title: "ICS 206 - Medical Plan"
     width: 1200; height: 800
 
     Column {
@@ -25,7 +26,8 @@ ApplicationWindow {
             Button { text: "New"; onClicked: ics206Bridge.duplicate_last_op() }
             Button { text: "Save"; onClicked: ics206Bridge.save_procedures(proceduresArea.text) }
             Button { text: "Duplicate Last OP"; onClicked: ics206Bridge.duplicate_last_op() }
-            MenuButton { text: "Import" }
+            // Replaced undefined MenuButton with a standard Button to avoid type error
+            Button { text: "Import" }
             Button { text: "PDF"; onClicked: ics206Bridge.save_pdf() }
             Button { text: "Print" }
         }
@@ -49,7 +51,7 @@ ApplicationWindow {
                     text: modelData
                     checkable: true
                     checked: index === 0
-                    group: tabGroup
+                    ButtonGroup.group: tabGroup
                     onClicked: stack.currentIndex = index
                 }
             }
@@ -70,3 +72,4 @@ ApplicationWindow {
         }
     }
 }
+
