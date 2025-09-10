@@ -97,7 +97,7 @@ class IncidentRepository:
                     repeater, offset, encryption, assignment_division, assignment_team,
                     priority, include_on_205, remarks, sort_index, line_a, line_c,
                     created_at, updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     master_row.get("id"),
