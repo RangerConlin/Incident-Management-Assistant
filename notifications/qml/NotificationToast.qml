@@ -33,5 +33,7 @@ Popup {
         onTriggered: toast.close()
     }
 
+    Component.onCompleted: toast.open()
+
     onClosed: dismissed()
 }
