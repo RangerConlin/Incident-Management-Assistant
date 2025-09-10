@@ -1,158 +1,129 @@
 from __future__ import annotations
 
-"""Qt controller and data models for the ICS-205 module."""
-
 from typing import Any, Dict, List
 
-from PySide6.QtCore import (
-    QAbstractListModel,
-    QAbstractTableModel,
-    QModelIndex,
-    QObject,
-    Property,
-    Qt,
-    Signal,
-    Slot,
-    QByteArray,
-)
+from PySide6.QtCore import (QAbstractListModel, QAbstractTableModel, QModelIndex,
+                             QObject, Qt, Signal)
 
 from utils.state import AppState
 
 from .models.master_repo import MasterRepository
-from .models.incident_repo import IncidentRepository
-from .models import db
+from .models.incident_repo import IncidentRepository, ValidationMessage
 
 
 # ---------------------------------------------------------------------------
-# List model helpers
+# Qt Models
 # ---------------------------------------------------------------------------
 
 class MasterListModel(QAbstractListModel):
-    """List model exposing channels from the master database."""
+    def __init__(self):
+        super().__init__()
+        self.rows: List[Dict[str, Any]] = []
 
-    roles = ["id", "display_name", "function", "rx_freq", "tx_freq", "mode", "band"]
+    def rowCount(self, parent=QModelIndex()):
+        return len(self.rows)
 
-    def __init__(self, rows: List[Dict[str, Any]] | None = None, parent=None):
-        super().__init__(parent)
-        self._rows: List[Dict[str, Any]] = rows or []
-
-    # Qt model implementation ----------------------------------------------
-    def rowCount(self, parent=QModelIndex()):  # type: ignore[override]
-        return len(self._rows)
-
-    def data(self, index, role=Qt.DisplayRole):  # type: ignore[override]
-        if not index.isValid():
+    def data(self, index: QModelIndex, role=Qt.DisplayRole):
+        if not index.isValid() or not (0 <= index.row() < len(self.rows)):
             return None
-        row = self._rows[index.row()]
-        key = self.roles[role - Qt.UserRole]
-        return row.get(key)
+        row = self.rows[index.row()]
+        if role == Qt.DisplayRole:
+            return row.get('display_name')
+        if role == Qt.UserRole:
+            return row
+        return None
 
-    def roleNames(self):  # type: ignore[override]
-        return {Qt.UserRole + i: QByteArray(r.encode()) for i, r in enumerate(self.roles)}
-
-    # Helpers ---------------------------------------------------------------
-    def replace(self, rows: List[Dict[str, Any]]):
+    def setRows(self, rows: List[Dict[str, Any]]):
         self.beginResetModel()
-        self._rows = rows
+        self.rows = rows
         self.endResetModel()
-
-    def get(self, row: int) -> Dict[str, Any]:
-        return self._rows[row] if 0 <= row < len(self._rows) else {}
 
 
 PLAN_COLUMNS = [
-    ("channel", "Channel"),
-    ("function", "Function"),
-    ("assignment_division", "Division"),
-    ("assignment_team", "Team"),
-    ("rx_freq", "RX"),
-    ("tx_freq", "TX"),
-    ("mode", "Mode"),
-    ("band", "Band"),
-    ("priority", "Priority"),
-    ("include_on_205", "205"),
-    ("remarks", "Remarks"),
+    ('channel', 'Channel'),
+    ('function', 'Function'),
+    ('band', 'Band'),
+    ('rx_freq', 'RX'),
+    ('tx_freq', 'TX'),
+    ('mode', 'Mode'),
+    ('assignment_division', 'Division'),
+    ('assignment_team', 'Team'),
+    ('priority', 'Priority'),
+    ('include_on_205', 'Include'),
 ]
 
 
-class PlanModel(QAbstractTableModel):
-    """Editable table model for the incident plan."""
+class PlanTableModel(QAbstractTableModel):
+    rowEdited = Signal(int, dict)
 
-    def __init__(self, repo: IncidentRepository, parent=None):
-        super().__init__(parent)
+    def __init__(self, repo: IncidentRepository | None):
+        super().__init__()
         self.repo = repo
-        self._rows: List[Dict[str, Any]] = []
+        self.rows: List[Dict[str, Any]] = []
 
-    # Basic model API ------------------------------------------------------
-    def rowCount(self, parent=QModelIndex()):  # type: ignore[override]
-        return len(self._rows)
+    # basic impl
+    def rowCount(self, parent=QModelIndex()):
+        return len(self.rows)
 
-    def columnCount(self, parent=QModelIndex()):  # type: ignore[override]
+    def columnCount(self, parent=QModelIndex()):
         return len(PLAN_COLUMNS)
 
-    def roleNames(self):  # type: ignore[override]
-        roles = {Qt.UserRole + i: QByteArray(col[0].encode()) for i, col in enumerate(PLAN_COLUMNS)}
-        return roles
-
-    def data(self, index, role=Qt.DisplayRole):  # type: ignore[override]
+    def data(self, index: QModelIndex, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-        row = self._rows[index.row()]
-        if role >= Qt.UserRole:
-            key = PLAN_COLUMNS[role - Qt.UserRole][0]
-            return row.get(key)
-        if role == Qt.DisplayRole:
-            key = PLAN_COLUMNS[index.column()][0]
+        row = self.rows[index.row()]
+        key = PLAN_COLUMNS[index.column()][0]
+        if role in (Qt.DisplayRole, Qt.EditRole):
             return row.get(key)
         return None
 
-    def setData(self, index, value, role=Qt.EditRole):  # type: ignore[override]
-        if not index.isValid():
-            return False
-        key = PLAN_COLUMNS[index.column()][0]
-        row = self._rows[index.row()]
-        self.repo.update_row(row["id"], {key: value})
-        row[key] = value
-        self.dataChanged.emit(index, index, [role])
-        return True
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return PLAN_COLUMNS[section][1]
+        return super().headerData(section, orientation, role)
 
-    def flags(self, index):  # type: ignore[override]
+    def flags(self, index: QModelIndex):
         if not index.isValid():
-            return Qt.ItemIsEnabled
-        return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable
+            return Qt.NoItemFlags
+        return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
 
-    # Helpers ---------------------------------------------------------------
-    def replace(self, rows: List[Dict[str, Any]]):
+    def setRows(self, rows: List[Dict[str, Any]]):
         self.beginResetModel()
-        self._rows = rows
+        self.rows = rows
         self.endResetModel()
 
-    def row_dict(self, row: int) -> Dict[str, Any]:
-        return self._rows[row] if 0 <= row < len(self._rows) else {}
+    def setData(self, index: QModelIndex, value, role=Qt.EditRole):
+        if not index.isValid() or role != Qt.EditRole:
+            return False
+        row = self.rows[index.row()]
+        key = PLAN_COLUMNS[index.column()][0]
+        row[key] = value
+        self.dataChanged.emit(index, index, [Qt.DisplayRole, Qt.EditRole])
+        if self.repo:
+            self.repo.update_row(row['id'], {key: value})
+            self.rowEdited.emit(row['id'], {key: value})
+        return True
 
 
-class ValidationModel(QAbstractListModel):
-    roles = ["level", "text"]
+class ValidationListModel(QAbstractListModel):
+    def __init__(self):
+        super().__init__()
+        self.messages: List[ValidationMessage] = []
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._rows: List[Dict[str, Any]] = []
+    def rowCount(self, parent=QModelIndex()):
+        return len(self.messages)
 
-    def rowCount(self, parent=QModelIndex()):  # type: ignore[override]
-        return len(self._rows)
-
-    def data(self, index, role=Qt.DisplayRole):  # type: ignore[override]
+    def data(self, index: QModelIndex, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-        key = self.roles[role - Qt.UserRole]
-        return self._rows[index.row()].get(key)
+        msg = self.messages[index.row()]
+        if role == Qt.DisplayRole:
+            return f"{msg.level}: {msg.text}"
+        return None
 
-    def roleNames(self):  # type: ignore[override]
-        return {Qt.UserRole + i: QByteArray(r.encode()) for i, r in enumerate(self.roles)}
-
-    def replace(self, rows: List[Dict[str, Any]]):
+    def setMessages(self, msgs: List[ValidationMessage]):
         self.beginResetModel()
-        self._rows = rows
+        self.messages = msgs
         self.endResetModel()
 
 
@@ -160,110 +131,87 @@ class ValidationModel(QAbstractListModel):
 # Controller
 # ---------------------------------------------------------------------------
 
-
 class ICS205Controller(QObject):
-    filtersChanged = Signal()
-    statusLineChanged = Signal()
+    statusLineChanged = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self._filters: Dict[str, Any] = {}
-        self._status = ""
-
-        incident = AppState.get_active_incident()
-        if incident is None:
-            raise RuntimeError("Active incident not set")
-        db.ensure_incident_schema(incident)
+        self.filters: Dict[str, Any] = {}
         self.master_repo = MasterRepository()
-        self.incident_repo = IncidentRepository(incident)
+        incident = AppState.get_active_incident()
+        self.repo: IncidentRepository | None = None
+        if incident is not None:
+            self.repo = IncidentRepository(incident)
+        self.masterModel = MasterListModel()
+        self.planModel = PlanTableModel(self.repo)
+        self.validationModel = ValidationListModel()
+        self.statusLine = ''
+        if incident is not None:
+            self.refreshMaster()
+            self.refreshPlan()
 
-        self._masterModel = MasterListModel([])
-        self._planModel = PlanModel(self.incident_repo)
-        self._validationModel = ValidationModel()
+    # --------------------------------------------------------------
+    def refreshMaster(self):
+        rows = self.master_repo.list_channels(self.filters)
+        self.masterModel.setRows(rows)
 
+    def refreshPlan(self):
+        if not self.repo:
+            self.planModel.setRows([])
+            return
+        rows = self.repo.list_plan()
+        self.planModel.setRows(rows)
+
+    # --------------------------------------------------------------
+    def setFilter(self, key: str, value: Any):
+        if value:
+            self.filters[key] = value
+        else:
+            self.filters.pop(key, None)
         self.refreshMaster()
+
+    # --------------------------------------------------------------
+    def addMasterIdToPlan(self, master_id: int):
+        if not self.repo:
+            return
+        master_row = self.master_repo.get_channel(master_id)
+        if not master_row:
+            return
+        self.repo.add_from_master(master_row, {})
         self.refreshPlan()
 
-    # Properties -----------------------------------------------------------
-    @Property("QVariantMap", notify=filtersChanged)
-    def filters(self):  # type: ignore[override]
-        return self._filters
+    # --------------------------------------------------------------
+    def updatePlanCell(self, row: int, column: int, value: Any):
+        index = self.planModel.index(row, column)
+        self.planModel.setData(index, value, Qt.EditRole)
 
-    @Property(str, notify=statusLineChanged)
-    def statusLine(self):  # type: ignore[override]
-        return self._status
-
-    @Property(QObject, constant=True)
-    def masterModel(self):  # type: ignore[override]
-        return self._masterModel
-
-    @Property(QObject, constant=True)
-    def planModel(self):  # type: ignore[override]
-        return self._planModel
-
-    @Property(QObject, constant=True)
-    def validationModel(self):  # type: ignore[override]
-        return self._validationModel
-
-    # Slots ----------------------------------------------------------------
-    @Slot()
-    def refreshMaster(self):
-        rows = self.master_repo.list_channels(self._filters)
-        self._masterModel.replace(rows)
-
-    @Slot()
-    def refreshPlan(self):
-        rows = self.incident_repo.list_plan()
-        self._planModel.replace(rows)
-
-    @Slot(str, "QVariant")
-    def setFilter(self, key: str, value: Any):
-        self._filters[key] = value
-        self.filtersChanged.emit()
-        self.refreshMaster()
-
-    @Slot(int)
-    def addMasterIdToPlan(self, master_id: int):
-        row = self.master_repo.get_channel(master_id)
-        if row:
-            self.incident_repo.add_from_master(row, {})
-            self.refreshPlan()
-
-    @Slot(int, str, "QVariant")
-    def updatePlanCell(self, row: int, column: str, value: Any):
-        rows = self._planModel._rows
-        if 0 <= row < len(rows):
-            row_id = rows[row]["id"]
-            self.incident_repo.update_row(row_id, {column: value})
-            self.refreshPlan()
-
-    @Slot(int)
+    # --------------------------------------------------------------
     def deletePlanRow(self, row: int):
-        rows = self._planModel._rows
-        if 0 <= row < len(rows):
-            row_id = rows[row]["id"]
-            self.incident_repo.delete_row(row_id)
-            self.refreshPlan()
+        if not self.repo:
+            return
+        data = self.planModel.rows[row]
+        self.repo.delete_row(data['id'])
+        self.refreshPlan()
 
-    @Slot(int, str)
+    # --------------------------------------------------------------
     def moveRow(self, row: int, direction: str):
-        rows = self._planModel._rows
-        if 0 <= row < len(rows):
-            row_id = rows[row]["id"]
-            self.incident_repo.reorder(row_id, direction)
-            self.refreshPlan()
+        if not self.repo:
+            return
+        data = self.planModel.rows[row]
+        self.repo.reorder(data['id'], direction)
+        self.refreshPlan()
 
-    @Slot()
+    # --------------------------------------------------------------
     def runValidation(self):
-        report = self.incident_repo.validate_plan()
-        self._validationModel.replace(report["messages"])
-        self._status = f"{report['conflicts']} conflicts • {report['warnings']} warnings"
-        self.statusLineChanged.emit()
+        if not self.repo:
+            return
+        report = self.repo.validate_plan()
+        self.validationModel.setMessages(report.messages)
+        self.statusLine = f"{report.conflicts} conflicts, {report.warnings} warnings"
+        self.statusLineChanged.emit(self.statusLine)
 
-    @Slot(result="QVariantList")
-    def getPreviewRows(self):
-        return self.incident_repo.preview_rows()
-
-    @Slot(int, result="QVariantMap")
-    def getPlanRow(self, row: int):
-        return self._planModel.row_dict(row)
+    # --------------------------------------------------------------
+    def getPreviewRows(self) -> List[Dict[str, Any]]:
+        if not self.repo:
+            return []
+        return self.repo.preview_rows()

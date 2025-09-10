@@ -1,247 +1,201 @@
 from __future__ import annotations
 
-"""Repository managing incident specific communication plans."""
-
-from datetime import datetime
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
+from datetime import datetime
 
-from . import db
-from modules.communications.util import geo_line_rules
+from utils.state import AppState
 
-UTC = "%Y-%m-%dT%H:%M:%S"
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def infer_band(freq: float | None) -> str:
-    """Infer a band string from ``freq`` in MHz."""
-    if freq is None:
-        return "Other"
-    f = float(freq)
-    if 3 <= f < 30:
-        return "HF"
-    if 30 <= f < 54:
-        return "VHF-LOW"
-    if 118 <= f <= 137:
-        return "Air"
-    if 156 <= f <= 163:
-        return "Marine"
-    if 54 <= f < 300:
-        return "VHF"
-    if 300 <= f < 700:
-        return "UHF"
-    if 700 <= f <= 869:
-        return "700/800"
-    return "Other"
+from .db import ensure_incident_schema, incident_cursor
+from .master_repo import MasterRepository
+from ..util import geo_line_rules
 
 
-def _now() -> str:
-    return datetime.utcnow().strftime(UTC)
+@dataclass
+class ValidationMessage:
+    level: str
+    text: str
 
 
-def _squelch(tone: str | None) -> tuple[str | None, str | None]:
-    if tone in (None, "", "CSQ"):
-        return "None", None
-    try:
-        float(tone)
-        return "CTCSS", tone
-    except (TypeError, ValueError):
-        pass
-    if tone and tone.upper().startswith("F"):
-        return "NAC", tone
-    if tone and tone.isdigit():
-        return "DCS", tone
-    return None, None
+@dataclass
+class ValidationReport:
+    messages: List[ValidationMessage] = field(default_factory=list)
 
+    @property
+    def conflicts(self) -> int:
+        return sum(1 for m in self.messages if m.level == 'conflict')
 
-# ---------------------------------------------------------------------------
-# Repository
-# ---------------------------------------------------------------------------
+    @property
+    def warnings(self) -> int:
+        return sum(1 for m in self.messages if m.level == 'warning')
+
 
 class IncidentRepository:
     def __init__(self, incident_number: str | int):
-        self.incident = incident_number
+        self.incident_number = incident_number
+        ensure_incident_schema(incident_number)
 
-    # Basic operations ------------------------------------------------------
+    # ------------------------------------------------------------------
     def list_plan(self) -> List[Dict[str, Any]]:
-        with db.get_incident_conn(self.incident) as conn:
-            rows = conn.execute(
-                "SELECT * FROM incident_channels ORDER BY sort_index, id"
+        with incident_cursor(self.incident_number) as cur:
+            rows = cur.execute(
+                'SELECT * FROM incident_channels ORDER BY sort_index, id'
             ).fetchall()
-        return [dict(r) for r in rows]
+            return [dict(r) for r in rows]
 
+    # ------------------------------------------------------------------
     def add_from_master(self, master_row: Dict[str, Any], defaults: Dict[str, Any] | None = None) -> Dict[str, Any]:
         defaults = defaults or {}
-        band = infer_band(master_row.get("rx_freq") or master_row.get("tx_freq"))
-        rx_tone = master_row.get("rx_tone")
-        tx_tone = master_row.get("tx_tone")
-        squelch_type, squelch_value = (None, None)
-        if rx_tone == tx_tone:
-            squelch_type, squelch_value = _squelch(rx_tone)
-        repeater = 1 if master_row.get("tx_freq") and master_row.get("rx_freq") and master_row["tx_freq"] != master_row["rx_freq"] else 0
-        offset = None
-        if repeater:
-            try:
-                offset = float(master_row["tx_freq"]) - float(master_row["rx_freq"])
-            except Exception:
-                offset = None
-        now = _now()
-        with db.get_incident_conn(self.incident) as conn:
-            cur = conn.execute(
-                """
-                INSERT INTO incident_channels (
-                    master_id, channel, function, band, system, mode,
-                    rx_freq, tx_freq, rx_tone, tx_tone, squelch_type, squelch_value,
-                    repeater, offset, encryption, assignment_division, assignment_team,
-                    priority, include_on_205, remarks, sort_index, line_a, line_c,
-                    created_at, updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    master_row.get("id"),
-                    master_row.get("name"),
-                    master_row.get("function", "Tactical"),
-                    band,
-                    master_row.get("system"),
-                    master_row.get("mode"),
-                    master_row.get("rx_freq"),
-                    master_row.get("tx_freq"),
-                    rx_tone,
-                    tx_tone,
-                    squelch_type,
-                    squelch_value,
-                    repeater,
-                    offset,
-                    defaults.get("encryption", "None"),
-                    defaults.get("assignment_division"),
-                    defaults.get("assignment_team"),
-                    defaults.get("priority", "Normal"),
-                    defaults.get("include_on_205", 1),
-                    defaults.get("remarks"),
-                    defaults.get("sort_index", 1000),
-                    master_row.get("line_a", 0),
-                    master_row.get("line_c", 0),
-                    now,
-                    now,
-                ),
+        now = datetime.utcnow().isoformat()
+        band = self._infer_band(master_row)
+        rx_freq = master_row.get('rx_freq')
+        tx_freq = master_row.get('tx_freq')
+        repeater = 1 if rx_freq and tx_freq and rx_freq != tx_freq else 0
+        offset = (tx_freq - rx_freq) if repeater else None
+        squelch_type, squelch_value = self._synth_squelch(master_row.get('rx_tone'))
+        fields = {
+            'master_id': master_row.get('id'),
+            'channel': master_row.get('name'),
+            'function': master_row.get('function', 'Tactical'),
+            'band': band,
+            'system': master_row.get('system'),
+            'mode': master_row.get('mode'),
+            'rx_freq': rx_freq,
+            'tx_freq': tx_freq,
+            'rx_tone': master_row.get('rx_tone'),
+            'tx_tone': master_row.get('tx_tone'),
+            'squelch_type': squelch_type,
+            'squelch_value': squelch_value,
+            'repeater': repeater,
+            'offset': offset,
+            'line_a': master_row.get('line_a', 0),
+            'line_c': master_row.get('line_c', 0),
+            'encryption': 'None',
+            'priority': 'Normal',
+            'include_on_205': 1,
+            'remarks': master_row.get('notes'),
+            'sort_index': 1000,
+            'created_at': now,
+            'updated_at': now,
+        }
+        fields.update(defaults)
+        cols = ','.join(fields.keys())
+        placeholders = ','.join('?' for _ in fields)
+        with incident_cursor(self.incident_number) as cur:
+            cur.execute(
+                f'INSERT INTO incident_channels ({cols}) VALUES ({placeholders})',
+                tuple(fields.values()),
             )
-            conn.commit()
-            new_id = cur.lastrowid
-        row = self.get_row(new_id)
-        return row
+            row_id = cur.lastrowid
+        return self.get_row(row_id)
 
-    def get_row(self, row_id: int) -> Dict[str, Any]:
-        with db.get_incident_conn(self.incident) as conn:
-            row = conn.execute(
-                "SELECT * FROM incident_channels WHERE id=?", (row_id,)
-            ).fetchone()
-        return dict(row) if row else {}
+    # ------------------------------------------------------------------
+    def get_row(self, row_id: int) -> Dict[str, Any] | None:
+        with incident_cursor(self.incident_number) as cur:
+            row = cur.execute('SELECT * FROM incident_channels WHERE id=?', (row_id,)).fetchone()
+            return dict(row) if row else None
 
+    # ------------------------------------------------------------------
     def update_row(self, row_id: int, patch: Dict[str, Any]) -> None:
-        patch = patch.copy()
-        patch["updated_at"] = _now()
-        cols = ", ".join(f"{k}=?" for k in patch.keys())
-        values = list(patch.values()) + [row_id]
-        with db.get_incident_conn(self.incident) as conn:
-            conn.execute(f"UPDATE incident_channels SET {cols} WHERE id=?", values)
-            conn.commit()
-
-    def delete_row(self, row_id: int) -> None:
-        with db.get_incident_conn(self.incident) as conn:
-            conn.execute("DELETE FROM incident_channels WHERE id=?", (row_id,))
-            conn.commit()
-
-    def reorder(self, row_id: int, direction: str) -> None:
-        row = self.get_row(row_id)
-        if not row:
+        if not patch:
             return
-        delta = -1 if direction == "up" else 1
-        new_index = row.get("sort_index", 1000) + delta
-        self.update_row(row_id, {"sort_index": new_index})
+        patch['updated_at'] = datetime.utcnow().isoformat()
+        sets = ','.join(f"{k}=?" for k in patch)
+        with incident_cursor(self.incident_number) as cur:
+            cur.execute(
+                f'UPDATE incident_channels SET {sets} WHERE id=?',
+                tuple(patch.values()) + (row_id,),
+            )
 
-    # Validation ------------------------------------------------------------
-    def validate_plan(self) -> Dict[str, Any]:
+    # ------------------------------------------------------------------
+    def delete_row(self, row_id: int) -> None:
+        with incident_cursor(self.incident_number) as cur:
+            cur.execute('DELETE FROM incident_channels WHERE id=?', (row_id,))
+
+    # ------------------------------------------------------------------
+    def reorder(self, row_id: int, direction: str) -> None:
+        delta = -1 if direction == 'up' else 1
+        with incident_cursor(self.incident_number) as cur:
+            cur.execute('SELECT sort_index FROM incident_channels WHERE id=?', (row_id,))
+            row = cur.fetchone()
+            if not row:
+                return
+            new_index = row['sort_index'] + delta
+            cur.execute('UPDATE incident_channels SET sort_index=? WHERE id=?', (new_index, row_id))
+
+    # ------------------------------------------------------------------
+    def validate_plan(self) -> ValidationReport:
+        report = ValidationReport()
         rows = self.list_plan()
-        messages: List[Dict[str, str]] = []
-        # Duplicate frequency
-        for i, a in enumerate(rows):
-            for b in rows[i + 1 :]:
-                if (
-                    a["band"] == b["band"]
-                    and a["mode"] == b["mode"]
-                    and a["rx_freq"] == b["rx_freq"]
-                    and (a.get("tx_freq") or 0) == (b.get("tx_freq") or 0)
-                    and a.get("rx_tone") == b.get("rx_tone")
-                    and a.get("tx_tone") == b.get("tx_tone")
-                ):
-                    messages.append(
-                        {
-                            "level": "conflict",
-                            "text": f"Duplicate freq {a['rx_freq']} ({a['channel']} & {b['channel']})",
-                        }
-                    )
+        seen = {}
         for r in rows:
-            if not r.get("function"):
-                messages.append({"level": "warning", "text": f"{r['channel']} missing function"})
-            if r.get("function", "").lower() == "tactical" and (
-                not r.get("assignment_division") or not r.get("assignment_team")
-            ):
-                messages.append(
-                    {"level": "warning", "text": f"{r['channel']} missing assignment"}
-                )
-            if r.get("repeater") == 0 and r.get("offset"):
-                messages.append(
-                    {"level": "warning", "text": f"{r['channel']} offset with no repeater"}
-                )
-            inferred = infer_band(r.get("rx_freq") or r.get("tx_freq"))
-            if inferred != r.get("band"):
-                messages.append(
-                    {"level": "warning", "text": f"{r['channel']} out of band"}
-                )
-            if r.get("line_a"):
-                if geo_line_rules.line_a_applies(None, None):
-                    messages.append(
-                        {"level": "warning", "text": f"{r['channel']} Line A coordination"}
-                    )
-            if r.get("line_c"):
-                if geo_line_rules.line_c_applies(None, None):
-                    messages.append(
-                        {"level": "warning", "text": f"{r['channel']} Line C coordination"}
-                    )
+            key = (r['band'], r['mode'], r['rx_freq'], r['tx_freq'], r.get('rx_tone'), r.get('tx_tone'))
+            if key in seen:
+                report.messages.append(ValidationMessage('conflict', f"Duplicate freq for {r['channel']} and {seen[key]}"))
+            else:
+                seen[key] = r['channel']
+            if r['function'] == 'Tactical' and not (r.get('assignment_division') and r.get('assignment_team')):
+                report.messages.append(ValidationMessage('warning', f"{r['channel']} missing assignment"))
+            if r.get('line_a') and not geo_line_rules.is_line_a_applicable(r):
+                report.messages.append(ValidationMessage('warning', f"{r['channel']} requires Line A coordination"))
+            if r.get('line_c') and not geo_line_rules.is_line_c_applicable(r):
+                report.messages.append(ValidationMessage('warning', f"{r['channel']} requires Line C coordination"))
+        return report
 
-        conflicts = sum(1 for m in messages if m["level"] == "conflict")
-        warnings = sum(1 for m in messages if m["level"] == "warning")
-        return {"messages": messages, "conflicts": conflicts, "warnings": warnings}
-
-    # Preview ---------------------------------------------------------------
+    # ------------------------------------------------------------------
     def preview_rows(self) -> List[Dict[str, Any]]:
         rows = self.list_plan()
-        preview: List[Dict[str, Any]] = []
+        preview = []
         for r in rows:
-            assignment = " / ".join(
-                [p for p in [r.get("assignment_division"), r.get("assignment_team")] if p]
-            )
-            tone = r.get("rx_tone")
-            if r.get("rx_tone") == r.get("tx_tone"):
-                tone = r.get("rx_tone") or ""
-            else:
-                tone = "/".join(filter(None, [r.get("rx_tone"), r.get("tx_tone")]))
+            assignment = ' / '.join(filter(None, [r.get('assignment_division'), r.get('assignment_team')]))
+            tone = r.get('rx_tone') or ''
             preview.append(
                 {
-                    "Function": r.get("function"),
-                    "Channel": r.get("channel"),
-                    "Assignment": assignment,
-                    "RX": r.get("rx_freq"),
-                    "TX": r.get("tx_freq"),
-                    "ToneNAC": tone or "",
-                    "Mode": r.get("mode"),
-                    "Encryption": r.get("encryption", "None"),
-                    "Notes": r.get("remarks", ""),
+                    'Function': r.get('function'),
+                    'Channel': r.get('channel'),
+                    'Assignment': assignment,
+                    'RX': r.get('rx_freq'),
+                    'TX': r.get('tx_freq'),
+                    'ToneNAC': tone,
+                    'Mode': r.get('mode'),
+                    'Encryption': r.get('encryption'),
+                    'Notes': r.get('remarks'),
                 }
             )
         return preview
 
+    # ------------------------------------------------------------------
+    def _infer_band(self, row: Dict[str, Any]) -> str:
+        f = row.get('rx_freq') or row.get('tx_freq') or 0
+        try:
+            f = float(f)
+        except Exception:
+            return 'Other'
+        if 3 <= f < 30:
+            return 'HF'
+        if 30 <= f < 54:
+            return 'VHF-LOW'
+        if 118 <= f <= 137:
+            return 'Air'
+        if 156 <= f <= 163:
+            return 'Marine'
+        if 54 <= f < 300:
+            return 'VHF'
+        if 300 <= f < 700:
+            return 'UHF'
+        if 700 <= f <= 869:
+            return '700/800'
+        return 'Other'
 
-__all__ = ["IncidentRepository", "infer_band"]
+    def _synth_squelch(self, tone: Any) -> tuple[str | None, str | None]:
+        if tone is None:
+            return None, None
+        if tone == 'CSQ' or tone == '' or tone is None:
+            return 'None', None
+        try:
+            float(tone)
+            return 'CTCSS', str(tone)
+        except Exception:
+            if isinstance(tone, str) and tone.upper().startswith('F') or tone.isdigit():
+                return 'DCS', str(tone)
+        return None, None
