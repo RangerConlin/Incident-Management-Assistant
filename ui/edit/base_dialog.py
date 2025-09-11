@@ -140,9 +140,17 @@ class BaseEditDialog(QDialog):
         self.search.setShortcut(QKeySequence.Find)
         self.table.addAction(self.act_delete)
 
+        self._connect_selection_model()
+
         self._update_action_states()
 
     # ------------------------------------------------------------------ configuration
+
+    def _connect_selection_model(self) -> None:
+        self.table.selectionModel().selectionChanged.connect(
+            lambda *_: self._update_action_states()
+        )
+
     def set_columns(self, columns: Iterable[tuple[str, str]]) -> None:
         self._columns = [ColumnSpec(*c) for c in columns]
         self._model = DictTableModel(self._columns, [])
@@ -151,6 +159,7 @@ class BaseEditDialog(QDialog):
         self._proxy.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self._proxy.setFilterKeyColumn(-1)  # search all
         self.table.setModel(self._proxy)
+        self._connect_selection_model()
 
     def set_adapter(self, adapter: Any) -> None:
         self._adapter = adapter
