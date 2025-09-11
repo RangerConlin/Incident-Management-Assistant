@@ -1,4 +1,4 @@
-"""Equipment table panel."""
+"""Vehicles table panel."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from ..bridges import logistics_bridge as bridge
 from ..utils.table_models import BaseTableModel
 
 
-class EquipmentPanel(QWidget):  # pragma: no cover
+class VehiclesPanel(QWidget):  # pragma: no cover
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout(self)
@@ -23,5 +23,5 @@ class EquipmentPanel(QWidget):  # pragma: no cover
         self.refresh()
 
     def refresh(self):
-        data = bridge.list_equipment()
+        data = bridge.list_vehicles()
         self.view.setModel(BaseTableModel(data))
