@@ -4,9 +4,9 @@ This directory provides replacements for the historic QML-based edit dialogs.
 The widgets are intentionally lightweight so they can be launched modelessly
 from the main window.  `base_dialog.py` supplies the common CRUD framework.
 
-Currently only the `RolesEditor` is fully wired to the master database.  The
-other editors are placeholders that demonstrate how new editors can be added
-and will be expanded in future work.
+At present only the `RolesEditor` persists to the master database. The
+remaining editors are stubs that outline the expected columns and can be
+extended with real data adapters.
 
 To create a new editor:
 

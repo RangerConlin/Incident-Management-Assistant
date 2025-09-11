@@ -727,13 +727,22 @@ class MainWindow(QMainWindow):
 
 # --- 4.2 Edit ------------------------------------------------------------
     def open_edit_ems(self) -> None:
-        self._open_qml_modal("qml/EmsWindow.qml", title="EMS Agencies")
+        from ui.edit.ems_editor import EmsEditor
+        if not hasattr(self, "_dlg_ems") or self._dlg_ems is None:
+            self._dlg_ems = EmsEditor(parent=self)
+        self._dlg_ems.show(); self._dlg_ems.raise_(); self._dlg_ems.activateWindow()
 
     def open_edit_hospitals(self) -> None:
-        self._open_qml_modal("qml/HospitalsWindow.qml", title="Hospitals")
+        from ui.edit.hospitals_editor import HospitalsEditor
+        if not hasattr(self, "_dlg_hospitals") or self._dlg_hospitals is None:
+            self._dlg_hospitals = HospitalsEditor(parent=self)
+        self._dlg_hospitals.show(); self._dlg_hospitals.raise_(); self._dlg_hospitals.activateWindow()
 
     def open_edit_canned_comm_entries(self) -> None:
-        self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
+        from ui.edit.canned_comm_editor import CannedCommEditor
+        if not hasattr(self, "_dlg_canned") or self._dlg_canned is None:
+            self._dlg_canned = CannedCommEditor(parent=self)
+        self._dlg_canned.show(); self._dlg_canned.raise_(); self._dlg_canned.activateWindow()
 
     def open_edit_roles(self) -> None:
         from ui.edit.roles_editor import RolesEditor
@@ -748,13 +757,22 @@ class MainWindow(QMainWindow):
         self._dlg_personnel.show(); self._dlg_personnel.raise_(); self._dlg_personnel.activateWindow()
 
     def open_edit_objectives(self) -> None:
-        self._open_qml_modal("qml/ObjectivesWindow.qml", title="Objectives")
+        from ui.edit.objectives_editor import ObjectivesEditor
+        if not hasattr(self, "_dlg_objectives") or self._dlg_objectives is None:
+            self._dlg_objectives = ObjectivesEditor(parent=self)
+        self._dlg_objectives.show(); self._dlg_objectives.raise_(); self._dlg_objectives.activateWindow()
 
     def open_edit_task_types(self) -> None:
-        self._open_qml_modal("qml/TaskTypesWindow.qml", title="Task Types")
+        from ui.edit.task_types_editor import TaskTypesEditor
+        if not hasattr(self, "_dlg_task_types") or self._dlg_task_types is None:
+            self._dlg_task_types = TaskTypesEditor(parent=self)
+        self._dlg_task_types.show(); self._dlg_task_types.raise_(); self._dlg_task_types.activateWindow()
 
     def open_edit_team_types(self) -> None:
-        self._open_qml_modal("qml/TeamTypesWindow.qml", title="Team Types")
+        from ui.edit.team_types_editor import TeamTypesEditor
+        if not hasattr(self, "_dlg_team_types") or self._dlg_team_types is None:
+            self._dlg_team_types = TeamTypesEditor(parent=self)
+        self._dlg_team_types.show(); self._dlg_team_types.raise_(); self._dlg_team_types.activateWindow()
 
     def open_edit_vehicles(self) -> None:
         from ui.edit.vehicle_editor import VehicleEditor
@@ -763,7 +781,10 @@ class MainWindow(QMainWindow):
         self._dlg_vehicles.show(); self._dlg_vehicles.raise_(); self._dlg_vehicles.activateWindow()
 
     def open_edit_aircraft(self) -> None:
-        self._open_qml_modal("qml/AircraftWindow.qml", title="Aircraft")
+        from ui.edit.aircraft_editor import AircraftEditor
+        if not hasattr(self, "_dlg_aircraft") or self._dlg_aircraft is None:
+            self._dlg_aircraft = AircraftEditor(parent=self)
+        self._dlg_aircraft.show(); self._dlg_aircraft.raise_(); self._dlg_aircraft.activateWindow()
 
     def open_edit_equipment(self) -> None:
         from ui.edit.equipment_editor import EquipmentEditor
@@ -784,7 +805,10 @@ class MainWindow(QMainWindow):
         self._dlg_comms.show(); self._dlg_comms.raise_(); self._dlg_comms.activateWindow()
 
     def open_edit_safety_templates(self) -> None:
-        self._open_qml_modal("qml/SafetyTemplatesWindow.qml", title="Incident Safety Analysis (ICS-215A)")
+        from ui.edit.safety_templates_editor import SafetyTemplatesEditor
+        if not hasattr(self, "_dlg_safety") or self._dlg_safety is None:
+            self._dlg_safety = SafetyTemplatesEditor(parent=self)
+        self._dlg_safety.show(); self._dlg_safety.raise_(); self._dlg_safety.activateWindow()
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
