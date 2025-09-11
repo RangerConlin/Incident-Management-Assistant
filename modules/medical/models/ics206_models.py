@@ -1,120 +1,271 @@
-"""Dataclasses representing ICS 206 resources.
-
-The structures mirror the tables used by :mod:`bridge.medical_bridge` and are
-simple containers intended for JSON serialisation when exposed to QML.
-"""
+"""Qt models for ICS 206 Medical Plan tables."""
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Dict, Any, Optional
+from dataclasses import dataclass
+from typing import List, Dict, Any, Sequence, Tuple
+
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 
-def _to_dict(obj: Any) -> Dict[str, Any]:
-    """Return a JSON-serialisable ``dict`` for *obj*."""
-    return asdict(obj)
-
+# ---------------------------------------------------------------------------
+# Dataclasses representing rows
+# ---------------------------------------------------------------------------
 
 @dataclass
-class AidStation:
-    id: Optional[int]
-    op_period: int
-    name: str = ""
-    type: str = ""
-    level: str = ""
-    is_24_7: bool = False
+class AidStationRow:
+    id: int | None
+    name: str
+    type: str
+    level: str
+    is_24_7: int
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy
-        return _to_dict(self)
-
 
 @dataclass
-class AmbulanceService:
-    id: Optional[int]
-    op_period: int
-    name: str = ""
-    type: str = ""
-    phone: str = ""
-    location: str = ""
+class AmbulanceRow:
+    id: int | None
+    agency: str
+    level: str
+    et_minutes: int
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy
-        return _to_dict(self)
-
 
 @dataclass
-class Hospital:
-    id: Optional[int]
-    op_period: int
-    name: str = ""
+class HospitalRow:
+    id: int | None
+    hospital: str
+    trauma_center: str
+    bed_cap: int | None
+    phone_er: str
     address: str = ""
-    phone: str = ""
-    helipad: bool = False
-    burn_center: bool = False
-    level: str = ""
+    city: str = ""
+    state: str = ""
+    zip: str = ""
+    helipad_lat: float | None = None
+    helipad_lon: float | None = None
+
+
+@dataclass
+class AirAmbulanceRow:
+    id: int | None
+    provider: str
+    contact: str
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy
-        return _to_dict(self)
-
 
 @dataclass
-class AirAmbulance:
-    id: Optional[int]
-    op_period: int
-    name: str = ""
-    phone: str = ""
-    base: str = ""
-    contact: str = ""
+class CommRow:
+    id: int | None
+    function: str
+    channel: str
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy
-        return _to_dict(self)
+
+# ---------------------------------------------------------------------------
+# Base table model
+# ---------------------------------------------------------------------------
+
+class DictTableModel(QAbstractTableModel):
+    """Generic table model working with a list of dictionaries."""
+
+    def __init__(self, headers: Sequence[Tuple[str, str]], parent=None) -> None:
+        super().__init__(parent)
+        self.headers = list(headers)
+        self.rows: List[Dict[str, Any]] = []
+
+    # Qt model interface -------------------------------------------------
+    def rowCount(self, parent: QModelIndex | None = None) -> int:  # type: ignore[override]
+        return len(self.rows)
+
+    def columnCount(self, parent: QModelIndex | None = None) -> int:  # type: ignore[override]
+        return len(self.headers)
+
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole):  # type: ignore[override]
+        if not index.isValid():
+            return None
+        field = self.headers[index.column()][0]
+        row = self.rows[index.row()]
+        value = row.get(field)
+        if role in (Qt.DisplayRole, Qt.EditRole):
+            if field == "is_24_7":
+                return "Yes" if value else "No"
+            return value
+        return None
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):  # type: ignore[override]
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return self.headers[section][1]
+        return super().headerData(section, orientation, role)
+
+    # convenience --------------------------------------------------------
+    def setRows(self, rows: List[Dict[str, Any]]) -> None:
+        self.beginResetModel()
+        self.rows = rows
+        self.endResetModel()
+
+    def row(self, index: QModelIndex) -> Dict[str, Any] | None:
+        if not index.isValid() or index.row() >= len(self.rows):
+            return None
+        return self.rows[index.row()]
 
 
-@dataclass
-class MedicalCommunication:
-    id: Optional[int]
-    op_period: int
-    channel: str = ""
-    function: str = ""
-    frequency: str = ""
-    mode: str = ""
-    notes: str = ""
+# ---------------------------------------------------------------------------
+# Specific table models using the bridge
+# ---------------------------------------------------------------------------
 
-    def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy
-        return _to_dict(self)
+class AidStationsModel(DictTableModel):
+    def __init__(self, bridge, parent=None) -> None:
+        headers = [
+            ("id", "ID"),
+            ("name", "Name"),
+            ("type", "Type"),
+            ("level", "Level"),
+            ("is_24_7", "24/7"),
+        ]
+        super().__init__(headers, parent)
+        self.bridge = bridge
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.setRows(self.bridge.list_aid_stations())
+
+    def insertRow(self, row: Dict[str, Any]) -> int:  # type: ignore[override]
+        rid = self.bridge.add_aid_station(row)
+        self.refresh()
+        return rid
+
+    def updateRow(self, row_id: int, row: Dict[str, Any]) -> None:
+        self.bridge.update_aid_station(row_id, row)
+        self.refresh()
+
+    def removeRow(self, row_id: int) -> None:  # type: ignore[override]
+        self.bridge.delete_aid_station(row_id)
+        self.refresh()
 
 
-@dataclass
-class Procedure:
-    id: Optional[int]
-    op_period: int
-    content: str = ""
+class AmbulanceModel(DictTableModel):
+    def __init__(self, bridge, parent=None) -> None:
+        headers = [
+            ("id", "ID"),
+            ("agency", "Agency"),
+            ("level", "Level"),
+            ("et_minutes", "ET (min)"),
+            ("notes", "Notes"),
+        ]
+        super().__init__(headers, parent)
+        self.bridge = bridge
+        self.refresh()
 
-    def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy
-        return _to_dict(self)
+    def refresh(self) -> None:
+        self.setRows(self.bridge.list_ambulance())
+
+    def insertRow(self, row: Dict[str, Any]) -> int:  # type: ignore[override]
+        rid = self.bridge.add_ambulance(row)
+        self.refresh()
+        return rid
+
+    def updateRow(self, row_id: int, row: Dict[str, Any]) -> None:
+        self.bridge.update_ambulance(row_id, row)
+        self.refresh()
+
+    def removeRow(self, row_id: int) -> None:  # type: ignore[override]
+        self.bridge.delete_ambulance(row_id)
+        self.refresh()
 
 
-@dataclass
-class Ics206Signature:
-    id: Optional[int]
-    op_period: int
-    prepared_by: str = ""
-    position: str = ""
-    approved_by: str = ""
-    date: str = ""
+class HospitalsModel(DictTableModel):
+    def __init__(self, bridge, parent=None) -> None:
+        headers = [
+            ("id", "ID"),
+            ("hospital", "Hospital"),
+            ("trauma_center", "Trauma Center"),
+            ("bed_cap", "Bed Cap"),
+            ("phone_er", "Phone (ER)"),
+            ("helipad_lat", "Helipad"),
+        ]
+        super().__init__(headers, parent)
+        self.bridge = bridge
+        self.refresh()
 
-    def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy
-        return _to_dict(self)
+    def refresh(self) -> None:
+        self.setRows(self.bridge.list_hospitals())
+
+    def insertRow(self, row: Dict[str, Any]) -> int:  # type: ignore[override]
+        rid = self.bridge.add_hospital(row)
+        self.refresh()
+        return rid
+
+    def updateRow(self, row_id: int, row: Dict[str, Any]) -> None:
+        self.bridge.update_hospital(row_id, row)
+        self.refresh()
+
+    def removeRow(self, row_id: int) -> None:  # type: ignore[override]
+        self.bridge.delete_hospital(row_id)
+        self.refresh()
+
+
+class AirAmbulanceModel(DictTableModel):
+    def __init__(self, bridge, parent=None) -> None:
+        headers = [
+            ("id", "ID"),
+            ("provider", "Provider"),
+            ("contact", "Contact"),
+            ("notes", "Notes"),
+        ]
+        super().__init__(headers, parent)
+        self.bridge = bridge
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.setRows(self.bridge.list_air_ambulance())
+
+    def insertRow(self, row: Dict[str, Any]) -> int:  # type: ignore[override]
+        rid = self.bridge.add_air_ambulance(row)
+        self.refresh()
+        return rid
+
+    def updateRow(self, row_id: int, row: Dict[str, Any]) -> None:
+        self.bridge.update_air_ambulance(row_id, row)
+        self.refresh()
+
+    def removeRow(self, row_id: int) -> None:  # type: ignore[override]
+        self.bridge.delete_air_ambulance(row_id)
+        self.refresh()
+
+
+class CommsModel(DictTableModel):
+    def __init__(self, bridge, parent=None) -> None:
+        headers = [
+            ("id", "ID"),
+            ("function", "Function"),
+            ("channel", "Channel"),
+            ("notes", "Notes"),
+        ]
+        super().__init__(headers, parent)
+        self.bridge = bridge
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.setRows(self.bridge.list_comms())
+
+    def insertRow(self, row: Dict[str, Any]) -> int:  # type: ignore[override]
+        rid = self.bridge.add_comm(row)
+        self.refresh()
+        return rid
+
+    def updateRow(self, row_id: int, row: Dict[str, Any]) -> None:
+        self.bridge.update_comm(row_id, row)
+        self.refresh()
+
+    def removeRow(self, row_id: int) -> None:  # type: ignore[override]
+        self.bridge.delete_comm(row_id)
+        self.refresh()
 
 
 __all__ = [
-    "AidStation",
-    "AmbulanceService",
-    "Hospital",
-    "AirAmbulance",
-    "MedicalCommunication",
-    "Procedure",
-    "Ics206Signature",
+    "AidStationsModel",
+    "AmbulanceModel",
+    "HospitalsModel",
+    "AirAmbulanceModel",
+    "CommsModel",
 ]

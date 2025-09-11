@@ -9,9 +9,10 @@ from PySide6.QtCore import QObject, Property
 
 from utils.state import AppState
 from utils.app_signals import app_signals
-from .panels import ICS206Panel
+from .panels import ICS206Panel, ICS206Window
+from bridge.ics206_bridge import Ics206Bridge
 
-__all__ = ["get_206_panel", "open_206_window"]
+__all__ = ["get_206_panel", "open_206_window", "open_206_widget_window"]
 
 
 # Keep strong refs so QML windows/bridges don't get GC'd
@@ -99,6 +100,18 @@ def open_206_window() -> QQmlApplicationEngine:
     _engines.append(engine)
     _bridges.append(bridge)
     return engine
+
+
+def open_206_widget_window() -> ICS206Window:
+    """Open the QtWidgets based ICS 206 window."""
+    bridge = Ics206Bridge()
+    bridge.ensure_ics206_tables()
+    class _State:
+        incident_name = str(AppState.get_active_incident() or "")
+        op_period_display = str(AppState.get_active_op_period() or "")
+    win = ICS206Window(bridge, _State())
+    win.show()
+    return win
 
 
 def get_206_panel(incident_id: Optional[object] = None) -> QWidget:
