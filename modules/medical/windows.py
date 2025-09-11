@@ -1,14 +1,12 @@
 from __future__ import annotations
-
 from typing import Optional
-
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
-
 from utils.state import AppState
+from utils.app_signals import app_signals
+from .panels import ICS206Panel, ICS206Window
 from bridge.ics206_bridge import Ics206Bridge
-from .panels import ICS206Window
 
-__all__ = ["get_206_panel", "open_206_window"]
+__all__ = ["get_206_panel", "open_206_window", "open_206_widget_window"]
 
 
 def open_206_window() -> ICS206Window:
@@ -20,6 +18,18 @@ def open_206_window() -> ICS206Window:
         incident_name = str(AppState.get_active_incident() or "")
         op_period_display = str(AppState.get_active_op_period() or "")
 
+    win = ICS206Window(bridge, _State())
+    win.show()
+    return win
+
+
+def open_206_widget_window() -> ICS206Window:
+    """Open the QtWidgets based ICS 206 window."""
+    bridge = Ics206Bridge()
+    bridge.ensure_ics206_tables()
+    class _State:
+        incident_name = str(AppState.get_active_incident() or "")
+        op_period_display = str(AppState.get_active_op_period() or "")
     win = ICS206Window(bridge, _State())
     win.show()
     return win
