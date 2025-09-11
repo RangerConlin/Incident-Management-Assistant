@@ -5,9 +5,10 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QSplitter, QListView, QTableView, QFormLayout,
-    QLineEdit, QComboBox, QCheckBox, QLabel, QGroupBox, QToolBar, QAction,
+    QLineEdit, QComboBox, QCheckBox, QLabel, QGroupBox, QToolBar,
     QApplication, QMessageBox
 )
+from PySide6.QtGui import QAction
 
 from utils.state import AppState
 
