@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-"""Read-only repository for the master communications catalog."""
+"""Read-only repository for the master communications catalog.
+
+This layer is schema-agnostic and maps whatever columns exist in
+``comms_resources`` to a canonical set of keys used by the UI.
+"""
 
 from typing import Any, Dict, List
 
 from . import db
-from .incident_repo import infer_band  # reuse band inference
+from .incident_repo import infer_band
 
 
 def _map_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    """Map a SQLite row from ``comms_resources`` to canonical keys."""
+    """Map a SQLite row from ``comms_resources`` to canonical keys.
+
+    Tolerates varying column names and missing fields.
+    """
     lower = {k.lower(): row[k] for k in row.keys()}
 
     def pick(*names: str, default: Any = None) -> Any:
@@ -19,8 +26,8 @@ def _map_row(row: Dict[str, Any]) -> Dict[str, Any]:
         return default
 
     name = pick("alpha tag", "alpha_tag", "name") or ""
-    rx = pick("freq rx", "freq_rx", default=0)
-    tx = pick("freq tx", "freq_tx", default=None)
+    rx = pick("freq rx", "freq_rx", "rx", default=0)
+    tx = pick("freq tx", "freq_tx", "tx", default=None)
     try:
         rx_freq = float(rx) if rx is not None else 0.0
     except (TypeError, ValueError):
@@ -31,7 +38,7 @@ def _map_row(row: Dict[str, Any]) -> Dict[str, Any]:
         tx_freq = None
 
     mapped = {
-        "id": row["id"],
+        "id": row.get("id"),
         "name": name,
         "function": pick("function", default="Tactical"),
         "rx_freq": rx_freq,
@@ -59,7 +66,6 @@ class MasterRepository:
             for r in conn.execute("SELECT * FROM comms_resources").fetchall():
                 rows.append(_map_row(dict(r)))
 
-        # Apply filters ------------------------------------------------------
         def match(row: Dict[str, Any]) -> bool:
             if val := filters.get("search"):
                 text = " ".join(str(row.get(k, "")) for k in ("name", "function", "notes")).lower()
@@ -84,3 +90,4 @@ class MasterRepository:
 
 
 __all__ = ["MasterRepository"]
+

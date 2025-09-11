@@ -1030,12 +1030,17 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS 213 Messages")
 
     def open_comms_205(self) -> None:
-        from modules.communications.panels import RadioPlanBuilder
+        # Open standalone ICS-205 window (Widgets only, non-dockable)
+        from modules.communications import create_ics205_window
 
-        # TODO: incident-specific scoping for communications panels
-        _incident_id = getattr(self, "current_incident_id", None)
-        panel = RadioPlanBuilder()
-        self._open_dock_widget(panel, title="Communications Plan (ICS-205)")
+        # Create as standalone (no docking, no parent) per spec
+        # Parent to main window to ensure proper Qt thread affinity/ownership
+        win = create_ics205_window(self)
+        try:
+            self._child_windows.append(win)  # keep reference
+        except Exception:
+            self._child_windows = [win]
+        win.show()
 
 # --- 4.8 Intel -----------------------------------------------------------
     def open_intel_unit_log(self) -> None:

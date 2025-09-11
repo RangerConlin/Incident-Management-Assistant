@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Repository managing incident specific communication plans."""
+"""Repository managing incident specific communication plans (ICS‑205)."""
 
 from datetime import datetime
 from typing import Any, Dict, List
@@ -8,12 +8,9 @@ from typing import Any, Dict, List
 from . import db
 from modules.communications.util import geo_line_rules
 
+
 UTC = "%Y-%m-%dT%H:%M:%S"
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def infer_band(freq: float | None) -> str:
     """Infer a band string from ``freq`` in MHz."""
@@ -49,16 +46,14 @@ def _squelch(tone: str | None) -> tuple[str | None, str | None]:
         return "CTCSS", tone
     except (TypeError, ValueError):
         pass
+    # three-digit numeric (e.g., 293) is typical DCS
+    if tone and tone.isdigit() and len(tone) in (2, 3):
+        return "DCS", tone
+    # NAC like F7E
     if tone and tone.upper().startswith("F"):
         return "NAC", tone
-    if tone and tone.isdigit():
-        return "DCS", tone
     return None, None
 
-
-# ---------------------------------------------------------------------------
-# Repository
-# ---------------------------------------------------------------------------
 
 class IncidentRepository:
     def __init__(self, incident_number: str | int):
@@ -94,10 +89,10 @@ class IncidentRepository:
                 INSERT INTO incident_channels (
                     master_id, channel, function, band, system, mode,
                     rx_freq, tx_freq, rx_tone, tx_tone, squelch_type, squelch_value,
-                    repeater, offset, encryption, assignment_division, assignment_team,
-                    priority, include_on_205, remarks, sort_index, line_a, line_c,
+                    repeater, offset, line_a, line_c, encryption, assignment_division, assignment_team,
+                    priority, include_on_205, remarks, sort_index,
                     created_at, updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     master_row.get("id"),
@@ -114,23 +109,22 @@ class IncidentRepository:
                     squelch_value,
                     repeater,
                     offset,
+                    int(master_row.get("line_a", 0) or 0),
+                    int(master_row.get("line_c", 0) or 0),
                     defaults.get("encryption", "None"),
                     defaults.get("assignment_division"),
                     defaults.get("assignment_team"),
                     defaults.get("priority", "Normal"),
-                    defaults.get("include_on_205", 1),
+                    int(defaults.get("include_on_205", 1)),
                     defaults.get("remarks"),
-                    defaults.get("sort_index", 1000),
-                    master_row.get("line_a", 0),
-                    master_row.get("line_c", 0),
+                    int(defaults.get("sort_index", 1000)),
                     now,
                     now,
                 ),
             )
             conn.commit()
             new_id = cur.lastrowid
-        row = self.get_row(new_id)
-        return row
+        return self.get_row(new_id)
 
     def get_row(self, row_id: int) -> Dict[str, Any]:
         with db.get_incident_conn(self.incident) as conn:
@@ -158,7 +152,7 @@ class IncidentRepository:
         if not row:
             return
         delta = -1 if direction == "up" else 1
-        new_index = row.get("sort_index", 1000) + delta
+        new_index = int(row.get("sort_index", 1000)) + delta
         self.update_row(row_id, {"sort_index": new_index})
 
     # Validation ------------------------------------------------------------
@@ -169,47 +163,37 @@ class IncidentRepository:
         for i, a in enumerate(rows):
             for b in rows[i + 1 :]:
                 if (
-                    a["band"] == b["band"]
-                    and a["mode"] == b["mode"]
-                    and a["rx_freq"] == b["rx_freq"]
+                    a.get("band") == b.get("band")
+                    and a.get("mode") == b.get("mode")
+                    and a.get("rx_freq") == b.get("rx_freq")
                     and (a.get("tx_freq") or 0) == (b.get("tx_freq") or 0)
-                    and a.get("rx_tone") == b.get("rx_tone")
-                    and a.get("tx_tone") == b.get("tx_tone")
+                    and (a.get("rx_tone") or "") == (b.get("rx_tone") or "")
+                    and (a.get("tx_tone") or "") == (b.get("tx_tone") or "")
                 ):
                     messages.append(
                         {
                             "level": "conflict",
-                            "text": f"Duplicate freq {a['rx_freq']} ({a['channel']} & {b['channel']})",
+                            "text": f"Duplicate freq {a.get('rx_freq')} ({a.get('channel')} & {b.get('channel')})",
                         }
                     )
         for r in rows:
             if not r.get("function"):
-                messages.append({"level": "warning", "text": f"{r['channel']} missing function"})
-            if r.get("function", "").lower() == "tactical" and (
+                messages.append({"level": "warning", "text": f"{r.get('channel')} missing function"})
+            if (r.get("function", "").lower() == "tactical") and (
                 not r.get("assignment_division") or not r.get("assignment_team")
             ):
-                messages.append(
-                    {"level": "warning", "text": f"{r['channel']} missing assignment"}
-                )
-            if r.get("repeater") == 0 and r.get("offset"):
-                messages.append(
-                    {"level": "warning", "text": f"{r['channel']} offset with no repeater"}
-                )
+                messages.append({"level": "warning", "text": f"{r.get('channel')} missing assignment"})
+            if int(r.get("repeater") or 0) == 0 and r.get("offset"):
+                messages.append({"level": "warning", "text": f"{r.get('channel')} offset with no repeater"})
             inferred = infer_band(r.get("rx_freq") or r.get("tx_freq"))
             if inferred != r.get("band"):
-                messages.append(
-                    {"level": "warning", "text": f"{r['channel']} out of band"}
-                )
-            if r.get("line_a"):
+                messages.append({"level": "warning", "text": f"{r.get('channel')} out of band"})
+            if int(r.get("line_a") or 0):
                 if geo_line_rules.line_a_applies(None, None):
-                    messages.append(
-                        {"level": "warning", "text": f"{r['channel']} Line A coordination"}
-                    )
-            if r.get("line_c"):
+                    messages.append({"level": "warning", "text": f"{r.get('channel')} Line A coordination"})
+            if int(r.get("line_c") or 0):
                 if geo_line_rules.line_c_applies(None, None):
-                    messages.append(
-                        {"level": "warning", "text": f"{r['channel']} Line C coordination"}
-                    )
+                    messages.append({"level": "warning", "text": f"{r.get('channel')} Line C coordination"})
 
         conflicts = sum(1 for m in messages if m["level"] == "conflict")
         warnings = sum(1 for m in messages if m["level"] == "warning")
@@ -245,3 +229,4 @@ class IncidentRepository:
 
 
 __all__ = ["IncidentRepository", "infer_band"]
+

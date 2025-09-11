@@ -1,0 +1,348 @@
+from __future__ import annotations
+
+"""Standalone ICS‑205 window (PySide6 Widgets only)."""
+
+from typing import Any, Dict, List
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QSplitter,
+    QListView,
+    QLineEdit,
+    QLabel,
+    QPushButton,
+    QTableView,
+    QToolBar,
+    QStatusBar,
+    QGroupBox,
+    QFormLayout,
+    QComboBox,
+    QCheckBox,
+    QTextEdit,
+    QMenu,
+    QMessageBox,
+)
+from PySide6.QtGui import QAction
+
+from utils.state import AppState
+from ..controller import ICS205Controller
+
+from ..views.preview_dialog import PreviewDialog
+from ..views.new_channel_dialog import NewChannelDialog
+from ..views.import_ics217_dialog import ImportICS217Dialog
+
+
+class ICS205Window(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlag(Qt.Window, True)
+        self.setWindowTitle("Communications Plan (ICS‑205)")
+
+        layout = QVBoxLayout(self)
+
+        incident = AppState.get_active_incident()
+        if incident is None:
+            msg = QLabel("Select or create an incident to edit ICS‑205.")
+            layout.addWidget(msg, alignment=Qt.AlignCenter)
+            self.setEnabled(False)
+            return
+
+        # Controller/models will be attached in a deferred step
+        self.controller = None  # type: ignore[assignment]
+
+        # Toolbar -----------------------------------------------------------
+        toolbar = QToolBar()
+        act_new = QAction("New Channel", self)
+        act_import = QAction("Import from ICS‑217", self)
+        act_dup = QAction("Duplicate", self)
+        act_del = QAction("Delete", self)
+        act_up = QAction("Move ▲", self)
+        act_down = QAction("Move ▼", self)
+        act_validate = QAction("Validate Plan", self)
+        act_generate = QAction("Generate ICS‑205", self)
+        act_save = QAction("Save", self)
+        act_close = QAction("Close", self)
+
+        for a in (act_new, act_import, act_dup, act_del, act_up, act_down, act_validate, act_generate, act_save, act_close):
+            toolbar.addAction(a)
+            if a in (act_del, act_down, act_generate):
+                toolbar.addSeparator()
+        layout.addWidget(toolbar)
+
+        # Splitter: left master / right plan --------------------------------
+        split = QSplitter(Qt.Horizontal)
+
+        # Left panel (master list)
+        left_box = QGroupBox("Master Catalog")
+        left_v = QVBoxLayout(left_box)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search master catalog…")
+        self.master_list = QListView()
+        left_v.addWidget(self.search)
+        left_v.addWidget(self.master_list)
+
+        # Right panel (plan grid + column menu)
+        right_box = QGroupBox("Active Communications Plan")
+        right_v = QVBoxLayout(right_box)
+        self.table = QTableView()
+        self.table.setSelectionBehavior(QTableView.SelectRows)
+        self.table.setSelectionMode(QTableView.SingleSelection)
+        self.table.setEditTriggers(QTableView.DoubleClicked | QTableView.SelectedClicked | QTableView.EditKeyPressed)
+        self.table.verticalHeader().setVisible(False)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        right_v.addWidget(self.table)
+
+        # Column visibility menu
+        self.col_menu = QMenu("Columns", self)
+        self.col_actions: List[QAction] = []
+        # Populate after model is attached (in _late_init)
+        toolbar.addAction(self.col_menu.menuAction())
+
+        split.addWidget(left_box)
+        split.addWidget(right_box)
+        split.setStretchFactor(0, 0)
+        split.setStretchFactor(1, 1)
+        layout.addWidget(split)
+
+        # Details / Editor --------------------------------------------------
+        editor = QGroupBox("Details / Editor")
+        form = QFormLayout(editor)
+        self.ed_channel = QLineEdit()
+        self.ed_function = QLineEdit()
+        self.ed_division = QLineEdit()
+        self.ed_team = QLineEdit()
+        self.ed_rx = QLineEdit()
+        self.ed_tx = QLineEdit()
+        self.ed_mode = QLineEdit()
+        self.ed_band = QLineEdit()
+        self.cb_include = QCheckBox("Include on ICS‑205")
+        self.ed_priority = QLineEdit("Normal")
+        self.ed_encryption = QLineEdit("None")
+        self.ed_remarks = QTextEdit()
+        form.addRow("Channel:", self.ed_channel)
+        form.addRow("Function:", self.ed_function)
+        form.addRow("Division:", self.ed_division)
+        form.addRow("Team:", self.ed_team)
+        form.addRow("RX Freq:", self.ed_rx)
+        form.addRow("TX Freq:", self.ed_tx)
+        form.addRow("Mode:", self.ed_mode)
+        form.addRow("Band:", self.ed_band)
+        form.addRow(self.cb_include)
+        form.addRow("Priority:", self.ed_priority)
+        form.addRow("Encryption:", self.ed_encryption)
+        form.addRow("Remarks:", self.ed_remarks)
+        layout.addWidget(editor)
+
+        # Status bar --------------------------------------------------------
+        self.status = QStatusBar()
+        self.status.showMessage("")
+        layout.addWidget(self.status)
+
+        # Wire signals ------------------------------------------------------
+        act_new.triggered.connect(self._open_new_channel)
+        act_import.triggered.connect(self._open_import_dialog)
+        act_dup.triggered.connect(self._duplicate_selected)
+        act_del.triggered.connect(self._delete_selected)
+        act_up.triggered.connect(lambda: self._move_selected("up"))
+        act_down.triggered.connect(lambda: self._move_selected("down"))
+        act_validate.triggered.connect(self._validate)
+        act_generate.triggered.connect(self._preview)
+        act_save.triggered.connect(self._save)
+        act_close.triggered.connect(self.close)
+
+        # Defer model wiring to the next event loop turn
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._late_init)
+
+    def _late_init(self):
+        # Instantiate controller and attach models
+        self.controller = ICS205Controller(self)
+        self.master_list.setModel(self.controller.masterModel)
+        self.table.setModel(self.controller.planModel)
+
+        # Populate column visibility menu now that we have a model
+        self.col_menu.clear()
+        self.col_actions.clear()
+        for i in range(self.controller.planModel.columnCount()):
+            title = self.controller.planModel.headerData(i, Qt.Horizontal, Qt.DisplayRole) or f"Col {i}"
+            act = QAction(str(title), self, checkable=True)
+            act.setChecked(True)
+            act.toggled.connect(lambda checked, col=i: self.table.setColumnHidden(col, not checked))
+            self.col_actions.append(act)
+            self.col_menu.addAction(act)
+
+        # Now that controller exists, wire dynamic signals
+        self.search.textChanged.connect(lambda t: self.controller.setFilter("search", t))
+        self.master_list.doubleClicked.connect(self._add_selected_master)
+        try:
+            self.table.selectionModel().selectionChanged.connect(self._load_editor_from_selection)
+        except Exception:
+            pass
+
+        # Initial state -----------------------------------------------------
+        self._refresh_table()
+
+    # Helpers ---------------------------------------------------------------
+    def _current_row_index(self) -> int:
+        idx = self.table.currentIndex()
+        return idx.row() if idx.isValid() else -1
+
+    def _refresh_table(self):
+        self.controller.refreshPlan()
+        self.table.resizeColumnsToContents()
+
+    def _load_editor_from_selection(self):
+        i = self._current_row_index()
+        rows = self.controller.planModel._rows
+        if 0 <= i < len(rows):
+            r = rows[i]
+            self.ed_channel.setText(str(r.get("channel") or ""))
+            self.ed_function.setText(str(r.get("function") or ""))
+            self.ed_division.setText(str(r.get("assignment_division") or ""))
+            self.ed_team.setText(str(r.get("assignment_team") or ""))
+            self.ed_rx.setText(str(r.get("rx_freq") or ""))
+            self.ed_tx.setText(str(r.get("tx_freq") or ""))
+            self.ed_mode.setText(str(r.get("mode") or ""))
+            self.ed_band.setText(str(r.get("band") or ""))
+            self.cb_include.setChecked(bool(int(r.get("include_on_205") or 0)))
+            self.ed_priority.setText(str(r.get("priority") or "Normal"))
+            self.ed_encryption.setText(str(r.get("encryption") or "None"))
+            self.ed_remarks.setPlainText(str(r.get("remarks") or ""))
+
+    def _apply_editor_to_row(self):
+        i = self._current_row_index()
+        if i < 0:
+            return
+        patch = {
+            "channel": self.ed_channel.text().strip(),
+            "function": self.ed_function.text().strip(),
+            "assignment_division": self.ed_division.text().strip(),
+            "assignment_team": self.ed_team.text().strip(),
+            "rx_freq": float(self.ed_rx.text()) if self.ed_rx.text().strip() else None,
+            "tx_freq": float(self.ed_tx.text()) if self.ed_tx.text().strip() else None,
+            "mode": self.ed_mode.text().strip(),
+            "band": self.ed_band.text().strip(),
+            "include_on_205": 1 if self.cb_include.isChecked() else 0,
+            "priority": self.ed_priority.text().strip() or "Normal",
+            "encryption": self.ed_encryption.text().strip() or "None",
+            "remarks": self.ed_remarks.toPlainText().strip(),
+        }
+        row_id = self.controller.planModel._rows[i]["id"]
+        self.controller.incident_repo.update_row(int(row_id), patch)
+        self._refresh_table()
+
+    # Actions ---------------------------------------------------------------
+    def _add_selected_master(self):
+        idx = self.master_list.currentIndex()
+        if not idx.isValid():
+            return
+        # MasterListModel returns id at role UserRole (1st custom role)
+        master_row = self.controller.masterModel.get(idx.row())
+        self.controller.incident_repo.add_from_master(master_row, {})
+        self._refresh_table()
+
+    def _open_new_channel(self):
+        dlg = NewChannelDialog(self.controller.incident_repo, self)
+        if dlg.exec():
+            data = dlg.get_channel_data()
+            # Treat as master-like row for add_from_master
+            master_like = {
+                "id": None,
+                "name": data.get("channel"),
+                "function": data.get("function"),
+                "rx_freq": data.get("rx_freq"),
+                "tx_freq": data.get("tx_freq"),
+                "rx_tone": data.get("rx_tone"),
+                "tx_tone": data.get("tx_tone"),
+                "system": data.get("system"),
+                "mode": data.get("mode"),
+                "notes": data.get("remarks"),
+                "line_a": 0,
+                "line_c": 0,
+            }
+            defaults = {
+                "assignment_division": data.get("assignment_division"),
+                "assignment_team": data.get("assignment_team"),
+                "priority": data.get("priority", "Normal"),
+                "include_on_205": 1 if data.get("include_on_205") else 0,
+                "encryption": data.get("encryption", "None"),
+                "remarks": data.get("remarks"),
+            }
+            self.controller.incident_repo.add_from_master(master_like, defaults)
+            self._refresh_table()
+
+    def _open_import_dialog(self):
+        dlg = ImportICS217Dialog(self.controller.master_repo, self)
+        if dlg.exec():
+            selected = dlg.get_selected_rows()
+            defaults = dlg.get_defaults()
+            for row in selected:
+                self.controller.incident_repo.add_from_master(row, defaults)
+            self._refresh_table()
+
+    def _duplicate_selected(self):
+        i = self._current_row_index()
+        rows = self.controller.planModel._rows
+        if 0 <= i < len(rows):
+            r = rows[i]
+            master_like = {
+                "id": r.get("master_id"),
+                "name": r.get("channel"),
+                "function": r.get("function"),
+                "rx_freq": r.get("rx_freq"),
+                "tx_freq": r.get("tx_freq"),
+                "rx_tone": r.get("rx_tone"),
+                "tx_tone": r.get("tx_tone"),
+                "system": r.get("system"),
+                "mode": r.get("mode"),
+                "notes": r.get("remarks"),
+                "line_a": r.get("line_a", 0),
+                "line_c": r.get("line_c", 0),
+            }
+            defaults = {
+                "assignment_division": r.get("assignment_division"),
+                "assignment_team": r.get("assignment_team"),
+                "priority": r.get("priority", "Normal"),
+                "include_on_205": r.get("include_on_205", 1),
+                "encryption": r.get("encryption", "None"),
+                "remarks": r.get("remarks"),
+                "sort_index": int(r.get("sort_index", 1000)) + 1,
+            }
+            self.controller.incident_repo.add_from_master(master_like, defaults)
+            self._refresh_table()
+
+    def _delete_selected(self):
+        i = self._current_row_index()
+        if i < 0:
+            return
+        row_id = self.controller.planModel._rows[i]["id"]
+        self.controller.incident_repo.delete_row(int(row_id))
+        self._refresh_table()
+
+    def _move_selected(self, direction: str):
+        i = self._current_row_index()
+        if i < 0:
+            return
+        row_id = self.controller.planModel._rows[i]["id"]
+        self.controller.incident_repo.reorder(int(row_id), direction)
+        self._refresh_table()
+
+    def _validate(self):
+        self.controller.runValidation()
+        self.status.showMessage(self.controller.statusLine)
+
+    def _preview(self):
+        rows = self.controller.getPreviewRows()
+        dlg = PreviewDialog(rows, self)
+        dlg.exec()
+
+    def _save(self):
+        # Edits are persisted immediately; use this to push editor changes
+        self._apply_editor_to_row()
+        self.status.showMessage("Saved", 2000)
+
+
+__all__ = ["ICS205Window"]
