@@ -1,0 +1,4 @@
+[
+  {"likelihood": "Low", "consequence": "Low", "risk_level": "Low"},
+  {"likelihood": "High", "consequence": "High", "risk_level": "Extreme"}
+]

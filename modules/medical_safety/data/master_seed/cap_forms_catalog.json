@@ -1,0 +1,16 @@
+[
+  {
+    "code": "CAPF-160",
+    "title": "Operational Risk Worksheet",
+    "version": "2025-01",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string"},
+        "date": {"type": "string"}
+      },
+      "required": ["title"]
+    },
+    "layout_file": "capf160.json"
+  }
+]
