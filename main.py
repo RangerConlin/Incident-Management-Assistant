@@ -351,9 +351,18 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Safety Unit Log ICS-214", None, "safety.unit_log")
         m_med.addSeparator()
         self._add_action(m_med, "Medical Plan ICS 206", None, "medical.206")
+        self._add_action(m_med, "Safety Dashboard", None, "safety.dashboard")
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
-        self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
-        self._add_action(m_med, "CAP ORM", None, "safety.caporm")
+        self._add_action(m_med, "IAP Safety Analysis ICS-215A", None, "safety.215A")
+        self._add_action(m_med, "Hazard Log", None, "safety.hazard_log")
+        self._add_action(m_med, "Safety Briefings", None, "safety.briefings")
+        self._add_action(m_med, "Safety Incidents", None, "safety.incidents")
+        self._add_action(m_med, "PPE Advisories", None, "safety.ppe")
+        self._add_action(m_med, "CAP Forms", None, "safety.cap_forms")
+        print_menu = m_med.addMenu("Print")
+        self._add_action(print_menu, "Print ICS 208", None, "safety.print_208")
+        self._add_action(print_menu, "Print ICS 215A", None, "safety.print_215A")
+        self._add_action(print_menu, "Print CAP Form...", None, "safety.print_cap_form")
 
         # ----- Liaison -----
         m_lia = mb.addMenu("Liaison")
@@ -593,9 +602,18 @@ class MainWindow(QMainWindow):
             "medical.unit_log": self.open_medical_unit_log,
             "safety.unit_log": self.open_safety_unit_log,
             "medical.206": self.open_medical_206,
+            "safety.dashboard": self.open_safety_dashboard,
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
-            "safety.caporm": self.open_safety_caporm,
+            "safety.hazard_log": self.open_safety_hazard_log,
+            "safety.briefings": self.open_safety_briefings,
+            "safety.incidents": self.open_safety_incidents,
+            "safety.ppe": self.open_safety_ppe,
+            "safety.cap_forms": self.open_safety_cap_forms,
+            "safety.caporm": self.open_safety_cap_forms,
+            "safety.print_208": self.print_safety_208,
+            "safety.print_215A": self.print_safety_215A,
+            "safety.print_cap_form": self.print_safety_cap_form,
 
             # ----- Liaison -----
             "liaison.unit_log": self.open_liaison_unit_log,
@@ -1087,22 +1105,89 @@ class MainWindow(QMainWindow):
             self._open_dock_widget(panel, title="Medical Plan (ICS 206)")
 
     def open_safety_208(self) -> None:
-        from modules import safety
+        from modules import medical_safety
         incident_id = getattr(self, "current_incident_id", None)
-        panel = safety.get_208_panel(incident_id)
+        panel = medical_safety.get_208_panel(incident_id)
         self._open_dock_widget(panel, title="Safety Message (ICS-208)")
 
     def open_safety_215A(self) -> None:
-        from modules import safety
+        from modules import medical_safety
         incident_id = getattr(self, "current_incident_id", None)
-        panel = safety.get_215A_panel(incident_id)
+        panel = medical_safety.get_215A_panel(incident_id)
         self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
-
-    def open_safety_caporm(self) -> None:
-        from modules import safety
+    def open_safety_cap_forms(self) -> None:
+        from modules import medical_safety
         incident_id = getattr(self, "current_incident_id", None)
-        panel = safety.get_caporm_panel(incident_id)
-        self._open_dock_widget(panel, title="CAP ORM")
+        panel = medical_safety.get_cap_forms_panel(incident_id)
+        self._open_dock_widget(panel, title="CAP Forms")
+
+    def open_safety_dashboard(self) -> None:
+        from modules import medical_safety
+        panel = medical_safety.get_dashboard_panel()
+        self._open_dock_widget(panel, title="Medical & Safety Dashboard")
+
+    def open_safety_hazard_log(self) -> None:
+        from modules import medical_safety
+        panel = medical_safety.get_hazard_log_panel()
+        self._open_dock_widget(panel, title="Hazard Log")
+
+    def open_safety_briefings(self) -> None:
+        from modules import medical_safety
+        panel = medical_safety.get_briefings_panel()
+        self._open_dock_widget(panel, title="Safety Briefings")
+
+    def open_safety_incidents(self) -> None:
+        from modules import medical_safety
+        panel = medical_safety.get_incidents_panel()
+        self._open_dock_widget(panel, title="Safety Incidents")
+
+    def open_safety_ppe(self) -> None:
+        from modules import medical_safety
+        panel = medical_safety.get_ppe_panel()
+        self._open_dock_widget(panel, title="PPE Advisories")
+
+    def print_safety_208(self) -> None:
+        try:
+            from modules.medical_safety.bridge.safety_bridge import (
+                safety_service,
+                get_incident_db_path,
+            )
+            from utils.state import AppState
+
+            db = get_incident_db_path()
+            op_id = AppState.get_active_op_period() or 0
+            record = safety_service.get_ics208(db, op_id)
+            if record:
+                safety_service.print_ics208(record, "ics208.pdf")
+        except Exception:
+            pass
+
+    def print_safety_215A(self) -> None:
+        try:
+            from modules.medical_safety.bridge.safety_bridge import (
+                safety_service,
+                get_incident_db_path,
+            )
+            from utils.state import AppState
+
+            db = get_incident_db_path()
+            op_id = AppState.get_active_op_period() or 0
+            items = safety_service.list_215a_items(db, op_id)
+            if items:
+                safety_service.print_ics215a(items, "ics215a.pdf")
+        except Exception:
+            pass
+
+    def print_safety_cap_form(self) -> None:
+        try:
+            from modules.medical_safety.bridge.safety_bridge import (
+                capforms_service,
+                get_incident_db_path,
+            )
+            db = get_incident_db_path()
+            capforms_service.render_cap_instance_pdf(db, 1, "cap_form.pdf")
+        except Exception:
+            pass
 
 # --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
