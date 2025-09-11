@@ -243,6 +243,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
         self._add_action(m_edit, "Hospitals", None, "edit.hospitals")
         self._add_action(m_edit, "Canned Communication Entries", None, "edit.canned_comm_entries")
+        self._add_action(m_edit, "Roles", None, "edit.roles")
         self._add_action(m_edit, "Personnel", None, "edit.personnel")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
@@ -250,7 +251,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
         self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
         self._add_action(m_edit, "Equipment", None, "edit.equipment")
-        self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
+        self._add_action(m_edit, "Teams", None, "edit.teams")
+        self._add_action(m_edit, "Communications Channels", None, "edit.comms_channels")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
 
         # ----- View -----
@@ -531,6 +533,7 @@ class MainWindow(QMainWindow):
             "edit.ems": self.open_edit_ems,
             "edit.hospitals": self.open_edit_hospitals,
             "edit.canned_comm_entries": self.open_edit_canned_comm_entries,
+            "edit.roles": self.open_edit_roles,
             "edit.personnel": self.open_edit_personnel,
             "edit.objectives": self.open_edit_objectives,
             "edit.task_types": self.open_edit_task_types,
@@ -538,7 +541,8 @@ class MainWindow(QMainWindow):
             "edit.vehicles": self.open_edit_vehicles,
             "edit.aircraft": self.open_edit_aircraft,
             "edit.equipment": self.open_edit_equipment,
-            "communications.217": self.open_edit_comms_resources,
+            "edit.teams": self.open_edit_teams,
+            "edit.comms_channels": self.open_edit_comms_channels,
             "edit.safety_templates": self.open_edit_safety_templates,
 
             # ----- Command -----
@@ -741,40 +745,88 @@ class MainWindow(QMainWindow):
 
 # --- 4.2 Edit ------------------------------------------------------------
     def open_edit_ems(self) -> None:
-        self._open_qml_modal("qml/EmsWindow.qml", title="EMS Agencies")
+        from ui.edit.ems_editor import EmsEditor
+        if not hasattr(self, "_dlg_ems") or self._dlg_ems is None:
+            self._dlg_ems = EmsEditor(parent=self)
+        self._dlg_ems.show(); self._dlg_ems.raise_(); self._dlg_ems.activateWindow()
 
     def open_edit_hospitals(self) -> None:
-        self._open_qml_modal("qml/HospitalsWindow.qml", title="Hospitals")
+        from ui.edit.hospitals_editor import HospitalsEditor
+        if not hasattr(self, "_dlg_hospitals") or self._dlg_hospitals is None:
+            self._dlg_hospitals = HospitalsEditor(parent=self)
+        self._dlg_hospitals.show(); self._dlg_hospitals.raise_(); self._dlg_hospitals.activateWindow()
 
     def open_edit_canned_comm_entries(self) -> None:
-        self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
+        from ui.edit.canned_comm_editor import CannedCommEditor
+        if not hasattr(self, "_dlg_canned") or self._dlg_canned is None:
+            self._dlg_canned = CannedCommEditor(parent=self)
+        self._dlg_canned.show(); self._dlg_canned.raise_(); self._dlg_canned.activateWindow()
+
+    def open_edit_roles(self) -> None:
+        from ui.edit.roles_editor import RolesEditor
+        if not hasattr(self, "_dlg_roles") or self._dlg_roles is None:
+            self._dlg_roles = RolesEditor(parent=self)
+        self._dlg_roles.show(); self._dlg_roles.raise_(); self._dlg_roles.activateWindow()
 
     def open_edit_personnel(self) -> None:
-        self._open_qml_modal("qml/PersonnelWindow.qml", title="Personnel")
+        from ui.edit.personnel_editor import PersonnelEditor
+        if not hasattr(self, "_dlg_personnel") or self._dlg_personnel is None:
+            self._dlg_personnel = PersonnelEditor(parent=self)
+        self._dlg_personnel.show(); self._dlg_personnel.raise_(); self._dlg_personnel.activateWindow()
 
     def open_edit_objectives(self) -> None:
-        self._open_qml_modal("qml/ObjectivesWindow.qml", title="Objectives")
+        from ui.edit.objectives_editor import ObjectivesEditor
+        if not hasattr(self, "_dlg_objectives") or self._dlg_objectives is None:
+            self._dlg_objectives = ObjectivesEditor(parent=self)
+        self._dlg_objectives.show(); self._dlg_objectives.raise_(); self._dlg_objectives.activateWindow()
 
     def open_edit_task_types(self) -> None:
-        self._open_qml_modal("qml/TaskTypesWindow.qml", title="Task Types")
+        from ui.edit.task_types_editor import TaskTypesEditor
+        if not hasattr(self, "_dlg_task_types") or self._dlg_task_types is None:
+            self._dlg_task_types = TaskTypesEditor(parent=self)
+        self._dlg_task_types.show(); self._dlg_task_types.raise_(); self._dlg_task_types.activateWindow()
 
     def open_edit_team_types(self) -> None:
-        self._open_qml_modal("qml/TeamTypesWindow.qml", title="Team Types")
+        from ui.edit.team_types_editor import TeamTypesEditor
+        if not hasattr(self, "_dlg_team_types") or self._dlg_team_types is None:
+            self._dlg_team_types = TeamTypesEditor(parent=self)
+        self._dlg_team_types.show(); self._dlg_team_types.raise_(); self._dlg_team_types.activateWindow()
 
     def open_edit_vehicles(self) -> None:
-        self._open_qml_modal("qml/VehiclesWindow.qml", title="Vehicles")
+        from ui.edit.vehicle_editor import VehicleEditor
+        if not hasattr(self, "_dlg_vehicles") or self._dlg_vehicles is None:
+            self._dlg_vehicles = VehicleEditor(parent=self)
+        self._dlg_vehicles.show(); self._dlg_vehicles.raise_(); self._dlg_vehicles.activateWindow()
 
     def open_edit_aircraft(self) -> None:
-        self._open_qml_modal("qml/AircraftWindow.qml", title="Aircraft")
+        from ui.edit.aircraft_editor import AircraftEditor
+        if not hasattr(self, "_dlg_aircraft") or self._dlg_aircraft is None:
+            self._dlg_aircraft = AircraftEditor(parent=self)
+        self._dlg_aircraft.show(); self._dlg_aircraft.raise_(); self._dlg_aircraft.activateWindow()
 
     def open_edit_equipment(self) -> None:
-        self._open_qml_modal("qml/EquipmentWindow.qml", title="Equipment")
+        from ui.edit.equipment_editor import EquipmentEditor
+        if not hasattr(self, "_dlg_equipment") or self._dlg_equipment is None:
+            self._dlg_equipment = EquipmentEditor(parent=self)
+        self._dlg_equipment.show(); self._dlg_equipment.raise_(); self._dlg_equipment.activateWindow()
 
-    def open_edit_comms_resources(self) -> None:
-        self._open_qml_modal("qml/CommsResourcesWindow.qml", title="Communications Resources (ICS-217)")
+    def open_edit_teams(self) -> None:
+        from ui.edit.team_editor import TeamEditor
+        if not hasattr(self, "_dlg_teams") or self._dlg_teams is None:
+            self._dlg_teams = TeamEditor(parent=self)
+        self._dlg_teams.show(); self._dlg_teams.raise_(); self._dlg_teams.activateWindow()
+
+    def open_edit_comms_channels(self) -> None:
+        from ui.edit.comms_channel_editor import CommsChannelEditor
+        if not hasattr(self, "_dlg_comms") or self._dlg_comms is None:
+            self._dlg_comms = CommsChannelEditor(parent=self)
+        self._dlg_comms.show(); self._dlg_comms.raise_(); self._dlg_comms.activateWindow()
 
     def open_edit_safety_templates(self) -> None:
-        self._open_qml_modal("qml/SafetyTemplatesWindow.qml", title="Incident Safety Analysis (ICS-215A)")
+        from ui.edit.safety_templates_editor import SafetyTemplatesEditor
+        if not hasattr(self, "_dlg_safety") or self._dlg_safety is None:
+            self._dlg_safety = SafetyTemplatesEditor(parent=self)
+        self._dlg_safety.show(); self._dlg_safety.raise_(); self._dlg_safety.activateWindow()
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
