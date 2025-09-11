@@ -680,6 +680,8 @@ class MainWindow(QMainWindow):
                     description=meta.description,
                     icp_location=meta.location,
                     is_training=meta.is_training,
+                    status=meta.status,
+                    start_time=meta.start_time,
                 )
         except Exception as e:
             logger.exception("Failed to register incident in master.db: %s", e)
@@ -690,14 +692,15 @@ class MainWindow(QMainWindow):
             )
 
         # 2) Set as the active incident immediately
-        try:
-            from utils import incident_context
-            self.current_incident_id = meta.number
-            AppState.set_active_incident(meta.number)
-            incident_context.set_active_incident(str(meta.number))
-            self.update_title_with_active_incident()
-        except Exception:
-            logger.exception("Failed to set active incident context")
+        if meta.status == "Active":
+            try:
+                from utils import incident_context
+                self.current_incident_id = meta.number
+                AppState.set_active_incident(meta.number)
+                incident_context.set_active_incident(str(meta.number))
+                self.update_title_with_active_incident()
+            except Exception:
+                logger.exception("Failed to set active incident context")
 
         # 3) Notify user (after attempting registration + activation)
         QMessageBox.information(
@@ -718,14 +721,19 @@ class MainWindow(QMainWindow):
         # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_open_incident(self) -> None:
         """Launch the Incident Selection window."""
-        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
-        def _apply_active(number: int) -> None:
-            print(f"[main] on_select callback received: {number}")
+        from ui.windows.incident_selection_window import IncidentSelectionWindow
+
+        def _apply_active(number: str) -> None:
             self.current_incident_id = number
             AppState.set_active_incident(number)
             self.update_title_with_active_incident()
 
-        show_incident_selector(on_select=_apply_active)
+        if not hasattr(self, "incident_selection_window") or self.incident_selection_window is None:
+            self.incident_selection_window = IncidentSelectionWindow(parent=self)
+            self.incident_selection_window.incidentLoaded.connect(_apply_active)
+        self.incident_selection_window.show()
+        self.incident_selection_window.raise_()
+        self.incident_selection_window.activateWindow()
 
     def open_menu_save_incident(self) -> None:
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector

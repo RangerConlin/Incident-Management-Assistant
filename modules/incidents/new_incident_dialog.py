@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QDateTime, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QMessageBox,
+    QDateTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -33,8 +34,10 @@ class IncidentMeta:
     number: str
     name: str
     type: str
+    status: str
     description: str
     location: str
+    start_time: str
     is_training: bool
 
     def slug(self) -> str:
@@ -63,20 +66,27 @@ class NewIncidentDialog(QDialog):
         self._name = QLineEdit()
         self._number = QLineEdit()
         self._type = QComboBox()
-        self._type.addItems(["SAR", "Disaster Response"])
+        self._type.addItems(["SAR", "Fire", "Planned Event", "Training", "Other"])
+        self._status = QComboBox()
+        self._status.addItems(["Active", "Standby", "Planned", "Training"])
+        self._start_time = QDateTimeEdit(QDateTime.currentDateTimeUtc())
+        self._start_time.setDisplayFormat("yyyy-MM-dd HH:mm")
         self._desc = QLineEdit()
         self._location = QLineEdit()
-        self._training = QCheckBox("Training Incident?")
+        self._training = QCheckBox("Is Training Incident")
 
         form = QFormLayout()
         form.addRow("Name", self._name)
         form.addRow("Number", self._number)
         form.addRow("Type", self._type)
+        form.addRow("Status", self._status)
+        form.addRow("Start Time", self._start_time)
         form.addRow("Description", self._desc)
         form.addRow("ICP Location", self._location)
         form.addRow(self._training)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Create Incident")
         buttons.accepted.connect(self._handle_accept)
         buttons.rejected.connect(self._handle_reject)
 
@@ -86,17 +96,24 @@ class NewIncidentDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _handle_accept(self) -> None:
+        name = self._name.text().strip()
+        number = self._number.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Missing Data", "Incident Name is required.")
+            return
+        if not number:
+            number = re.sub(r"[^A-Za-z0-9]+", "-", name).strip("-").lower()
+
         meta = IncidentMeta(
-            number=self._number.text().strip(),
-            name=self._name.text().strip(),
+            number=number,
+            name=name,
             type=self._type.currentText().strip(),
+            status=self._status.currentText().strip(),
             description=self._desc.text().strip(),
             location=self._location.text().strip(),
+            start_time=self._start_time.dateTime().toString(Qt.ISODate),
             is_training=self._training.isChecked(),
         )
-        if not meta.name or not meta.number:
-            QMessageBox.warning(self, "Missing Data", "Name and Number are required.")
-            return
 
         # Prevent duplicates: check master for existing incident number
         try:
