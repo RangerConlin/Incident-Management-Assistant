@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 from typing import Optional
+from dataclasses import asdict
 
 from .dto import (
     Aircraft,
@@ -49,7 +50,7 @@ class LogisticsService:
 
     def create_personnel(self, actor: str, person: Personnel) -> int:
         pid = self.personnel.create(person)
-        self.audit.log(actor, "create", PersonnelRepo.TABLE, pid, None, person.__dict__)
+        self.audit.log(actor, "create", PersonnelRepo.TABLE, pid, None, asdict(person))
         return pid
 
     def update_personnel(self, actor: str, person: Personnel) -> None:
@@ -57,10 +58,10 @@ class LogisticsService:
         if person.id is not None:
             for p in self.personnel.list():
                 if p.id == person.id:
-                    before = p.__dict__
+                    before = asdict(p)
                     break
         self.personnel.update(person)
-        self.audit.log(actor, "update", PersonnelRepo.TABLE, person.id, before, person.__dict__)
+        self.audit.log(actor, "update", PersonnelRepo.TABLE, person.id, before, asdict(person))
 
     def delete_personnel(self, actor: str, person_id: int) -> None:
         self.personnel.delete(person_id)
@@ -107,7 +108,7 @@ class LogisticsService:
             person.status = PersonStatus.AVAILABLE
         person.checkin_status = status
         self.personnel.update(person)
-        self.audit.log(actor, "checkin", CheckInRepo.TABLE, rid, None, rec.__dict__)
+        self.audit.log(actor, "checkin", CheckInRepo.TABLE, rid, None, asdict(rec))
         return rid
 
     # Equipment / Vehicles / Aircraft ----------------------------------
@@ -115,11 +116,11 @@ class LogisticsService:
     def _save_resource(self, actor: str, repo, table: str, obj, before: dict | None = None) -> int | None:
         if obj.id is None:
             rid = repo.create(obj)
-            self.audit.log(actor, "create", table, rid, None, obj.__dict__)
+            self.audit.log(actor, "create", table, rid, None, asdict(obj))
             return rid
         else:
             repo.update(obj)
-            self.audit.log(actor, "update", table, obj.id, before, obj.__dict__)
+            self.audit.log(actor, "update", table, obj.id, before, asdict(obj))
             return obj.id
 
     def save_equipment(self, actor: str, eq: Equipment) -> int:
@@ -127,7 +128,7 @@ class LogisticsService:
             eq.assigned_team_id = None
         before = None
         if eq.id:
-            before = next((e.__dict__ for e in self.equipment.list() if e.id == eq.id), None)
+            before = next((asdict(e) for e in self.equipment.list() if e.id == eq.id), None)
         return int(self._save_resource(actor, self.equipment, EquipmentRepo.TABLE, eq, before))
 
     def save_vehicle(self, actor: str, v: Vehicle) -> int:
@@ -135,7 +136,7 @@ class LogisticsService:
             v.assigned_team_id = None
         before = None
         if v.id:
-            before = next((e.__dict__ for e in self.vehicles.list() if e.id == v.id), None)
+            before = next((asdict(e) for e in self.vehicles.list() if e.id == v.id), None)
         return int(self._save_resource(actor, self.vehicles, VehicleRepo.TABLE, v, before))
 
     def save_aircraft(self, actor: str, a: Aircraft) -> int:
@@ -143,7 +144,7 @@ class LogisticsService:
             a.assigned_team_id = None
         before = None
         if a.id:
-            before = next((e.__dict__ for e in self.aircraft.list() if e.id == a.id), None)
+            before = next((asdict(e) for e in self.aircraft.list() if e.id == a.id), None)
         return int(self._save_resource(actor, self.aircraft, AircraftRepo.TABLE, a, before))
 
     def delete_equipment(self, actor: str, eq_id: int) -> None:

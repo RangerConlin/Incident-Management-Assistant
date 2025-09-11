@@ -38,9 +38,10 @@ def _get_home_panel():
 def get_logistics_panel(incident_id: object | None = None) -> QWidget:
     """Return the main Logistics dashboard panel."""
 
+    if incident_id is not None:
+        incident_context.set_active_incident(str(incident_id))
     HomePanel = _get_home_panel()
-    incident = str(incident_id) if incident_id is not None else None
-    return HomePanel(incident)
+    return HomePanel()
 
 
 def get_checkin_panel(incident_id: object | None = None) -> QWidget:
