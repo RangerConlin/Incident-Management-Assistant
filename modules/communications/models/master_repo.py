@@ -1,86 +1,94 @@
 from __future__ import annotations
 
-"""Read-only repository for the master communications catalog."""
-
+import sqlite3
 from typing import Any, Dict, List
 
-from . import db
-from .incident_repo import infer_band  # reuse band inference
-
-
-def _map_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    """Map a SQLite row from ``comms_resources`` to canonical keys."""
-    lower = {k.lower(): row[k] for k in row.keys()}
-
-    def pick(*names: str, default: Any = None) -> Any:
-        for n in names:
-            if n in lower and lower[n] not in (None, ""):
-                return lower[n]
-        return default
-
-    name = pick("alpha tag", "alpha_tag", "name") or ""
-    rx = pick("freq rx", "freq_rx", default=0)
-    tx = pick("freq tx", "freq_tx", default=None)
-    try:
-        rx_freq = float(rx) if rx is not None else 0.0
-    except (TypeError, ValueError):
-        rx_freq = 0.0
-    try:
-        tx_freq = float(tx) if tx not in (None, "") else None
-    except (TypeError, ValueError):
-        tx_freq = None
-
-    mapped = {
-        "id": row["id"],
-        "name": name,
-        "function": pick("function", default="Tactical"),
-        "rx_freq": rx_freq,
-        "tx_freq": tx_freq,
-        "rx_tone": pick("rx tone", "rx_tone"),
-        "tx_tone": pick("tx tone", "tx_tone"),
-        "system": pick("system"),
-        "mode": pick("mode", default="FM"),
-        "notes": pick("notes"),
-        "line_a": int(pick("line_a", default=0) or 0),
-        "line_c": int(pick("line_c", default=0) or 0),
-    }
-    mapped["display_name"] = mapped["name"] or f"Ch-{mapped['id']}"
-    mapped["band"] = infer_band(mapped["rx_freq"] or mapped["tx_freq"] or 0)
-    return mapped
+from .db import get_master_conn
 
 
 class MasterRepository:
-    """Repository interface for the master catalog."""
+    """Read-only access to ``comms_resources`` from the master database.
 
+    The schema may vary between deployments so rows are mapped to a canonical
+    dictionary with optional keys filled with defaults.
+    """
+
+    def _map_row(self, row: sqlite3.Row) -> Dict[str, Any]:
+        def _col(name: str, default: Any = None):
+            return row[name] if name in row.keys() else default
+
+        name = _col('Alpha Tag') or _col('name') or f"Channel-{row['id']}"
+        function = _col('function', 'Tactical') or 'Tactical'
+        mapped = {
+            'id': row['id'],
+            'name': name,
+            'function': function,
+            'rx_freq': _col('Freq Rx'),
+            'tx_freq': _col('Freq Tx'),
+            'rx_tone': _col('Rx Tone'),
+            'tx_tone': _col('Tx Tone'),
+            'system': _col('System'),
+            'mode': _col('Mode'),
+            'notes': _col('Notes'),
+            'line_a': _col('line_a', 0),
+            'line_c': _col('line_c', 0),
+        }
+        mapped['display_name'] = mapped['name']
+        return mapped
+
+    # ------------------------------------------------------------------
     def list_channels(self, filters: Dict[str, Any] | None = None) -> List[Dict[str, Any]]:
         filters = filters or {}
         rows: List[Dict[str, Any]] = []
-        with db.get_master_conn() as conn:
-            for r in conn.execute("SELECT * FROM comms_resources").fetchall():
-                rows.append(_map_row(dict(r)))
+        with get_master_conn() as conn:
+            cur = conn.execute('SELECT * FROM comms_resources')
+            for row in cur.fetchall():
+                mapped = self._map_row(row)
+                if self._apply_filters(mapped, filters):
+                    rows.append(mapped)
+        return rows
 
-        # Apply filters ------------------------------------------------------
-        def match(row: Dict[str, Any]) -> bool:
-            if val := filters.get("search"):
-                text = " ".join(str(row.get(k, "")) for k in ("name", "function", "notes")).lower()
-                if val.lower() not in text:
-                    return False
-            if val := filters.get("band"):
-                if row.get("band") != val:
-                    return False
-            if val := filters.get("mode"):
-                if row.get("mode") != val:
-                    return False
-            return True
+    def _apply_filters(self, row: Dict[str, Any], filters: Dict[str, Any]) -> bool:
+        search = filters.get('search')
+        if search:
+            haystack = f"{row.get('name','')} {row.get('notes','')}".lower()
+            if search.lower() not in haystack:
+                return False
+        mode = filters.get('mode')
+        if mode and row.get('mode') != mode:
+            return False
+        band = filters.get('band')
+        if band and band != self._infer_band(row):
+            return False
+        return True
 
-        return [r for r in rows if match(r)]
+    def _infer_band(self, row: Dict[str, Any]) -> str:
+        f = row.get('rx_freq') or row.get('tx_freq') or 0
+        try:
+            f = float(f)
+        except Exception:
+            return 'Other'
+        if 3 <= f < 30:
+            return 'HF'
+        if 30 <= f < 54:
+            return 'VHF-LOW'
+        if 118 <= f <= 137:
+            return 'Air'
+        if 156 <= f <= 163:
+            return 'Marine'
+        if 54 <= f < 300:
+            return 'VHF'
+        if 300 <= f < 700:
+            return 'UHF'
+        if 700 <= f <= 869:
+            return '700/800'
+        return 'Other'
 
-    def get_channel(self, channel_id: int) -> Dict[str, Any] | None:
-        with db.get_master_conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM comms_resources WHERE id=?", (channel_id,)
-            ).fetchone()
-            return _map_row(dict(row)) if row else None
-
-
-__all__ = ["MasterRepository"]
+    # ------------------------------------------------------------------
+    def get_channel(self, id: int) -> Dict[str, Any] | None:
+        with get_master_conn() as conn:
+            cur = conn.execute('SELECT * FROM comms_resources WHERE id=?', (id,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return self._map_row(row)
