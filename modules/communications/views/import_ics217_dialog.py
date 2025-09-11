@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox, QLabel
+    QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox, QLabel,
+    QAbstractItemView,
 )
 
 from ..controller import ICS205Controller
@@ -15,7 +16,7 @@ class ImportICS217Dialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel('Select channels to import:'))
         self.list = QListWidget()
-        self.list.setSelectionMode(self.list.MultiSelection)
+        self.list.setSelectionMode(QAbstractItemView.MultiSelection)
         layout.addWidget(self.list)
         for row in controller.masterModel.rows:
             item = QListWidgetItem(row['display_name'])

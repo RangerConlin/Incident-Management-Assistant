@@ -3,7 +3,7 @@ from typing import Optional
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from utils.state import AppState
 from utils.app_signals import app_signals
-from .panels import ICS206Panel, ICS206Window
+from .panels import ICS206Window
 from bridge.ics206_bridge import Ics206Bridge
 
 __all__ = ["get_206_panel", "open_206_window", "open_206_widget_window"]

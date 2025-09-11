@@ -53,13 +53,17 @@ class IncidentRepository:
         repeater = 1 if rx_freq and tx_freq and rx_freq != tx_freq else 0
         offset = (tx_freq - rx_freq) if repeater else None
         squelch_type, squelch_value = self._synth_squelch(master_row.get('rx_tone'))
+        # Ensure required fields have sane defaults
+        mode = master_row.get('mode') or 'FM'
+        rx_freq = rx_freq if rx_freq is not None else 0.0
+
         fields = {
             'master_id': master_row.get('id'),
             'channel': master_row.get('name'),
             'function': master_row.get('function', 'Tactical'),
             'band': band,
             'system': master_row.get('system'),
-            'mode': master_row.get('mode'),
+            'mode': mode,
             'rx_freq': rx_freq,
             'tx_freq': tx_freq,
             'rx_tone': master_row.get('rx_tone'),
