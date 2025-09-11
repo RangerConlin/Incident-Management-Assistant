@@ -72,6 +72,12 @@ class IncidentTableModel(QAbstractTableModel):
         value = row.get(col)
         if role in (Qt.DisplayRole, Qt.EditRole):
             return self._format_value(value)
+        if role == Qt.FontRole and str(row.get("status", "")).lower() == "active":
+            from PySide6.QtGui import QFont
+
+            font = QFont()
+            font.setBold(True)
+            return font
         return value
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):  # type: ignore[override]
