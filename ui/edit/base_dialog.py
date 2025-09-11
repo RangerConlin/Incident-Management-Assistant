@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal, QSortFilterProxyModel
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QToolBar,
     QVBoxLayout,
     QWidget,
-    QSortFilterProxyModel,
 )
 
 from .widgets import SearchLineEdit
@@ -147,9 +146,10 @@ class BaseEditDialog(QDialog):
     # ------------------------------------------------------------------ configuration
 
     def _connect_selection_model(self) -> None:
-        self.table.selectionModel().selectionChanged.connect(
-            lambda *_: self._update_action_states()
-        )
+        sm = self.table.selectionModel()
+        if sm is None:
+            return
+        sm.selectionChanged.connect(lambda *_: self._update_action_states())
 
     def set_columns(self, columns: Iterable[tuple[str, str]]) -> None:
         self._columns = [ColumnSpec(*c) for c in columns]
