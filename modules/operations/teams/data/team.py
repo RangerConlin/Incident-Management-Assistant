@@ -39,6 +39,8 @@ class Team:
     team_type: str = "GT"  # e.g., GT, UDF, AIR
     radio_ids: Optional[str] = None  # free-form text for now
     route: Optional[str] = None
+    # Attention flag (aka "needs assistance")
+    needs_attention: bool = False
 
     def to_db_dict(self) -> Dict[str, Any]:
         """Serialize to a dict suitable for DB operations.
@@ -74,6 +76,7 @@ class Team:
             "team_type": self.team_type,
             "radio_ids": self.radio_ids,
             "route": self.route,
+            "needs_attention": 1 if bool(self.needs_attention) else 0,
         }
 
     @staticmethod
@@ -147,11 +150,16 @@ class Team:
             }.get(str(_get("team_type") or "GT").lower(), str(_get("team_type") or "GT")),
             radio_ids=_get("radio_ids"),
             route=_get("route"),
+            needs_attention=(
+                bool(_get("needs_attention"))
+                if _get("needs_attention") is not None
+                else False
+            ),
         )
 
     def to_qml(self) -> Dict[str, Any]:
         """Return a QML-friendly dict (simple JSON types only)."""
-        return {
+        data: Dict[str, Any] = {
             "team_id": self.team_id,
             "name": self.name,
             "callsign": self.callsign,
@@ -177,5 +185,11 @@ class Team:
             "team_type": self.team_type,
             "radio_ids": self.radio_ids,
             "route": self.route,
+            "needs_attention": bool(self.needs_attention),
         }
+        # Compatibility aliases for existing QML bindings
+        data["last_contact_ts"] = data["last_comm_ts"]
+        data["primary_task_id"] = data["current_task_id"]
+        data["needs_assist"] = data["needs_attention"]
+        return data
 

@@ -467,13 +467,7 @@ class MainWindow(QMainWindow):
         act_reset.triggered.connect(self._reset_layout)
         self.menuDebug.addAction(act_reset)
 
-        # Quick QML-openers for troubleshooting (bypass QWidget panels)
-        act_team_qml = QAction("Open Team Status (QML)", self)
-        act_team_qml.triggered.connect(lambda: self._open_team_status_qml_debug())
-        self.menuDebug.addAction(act_team_qml)
-        act_task_qml = QAction("Open Task Status (QML)", self)
-        act_task_qml.triggered.connect(lambda: self._open_task_status_qml_debug())
-        self.menuDebug.addAction(act_task_qml)
+        # QML debug openers removed to allow running without QML assets
 
         act_audit = QAction("Audit Console", self)
         def _show_audit():
@@ -921,13 +915,11 @@ class MainWindow(QMainWindow):
             panel = TeamStatusPanel(self)
             self._open_dock_widget(panel, title="Team Status")
             return
-        except Exception:
-            pass
-        # Fallback to QML if panel import fails (prefer QQuickView container)
-        from data.sample_data import TEAM_ROWS, TEAM_HEADERS
-        qml_file = os.path.join("modules", "operations", "qml", "TeamStatus.qml")
-        ctx = {"teamRows": TEAM_ROWS, "teamHeaders": TEAM_HEADERS, "statusColumn": 4}
-        self._open_dock_from_qml_view(qml_file, "Team Status", context=ctx)
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Team Status", f"Team Status panel could not be loaded.\n{e}")
+            except Exception:
+                print(f"[warn] Team Status panel could not be loaded: {e}")
 
     def open_operations_task_board(self) -> None:
         # Prefer the QWidget panel version to avoid QQuickWidget rendering issues
@@ -936,38 +928,20 @@ class MainWindow(QMainWindow):
             panel = TaskStatusPanel(self)
             self._open_dock_widget(panel, title="Task Status")
             return
-        except Exception:
-            pass
-        # Fallback to QML if panel import fails (prefer QQuickView container)
-        from data.sample_data import TASK_ROWS, TASK_HEADERS
-        qml_file = os.path.join("modules", "operations", "qml", "TaskStatus.qml")
-        try:
-            status_idx = TASK_HEADERS.index("Status")
-        except ValueError:
-            status_idx = 2
-        ctx = {"taskRows": TASK_ROWS, "taskHeaders": TASK_HEADERS, "statusColumn": status_idx}
-        self._open_dock_from_qml_view(qml_file, "Task Board", context=ctx)
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Task Status", f"Task Status panel could not be loaded.\n{e}")
+            except Exception:
+                print(f"[warn] Task Status panel could not be loaded: {e}")
 
     def open_operations_narrative(self) -> None:
-        # Open the narrative window (incident-scoped)
-        self._open_qml_modal("qml/NarrativeWindow.qml", title="Narrative")
-
-    # Debug helpers to open QML boards directly (QQuickView)
-    def _open_team_status_qml_debug(self) -> None:
-        from data.sample_data import TEAM_ROWS, TEAM_HEADERS
-        qml_file = os.path.join("modules", "operations", "qml", "TeamStatus.qml")
-        ctx = {"teamRows": TEAM_ROWS, "teamHeaders": TEAM_HEADERS, "statusColumn": 4}
-        self._open_dock_from_qml_view(qml_file, "Team Status (QML)", context=ctx)
-
-    def _open_task_status_qml_debug(self) -> None:
-        from data.sample_data import TASK_ROWS, TASK_HEADERS
-        qml_file = os.path.join("modules", "operations", "qml", "TaskStatus.qml")
+        # No separate Narrative window; use the Task Detail window's Narrative tab.
         try:
-            status_idx = TASK_HEADERS.index("Status")
-        except ValueError:
-            status_idx = 2
-        ctx = {"taskRows": TASK_ROWS, "taskHeaders": TASK_HEADERS, "statusColumn": status_idx}
-        self._open_dock_from_qml_view(qml_file, "Task Status (QML)", context=ctx)
+            QMessageBox.information(self, "Narrative", "Narrative is managed within each Task's detail window.")
+        except Exception:
+            print("[info] Narrative is managed within each Task's detail window.")
+
+    # QML debug helpers removed to allow running without QML assets
 
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QTextEdit,
     QSpinBox,
+    QMessageBox,
 )
 
 from ..models import Clue
@@ -38,11 +39,19 @@ class ClueEditorDialog(QDialog):
         self.desc_edit = QTextEdit()
 
         form = QFormLayout(self)
-        form.addRow("Type", self.type_edit)
+        # Mark required fields with * and provide placeholders/tooltips
+        self.type_edit.setPlaceholderText("Required")
+        self.location_edit.setPlaceholderText("Required")
+        self.entered_by_edit.setPlaceholderText("Required")
+        self.type_edit.setToolTip("Clue type (required)")
+        self.location_edit.setToolTip("Human-readable location (required)")
+        self.entered_by_edit.setToolTip("Recorder's name (required)")
+
+        form.addRow("Type*", self.type_edit)
         form.addRow("Score", self.score_spin)
-        form.addRow("Time", self.time_edit)
-        form.addRow("Location", self.location_edit)
-        form.addRow("Entered By", self.entered_by_edit)
+        form.addRow("Time*", self.time_edit)
+        form.addRow("Location*", self.location_edit)
+        form.addRow("Entered By*", self.entered_by_edit)
         form.addRow("Team", self.team_edit)
         form.addRow("Description", self.desc_edit)
 
@@ -75,6 +84,20 @@ class ClueEditorDialog(QDialog):
             team_text=self.team_edit.text().strip() or None,
             description=self.desc_edit.toPlainText().strip() or None,
         )
-        validators.validate_clue(data)
+        try:
+            validators.validate_clue(data)
+        except validators.ValidationError as e:
+            QMessageBox.warning(self, "Required Fields", str(e))
+            # Focus first missing input based on message
+            msg = str(e)
+            if "'type'" in msg:
+                self.type_edit.setFocus()
+            elif "'at_time'" in msg:
+                self.time_edit.setFocus()
+            elif "'location_text'" in msg:
+                self.location_edit.setFocus()
+            elif "'entered_by'" in msg:
+                self.entered_by_edit.setFocus()
+            return
         self._clue = data
         super().accept()

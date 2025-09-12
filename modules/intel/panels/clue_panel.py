@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QDialog,
     QMessageBox,
 )
 from sqlmodel import select
@@ -56,6 +57,11 @@ class CluePanel(QWidget):
     def refresh(self) -> None:
         """Reload clues from the database."""
         self.table.setRowCount(0)
+        # Ensure schema exists on first run to avoid missing-table errors.
+        try:
+            db_access.ensure_incident_schema()
+        except Exception:
+            pass
         with db_access.incident_session() as session:
             clues: List[Clue] = session.exec(select(Clue)).all()
         for row, clue in enumerate(clues):
@@ -78,7 +84,7 @@ class CluePanel(QWidget):
     # ------------------------------------------------------------------
     def _add(self) -> None:
         dlg = ClueEditorDialog(parent=self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.clue)
                 session.commit()
@@ -92,7 +98,7 @@ class CluePanel(QWidget):
         with db_access.incident_session() as session:
             clue = session.get(Clue, clue_id)
         dlg = ClueEditorDialog(clue, self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.clue)
                 session.commit()

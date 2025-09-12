@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+# Qt panel classes
 from .panels.intel_dashboard import IntelDashboard
+
+# Public factory functions expected by main window handlers
+from .windows import (
+    get_dashboard_panel,
+    get_clue_log_panel,
+    get_add_clue_panel,
+)
 
 
 def register_intel_module(app) -> IntelDashboard:
@@ -19,4 +27,10 @@ def register_intel_module(app) -> IntelDashboard:
     return IntelDashboard()
 
 
-__all__ = ["register_intel_module", "IntelDashboard"]
+__all__ = [
+    "register_intel_module",
+    "IntelDashboard",
+    "get_dashboard_panel",
+    "get_clue_log_panel",
+    "get_add_clue_panel",
+]

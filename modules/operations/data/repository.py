@@ -277,12 +277,21 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             needs_attention = int(needs_attention)
         except Exception:
             needs_attention = 1 if str(needs_attention).strip().lower() in {"true", "yes", "1"} else 0
+        # Only show a sortie number if the team is currently assigned to a task
+        # and that task assignment has a sortie id.
+        try:
+            current_task_id = int(r["task_id"]) if r["task_id"] is not None else None
+        except Exception:
+            current_task_id = None
+        raw_sortie = r["sortie_id"] if "sortie_id" in r.keys() else None
+        sortie_display = str(raw_sortie) if (current_task_id is not None and raw_sortie) else ""
+
         out.append(
             {
                 "tt_id": None,
-                "task_id": int(r["task_id"]) if r["task_id"] is not None else None,
+                "task_id": current_task_id,
                 "team_id": team_id,
-                "sortie": str(team_label),
+                "sortie": sortie_display,
                 "name": str(team_label),
                 "leader": r["leader_name"] or "",
                 "contact": r["leader_contact"] or "",

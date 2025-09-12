@@ -23,6 +23,52 @@ C.ApplicationWindow {
     property bool editMode: false
     ListModel { id: narrativeModel }
 
+    // Column sizing for Narrative list
+    property int narTimeW: 160
+    property int narByW: 160
+    property int narTeamW: 140
+    property int narCritW: 90
+    function _setWidth(prop, w) {
+        var mw = 60; var mx = 800;
+        var v = Math.max(mw, Math.min(mx, Math.floor(w)));
+        if (prop === 'time') narTimeW = v;
+        else if (prop === 'by') narByW = v;
+        else if (prop === 'team') narTeamW = v;
+        else if (prop === 'crit') narCritW = v;
+    }
+    function narEntryW() {
+        // Remaining width inside the row: subtract margins (2*6) and spacing (4*12)
+        var vw = (typeof narrativeList !== 'undefined' && narrativeList && narrativeList.width) ? narrativeList.width : 800;
+        var used = (narTimeW + narByW + narTeamW + narCritW) + (4*12) + (2*6);
+        return Math.max(120, vw - used);
+    }
+    function _fmtTs(ts) {
+        if (!ts) return "";
+        try {
+            var s = String(ts);
+            var dot = s.indexOf('.');
+            if (dot > 0) {
+                var tz = '';
+                var tzStart = (s.indexOf('Z', dot) >= 0) ? s.indexOf('Z', dot) : s.indexOf('+', dot);
+                if (tzStart > 0) { tz = s.substring(tzStart); s = s.substring(0, tzStart); }
+                s = s.substring(0, dot) + tz;
+            }
+            var d = new Date(s);
+            if (isNaN(d.getTime())) return s;
+            function pad(n){ return (n<10?('0'+n):String(n)); }
+            var mm = pad(d.getUTCMonth()+1);
+            var dd = pad(d.getUTCDate());
+            var yy = String(d.getUTCFullYear()).slice(-2);
+            var HH = pad(d.getUTCHours());
+            var MM = pad(d.getUTCMinutes());
+            var SS = pad(d.getUTCSeconds());
+            return mm + '-' + dd + '-' + yy + ' ' + HH + ':' + MM + ':' + SS;
+        } catch(e) { return String(ts); }
+    }
+    function _isCrit(v) {
+        return v === true || v === 1 || v === '1' || v === 'true' || v === 'True' || v === 'YES' || v === 'Yes';
+    }
+
     signal requestClose()
 
     function isNewTask() {
@@ -171,6 +217,7 @@ C.ApplicationWindow {
                     }
                 }
             }
+            C.ComboBox { id: narCritical; Layout.preferredWidth: 100; model: ["No","Yes"]; currentIndex: 0 }
             C.Button { text: "Add"; onClicked: submitNarrative }
         }
 
@@ -212,7 +259,7 @@ C.ApplicationWindow {
             }
 
             StackLayout { Layout.fillWidth: true; Layout.fillHeight: true; currentIndex: tabbar.currentIndex
-                // 1. Narrative
+                // 1. Narrative (embedded list)
                 Item { Layout.fillWidth: true; Layout.fillHeight: true
                     C.ScrollView { anchors.fill: parent
                         ListView {
@@ -221,29 +268,64 @@ C.ApplicationWindow {
                             model: narrativeModel
                             header: Rectangle { height: 32; color: "#000"; width: parent.width
                                 Row { anchors.fill: parent; anchors.margins: 6; spacing: 12
-                                    C.Label { text: "Date/Time"; color: "#fff"; width: 100 }
-                                    C.Label { text: "Entry"; color: "#fff"; Layout.fillWidth: true }
-                                    C.Label { text: "Entered By"; color: "#fff"; width: 140 }
-                                    C.Label { text: "Team"; color: "#fff"; width: 120 }
-                                    C.Label { text: "Critical"; color: "#fff"; width: 70 }
+                                    // Time (resizable)
+                                    Rectangle { width: narTimeW; color: "transparent"
+                                        C.Label { anchors.centerIn: parent; text: "Date/Time"; color: "#fff" }
+                                        MouseArea { anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 6; cursorShape: Qt.SplitHCursor
+                                            property real __startX; property real __w
+                                            onPressed: { __startX = mouse.x; __w = narTimeW }
+                                            onPositionChanged: { if (pressed) _setWidth('time', __w + (mouse.x-__startX)) }
+                                        }
+                                    }
+                                    // Entry (fills remaining)
+                                    Rectangle { width: narEntryW(); color: "transparent"
+                                        C.Label { anchors.centerIn: parent; text: "Entry"; color: "#fff" }
+                                    }
+                                    // Entered By (resizable)
+                                    Rectangle { width: narByW; color: "transparent"
+                                        C.Label { anchors.centerIn: parent; text: "Entered By"; color: "#fff" }
+                                        MouseArea { anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 6; cursorShape: Qt.SplitHCursor
+                                            property real __startX; property real __w
+                                            onPressed: { __startX = mouse.x; __w = narByW }
+                                            onPositionChanged: { if (pressed) _setWidth('by', __w + (mouse.x-__startX)) }
+                                        }
+                                    }
+                                    // Team (resizable)
+                                    Rectangle { width: narTeamW; color: "transparent"
+                                        C.Label { anchors.centerIn: parent; text: "Team"; color: "#fff" }
+                                        MouseArea { anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 6; cursorShape: Qt.SplitHCursor
+                                            property real __startX; property real __w
+                                            onPressed: { __startX = mouse.x; __w = narTeamW }
+                                            onPositionChanged: { if (pressed) _setWidth('team', __w + (mouse.x-__startX)) }
+                                        }
+                                    }
+                                    // Critical (resizable)
+                                    Rectangle { width: narCritW; color: "transparent"
+                                        C.Label { anchors.centerIn: parent; text: "Critical"; color: "#fff" }
+                                        MouseArea { anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 6; cursorShape: Qt.SplitHCursor
+                                            property real __startX; property real __w
+                                            onPressed: { __startX = mouse.x; __w = narCritW }
+                                            onPositionChanged: { if (pressed) _setWidth('crit', __w + (mouse.x-__startX)) }
+                                        }
+                                    }
                                 }
                             }
                             delegate: Rectangle {
                                 width: ListView.view.width; height: 36
-                                color: (model.critical_flag===true || model.critical===true) ? "#d32f2f" : "#ffffff"
+                                color: (_isCrit(model.critical_flag) || _isCrit(model.critical)) ? "#ffe5e5" : "#ffffff"
                                 border.color: "#c0c0c0"
                                 Row { anchors.fill: parent; anchors.margins: 6; spacing: 12
-                                    C.Label { text: (model.timestamp || model.time || ""); width: 100; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: (model.entry_text || model.text || ""); Layout.fillWidth: true; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: (model.entered_by || model.by || ""); width: 140; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: (model.team_name || model.team || ""); width: 120; color: (parent.color==="#d32f2f"?"#fff":"#000") }
-                                    C.Label { text: ((model.critical_flag || model.critical) ? "Yes" : "No"); width: 70; horizontalAlignment: Text.AlignHCenter; color: (parent.color==="#d32f2f"?"#fff":"#000") }
+                                    C.Label { text: _fmtTs(model.timestamp || model.time || ""); width: narTimeW }
+                                    C.Label { text: (model.entry_text || model.text || ""); width: narEntryW() }
+                                    C.Label { text: (model.entered_by || model.by || ""); width: narByW }
+                                    C.Label { text: (model.team_name || model.team || ""); width: narTeamW }
+                                    C.Label { text: (_isCrit(model.critical_flag || model.critical) ? "Yes" : "No"); width: narCritW; horizontalAlignment: Text.AlignHCenter }
                                 }
                             }
                         }
                     }
                 }
-
+                
                 // 2. Teams
                 Item { Layout.fillWidth: true; Layout.fillHeight: true
                     ColumnLayout { anchors.fill: parent
@@ -332,12 +414,13 @@ C.ApplicationWindow {
     // --- Actions ---
     function submitNarrative() {
         if (!narrativeEntry.text || !taskId || taskId < 1) return;
-        var payload = { timestamp: new Date().toISOString(), entry_text: narrativeEntry.text, entered_by: "", team_name: "", critical_flag: false };
+        var payload = { timestamp: new Date().toISOString(), entry_text: narrativeEntry.text, entered_by: "", team_name: "", critical_flag: (narCritical.currentIndex === 1) };
         dataApi.post(`/api/operations/taskings/${taskId}/narrative`, payload, function(saved){
             // Append to model optimistically
             var obj = saved || payload
             narrativeModel.append(obj)
             narrativeEntry.text = ""
+            narCritical.currentIndex = 0
             // scroll to bottom
             if (narrativeList && narrativeList.count>0) narrativeList.positionViewAtEnd()
         });

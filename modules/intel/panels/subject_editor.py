@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..models import Subject
+from ..utils import validators
 
 
 class SubjectEditor(QDialog):
@@ -33,7 +34,9 @@ class SubjectEditor(QDialog):
         self.sex_edit = QLineEdit()
         self.dob_edit = QLineEdit()
         self.race_edit = QLineEdit()
-        ident_form.addRow("Name", self.name_edit)
+        self.name_edit.setPlaceholderText("Required")
+        self.name_edit.setToolTip("Subject full name (required)")
+        ident_form.addRow("Name*", self.name_edit)
         ident_form.addRow("Sex", self.sex_edit)
         ident_form.addRow("DOB", self.dob_edit)
         ident_form.addRow("Race", self.race_edit)
@@ -65,5 +68,12 @@ class SubjectEditor(QDialog):
             dob=self.dob_edit.text().strip() or None,
             race=self.race_edit.text().strip() or None,
         )
+        try:
+            validators.validate_subject(data)
+        except validators.ValidationError as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Required Fields", str(e))
+            self.name_edit.setFocus()
+            return
         self._subject = data
         super().accept()

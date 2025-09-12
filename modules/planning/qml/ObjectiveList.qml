@@ -194,10 +194,35 @@ Item {
                                     delegate: Rectangle {
                                         width: parent.width
                                         height: implicitHeight
-                                        color: "transparent"
+                                        color: (critical === 1 || critical === true) ? "#ffe5e5" : "transparent"
                                         Column {
                                             anchors.margins: 8; anchors.fill: parent; spacing: 2
-                                            Text { text: ts + " • " + user; font.pixelSize: 12; opacity: 0.8 }
+                                            Text {
+                                                // Format ts as MM-DD-YY HH:MM:SS
+                                                text: (function(){
+                                                    function pad(n){ return (n<10?('0'+n):String(n)); }
+                                                    try {
+                                                        var s = String(ts);
+                                                        var dot = s.indexOf('.');
+                                                        if (dot > 0) {
+                                                            var tz = '';
+                                                            var tzStart = s.indexOf('Z', dot) >= 0 ? s.indexOf('Z', dot) : s.indexOf('+', dot);
+                                                            if (tzStart > 0) { tz = s.substring(tzStart); s = s.substring(0, tzStart); }
+                                                            s = s.substring(0, dot) + tz;
+                                                        }
+                                                        var d = new Date(s);
+                                                        if (isNaN(d.getTime())) return (ts + " • " + user);
+                                                        var mm = pad(d.getUTCMonth()+1);
+                                                        var dd = pad(d.getUTCDate());
+                                                        var yy = String(d.getUTCFullYear()).slice(-2);
+                                                        var HH = pad(d.getUTCHours());
+                                                        var MM = pad(d.getUTCMinutes());
+                                                        var SS = pad(d.getUTCSeconds());
+                                                        return (mm + '-' + dd + '-' + yy + ' ' + HH + ':' + MM + ':' + SS + ' • ' + user);
+                                                    } catch(e) { return (ts + " • " + user); }
+                                                })()
+                                                font.pixelSize: 12; opacity: 0.8
+                                            }
                                             Text { text: text; wrapMode: Text.Wrap }
                                         }
                                     }

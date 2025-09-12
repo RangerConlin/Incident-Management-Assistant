@@ -70,12 +70,18 @@ Dialog {
                             if (item.hasOwnProperty('col')) { item.col = col; }
 
                             var has = root.data && col && root.data.hasOwnProperty(col.key);
+                            var raw = has ? root.data[col.key] : undefined;
+                            var displayV = raw;
+                            if (col && col.toDisplay && typeof col.toDisplay === 'function') {
+                                try { displayV = col.toDisplay(raw); } catch (e) { displayV = raw; }
+                            }
                             if (has) {
                                 if (item.hasOwnProperty('prefill')) {
-                                    item.prefill(root.data[col.key]);
+                                    // For enums/options, prefill expects raw value
+                                    item.prefill(raw);
                                 } else {
-                                    if (item.hasOwnProperty('text')) item.text = String(root.data[col.key] === undefined ? "" : root.data[col.key]);
-                                    if (item.hasOwnProperty('value')) item.value = root.data[col.key];
+                                    if (item.hasOwnProperty('text')) item.text = String(displayV === undefined || displayV === null ? "" : displayV);
+                                    if (item.hasOwnProperty('value')) item.value = (displayV === undefined ? null : displayV);
                                 }
                             } else {
                                 if (item.hasOwnProperty('text')) item.text = "";
@@ -128,6 +134,10 @@ Dialog {
                         if (editor) {
                             if (editor.value !== undefined) v = editor.value;
                             else if (editor.text !== undefined) v = editor.text;
+                        }
+                        // Column-level parse from display value if provided
+                        if (row.col && row.col.fromDisplay && typeof row.col.fromDisplay === 'function') {
+                            try { v = row.col.fromDisplay(v); } catch (e) { /* keep as-is on parse error */ }
                         }
 
                         // Treat blank strings as null (useful for optional enums)

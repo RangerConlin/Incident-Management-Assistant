@@ -14,7 +14,7 @@
 // Backend expectations on `teamBridge` (implement as needed):
 //   team: {
 //     id, team_type, name, callsign, team_leader_id, status,
-//     team_leader_phone, last_contact_ts, primary_task_id, assignment,
+//     team_leader_phone, last_comm_ts, current_task_id, assignment,
 //     notes
 //   }
 //   currentUserDisplay : string
@@ -238,7 +238,7 @@ ApplicationWindow {
             spacing: 8
             RowLayout { spacing: 8
               Label { text: "Last Contact"; Layout.preferredWidth: 120 }
-              Label { text: t && t.last_contact_ts ? t.last_contact_ts : "—"; Layout.preferredWidth: 220 }
+              Label { text: (t && t.last_comm_ts) ? t.last_comm_ts : (t && t.last_update_ts ? t.last_update_ts : ""); Layout.preferredWidth: 220 }
             }
             RowLayout { spacing: 8
               Label { text: "Primary Task"; Layout.preferredWidth: 120 }
@@ -246,20 +246,21 @@ ApplicationWindow {
                 TextField {
                   Layout.preferredWidth: 220
                   readOnly: true
-                  text: teamBridge && t && t.primary_task_id ? String(t.primary_task_id) : "—"
+                  text: teamBridge && t && t.current_task_id ? String(t.current_task_id) : ""
                 }
                 Button {
-                  text: (teamBridge && t && t.primary_task_id) ? "Open" : "Link…"
+                  text: (teamBridge && t && t.current_task_id) ? "Open" : "Link..."
                   enabled: !!teamBridge
-                  onClicked: teamBridge && (t && t.primary_task_id ? teamBridge.openTaskDetail() : (teamBridge.linkTaskDialog ? teamBridge.linkTaskDialog.open() : null))
+                  onClicked: teamBridge && (t && t.current_task_id ? teamBridge.openTaskDetail() : (teamBridge.linkTaskDialog ? teamBridge.linkTaskDialog.open() : null))
                 }
                 Button {
-                  visible: !!(teamBridge && t && t.primary_task_id)
+                  visible: !!(teamBridge && t && t.current_task_id)
                   text: "Unlink"
-                  onClicked: teamBridge && teamBridge.unlinkTask ? teamBridge.unlinkTask(t.primary_task_id) : null
+                  onClicked: teamBridge && teamBridge.unlinkTask ? teamBridge.unlinkTask(t.current_task_id) : null
                 }
               }
             }
+
             RowLayout { spacing: 8
               Label { text: "Assignment"; Layout.preferredWidth: 120 }
               TextField {
@@ -279,6 +280,7 @@ ApplicationWindow {
             wrapMode: TextArea.Wrap
             text: t && t.notes ? t.notes : ""
             onTextChanged: notesTimer.restart()
+            background: Rectangle { color: "#f7f7f9"; radius: 4; border.color: "#d0d0d0" }
           }
           Timer { id: notesTimer; interval: 500; repeat: false; onTriggered: if (teamBridge) teamBridge.updateFromQml({ notes: parent.parent.children[1].text }) }
         }
@@ -305,7 +307,7 @@ ApplicationWindow {
         }
       }
       Button { text: "Update Status"; onClicked: cbStatus.popup.open() }
-      Button { text: "View Task"; enabled: !!(teamBridge && t && t.primary_task_id); onClicked: teamBridge && teamBridge.openTaskDetail() }
+      Button { text: "View Task"; enabled: !!(teamBridge && t && t.current_task_id); onClicked: teamBridge && teamBridge.openTaskDetail() }
     }
 
     TabBar { id: tabs; Layout.fillWidth: true
@@ -607,6 +609,7 @@ ApplicationWindow {
     return ""
   }
 }
+
 
 
 

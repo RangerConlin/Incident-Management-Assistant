@@ -156,7 +156,8 @@ class TaskStatusPanel(QWidget):
         menu = QMenu(self)
 
         # Top-level actions
-        menu.addAction("View Task Detail", lambda: self.view_task_detail(row))
+        menu.addAction("View Task Detail (Widget)", lambda: self.view_task_detail(row))
+        menu.addAction("View Task Detail (QML)", lambda: self.view_task_detail_qml(row))
 
         # Add separator
         menu.addSeparator()
@@ -182,6 +183,17 @@ class TaskStatusPanel(QWidget):
             open_task_detail_window(task_id)
         except Exception as e:
             print(f"Failed to open Task Detail Window: {e}")
+
+    def view_task_detail_qml(self, row):
+        try:
+            item = self.table.item(row, 0)
+            task_id = int(item.data(Qt.UserRole)) if item and item.data(Qt.UserRole) is not None else None
+            if task_id is None:
+                raise RuntimeError("No task id associated with row")
+            from modules.operations.taskings.windows import open_task_detail_window_qml
+            open_task_detail_window_qml(task_id)
+        except Exception as e:
+            print(f"Failed to open QML Task Detail Window: {e}")
 
     def change_status(self, row, new_status):
         try:

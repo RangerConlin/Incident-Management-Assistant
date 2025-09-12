@@ -44,6 +44,9 @@ def _ensure_team_columns(con: sqlite3.Connection) -> None:
         to_add.append(("primary_task", "TEXT"))
     if "assignment" not in cols:
         to_add.append(("assignment", "TEXT"))
+    # Attention flag
+    if "needs_attention" not in cols:
+        to_add.append(("needs_attention", "BOOLEAN"))
     # Geo / movement
     if "last_known_lat" not in cols:
         to_add.append(("last_known_lat", "REAL"))

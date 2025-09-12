@@ -37,14 +37,92 @@ def _get_conn(prefer_mission: bool) -> sqlite3.Connection:
     # Ensure legacy databases have required columns
     try:
         cur = conn.execute("PRAGMA table_info(audit_logs)")
-        cols = [row[1] for row in cur.fetchall()]
-        if "ts_utc" not in cols:
-            conn.execute("ALTER TABLE audit_logs ADD COLUMN ts_utc TEXT")
-            # migrate existing timestamp column if present
-            if "ts" in cols:
-                conn.execute("UPDATE audit_logs SET ts_utc = ts WHERE ts_utc IS NULL AND ts IS NOT NULL")
-            conn.commit()
+        col_rows = cur.fetchall()
+        cols = [row[1] for row in col_rows]
+
+        # Add columns used by this module if missing. We keep them nullable to
+        # avoid issues altering existing tables with data.
+        needed_columns = {
+            "ts_utc": "TEXT",
+            "user_id": "INTEGER",
+            "action": "TEXT",
+            "detail": "TEXT",
+            "incident_number": "TEXT",
+        }
+
+        for col_name, col_type in needed_columns.items():
+            if col_name not in cols:
+                conn.execute(f"ALTER TABLE audit_logs ADD COLUMN {col_name} {col_type}")
+
+        # If legacy objective bridge created audit_logs with NOT NULL taskid
+        # it will block our inserts that don't provide taskid. Relax it by
+        # rebuilding the table with a superset schema where taskid is nullable.
+        taskid_notnull = False
+        for r in col_rows:
+            if r[1] == "taskid":  # row format: cid, name, type, notnull, dflt_value, pk
+                taskid_notnull = bool(r[3])
+                break
+        if taskid_notnull:
+            # Build a new table with the union of known columns and relaxed constraints
+            union_columns = [
+                ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+                ("ts_utc", "TEXT"),
+                ("user_id", "INTEGER"),
+                ("action", "TEXT"),
+                ("detail", "TEXT"),
+                ("incident_number", "TEXT"),
+                ("taskid", "INTEGER"),  # now nullable
+                ("field_changed", "TEXT"),
+                ("old_value", "TEXT"),
+                ("new_value", "TEXT"),
+                ("changed_by", "INTEGER"),
+                ("timestamp", "TEXT"),
+            ]
+            create_sql = (
+                "CREATE TABLE IF NOT EXISTS audit_logs_mig (" + 
+                ", ".join([f"{n} {t}" for n, t in union_columns]) + ")"
+            )
+            conn.execute(create_sql)
+
+            # Compose column list and SELECT with fallback NULLs for missing columns
+            existing_cols = set(cols)
+            names = [n for n, _ in union_columns]
+            select_items = [
+                (n if n in existing_cols else f"NULL AS {n}") for n in names
+            ]
+            # id is PK; when copying we should preserve if present, else let autoinc assign
+            if "id" not in existing_cols:
+                # Replace first select item to NULL for id
+                select_items[0] = "NULL AS id"
+
+            insert_sql = (
+                "INSERT INTO audit_logs_mig (" + ",".join(names) + ") "
+                "SELECT " + ",".join(select_items) + " FROM audit_logs"
+            )
+            conn.execute(insert_sql)
+            conn.execute("DROP TABLE audit_logs")
+            conn.execute("ALTER TABLE audit_logs_mig RENAME TO audit_logs")
+            # Refresh schema info for subsequent steps
+            col_rows = list(conn.execute("PRAGMA table_info(audit_logs)"))
+            cols = [row[1] for row in col_rows]
+
+        # Best-effort backfill for timestamps if legacy columns exist
+        if "ts_utc" in needed_columns and "ts_utc" in (row[1] for row in conn.execute("PRAGMA table_info(audit_logs)")):
+            # Refresh col list and backfill from common legacy names
+            cols = [row[1] for row in conn.execute("PRAGMA table_info(audit_logs)").fetchall()]
+            if "ts_utc" in cols:
+                if "ts" in cols:
+                    conn.execute(
+                        "UPDATE audit_logs SET ts_utc = ts WHERE ts_utc IS NULL AND ts IS NOT NULL"
+                    )
+                if "timestamp" in cols:
+                    conn.execute(
+                        "UPDATE audit_logs SET ts_utc = timestamp WHERE ts_utc IS NULL AND timestamp IS NOT NULL"
+                    )
+        conn.commit()
     except Exception:
+        # If anything goes wrong, we proceed without blocking writes; future
+        # inserts specify column lists explicitly, so extra legacy columns are fine.
         pass
     return conn
 

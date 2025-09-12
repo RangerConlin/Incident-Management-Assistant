@@ -10,7 +10,7 @@ Item {
 
     // Injected API/config
     property string windowTitle: "Master Catalog"
-    property var columns: []                 // [{ key, label, width?, editable?, type?, required?, valueMap? }]
+    property var columns: []                 // [{ key, label, width?, editable?, type?, required?, valueMap?, toDisplay?(v), fromDisplay?(v) }]
     // Resizable columns: user overrides applied on top of column.width
     property var columnWidthOverrides: []    // number[] same length as columns
     property string primaryKey: "id"
@@ -38,6 +38,8 @@ Item {
     property var rows: []     // legacy array mode when no Qt model provided
     property int selectedRow: -1
     property var selectedId: null
+    // Optional: function(rowIndex:int) -> color string or null for default
+    property var rowColorForIndex: null
 
     // Sum of configured column widths (fallback 140 each)
     function _colWidth(i) {
@@ -302,7 +304,15 @@ Item {
                     delegate: Item {
                         width: columnsTotalWidth()
                         height: 28
-                        Rectangle { anchors.fill: parent; color: (rowIndex === selectedRow ? "#dbeafe" : (index % 2 === 0 ? "#ffffff" : "#f7f7f7")); border.color: "#eaeaea" }
+                        Rectangle {
+                            anchors.fill: parent
+                            color: (rowIndex === selectedRow
+                                   ? "#dbeafe"
+                                   : (rowColorForIndex && rowColorForIndex(rowIndex))
+                                     ? rowColorForIndex(rowIndex)
+                                     : (index % 2 === 0 ? "#ffffff" : "#f7f7f7"))
+                            border.color: "#eaeaea"
+                        }
 
                         property int rowIndex: index
                         // When using a Qt model, fetch values per cell via model.value(row,key)
@@ -327,6 +337,11 @@ Item {
                                         var v = root.model
                                                 ? root.model.value(rowIndex, modelData.key)
                                                 : (rows[rowIndex] ? rows[rowIndex][modelData.key] : null);
+                                        // Per-column formatter first
+                                        if (modelData.toDisplay && typeof modelData.toDisplay === 'function') {
+                                            try { var dv = modelData.toDisplay(v, rowIndex); if (dv !== undefined && dv !== null) return String(dv); } catch(e) {}
+                                        }
+                                        // Then value map
                                         if (modelData.valueMap) {
                                             try { if (v in modelData.valueMap) return String(modelData.valueMap[v]); } catch(e) {}
                                         }

@@ -39,11 +39,17 @@ class MasterListModel(QAbstractListModel):
         row = self._rows[index.row()]
         if role == Qt.DisplayRole:
             return row.get("display_name")
-        key = self.roles[role - Qt.UserRole]
-        return row.get(key)
+        base = Qt.UserRole + 1
+        if role >= base:
+            i = role - base
+            if 0 <= i < len(self.roles):
+                key = self.roles[i]
+                return row.get(key)
+        return None
 
     def roleNames(self):  # type: ignore[override]
-        return {Qt.UserRole + i: QByteArray(r.encode()) for i, r in enumerate(self.roles)}
+        base = Qt.UserRole + 1
+        return {base + i: QByteArray(r.encode()) for i, r in enumerate(self.roles)}
 
     def replace(self, rows: List[Dict[str, Any]]):
         self.beginResetModel()
@@ -84,16 +90,20 @@ class PlanModel(QAbstractTableModel):
         return len(PLAN_COLUMNS)
 
     def roleNames(self):  # type: ignore[override]
-        roles = {Qt.UserRole + i: QByteArray(col[0].encode()) for i, col in enumerate(PLAN_COLUMNS)}
+        base = Qt.UserRole + 1
+        roles = {base + i: QByteArray(col[0].encode()) for i, col in enumerate(PLAN_COLUMNS)}
         return roles
 
     def data(self, index, role=Qt.DisplayRole):  # type: ignore[override]
         if not index.isValid():
             return None
         row = self._rows[index.row()]
-        if role >= Qt.UserRole:
-            key = PLAN_COLUMNS[role - Qt.UserRole][0]
-            return row.get(key)
+        base = Qt.UserRole + 1
+        if role >= base:
+            i = role - base
+            if 0 <= i < len(PLAN_COLUMNS):
+                key = PLAN_COLUMNS[i][0]
+                return row.get(key)
         if role == Qt.DisplayRole:
             key = PLAN_COLUMNS[index.column()][0]
             return row.get(key)
@@ -149,11 +159,17 @@ class ValidationModel(QAbstractListModel):
         if role == Qt.DisplayRole:
             r = self._rows[index.row()]
             return f"{r.get('level')}: {r.get('text')}"
-        key = self.roles[role - Qt.UserRole]
-        return self._rows[index.row()].get(key)
+        base = Qt.UserRole + 1
+        if role >= base:
+            i = role - base
+            if 0 <= i < len(self.roles):
+                key = self.roles[i]
+                return self._rows[index.row()].get(key)
+        return None
 
     def roleNames(self):  # type: ignore[override]
-        return {Qt.UserRole + i: QByteArray(r.encode()) for i, r in enumerate(self.roles)}
+        base = Qt.UserRole + 1
+        return {base + i: QByteArray(r.encode()) for i, r in enumerate(self.roles)}
 
     def replace(self, rows: List[Dict[str, Any]]):
         self.beginResetModel()
@@ -250,4 +266,3 @@ __all__ = [
     "PlanModel",
     "ValidationModel",
 ]
-

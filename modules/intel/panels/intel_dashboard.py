@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QPushButton,
     QTabWidget,
+    QDialog,
 )
 
 from .clue_panel import CluePanel
@@ -60,7 +61,7 @@ class IntelDashboard(QWidget):
 
     def _new_clue(self) -> None:
         dlg = ClueEditorDialog(parent=self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.clue)
                 session.commit()
@@ -68,7 +69,7 @@ class IntelDashboard(QWidget):
 
     def _new_subject(self) -> None:
         dlg = SubjectEditor(parent=self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.subject)
                 session.commit()
@@ -76,7 +77,7 @@ class IntelDashboard(QWidget):
 
     def _new_report(self) -> None:
         dlg = _ReportDialog(self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.report)
                 session.commit()

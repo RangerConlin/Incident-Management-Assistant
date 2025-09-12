@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QDialogButtonBox,
     QFileDialog,
+    QMessageBox,
 )
 from sqlmodel import select
 
@@ -32,7 +33,9 @@ class _ReportDialog(QDialog):
         self.title_edit = QLineEdit()
         self.body_edit = QTextEdit()
         form = QFormLayout(self)
-        form.addRow("Title", self.title_edit)
+        self.title_edit.setPlaceholderText("Required")
+        self.title_edit.setToolTip("Report title (required)")
+        form.addRow("Title*", self.title_edit)
         form.addRow("Body", self.body_edit)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -42,6 +45,17 @@ class _ReportDialog(QDialog):
     @property
     def report(self) -> IntelReport:
         return IntelReport(title=self.title_edit.text(), body_md=self.body_edit.toPlainText())
+
+    def accept(self) -> None:  # type: ignore[override]
+        from ..utils import validators
+        rep = self.report
+        try:
+            validators.validate_report(rep)
+        except validators.ValidationError as e:
+            QMessageBox.warning(self, "Required Fields", str(e))
+            self.title_edit.setFocus()
+            return
+        super().accept()
 
 
 class ReportPanel(QWidget):
@@ -71,6 +85,10 @@ class ReportPanel(QWidget):
 
     def refresh(self) -> None:
         self.table.setRowCount(0)
+        try:
+            db_access.ensure_incident_schema()
+        except Exception:
+            pass
         with db_access.incident_session() as session:
             reports: List[IntelReport] = session.exec(select(IntelReport)).all()
         for row, r in enumerate(reports):
@@ -89,7 +107,7 @@ class ReportPanel(QWidget):
 
     def _add(self) -> None:
         dlg = _ReportDialog(self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.report)
                 session.commit()

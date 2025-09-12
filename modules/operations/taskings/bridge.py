@@ -101,3 +101,5 @@ class TaskingsBridge(QObject):
         # Return fresh list
         teams = list_task_teams(int(task_id))
         return {"added_id": tt_id, "teams": [_to_variant(t) for t in teams]}
+
+    # Note: No separate narrative dialog; handled inside Task Detail window.

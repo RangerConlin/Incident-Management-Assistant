@@ -98,6 +98,61 @@ def fetch_team_leader_id(team_id: int) -> Optional[int]:
         return None
 
 
+# ---------- Additional helpers for Team Detail ----------
+def list_available_personnel() -> List[Dict[str, Any]]:
+    """List personnel not currently assigned to any team."""
+    conn = get_db_connection()
+    try:
+        cur = conn.execute(
+            """
+            SELECT id, name, role, callsign, phone
+            FROM personnel
+            WHERE team_id IS NULL OR team_id = ''
+            ORDER BY name COLLATE NOCASE
+            """
+        )
+        return _rows_to_dicts(cur)
+    except Exception:
+        return []
+
+
+def list_available_aircraft(include_team_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """List aircraft not assigned to any team; optionally include those on include_team_id."""
+    conn = get_db_connection()
+    try:
+        if include_team_id is None:
+            cur = conn.execute(
+                """
+                SELECT id, tail_number, callsign, team_id
+                FROM aircraft
+                WHERE team_id IS NULL
+                ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE
+                """
+            )
+        else:
+            cur = conn.execute(
+                """
+                SELECT id, tail_number, callsign, team_id
+                FROM aircraft
+                WHERE team_id IS NULL OR team_id = ?
+                ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE
+                """,
+                (int(include_team_id),),
+            )
+        return _rows_to_dicts(cur)
+    except Exception:
+        return []
+
+
+def set_person_medic(person_id: int, is_medic: bool) -> None:
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE personnel SET is_medic = ? WHERE id = ?",
+        (1 if bool(is_medic) else 0, int(person_id)),
+    )
+    conn.commit()
+
+
 # ---------- Mutations ----------
 def set_person_team(person_id: int, team_id: Optional[int]) -> None:
     conn = get_db_connection()

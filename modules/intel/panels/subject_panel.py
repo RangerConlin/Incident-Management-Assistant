@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QDialog,
     QMessageBox,
 )
 from sqlmodel import select
@@ -52,6 +53,10 @@ class SubjectPanel(QWidget):
 
     def refresh(self) -> None:
         self.table.setRowCount(0)
+        try:
+            db_access.ensure_incident_schema()
+        except Exception:
+            pass
         with db_access.incident_session() as session:
             subjects: List[Subject] = session.exec(select(Subject)).all()
         for row, sub in enumerate(subjects):
@@ -71,7 +76,7 @@ class SubjectPanel(QWidget):
 
     def _add(self) -> None:
         dlg = SubjectEditor(parent=self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.subject)
                 session.commit()
@@ -85,7 +90,7 @@ class SubjectPanel(QWidget):
         with db_access.incident_session() as session:
             sub = session.get(Subject, sid)
         dlg = SubjectEditor(sub, self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.subject)
                 session.commit()

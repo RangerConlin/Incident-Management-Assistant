@@ -15,11 +15,12 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QDialogButtonBox,
+    QMessageBox,
 )
 from sqlmodel import select
 
 from ..models import EnvSnapshot
-from ..utils import db_access
+from ..utils import db_access, validators
 
 
 class _EnvDialog(QDialog):
@@ -33,7 +34,9 @@ class _EnvDialog(QDialog):
         self.terrain_edit = QLineEdit()
         self.notes_edit = QLineEdit()
         form = QFormLayout(self)
-        form.addRow("OP", self.op_edit)
+        self.op_edit.setPlaceholderText("Required integer")
+        self.op_edit.setToolTip("Operational Period number (required)")
+        form.addRow("OP*", self.op_edit)
         form.addRow("Weather", self.weather_edit)
         form.addRow("Hazards", self.haz_edit)
         form.addRow("Terrain", self.terrain_edit)
@@ -54,14 +57,28 @@ class _EnvDialog(QDialog):
         return self._snapshot
 
     def accept(self) -> None:  # type: ignore[override]
+        # Defer casting op_period until after validation so we can show clearer errors
+        op_text = self.op_edit.text().strip()
+        try:
+            op_val = int(op_text) if op_text != "" else None  # type: ignore[assignment]
+        except Exception:
+            QMessageBox.warning(self, "Required Fields", "'OP' must be an integer")
+            self.op_edit.setFocus()
+            return
         snap = EnvSnapshot(
             id=self._snapshot.id if self._snapshot else None,
-            op_period=int(self.op_edit.text() or 0),
+            op_period=op_val or 0,
             weather_json=self.weather_edit.text() or None,
             hazards_json=self.haz_edit.text() or None,
             terrain_json=self.terrain_edit.text() or None,
             notes=self.notes_edit.text() or None,
         )
+        try:
+            validators.validate_env_snapshot(snap)
+        except validators.ValidationError as e:
+            QMessageBox.warning(self, "Required Fields", str(e))
+            self.op_edit.setFocus()
+            return
         self._snapshot = snap
         super().accept()
 
@@ -96,6 +113,10 @@ class EnvironmentPanel(QWidget):
 
     def refresh(self) -> None:
         self.table.setRowCount(0)
+        try:
+            db_access.ensure_incident_schema()
+        except Exception:
+            pass
         with db_access.incident_session() as session:
             snaps: List[EnvSnapshot] = session.exec(select(EnvSnapshot)).all()
         for row, s in enumerate(snaps):
@@ -116,7 +137,7 @@ class EnvironmentPanel(QWidget):
 
     def _add(self) -> None:
         dlg = _EnvDialog(parent=self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.snapshot)
                 session.commit()
@@ -129,7 +150,7 @@ class EnvironmentPanel(QWidget):
         with db_access.incident_session() as session:
             snap = session.get(EnvSnapshot, sid)
         dlg = _EnvDialog(snap, self)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             with db_access.incident_session() as session:
                 session.add(dlg.snapshot)
                 session.commit()

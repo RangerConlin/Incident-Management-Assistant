@@ -26,6 +26,9 @@ from models.queries import (
     set_team_leader,
     set_person_role,
     set_team_leader_phone,
+    list_available_personnel,
+    list_available_aircraft,
+    set_person_medic,
 )
 from utils.app_signals import app_signals
 from utils.constants import (
@@ -125,6 +128,13 @@ class TeamDetailBridge(QObject):
         code = (self._team.team_type or "").upper()
         info = TEAM_TYPE_DETAILS.get(code)
         return bool(info and info.get("is_aircraft"))
+
+    @Property(bool, notify=teamChanged)
+    def needsAssistActive(self) -> bool:
+        try:
+            return bool(self._team.needs_attention)
+        except Exception:
+            return False
     @Property('QVariant', notify=statusChanged)
     def teamStatusColor(self) -> Dict[str, str]:
         key = (self._team.status or "").strip().lower()
@@ -190,6 +200,27 @@ class TeamDetailBridge(QObject):
             self.saved.emit()
         except Exception as e:
             self.error.emit(f"Failed to save team: {e}")
+
+    # ---- Needs Assistance ----
+    @Slot()
+    def raiseNeedsAssist(self) -> None:
+        """Raise the team's needs-attention flag and persist to DB."""
+        try:
+            self._team.needs_attention = True
+            if self._team.team_id:
+                # Persist minimal change quickly
+                with team_repo._incident_connect() as con:  # type: ignore[attr-defined]
+                    try:
+                        con.execute(
+                            "UPDATE teams SET needs_attention=? WHERE id=?",
+                            (1, int(self._team.team_id)),
+                        )
+                        con.commit()
+                    except Exception:
+                        pass
+            self.teamChanged.emit()
+        except Exception as e:
+            self.error.emit(f"Failed to flag needs assistance: {e}")
 
     # ---- Status ----
     @Slot(str)
@@ -289,6 +320,31 @@ class TeamDetailBridge(QObject):
                 }
             )
         return out
+
+    @Slot(result='QVariant')
+    def availableMembers(self) -> list[dict]:
+        try:
+            return list_available_personnel() or []
+        except Exception:
+            return []
+
+    @Slot(result='QVariant')
+    def availableAircraft(self) -> list[dict]:
+        """Return aircraft available for assignment; include current aircraft if any."""
+        try:
+            tid = int(self._team.team_id) if self._team.team_id is not None else None
+            rows = list_available_aircraft(tid)
+            # Normalize labels for QML display
+            out: list[dict[str, Any]] = []
+            for r in rows:
+                label = (r.get("tail_number") or r.get("callsign") or f"#{r.get('id')}")
+                out.append({
+                    "id": r.get("id"),
+                    "label": str(label),
+                })
+            return out
+        except Exception:
+            return []
 
     @Slot(result='QVariant')
     def equipment(self) -> list[dict]:
@@ -474,6 +530,15 @@ class TeamDetailBridge(QObject):
         except Exception as e:
             self.error.emit(f"Failed to remove member: {e}")
 
+    @Slot(int, bool)
+    def setMedic(self, person_id: int, is_medic: bool) -> None:
+        try:
+            set_person_medic(int(person_id), bool(is_medic))
+            if self._team.team_id:
+                app_signals.teamAssetsChanged.emit(int(self._team.team_id))
+        except Exception as e:
+            self.error.emit(f"Failed to set medic: {e}")
+
     @Slot('QVariant')
     def addVehicle(self, vehicle_id: Any) -> None:
         try:
@@ -560,6 +625,25 @@ class TeamDetailBridge(QObject):
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to remove aircraft: {e}")
+
+    @Slot('QVariant')
+    def setSingleAircraft(self, ac_id: Any) -> None:
+        """Ensure only one aircraft is assigned to an AIR team by replacing any existing assignment."""
+        try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            tid = int(self._team.team_id)
+            # Detach any currently assigned aircraft first
+            for r in (self._aircraft or []):
+                try:
+                    set_aircraft_team(int(r.get("id")), None)
+                except Exception:
+                    continue
+            if ac_id is not None and str(ac_id) != "":
+                set_aircraft_team(int(ac_id), tid)
+            app_signals.teamAssetsChanged.emit(tid)
+        except Exception as e:
+            self.error.emit(f"Failed to set aircraft: {e}")
 
     @Slot(int)
     def linkTask(self, task_id: int) -> None:
