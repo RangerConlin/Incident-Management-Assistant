@@ -89,7 +89,7 @@ C.ApplicationWindow {
     function primaryTeamName() { var t = primaryTeamObj(); return t ? (t.team_name||"") : "" }
     function titleText() {
         var idtxt = taskDetail && taskDetail.task ? taskDetail.task.task_id : "";
-        var ttitle = taskDetail && taskDetail.task ? (taskDetail.task.assignment || taskDetail.task.title || "") : "";
+        var ttitle = taskDetail && taskDetail.task ? taskDetail.task.title : "";
         var prim = primaryTeamName();
         var st = taskDetail && taskDetail.task ? taskDetail.task.status : "";
         var parts = [];
@@ -255,8 +255,8 @@ C.ApplicationWindow {
             }
         }
 
-        // Assignment Field
-        C.TextField { id: assignmentField; Layout.fillWidth: true; placeholderText: "Assignment"; readOnly: !metadataEditable() }
+        // Title Field
+        C.TextField { id: titleField; Layout.fillWidth: true; placeholderText: "Task Title"; readOnly: !metadataEditable() }
 
         // Location / Assignment name
         C.TextField { id: locationField; Layout.fillWidth: true; placeholderText: "Location / Assignment"; readOnly: !metadataEditable() }
@@ -1408,9 +1408,9 @@ C.ApplicationWindow {
             } catch(e) {}
             var pi = _indexOfInsensitive(root.lookups.priorities||[], t.priority||""); if (pi >= 0) priorityBox.currentIndex = pi;
             var si = _indexOfInsensitive(root.lookups.task_statuses||[], t.status||""); if (si >= 0) statusBox.currentIndex = si;
-            if (typeof assignmentField !== 'undefined' && assignmentField) assignmentField.text = (t.assignment || t.title || "");
             locationField.text = t.location || "";
         } catch (e) { console.log('syncHeaderFromTask error', e) }
     }
     onTaskDetailChanged: syncHeaderFromTask()
 }
+

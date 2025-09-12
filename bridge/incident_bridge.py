@@ -84,6 +84,29 @@ class IncidentBridge(QObject):
             with self._connect() as con:
                 cur = con.execute(sql, params)
                 rows = cur.fetchall()
+                # Resolve entered_by to a displayable name when it looks like a numeric user id
+                try:
+                    names_cache: dict[int, str] = {}
+                    for r in rows:
+                        eb = r.get("entered_by")
+                        uid: int | None = None
+                        try:
+                            uid = int(eb)
+                        except Exception:
+                            uid = None
+                        if uid is not None:
+                            if uid in names_cache:
+                                r["entered_by"] = names_cache[uid]
+                            else:
+                                try:
+                                    prow = con.execute("SELECT name FROM personnel WHERE id=?", (uid,)).fetchone()
+                                    disp = prow["name"] if prow and prow.get("name") else str(uid)
+                                    names_cache[uid] = disp
+                                    r["entered_by"] = disp
+                                except Exception:
+                                    r["entered_by"] = str(uid)
+                except Exception:
+                    pass
                 try:
                     print(f"[IncidentBridge.listTaskNarrative] {len(rows)} rows from {table}")
                 except Exception:

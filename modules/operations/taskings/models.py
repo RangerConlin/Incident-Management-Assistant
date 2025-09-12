@@ -46,6 +46,9 @@ class Task:
     created_at: str
     assigned_to: Optional[str] = None
     due_time: Optional[str] = None
+    assignment: str = ""
+    team_leader: str = ""
+    team_phone: str = ""
 
 
 @dataclass

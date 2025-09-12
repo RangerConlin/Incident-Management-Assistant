@@ -1666,16 +1666,6 @@ class MainWindow(QMainWindow):
                 pass
             placeholder.show()
 
-        if TaskStatusPanel:
-            try:
-                task_panel = TaskStatusPanel(self)
-                task_dock = CDockWidget(self.dock_manager, "Task Status")
-                task_dock.setWidget(task_panel)
-                self.dock_manager.addDockWidget(BottomDockWidgetArea, task_dock)
-                task_dock.show()
-            except Exception:
-                pass
-
     def _reset_layout(self) -> None:
         """Clear current perspectives and rebuild default docks."""
         try:

@@ -348,9 +348,15 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
     from datetime import datetime
     now = datetime.utcnow().isoformat()
     with _connect() as con:
-        # Update task_teams timeline
+        # Update task_teams timeline (first instance only if already stamped)
         if col:
-            con.execute(f"UPDATE task_teams SET {col}=? WHERE id=?", (now, int(tt_id)))
+            try:
+                prev = con.execute(f"SELECT {col} FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
+                already = bool(prev and prev[0])
+            except Exception:
+                already = False
+            if not already:
+                con.execute(f"UPDATE task_teams SET {col}=? WHERE id=?", (now, int(tt_id)))
         elif key in {"available"}:
             # Clear all timestamps to represent availability
             con.execute(

@@ -44,12 +44,11 @@ TEAM_STATUSES = [
     "Complete"
 ]
 TASK_STATUSES = [
-    # Canonical task workflow states (UI-facing labels)
-    "Draft",
-    "Planned",
+    "Created"
+    "Assigned",
     "In Progress",
     "Completed",
-    "Cancelled",
+    "Cancelled"
 ]
 EQUIPMENT_STATUSES = [
     "Available",
@@ -147,19 +146,4 @@ RADIO_TASK_FUNCTIONS = [
     "AIR/GROUND",
     "TACTICAL",
     "COMMAND",
-    "AIR/AIR",
 ]
-
-# Tasking toolbar lookups
-TASK_CATEGORIES = [
-    "<New Task>",
-    "Air SAR",
-    "Damage Assessment",
-    "Ground SAR",
-    "Logistics Support",
-    "Other",
-    "Photography",
-    "Relocation",
-]
-
-TASK_PRIORITIES = ["Low", "Medium", "High", "Critical"]

@@ -18,6 +18,52 @@ PRIORITIES = ["Low", "Medium", "High", "Critical"]
 
 TASK_STATUSES = ["Draft", "Planned", "In Progress", "Completed", "Cancelled"]
 
+# Placeholder task-type options per category (filtered in the UI)
+TASK_TYPES_BY_CATEGORY: dict[str, list[str]] = {
+    "<New Task>": ["(select category first)"],
+    "Air SAR": [
+        "ELT Search",
+        "Creeping Line",
+        "Parallel Track",
+        "Sector Search",
+        "Photo Recon",
+        "Route Search",
+    ],
+    "Ground SAR": [
+        "Hasty",
+        "Area",
+        "Grid",
+        "Tracking",
+        "Clue Follow-up",
+        "Electronic Grid Search",
+    ],
+    "Damage Assessment": [
+        "Wind/Storm Survey",
+        "Flood Assessment",
+        "Wildfire Perimeter",
+        "Infrastructure Survey",
+    ],
+    "Logistics Support": [
+        "Transport",
+        "Supply Run",
+        "Staging Support",
+        "Shelter Support",
+    ],
+    "Photography": [
+        "Aerial Photo",
+        "Ground Photo",
+        "Video Recon",
+    ],
+    "Relocation": [
+        "Relocate Team",
+        "Relocate Aircraft",
+        "Relocate Equipment",
+    ],
+    "Other": [
+        "Other/Custom",
+    ],
+}
+
 # Team status options vary by category/type when displayed in the Teams tab
 TEAM_STATUS_BY_CATEGORY = {
     "Air SAR": [
