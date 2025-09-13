@@ -4,7 +4,7 @@ import sys
 import logging
 from typing import Callable
 
-DEV_MODE = os.getenv("DEV_MODE") not in (None, "0", "false", "False")
+DEV_MODE = True
 
 from PySide6.QtWidgets import (
     QApplication,

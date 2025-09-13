@@ -60,5 +60,6 @@
                 "h": 1
             }
         ]
-    }
+    },
+    "uiDebugTools": true
 }
