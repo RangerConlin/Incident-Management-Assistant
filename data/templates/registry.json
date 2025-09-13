@@ -1,0 +1,9 @@
+{
+  "ics_205": {
+    "2023.10": {
+      "mapping": "data/templates/ics/ICS_205_v2023.10.map.yaml",
+      "schema": "modules/forms/schemas/ics_205.schema.json"
+    },
+    "latest": "2023.10"
+  }
+}

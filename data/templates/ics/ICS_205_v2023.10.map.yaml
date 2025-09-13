@@ -1,0 +1,5 @@
+form: ics_205
+version: 2023.10
+fields:
+  "Incident Name": incident.name
+  "Operational Period": operational_period.label
