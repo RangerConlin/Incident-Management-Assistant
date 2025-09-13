@@ -13,7 +13,9 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QLabel,
     QLineEdit,
+    QTextEdit,
     QComboBox,
+    QCheckBox,
     QPushButton,
     QTabWidget,
     QTableView,
@@ -141,42 +143,102 @@ class TaskDetailWindow(QWidget):
                 pass
         root.addWidget(top_container)
 
-        # Title/Location/Assignment row + Save/Cancel
-        row2 = QHBoxLayout()
-        self._title_edit = QLineEdit(self); self._title_edit.setPlaceholderText("Task Title")
+        # Primary Team (read-only) 2x2 grid, above Title/Location/Assignment
+        primary_container = QWidget(self)
+        primary_v = QVBoxLayout(primary_container)
+        try:
+            primary_v.setContentsMargins(0, 0, 0, 0)
+            primary_v.setSpacing(6)
+        except Exception:
+            pass
+        hdr_row = QHBoxLayout()
+        _pt_label = QLabel("Primary Team");
+        try:
+            _pt_label.setStyleSheet("font-weight: 600;")
+        except Exception:
+            pass
+        hdr_row.addWidget(_pt_label)
+        hdr_row.addStretch(1)
+        _tc_label = QLabel("Team Contact")
+        try:
+            _tc_label.setStyleSheet("font-weight: 600;")
+        except Exception:
+            pass
+        hdr_row.addWidget(_tc_label)
+        primary_v.addLayout(hdr_row)
+        grid = QGridLayout()
+        try:
+            grid.setHorizontalSpacing(8)
+            grid.setVerticalSpacing(4)
+        except Exception:
+            pass
+        # Display-only labels (no text boxes)
+        self._primary_team_name_lbl = QLabel("")
+        self._primary_team_leader_lbl = QLabel("")
+        self._primary_team_phone_lbl = QLabel("")
+        grid.addWidget(self._primary_team_name_lbl, 0, 0)
+        grid.addWidget(QWidget(self), 0, 1)  # placeholder to form 2x2 with three fields
+        grid.addWidget(self._primary_team_leader_lbl, 1, 0)
+        grid.addWidget(self._primary_team_phone_lbl, 1, 1)
+        primary_v.addLayout(grid)
+        root.addWidget(primary_container)
+
+        # Title/Location/Assignment stacked vertically + Save/Cancel
+        stack = QVBoxLayout()
+        self._title_edit = QLineEdit(self); self._title_edit.setPlaceholderText("Title")
         self._location_edit = QLineEdit(self); self._location_edit.setPlaceholderText("Location")
         self._assignment_edit = QLineEdit(self); self._assignment_edit.setPlaceholderText("Assignment")
+        for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Assignment", self._assignment_edit)]:
+            row = QVBoxLayout()
+            _lbl = QLabel(lab)
+            try:
+                _lbl.setStyleSheet("font-weight: 600;")
+            except Exception:
+                pass
+            row.addWidget(_lbl)
+            row.addWidget(w)
+            stack.addLayout(row)
+        btn_row = QHBoxLayout()
         self._save_btn = QPushButton("Save"); self._save_btn.clicked.connect(self._save_header)
         self._cancel_btn = QPushButton("Cancel"); self._cancel_btn.clicked.connect(self._load_header)
-        for lab, w in [("Title", self._title_edit),("Location", self._location_edit),("Assignment", self._assignment_edit)]:
-            row2.addWidget(QLabel(lab)); row2.addWidget(w, 1)
-        row2.addStretch(1)
-        row2.addWidget(self._save_btn); row2.addWidget(self._cancel_btn)
-        root.addLayout(row2)
+        btn_row.addStretch(1)
+        btn_row.addWidget(self._save_btn)
+        btn_row.addWidget(self._cancel_btn)
+        stack.addLayout(btn_row)
+        root.addLayout(stack)
 
-        # Team leader row
-        row_team = QHBoxLayout()
-        self._team_leader_edit = QLineEdit(self); self._team_leader_edit.setPlaceholderText("Team Leader Name")
-        self._team_phone_edit = QLineEdit(self); self._team_phone_edit.setPlaceholderText("Team Leader Phone")
-        row_team.addWidget(QLabel("Team Leader")); row_team.addWidget(self._team_leader_edit, 1)
-        row_team.addWidget(QLabel("Phone")); row_team.addWidget(self._team_phone_edit, 1)
-        root.addLayout(row_team)
+        # Header summary removed per request
 
-        # Header summary
-        self._title_lbl = QLabel("Task Detail")
-        self._title_lbl.setStyleSheet("font-size: 16px; font-weight: 600;")
-        self._primary_team_lbl = QLabel("")
-        self._status_lbl = QLabel("")
-        header = QHBoxLayout()
-        header.addWidget(self._title_lbl)
-        header.addSpacing(18)
-        header.addWidget(QLabel("Primary Team:"))
-        header.addWidget(self._primary_team_lbl)
-        header.addSpacing(18)
-        header.addWidget(QLabel("Status:"))
-        header.addWidget(self._status_lbl)
-        header.addStretch(1)
-        root.addLayout(header)
+        # Narrative Quick Entry (always visible, above tabs)
+        nar_quick_top = QHBoxLayout()
+        try:
+            nar_quick_top.setContentsMargins(0, 0, 0, 0)
+        except Exception:
+            pass
+        self._nar_entry_top = QTextEdit(self)
+        try:
+            self._nar_entry_top.setPlaceholderText("Type narrative… (Enter to add)")
+        except Exception:
+            pass
+        # Make it ~3 lines tall
+        try:
+            fm = self._nar_entry_top.fontMetrics()
+            self._nar_entry_top.setFixedHeight(max(56, int(fm.lineSpacing() * 3 + 12)))
+        except Exception:
+            self._nar_entry_top.setFixedHeight(72)
+        # Submit on Ctrl+Enter as QTextEdit is multi-line
+        try:
+            from PySide6.QtGui import QKeySequence
+            self._nar_entry_top.keyPressEvent = (lambda orig: (lambda e: (self.add_narrative() if (e.modifiers() & Qt.ControlModifier and e.key() in (Qt.Key_Return, Qt.Key_Enter)) else orig(e))))(self._nar_entry_top.keyPressEvent)
+        except Exception:
+            pass
+        self._nar_crit_top = QCheckBox("Critical", self)
+        add_btn_top = QPushButton("Add")
+        add_btn_top.clicked.connect(self.add_narrative)
+        nar_quick_top.addWidget(self._nar_entry_top, 1)
+        nar_quick_top.addWidget(self._nar_crit_top)
+        nar_quick_top.addWidget(add_btn_top)
+        root.addLayout(nar_quick_top)
 
         # Tabs
         tabs = QTabWidget(self)
@@ -224,7 +286,8 @@ class TaskDetailWindow(QWidget):
             pass
         self._nar_table.setItemDelegateForColumn(5, _YesNoDelegate(self._nar_table))
 
-        nar_layout.addLayout(quick)
+        # Moved quick narrative entry to top section; hide it in the tab
+        # nar_layout.addLayout(quick)
         nar_layout.addWidget(self._nar_table, 1)
         tabs.addTab(nar_widget, "Narrative")
 
@@ -404,10 +467,41 @@ class TaskDetailWindow(QWidget):
             t = (d or {}).get("task") or {}
             tid = t.get("task_id") or self._task_id
             title = t.get("title") or ""
-            status = t.get("status") or ""
-            self._title_lbl.setText(" - ".join([str(x) for x in [tid, title] if str(x)]))
-            self._status_lbl.setText(str(status))
-            self._primary_team_lbl.setText(self._primary_team_name(d))
+            # Populate editable header fields
+            try:
+                if hasattr(self, '_task_id_edit'):
+                    self._task_id_edit.setText(str(tid))
+                if hasattr(self, '_title_edit'):
+                    self._title_edit.setText(str(title))
+                if hasattr(self, '_location_edit'):
+                    self._location_edit.setText(str(t.get('location') or ''))
+                if hasattr(self, '_assignment_edit'):
+                    self._assignment_edit.setText(str(t.get('assignment') or ''))
+            except Exception:
+                pass
+            # Populate display-only primary team fields
+            try:
+                teams = (d or {}).get('teams') or []
+                primary = None
+                for tt in teams:
+                    if (tt or {}).get('primary'):
+                        primary = tt; break
+                if primary is None and teams:
+                    primary = teams[0]
+                if primary is None:
+                    name = leader = phone = ""
+                else:
+                    name = str(primary.get('team_name') or '')
+                    leader = str(primary.get('team_leader') or '')
+                    phone = str(primary.get('team_leader_phone') or '')
+                if hasattr(self, '_primary_team_name_lbl'):
+                    self._primary_team_name_lbl.setText(name)
+                if hasattr(self, '_primary_team_leader_lbl'):
+                    self._primary_team_leader_lbl.setText(leader)
+                if hasattr(self, '_primary_team_phone_lbl'):
+                    self._primary_team_phone_lbl.setText(phone)
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -447,7 +541,18 @@ class TaskDetailWindow(QWidget):
         self._nar_table.setColumnWidth(5, 100)
 
     def add_narrative(self) -> None:
-        text = self._nar_entry.text().strip()
+        # Prefer the always-visible top entry widgets if present
+        entry_widget = getattr(self, '_nar_entry_top', None) or getattr(self, '_nar_entry', None)
+        crit_widget = getattr(self, '_nar_crit_top', None) or getattr(self, '_nar_crit', None)
+        if entry_widget is None or crit_widget is None:
+            return
+        try:
+            text = entry_widget.toPlainText().strip()
+        except Exception:
+            try:
+                text = entry_widget.text().strip()
+            except Exception:
+                text = ""
         if not text:
             return
         payload = {
@@ -456,13 +561,22 @@ class TaskDetailWindow(QWidget):
             "narrative": text,
             "entered_by": "",
             "team_num": "",
-            "critical": 1 if self._nar_crit.currentIndex() == 1 else 0,
+            "critical": 1 if (getattr(crit_widget, 'isChecked', lambda: False)() or getattr(crit_widget, 'currentIndex', lambda: 0)() == 1) else 0,
         }
         try:
             ib = self._ib()
             ib.createTaskNarrative(payload)
-            self._nar_entry.clear()
-            self._nar_crit.setCurrentIndex(0)
+            try:
+                entry_widget.clear()
+            except Exception:
+                pass
+            try:
+                if hasattr(crit_widget, 'setChecked'):
+                    crit_widget.setChecked(False)
+                elif hasattr(crit_widget, 'setCurrentIndex'):
+                    crit_widget.setCurrentIndex(0)
+            except Exception:
+                pass
             self.load_narrative()
         except Exception:
             # Ignore failures silently for now
@@ -480,8 +594,6 @@ class TaskDetailWindow(QWidget):
                 'title': self._title_edit.text().strip() if hasattr(self, '_title_edit') else '',
                 'location': self._location_edit.text().strip() if hasattr(self, '_location_edit') else '',
                 'assignment': self._assignment_edit.text().strip() if hasattr(self, '_assignment_edit') else '',
-                'team_leader': self._team_leader_edit.text().strip() if hasattr(self, '_team_leader_edit') else '',
-                'team_phone': self._team_phone_edit.text().strip() if hasattr(self, '_team_phone_edit') else '',
                 'category': self._cat.currentText() if hasattr(self, '_cat') else '',
                 'task_type': typ_val,
                 'priority': self._prio.currentText() if hasattr(self, '_prio') else '',
