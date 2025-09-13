@@ -315,6 +315,8 @@ class TaskingsBridge(QObject):
             f.get("to"),
             str(f.get("field", "")),
             int(f.get("limit", 500)),
+            str(f.get("sort", "")) or None,
+            str(f.get("order", "")) or None,
         )
         return {"rows": rows}
 
@@ -328,6 +330,8 @@ class TaskingsBridge(QObject):
             f.get("from"),
             f.get("to"),
             str(f.get("field", "")),
+            str(f.get("sort", "")) or None,
+            str(f.get("order", "")) or None,
         )
 
     @Slot(int, result="QVariant")
@@ -348,6 +352,97 @@ class TaskingsBridge(QObject):
         lst = forms if isinstance(forms, (list, tuple)) else [forms]
         result = export_assignment_forms(int(task_id), [str(x) for x in lst])
         return _to_variant(result)
+
+    # Attachments ------------------------------------------------------------
+    @Slot(int, result="QVariant")
+    def listAttachments(self, task_id: int) -> Any:  # noqa: N802
+        from modules.operations.taskings.attachments import list_attachments
+        rows = list_attachments(int(task_id))
+        return {"attachments": rows}
+
+    @Slot(int, "QString", result="QVariant")
+    def uploadAttachment(self, task_id: int, file_path: str) -> Any:  # noqa: N802
+        from modules.operations.taskings.attachments import upload_attachment
+        try:
+            from utils.state import AppState
+            uid = AppState.get_active_user_id()
+        except Exception:
+            uid = None
+        res = upload_attachment(int(task_id), str(file_path), uid)
+        return _to_variant(res)
+
+    @Slot(int, int, result="QString")
+    def getAttachmentPath(self, task_id: int, attachment_id: int) -> str:  # noqa: N802
+        from modules.operations.taskings.attachments import get_attachment_file
+        p = get_attachment_file(int(task_id), int(attachment_id), None)
+        return str(p or "")
+
+    @Slot(int, int, "QString", result=bool)
+    def annotateAttachment(self, task_id: int, attachment_id: int, note: str) -> bool:  # noqa: N802
+        from modules.operations.taskings.attachments import annotate_attachment
+        try:
+            from utils.state import AppState
+            uid = AppState.get_active_user_id()
+        except Exception:
+            uid = None
+        return bool(annotate_attachment(int(task_id), int(attachment_id), str(note or ""), uid))
+
+    @Slot(int, "QVariant", result="QVariant")
+    def attachGeneratedForms(self, task_id: int, forms: Any) -> Any:  # noqa: N802
+        """Generate selected forms and attach the produced files to the task."""
+        from modules.operations.taskings.attachments import attach_files
+        # Generate export files first
+        result = self.exportForms(int(task_id), forms)  # type: ignore[arg-type]
+        files = []
+        try:
+            for r in list(result or []):
+                p = r.get("file_path") if isinstance(r, dict) else None
+                if p:
+                    files.append(p)
+        except Exception:
+            files = []
+        res2 = attach_files(int(task_id), files)
+        return _to_variant(res2)
+
+    @Slot(int, "QVariant", int, result="QVariant")
+    def attachGeneratedFormsForTeam(self, task_id: int, forms: Any, task_team_id: int) -> Any:  # noqa: N802
+        """Generate forms for a specific task team and attach with team association metadata."""
+        from modules.operations.taskings.repository import export_assignment_forms, list_task_teams
+        from modules.operations.taskings.attachments import attach_files, set_attachment_team
+        lst = forms if isinstance(forms, (list, tuple)) else [forms]
+        # Lookup team object from task_team_id
+        team_obj = None
+        try:
+            teams = list_task_teams(int(task_id))
+            for t in teams:
+                try:
+                    if int(getattr(t, 'id', getattr(t, 'tt_id', 0))) == int(task_team_id):
+                        # flatten dataclass to dict if needed
+                        from dataclasses import asdict, is_dataclass
+                        team_obj = asdict(t) if is_dataclass(t) else dict(t)
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            team_obj = None
+        exports = export_assignment_forms(int(task_id), [str(x) for x in lst], team_obj)
+        files = [str(r.get("file_path")) for r in (exports or []) if isinstance(r, dict) and r.get("file_path")]
+        res = attach_files(int(task_id), files, associated_team=team_obj)
+        # Attach function already associates per-upload; keep a fallback to set on last id if needed
+        try:
+            if team_obj and res and res.get("added_id"):
+                set_attachment_team(int(task_id), int(res.get("added_id")), team_obj)
+        except Exception:
+            pass
+        return _to_variant(res)
+
+    @Slot(int, int, result=bool)
+    def deleteAttachment(self, task_id: int, attachment_id: int) -> bool:  # noqa: N802
+        from modules.operations.taskings.attachments import delete_attachment
+        try:
+            return bool(delete_attachment(int(task_id), int(attachment_id)))
+        except Exception:
+            return False
 
     @Slot(int, "QVariant", result="QVariant")
     def addTeam(self, task_id: int, payload: Any) -> Any:  # noqa: N802

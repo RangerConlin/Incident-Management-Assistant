@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleOptionButton,
     QMessageBox,
+    QInputDialog,
 )
 
 
@@ -904,7 +905,55 @@ class TaskDetailWindow(QWidget):
 
         tabs.addTab(deb_content, "Debriefing")
         tabs.addTab(QLabel("Log — coming soon"), "Log")
-        tabs.addTab(QLabel("Attachments/Forms — coming soon"), "Attachments/Forms")
+        # Attachments/Forms tab
+        att_content = QWidget(self)
+        att_v = QVBoxLayout(att_content)
+        try:
+            att_v.setContentsMargins(6, 6, 6, 6)
+            att_v.setSpacing(6)
+        except Exception:
+            pass
+        att_toolbar = QHBoxLayout()
+        self._att_upload_btn = QPushButton("Upload File", self)
+        self._att_open_btn = QPushButton("Open", self)
+        self._att_annotate_btn = QPushButton("Annotate", self)
+        self._att_delete_btn = QPushButton("Delete", self)
+        self._att_generate_btn = QPushButton("Generate Forms...", self)
+        self._att_refresh_btn = QPushButton("Refresh", self)
+        for b in [self._att_upload_btn, self._att_open_btn, self._att_annotate_btn, self._att_delete_btn, self._att_generate_btn, self._att_refresh_btn]:
+            att_toolbar.addWidget(b)
+        att_toolbar.addStretch(1)
+        att_v.addLayout(att_toolbar)
+        # Table
+        self._att_headers = ["Filename", "Type", "Uploaded By", "Timestamp", "Size", "Versions", "ID"]
+        self._att_model = QStandardItemModel(0, len(self._att_headers), self)
+        self._att_model.setHorizontalHeaderLabels(list(self._att_headers))
+        self._att_table = QTableView(self)
+        self._att_table.setModel(self._att_model)
+        self._att_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._att_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._att_table.setAlternatingRowColors(True)
+        self._att_table.setSortingEnabled(True)
+        try:
+            hh = self._att_table.horizontalHeader()
+            hh.setStretchLastSection(False)
+            hh.setSectionResizeMode(QHeaderView.Interactive)
+            self._att_table.setColumnHidden(6, True)  # hide ID
+            # Reasonable default widths
+            widths = [280, 90, 120, 180, 80, 80]
+            for i, w in enumerate(widths):
+                self._att_table.setColumnWidth(i, int(w))
+        except Exception:
+            pass
+        att_v.addWidget(self._att_table, 1)
+        tabs.addTab(att_content, "Attachments/Forms")
+        # Wire attachment actions
+        self._att_upload_btn.clicked.connect(self._att_upload)
+        self._att_open_btn.clicked.connect(self._att_open)
+        self._att_annotate_btn.clicked.connect(self._att_annotate)
+        self._att_delete_btn.clicked.connect(self._att_delete)
+        self._att_generate_btn.clicked.connect(self._att_generate)
+        self._att_refresh_btn.clicked.connect(self.load_attachments)
         tabs.addTab(QLabel("Planning - coming soon"), "Planning")
 
         # Remove duplicate placeholder tabs for Teams/Personnel if present
@@ -997,6 +1046,181 @@ class TaskDetailWindow(QWidget):
             return str(teams[0].get("team_name") or "")
         except Exception:
             return ""
+
+    # --- Attachments ---
+    def load_attachments(self) -> None:
+        try:
+            from modules.operations.taskings.attachments import list_attachments
+            rows = list_attachments(int(self._task_id))
+        except Exception:
+            rows = []
+        try:
+            self._att_model.setRowCount(0)
+        except Exception:
+            return
+        for r in rows:
+            items = []
+            items.append(QStandardItem(str(r.get("filename") or "")))
+            items.append(QStandardItem(str(r.get("type") or "")))
+            items.append(QStandardItem(str(r.get("uploaded_by") or "")))
+            items.append(QStandardItem(str(_fmt_ts(r.get("timestamp") or ""))))
+            try:
+                sizeb = int(r.get("size_bytes") or 0)
+                size_txt = f"{max(1, sizeb//1024)} KB" if sizeb else ""
+            except Exception:
+                size_txt = ""
+            items.append(QStandardItem(size_txt))
+            items.append(QStandardItem(str(r.get("versions") or 1)))
+            id_item = QStandardItem(str(r.get("id") or ""))
+            items.append(id_item)
+            self._att_model.appendRow(items)
+
+    def _selected_attachment_id(self) -> int | None:
+        try:
+            sel = self._att_table.selectionModel().selectedRows()
+            if not sel:
+                return None
+            row = sel[0].row()
+            idx = self._att_model.index(row, 6)
+            val = self._att_model.data(idx)
+            return int(val) if val is not None and str(val).strip() != "" else None
+        except Exception:
+            return None
+
+    def _att_upload(self) -> None:
+        try:
+            from PySide6.QtWidgets import QFileDialog
+            path, _ = QFileDialog.getOpenFileName(self, "Select file to upload")
+            if not path:
+                return
+            try:
+                from utils.state import AppState
+                uid = AppState.get_active_user_id()
+            except Exception:
+                uid = None
+            from modules.operations.taskings.attachments import upload_attachment
+            res = upload_attachment(int(self._task_id), str(path), uid)
+            if res.get("warning"):
+                try:
+                    QMessageBox.information(self, "File Size Warning", str(res.get("warning")))
+                except Exception:
+                    pass
+            self.load_attachments()
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Upload Failed", f"Could not upload file: {e}")
+            except Exception:
+                pass
+
+    def _att_open(self) -> None:
+        aid = self._selected_attachment_id()
+        if not aid:
+            return
+        try:
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            from modules.operations.taskings.attachments import get_attachment_file
+            p = get_attachment_file(int(self._task_id), int(aid), None)
+            if p:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))
+        except Exception:
+            pass
+
+    def _att_annotate(self) -> None:
+        aid = self._selected_attachment_id()
+        if not aid:
+            return
+        try:
+            text, ok = QInputDialog.getText(self, "Add Annotation", "Note:")
+        except Exception:
+            ok = False
+            text = ""
+        if not ok or not str(text or "").strip():
+            return
+        try:
+            try:
+                from utils.state import AppState
+                uid = AppState.get_active_user_id()
+            except Exception:
+                uid = None
+            from modules.operations.taskings.attachments import annotate_attachment
+            annotate_attachment(int(self._task_id), int(aid), str(text), uid)
+        except Exception:
+            pass
+
+    def _att_generate(self) -> None:
+        try:
+            # Modal dialog to choose forms and team association
+            from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout, QCheckBox, QComboBox
+            dlg = QDialog(self)
+            dlg.setWindowTitle("Generate Forms")
+            v = QVBoxLayout(dlg)
+            row1 = QHBoxLayout();
+            cb204 = QCheckBox("ICS 204", dlg); cb204.setChecked(True)
+            cb109 = QCheckBox("CAPF 109", dlg)
+            cb104 = QCheckBox("SAR 104", dlg)
+            for w in (cb204, cb109, cb104): row1.addWidget(w)
+            v.addLayout(row1)
+            from modules.operations.taskings.repository import list_task_teams, export_assignment_forms
+            teams = []
+            try:
+                teams = list_task_teams(int(self._task_id))
+            except Exception:
+                teams = []
+            team_row = QHBoxLayout(); team_row.addWidget(QLabel("Associate with team:", dlg))
+            team_combo = QComboBox(dlg)
+            team_combo.addItem("(none)")
+            team_ids: list[int] = []
+            for t in (teams or []):
+                try:
+                    label = f"{getattr(t,'team_name', '')} ({getattr(t,'sortie_number','')})".strip()
+                    team_combo.addItem(label or "Team")
+                    team_ids.append(int(getattr(t,'id',0)))
+                except Exception:
+                    continue
+            team_row.addWidget(team_combo)
+            v.addLayout(team_row)
+            btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=dlg)
+            v.addWidget(btns)
+            btns.accepted.connect(dlg.accept)
+            btns.rejected.connect(dlg.reject)
+            if dlg.exec() != QDialog.Accepted:
+                return
+            forms = []
+            if cb204.isChecked(): forms.append("ICS 204")
+            if cb109.isChecked(): forms.append("CAPF 109")
+            if cb104.isChecked(): forms.append("SAR 104")
+            # export and attach
+            sel_index = team_combo.currentIndex()
+            team_dict = None
+            if sel_index > 0:
+                team_id = team_ids[sel_index-1]
+                for t in (teams or []):
+                    try:
+                        if int(getattr(t,'id',0)) == int(team_id):
+                            from dataclasses import asdict, is_dataclass
+                            team_dict = asdict(t) if is_dataclass(t) else dict(t)
+                            break
+                    except Exception:
+                        pass
+            exports = export_assignment_forms(int(self._task_id), forms, team_dict)
+            files = [r.get("file_path") for r in exports if isinstance(r, dict) and r.get("file_path")]
+            from modules.operations.taskings.attachments import attach_files
+            res = attach_files(int(self._task_id), [str(p) for p in files], associated_team=team_dict)
+            self.load_attachments()
+        except Exception:
+            pass
+
+    def _att_delete(self) -> None:
+        aid = self._selected_attachment_id()
+        if not aid:
+            return
+        try:
+            from modules.operations.taskings.attachments import delete_attachment
+            if delete_attachment(int(self._task_id), int(aid)):
+                self.load_attachments()
+        except Exception:
+            pass
 
     # --- Header ---
     def _load_header(self) -> None:
@@ -2396,6 +2620,7 @@ class TaskDetailWindow(QWidget):
         head_box = QWidget(dlg); head_form = QFormLayout(head_box)
         try:
             head_form.setContentsMargins(0,0,0,0)
+            head_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         except Exception:
             pass
         sortie_edit = QLineEdit(head_box); sortie_edit.setText(str(d.get("sortie_number") or ""))
@@ -2457,9 +2682,14 @@ class TaskDetailWindow(QWidget):
 
         def _add_form_tab(title: str, key: str, build_fn):
             w = QWidget(forms_tabs)
-            lay = QFormLayout(w)
+            lay = QFormLayout()
+            try:
+                w.setLayout(lay)
+            except Exception:
+                pass
             try:
                 lay.setLabelAlignment(Qt.AlignLeft)
+                lay.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
             except Exception:
                 pass
             widgets: Dict[str, QWidget] = {}
@@ -2486,9 +2716,16 @@ class TaskDetailWindow(QWidget):
                         pass
             save_btn.clicked.connect(_save_this_form)
             btn_row.addStretch(1); btn_row.addWidget(save_btn)
-            wrap = QVBoxLayout(); wrap.addLayout(lay); wrap.addLayout(btn_row)
+            wrap = QVBoxLayout(); wrap.addWidget(w); wrap.addLayout(btn_row)
             cont = QWidget(forms_tabs); cont.setLayout(wrap)
-            forms_tabs.addTab(cont, title)
+            from PySide6.QtWidgets import QScrollArea
+            scr = QScrollArea(forms_tabs)
+            try:
+                scr.setWidgetResizable(True)
+            except Exception:
+                pass
+            scr.setWidget(cont)
+            forms_tabs.addTab(scr, title)
 
         # --- Form builders ---
         def _build_ground(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
@@ -2680,7 +2917,11 @@ class TaskDetailWindow(QWidget):
         # --- Form builders ---
         def _add_form_tab(title: str, key: str, build_fn):
             w = QWidget(forms_tabs)
-            lay = QFormLayout(w)
+            lay = QFormLayout()
+            try:
+                w.setLayout(lay)
+            except Exception:
+                pass
             try:
                 lay.setLabelAlignment(Qt.AlignLeft)
             except Exception:
@@ -2696,7 +2937,7 @@ class TaskDetailWindow(QWidget):
             save_btn = QPushButton("Save", w)
             save_btn.clicked.connect(lambda _=None, k=key: self._save_debrief_form(int(debrief_id), k))
             btn_row.addStretch(1); btn_row.addWidget(save_btn)
-            wrap = QVBoxLayout(); wrap.addLayout(lay); wrap.addLayout(btn_row)
+            wrap = QVBoxLayout(); wrap.addWidget(w); wrap.addLayout(btn_row)
             cont = QWidget(forms_tabs); cont.setLayout(wrap)
             forms_tabs.addTab(cont, title)
 

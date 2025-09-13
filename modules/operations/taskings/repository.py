@@ -415,7 +415,7 @@ def save_task_assignment(task_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
-def export_assignment_forms(task_id: int, forms: List[str]) -> List[Dict[str, Any]]:
+def export_assignment_forms(task_id: int, forms: List[str], team: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Create placeholder exports for selected forms (ICS 204, CAPF 109, SAR 104).
 
     Writes JSON snapshots of the assignment data to data/exports and returns
@@ -440,6 +440,8 @@ def export_assignment_forms(task_id: int, forms: List[str]) -> List[Dict[str, An
         name = f"{key}_task{int(task_id)}_{ts}.json"
         p = base / name
         payload = {"form": key, "task_id": int(task_id), "assignment": data}
+        if team:
+            payload["team"] = dict(team)
         try:
             p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
             out.append({"form": key, "file_path": str(p)})
@@ -778,7 +780,16 @@ def _audit_has_column(con: sqlite3.Connection, name: str) -> bool:
         return False
 
 
-def list_audit_logs(task_id: Optional[int] = None, search: str = "", date_from: Optional[str] = None, date_to: Optional[str] = None, field_filter: str = "", limit: int = 500) -> List[Dict[str, Any]]:
+def list_audit_logs(
+    task_id: Optional[int] = None,
+    search: str = "",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    field_filter: str = "",
+    limit: int = 500,
+    sort_key: Optional[str] = None,
+    sort_dir: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """Return audit log rows filtered for the current incident, optionally scoped to a task.
 
     Attempts to filter by task using either an explicit taskid column (if present)
@@ -822,7 +833,29 @@ def list_audit_logs(task_id: Optional[int] = None, search: str = "", date_from: 
             else:
                 where.append("detail LIKE ?")
                 params.append(f"%\"task_id\": {int(task_id)}%")
-        sql = select + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY id DESC LIMIT ?"
+        # Build ORDER BY using whitelisted columns only
+        dir_sql = "ASC" if (str(sort_dir or "").lower() == "asc") else "DESC"
+        order_expr = None
+        key = (sort_key or "").strip().lower()
+        if key in ("ts", "timestamp"):
+            if "ts_utc" in cols:
+                order_expr = "ts_utc"
+            elif "timestamp" in cols:
+                order_expr = "timestamp"
+        elif key in ("field", "field_changed", "action"):
+            order_expr = "field_changed" if "field_changed" in cols else "action"
+        elif key in ("old", "old_value") and "old_value" in cols:
+            order_expr = "old_value"
+        elif key in ("new", "new_value") and "new_value" in cols:
+            order_expr = "new_value"
+        elif key in ("by", "changed_by", "user_id"):
+            if "changed_by" in cols:
+                order_expr = "changed_by"
+            elif "user_id" in cols:
+                order_expr = "user_id"
+
+        order_sql = f" ORDER BY {order_expr} {dir_sql}, id DESC" if order_expr else " ORDER BY id DESC"
+        sql = select + (" WHERE " + " AND ".join(where) if where else "") + order_sql + " LIMIT ?"
         params.append(int(limit))
         try:
             rows = con.execute(sql, params).fetchall()
@@ -850,8 +883,16 @@ def list_audit_logs(task_id: Optional[int] = None, search: str = "", date_from: 
         return out
 
 
-def export_audit_csv(task_id: Optional[int] = None, search: str = "", date_from: Optional[str] = None, date_to: Optional[str] = None, field_filter: str = "") -> str:
-    rows = list_audit_logs(task_id, search, date_from, date_to, field_filter, limit=5000)
+def export_audit_csv(
+    task_id: Optional[int] = None,
+    search: str = "",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    field_filter: str = "",
+    sort_key: Optional[str] = None,
+    sort_dir: Optional[str] = None,
+) -> str:
+    rows = list_audit_logs(task_id, search, date_from, date_to, field_filter, limit=5000, sort_key=sort_key, sort_dir=sort_dir)
     from pathlib import Path
     from datetime import datetime
     try:
