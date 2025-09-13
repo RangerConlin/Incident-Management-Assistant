@@ -1,0 +1,8 @@
+{
+  "incident": {
+    "name": "Example Incident"
+  },
+  "operational_period": {
+    "label": "OP1"
+  }
+}

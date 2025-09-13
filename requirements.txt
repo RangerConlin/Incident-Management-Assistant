@@ -2,6 +2,9 @@ PySide6
 fastapi
 pydantic
 reportlab
+pypdf
+jsonschema
+PyYAML
 PySide6-QtAds
 httpx
 sqlalchemy
