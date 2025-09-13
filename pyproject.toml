@@ -8,7 +8,9 @@ dependencies = [
     "PySide6-QtAds",
     "httpx",
     "sqlalchemy",
-    "sqlmodel>=0.0.8"
+    "sqlmodel>=0.0.8",
+    "pypdf",
+    "PyYAML"
 ]
 
 [tool.pyside6-project]

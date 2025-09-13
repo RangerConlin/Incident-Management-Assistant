@@ -9,3 +9,5 @@ PySide6-QtAds
 httpx
 sqlalchemy
 sqlmodel>=0.0.8
+pypdf
+PyYAML

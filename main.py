@@ -4,6 +4,8 @@ import sys
 import logging
 from typing import Callable
 
+DEV_MODE = os.getenv("DEV_MODE") not in (None, "0", "false", "False")
+
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -2345,6 +2347,9 @@ if __name__ == "__main__":
             win.theme_bridge = _theme_bridge
     except Exception:
         pass
+    if DEV_MODE:
+        from modules.devtools.dev_menu import attach_dev_menu
+        attach_dev_menu(win)
     win.show()
     sys.exit(app.exec())
 

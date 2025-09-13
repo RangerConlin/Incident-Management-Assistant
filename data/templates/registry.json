@@ -1,4 +1,6 @@
 {
+  "__active_by_form__": {},
+  "__active_group__": "default",
   "ics_205": {
     "2023.10": {
       "mapping": "data/templates/ics/ICS_205_v2023.10.map.yaml",
