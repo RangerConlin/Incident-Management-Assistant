@@ -636,19 +636,26 @@ def list_task_debriefs(task_id: int) -> List[Dict[str, Any]]:
             types = json.loads(r["types"]) if r["types"] else []
         except Exception:
             types = []
+        # sqlite3.Row supports key access but not .get(); guard missing columns
+        keys = set(r.keys()) if hasattr(r, "keys") else set()
+        def _r(name, default=None):
+            try:
+                return r[name] if name in keys else default
+            except Exception:
+                return default
         out.append({
             "id": int(r["id"]),
-            "sortie_number": r.get("sortie_number"),
-            "debriefer_id": r.get("debriefer_id"),
+            "sortie_number": _r("sortie_number"),
+            "debriefer_id": _r("debriefer_id"),
             "types": types,
-            "status": r.get("status") or "Draft",
-            "flagged_for_review": bool(r.get("flagged_for_review") or 0),
-            "created_at": r.get("created_at"),
-            "updated_at": r.get("updated_at"),
-            "submitted_by": r.get("submitted_by"),
-            "submitted_at": r.get("submitted_at"),
-            "reviewed_by": r.get("reviewed_by"),
-            "reviewed_at": r.get("reviewed_at"),
+            "status": _r("status") or "Draft",
+            "flagged_for_review": bool(_r("flagged_for_review", 0) or 0),
+            "created_at": _r("created_at"),
+            "updated_at": _r("updated_at"),
+            "submitted_by": _r("submitted_by"),
+            "submitted_at": _r("submitted_at"),
+            "reviewed_by": _r("reviewed_by"),
+            "reviewed_at": _r("reviewed_at"),
         })
     return out
 
@@ -719,6 +726,12 @@ def get_debrief(debrief_id: int) -> Dict[str, Any]:
         types = json.loads(head["types"]) if head["types"] else []
     except Exception:
         types = []
+    hkeys = set(head.keys()) if hasattr(head, "keys") else set()
+    def _h(name, default=None):
+        try:
+            return head[name] if name in hkeys else default
+        except Exception:
+            return default
     out: Dict[str, Any] = {
         "id": int(head["id"]),
         "task_id": head["task_id"],
@@ -729,10 +742,10 @@ def get_debrief(debrief_id: int) -> Dict[str, Any]:
         "flagged_for_review": bool(head["flagged_for_review"] or 0),
         "created_at": head["created_at"],
         "updated_at": head["updated_at"],
-        "submitted_by": head.get("submitted_by"),
-        "submitted_at": head.get("submitted_at"),
-        "reviewed_by": head.get("reviewed_by"),
-        "reviewed_at": head.get("reviewed_at"),
+        "submitted_by": _h("submitted_by"),
+        "submitted_at": _h("submitted_at"),
+        "reviewed_by": _h("reviewed_by"),
+        "reviewed_at": _h("reviewed_at"),
         "forms": {},
     }
     for r in forms:

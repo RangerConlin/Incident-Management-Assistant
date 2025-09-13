@@ -4,13 +4,14 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QStandardItem, QStandardItemModel, QColor
+from PySide6.QtCore import Qt, Signal, QEvent, QRegularExpression
+from PySide6.QtGui import QStandardItem, QStandardItemModel, QColor, QRegularExpressionValidator, QDoubleValidator
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QGridLayout,
+    QFormLayout,
     QLabel,
     QLineEdit,
     QTextEdit,
@@ -18,11 +19,15 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QPushButton,
     QTabWidget,
+    QScrollArea,
     QTableView,
     QHeaderView,
     QAbstractItemView,
     QStyledItemDelegate,
     QSizePolicy,
+    QStyle,
+    QStyleOptionButton,
+    QMessageBox,
 )
 
 
@@ -74,6 +79,33 @@ class _YesNoDelegate(QStyledItemDelegate):
         yes = editor.currentIndex() == 1
         model.setData(index, 1 if yes else 0, Qt.EditRole)
         model.setData(index, "Yes" if yes else "No", Qt.DisplayRole)
+
+
+class _ButtonDelegate(QStyledItemDelegate):
+    """Renders a push button in a cell and emits a clicked signal when pressed."""
+
+    clicked = Signal(object)  # emits QModelIndex
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        btn_opt = QStyleOptionButton()
+        btn_opt.rect = option.rect
+        btn_opt.state = QStyle.State_Enabled
+        btn_opt.text = str(index.data(Qt.DisplayRole) or "214+")
+        style = option.widget.style() if option.widget else None
+        if style:
+            style.drawControl(QStyle.CE_PushButton, btn_opt, painter)
+        else:
+            super().paint(painter, option, index)
+
+    def editorEvent(self, event, model, option, index):  # type: ignore[override]
+        try:
+            if event.type() in (QEvent.MouseButtonRelease,):
+                if option.rect.contains(event.pos()):
+                    self.clicked.emit(index)
+                    return True
+        except Exception:
+            pass
+        return False
 
 
 class TaskDetailWindow(QWidget):
@@ -245,10 +277,11 @@ class TaskDetailWindow(QWidget):
         root.addWidget(tabs, 1)
 
         # Narrative tab
-        self._nar_model = QStandardItemModel(0, 6, self)
-        self._nar_model.setHorizontalHeaderLabels(["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical"]) 
-        nar_widget = QWidget(self)
-        nar_layout = QVBoxLayout(nar_widget)
+        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical", "214+"]
+        self._nar_model = QStandardItemModel(0, len(self._nar_headers_base), self)
+        self._nar_model.setHorizontalHeaderLabels(self._nar_headers_base)
+        nar_content = QWidget(self)
+        nar_layout = QVBoxLayout(nar_content)
         try:
             nar_layout.setContentsMargins(0, 0, 0, 0)
         except Exception:
@@ -258,12 +291,24 @@ class TaskDetailWindow(QWidget):
             quick.setContentsMargins(0, 0, 0, 0)
         except Exception:
             pass
-        self._nar_entry = QLineEdit(self)
+        self._nar_entry = QLineEdit(nar_content)
+        try:
+            self._nar_entry.setVisible(False)
+        except Exception:
+            pass
         self._nar_entry.setPlaceholderText("Type narrative… (Enter to add)")
         self._nar_entry.returnPressed.connect(self.add_narrative)
-        self._nar_crit = QComboBox(self)
+        self._nar_crit = QComboBox(nar_content)
+        try:
+            self._nar_crit.setVisible(False)
+        except Exception:
+            pass
         self._nar_crit.addItems(["No", "Yes"])
-        add_btn = QPushButton("Add")
+        add_btn = QPushButton("Add", nar_content)
+        try:
+            add_btn.setVisible(False)
+        except Exception:
+            pass
         add_btn.clicked.connect(self.add_narrative)
         quick.addWidget(self._nar_entry, 1)
         quick.addWidget(QLabel("Critical:"))
@@ -276,24 +321,53 @@ class TaskDetailWindow(QWidget):
         self._nar_table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
         self._nar_table.setAlternatingRowColors(True)
         self._nar_table.setColumnHidden(0, True)
+        self._nar_table.setSortingEnabled(True)
         hh: QHeaderView = self._nar_table.horizontalHeader()
         # Default: interactive columns; make Entry column stretch to fill remaining width
         try:
             hh.setStretchLastSection(False)
             hh.setSectionResizeMode(QHeaderView.Interactive)
             hh.setSectionResizeMode(2, QHeaderView.Stretch)  # Entry
+            hh.setSortIndicatorShown(True)
+            # Add visual dividers between header sections to make resize handles obvious
+            try:
+                hh.setSectionsClickable(True)
+                hh.setHighlightSections(True)
+            except Exception:
+                pass
+            try:
+                hh.setStyleSheet(
+                    "QHeaderView::section { border-right: 1px solid #b0b0b0; padding-right: 4px; } "
+                    "QHeaderView::section:last { border-right: none; }"
+                )
+            except Exception:
+                pass
         except Exception:
             pass
         self._nar_table.setItemDelegateForColumn(5, _YesNoDelegate(self._nar_table))
+        # Render a push-button in the last column ("214+") and handle clicks
+        try:
+            self._nar_btn_delegate = _ButtonDelegate(self._nar_table)
+            self._nar_table.setItemDelegateForColumn(6, self._nar_btn_delegate)
+            self._nar_btn_delegate.clicked.connect(self._on_nar_button_clicked)
+        except Exception:
+            pass
+        try:
+            self._nar_model.dataChanged.connect(self._on_narrative_data_changed)
+        except Exception:
+            pass
 
         # Moved quick narrative entry to top section; hide it in the tab
         # nar_layout.addLayout(quick)
         nar_layout.addWidget(self._nar_table, 1)
-        tabs.addTab(nar_widget, "Narrative")
+        nar_scroll = QScrollArea(self)
+        nar_scroll.setWidgetResizable(True)
+        nar_scroll.setWidget(nar_content)
+        tabs.addTab(nar_scroll, "Narrative")
 
         # Teams tab
-        teams_widget = QWidget(self)
-        teams_layout = QVBoxLayout(teams_widget)
+        teams_content = QWidget(self)
+        teams_layout = QVBoxLayout(teams_content)
         try:
             teams_layout.setContentsMargins(0, 0, 0, 0)
         except Exception:
@@ -311,8 +385,23 @@ class TaskDetailWindow(QWidget):
             tbar.addWidget(b)
         tbar.addStretch(1)
         teams_layout.addLayout(tbar)
-        self._teams_model = QStandardItemModel(0, 13, self)
-        self._teams_model.setHorizontalHeaderLabels(["ID", "Primary", "Sortie", "Team", "Leader", "Phone", "Status", "Assigned", "Briefed", "Enroute", "Arrival", "Discovery", "Complete"]) 
+        self._teams_headers_base = [
+            "ID",
+            "Primary",
+            "Sortie",
+            "Team",
+            "Leader",
+            "Phone",
+            "Status",
+            "Assigned",
+            "Briefed",
+            "Enroute",
+            "Arrival",
+            "Discovery",
+            "Complete",
+        ]
+        self._teams_model = QStandardItemModel(0, len(self._teams_headers_base), self)
+        self._teams_model.setHorizontalHeaderLabels(list(self._teams_headers_base)) 
         self._teams_table = QTableView(self)
         self._teams_table.setModel(self._teams_model)
         self._teams_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -323,22 +412,48 @@ class TaskDetailWindow(QWidget):
         th: QHeaderView = self._teams_table.horizontalHeader()
         try:
             th.setStretchLastSection(False)
+            # Resizable columns with initial default widths
             th.setSectionResizeMode(QHeaderView.Interactive)
-            th.setSectionResizeMode(3, QHeaderView.Stretch)
+            th.setSortIndicatorShown(True)
+            # Add header dividers to make resize handles obvious
+            try:
+                th.setSectionsClickable(True)
+                th.setHighlightSections(True)
+            except Exception:
+                pass
+            try:
+                th.setStyleSheet(
+                    "QHeaderView::section { border-right: 1px solid #b0b0b0; padding-right: 4px; } "
+                    "QHeaderView::section:last { border-right: none; }"
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Apply default column widths; table remains resizable with window
+        try:
+            default_sizes = [40, 50, 150, 120, 100, 100, 80, 80, 80, 80, 80, 80]
+            for i, w in enumerate(default_sizes, start=1):
+                if i < self._teams_model.columnCount():
+                    self._teams_table.setColumnWidth(i, int(w))
         except Exception:
             pass
         teams_layout.addWidget(self._teams_table, 1)
-        tabs.addTab(teams_widget, "Teams")
+        teams_scroll = QScrollArea(self)
+        teams_scroll.setWidgetResizable(True)
+        teams_scroll.setWidget(teams_content)
+        tabs.addTab(teams_scroll, "Teams")
 
         # Personnel tab
-        pers_widget = QWidget(self)
-        pers_layout = QVBoxLayout(pers_widget)
+        pers_content = QWidget(self)
+        pers_layout = QVBoxLayout(pers_content)
         try:
             pers_layout.setContentsMargins(0, 0, 0, 0)
         except Exception:
             pass
-        self._pers_model = QStandardItemModel(0, 8, self)
-        self._pers_model.setHorizontalHeaderLabels(["Active", "Name", "ID", "Rank", "Role", "Organization", "Phone", "Team"]) 
+        self._pers_headers_base = ["Active", "Name", "ID", "Rank", "Role", "Organization", "Phone", "Team"]
+        self._pers_model = QStandardItemModel(0, len(self._pers_headers_base), self)
+        self._pers_model.setHorizontalHeaderLabels(list(self._pers_headers_base)) 
         self._pers_table = QTableView(self)
         self._pers_table.setModel(self._pers_model)
         self._pers_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -348,52 +463,462 @@ class TaskDetailWindow(QWidget):
         thp: QHeaderView = self._pers_table.horizontalHeader()
         try:
             thp.setStretchLastSection(False)
+            # Resizable columns with initial defaults
             thp.setSectionResizeMode(QHeaderView.Interactive)
-            thp.setSectionResizeMode(1, QHeaderView.Stretch)
+            try:
+                thp.setSectionResizeMode(1, QHeaderView.Stretch)  # Make Name stretch nicely
+            except Exception:
+                pass
+            thp.setSortIndicatorShown(True)
+            # Header dividers for obvious resize handles
+            try:
+                thp.setSectionsClickable(True)
+                thp.setHighlightSections(True)
+            except Exception:
+                pass
+            try:
+                thp.setStyleSheet(
+                    "QHeaderView::section { border-right: 1px solid #b0b0b0; padding-right: 4px; } " +
+                    "QHeaderView::section:last { border-right: none; }"
+                )
+            except Exception:
+                pass
+            # Personnel: keep static header labels (no width suffixes)
+        except Exception:
+            pass
+        # Apply default column widths; table remains resizable with window
+        try:
+            default_sizes = [50, 250, 100, 100, 100, 100, 150, 100]
+            for i, w in enumerate(default_sizes, start=0):
+                if i < self._pers_model.columnCount():
+                    self._pers_table.setColumnWidth(i, int(w))
         except Exception:
             pass
         pers_layout.addWidget(self._pers_table, 1)
-        tabs.addTab(pers_widget, "Personnel")
+        pers_scroll = QScrollArea(self)
+        pers_scroll.setWidgetResizable(True)
+        pers_scroll.setWidget(pers_content)
+        tabs.addTab(pers_scroll, "Personnel")
 
         # Other tabs (placeholders, kept minimal to avoid scope growth)
         tabs.addTab(QLabel("Teams — coming soon"), "Teams")
         tabs.addTab(QLabel("Personnel — coming soon"), "Personnel")
         # Vehicles tab
-        veh_widget = QWidget(self)
-        veh_layout = QVBoxLayout(veh_widget)
+        veh_content = QWidget(self)
+        veh_layout = QVBoxLayout(veh_content)
         try:
             veh_layout.setContentsMargins(0, 0, 0, 0)
         except Exception:
             pass
         # Vehicles (ground)
-        self._veh_model = QStandardItemModel(0, 5, self)
-        self._veh_model.setHorizontalHeaderLabels(["Active", "ID", "License Plate", "Type", "Organization"]) 
+        self._veh_headers_base = ["Active", "ID", "License Plate", "Type", "Organization"]
+        self._veh_model = QStandardItemModel(0, len(self._veh_headers_base), self)
+        self._veh_model.setHorizontalHeaderLabels(list(self._veh_headers_base))
         self._veh_table = QTableView(self)
         self._veh_table.setModel(self._veh_model)
         self._veh_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._veh_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._veh_table.setAlternatingRowColors(True)
         self._veh_table.setSortingEnabled(True)
+        thv: QHeaderView = self._veh_table.horizontalHeader()
+        try:
+            thv.setStretchLastSection(False)
+            thv.setSectionResizeMode(QHeaderView.Interactive)
+            thv.setSortIndicatorShown(True)
+            try:
+                thv.setSectionsClickable(True)
+                thv.setHighlightSections(True)
+            except Exception:
+                pass
+            try:
+                thv.setStyleSheet(
+                    "QHeaderView::section { border-right: 1px solid #b0b0b0; padding-right: 4px; } "
+                    + "QHeaderView::section:last { border-right: none; }"
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Default widths and detach from window (fixed table width), but allow column resize
+        try:
+            veh_defaults = [60, 80, 140, 120, 160]
+            for i, w in enumerate(veh_defaults):
+                if i < self._veh_model.columnCount():
+                    self._veh_table.setColumnWidth(i, int(w))
+            def _veh_apply_fixed_width():
+                try:
+                    total = sum(self._veh_table.columnWidth(c) for c in range(self._veh_model.columnCount()))
+                    vh = self._veh_table.verticalHeader().width() if self._veh_table.verticalHeader() else 0
+                    frame = int(self._veh_table.frameWidth()) * 2
+                    vsb_w = self._veh_table.verticalScrollBar().sizeHint().width() if self._veh_table.verticalScrollBar() else 0
+                    self._veh_table.setFixedWidth(int(total + vh + frame + vsb_w))
+                    self._veh_table.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+                except Exception:
+                    pass
+            _veh_apply_fixed_width()
+            try:
+                thv.sectionResized.connect(lambda *_: _veh_apply_fixed_width())
+            except Exception:
+                pass
+            # Keep static header labels for Vehicles (no width suffixes)
+        except Exception:
+            pass
         veh_layout.addWidget(self._veh_table)
         # Aircraft
         self._air_label = QLabel("Aircraft")
         veh_layout.addWidget(self._air_label)
-        self._air_model = QStandardItemModel(0, 5, self)
-        self._air_model.setHorizontalHeaderLabels(["Active", "Callsign", "Tail Number", "Type", "Organization"]) 
+        self._air_headers_base = ["Active", "Callsign", "Tail Number", "Type", "Organization"]
+        self._air_model = QStandardItemModel(0, len(self._air_headers_base), self)
+        self._air_model.setHorizontalHeaderLabels(list(self._air_headers_base))
         self._air_table = QTableView(self)
         self._air_table.setModel(self._air_model)
         self._air_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._air_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._air_table.setAlternatingRowColors(True)
         self._air_table.setSortingEnabled(True)
+        tha: QHeaderView = self._air_table.horizontalHeader()
+        try:
+            tha.setStretchLastSection(False)
+            tha.setSectionResizeMode(QHeaderView.Interactive)
+            tha.setSortIndicatorShown(True)
+            try:
+                tha.setSectionsClickable(True)
+                tha.setHighlightSections(True)
+            except Exception:
+                pass
+            try:
+                tha.setStyleSheet(
+                    "QHeaderView::section { border-right: 1px solid #b0b0b0; padding-right: 4px; } "
+                    + "QHeaderView::section:last { border-right: none; }"
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Default widths and detach aircraft table similarly
+        try:
+            air_defaults = [60, 120, 120, 120, 160]
+            for i, w in enumerate(air_defaults):
+                if i < self._air_model.columnCount():
+                    self._air_table.setColumnWidth(i, int(w))
+            def _air_apply_fixed_width():
+                try:
+                    total = sum(self._air_table.columnWidth(c) for c in range(self._air_model.columnCount()))
+                    vh = self._air_table.verticalHeader().width() if self._air_table.verticalHeader() else 0
+                    frame = int(self._air_table.frameWidth()) * 2
+                    vsb_w = self._air_table.verticalScrollBar().sizeHint().width() if self._air_table.verticalScrollBar() else 0
+                    self._air_table.setFixedWidth(int(total + vh + frame + vsb_w))
+                    self._air_table.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+                except Exception:
+                    pass
+            _air_apply_fixed_width()
+            try:
+                tha.sectionResized.connect(lambda *_: _air_apply_fixed_width())
+            except Exception:
+                pass
+            # Keep static header labels for Aircraft (no width suffixes)
+        except Exception:
+            pass
         veh_layout.addWidget(self._air_table)
-        tabs.addTab(veh_widget, "Vehicles")
-        tabs.addTab(QLabel("Assignment Details — coming soon"), "Assignment Details")
-        tabs.addTab(QLabel("Communications — coming soon"), "Communications")
-        tabs.addTab(QLabel("Debriefing — coming soon"), "Debriefing")
+        veh_scroll = QScrollArea(self)
+        veh_scroll.setWidgetResizable(True)
+        veh_scroll.setWidget(veh_content)
+        tabs.addTab(veh_scroll, "Vehicles")
+        # Assignment Details tab (Ground/Air info to support CAPF 109, SAR 104, ICS 204)
+        assign_widget = self._build_assignment_details_tab()
+        tabs.addTab(assign_widget, "Assignment Details")
+
+        # Communications tab (ICS 205 linkage)
+        comms_container = QWidget(self)
+        comms_v = QVBoxLayout(comms_container)
+        try:
+            comms_v.setContentsMargins(6, 6, 6, 6)
+            comms_v.setSpacing(6)
+        except Exception:
+            pass
+        # Toolbar row: Add/Remove
+        comms_toolbar = QHBoxLayout()
+        self._comms_add_btn = QPushButton("Add Channel", self)
+        self._comms_del_btn = QPushButton("Remove Selected", self)
+        comms_toolbar.addWidget(self._comms_add_btn)
+        comms_toolbar.addWidget(self._comms_del_btn)
+        comms_toolbar.addStretch(1)
+        comms_v.addLayout(comms_toolbar)
+
+        # Model and table
+        self._comms_headers = [
+            "Channel Name",
+            "Zone",
+            "Channel Number",
+            "Function",
+            "RX Frequency",
+            "RX Tone/NAC",
+            "TX Frequency",
+            "TX Tone/NAC",
+            "Mode (A/D/M)",
+            "Remarks",
+        ]
+        self._comms_model = QStandardItemModel(0, len(self._comms_headers), self)
+        self._comms_model.setHorizontalHeaderLabels(list(self._comms_headers))
+
+        self._comms_table = QTableView(self)
+        self._comms_table.setModel(self._comms_model)
+        self._comms_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._comms_table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
+        self._comms_table.setAlternatingRowColors(True)
+        self._comms_table.setSortingEnabled(False)
+        thc: QHeaderView = self._comms_table.horizontalHeader()
+        try:
+            thc.setStretchLastSection(True)
+            thc.setSectionResizeMode(QHeaderView.Interactive)
+            thc.setSortIndicatorShown(False)
+            try:
+                thc.setSectionsClickable(True)
+                thc.setHighlightSections(True)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Delegates for editable columns
+        try:
+            from utils.constants import RADIO_TASK_FUNCTIONS as _RADIO_TASK_FUNCTIONS
+        except Exception:
+            _RADIO_TASK_FUNCTIONS = ["PRIMARY", "SECONDARY", "COMMAND", "TACTICAL", "AIR/GROUND", "EMERGENCY"]
+
+        # Local delegates with callbacks to repository updates
+        from PySide6.QtWidgets import QComboBox as _QComboBox
+        from PySide6.QtWidgets import QStyledItemDelegate as _QStyledItemDelegate
+        from PySide6.QtCore import Qt as _Qt
+
+        class _CommsChannelDelegate(_QStyledItemDelegate):
+            def __init__(self, parent_w: QWidget):
+                super().__init__(parent_w)
+                self._parent_w = parent_w
+
+            def _channels(self) -> List[Dict[str, Any]]:
+                try:
+                    from modules.operations.taskings.repository import list_incident_channels
+                    return list_incident_channels() or []
+                except Exception:
+                    return []
+
+            def createEditor(self, parent, option, index):  # type: ignore[override]
+                cb = _QComboBox(parent)
+                for ch in self._channels():
+                    label = str(ch.get("channel") or f"Ch-{ch.get('id')}")
+                    cb.addItem(label, ch.get("id"))
+                return cb
+
+            def setEditorData(self, editor, index):  # type: ignore[override]
+                # Current incident_channel_id stored in UserRole+1 on column 0 item
+                try:
+                    model = index.model()
+                    row = index.row()
+                    it = model.item(row, 0)
+                    current_id = it.data(_Qt.UserRole + 1)
+                    for i in range(editor.count()):
+                        if editor.itemData(i) == current_id:
+                            editor.setCurrentIndex(i)
+                            break
+                except Exception:
+                    pass
+
+            def setModelData(self, editor, model, index):  # type: ignore[override]
+                try:
+                    selected_id = editor.currentData()
+                    # Persist selection via repository
+                    it = model.item(index.row(), 0)
+                    row_id = it.data(_Qt.UserRole)
+                    from modules.operations.taskings.repository import update_task_comm
+                    if row_id is not None:
+                        update_task_comm(int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
+                    # Trigger reload to refresh read-only columns
+                    self._parent_w.load_comms()
+                except Exception:
+                    pass
+
+        class _CommsFunctionDelegate(_QStyledItemDelegate):
+            def createEditor(self, parent, option, index):  # type: ignore[override]
+                cb = _QComboBox(parent)
+                try:
+                    cb.addItems(list(_RADIO_TASK_FUNCTIONS))
+                except Exception:
+                    cb.addItems(["PRIMARY", "SECONDARY", "COMMAND", "TACTICAL"]) 
+                return cb
+
+            def setEditorData(self, editor, index):  # type: ignore[override]
+                txt = str(index.data(_Qt.DisplayRole) or "").strip().lower()
+                for i in range(editor.count()):
+                    if str(editor.itemText(i)).strip().lower() == txt:
+                        editor.setCurrentIndex(i)
+                        break
+
+            def setModelData(self, editor, model, index):  # type: ignore[override]
+                try:
+                    value = str(editor.currentText()).strip()
+                    # Persist via repository
+                    it = model.item(index.row(), 0)
+                    row_id = it.data(_Qt.UserRole)
+                    from modules.operations.taskings.repository import update_task_comm
+                    if row_id is not None:
+                        update_task_comm(int(row_id), function=value)
+                    # Update display
+                    model.setData(index, value, _Qt.DisplayRole)
+                except Exception:
+                    pass
+
+        # Install delegates
+        try:
+            self._comms_table.setItemDelegateForColumn(0, _CommsChannelDelegate(self))
+            self._comms_table.setItemDelegateForColumn(3, _CommsFunctionDelegate(self))
+        except Exception:
+            pass
+
+        # Wire add/remove actions
+        def _add_comm_row():
+            new_id = None
+            try:
+                from modules.operations.taskings.repository import add_task_comm
+                new_id = add_task_comm(int(self._task_id), None, None, None)
+            except Exception as e:
+                try:
+                    QMessageBox.warning(self, "Add Channel", f"Could not add row: {e}")
+                except Exception:
+                    pass
+            self.load_comms()
+            # Select the newly added row and start editing Channel Name
+            try:
+                if new_id is not None:
+                    target_row = -1
+                    for r in range(self._comms_model.rowCount()):
+                        it0 = self._comms_model.item(r, 0)
+                        if int(it0.data(Qt.UserRole) or 0) == int(new_id):
+                            target_row = r
+                            break
+                    if target_row >= 0:
+                        idx = self._comms_model.index(target_row, 0)
+                        self._comms_table.setCurrentIndex(idx)
+                        try:
+                            self._comms_table.scrollTo(idx)
+                        except Exception:
+                            pass
+                        self._comms_table.edit(idx)
+            except Exception:
+                pass
+
+        def _del_comm_row():
+            try:
+                idx = self._comms_table.currentIndex()
+                if not idx.isValid():
+                    try:
+                        QMessageBox.information(self, "Remove Channel", "Select a row to remove.")
+                    except Exception:
+                        pass
+                    return
+                it = self._comms_model.item(idx.row(), 0)
+                row_id = it.data(Qt.UserRole)
+                if row_id is None:
+                    return
+                from modules.operations.taskings.repository import remove_task_comm
+                remove_task_comm(int(row_id))
+            except Exception as e:
+                try:
+                    QMessageBox.warning(self, "Remove Channel", f"Could not remove row: {e}")
+                except Exception:
+                    pass
+            self.load_comms()
+
+        try:
+            self._comms_add_btn.clicked.connect(_add_comm_row)
+            self._comms_del_btn.clicked.connect(_del_comm_row)
+        except Exception:
+            pass
+
+        comms_v.addWidget(self._comms_table)
+        tabs.addTab(comms_container, "Communications")
+
+        # Debriefing tab
+        deb_content = QWidget(self)
+        deb_v = QVBoxLayout(deb_content)
+        try:
+            deb_v.setContentsMargins(6, 6, 6, 6)
+            deb_v.setSpacing(6)
+        except Exception:
+            pass
+        deb_toolbar = QHBoxLayout()
+        self._deb_add_btn = QPushButton("Add Debrief", self)
+        self._deb_refresh_btn = QPushButton("Refresh", self)
+        self._deb_submit_btn = QPushButton("Submit", self)
+        self._deb_mark_rev_btn = QPushButton("Mark Reviewed", self)
+        self._deb_archive_btn = QPushButton("Archive", self)
+        self._deb_delete_btn = QPushButton("Delete", self)
+        for b in [self._deb_add_btn, self._deb_refresh_btn, self._deb_submit_btn, self._deb_mark_rev_btn, self._deb_archive_btn, self._deb_delete_btn]:
+            deb_toolbar.addWidget(b)
+        deb_toolbar.addStretch(1)
+        deb_v.addLayout(deb_toolbar)
+
+        # Info label to show current task and count
+        self._deb_info = QLabel("", self)
+        try:
+            self._deb_info.setStyleSheet("color: #666; font-size: 12px;")
+        except Exception:
+            pass
+        deb_v.addWidget(self._deb_info)
+
+        # Debriefs table
+        self._deb_headers = [
+            "ID",
+            "Sortie",
+            "Debriefer",
+            "Types",
+            "Status",
+            "Flag",
+            "Updated",
+        ]
+        self._deb_model = QStandardItemModel(0, len(self._deb_headers), self)
+        self._deb_model.setHorizontalHeaderLabels(list(self._deb_headers))
+        self._deb_table = QTableView(self)
+        self._deb_table.setModel(self._deb_model)
+        self._deb_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._deb_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._deb_table.setAlternatingRowColors(True)
+        self._deb_table.setSortingEnabled(True)
+        try:
+            self._deb_table.horizontalHeader().setStretchLastSection(True)
+            self._deb_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        except Exception:
+            pass
+        deb_v.addWidget(self._deb_table, 2)
+
+        # Editor container (hidden until selection)
+        self._deb_editor = QWidget(self)
+        self._deb_editor.setVisible(False)
+        self._deb_editor_v = QVBoxLayout(self._deb_editor)
+        try:
+            self._deb_editor_v.setContentsMargins(6, 6, 6, 6)
+            self._deb_editor_v.setSpacing(6)
+        except Exception:
+            pass
+        deb_v.addWidget(self._deb_editor, 3)
+
+        tabs.addTab(deb_content, "Debriefing")
         tabs.addTab(QLabel("Log — coming soon"), "Log")
         tabs.addTab(QLabel("Attachments/Forms — coming soon"), "Attachments/Forms")
-        tabs.addTab(QLabel("Planning — coming soon"), "Planning")
+        tabs.addTab(QLabel("Planning - coming soon"), "Planning")
+
+        # Remove duplicate placeholder tabs for Teams/Personnel if present
+        try:
+            i = 0
+            while i < tabs.count():
+                w = tabs.widget(i)
+                name = tabs.tabText(i)
+                if isinstance(w, QLabel) and name in ("Teams", "Personnel"):
+                    tabs.removeTab(i)
+                    continue
+                i += 1
+        except Exception:
+            pass
 
         # Initial data load
         self._load_header()
@@ -403,11 +928,24 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         try:
+            self.load_assignment()
+        except Exception:
+            pass
+        try:
             self.load_teams()
         except Exception:
             pass
         try:
             self.load_personnel()
+        except Exception:
+            pass
+        try:
+            self.load_comms()
+        except Exception:
+            pass
+        try:
+            self._wire_debrief_tab()
+            self.load_debriefs()
         except Exception:
             pass
         try:
@@ -528,17 +1066,34 @@ class TaskDetailWindow(QWidget):
                 QStandardItem("Yes" if crit else "No"),
             ]
             items[0].setData(rid, Qt.EditRole)
-            items[5].setData(crit, Qt.EditRole)
-            if crit:
-                hl = QColor(Qt.red).lighter(160)
-                for it in items:
-                    it.setData(hl, Qt.BackgroundRole)
+            # Ensure display shows Yes/No and edit role carries 1/0
+            items[5].setData("Yes" if crit else "No", Qt.DisplayRole)
+            items[5].setData(int(crit), Qt.EditRole)
+            items[5].setEditable(True)
+            # Add per-row ICS-214 action column
+            act = QStandardItem("214+")
+            act.setEditable(False)
+            items.append(act)
             self._nar_model.appendRow(items)
+            try:
+                self._apply_row_critical_highlight(self._nar_model.rowCount() - 1)
+            except Exception:
+                pass
         # Default widths
-        self._nar_table.setColumnWidth(1, 180)
-        self._nar_table.setColumnWidth(3, 160)
-        self._nar_table.setColumnWidth(4, 140)
-        self._nar_table.setColumnWidth(5, 100)
+        self._nar_table.setColumnWidth(1, 120)  # Date/Time (UTC)
+        self._nar_table.setColumnWidth(3, 120)  # Entered By
+        self._nar_table.setColumnWidth(4, 120)  # Team
+        self._nar_table.setColumnWidth(5, 50)   # Critical
+        try:
+            self._nar_table.setColumnWidth(6, 50) # Action ("214+")
+        except Exception:
+            pass
+        # Header labels remain static (no width suffixes)
+        try:
+            # Default sort by time desc
+            self._nar_table.sortByColumn(1, Qt.DescendingOrder)
+        except Exception:
+            pass
 
     def add_narrative(self) -> None:
         # Prefer the always-visible top entry widgets if present
@@ -581,6 +1136,105 @@ class TaskDetailWindow(QWidget):
         except Exception:
             # Ignore failures silently for now
             pass
+
+    def _add_top_entry_to_ics214(self) -> None:
+        try:
+            entry_widget = getattr(self, '_nar_entry_top', None)
+            crit_widget = getattr(self, '_nar_crit_top', None)
+            if entry_widget is None:
+                return
+            try:
+                text = entry_widget.toPlainText().strip()
+            except Exception:
+                text = getattr(entry_widget, 'text', lambda: "")().strip()
+            if not text:
+                return
+            crit = False
+            try:
+                if hasattr(crit_widget, 'isChecked'):
+                    crit = bool(crit_widget.isChecked())
+                elif hasattr(crit_widget, 'currentIndex'):
+                    crit = (crit_widget.currentIndex() == 1)
+            except Exception:
+                crit = False
+            from modules.operations.taskings.bridge import TaskingsBridge
+            TaskingsBridge().addIcs214Entry(text, crit)
+        except Exception:
+            pass
+
+    def _on_nar_table_clicked(self, index) -> None:
+        try:
+            if not index.isValid():
+                return
+            # Action column index is last ("214+")
+            if index.column() != (self._nar_model.columnCount() - 1):
+                return
+            r = index.row()
+            text = str(self._nar_model.item(r, 2).text() or "")
+            crit_txt = str(self._nar_model.item(r, 5).text() or "No")
+            crit = crit_txt.strip().lower() in ("yes", "1", "true")
+            from modules.operations.taskings.bridge import TaskingsBridge
+            TaskingsBridge().addIcs214Entry(text, crit)
+        except Exception:
+            pass
+
+    def _on_nar_button_clicked(self, index) -> None:
+        # Same behavior as table-click handler but triggered by button delegate
+        self._on_nar_table_clicked(index)
+
+    def _is_row_critical(self, row: int) -> bool:
+        try:
+            idx = self._nar_model.index(row, 5)
+            val = self._nar_model.data(idx, Qt.EditRole)
+            if isinstance(val, (int, bool)):
+                return bool(val)
+            txt = str(self._nar_model.data(idx, Qt.DisplayRole) or "")
+            return txt.strip().lower() in ("yes", "1", "true")
+        except Exception:
+            return False
+
+    def _apply_row_critical_highlight(self, row: int) -> None:
+        try:
+            is_crit = self._is_row_critical(row)
+            color = QColor(Qt.red).lighter(160) if is_crit else None
+            # Block signals to avoid recursive dataChanged emissions
+            try:
+                self._nar_model.blockSignals(True)
+            except Exception:
+                pass
+            try:
+                for c in range(self._nar_model.columnCount()):
+                    it = self._nar_model.item(row, c)
+                    if it is None:
+                        continue
+                    it.setData(color, Qt.BackgroundRole)
+            finally:
+                try:
+                    self._nar_model.blockSignals(False)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _on_narrative_data_changed(self, topLeft, bottomRight, roles=None) -> None:
+        try:
+            start_row = int(topLeft.row())
+            end_row = int(bottomRight.row())
+            start_col = int(topLeft.column())
+            end_col = int(bottomRight.column())
+        except Exception:
+            return
+        # Only react to edits that include the Critical column (index 5)
+        if 5 < start_col or 5 > end_col:
+            return
+        # If roles are provided and do not include Edit/Display roles, ignore to avoid loops
+        try:
+            if roles and all(r not in (Qt.EditRole, Qt.DisplayRole) for r in roles):
+                return
+        except Exception:
+            return
+        for r in range(start_row, end_row + 1):
+            self._apply_row_critical_highlight(r)
 
     # --- Save/Load Header Ops ---
     def _save_header(self) -> None:
@@ -659,6 +1313,71 @@ class TaskDetailWindow(QWidget):
             has_air = self._air_model.rowCount() > 0
             self._air_label.setVisible(has_air)
             self._air_table.setVisible(has_air)
+        except Exception:
+            pass
+
+    # --- Communications Ops ---
+    def load_comms(self) -> None:
+        try:
+            from modules.operations.taskings.repository import list_task_comms
+            rows = list_task_comms(int(self._task_id)) or []
+        except Exception:
+            rows = []
+        try:
+            self._comms_model.removeRows(0, self._comms_model.rowCount())
+        except Exception:
+            pass
+
+        def _fmt_freq(v: Any) -> str:
+            try:
+                if v is None or v == "":
+                    return ""
+                f = float(v)
+                s = ("{:.4f}".format(f)).rstrip("0").rstrip(".")
+                return s
+            except Exception:
+                return str(v or "")
+
+        for r in rows:
+            try:
+                rid = int(r.get("id") or 0)
+            except Exception:
+                rid = 0
+            ch_item = QStandardItem(str(r.get("channel_name") or ""))
+            ch_item.setEditable(True)
+            ch_item.setData(rid, Qt.UserRole)
+            ch_item.setData(r.get("incident_channel_id"), Qt.UserRole + 1)
+
+            zone_item = QStandardItem(str(r.get("zone") or "")); zone_item.setEditable(False)
+            num = r.get("channel_number")
+            num_item = QStandardItem(str(num if num is not None else "")); num_item.setEditable(False)
+            func_item = QStandardItem(str(r.get("function") or "")); func_item.setEditable(True)
+            rx_item = QStandardItem(_fmt_freq(r.get("rx_frequency"))); rx_item.setEditable(False)
+            rxt_item = QStandardItem(str(r.get("rx_tone") or "")); rxt_item.setEditable(False)
+            tx_item = QStandardItem(_fmt_freq(r.get("tx_frequency"))); tx_item.setEditable(False)
+            txt_item = QStandardItem(str(r.get("tx_tone") or "")); txt_item.setEditable(False)
+            mode_item = QStandardItem(str(r.get("mode") or "")); mode_item.setEditable(False)
+            rem_item = QStandardItem(str(r.get("remarks") or "")); rem_item.setEditable(False)
+
+            self._comms_model.appendRow([
+                ch_item,
+                zone_item,
+                num_item,
+                func_item,
+                rx_item,
+                rxt_item,
+                tx_item,
+                txt_item,
+                mode_item,
+                rem_item,
+            ])
+
+        # Widths
+        try:
+            defaults = [180, 100, 110, 130, 110, 110, 110, 110, 80, 240]
+            for i, w in enumerate(defaults):
+                if i < self._comms_model.columnCount():
+                    self._comms_table.setColumnWidth(i, int(w))
         except Exception:
             pass
 
@@ -860,3 +1579,1446 @@ class TaskDetailWindow(QWidget):
                 QStandardItem(str(p.get('team_name') or '')),
             ])
 
+    # --- Assignment Details (Ground/Air) ---
+    def _build_assignment_details_tab(self) -> QWidget:
+        container = QWidget(self)
+        lay = QVBoxLayout(container)
+        try:
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(8)
+        except Exception:
+            pass
+
+        # Action buttons
+        btns = QHBoxLayout()
+        # Export selector + button
+        self._assign_export_select = QComboBox()
+        try:
+            self._assign_export_select.addItems(["ICS 204", "CAPF 109", "SAR 104"])
+        except Exception:
+            pass
+        btns.addWidget(self._assign_export_select)
+        self._assign_export_btn = QPushButton("Export")
+        self._assign_export_btn.clicked.connect(self.export_assignment_forms)
+        btns.addWidget(self._assign_export_btn)
+        self._assign_open_export_btn = QPushButton("Open Export Folder")
+        self._assign_open_export_btn.clicked.connect(self.open_export_folder)
+        btns.addWidget(self._assign_open_export_btn)
+        btns.addStretch(1)
+        self._assign_save_btn = QPushButton("Save")
+        self._assign_revert_btn = QPushButton("Revert")
+        self._assign_save_btn.clicked.connect(self.save_assignment)
+        self._assign_revert_btn.clicked.connect(self.load_assignment)
+        btns.addWidget(self._assign_save_btn)
+        btns.addWidget(self._assign_revert_btn)
+        lay.addLayout(btns)
+
+        # Subtabs
+        sub = QTabWidget(container)
+        lay.addWidget(sub, 1)
+
+        self._assign_w: Dict[str, QWidget] = {}
+
+        # Ground Information (scrollable)
+        g_content = QWidget(sub)
+        gl = QVBoxLayout(g_content)
+        try:
+            gl.setContentsMargins(8, 8, 8, 8)
+            gl.setSpacing(8)
+        except Exception:
+            pass
+        # Previous/Present efforts
+        prev = QTextEdit(g_content); prev.setPlaceholderText("Previous Search Efforts in Area")
+        pres = QTextEdit(g_content); pres.setPlaceholderText("Present Search Efforts in Area")
+        self._assign_w['g_prev'] = prev
+        self._assign_w['g_pres'] = pres
+        gl.addWidget(QLabel("Previous and Present Search Efforts in Area"))
+        gl.addWidget(prev)
+        gl.addWidget(pres)
+        # Time/Size
+        row_ts = QHBoxLayout();
+        g_time = QLineEdit(g_content); g_time.setPlaceholderText("Time Allocated")
+        g_size = QLineEdit(g_content); g_size.setPlaceholderText("Size of Assignment")
+        self._assign_w['g_time'] = g_time
+        self._assign_w['g_size'] = g_size
+        row_ts.addWidget(g_time)
+        row_ts.addWidget(g_size)
+        gl.addLayout(row_ts)
+        # Expected POD (Responsive/Unresponsive/Clues)
+        gl.addWidget(QLabel("Expected POD"))
+        pod_row1 = QHBoxLayout()
+        def _mk_pod(label: str, key: str) -> QComboBox:
+            pod_cb = QComboBox(g_content)
+            pod_cb.addItems(["High", "Medium", "Low"])
+            self._assign_w[key] = pod_cb
+            w = QWidget(g_content); w_l = QHBoxLayout(w); w_l.setContentsMargins(0,0,0,0); w_l.addWidget(QLabel(label)); w_l.addWidget(pod_cb); return w
+        pod_row1.addWidget(_mk_pod("Responsive Subj", 'g_pod_resp'))
+        pod_row1.addWidget(_mk_pod("Unresponsive Subj", 'g_pod_unresp'))
+        pod_row1.addWidget(_mk_pod("Clues", 'g_pod_clues'))
+        gl.addLayout(pod_row1)
+        # Drop off / Pickup
+        drop = QTextEdit(g_content); drop.setPlaceholderText("Drop off instructions")
+        pick = QTextEdit(g_content); pick.setPlaceholderText("Pickup instructions")
+        self._assign_w['g_drop'] = drop
+        self._assign_w['g_pick'] = pick
+        gl.addWidget(drop)
+        gl.addWidget(pick)
+        g_scroll = QScrollArea(sub)
+        g_scroll.setWidgetResizable(True)
+        g_scroll.setWidget(g_content)
+        sub.addTab(g_scroll, "Ground Information")
+
+        # Air Information (scrollable)
+        a_content = QWidget(sub)
+        al = QVBoxLayout(a_content)
+        try:
+            al.setContentsMargins(8, 8, 8, 8)
+            al.setSpacing(8)
+        except Exception:
+            pass
+        # Basic fields
+        def _add_line(idkey: str, ph: str) -> QLineEdit:
+            ed = QLineEdit(a_content); ed.setPlaceholderText(ph); self._assign_w[idkey] = ed; al.addWidget(ed); return ed
+        def _add_text(idkey: str, ph: str) -> QTextEdit:
+            ed = QTextEdit(a_content); ed.setPlaceholderText(ph); self._assign_w[idkey] = ed; al.addWidget(ed); return ed
+        _add_line('a_aoo', "WMIRS Area of Operations")
+        row_airports = QHBoxLayout();
+        a_dep = QLineEdit(a_content); a_dep.setPlaceholderText("Dep. Airport"); self._assign_w['a_dep'] = a_dep
+        a_dest = QLineEdit(a_content); a_dest.setPlaceholderText("Dest. Airport"); self._assign_w['a_dest'] = a_dest
+        row_airports.addWidget(a_dep); row_airports.addWidget(a_dest); al.addLayout(row_airports)
+        row_times = QHBoxLayout();
+        a_etd = QLineEdit(a_content); a_etd.setPlaceholderText("ETD (HH:MM[:SS])"); self._assign_w['a_etd'] = a_etd
+        a_ete = QLineEdit(a_content); a_ete.setPlaceholderText("ETE (HH:MM[:SS])"); self._assign_w['a_ete'] = a_ete
+        row_times.addWidget(a_etd); row_times.addWidget(a_ete); al.addLayout(row_times)
+        _add_text('a_other_ac', "Other Aircraft in Area (Location & Callsign)")
+        _add_text('a_gt_in_area', "Ground Teams in Area (Location & Callsign)")
+        _add_text('a_obj', "Sortie Objectives")
+        _add_text('a_deliv', "Sortie Deliverables")
+        _add_text('a_actions', "Actions To Be Taken on Objectives & Deliverables")
+        _add_line('a_route', "Route of Flight")
+        row_altspd = QHBoxLayout();
+        a_alt = QLineEdit(a_content); a_alt.setPlaceholderText("Altitude Assignment & Restrictions"); self._assign_w['a_alt'] = a_alt
+        a_speed = QLineEdit(a_content); a_speed.setPlaceholderText("Airspeed Expected & Restrictions"); self._assign_w['a_speed'] = a_speed
+        row_altspd.addWidget(a_alt); row_altspd.addWidget(a_speed); al.addLayout(row_altspd)
+        row_sepem = QHBoxLayout();
+        a_sep = QLineEdit(a_content); a_sep.setPlaceholderText("Aircraft Separation (Adjoining Areas)"); self._assign_w['a_sep'] = a_sep
+        a_emerg = QLineEdit(a_content); a_emerg.setPlaceholderText("Emergency/Alternate Fields"); self._assign_w['a_emerg'] = a_emerg
+        row_sepem.addWidget(a_sep); row_sepem.addWidget(a_emerg); al.addLayout(row_sepem)
+        _add_line('a_mlats', "Military Low Altitude Training Routes")
+        _add_text('a_haz', "Hazards to Flight")
+        al.addWidget(QLabel("Sortie Search Plan"))
+        row_sp1 = QHBoxLayout();
+        a_sp_pattern = QLineEdit(a_content); a_sp_pattern.setPlaceholderText("Search Pattern"); self._assign_w['a_sp_pattern'] = a_sp_pattern
+        a_sp_vis = QLineEdit(a_content); a_sp_vis.setPlaceholderText("Search Visibility (NM)"); self._assign_w['a_sp_vis'] = a_sp_vis
+        a_sp_alt = QLineEdit(a_content); a_sp_alt.setPlaceholderText("Search Altitude (AGL)"); self._assign_w['a_sp_alt'] = a_sp_alt
+        row_sp1.addWidget(a_sp_pattern); row_sp1.addWidget(a_sp_vis); row_sp1.addWidget(a_sp_alt); al.addLayout(row_sp1)
+        row_sp2 = QHBoxLayout();
+        a_sp_speed = QLineEdit(a_content); a_sp_speed.setPlaceholderText("Search Speed (Knots)"); self._assign_w['a_sp_speed'] = a_sp_speed
+        a_sp_track = QLineEdit(a_content); a_sp_track.setPlaceholderText("Track Spacing (NM)"); self._assign_w['a_sp_track'] = a_sp_track
+        row_sp2.addWidget(a_sp_speed); row_sp2.addWidget(a_sp_track); al.addLayout(row_sp2)
+        row_sp3 = QHBoxLayout();
+        a_sp_terrain = QComboBox(a_content); a_sp_terrain.addItems(["Flat","Rolling Hills","Rugged Hills","Mountainous"]); self._assign_w['a_sp_terrain'] = a_sp_terrain
+        a_sp_cover = QComboBox(a_content); a_sp_cover.addItems(["Open","Moderate","Heavy","Light Snow","Heavy Snow"]); self._assign_w['a_sp_cover'] = a_sp_cover
+        a_sp_turb = QComboBox(a_content); a_sp_turb.addItems(["Light","Moderate","Heavy"]); self._assign_w['a_sp_turb'] = a_sp_turb
+        row_sp3.addWidget(QLabel("Terrain")); row_sp3.addWidget(a_sp_terrain)
+        row_sp3.addWidget(QLabel("Cover")); row_sp3.addWidget(a_sp_cover)
+        row_sp3.addWidget(QLabel("Turbulence")); row_sp3.addWidget(a_sp_turb)
+        al.addLayout(row_sp3)
+        row_sp4 = QHBoxLayout();
+        a_sp_pod = QLineEdit(a_content); a_sp_pod.setPlaceholderText("Probability of Detection (0–100)"); self._assign_w['a_sp_pod'] = a_sp_pod
+        a_sp_tts = QLineEdit(a_content); a_sp_tts.setPlaceholderText("Time to Search Area (hrs)"); self._assign_w['a_sp_tts'] = a_sp_tts
+        a_sp_ts = QLineEdit(a_content); a_sp_ts.setPlaceholderText("Time Started Search (HH:MM[:SS])"); self._assign_w['a_sp_ts'] = a_sp_ts
+        row_sp4.addWidget(a_sp_pod); row_sp4.addWidget(a_sp_tts); row_sp4.addWidget(a_sp_ts); al.addLayout(row_sp4)
+        row_sp5 = QHBoxLayout();
+        a_sp_te = QLineEdit(a_content); a_sp_te.setPlaceholderText("Time Ended Search (HH:MM[:SS])"); self._assign_w['a_sp_te'] = a_sp_te
+        a_sp_tisa = QLineEdit(a_content); a_sp_tisa.setPlaceholderText("Time in Search Area (hrs)"); self._assign_w['a_sp_tisa'] = a_sp_tisa
+        a_sp_tfsa = QLineEdit(a_content); a_sp_tfsa.setPlaceholderText("Time From Search Area (hrs)"); self._assign_w['a_sp_tfsa'] = a_sp_tfsa
+        row_sp5.addWidget(a_sp_te); row_sp5.addWidget(a_sp_tisa); row_sp5.addWidget(a_sp_tfsa); al.addLayout(row_sp5)
+        _add_line('a_sp_total', "Total Sortie Time (hrs)")
+        a_scroll = QScrollArea(sub)
+        a_scroll.setWidgetResizable(True)
+        a_scroll.setWidget(a_content)
+        sub.addTab(a_scroll, "Air Information")
+
+        # Validators and tooltips
+        try:
+            time_re = QRegularExpression(r"^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$")
+            tval = QRegularExpressionValidator(time_re)
+            for key in ('a_etd','a_ete','a_sp_ts','a_sp_te'):
+                w = self._assign_w.get(key)
+                if isinstance(w, QLineEdit):
+                    w.setValidator(tval)
+                    w.setToolTip('Format: HH:MM or HH:MM:SS (24-hour)')
+            def _dv(minv=0.0, maxv=None, dec=3):
+                v = QDoubleValidator()
+                v.setBottom(float(minv))
+                if maxv is not None:
+                    v.setTop(float(maxv))
+                v.setDecimals(int(dec))
+                v.setNotation(QDoubleValidator.StandardNotation)
+                return v
+            for key in ('a_sp_vis','a_sp_alt','a_sp_speed','a_sp_track','a_sp_tts','a_sp_tisa','a_sp_tfsa','a_sp_total'):
+                w = self._assign_w.get(key)
+                if isinstance(w, QLineEdit):
+                    w.setValidator(_dv(0.0, None, 3))
+            wpod = self._assign_w.get('a_sp_pod')
+            if isinstance(wpod, QLineEdit):
+                wpod.setValidator(_dv(0.0, 100.0, 2))
+                wpod.setToolTip('Probability of detection: 0–100')
+        except Exception:
+            pass
+
+        # Live validation styling
+        try:
+            self._wire_assignment_validation_styles()
+        except Exception:
+            pass
+
+        # Default to Ground tab
+        try:
+            sub.setCurrentIndex(0)
+        except Exception:
+            pass
+
+        return container
+
+    def load_assignment(self) -> None:
+        try:
+            from modules.operations.taskings.repository import get_task_assignment
+            data = get_task_assignment(int(self._task_id)) or {}
+        except Exception:
+            data = {}
+        self._bind_assignment_data(data)
+
+    def save_assignment(self) -> None:
+        if not self._validate_assignment_form():
+            return
+        data = self._collect_assignment_data()
+        try:
+            from modules.operations.taskings.repository import save_task_assignment
+            save_task_assignment(int(self._task_id), data)
+            # refresh to bind normalized data
+            self.load_assignment()
+        except Exception:
+            pass
+
+    def _validate_assignment_form(self) -> bool:
+        try:
+            invalids = []
+            # Check any field with a validator for acceptability when non-empty
+            for key, w in (self._assign_w or {}).items():
+                try:
+                    if isinstance(w, QLineEdit) and w.validator() is not None:
+                        txt = w.text().strip()
+                        if txt and not w.hasAcceptableInput():
+                            invalids.append((key, txt))
+                except Exception:
+                    continue
+            if invalids:
+                try:
+                    msg = "Please correct the highlighted fields (invalid format)."
+                    # Focus the first one
+                    k0, _ = invalids[0]
+                    w0 = self._assign_w.get(k0)
+                    if w0:
+                        w0.setFocus()
+                    QMessageBox.warning(self, "Invalid Input", msg)
+                except Exception:
+                    pass
+                return False
+        except Exception:
+            return True
+        return True
+
+    def _wire_assignment_validation_styles(self) -> None:
+        if getattr(self, '_assign_validation_wired', False):
+            # Refresh once to ensure current visuals are correct
+            try:
+                self._refresh_assignment_validation_styles()
+            except Exception:
+                pass
+            return
+        def _on_changed_factory(w: QLineEdit):
+            def _on_changed(_txt: str) -> None:
+                try:
+                    if not isinstance(w, QLineEdit):
+                        return
+                    txt = w.text().strip()
+                    ok = True
+                    if w.validator() is not None and txt:
+                        ok = w.hasAcceptableInput()
+                    self._set_invalid_border(w, not ok)
+                except Exception:
+                    pass
+            return _on_changed
+        try:
+            for _key, w in (self._assign_w or {}).items():
+                if isinstance(w, QLineEdit):
+                    # connect if validator present; still add refresh for others
+                    try:
+                        w.textChanged.connect(_on_changed_factory(w))
+                    except Exception:
+                        pass
+            self._assign_validation_wired = True
+            self._refresh_assignment_validation_styles()
+        except Exception:
+            pass
+
+    def _refresh_assignment_validation_styles(self) -> None:
+        try:
+            for _key, w in (self._assign_w or {}).items():
+                if isinstance(w, QLineEdit):
+                    txt = w.text().strip()
+                    ok = True
+                    try:
+                        if w.validator() is not None and txt:
+                            ok = w.hasAcceptableInput()
+                    except Exception:
+                        ok = True
+                    self._set_invalid_border(w, not ok)
+        except Exception:
+            pass
+
+    def _set_invalid_border(self, w: QLineEdit, invalid: bool) -> None:
+        try:
+            if invalid:
+                w.setStyleSheet('QLineEdit { border: 2px solid #d32f2f; border-radius: 3px; }')
+            else:
+                # Clear to default
+                w.setStyleSheet('')
+        except Exception:
+            pass
+
+    def export_assignment_forms(self) -> None:
+        try:
+            from modules.operations.taskings.repository import export_assignment_forms
+            # Determine which form(s) to export based on dropdown selection
+            try:
+                sel = None
+                if hasattr(self, '_assign_export_select') and self._assign_export_select is not None:
+                    sel = str(self._assign_export_select.currentText() or '').strip()
+                forms = [sel] if sel else ["ICS 204", "CAPF 109", "SAR 104"]
+            except Exception:
+                forms = ["ICS 204", "CAPF 109", "SAR 104"]
+            result = export_assignment_forms(int(self._task_id), forms) or []
+            paths = [str((r or {}).get("file_path") or "") for r in result]
+            paths = [p for p in paths if p]
+            # Remember last export directory
+            try:
+                import os
+                if paths:
+                    self._last_export_dir = os.path.dirname(paths[0])
+            except Exception:
+                pass
+            msg = "Exported:\n" + ("\n".join(paths) if paths else "(no files)")
+            try:
+                # Offer to open the folder directly
+                mb = QMessageBox(self)
+                mb.setIcon(QMessageBox.Information)
+                mb.setWindowTitle("Assignment Export")
+                mb.setText(msg)
+                open_btn = None
+                if paths:
+                    open_btn = mb.addButton("Open Folder", QMessageBox.ActionRole)
+                mb.addButton(QMessageBox.Ok)
+                mb.exec_()
+                if open_btn and mb.clickedButton() == open_btn:
+                    self.open_export_folder()
+            except Exception:
+                QMessageBox.information(self, "Assignment Export", msg)
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Assignment Export", f"Export failed: {e}")
+            except Exception:
+                pass
+
+    def open_export_folder(self) -> None:
+        # Use last known export dir, or derive from incident id
+        try:
+            from pathlib import Path
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            base = None
+            try:
+                d = getattr(self, '_last_export_dir', None)
+                if d:
+                    base = Path(d)
+            except Exception:
+                base = None
+            if base is None:
+                try:
+                    from utils import incident_context
+                    incident_id = incident_context.get_active_incident_id() or 'unknown'
+                    base = Path('data') / 'exports' / str(incident_id)
+                except Exception:
+                    base = Path('data') / 'exports'
+            base.mkdir(parents=True, exist_ok=True)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(base.resolve())))
+        except Exception:
+            try:
+                QMessageBox.information(self, "Open Folder", "Could not open export folder.")
+            except Exception:
+                pass
+
+    def _bind_assignment_data(self, data: Dict[str, Any]) -> None:
+        g = (data or {}).get('ground') or {}
+        a = (data or {}).get('air') or {}
+        sp = (a or {}).get('search_plan') or {}
+        def _set_txt(key: str, val: Any) -> None:
+            w = self._assign_w.get(key)
+            try:
+                if isinstance(w, QTextEdit):
+                    w.setPlainText(str(val or ''))
+                elif isinstance(w, QLineEdit):
+                    w.setText(str(val or ''))
+            except Exception:
+                pass
+        _set_txt('g_prev', g.get('previous_search_efforts'))
+        _set_txt('g_pres', g.get('present_search_efforts'))
+        _set_txt('g_time', g.get('time_allocated'))
+        _set_txt('g_size', g.get('size_of_assignment'))
+        try:
+            def _sel(cb_key: str, value: Any):
+                cb = self._assign_w.get(cb_key)
+                if isinstance(cb, QComboBox):
+                    txt = str(value or '').strip().lower()
+                    for i in range(cb.count()):
+                        if cb.itemText(i).strip().lower() == txt:
+                            cb.setCurrentIndex(i); return
+                    cb.setCurrentIndex(0)
+            pod = g.get('expected_pod') or {}
+            _sel('g_pod_resp', (pod or {}).get('responsive'))
+            _sel('g_pod_unresp', (pod or {}).get('unresponsive'))
+            _sel('g_pod_clues', (pod or {}).get('clues'))
+        except Exception:
+            pass
+        _set_txt('g_drop', g.get('drop_off_instructions'))
+        _set_txt('g_pick', g.get('pickup_instructions'))
+
+        _set_txt('a_aoo', a.get('wmirs_aoo'))
+        _set_txt('a_dep', a.get('dep_airport'))
+        _set_txt('a_dest', a.get('dest_airport'))
+        _set_txt('a_etd', a.get('etd'))
+        _set_txt('a_ete', a.get('ete'))
+        _set_txt('a_other_ac', a.get('other_aircraft'))
+        _set_txt('a_gt_in_area', a.get('ground_teams'))
+        _set_txt('a_obj', a.get('sortie_objectives'))
+        _set_txt('a_deliv', a.get('sortie_deliverables'))
+        _set_txt('a_actions', a.get('actions_to_be_taken'))
+        _set_txt('a_route', a.get('route_of_flight'))
+        _set_txt('a_alt', a.get('altitude'))
+        _set_txt('a_speed', a.get('airspeed'))
+        _set_txt('a_sep', a.get('aircraft_separation'))
+        _set_txt('a_emerg', a.get('emergency_fields'))
+        _set_txt('a_mlats', a.get('mlat_routes'))
+        _set_txt('a_haz', a.get('hazards'))
+        _set_txt('a_sp_pattern', sp.get('pattern'))
+        _set_txt('a_sp_vis', sp.get('visibility_nm'))
+        _set_txt('a_sp_alt', sp.get('altitude_agl'))
+        _set_txt('a_sp_speed', sp.get('speed_kts'))
+        _set_txt('a_sp_track', sp.get('track_spacing_nm'))
+        try:
+            def _sel2(cb_key: str, value: Any):
+                cb = self._assign_w.get(cb_key)
+                if isinstance(cb, QComboBox):
+                    txt = str(value or '').strip().lower()
+                    for i in range(cb.count()):
+                        if cb.itemText(i).strip().lower() == txt:
+                            cb.setCurrentIndex(i); return
+                    cb.setCurrentIndex(0)
+            _sel2('a_sp_terrain', sp.get('terrain'))
+            _sel2('a_sp_cover', sp.get('cover'))
+            _sel2('a_sp_turb', sp.get('turbulence'))
+        except Exception:
+            pass
+        _set_txt('a_sp_pod', sp.get('pod'))
+        _set_txt('a_sp_tts', sp.get('time_to_search'))
+        _set_txt('a_sp_ts', sp.get('time_started'))
+        _set_txt('a_sp_te', sp.get('time_ended'))
+        _set_txt('a_sp_tisa', sp.get('time_in_area'))
+        _set_txt('a_sp_tfsa', sp.get('time_from_area'))
+        _set_txt('a_sp_total', sp.get('total_sortie_time'))
+
+    def _collect_assignment_data(self) -> Dict[str, Any]:
+        def _gtxt(key: str) -> str:
+            w = self._assign_w.get(key)
+            try:
+                if isinstance(w, QTextEdit):
+                    return str(w.toPlainText()).strip()
+                if isinstance(w, QLineEdit):
+                    return str(w.text()).strip()
+            except Exception:
+                return ""
+            return ""
+        def _gsel(key: str) -> str:
+            w = self._assign_w.get(key)
+            if isinstance(w, QComboBox):
+                try:
+                    return str(w.currentText()).strip()
+                except Exception:
+                    return ""
+            return ""
+        ground = {
+            'previous_search_efforts': _gtxt('g_prev'),
+            'present_search_efforts': _gtxt('g_pres'),
+            'time_allocated': _gtxt('g_time'),
+            'size_of_assignment': _gtxt('g_size'),
+            'expected_pod': {
+                'responsive': _gsel('g_pod_resp'),
+                'unresponsive': _gsel('g_pod_unresp'),
+                'clues': _gsel('g_pod_clues'),
+            },
+            'drop_off_instructions': _gtxt('g_drop'),
+            'pickup_instructions': _gtxt('g_pick'),
+        }
+        air = {
+            'wmirs_aoo': _gtxt('a_aoo'),
+            'dep_airport': _gtxt('a_dep'),
+            'dest_airport': _gtxt('a_dest'),
+            'etd': _gtxt('a_etd'),
+            'ete': _gtxt('a_ete'),
+            'other_aircraft': _gtxt('a_other_ac'),
+            'ground_teams': _gtxt('a_gt_in_area'),
+            'sortie_objectives': _gtxt('a_obj'),
+            'sortie_deliverables': _gtxt('a_deliv'),
+            'actions_to_be_taken': _gtxt('a_actions'),
+            'route_of_flight': _gtxt('a_route'),
+            'altitude': _gtxt('a_alt'),
+            'airspeed': _gtxt('a_speed'),
+            'aircraft_separation': _gtxt('a_sep'),
+            'emergency_fields': _gtxt('a_emerg'),
+            'mlat_routes': _gtxt('a_mlats'),
+            'hazards': _gtxt('a_haz'),
+            'search_plan': {
+                'pattern': _gtxt('a_sp_pattern'),
+                'visibility_nm': _gtxt('a_sp_vis'),
+                'altitude_agl': _gtxt('a_sp_alt'),
+                'speed_kts': _gtxt('a_sp_speed'),
+                'track_spacing_nm': _gtxt('a_sp_track'),
+                'terrain': _gsel('a_sp_terrain'),
+                'cover': _gsel('a_sp_cover'),
+                'turbulence': _gsel('a_sp_turb'),
+                'pod': _gtxt('a_sp_pod'),
+                'time_to_search': _gtxt('a_sp_tts'),
+                'time_started': _gtxt('a_sp_ts'),
+                'time_ended': _gtxt('a_sp_te'),
+                'time_in_area': _gtxt('a_sp_tisa'),
+                'time_from_area': _gtxt('a_sp_tfsa'),
+                'total_sortie_time': _gtxt('a_sp_total'),
+            },
+        }
+        return { 'ground': ground, 'air': air }
+
+
+    # --- Debriefing Ops ---
+    def _wire_debrief_tab(self) -> None:
+        try:
+            self._deb_add_btn.clicked.connect(self._open_add_debrief_dialog)
+            self._deb_refresh_btn.clicked.connect(self.load_debriefs)
+            self._deb_submit_btn.clicked.connect(self._submit_selected_debrief)
+            self._deb_mark_rev_btn.clicked.connect(self._mark_selected_debrief_reviewed)
+            self._deb_archive_btn.clicked.connect(self._archive_selected_debrief)
+            self._deb_delete_btn.clicked.connect(self._delete_selected_debrief)
+            # New flow: open editor on double-click
+            try:
+                self._deb_table.doubleClicked.connect(self._on_debrief_double_clicked)
+            except Exception:
+                pass
+            self._deb_table.selectionModel().selectionChanged.connect(lambda *_: self._on_debrief_selection_changed())
+        except Exception:
+            pass
+
+    def _debrief_type_labels(self) -> Dict[str, str]:
+        return {
+            "ground": "Ground (SAR)",
+            "area": "Area Search Supplement",
+            "tracking": "Tracking Team Supplement",
+            "hasty": "Hasty Search Supplement",
+            "air_general": "Air (General)",
+            "air_sar": "Air (SAR Worksheet)",
+        }
+
+    def _debrief_label_to_key(self, label: str) -> str:
+        m = {v: k for k, v in self._debrief_type_labels().items()}
+        return m.get(label, label)
+
+    def load_debriefs(self) -> None:
+        err_msg = ""
+        try:
+            from modules.operations.taskings.repository import list_task_debriefs
+            rows = list_task_debriefs(int(self._task_id)) or []
+        except Exception as e:
+            rows = []
+            try:
+                err_msg = str(e)
+            except Exception:
+                err_msg = ""
+        self._deb_model.removeRows(0, self._deb_model.rowCount())
+        labels = self._debrief_type_labels()
+        for r in rows:
+            rid = int(r.get("id") or 0)
+            sortie = str(r.get("sortie_number") or "")
+            debriefer = str(r.get("debriefer_id") or "")
+            types_keys = list(r.get("types") or [])
+            types_disp = ", ".join(labels.get(k, k) for k in types_keys)
+            status = str(r.get("status") or "Draft")
+            flag = "Yes" if (r.get("flagged_for_review") in (True, 1, "1")) else "No"
+            updated = _fmt_ts(r.get("updated_at"))
+            row = [
+                QStandardItem(str(rid)),
+                QStandardItem(sortie),
+                QStandardItem(debriefer),
+                QStandardItem(types_disp),
+                QStandardItem(status),
+                QStandardItem(flag),
+                QStandardItem(updated),
+            ]
+            row[0].setData(rid, Qt.EditRole)
+            self._deb_model.appendRow(row)
+        try:
+            self._deb_table.setColumnHidden(0, True)
+            self._deb_table.sortByColumn(6, Qt.DescendingOrder)
+        except Exception:
+            pass
+        # Update info label with count
+        try:
+            count = self._deb_model.rowCount()
+            if err_msg:
+                self._deb_info.setText(f"Task {int(self._task_id)} — Debriefs: {count} (load error: {err_msg})")
+            else:
+                self._deb_info.setText(f"Task {int(self._task_id)} — Debriefs: {count}")
+        except Exception:
+            pass
+
+    def _selected_debrief_row(self) -> int:
+        try:
+            sel = self._deb_table.selectionModel().selectedRows()
+            return sel[0].row() if sel else -1
+        except Exception:
+            return -1
+
+    def _selected_debrief_id(self) -> int | None:
+        r = self._selected_debrief_row()
+        if r < 0:
+            return None
+        try:
+            return int(self._deb_model.item(r, 0).data(Qt.EditRole) or 0)
+        except Exception:
+            return None
+
+    def _on_debrief_selection_changed(self) -> None:
+        # No auto-open; editor launches on double-click
+        try:
+            self._deb_editor.setVisible(False)
+        except Exception:
+            pass
+
+    def _on_debrief_double_clicked(self, index) -> None:
+        try:
+            row = index.row()
+        except Exception:
+            row = self._selected_debrief_row()
+        if row is None or row < 0:
+            return
+        try:
+            did = int(self._deb_model.item(row, 0).data(Qt.EditRole) or 0)
+        except Exception:
+            did = 0
+        if did > 0:
+            self._open_debrief_dialog(did)
+
+    def _open_add_debrief_dialog(self) -> None:
+        try:
+            from PySide6.QtWidgets import QDialog, QDialogButtonBox
+        except Exception:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Add Debrief")
+        lay = QVBoxLayout(dlg)
+        form = QFormLayout()
+        sortie_edit = QLineEdit(dlg); sortie_edit.setPlaceholderText("Sortie Number")
+        deb_id_edit = QLineEdit(dlg); deb_id_edit.setPlaceholderText("Debriefer ID")
+        form.addRow("Sortie Number", sortie_edit)
+        form.addRow("Debriefer ID", deb_id_edit)
+
+        # Types checklist with dependencies
+        types_box = QWidget(dlg); types_v = QVBoxLayout(types_box); types_v.setContentsMargins(0,0,0,0)
+        cb_ground = QCheckBox("Ground (SAR)", types_box)
+        cb_area = QCheckBox("Area Search Supplement", types_box)
+        cb_tracking = QCheckBox("Tracking Team Supplement", types_box)
+        cb_hasty = QCheckBox("Hasty Search Supplement", types_box)
+        cb_air_gen = QCheckBox("Air (General)", types_box)
+        cb_air_sar = QCheckBox("Air (SAR Worksheet)", types_box)
+        # Initial disable of dependent types
+        for c in (cb_area, cb_tracking, cb_hasty):
+            c.setEnabled(False)
+        cb_air_sar.setEnabled(False)
+        def _toggle_ground_children():
+            enabled = cb_ground.isChecked()
+            for c in (cb_area, cb_tracking, cb_hasty):
+                c.setEnabled(enabled)
+                if not enabled:
+                    c.setChecked(False)
+        def _toggle_air_children():
+            enabled = cb_air_gen.isChecked()
+            cb_air_sar.setEnabled(enabled)
+            if not enabled:
+                cb_air_sar.setChecked(False)
+        cb_ground.toggled.connect(_toggle_ground_children)
+        cb_air_gen.toggled.connect(_toggle_air_children)
+        for w in (cb_ground, cb_area, cb_tracking, cb_hasty, cb_air_gen, cb_air_sar):
+            types_v.addWidget(w)
+        form.addRow("Debrief Types", types_box)
+        lay.addLayout(form)
+        # Custom buttons so dialog only closes on successful create
+        btn_row = QHBoxLayout()
+        btn_create = QPushButton("Create", dlg)
+        try:
+            btn_create.setDefault(True)
+            btn_create.setAutoDefault(True)
+        except Exception:
+            pass
+        btn_cancel = QPushButton("Cancel", dlg)
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_create)
+        btn_row.addWidget(btn_cancel)
+        lay.addLayout(btn_row)
+
+        def _create():
+            # Sortie number is optional per request
+            sortie = sortie_edit.text().strip()
+            debid = deb_id_edit.text().strip()
+            sel_types: List[str] = []
+            if cb_ground.isChecked(): sel_types.append("ground")
+            if cb_area.isChecked(): sel_types.append("area")
+            if cb_tracking.isChecked(): sel_types.append("tracking")
+            if cb_hasty.isChecked(): sel_types.append("hasty")
+            if cb_air_gen.isChecked(): sel_types.append("air_general")
+            if cb_air_sar.isChecked(): sel_types.append("air_sar")
+            if not sel_types:
+                try:
+                    QMessageBox.warning(dlg, "Add Debrief", "Select at least one debrief type.")
+                except Exception:
+                    pass
+                return
+            try:
+                from modules.operations.taskings.repository import create_debrief
+                new_id = create_debrief(int(self._task_id), sortie, debid, sel_types)
+            except Exception as e:
+                try:
+                    QMessageBox.warning(dlg, "Add Debrief", f"Could not create debrief: {e}")
+                except Exception:
+                    pass
+                return
+            # Success: close and refresh/select
+            try:
+                dlg.accept()
+            except Exception:
+                pass
+            self.load_debriefs()
+            try:
+                QMessageBox.information(self, "Debrief", f"Debrief created (ID {new_id}).")
+            except Exception:
+                pass
+            # Select newly created debrief and open editor
+            try:
+                target_row = -1
+                for r in range(self._deb_model.rowCount()):
+                    rid = int(self._deb_model.item(r, 0).data(Qt.EditRole) or 0)
+                    if rid == int(new_id):
+                        target_row = r
+                        break
+                if target_row < 0:
+                    # Fallback: fetch created debrief and append if list is out-of-sync
+                    try:
+                        from modules.operations.taskings.repository import get_debrief
+                        drow = get_debrief(int(new_id)) or {}
+                        labels = self._debrief_type_labels()
+                        types_disp = ", ".join(labels.get(k, k) for k in list(drow.get("types") or []))
+                        items = [
+                            QStandardItem(str(int(new_id))),
+                            QStandardItem(str(drow.get("sortie_number") or "")),
+                            QStandardItem(str(drow.get("debriefer_id") or "")),
+                            QStandardItem(types_disp),
+                            QStandardItem(str(drow.get("status") or "Draft")),
+                            QStandardItem("Yes" if (drow.get("flagged_for_review") in (True, 1, "1")) else "No"),
+                            QStandardItem(_fmt_ts(drow.get("updated_at"))),
+                        ]
+                        items[0].setData(int(new_id), Qt.EditRole)
+                        self._deb_model.appendRow(items)
+                        target_row = self._deb_model.rowCount() - 1
+                    except Exception:
+                        pass
+                if target_row >= 0:
+                    idx = self._deb_model.index(target_row, 1)
+                    self._deb_table.setCurrentIndex(idx)
+                    try:
+                        self._deb_table.scrollTo(idx)
+                    except Exception:
+                        pass
+                # Do not auto-open editor; user can double-click the row
+            except Exception:
+                pass
+
+        try:
+            btn_create.clicked.connect(_create)
+            btn_cancel.clicked.connect(dlg.reject)
+        except Exception:
+            pass
+        try:
+            dlg.exec()
+        except Exception:
+            pass
+
+    def _open_debrief_dialog(self, debrief_id: int) -> None:
+        try:
+            from modules.operations.taskings.repository import get_debrief, update_debrief_header
+        except Exception:
+            return
+        d: Dict[str, Any] = {}
+        try:
+            d = get_debrief(int(debrief_id)) or {}
+        except Exception:
+            d = {}
+        # Modal container
+        try:
+            from PySide6.QtWidgets import QDialog, QDialogButtonBox
+        except Exception:
+            return
+        dlg = QDialog(self)
+        try:
+            dlg.setWindowTitle(f"Debrief Editor — ID {debrief_id}")
+            dlg.resize(900, 700)
+        except Exception:
+            pass
+        dlgl = QVBoxLayout(dlg)
+        # Header box
+        head_box = QWidget(dlg); head_form = QFormLayout(head_box)
+        try:
+            head_form.setContentsMargins(0,0,0,0)
+        except Exception:
+            pass
+        sortie_edit = QLineEdit(head_box); sortie_edit.setText(str(d.get("sortie_number") or ""))
+        deb_edit = QLineEdit(head_box); deb_edit.setText(str(d.get("debriefer_id") or ""))
+        status_lbl = QLabel(str(d.get("status") or "Draft"), head_box)
+        flag_cb = QCheckBox("Flag for Planning Review", head_box); flag_cb.setChecked(bool(d.get("flagged_for_review") or False))
+        types_disp = ", ".join(self._debrief_type_labels().get(k, k) for k in list(d.get("types") or []))
+        types_lbl = QLabel(types_disp, head_box)
+        head_form.addRow("Sortie Number", sortie_edit)
+        head_form.addRow("Debriefer ID", deb_edit)
+        head_form.addRow("Types", types_lbl)
+        head_form.addRow("Status", status_lbl)
+        head_form.addRow("Flag", flag_cb)
+        head_btn_row = QHBoxLayout()
+        head_save = QPushButton("Save Header", head_box)
+        def _save_header():
+            patch = {
+                "sortie_number": sortie_edit.text().strip(),
+                "debriefer_id": deb_edit.text().strip(),
+                "flagged_for_review": 1 if flag_cb.isChecked() else 0,
+            }
+            try:
+                update_debrief_header(int(debrief_id), patch)
+                self.load_debriefs()
+            except Exception as e:
+                try:
+                    QMessageBox.warning(self, "Debrief", f"Could not save header: {e}")
+                except Exception:
+                    pass
+        head_save.clicked.connect(_save_header)
+        head_btn_row.addStretch(1); head_btn_row.addWidget(head_save)
+        head_wrap = QVBoxLayout(); head_wrap.addWidget(head_box); head_wrap.addLayout(head_btn_row)
+        head_container = QWidget(dlg); head_container.setLayout(head_wrap)
+        dlgl.addWidget(head_container)
+
+        # Forms tabs
+        forms_tabs = QTabWidget(dlg)
+
+        # Helpers
+        def _time_edit(parent: QWidget) -> QLineEdit:
+            e = QLineEdit(parent)
+            try:
+                re = QRegularExpression(r"^(?:[01]?[0-9]|2[0-3]):[0-5][0-9]$")
+                e.setValidator(QRegularExpressionValidator(re, e))
+                e.setPlaceholderText("HH:MM")
+            except Exception:
+                pass
+            return e
+
+        def _combo(parent: QWidget, items: List[str]) -> QComboBox:
+            cb = QComboBox(parent); cb.addItems(list(items))
+            return cb
+
+        def _populate(widgets: Dict[str, QWidget], data: Dict[str, Any]):
+            self._populate_form_widgets(widgets, data)
+
+        def _gather(widgets: Dict[str, QWidget]) -> Dict[str, Any]:
+            return self._gather_form_widgets(widgets)
+
+        def _add_form_tab(title: str, key: str, build_fn):
+            w = QWidget(forms_tabs)
+            lay = QFormLayout(w)
+            try:
+                lay.setLabelAlignment(Qt.AlignLeft)
+            except Exception:
+                pass
+            widgets: Dict[str, QWidget] = {}
+            build_fn(w, lay, widgets)
+            data = ((d.get("forms") or {}).get(key)) or {}
+            _populate(widgets, data)
+            btn_row = QHBoxLayout()
+            save_btn = QPushButton("Save", w)
+            def _save_this_form():
+                try:
+                    from modules.operations.taskings.repository import save_debrief_form, update_debrief_header
+                    data_local = _gather(widgets)
+                    save_debrief_form(int(debrief_id), str(key), dict(data_local))
+                    update_debrief_header(int(debrief_id), {"flagged_for_review": 1})
+                    self.load_debriefs()
+                    try:
+                        QMessageBox.information(self, "Debrief", "Saved.")
+                    except Exception:
+                        pass
+                except Exception as e:
+                    try:
+                        QMessageBox.warning(self, "Debrief", f"Could not save: {e}")
+                    except Exception:
+                        pass
+            save_btn.clicked.connect(_save_this_form)
+            btn_row.addStretch(1); btn_row.addWidget(save_btn)
+            wrap = QVBoxLayout(); wrap.addLayout(lay); wrap.addLayout(btn_row)
+            cont = QWidget(forms_tabs); cont.setLayout(wrap)
+            forms_tabs.addTab(cont, title)
+
+        # --- Form builders ---
+        def _build_ground(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            def _t(key, label):
+                te = QTextEdit(parent); te.setPlaceholderText(label)
+                te.setFixedHeight(60)
+                widgets[key] = te; lay.addRow(label, te)
+            _t("assignment_summary", "Assignment Summary")
+            _t("efforts", "Describe Search Efforts in Assignment")
+            _t("unable", "Describe Portions Unable to Search")
+            _t("clues", "Describe Clues/Tracks/Signs or any Interviews")
+            _t("hazards", "Describe any Hazards or Problems Encountered")
+            _t("suggestions", "Suggestions for Further Search Efforts In or Near Assignment")
+            te_in = _time_edit(parent); widgets["time_entered"] = te_in; lay.addRow("Time Entered", te_in)
+            te_out = _time_edit(parent); widgets["time_exited"] = te_out; lay.addRow("Time Exited", te_out)
+            ts = QLineEdit(parent); ts.setReadOnly(True); widgets["time_spent"] = ts; lay.addRow("Time Spent (hh:mm)", ts)
+            def _recalc():
+                try:
+                    t1 = te_in.text().strip()
+                    t2 = te_out.text().strip()
+                    if ":" in t1 and ":" in t2:
+                        h1, m1 = [int(x) for x in t1.split(":", 1)]
+                        h2, m2 = [int(x) for x in t2.split(":", 1)]
+                        mins = (h2*60+m2) - (h1*60+m1)
+                        if mins < 0:
+                            mins += 24*60
+                        widgets["time_spent"].setText(f"{mins//60:02d}:{mins%60:02d}")
+                except Exception:
+                    pass
+            try:
+                te_in.textChanged.connect(_recalc)
+                te_out.textChanged.connect(_recalc)
+            except Exception:
+                pass
+            lay.addRow(QLabel("Conditions"))
+            widgets["clouds"] = _combo(parent, ["", "Clear", "Scattered", "Broken", "Overcast"]); lay.addRow("Clouds", widgets["clouds"])
+            widgets["precipitation"] = _combo(parent, ["", "None", "Rain", "Scattered", "Snow"]); lay.addRow("Precipitation", widgets["precipitation"])
+            widgets["light"] = _combo(parent, ["", "Bright", "Dull", "Near Dark", "Night"]); lay.addRow("Light Conditions", widgets["light"])
+            widgets["visibility"] = _combo(parent, ["", "> 10 Miles", "> 5 Miles", "> 1 Mile", "< 1 Mile"]); lay.addRow("Visibility", widgets["visibility"])
+            widgets["terrain"] = _combo(parent, ["", "Flat", "Rolling Hills", "Rugged Hills", "Mtns"]); lay.addRow("Terrain", widgets["terrain"])
+            widgets["ground_cover"] = _combo(parent, ["", "Open", "Moderate", "Heavy", "Other"]); lay.addRow("Ground Cover", widgets["ground_cover"])
+            widgets["wind_speed"] = _combo(parent, ["", "Calm", "< 10 mph", "< 20 mph", "< 30 mph"]); lay.addRow("Wind Speed", widgets["wind_speed"])
+            lay.addRow(QLabel("Attachments"))
+            for key, lab in [("map","Debriefing Maps"),("brief","Original Briefing Document"),("supp","Supplemental Debriefing Forms"),("interviews","Interview Log"),("other","Other")]:
+                cb = QCheckBox(lab, parent); widgets[f"att_{key}"] = cb; lay.addRow("", cb)
+
+        def _build_area(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            for key, lab in [("num_searchers","Number of Searchers"),("time_spent","Time Spent Searching"),("search_speed","Search Speed"),("area_size","Area Size (Actually Searched)"),("spacing","Spacing"),("visibility_distance","Visibility Distance"),("visibility_how","How was Visibility Distance Determined"),("skipped_types","Types of Areas Skipped Over"),("direction_pattern","Describe the Direction and Pattern of your Search"),("comments","Comments for Additional Area Searching of this Assignment")]:
+                if key in ("comments","direction_pattern","visibility_distance","visibility_how","skipped_types"):
+                    w = QTextEdit(parent); w.setFixedHeight(60)
+                else:
+                    w = QLineEdit(parent)
+                w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+
+        def _build_tracking(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            for key, lab in [("likelihood_tracks","Discuss Likelihood of Finding Tracks or Sign on the Trails"),("existing_traps","Describe the Location and Nature of Existing Track Traps"),("erase_traps","Did You Erase Any Track Traps"),("new_traps","Did You Create Any New Track Traps"),("route_tracks","Describe the Route Taken by Any Tracks You Followed"),("why_discontinue","Why Did You Discontinue Following These Tracks")]:
+                w = QTextEdit(parent); w.setFixedHeight(60); w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+            lay.addRow(QLabel("Attachments"))
+            widgets["att_individual_sketches"] = QCheckBox("Individual Track Sketches Attached", parent); lay.addRow("", widgets["att_individual_sketches"])
+            widgets["att_trap_summary"] = QCheckBox("Track Trap Summary Sketches Attached", parent); lay.addRow("", widgets["att_trap_summary"])
+
+        def _build_hasty(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            for key, lab in [("visibility","Visibility During Search (Day/Dusk/Night/Other)"),("attract","Describe Your Efforts to Attract a Responsive Subject"),("hear","Describe Ability to Hear a Response (Background Noise)"),("trail_cond","Describe the Trail Conditions"),("offtrail_cond","Describe the Off-Trail Conditions"),("map_accuracy","Does the Map Accurately Reflect the Trails"),("features","Did You Locate Features That Would Likely Contain the Subject"),("tracking_cond","How Are the Tracking Conditions"),("hazards_attract","Describe any Hazards or Attractions You Found")]:
+                w = QTextEdit(parent); w.setFixedHeight(60); w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+
+        def _build_air_general(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            def _add(key, lab):
+                w = QTextEdit(parent) if key in ("summary","results","weather","remarks") else QLineEdit(parent)
+                if isinstance(w, QTextEdit): w.setFixedHeight(60)
+                w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+            for k, l in [("flight_plan_closed","Flight Plan Closed (Yes/No)"),("atd","ATD"),("ata","ATA"),("hobbs_start","Hobbs Start"),("hobbs_end","Hobbs End"),("hobbs_to_from","Hobbs To/From"),("hobbs_in_area","Hobbs in Area"),("hobbs_total","Hobbs Total"),("tach_start","Tach Start"),("tach_end","Tach End"),("fuel_used_gal","Fuel Used (Gal)"),("oil_used_qt","Oil Used (Qt)"),("fuel_oil_cost","Fuel & Oil Cost"),("receipt_no","Receipt #"),("summary","Summary"),("results","Results/Deliverables"),("weather","Weather Conditions"),("remarks","Remarks")]:
+                _add(k, l)
+            widgets["sortie_effectiveness"] = _combo(parent, ["", "Successful", "Marginal", "Unsuccessful", "Not Flown", "Not Required"]); lay.addRow("Sortie Effectiveness", widgets["sortie_effectiveness"])
+            widgets["reason_not_success"] = _combo(parent, ["", "Weather", "Crew Unavailable", "Aircraft Maintenance", "Customer Cancellation", "Equipment Failure", "Other"]); lay.addRow("Reason (if not successful)", widgets["reason_not_success"])
+            lay.addRow(QLabel("Attachments/Documentation"))
+            for key, lab in [("capf104a","CAPF 104A SAR"),("capf104b","CAPF 104B Recon Summary"),("ics214","ICS 214 Unit Log"),("receipts","Receipts"),("aif_orm","AIF ORM Matrix")]:
+                cb = QCheckBox(lab, parent); widgets[f"att_{key}"] = cb; lay.addRow("", cb)
+
+        def _build_air_sar(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            lay.addRow(QLabel("Search Area"))
+            for key, lab in [("name","Name"),("grid","Grid"),("nw","NW Corner (Lat/Long)"),("ne","NE Corner (Lat/Long)"),("sw","SW Corner (Lat/Long)"),("se","SE Corner (Lat/Long)")]:
+                widgets[f"area_{key}"] = QLineEdit(parent); widgets[f"area_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"area_{key}"])
+            lay.addRow(QLabel("Sortie Search Actual"))
+            for key, lab in [("pattern","Search Pattern"),("visibility_nm","Search Visibility (NM)"),("altitude_agl","Search Altitude (AGL)"),("speed_kts","Search Speed (Knots)"),("track_spacing_nm","Track Spacing (NM)")]:
+                widgets[f"act_{key}"] = QLineEdit(parent); widgets[f"act_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"act_{key}"])
+            widgets["act_terrain"] = _combo(parent, ["", "Flat", "Rolling Hills", "Rugged Hills", "Mountainous"]); lay.addRow("Terrain", widgets["act_terrain"])
+            widgets["act_cover"] = _combo(parent, ["", "Open", "Moderate", "Heavy", "Light Snow", "Heavy Snow"]); lay.addRow("Cover", widgets["act_cover"])
+            widgets["act_turbulence"] = _combo(parent, ["", "Light", "Moderate", "Heavy"]); lay.addRow("Turbulence", widgets["act_turbulence"])
+            for key, lab in [("pod","Probability of Detection"),("time_to_search","Time to Search Area"),("time_started","Time Started Search"),("time_ended","Time Ended Search"),("time_in_area","Time in Search Area"),("time_from_area","Time from Search Area"),("total_sortie_time","Total Sortie Time")]:
+                widgets[f"act_{key}"] = QLineEdit(parent); widgets[f"act_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"act_{key}"])
+            lay.addRow(QLabel("Crew Remarks and Notes"))
+            widgets["remarks_effectiveness"] = _combo(parent, ["", "Excellent", "Good", "Fair", "Poor"]); lay.addRow("Effectiveness", widgets["remarks_effectiveness"])
+            widgets["remarks_visibility"] = _combo(parent, ["", "Excellent", "Good", "Fair", "Poor"]); lay.addRow("Visibility", widgets["remarks_visibility"])
+
+        # Build tabs from selected types
+        types_keys = list(d.get("types") or [])
+        labels = self._debrief_type_labels()
+        for key in types_keys:
+            title = labels.get(key, key)
+            if key == "ground": _add_form_tab(title, key, _build_ground)
+            elif key == "area": _add_form_tab(title, key, _build_area)
+            elif key == "tracking": _add_form_tab(title, key, _build_tracking)
+            elif key == "hasty": _add_form_tab(title, key, _build_hasty)
+            elif key == "air_general": _add_form_tab(title, key, _build_air_general)
+            elif key == "air_sar": _add_form_tab(title, key, _build_air_sar)
+
+        dlgl.addWidget(forms_tabs, 1)
+        footer = QDialogButtonBox(QDialogButtonBox.Close, parent=dlg)
+        try:
+            footer.rejected.connect(dlg.reject)
+            footer.accepted.connect(dlg.accept)
+        except Exception:
+            pass
+        dlgl.addWidget(footer)
+        try:
+            dlg.exec()
+        except Exception:
+            pass
+
+    def _open_debrief_editor(self, debrief_id: int) -> None:
+        try:
+            from modules.operations.taskings.repository import get_debrief, update_debrief_header
+        except Exception:
+            return
+        d = {}
+        try:
+            d = get_debrief(int(debrief_id)) or {}
+        except Exception:
+            d = {}
+        self._deb_editor.setVisible(True)
+        # Clear old editor
+        while True:
+            item = self._deb_editor_v.takeAt(0)
+            if not item:
+                break
+            w = item.widget()
+            if w is not None:
+                try:
+                    w.deleteLater()
+                except Exception:
+                    pass
+        # Header
+        head_box = QWidget(self._deb_editor); head_form = QFormLayout(head_box)
+        try:
+            head_form.setContentsMargins(0,0,0,0)
+        except Exception:
+            pass
+        sortie_edit = QLineEdit(head_box); sortie_edit.setText(str(d.get("sortie_number") or ""))
+        deb_edit = QLineEdit(head_box); deb_edit.setText(str(d.get("debriefer_id") or ""))
+        status_lbl = QLabel(str(d.get("status") or "Draft"), head_box)
+        flag_cb = QCheckBox("Flag for Planning Review", head_box); flag_cb.setChecked(bool(d.get("flagged_for_review") or False))
+        types_disp = ", ".join(self._debrief_type_labels().get(k, k) for k in list(d.get("types") or []))
+        types_lbl = QLabel(types_disp, head_box)
+        head_form.addRow("Sortie Number", sortie_edit)
+        head_form.addRow("Debriefer ID", deb_edit)
+        head_form.addRow("Types", types_lbl)
+        head_form.addRow("Status", status_lbl)
+        head_form.addRow("Flag", flag_cb)
+        head_btn_row = QHBoxLayout()
+        head_save = QPushButton("Save Header", head_box)
+        def _save_header():
+            patch = {
+                "sortie_number": sortie_edit.text().strip(),
+                "debriefer_id": deb_edit.text().strip(),
+                "flagged_for_review": 1 if flag_cb.isChecked() else 0,
+            }
+            try:
+                update_debrief_header(int(debrief_id), patch)
+                self.load_debriefs()
+            except Exception as e:
+                try:
+                    QMessageBox.warning(self, "Debrief", f"Could not save header: {e}")
+                except Exception:
+                    pass
+        head_save.clicked.connect(_save_header)
+        head_btn_row.addStretch(1); head_btn_row.addWidget(head_save)
+        head_wrap = QVBoxLayout(); head_wrap.addWidget(head_box); head_wrap.addLayout(head_btn_row)
+        head_container = QWidget(self._deb_editor); head_container.setLayout(head_wrap)
+        self._deb_editor_v.addWidget(head_container)
+
+        # Forms tabs
+        forms_tabs = QTabWidget(self._deb_editor)
+        self._deb_form_widgets: Dict[str, Dict[str, QWidget]] = {}
+
+        # --- Form builders ---
+        def _add_form_tab(title: str, key: str, build_fn):
+            w = QWidget(forms_tabs)
+            lay = QFormLayout(w)
+            try:
+                lay.setLabelAlignment(Qt.AlignLeft)
+            except Exception:
+                pass
+            widgets: Dict[str, QWidget] = {}
+            build_fn(w, lay, widgets)
+            self._deb_form_widgets[key] = widgets
+            # Populate from stored data
+            data = ((d.get("forms") or {}).get(key)) or {}
+            self._populate_form_widgets(widgets, data)
+            # Save button per form
+            btn_row = QHBoxLayout()
+            save_btn = QPushButton("Save", w)
+            save_btn.clicked.connect(lambda _=None, k=key: self._save_debrief_form(int(debrief_id), k))
+            btn_row.addStretch(1); btn_row.addWidget(save_btn)
+            wrap = QVBoxLayout(); wrap.addLayout(lay); wrap.addLayout(btn_row)
+            cont = QWidget(forms_tabs); cont.setLayout(wrap)
+            forms_tabs.addTab(cont, title)
+
+        # Helpers
+        def _time_edit(parent: QWidget) -> QLineEdit:
+            e = QLineEdit(parent)
+            try:
+                re = QRegularExpression(r"^(?:[01]?[0-9]|2[0-3]):[0-5][0-9]$")
+                e.setValidator(QRegularExpressionValidator(re, e))
+                e.setPlaceholderText("HH:MM")
+            except Exception:
+                pass
+            return e
+
+        def _combo(parent: QWidget, items: List[str]) -> QComboBox:
+            cb = QComboBox(parent); cb.addItems(list(items))
+            return cb
+
+        # Ground (SAR)
+        def _build_ground(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            def _t(key, label):
+                te = QTextEdit(parent); te.setPlaceholderText(label)
+                te.setFixedHeight(60)
+                widgets[key] = te; lay.addRow(label, te)
+            _t("assignment_summary", "Assignment Summary")
+            _t("efforts", "Describe Search Efforts in Assignment")
+            _t("unable", "Describe Portions Unable to Search")
+            _t("clues", "Describe Clues/Tracks/Signs or any Interviews")
+            _t("hazards", "Describe any Hazards or Problems Encountered")
+            _t("suggestions", "Suggestions for Further Search Efforts In or Near Assignment")
+            te_in = _time_edit(parent); widgets["time_entered"] = te_in; lay.addRow("Time Entered", te_in)
+            te_out = _time_edit(parent); widgets["time_exited"] = te_out; lay.addRow("Time Exited", te_out)
+            ts = QLineEdit(parent); ts.setReadOnly(True); widgets["time_spent"] = ts; lay.addRow("Time Spent (hh:mm)", ts)
+            def _recalc():
+                try:
+                    t1 = te_in.text().strip()
+                    t2 = te_out.text().strip()
+                    if ":" in t1 and ":" in t2:
+                        h1, m1 = [int(x) for x in t1.split(":", 1)]
+                        h2, m2 = [int(x) for x in t2.split(":", 1)]
+                        mins = (h2*60+m2) - (h1*60+m1)
+                        if mins < 0:
+                            mins += 24*60
+                        widgets["time_spent"].setText(f"{mins//60:02d}:{mins%60:02d}")
+                except Exception:
+                    pass
+            try:
+                te_in.textChanged.connect(_recalc)
+                te_out.textChanged.connect(_recalc)
+            except Exception:
+                pass
+            # Conditions
+            lay.addRow(QLabel("Conditions"))
+            widgets["clouds"] = _combo(parent, ["", "Clear", "Scattered", "Broken", "Overcast"]); lay.addRow("Clouds", widgets["clouds"])
+            widgets["precipitation"] = _combo(parent, ["", "None", "Rain", "Scattered", "Snow"]); lay.addRow("Precipitation", widgets["precipitation"])
+            widgets["light"] = _combo(parent, ["", "Bright", "Dull", "Near Dark", "Night"]); lay.addRow("Light Conditions", widgets["light"])
+            widgets["visibility"] = _combo(parent, ["", "> 10 Miles", "> 5 Miles", "> 1 Mile", "< 1 Mile"]); lay.addRow("Visibility", widgets["visibility"])
+            widgets["terrain"] = _combo(parent, ["", "Flat", "Rolling Hills", "Rugged Hills", "Mtns"]); lay.addRow("Terrain", widgets["terrain"])
+            widgets["ground_cover"] = _combo(parent, ["", "Open", "Moderate", "Heavy", "Other"]); lay.addRow("Ground Cover", widgets["ground_cover"])
+            widgets["wind_speed"] = _combo(parent, ["", "Calm", "< 10 mph", "< 20 mph", "< 30 mph"]); lay.addRow("Wind Speed", widgets["wind_speed"])
+            # Attachments (booleans)
+            lay.addRow(QLabel("Attachments"))
+            for key, lab in [
+                ("map", "Debriefing Maps"),
+                ("brief", "Original Briefing Document"),
+                ("supp", "Supplemental Debriefing Forms"),
+                ("interviews", "Interview Log"),
+                ("other", "Other"),
+            ]:
+                cb = QCheckBox(lab, parent); widgets[f"att_{key}"] = cb; lay.addRow("", cb)
+
+        # Area Search Supplement
+        def _build_area(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            for key, lab in [
+                ("num_searchers", "Number of Searchers"),
+                ("time_spent", "Time Spent Searching"),
+                ("search_speed", "Search Speed"),
+                ("area_size", "Area Size (Actually Searched)"),
+                ("spacing", "Spacing"),
+                ("visibility_distance", "Visibility Distance"),
+                ("visibility_how", "How was Visibility Distance Determined"),
+                ("skipped_types", "Types of Areas Skipped Over"),
+                ("direction_pattern", "Describe the Direction and Pattern of your Search"),
+                ("comments", "Comments for Additional Area Searching of this Assignment"),
+            ]:
+                if key in ("comments", "direction_pattern", "visibility_distance", "visibility_how", "skipped_types"):
+                    w = QTextEdit(parent); w.setFixedHeight(60)
+                else:
+                    w = QLineEdit(parent)
+                w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+
+        # Tracking Team Supplement
+        def _build_tracking(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            for key, lab in [
+                ("likelihood_tracks", "Discuss Likelihood of Finding Tracks or Sign on the Trails"),
+                ("existing_traps", "Describe the Location and Nature of Existing Track Traps"),
+                ("erase_traps", "Did You Erase Any Track Traps"),
+                ("new_traps", "Did You Create Any New Track Traps"),
+                ("route_tracks", "Describe the Route Taken by Any Tracks You Followed"),
+                ("why_discontinue", "Why Did You Discontinue Following These Tracks"),
+            ]:
+                w = QTextEdit(parent); w.setFixedHeight(60)
+                w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+            # Attachments booleans
+            lay.addRow(QLabel("Attachments"))
+            widgets["att_individual_sketches"] = QCheckBox("Individual Track Sketches Attached", parent); lay.addRow("", widgets["att_individual_sketches"])
+            widgets["att_trap_summary"] = QCheckBox("Track Trap Summary Sketches Attached", parent); lay.addRow("", widgets["att_trap_summary"])
+
+        # Hasty Search Supplement
+        def _build_hasty(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            for key, lab in [
+                ("visibility", "Visibility During Search (Day/Dusk/Night/Other)"),
+                ("attract", "Describe Your Efforts to Attract a Responsive Subject"),
+                ("hear", "Describe Ability to Hear a Response (Background Noise)"),
+                ("trail_cond", "Describe the Trail Conditions"),
+                ("offtrail_cond", "Describe the Off-Trail Conditions"),
+                ("map_accuracy", "Does the Map Accurately Reflect the Trails"),
+                ("features", "Did You Locate Features That Would Likely Contain the Subject"),
+                ("tracking_cond", "How Are the Tracking Conditions"),
+                ("hazards_attract", "Describe any Hazards or Attractions You Found"),
+            ]:
+                w = QTextEdit(parent); w.setFixedHeight(60)
+                w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+
+        # Air (General)
+        def _build_air_general(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            def _add(key, lab):
+                w = QTextEdit(parent) if key in ("summary", "results", "weather", "remarks") else QLineEdit(parent)
+                if isinstance(w, QTextEdit):
+                    w.setFixedHeight(60)
+                w.setPlaceholderText(lab)
+                widgets[key] = w; lay.addRow(lab, w)
+            for k, l in [
+                ("flight_plan_closed", "Flight Plan Closed (Yes/No)"),
+                ("atd", "ATD"), ("ata", "ATA"),
+                ("hobbs_start", "Hobbs Start"), ("hobbs_end", "Hobbs End"), ("hobbs_to_from", "Hobbs To/From"), ("hobbs_in_area", "Hobbs in Area"), ("hobbs_total", "Hobbs Total"),
+                ("tach_start", "Tach Start"), ("tach_end", "Tach End"),
+                ("fuel_used_gal", "Fuel Used (Gal)"), ("oil_used_qt", "Oil Used (Qt)"), ("fuel_oil_cost", "Fuel & Oil Cost"), ("receipt_no", "Receipt #"),
+                ("summary", "Summary"), ("results", "Results/Deliverables"), ("weather", "Weather Conditions"), ("remarks", "Remarks"),
+            ]:
+                _add(k, l)
+            widgets["sortie_effectiveness"] = _combo(parent, ["", "Successful", "Marginal", "Unsuccessful", "Not Flown", "Not Required"]); lay.addRow("Sortie Effectiveness", widgets["sortie_effectiveness"])
+            widgets["reason_not_success"] = _combo(parent, ["", "Weather", "Crew Unavailable", "Aircraft Maintenance", "Customer Cancellation", "Equipment Failure", "Other"]); lay.addRow("Reason (if not successful)", widgets["reason_not_success"])
+            lay.addRow(QLabel("Attachments/Documentation"))
+            for key, lab in [
+                ("capf104a", "CAPF 104A SAR"),
+                ("capf104b", "CAPF 104B Recon Summary"),
+                ("ics214", "ICS 214 Unit Log"),
+                ("receipts", "Receipts"),
+                ("aif_orm", "AIF ORM Matrix"),
+            ]:
+                cb = QCheckBox(lab, parent); widgets[f"att_{key}"] = cb; lay.addRow("", cb)
+
+        # Air (SAR Worksheet)
+        def _build_air_sar(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
+            lay.addRow(QLabel("Search Area"))
+            for key, lab in [
+                ("name", "Name"), ("grid", "Grid"),
+                ("nw", "NW Corner (Lat/Long)"), ("ne", "NE Corner (Lat/Long)"),
+                ("sw", "SW Corner (Lat/Long)"), ("se", "SE Corner (Lat/Long)"),
+            ]:
+                widgets[f"area_{key}"] = QLineEdit(parent); widgets[f"area_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"area_{key}"])
+            lay.addRow(QLabel("Sortie Search Actual"))
+            for key, lab in [
+                ("pattern", "Search Pattern"), ("visibility_nm", "Search Visibility (NM)"), ("altitude_agl", "Search Altitude (AGL)"), ("speed_kts", "Search Speed (Knots)"), ("track_spacing_nm", "Track Spacing (NM)"),
+            ]:
+                widgets[f"act_{key}"] = QLineEdit(parent); widgets[f"act_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"act_{key}"])
+            widgets["act_terrain"] = _combo(parent, ["", "Flat", "Rolling Hills", "Rugged Hills", "Mountainous"]); lay.addRow("Terrain", widgets["act_terrain"])
+            widgets["act_cover"] = _combo(parent, ["", "Open", "Moderate", "Heavy", "Light Snow", "Heavy Snow"]); lay.addRow("Cover", widgets["act_cover"])
+            widgets["act_turbulence"] = _combo(parent, ["", "Light", "Moderate", "Heavy"]); lay.addRow("Turbulence", widgets["act_turbulence"])
+            for key, lab in [
+                ("pod", "Probability of Detection"),
+                ("time_to_search", "Time to Search Area"), ("time_started", "Time Started Search"), ("time_ended", "Time Ended Search"), ("time_in_area", "Time in Search Area"), ("time_from_area", "Time from Search Area"), ("total_sortie_time", "Total Sortie Time"),
+            ]:
+                widgets[f"act_{key}"] = QLineEdit(parent); widgets[f"act_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"act_{key}"])
+            lay.addRow(QLabel("Crew Remarks and Notes"))
+            widgets["remarks_effectiveness"] = _combo(parent, ["", "Excellent", "Good", "Fair", "Poor"]); lay.addRow("Effectiveness", widgets["remarks_effectiveness"])
+            widgets["remarks_visibility"] = _combo(parent, ["", "Excellent", "Good", "Fair", "Poor"]); lay.addRow("Visibility", widgets["remarks_visibility"])
+
+        # Build tabs according to selected types
+        types_keys = list(d.get("types") or [])
+        labels = self._debrief_type_labels()
+        for key in types_keys:
+            title = labels.get(key, key)
+            if key == "ground":
+                _add_form_tab(title, key, _build_ground)
+            elif key == "area":
+                _add_form_tab(title, key, _build_area)
+            elif key == "tracking":
+                _add_form_tab(title, key, _build_tracking)
+            elif key == "hasty":
+                _add_form_tab(title, key, _build_hasty)
+            elif key == "air_general":
+                _add_form_tab(title, key, _build_air_general)
+            elif key == "air_sar":
+                _add_form_tab(title, key, _build_air_sar)
+
+        self._deb_editor_v.addWidget(forms_tabs)
+
+    def _populate_form_widgets(self, widgets: Dict[str, QWidget], data: Dict[str, Any]) -> None:
+        for k, w in widgets.items():
+            try:
+                v = data.get(k)
+            except Exception:
+                v = None
+            try:
+                if isinstance(w, QLineEdit):
+                    w.setText("") if v is None else w.setText(str(v))
+                elif isinstance(w, QTextEdit):
+                    w.setPlainText("") if v is None else w.setPlainText(str(v))
+                elif isinstance(w, QComboBox):
+                    if v is None:
+                        w.setCurrentIndex(0)
+                    else:
+                        idx = w.findText(str(v))
+                        w.setCurrentIndex(idx if idx >= 0 else 0)
+                elif isinstance(w, QCheckBox):
+                    w.setChecked(bool(v))
+            except Exception:
+                pass
+
+    def _gather_form_widgets(self, widgets: Dict[str, QWidget]) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        for k, w in widgets.items():
+            try:
+                if isinstance(w, QLineEdit):
+                    out[k] = w.text().strip()
+                elif isinstance(w, QTextEdit):
+                    out[k] = w.toPlainText().strip()
+                elif isinstance(w, QComboBox):
+                    out[k] = w.currentText()
+                elif isinstance(w, QCheckBox):
+                    out[k] = 1 if w.isChecked() else 0
+            except Exception:
+                pass
+        return out
+
+    def _save_debrief_form(self, debrief_id: int, form_key: str) -> None:
+        try:
+            from modules.operations.taskings.repository import save_debrief_form, update_debrief_header
+        except Exception:
+            return
+        widgets = (self._deb_form_widgets or {}).get(form_key) or {}
+        data = self._gather_form_widgets(widgets)
+        try:
+            save_debrief_form(int(debrief_id), str(form_key), dict(data))
+            # Flag for review when saved
+            update_debrief_header(int(debrief_id), {"flagged_for_review": 1})
+            self.load_debriefs()
+            try:
+                QMessageBox.information(self, "Debrief", "Saved.")
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Debrief", f"Could not save: {e}")
+            except Exception:
+                pass
+
+    def _submit_selected_debrief(self) -> None:
+        did = self._selected_debrief_id()
+        if not did:
+            return
+        # Use bridge to set status and write audit if available
+        try:
+            from modules.operations.taskings.bridge import TaskingsBridge
+            br = TaskingsBridge()
+            br.submitDebrief(int(did))
+        except Exception:
+            try:
+                from modules.operations.taskings.repository import update_debrief_header
+                update_debrief_header(int(did), {"status": "Submitted", "flagged_for_review": 1})
+            except Exception:
+                pass
+        self.load_debriefs()
+        try:
+            QMessageBox.information(self, "Debrief", "Submitted for review.")
+        except Exception:
+            pass
+
+    def _mark_selected_debrief_reviewed(self) -> None:
+        did = self._selected_debrief_id()
+        if not did:
+            return
+        try:
+            from modules.operations.taskings.bridge import TaskingsBridge
+            br = TaskingsBridge(); br.markDebriefReviewed(int(did))
+        except Exception:
+            try:
+                from modules.operations.taskings.repository import update_debrief_header
+                update_debrief_header(int(did), {"status": "Reviewed", "flagged_for_review": 0})
+            except Exception:
+                pass
+        self.load_debriefs()
+
+    def _archive_selected_debrief(self) -> None:
+        did = self._selected_debrief_id()
+        if not did:
+            return
+        try:
+            from modules.operations.taskings.repository import archive_debrief
+            archive_debrief(int(did))
+        except Exception:
+            pass
+        self.load_debriefs()
+
+    def _delete_selected_debrief(self) -> None:
+        did = self._selected_debrief_id()
+        if not did:
+            return
+        try:
+            resp = QMessageBox.question(self, "Delete", "Delete selected debrief?")
+            if resp != QMessageBox.Yes:
+                return
+        except Exception:
+            pass
+        try:
+            from modules.operations.taskings.repository import delete_debrief
+            delete_debrief(int(did))
+        except Exception:
+            pass
+        self.load_debriefs()
