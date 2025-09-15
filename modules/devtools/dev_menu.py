@@ -1,21 +1,23 @@
+"""Developer utilities menu attachment."""
+
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QVBoxLayout   # <-- add
+from PySide6.QtWidgets import QDialog, QVBoxLayout
 
 from .panels.template_debug_panel import TemplateDebugPanel
 
 
 def attach_dev_menu(main_window):
-    """Attach a Tools→Developer→Template Debug Panel action to the main window."""
-    tools_menu = None
-    for m in main_window.menuBar().actions():
-        if m.text().lower().strip("&") == "tools":
-            tools_menu = m.menu()
+    """Attach a Developer menu with debugging tools to the main window."""
+    # Ensure a top-level Developer menu exists on the menubar
+    dev_menu = None
+    for act in main_window.menuBar().actions():
+        if act.text().lower().strip("&") in {"developer", "dev"}:
+            dev_menu = act.menu()
             break
-    if not tools_menu:
-        tools_menu = main_window.menuBar().addMenu("&Tools")
+    if dev_menu is None:
+        dev_menu = main_window.menuBar().addMenu("&Developer")
 
-    dev_menu = tools_menu.addMenu("&Developer")
     act = QAction("Template Debug Panel", main_window)
 
     def _open():

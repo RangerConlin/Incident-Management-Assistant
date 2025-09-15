@@ -61,6 +61,7 @@ from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
 from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
+from utils.profile_manager import profile_manager, ProfileMeta
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -215,6 +216,10 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.warning("Failed to load ADS perspectives: %s", e)
 
+        # Load profiles and prepare profile menu actions
+        profile_manager.load_all_profiles("profiles")
+        self._profile_actions: list[QAction] = []
+
         # Build the physical menu bar (visible UI)
         self.init_module_menus()
 
@@ -237,6 +242,42 @@ class MainWindow(QMainWindow):
         menu.addAction(act)
         return act
 
+    def _init_profiles_menu(self, profiles_menu: QMenu) -> None:
+        """Populate the Profiles submenu with available profiles."""
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        active = profile_manager.get_active_profile_id()
+        self._profile_actions.clear()
+        for meta in profile_manager.list_profiles():
+            act = QAction(meta.name, self)
+            act.setCheckable(True)
+            act.setData(meta.id)
+            if meta.id == active:
+                act.setChecked(True)
+            act.triggered.connect(lambda checked=False, m=meta: self._on_profile_selected(m))
+            group.addAction(act)
+            profiles_menu.addAction(act)
+            self._profile_actions.append(act)
+
+    def _on_profile_selected(self, meta: ProfileMeta) -> None:
+        """Attempt to switch to the chosen profile and show result to user."""
+        prev = profile_manager.get_active_profile_id()
+        try:
+            profile_manager.set_active_profile(meta.id)
+        except Exception as e:
+            QMessageBox.critical(self, "Profile Error", str(e))
+            for act in self._profile_actions:
+                act.setChecked(act.data() == prev)
+            return
+        try:
+            notifier = get_notifier()
+            notifier.showToast.emit({
+                "title": "Profile",
+                "message": f"Profile switched to {meta.name}",
+            })
+        except Exception:
+            pass
+
     def init_module_menus(self):
         """Build the entire menu tree in one place; handlers live below."""
         mb = self.menuBar()
@@ -247,6 +288,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_menu, "Open Incident", "Ctrl+O", "menu.open_incident")
         self._add_action(m_menu, "Save Incident", "Ctrl+S", "menu.save_incident")
         self._add_action(m_menu, "Settings", None, "menu.settings")
+        profiles_menu = m_menu.addMenu("Profiles")
+        self._init_profiles_menu(profiles_menu)
         m_menu.addSeparator()
         self._add_action(m_menu, "Exit", "Ctrl+Q", "menu.exit")
 
