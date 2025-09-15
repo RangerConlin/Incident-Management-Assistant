@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "keys": {
+    "incident.name": {
+      "source": "constants",
+      "desc": "Official incident name",
+      "synonyms": ["incident name"],
+      "patterns": ["^incident.?name$"]
+    }
+  }
+}
