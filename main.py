@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtCore import Qt, QUrl, QSettings, QTimer
 from PySide6.QtQuick import QQuickView
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -265,13 +265,20 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
 
-        # ----- View -----
-        m_view = mb.addMenu("View")
+        # ----- View (moved under Menu) -----
+        m_view = m_menu.addMenu("View")
         theme_menu = m_view.addMenu("Theme")
+        # Use an exclusive action group so the menu shows radio options
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+
         act_light = QAction("Light", self)
         act_light.setCheckable(True)
+        theme_group.addAction(act_light)
+
         act_dark = QAction("Dark", self)
         act_dark.setCheckable(True)
+        theme_group.addAction(act_dark)
         try:
             current_theme = self.theme_manager.theme if self.theme_manager else 'light'
         except Exception:
