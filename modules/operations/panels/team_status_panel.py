@@ -285,7 +285,6 @@ class TeamStatusPanel(QWidget):
         # Top-level actions
         menu.addAction("View Team Detail", lambda: self.view_team_detail(row))
         menu.addAction("View Task Detail (Widget)", lambda: self.view_task_detail(row))
-        menu.addAction("View Task Detail (QML)", lambda: self.view_task_detail_qml(row))
 
         # Add separator
         menu.addSeparator()
@@ -322,16 +321,7 @@ class TeamStatusPanel(QWidget):
         except Exception as e:
             print(f"Failed to open Task Detail Window: {e}")
 
-    def view_task_detail_qml(self, row):
-        try:
-            item = self.table.item(row, 0)
-            task_id = int(item.data(Qt.UserRole + 1)) if item and item.data(Qt.UserRole + 1) is not None else None
-            if task_id is None:
-                raise RuntimeError("No linked task id for this team assignment")
-            from modules.operations.taskings.windows import open_task_detail_window_qml
-            open_task_detail_window_qml(task_id)
-        except Exception as e:
-            print(f"Failed to open QML Task Detail Window: {e}")
+    # QML variant removed
 
     def change_status(self, row, new_status):
         try:

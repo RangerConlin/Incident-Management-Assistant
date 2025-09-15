@@ -259,6 +259,12 @@ class MainWindow(QMainWindow):
             profiles_menu.addAction(act)
             self._profile_actions.append(act)
 
+        # Management entry
+        profiles_menu.addSeparator()
+        act_manage = QAction("Manage Profiles…", self)
+        act_manage.triggered.connect(self.open_manage_profiles)
+        profiles_menu.addAction(act_manage)
+
     def _on_profile_selected(self, meta: ProfileMeta) -> None:
         """Attempt to switch to the chosen profile and show result to user."""
         prev = profile_manager.get_active_profile_id()
@@ -277,6 +283,27 @@ class MainWindow(QMainWindow):
             })
         except Exception:
             pass
+
+    def open_manage_profiles(self) -> None:
+        """Open the Manage Profiles dialog (non-dev menu access)."""
+        try:
+            from modules.devtools.panels.profile_manager_panel import ProfileManagerPanel
+        except Exception as e:
+            QMessageBox.critical(self, "Profiles", f"Failed to load Profile Manager panel:\n{e}")
+            return
+
+        panel = ProfileManagerPanel(parent=self)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Manage Profiles")
+        dlg.setWindowModality(Qt.ApplicationModal)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+
+        v = QVBoxLayout(dlg)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.addWidget(panel)
+
+        dlg.resize(800, 600)
+        dlg.exec()
 
     def init_module_menus(self):
         """Build the entire menu tree in one place; handlers live below."""

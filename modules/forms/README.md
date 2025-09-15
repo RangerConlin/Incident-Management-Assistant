@@ -1,19 +1,25 @@
 # Forms Renderer
 
-Utility package for converting ICS JSON form exports into PDF documents. This
-implementation is intentionally small and focuses on the minimal features needed
-for tests. Templates are discovered via ``data/templates/registry.json`` and
-mapped using a small YAML based DSL.
+Utility package for working with forms.
+
+Preferred pipeline:
+- Use ``FormRegistry`` to load profile-driven templates
+- Track user edits with ``FormSession``
+- Export deterministically with ``export_form``
+
+Legacy path:
+- ``render_form`` and ``templating`` use ``data/templates/registry.json`` and a YAML mapping. These remain for
+  backwards-compatibility and dev tooling, but new code should adopt the
+  profile-driven pipeline above.
 
 Example:
 
 ```python
-from modules.forms import render_form
-from modules.forms.examples import ics_205_example
+from modules.forms import FormRegistry, FormSession, export_form
 
-pdf_bytes = render_form(
-    form_id="ics_205",
-    form_version="2023.10",
-    data=ics_205_example,
-)
+# Example (pseudocode):
+# reg = FormRegistry(profiles_dir="profiles", profile_id="ics_us")
+# reg.load()
+# session = FormSession(instance_id="123", template_uid="ics_us:ICS_205@2025.09")
+# out = export_form(session, context={}, registry=reg, out_path=Path("out.pdf"))
 ```

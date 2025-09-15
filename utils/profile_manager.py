@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import annotations
 
 import importlib.util
 import json
@@ -76,6 +75,15 @@ class ProfileManager:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def _profile_dir(self, profile_id: str) -> Path:
+        return self._root_dir / profile_id
+
+    def _templates_dir(self, profile_id: str) -> Path:
+        return self._profile_dir(profile_id) / "templates"
+
+    def _config_path(self, profile_id: str) -> Path:
+        return self._profile_dir(profile_id) / "profile_config.json"
+
     def load_all_profiles(self, root_dir: str | Path) -> None:
         """Scan root_dir for profiles and load their manifests."""
         self._root_dir = Path(root_dir)
@@ -110,6 +118,60 @@ class ProfileManager:
 
     def get_active_profile_id(self) -> Optional[str]:
         return self._active_id
+
+    # ---------------------------- manage profiles ----------------------------
+    def create_profile(self, profile_id: str, name: Optional[str] = None, inherits: Optional[List[str]] = None) -> None:
+        """Create a new profile directory with a minimal manifest."""
+        pid = (profile_id or "").strip()
+        if not pid:
+            raise ValueError("profile_id is required")
+        if pid in self._profiles:
+            raise ValueError(f"Profile already exists: {pid}")
+        pdir = self._profile_dir(pid)
+        pdir.mkdir(parents=True, exist_ok=False)
+        (pdir / "templates").mkdir(parents=True, exist_ok=True)
+        (pdir / "assets").mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "id": pid,
+            "name": name or pid,
+            "version": "1.0.0",
+            "inherits": list(inherits or []),
+            "locale": {"date_format": "YYYY-MM-DD", "time_format": "HH:mm"},
+            "units": {"distance": "km"},
+            "templates_dir": "templates",
+            "catalog": "catalog.json",
+            "computed_module": "computed.py",
+            "assets": {"logo": "assets/logo.png"},
+        }
+        with open(pdir / "manifest.json", "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        self.hot_reload()
+
+    def delete_profile(self, profile_id: str) -> None:
+        """Delete the profile directory (cannot delete active)."""
+        if profile_id == self._active_id:
+            raise ValueError("Cannot delete the active profile")
+        if profile_id not in self._profiles:
+            raise ValueError("Profile not found")
+        import shutil
+        shutil.rmtree(self._profile_dir(profile_id), ignore_errors=False)
+        self.hot_reload()
+
+    def set_profile_name(self, profile_id: str, name: str) -> None:
+        """Update the human-readable name in the profile manifest."""
+        if profile_id not in self._profiles:
+            raise ValueError("Profile not found")
+        p = self._profile_dir(profile_id) / "manifest.json"
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise ValueError(f"Failed to read manifest for {profile_id}: {e}")
+        data["name"] = str(name)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        tmp.replace(p)
+        # refresh in-memory metadata
+        self.hot_reload()
 
     # ------------------------------------------------------------------
     # Linter
@@ -237,6 +299,74 @@ class ProfileManager:
         if not self._active_id:
             return {}
         return self.get_catalog_for_profile(self._active_id)
+
+    # ---------------------------- active templates ---------------------------
+    def _load_profile_config(self, profile_id: str) -> Dict[str, Any]:
+        p = self._config_path(profile_id)
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_profile_config(self, profile_id: str, data: Dict[str, Any]) -> None:
+        p = self._config_path(profile_id)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        tmp.replace(p)
+
+    def list_form_versions(self, profile_id: str) -> Dict[str, List[str]]:
+        """Return {form_id: [versions]} from v2 templates in the profile."""
+        out: Dict[str, List[str]] = {}
+        tdir = self._templates_dir(profile_id)
+        if not tdir.exists():
+            return out
+        for tpl in tdir.glob("*.json"):
+            try:
+                data = json.loads(tpl.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            fid = data.get("form_id")
+            ver = data.get("form_version")
+            if not fid or not ver:
+                continue
+            arr = out.setdefault(str(fid), [])
+            if str(ver) not in arr:
+                arr.append(str(ver))
+        for k in out:
+            out[k].sort()
+        return out
+
+    def get_active_template_version(self, profile_id: str, form_id: str) -> Optional[str]:
+        cfg = self._load_profile_config(profile_id)
+        active = cfg.get("active_templates", {})
+        v = active.get(form_id)
+        return str(v) if v is not None else None
+
+    def set_active_template_version(self, profile_id: str, form_id: str, version: str) -> None:
+        cfg = self._load_profile_config(profile_id)
+        active = cfg.setdefault("active_templates", {})
+        active[form_id] = str(version)
+        self._save_profile_config(profile_id, cfg)
+
+    def list_forms(self) -> List[str]:
+        """Aggregate known forms from all profiles and legacy registry."""
+        forms: set[str] = set()
+        for pid in self._profiles.keys():
+            for fid in self.list_form_versions(pid).keys():
+                forms.add(fid)
+        # legacy registry
+        try:
+            reg = Path("data/templates/registry.json")
+            if reg.exists():
+                data = json.loads(reg.read_text(encoding="utf-8"))
+                for k in data.keys():
+                    if not k.startswith("__"):
+                        forms.add(k)
+        except Exception:
+            pass
+        return sorted(forms)
 
     def get_computed_for_profile(self, profile_id: str) -> ComputedRegistry:
         chain = self._profile_chain(profile_id)

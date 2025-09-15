@@ -6,6 +6,7 @@ from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from utils import incident_context
+from utils.audit import write_audit
 from .models import Task, TaskTeam, TaskDetail
 
 
@@ -147,6 +148,14 @@ def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
     patch = dict(patch or {})
     with _connect() as con:
         _ensure_task_columns(con)
+        # Fetch current values to compute per-field audit entries
+        try:
+            cur_row = con.execute(
+                "SELECT task_id, title, category, task_type, priority, status, location, assignment, team_leader, team_phone FROM tasks WHERE id=?",
+                (int(task_id),),
+            ).fetchone()
+        except Exception:
+            cur_row = None
         cols: Dict[str, Any] = {}
         if "task_id" in patch:
             cols["task_id"] = str(patch["task_id"]) or None
@@ -170,6 +179,53 @@ def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
             cols["team_phone"] = str(patch["team_phone"]) or None
         if not cols:
             return
+        # Write audit entries for changed fields
+        def _disp_current(key: str, val: Any) -> str:
+            if key == "priority":
+                try:
+                    return {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}.get(int(val), str(val or ""))
+                except Exception:
+                    return str(val or "")
+            if key == "status":
+                return _task_status_to_key(val).title() if val is not None else ""
+            return str(val if val is not None else "")
+
+        try:
+            if cur_row is not None:
+                # Map DB row to simple dict for comparisons
+                prev: Dict[str, Any] = {
+                    "task_id": cur_row["task_id"],
+                    "title": cur_row["title"],
+                    "category": cur_row["category"],
+                    "task_type": cur_row["task_type"],
+                    "priority": cur_row["priority"],
+                    "status": cur_row["status"],
+                    "location": cur_row["location"],
+                    "assignment": cur_row["assignment"],
+                    "team_leader": cur_row["team_leader"],
+                    "team_phone": cur_row["team_phone"],
+                }
+                for k, v in list(cols.items()):
+                    old = prev.get(k)
+                    # Compare with DB representation; for priority/status map display later
+                    if str(old) != str(v):
+                        try:
+                            write_audit(
+                                "task.update",
+                                {
+                                    "task_id": int(task_id),
+                                    "field": k,
+                                    "old": _disp_current(k, old),
+                                    "new": _disp_current(k, v),
+                                },
+                                prefer_mission=True,
+                            )
+                        except Exception:
+                            pass
+        except Exception:
+            # Non-fatal: proceed with update even if audit fails
+            pass
+
         set_clause = ", ".join([f"{k}=?" for k in cols.keys()])
         vals = list(cols.values()) + [int(task_id)]
         con.execute(f"UPDATE tasks SET {set_clause} WHERE id=?", vals)
@@ -412,6 +468,10 @@ def save_task_assignment(task_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
                 (int(task_id), js, now),
             )
         con.commit()
+    try:
+        write_audit("task.assignment.save", {"task_id": int(task_id)})
+    except Exception:
+        pass
     return payload
 
 
@@ -540,6 +600,10 @@ def add_task_comm(task_id: int, incident_channel_id: Optional[int] = None, funct
             (int(task_id), int(incident_channel_id) if incident_channel_id is not None else None, function, remarks),
         )
         con.commit()
+        try:
+            write_audit("task.comms.add", {"task_id": int(task_id), "incident_channel_id": incident_channel_id, "function": function})
+        except Exception:
+            pass
         return int(cur.lastrowid)
 
 
@@ -553,17 +617,40 @@ def update_task_comm(row_id: int, incident_channel_id: Optional[int] = None, fun
         return
     with _connect() as con:
         _ensure_task_comms_table(con)
+        # Load previous for audit
+        try:
+            prev = con.execute("SELECT task_id, incident_channel_id, function FROM task_comms WHERE id=?", (int(row_id),)).fetchone()
+        except Exception:
+            prev = None
         cols = ", ".join(f"{k}=?" for k in patch.keys())
         vals = list(patch.values()) + [int(row_id)]
         con.execute(f"UPDATE task_comms SET {cols} WHERE id=?", vals)
         con.commit()
+    # Audit
+    try:
+        if prev is not None:
+            tid = int(prev["task_id"]) if prev["task_id"] is not None else None
+            if incident_channel_id is not None and incident_channel_id != prev["incident_channel_id"]:
+                write_audit("task.comms.update", {"task_id": tid, "field": "channel", "old": prev["incident_channel_id"], "new": incident_channel_id})
+            if function is not None and str(function) != str(prev["function"]):
+                write_audit("task.comms.update", {"task_id": tid, "field": "function", "old": prev["function"], "new": function})
+    except Exception:
+        pass
 
 
 def remove_task_comm(row_id: int) -> None:
     with _connect() as con:
         _ensure_task_comms_table(con)
+        try:
+            prev = con.execute("SELECT task_id FROM task_comms WHERE id=?", (int(row_id),)).fetchone()
+        except Exception:
+            prev = None
         con.execute("DELETE FROM task_comms WHERE id=?", (int(row_id),))
         con.commit()
+    try:
+        write_audit("task.comms.remove", {"task_id": int(prev["task_id"]) if prev and prev["task_id"] is not None else None, "row_id": int(row_id)})
+    except Exception:
+        pass
 
 
 # --- Debriefing --------------------------------------------------------------
@@ -922,6 +1009,45 @@ def export_audit_csv(
     return str(p)
 
 
+def list_team_status_log(task_id: int) -> List[Dict[str, Any]]:
+    """Return a normalized timeline of team status changes for a task.
+
+    Flattens the task_teams time_* columns into rows with:
+    { timestamp: str, team_name: str, status: str }
+    """
+    with _connect() as con:
+        rows = con.execute(
+            """
+            SELECT tt.id AS tt_id, tm.name AS team_name,
+                   tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived,
+                   tt.time_discovery, tt.time_complete, tt.time_cleared
+            FROM task_teams tt
+            LEFT JOIN teams tm ON tm.id = tt.teamid
+            WHERE tt.task_id=?
+            """,
+            (int(task_id),),
+        ).fetchall()
+    out: List[Dict[str, Any]] = []
+    def _add(ts: Any, team: str, status: str) -> None:
+        if ts:
+            out.append({"timestamp": ts, "team": team or "", "status": status})
+    for r in rows:
+        name = r["team_name"] or ""
+        _add(r["time_assigned"], name, "Assigned")
+        _add(r["time_briefed"], name, "Briefed")
+        _add(r["time_enroute"], name, "En Route")
+        _add(r["time_arrived"], name, "On Scene")
+        _add(r["time_discovery"], name, "Discovery/Find")
+        _add(r["time_complete"], name, "Complete")
+        _add(r["time_cleared"], name, "RTB")
+    # Sort by timestamp ascending
+    try:
+        out.sort(key=lambda x: x.get("timestamp") or "")
+    except Exception:
+        pass
+    return out
+
+
 def get_task_detail(task_id: int) -> TaskDetail:
     task = get_task(task_id)
     teams = list_task_teams(task_id)
@@ -952,6 +1078,8 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
     if team_id is None:
         team_id = create_team(None)
     # Auto-primary if first assignment for the task and primary not explicitly set
+    from datetime import datetime
+    now = datetime.utcnow().isoformat()
     with _connect() as con:
         existing = con.execute("SELECT COUNT(*) FROM task_teams WHERE task_id=?", (int(task_id),)).fetchone()[0]
         is_primary = 1 if (primary or existing == 0) else 0
@@ -959,6 +1087,11 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
             "INSERT INTO task_teams (task_id, teamid, sortie_id, is_primary) VALUES (?, ?, ?, ?)",
             (int(task_id), int(team_id), sortie_id, is_primary),
         )
+        # Stamp assigned time at creation so the UI shows when the team was assigned
+        try:
+            con.execute("UPDATE task_teams SET time_assigned=? WHERE id=?", (now, int(cur.lastrowid)))
+        except Exception:
+            pass
         # Also set current assignment on teams
         try:
             con.execute("ALTER TABLE teams ADD COLUMN current_task_id INTEGER")
@@ -966,7 +1099,12 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
             pass
         con.execute("UPDATE teams SET current_task_id=? WHERE id=?", (int(task_id), int(team_id)))
         con.commit()
-        return int(cur.lastrowid)
+        new_id = int(cur.lastrowid)
+        try:
+            write_audit("task.team.add", {"task_id": int(task_id), "team_id": int(team_id) if team_id is not None else None, "tt_id": new_id, "sortie_id": sortie_id, "primary": bool(is_primary)})
+        except Exception:
+            pass
+        return new_id
 
 
 def set_primary_team(task_id: int, tt_id: int) -> None:
@@ -992,6 +1130,13 @@ def update_sortie_id(tt_id: int, sortie_id: Optional[str]) -> None:
     with _connect() as con:
         con.execute("UPDATE task_teams SET sortie_id=? WHERE id=?", (str(sortie_id) if sortie_id is not None else None, int(tt_id)))
         con.commit()
+    try:
+        with _connect() as con:
+            row = con.execute("SELECT task_id FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
+            tid = int(row["task_id"]) if row and row["task_id"] is not None else None
+        write_audit("task.team.sortie", {"task_id": tid, "tt_id": int(tt_id), "new": sortie_id})
+    except Exception:
+        pass
 
 
 def remove_task_team(tt_id: int) -> None:
@@ -1010,6 +1155,32 @@ def remove_task_team(tt_id: int) -> None:
             nxt = con.execute("SELECT id FROM task_teams WHERE task_id=? ORDER BY id LIMIT 1", (task_id,)).fetchone()
             if nxt:
                 con.execute("UPDATE task_teams SET is_primary=1 WHERE id=?", (int(nxt[0]),))
+        con.commit()
+    try:
+        write_audit("task.team.remove", {"task_id": task_id, "tt_id": int(tt_id), "was_primary": was_primary})
+    except Exception:
+        pass
+    try:
+        write_audit("task.team.primary", {"task_id": int(task_id), "tt_id": int(tt_id)})
+    except Exception:
+        pass
+
+
+def delete_team(team_id: int) -> None:
+    """Completely delete a team record and its task assignments.
+
+    Removes rows from task_teams that reference the team, then deletes the
+    team from teams. Does not attempt to cascade to other domain tables.
+    """
+    with _connect() as con:
+        try:
+            con.execute("DELETE FROM task_teams WHERE teamid=?", (int(team_id),))
+        except Exception:
+            pass
+        try:
+            con.execute("DELETE FROM teams WHERE id=?", (int(team_id),))
+        except Exception:
+            pass
         con.commit()
 
 

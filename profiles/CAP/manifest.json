@@ -1,6 +1,6 @@
 {
-  "id": "ics_base",
-  "name": "ICS FEMA",
+  "id": "CAP",
+  "name": "CAP",
   "version": "1.0.0",
   "inherits": [],
   "locale": {

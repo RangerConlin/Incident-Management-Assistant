@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ICS 204 Assignment List",
+  "type": "object",
+  "required": ["incident", "operational_period", "assignment", "resources"],
+  "properties": {
+    "incident": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "number": {"type": "string"}
+      }
+    },
+    "operational_period": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"},
+        "start": {"type": "string"},
+        "end": {"type": "string"}
+      }
+    },
+    "assignment": {
+      "type": "object",
+      "properties": {
+        "branch": {"type": "string"},
+        "division": {"type": "string"},
+        "group": {"type": "string"},
+        "location": {"type": "string"},
+        "objectives": {"type": "string"}
+      }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "type": {"type": "string"},
+          "leader": {"type": "string"},
+          "contact": {"type": "string"}
+        }
+      }
+    }
+  }
+}
+

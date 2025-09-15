@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ICS 214 Activity Log",
+  "type": "object",
+  "required": ["incident", "operational_period", "activity_log"],
+  "properties": {
+    "incident": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"}
+      }
+    },
+    "operational_period": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"}
+      }
+    },
+    "activity_log": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "time": {"type": "string"},
+              "activity": {"type": "string"},
+              "name": {"type": "string"},
+              "position": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

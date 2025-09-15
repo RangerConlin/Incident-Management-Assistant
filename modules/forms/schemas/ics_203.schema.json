@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ICS 203 Organization Assignment List",
+  "type": "object",
+  "required": ["incident", "operational_period", "org_chart"],
+  "properties": {
+    "incident": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "number": {"type": "string"}
+      }
+    },
+    "operational_period": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"},
+        "start": {"type": "string"},
+        "end": {"type": "string"}
+      }
+    },
+    "org_chart": {
+      "type": "object",
+      "properties": {
+        "ic": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "deputy": {"type": "string"},
+            "contact": {"type": "string"}
+          }
+        },
+        "command_staff": {
+          "type": "object",
+          "properties": {
+            "pio": {"type": "object", "properties": {"name": {"type": "string"}, "contact": {"type": "string"}}},
+            "safety_officer": {"type": "object", "properties": {"name": {"type": "string"}, "contact": {"type": "string"}}},
+            "liaison_officer": {"type": "object", "properties": {"name": {"type": "string"}, "contact": {"type": "string"}}}
+          }
+        },
+        "general_staff": {
+          "type": "object",
+          "properties": {
+            "operations": {"type": "object", "properties": {"name": {"type": "string"}, "contact": {"type": "string"}}},
+            "planning": {"type": "object", "properties": {"name": {"type": "string"}, "contact": {"type": "string"}}},
+            "logistics": {"type": "object", "properties": {"name": {"type": "string"}, "contact": {"type": "string"}}},
+            "finance": {"type": "object", "properties": {"name": {"type": "string"}, "contact": {"type": "string"}}}
+          }
+        },
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "director": {"type": "string"},
+              "contact": {"type": "string"}
+            }
+          }
+        },
+        "agency_reps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "agency": {"type": "string"},
+              "name": {"type": "string"},
+              "contact": {"type": "string"},
+              "location": {"type": "string"}
+            }
+          }
+        },
+        "notes": {"type": "string"}
+      }
+    },
+    "prepared_by": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "position": {"type": "string"},
+        "signature": {"type": "string"},
+        "date_time": {"type": "string"}
+      }
+    },
+    "approved_by": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "position": {"type": "string"},
+        "signature": {"type": "string"},
+        "date_time": {"type": "string"}
+      }
+    }
+  }
+}

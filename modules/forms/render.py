@@ -1,5 +1,20 @@
 from __future__ import annotations
 
+"""Legacy forms renderer (deprecated).
+
+Prefer using the deterministic export pipeline via
+`modules.forms.FormRegistry` + `modules.forms.FormSession` +
+`modules.forms.export_form`. This module remains for backwards
+compatibility and CLI/demo use only.
+"""
+
+import warnings as _warnings
+_warnings.warn(
+    "modules.forms.render is deprecated; use FormRegistry/FormSession/export_form",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 import json

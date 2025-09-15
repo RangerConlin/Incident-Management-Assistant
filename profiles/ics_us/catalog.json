@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "keys": {
-    "incident.name": {
-      "synonyms": ["operation name"]
-    }
-  }
-}

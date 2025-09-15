@@ -60,7 +60,7 @@ def _fmt_ts(ts: str | None) -> str:
             dt = dt.replace(tzinfo=timezone.utc)
         else:
             dt = dt.astimezone(timezone.utc)
-        return dt.strftime("%m-%d-%y %H:%M:%S")
+        return dt.strftime("%m/%d/%Y %H:%M:%S")
     except Exception:
         return str(ts)
 
@@ -384,6 +384,26 @@ class TaskDetailWindow(QWidget):
         self._btn_team_primary.clicked.connect(self._teams_set_primary)
         for b in [self._btn_team_add, self._btn_team_edit, self._btn_team_status, self._btn_team_primary]:
             tbar.addWidget(b)
+        # Dev-only hard delete button: visible when DEV_MODE (main.py:7) or uiDebugTools is true
+        _dev_enabled = False
+        try:
+            from main import DEV_MODE as _DEV
+            _dev_enabled = bool(_DEV)
+        except Exception:
+            _dev_enabled = False
+        if not _dev_enabled:
+            try:
+                from utils.settingsmanager import SettingsManager
+                _dev_enabled = bool(SettingsManager().get('uiDebugTools', False))
+            except Exception:
+                _dev_enabled = False
+        if _dev_enabled:
+            try:
+                self._btn_team_dev_delete = QPushButton("DEV: DELETE TEAM")
+                self._btn_team_dev_delete.clicked.connect(self._teams_dev_delete)
+                tbar.addWidget(self._btn_team_dev_delete)
+            except Exception:
+                pass
         tbar.addStretch(1)
         teams_layout.addLayout(tbar)
         self._teams_headers_base = [
@@ -947,6 +967,78 @@ class TaskDetailWindow(QWidget):
             pass
         att_v.addWidget(self._att_table, 1)
         tabs.addTab(att_content, "Attachments/Forms")
+        # Insert Log tab (ICS-214, Task Log, Team Log) and remove placeholder if present
+        try:
+            log_container = QWidget(self)
+            log_layout = QVBoxLayout(log_container)
+            log_layout.setContentsMargins(0, 0, 0, 0)
+            self._log_tabs = QTabWidget(log_container)
+            log_layout.addWidget(self._log_tabs)
+            # ICS-214
+            ics214 = QWidget(self); ics_layout = QVBoxLayout(ics214); ics_layout.setContentsMargins(0, 0, 0, 0)
+            ics_bar = QHBoxLayout();
+            self._btn_214_refresh = QPushButton("Refresh")
+            self._btn_214_export = QPushButton("Export 214")
+            self._btn_214_edit = QPushButton("Edit")
+            self._btn_214_delete = QPushButton("Delete")
+            for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete): ics_bar.addWidget(b)
+            ics_bar.addStretch(1); ics_layout.addLayout(ics_bar)
+            self._tbl_214 = QTableView(self)
+            self._model_214 = QStandardItemModel(0, 3, self)
+            self._model_214.setHorizontalHeaderLabels(["Timestamp", "Entry", "Entered By"])
+            self._tbl_214.setModel(self._model_214); self._tbl_214.setSortingEnabled(True)
+            ics_layout.addWidget(self._tbl_214)
+            self._log_tabs.addTab(ics214, "ICS-214")
+            # Task Log
+            tlog = QWidget(self); tlog_layout = QVBoxLayout(tlog); tlog_bar = QHBoxLayout()
+            self._tlog_search = QLineEdit(); self._tlog_search.setPlaceholderText("Search keyword…")
+            self._tlog_field = QLineEdit(); self._tlog_field.setPlaceholderText("Field filter…")
+            self._tlog_from = QLineEdit(); self._tlog_from.setPlaceholderText("From (YYYY-MM-DD)")
+            self._tlog_to = QLineEdit(); self._tlog_to.setPlaceholderText("To (YYYY-MM-DD)")
+            self._btn_tlog_refresh = QPushButton("Refresh"); self._btn_tlog_export = QPushButton("Export CSV")
+            for w in (self._tlog_search, self._tlog_field, self._tlog_from, self._tlog_to, self._btn_tlog_refresh, self._btn_tlog_export): tlog_bar.addWidget(w)
+            tlog_bar.addStretch(1); tlog_layout.addLayout(tlog_bar)
+            self._tbl_tlog = QTableView(self)
+            self._model_tlog = QStandardItemModel(0, 5, self)
+            self._model_tlog.setHorizontalHeaderLabels(["Timestamp", "Field Changed", "Old Value", "New Value", "Changed By"])
+            self._tbl_tlog.setModel(self._model_tlog); self._tbl_tlog.setSortingEnabled(True)
+            tlog_layout.addWidget(self._tbl_tlog)
+            self._log_tabs.addTab(tlog, "Task Log")
+            # Team Log
+            teamlog = QWidget(self); teamlog_layout = QVBoxLayout(teamlog)
+            self._tbl_teamlog = QTableView(self)
+            self._model_teamlog = QStandardItemModel(0, 3, self)
+            self._model_teamlog.setHorizontalHeaderLabels(["Timestamp", "Team", "Status Changed To"])
+            self._tbl_teamlog.setModel(self._model_teamlog); self._tbl_teamlog.setSortingEnabled(True)
+            teamlog_layout.addWidget(self._tbl_teamlog)
+            self._log_tabs.addTab(teamlog, "Team Log")
+            # Actions
+            self._btn_tlog_refresh.clicked.connect(self._load_task_log)
+            self._btn_tlog_export.clicked.connect(self._export_task_log)
+            self._tlog_search.returnPressed.connect(self._load_task_log)
+            self._tlog_field.returnPressed.connect(self._load_task_log)
+            self._tlog_from.returnPressed.connect(self._load_task_log)
+            self._tlog_to.returnPressed.connect(self._load_task_log)
+            self._btn_214_refresh.clicked.connect(self._load_ics214)
+            self._btn_214_export.clicked.connect(self._export_ics214)
+            self._btn_214_delete.clicked.connect(self._delete_ics214_entry)
+            self._btn_214_edit.clicked.connect(self._edit_ics214_entry)
+            tabs.addTab(log_container, "Log")
+            # Remove any prior placeholder Log tab
+            try:
+                for i in range(tabs.count()-1, -1, -1):
+                    try:
+                        if str(tabs.tabText(i)).strip().lower().startswith("log"):
+                            if isinstance(tabs.widget(i), QLabel):
+                                tabs.removeTab(i)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            # Initial load
+            self._load_ics214(); self._load_task_log(); self._load_team_log()
+        except Exception:
+            pass
         # Wire attachment actions
         self._att_upload_btn.clicked.connect(self._att_upload)
         self._att_open_btn.clicked.connect(self._att_open)
@@ -1382,7 +1474,15 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 crit = False
             from modules.operations.taskings.bridge import TaskingsBridge
-            TaskingsBridge().addIcs214Entry(text, crit)
+            ok = bool(TaskingsBridge().addIcs214Entry(text, crit))
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                if ok:
+                    QMessageBox.information(self, "ICS-214", "Added entry to Operations Unit Log.")
+                else:
+                    QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure an active incident is selected.")
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -1398,13 +1498,201 @@ class TaskDetailWindow(QWidget):
             crit_txt = str(self._nar_model.item(r, 5).text() or "No")
             crit = crit_txt.strip().lower() in ("yes", "1", "true")
             from modules.operations.taskings.bridge import TaskingsBridge
-            TaskingsBridge().addIcs214Entry(text, crit)
+            ok = bool(TaskingsBridge().addIcs214Entry(text, crit))
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                if ok:
+                    QMessageBox.information(self, "ICS-214", "Added entry to Operations Unit Log.")
+                else:
+                    QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure an active incident is selected.")
+            except Exception:
+                pass
         except Exception:
             pass
 
     def _on_nar_button_clicked(self, index) -> None:
         # Same behavior as table-click handler but triggered by button delegate
         self._on_nar_table_clicked(index)
+
+    # --- Log Tab Ops --------------------------------------------------------
+    def _load_task_log(self) -> None:
+        try:
+            from modules.operations.taskings.repository import list_audit_logs
+            rows = list_audit_logs(
+                int(self._task_id),
+                search=str(self._tlog_search.text() or ""),
+                date_from=str(self._tlog_from.text() or "") or None,
+                date_to=str(self._tlog_to.text() or "") or None,
+                field_filter=str(self._tlog_field.text() or ""),
+                limit=500,
+            )
+        except Exception:
+            rows = []
+        try:
+            self._model_tlog.removeRows(0, self._model_tlog.rowCount())
+        except Exception:
+            pass
+        import json
+        for r in rows:
+            raw_ts = str(r.get("ts_utc") or r.get("timestamp") or "")
+            ts = _fmt_ts(raw_ts)
+            field = r.get("field_changed") or r.get("action") or ""
+            old = r.get("old_value") or ""
+            new = r.get("new_value") or ""
+            by = r.get("changed_by_display") or r.get("user_id") or ""
+            # Fallback: parse JSON detail if structured columns are absent
+            if (not r.get("field_changed")) and r.get("detail"):
+                try:
+                    d = json.loads(r.get("detail") or "{}")
+                    field = field or d.get("field") or d.get("field_changed") or field
+                    old = old or d.get("old") or d.get("old_value") or old
+                    new = new or d.get("new") or d.get("new_value") or new
+                except Exception:
+                    pass
+            self._model_tlog.appendRow([QStandardItem(str(ts)), QStandardItem(str(field)), QStandardItem(str(old)), QStandardItem(str(new)), QStandardItem(str(by))])
+
+    def _export_task_log(self) -> None:
+        try:
+            from modules.operations.taskings.repository import export_audit_csv
+            p = export_audit_csv(
+                int(self._task_id),
+                search=str(self._tlog_search.text() or ""),
+                date_from=str(self._tlog_from.text() or "") or None,
+                date_to=str(self._tlog_to.text() or "") or None,
+                field_filter=str(self._tlog_field.text() or ""),
+            )
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Task Log Export", f"Saved CSV to:\n{p}")
+        except Exception:
+            pass
+
+    def _load_team_log(self) -> None:
+        try:
+            from modules.operations.taskings.repository import list_team_status_log
+            rows = list_team_status_log(int(self._task_id))
+        except Exception:
+            rows = []
+        try:
+            self._model_teamlog.removeRows(0, self._model_teamlog.rowCount())
+        except Exception:
+            pass
+        for r in rows:
+            self._model_teamlog.appendRow([QStandardItem(_fmt_ts(str(r.get("timestamp") or ""))), QStandardItem(str(r.get("team") or "")), QStandardItem(str(r.get("status") or ""))])
+
+    def _get_ops_214_stream(self):
+        try:
+            from utils import incident_context
+            from modules.ics214 import services
+            from modules.ics214.schemas import StreamCreate
+            inc = incident_context.get_active_incident_id()
+            if not inc:
+                return None, None
+            streams = services.list_streams(inc)
+            stream = None
+            for s in streams:
+                try:
+                    if getattr(s, "name", "") == "Operations Unit Log":
+                        stream = s
+                        break
+                except Exception:
+                    continue
+            if stream is None:
+                stream = services.create_stream(StreamCreate(incident_id=inc, name="Operations Unit Log", section="Operations"))
+            return inc, getattr(stream, "id", None)
+        except Exception:
+            return None, None
+
+    def _load_ics214(self) -> None:
+        inc, sid = self._get_ops_214_stream()
+        if not inc or not sid:
+            try:
+                self._model_214.removeRows(0, self._model_214.rowCount())
+            except Exception:
+                pass
+            return
+        try:
+            from modules.ics214 import services
+            rows = services.list_entries(inc, sid) or []
+        except Exception:
+            rows = []
+        try:
+            self._model_214.removeRows(0, self._model_214.rowCount())
+        except Exception:
+            pass
+        for r in rows:
+            it_ts = QStandardItem(_fmt_ts(str(r.get("timestamp_utc") or "")))
+            it_entry = QStandardItem(str(r.get("text") or ""))
+            it_by = QStandardItem(str(r.get("actor_user_id") or ""))
+            try:
+                it_ts.setData(str(r.get("id") or ""), Qt.UserRole)
+            except Exception:
+                pass
+            self._model_214.appendRow([it_ts, it_entry, it_by])
+
+    def _export_ics214(self) -> None:
+        try:
+            inc, sid = self._get_ops_214_stream()
+            if not inc or not sid:
+                return
+            from modules.ics214 import services
+            from modules.ics214.schemas import ExportRequest
+            pdf = services.export_stream(inc, sid, ExportRequest())
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "ICS-214 Export", f"Exported to: {pdf.file_path}")
+        except Exception:
+            pass
+
+    def _selected_214_entry_id(self) -> str | None:
+        try:
+            idxs = self._tbl_214.selectionModel().selectedRows()
+            if not idxs:
+                return None
+            ridx = idxs[0]
+            return str(self._model_214.item(ridx.row(), 0).data(Qt.UserRole) or "") or None
+        except Exception:
+            return None
+
+    def _delete_ics214_entry(self) -> None:
+        try:
+            inc, _sid = self._get_ops_214_stream()
+            entry_id = self._selected_214_entry_id()
+            if not inc or not entry_id:
+                return
+            from PySide6.QtWidgets import QMessageBox
+            if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+                return
+            from modules.ics214 import services
+            services.delete_entry(inc, entry_id)
+            self._load_ics214()
+        except Exception:
+            pass
+
+    def _edit_ics214_entry(self) -> None:
+        try:
+            inc, _sid = self._get_ops_214_stream()
+            entry_id = self._selected_214_entry_id()
+            if not inc or not entry_id:
+                return
+            try:
+                r = self._tbl_214.selectionModel().selectedRows()[0].row()
+                current = str(self._model_214.item(r, 1).text() or "")
+            except Exception:
+                current = ""
+            from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton
+            dlg = QDialog(self); dlg.setWindowTitle("Edit 214 Entry")
+            lay = QVBoxLayout(dlg)
+            te = QTextEdit(dlg); te.setPlainText(current); lay.addWidget(te)
+            btns = QHBoxLayout(); ok = QPushButton("Save"); cancel = QPushButton("Cancel"); btns.addStretch(1); btns.addWidget(ok); btns.addWidget(cancel); lay.addLayout(btns)
+            ok.clicked.connect(dlg.accept); cancel.clicked.connect(dlg.reject)
+            if dlg.exec_():
+                new_txt = te.toPlainText().strip()
+                if new_txt:
+                    from modules.ics214 import services
+                    from modules.ics214.schemas import EntryUpdate
+                    services.update_entry(inc, entry_id, EntryUpdate(text=new_txt))
+                    self._load_ics214()
+        except Exception:
+            pass
 
     def _is_row_critical(self, row: int) -> bool:
         try:
@@ -2621,6 +2909,46 @@ class TaskDetailWindow(QWidget):
         try:
             head_form.setContentsMargins(0,0,0,0)
             head_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        except Exception:
+            pass
+
+    def _teams_dev_delete(self) -> None:
+        """Dev-only: Permanently delete the selected team record and its assignments."""
+        try:
+            r = self._selected_team_row()
+            if r < 0:
+                return
+            from modules.operations.taskings.repository import list_task_teams
+            rows = list_task_teams(int(self._task_id)) or []
+            # Extract team_id and name for confirmation
+            team_id = None
+            team_name = ""
+            try:
+                team_id = int(rows[r].team_id)
+                team_name = str(rows[r].team_name or "")
+            except Exception:
+                try:
+                    v = (_to_variant(rows[r]) or {})
+                    team_id = int(v.get('team_id')) if v.get('team_id') is not None else None
+                    team_name = str(v.get('team_name') or "")
+                except Exception:
+                    team_id = None
+            if team_id is None:
+                return
+            from PySide6.QtWidgets import QMessageBox
+            resp = QMessageBox.warning(
+                self,
+                "Confirm Delete Team",
+                f"This will permanently delete team ID {team_id} ({team_name}) and remove all its task assignments.\nThis action cannot be undone.\n\nContinue?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if resp != QMessageBox.Yes:
+                return
+            from modules.operations.taskings.repository import delete_team
+            delete_team(int(team_id))
+            # Refresh lists
+            self.load_teams()
         except Exception:
             pass
         sortie_edit = QLineEdit(head_box); sortie_edit.setText(str(d.get("sortie_number") or ""))

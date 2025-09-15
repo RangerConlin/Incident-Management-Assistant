@@ -99,11 +99,14 @@ def export_form(session: FormSession, context: Dict[str, Any], registry, out_pat
     # application and may not be present during unit tests; to keep this module
     # self contained we import lazily and fall back to an identity mapping if
     # unavailable.
-    try:  # pragma: no cover - the branch is exercised depending on test setup
-        from bindings import render_values  # type: ignore
-    except Exception:  # pragma: no cover - tests may not include bindings module
-        def render_values(tpl, ctx):  # type: ignore
-            return {}
+    try:  # pragma: no cover - depending on test setup
+        from .bindings import render_values  # type: ignore
+    except Exception:  # pragma: no cover - fallback to global name or no-op
+        try:
+            from bindings import render_values  # type: ignore
+        except Exception:
+            def render_values(tpl, ctx):  # type: ignore
+                return {}
 
     resolved = render_values(template, context)
     if session.values:

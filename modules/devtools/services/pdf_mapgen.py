@@ -71,11 +71,21 @@ def extract_schema_paths(schema_path: Optional[Path], sample_json: Optional[Path
         def walk(s, prefix=""):
             if not isinstance(s, dict):
                 return
+            # Object properties
             props = s.get("properties")
             if isinstance(props, dict):
                 for k, v in props.items():
                     walk(v, f"{prefix}.{k}" if prefix else k)
-            elif s.get("type") in ("string", "number", "integer", "boolean"):
+                return
+            # Arrays
+            if s.get("type") == "array":
+                items = s.get("items")
+                newp = f"{prefix}[*]" if prefix else "[*]"
+                if isinstance(items, dict):
+                    walk(items, newp)
+                return
+            # Primitive leaf
+            if s.get("type") in ("string", "number", "integer", "boolean") and prefix:
                 candidates.append(prefix)
 
         walk(schema)

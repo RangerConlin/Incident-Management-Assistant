@@ -1,0 +1,160 @@
+{
+  "forms": [
+    {
+      "id": "ICS_201",
+      "title": "Incident Briefing",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_202",
+      "title": "Incident Objectives",
+      "category": "ICS",
+      "profiles": [],
+      "templates": [
+        {
+          "version": "latest",
+          "pdf": "data/forms/pdfs/ICS_202_vlatest.pdf",
+          "mapping": null,
+          "schema": null
+        }
+      ]
+    },
+    {
+      "id": "ICS_203",
+      "title": "Organization Assignment List",
+      "category": "ICS",
+      "profiles": [],
+      "templates": [
+        {
+          "version": "3 FEMA",
+          "pdf": "data/forms/pdfs/ICS_203_v3 FEMA.pdf",
+          "mapping": "data/forms/maps/ICS_203_v3 FEMA.map.yaml",
+          "schema": null
+        }
+      ]
+    },
+    {
+      "id": "ICS_204",
+      "title": "Assignment List",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_205",
+      "title": "Communications Plan",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_206",
+      "title": "Medical Plan",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_208",
+      "title": "Safety Message/Plan",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_209",
+      "title": "Incident Status Summary",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_211",
+      "title": "Check-In List",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_213",
+      "title": "General Message",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_213RR",
+      "title": "Resource Request",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_214",
+      "title": "Activity Log",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_215",
+      "title": "Operational Planning Worksheet",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_215A",
+      "title": "Incident Action Plan Safety Analysis",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_216",
+      "title": "Radio Requirements Worksheet",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_217",
+      "title": "Communications Resource Availability",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "ICS_218",
+      "title": "Support Vehicle/Equipment Inventory",
+      "category": "ICS",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "CAPF_109",
+      "title": "CAPF_109",
+      "category": "CAP",
+      "profiles": [],
+      "templates": []
+    },
+    {
+      "id": "SAR_104",
+      "title": "Search Assignment Form",
+      "category": "SAR",
+      "profiles": [],
+      "templates": []
+    }
+  ],
+  "custom_forms": [
+    {
+      "id": "CAPF_104",
+      "title": "CAPF_104",
+      "category": "Custom",
+      "profiles": [],
+      "templates": []
+    }
+  ]
+}

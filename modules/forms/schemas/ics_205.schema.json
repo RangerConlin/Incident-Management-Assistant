@@ -2,20 +2,45 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ICS 205 Communications Plan",
   "type": "object",
-  "required": ["incident", "operational_period"],
+  "required": ["incident", "operational_period", "communications"],
   "properties": {
     "incident": {
       "type": "object",
       "required": ["name"],
       "properties": {
-        "name": {"type": "string"}
+        "name": {"type": "string"},
+        "number": {"type": "string"}
       }
     },
     "operational_period": {
       "type": "object",
       "required": ["label"],
       "properties": {
-        "label": {"type": "string"}
+        "label": {"type": "string"},
+        "start": {"type": "string"},
+        "end": {"type": "string"}
+      }
+    },
+    "communications": {
+      "type": "object",
+      "properties": {
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "function": {"type": "string"},
+              "name": {"type": "string"},
+              "system": {"type": "string"},
+              "mode": {"type": "string"},
+              "rx_freq": {"type": "string"},
+              "tx_freq": {"type": "string"},
+              "rx_tone": {"type": "string"},
+              "tx_tone": {"type": "string"},
+              "remarks": {"type": "string"}
+            }
+          }
+        }
       }
     }
   }

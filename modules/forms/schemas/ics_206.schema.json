@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ICS 206 Medical Plan",
+  "type": "object",
+  "required": ["incident", "operational_period", "medical"],
+  "properties": {
+    "incident": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"}
+      }
+    },
+    "operational_period": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"}
+      }
+    },
+    "medical": {
+      "type": "object",
+      "properties": {
+        "aid_stations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "location": {"type": "string"},
+              "contact": {"type": "string"}
+            }
+          }
+        },
+        "hospitals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "location": {"type": "string"},
+              "contact": {"type": "string"}
+            }
+          }
+        },
+        "transport": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource": {"type": "string"},
+              "contact": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

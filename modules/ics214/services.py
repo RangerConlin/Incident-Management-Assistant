@@ -106,6 +106,33 @@ def list_entries(incident_id: str, stream_id: str) -> List[Dict[str, Any]]:
         ).scalars().all()
         return [_entry_to_dict(e) for e in result]
 
+
+def update_entry(incident_id: str, entry_id: str, data: "EntryUpdate") -> Dict[str, Any] | None:
+    from .schemas import EntryUpdate
+    if not isinstance(data, EntryUpdate):
+        data = EntryUpdate(**(data or {}))
+    with with_incident_session(incident_id) as session:
+        entry = session.get(ICS214Entry, entry_id)
+        if not entry:
+            return None
+        payload = data.model_dump(exclude_unset=True)
+        for k, v in payload.items():
+            if hasattr(entry, k):
+                setattr(entry, k, v)
+        session.add(entry)
+        session.flush()
+        return _entry_to_dict(entry)
+
+
+def delete_entry(incident_id: str, entry_id: str) -> bool:
+    with with_incident_session(incident_id) as session:
+        entry = session.get(ICS214Entry, entry_id)
+        if not entry:
+            return False
+        session.delete(entry)
+        session.flush()
+        return True
+
 # Event ingestion -------------------------------------------------------------
 
 def ingest_event_to_entries(event: Dict[str, Any]) -> List[Dict[str, Any]]:

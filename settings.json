@@ -61,5 +61,7 @@
             }
         ]
     },
-    "uiDebugTools": true
+    "uiDebugTools": true,
+    "themeName": "light",
+    "active_profile_id": "ics_base"
 }

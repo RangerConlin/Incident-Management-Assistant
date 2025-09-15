@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+"""Legacy registry-based template resolver (deprecated).
+
+Kept for developer tools and older flows using data/templates/registry.json.
+Prefer profile-driven templates with FormRegistry in new code.
+"""
+
+import warnings as _warnings
+_warnings.warn(
+    "modules.forms.templating is deprecated; prefer FormRegistry (profile-driven)",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 from dataclasses import dataclass
 from pathlib import Path

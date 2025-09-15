@@ -490,6 +490,17 @@ class TaskingsBridge(QObject):
         except Exception:
             return False
 
+    @Slot(int, int, result="QVariant")
+    def deleteTeam(self, task_id: int, team_id: int) -> Any:  # noqa: N802
+        """Permanently delete a team and refresh task team list (dev-only)."""
+        from modules.operations.taskings.repository import delete_team, list_task_teams
+        try:
+            delete_team(int(team_id))
+            teams = list_task_teams(int(task_id))
+            return {"ok": True, "teams": [_to_variant(t) for t in teams]}
+        except Exception:
+            return {"ok": False, "teams": []}
+
     @Slot(int, "QString", result=bool)
     def changeTeamStatus(self, tt_id: int, status_label: str) -> bool:  # noqa: N802
         """Change assignment status for a task_teams row using a human label.
