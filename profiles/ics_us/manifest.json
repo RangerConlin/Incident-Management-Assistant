@@ -1,0 +1,12 @@
+{
+  "id": "ics_us",
+  "name": "ICS – United States",
+  "version": "1.0.0",
+  "inherits": ["ics_base"],
+  "locale": {"date_format": "MM/DD/YYYY", "time_format": "h:mm A"},
+  "units": {"distance": "mi"},
+  "templates_dir": "templates",
+  "catalog": "catalog.json",
+  "computed_module": "computed.py",
+  "assets": {"logo": "assets/logo.png"}
+}

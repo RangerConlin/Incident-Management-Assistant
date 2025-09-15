@@ -1,0 +1,17 @@
+{
+  "template_version": 2,
+  "form_id": "ICS_205",
+  "title": "ICS 205 Communications Plan",
+  "fields": [
+    {
+      "name": "IncidentName",
+      "key": "IncidentName",
+      "label": "Incident Name",
+      "type": "text",
+      "required": true,
+      "default": null,
+      "options": [],
+      "binding": {"source": "constants", "key": "incident.name"}
+    }
+  ]
+}
