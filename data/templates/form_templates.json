@@ -1,0 +1,74 @@
+[
+  {
+    "form_id": "ics_201",
+    "title": "ICS 201 — Incident Briefing",
+    "class_name": "ICS201",
+    "version": "2025.09",
+    "format": "pdf",
+    "file_path": "templates/ics/ics201_2025.09.pdf",
+    "jurisdiction": "federal",
+    "tags": ["planning", "command"],
+    "related": ["ics_202"],
+    "deprecated": false
+  },
+  {
+    "form_id": "ics_201",
+    "title": "ICS 201 — Incident Briefing",
+    "class_name": "ICS201",
+    "version": "2025.05",
+    "format": "pdf",
+    "file_path": "templates/ics/ics201_2025.05.pdf",
+    "jurisdiction": "federal",
+    "tags": ["planning", "command"],
+    "related": ["ics_202"],
+    "deprecated": false
+  },
+  {
+    "form_id": "ics_205",
+    "title": "ICS 205 — Communications Plan",
+    "class_name": "ICS205",
+    "version": "2025.04",
+    "format": "pdf",
+    "file_path": "templates/ics/ics205_2025.04.pdf",
+    "jurisdiction": "federal",
+    "tags": ["communications"],
+    "related": [],
+    "deprecated": false
+  },
+  {
+    "form_id": "cap_104",
+    "title": "CAPF 104 — Mission Flight Plan",
+    "class_name": "CAP104",
+    "version": "2024.01",
+    "format": "pdf",
+    "file_path": "templates/cap/capf104_2024.01.pdf",
+    "jurisdiction": "cap",
+    "tags": ["aviation"],
+    "related": [],
+    "deprecated": false
+  },
+  {
+    "form_id": "state_id_ics_214",
+    "title": "ICS 214 — Activity Log (Idaho)",
+    "class_name": "ICS214",
+    "version": "2023.11",
+    "format": "docx",
+    "file_path": "templates/state/id/ics214_2023.11.docx",
+    "jurisdiction": "state:ID",
+    "tags": ["operations"],
+    "related": [],
+    "deprecated": false
+  },
+  {
+    "form_id": "mission_brief",
+    "title": "Mission Brief",
+    "class_name": "MissionBrief",
+    "version": "1",
+    "format": "internal",
+    "file_path": "",
+    "jurisdiction": null,
+    "tags": ["internal"],
+    "related": [],
+    "deprecated": false
+  }
+]
