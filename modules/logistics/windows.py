@@ -1,4 +1,11 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6 import QtCore
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QLabel,
+    QHBoxLayout,
+    QSplitter,
+)
 from utils import incident_context
 
 __all__ = [
@@ -59,11 +66,45 @@ def get_equipment_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_213rr_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Resource Request (ICS-213RR)."""
-    return _make_panel(
-        "Resource Request (ICS-213RR)",
-        f"ICS-213RR form — incident: {incident_id}",
+    """Return the full Resource Request (ICS-213RR) workspace panel."""
+
+    from modules.logistics.resource_requests import get_service
+    from modules.logistics.resource_requests.panels.request_detail_panel import (
+        ResourceRequestDetailPanel,
     )
+    from modules.logistics.resource_requests.panels.request_list_panel import (
+        ResourceRequestListPanel,
+    )
+
+    service = get_service(str(incident_id) if incident_id is not None else None)
+
+    container = QWidget()
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(8)
+
+    splitter = QSplitter(QtCore.Qt.Orientation.Horizontal, container)
+    list_panel = ResourceRequestListPanel(service=service, parent=splitter)
+    detail_panel = ResourceRequestDetailPanel(service=service, parent=splitter)
+    detail_panel.start_new()
+
+    splitter.addWidget(list_panel)
+    splitter.addWidget(detail_panel)
+    splitter.setStretchFactor(0, 1)
+    splitter.setStretchFactor(1, 2)
+
+    layout.addWidget(splitter)
+
+    def _activate(request_id: str) -> None:
+        if request_id == "NEW":
+            detail_panel.start_new()
+            return
+        detail_panel.load_request(request_id)
+
+    list_panel.requestActivated.connect(_activate)
+    detail_panel.requestSaved.connect(lambda _: list_panel.refresh())
+
+    return container
 
 
 def get_personnel_panel(incident_id: object | None = None) -> QWidget:
