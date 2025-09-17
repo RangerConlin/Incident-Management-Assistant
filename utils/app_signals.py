@@ -20,6 +20,8 @@ class AppSignals(QObject):
     teamAssetsChanged = Signal(int)
     # Emitted when a team's leader changes
     teamLeaderChanged = Signal(int)
+    # Emitted when a task header field changes; provides task id and changed fields
+    taskHeaderChanged = Signal(int, dict)
 
 
 # Global singleton instance

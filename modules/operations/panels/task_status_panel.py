@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetIt
 from PySide6.QtCore import Qt
 from utils.styles import task_status_colors, subscribe_theme
 from utils.audit import write_audit
+from utils.app_signals import app_signals
 
 # Require incident DB repository (no sample fallback)
 try:
@@ -60,8 +61,11 @@ class TaskStatusPanel(QWidget):
         self.reload()
         # React to incident changes
         try:
-            from utils.app_signals import app_signals
             app_signals.incidentChanged.connect(lambda *_: self.reload())
+        except Exception:
+            pass
+        try:
+            app_signals.taskHeaderChanged.connect(self._on_task_header_changed)
         except Exception:
             pass
         try:
@@ -145,6 +149,12 @@ class TaskStatusPanel(QWidget):
                 item = self.table.item(r, status_col)
                 status = (item.text() if item else "").strip().lower()
                 self.set_row_color_by_status(r, status)
+        except Exception:
+            pass
+
+    def _on_task_header_changed(self, task_id: int, changed: dict) -> None:
+        try:
+            self.reload()
         except Exception:
             pass
 

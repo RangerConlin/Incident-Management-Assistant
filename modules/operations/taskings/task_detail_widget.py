@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any, Dict, List
 
 from PySide6.QtCore import Qt, Signal, QEvent, QRegularExpression
-from PySide6.QtGui import QStandardItem, QStandardItemModel, QColor, QRegularExpressionValidator, QDoubleValidator
+from PySide6.QtGui import QStandardItem, QStandardItemModel, QColor, QPalette, QRegularExpressionValidator, QDoubleValidator
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -119,6 +120,10 @@ class TaskDetailWindow(QWidget):
         self.resize(1100, 720)
 
         root = QVBoxLayout(self)
+        try:
+            self.setAutoFillBackground(True)
+        except Exception:
+            pass
 
         # --- Lookups and Top Controls ---
         try:
@@ -140,6 +145,19 @@ class TaskDetailWindow(QWidget):
             "types_by_cat": dict(TASK_TYPES_BY_CATEGORY),
         }
 
+        self._status_bg_colors = {
+            "draft": "#f8f9fa",
+            "planned": "#fff4ce",
+            "assigned": "#e0f2ff",
+            "in progress": "#d1ecf1",
+            "complete": "#d4edda",
+            "completed": "#d4edda",
+            "cancelled": "#f8d7da",
+        }
+
+        self._loading_header = False
+        self._header_field_cache: Dict[str, str] = {}
+
         # Top controls in a grid: Category, Type, Priority, Status, Task ID
         top_container = QWidget(self)
         top_grid = QGridLayout(top_container)
@@ -153,12 +171,33 @@ class TaskDetailWindow(QWidget):
         self._cat = QComboBox(self);
         self._cat.addItems(self._lookups["categories"])  # Category
         self._typ = QComboBox(self)  # Type (filtered)
+        self._refresh_task_type_options(self._cat.currentText())
+        try:
+            self._cat.currentTextChanged.connect(self._on_category_changed)
+        except Exception:
+            pass
+        try:
+            self._typ.currentTextChanged.connect(self._on_task_type_changed)
+        except Exception:
+            pass
         self._prio = QComboBox(self);
         self._prio.addItems(self._lookups["priorities"])  # Priority
+        try:
+            self._prio.currentTextChanged.connect(self._on_priority_changed)
+        except Exception:
+            pass
         self._stat = QComboBox(self);
         self._stat.addItems(self._lookups["statuses"])  # Status
+        try:
+            self._stat.currentTextChanged.connect(self._on_status_changed)
+        except Exception:
+            pass
         self._task_id_edit = QLineEdit(self);
         self._task_id_edit.setPlaceholderText("Task ID")
+        try:
+            self._task_id_edit.editingFinished.connect(partial(self._on_header_line_edit, 'task_id', self._task_id_edit))
+        except Exception:
+            pass
         for r, (lab, w) in enumerate([
             ("Category", self._cat),
             ("Type", self._typ),
@@ -175,6 +214,14 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
         root.addWidget(top_container)
+        try:
+            self._update_category_type_display()
+        except Exception:
+            pass
+        try:
+            self._apply_status_background(self._stat.currentText())
+        except Exception:
+            pass
 
         # Primary Team (read-only) 2x2 grid, above Title/Location/Assignment
         primary_container = QWidget(self)
@@ -220,8 +267,18 @@ class TaskDetailWindow(QWidget):
         stack = QVBoxLayout()
         self._title_edit = QLineEdit(self); self._title_edit.setPlaceholderText("Title")
         self._location_edit = QLineEdit(self); self._location_edit.setPlaceholderText("Location")
+        self._category_type_display = QLineEdit(self); self._category_type_display.setPlaceholderText("Category / Type")
+        try:
+            self._category_type_display.setReadOnly(True)
+        except Exception:
+            pass
         self._assignment_edit = QLineEdit(self); self._assignment_edit.setPlaceholderText("Assignment")
-        for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Assignment", self._assignment_edit)]:
+        for edit, field in ((self._title_edit, 'title'), (self._location_edit, 'location'), (self._assignment_edit, 'assignment')):
+            try:
+                edit.editingFinished.connect(partial(self._on_header_line_edit, field, edit))
+            except Exception:
+                pass
+        for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Category / Type", self._category_type_display), ("Assignment", self._assignment_edit)]:
             row = QVBoxLayout()
             _lbl = QLabel(lab)
             try:
@@ -1107,6 +1164,208 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
 
+    def _status_background_color(self, status: str | None) -> str:
+        key = str(status or "").strip().lower()
+        return self._status_bg_colors.get(key, "#ffffff")
+
+    def _apply_status_background(self, status: str | None) -> None:
+        try:
+            color = QColor(self._status_background_color(status))
+            pal = self.palette()
+            pal.setColor(QPalette.Window, color)
+            self.setPalette(pal)
+            try:
+                self.setAutoFillBackground(True)
+            except Exception:
+                pass
+            try:
+                self.update()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _normalize_header_value(self, field: str, value: Any) -> str:
+        text = '' if value is None else str(value).strip()
+        if field == 'task_type' and text.lower().startswith('(select'):
+            return ''
+        return text
+
+    def _category_type_text(self) -> str:
+        try:
+            category = self._cat.currentText() if hasattr(self, '_cat') else ''
+        except Exception:
+            category = ''
+        try:
+            task_type = self._typ.currentText() if hasattr(self, '_typ') else ''
+        except Exception:
+            task_type = ''
+        category = str(category or '').strip()
+        task_type = str(task_type or '').strip()
+        if task_type.lower().startswith('(select'):
+            task_type = ''
+        parts = [p for p in (category, task_type) if p]
+        return ' / '.join(parts)
+
+    def _update_category_type_display(self) -> None:
+        widget = getattr(self, '_category_type_display', None)
+        if widget is None:
+            return
+        try:
+            widget.setText(self._category_type_text())
+        except Exception:
+            pass
+
+    def _persist_header_fields(self, updates: Dict[str, Any]) -> None:
+        if not updates:
+            return
+        norm: Dict[str, str] = {}
+        for key, val in updates.items():
+            try:
+                norm[key] = self._normalize_header_value(key, val)
+            except Exception:
+                norm[key] = '' if val is None else str(val)
+        changed = {k: v for k, v in norm.items() if self._header_field_cache.get(k, '') != v}
+        if not changed:
+            return
+        try:
+            from modules.operations.taskings.repository import update_task_header
+            update_task_header(int(self._task_id), dict(changed))
+            self._header_field_cache.update(changed)
+            try:
+                from utils.app_signals import app_signals
+                app_signals.taskHeaderChanged.emit(int(self._task_id), dict(changed))
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _on_status_changed(self, status: str) -> None:
+        try:
+            self._apply_status_background(status)
+        except Exception:
+            pass
+        if getattr(self, '_loading_header', False):
+            return
+        self._persist_header_fields({'status': status})
+
+    def _on_task_type_changed(self, value: str) -> None:
+        if getattr(self, '_loading_header', False):
+            return
+        self._persist_header_fields({'task_type': value})
+        try:
+            self._update_category_type_display()
+        except Exception:
+            pass
+
+    def _on_priority_changed(self, value: str) -> None:
+        if getattr(self, '_loading_header', False):
+            return
+        self._persist_header_fields({'priority': value})
+
+    def _on_header_line_edit(self, field: str, widget: QLineEdit) -> None:
+        if getattr(self, '_loading_header', False):
+            return
+        if widget is None:
+            return
+        self._persist_header_fields({field: widget.text()})
+
+    def _task_types_for_category(self, category: str | None) -> List[str]:
+        try:
+            look = dict(self._lookups.get("types_by_cat") or {})
+        except Exception:
+            look = {}
+        key = str(category) if category is not None else ""
+        types = look.get(key)
+        if types is None:
+            types = look.get("<New Task>") or []
+        return [str(t) for t in types]
+
+    def _set_combo_value(self, combo: QComboBox, value: str, *, allow_append: bool = True) -> None:
+        if combo is None:
+            return
+        try:
+            combo.blockSignals(True)
+            target = str(value or "")
+            idx = combo.findText(target, Qt.MatchFixedString) if target else -1
+            if idx < 0 and target and allow_append:
+                combo.addItem(target)
+                idx = combo.count() - 1
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            elif combo.count():
+                combo.setCurrentIndex(0)
+        except Exception:
+            pass
+        finally:
+            try:
+                combo.blockSignals(False)
+            except Exception:
+                pass
+
+    def _refresh_task_type_options(self, category: str | None, selected: str | None = None, *, keep_current_if_valid: bool = False) -> None:
+        combo = getattr(self, "_typ", None)
+        if combo is None:
+            return
+        try:
+            combo.blockSignals(True)
+            options = self._task_types_for_category(category)
+            options = [str(o) for o in options if str(o)]
+            if options:
+                first = options[0].strip().lower()
+                if not first.startswith("(select"):
+                    options.insert(0, "(select type)")
+            else:
+                options = ["(select type)"]
+            current = combo.currentText()
+            target = selected if selected is not None else (current if keep_current_if_valid else "")
+            combo.clear()
+            seen = set()
+            for opt in options:
+                if opt not in seen:
+                    combo.addItem(opt)
+                    seen.add(opt)
+            if target:
+                idx = combo.findText(target, Qt.MatchFixedString)
+                if idx < 0:
+                    combo.addItem(target)
+                    idx = combo.count() - 1
+            else:
+                idx = -1
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            elif combo.count():
+                combo.setCurrentIndex(0)
+        except Exception:
+            pass
+        finally:
+            try:
+                combo.blockSignals(False)
+            except Exception:
+                pass
+        try:
+            self._update_category_type_display()
+        except Exception:
+            pass
+
+    def _on_category_changed(self, category: str) -> None:
+        try:
+            self._refresh_task_type_options(category, selected=None)
+        except Exception:
+            pass
+        if getattr(self, '_loading_header', False):
+            return
+        updates = {'category': category}
+        try:
+            updates['task_type'] = self._typ.currentText() if hasattr(self, '_typ') else ''
+        except Exception:
+            updates['task_type'] = ''
+        self._persist_header_fields(updates)
+        try:
+            self._update_category_type_display()
+        except Exception:
+            pass
+
     # --- Data Bridges ---
     def _ib(self):
         from bridge.incident_bridge import IncidentBridge
@@ -1316,48 +1575,98 @@ class TaskDetailWindow(QWidget):
 
     # --- Header ---
     def _load_header(self) -> None:
-        d = self._repo_detail()
+        self._loading_header = True
         try:
-            t = (d or {}).get("task") or {}
-            tid = t.get("task_id") or self._task_id
-            title = t.get("title") or ""
-            # Populate editable header fields
+            d = self._repo_detail()
             try:
-                if hasattr(self, '_task_id_edit'):
-                    self._task_id_edit.setText(str(tid))
-                if hasattr(self, '_title_edit'):
-                    self._title_edit.setText(str(title))
-                if hasattr(self, '_location_edit'):
-                    self._location_edit.setText(str(t.get('location') or ''))
-                if hasattr(self, '_assignment_edit'):
-                    self._assignment_edit.setText(str(t.get('assignment') or ''))
+                t = (d or {}).get("task") or {}
+                tid = t.get("task_id") or self._task_id
+                title = t.get("title") or ""
+                # Populate editable header fields
+                try:
+                    if hasattr(self, '_task_id_edit'):
+                        self._task_id_edit.setText(str(tid))
+                    if hasattr(self, '_title_edit'):
+                        self._title_edit.setText(str(title))
+                    if hasattr(self, '_location_edit'):
+                        self._location_edit.setText(str(t.get('location') or ''))
+                    if hasattr(self, '_assignment_edit'):
+                        self._assignment_edit.setText(str(t.get('assignment') or ''))
+                except Exception:
+                    pass
+                try:
+                    cat_val = str(t.get('category') or '')
+                    type_val = str(t.get('task_type') or '')
+                    prio_val = str(t.get('priority') or '')
+                    status_val = str(t.get('status') or '')
+                    cat_target = cat_val
+                    if hasattr(self, '_cat'):
+                        if not cat_target:
+                            try:
+                                cat_target = (self._lookups.get('categories') or [''])[0]
+                            except Exception:
+                                cat_target = ''
+                        self._set_combo_value(self._cat, cat_target)
+                    if hasattr(self, '_typ'):
+                        self._refresh_task_type_options(cat_target, selected=type_val or None)
+                    if hasattr(self, '_prio'):
+                        self._set_combo_value(self._prio, prio_val or '')
+                    if hasattr(self, '_stat'):
+                        self._set_combo_value(self._stat, status_val or '')
+                    current_status = status_val
+                    try:
+                        if hasattr(self, '_stat'):
+                            current_status = self._stat.currentText()
+                        self._apply_status_background(current_status)
+                    except Exception:
+                        pass
+                    try:
+                        self._header_field_cache.update({
+                            'task_id': self._normalize_header_value('task_id', tid),
+                            'title': self._normalize_header_value('title', title),
+                            'location': self._normalize_header_value('location', t.get('location')),
+                            'assignment': self._normalize_header_value('assignment', t.get('assignment')),
+                            'category': self._normalize_header_value('category', self._cat.currentText() if hasattr(self, '_cat') else cat_target),
+                            'task_type': self._normalize_header_value('task_type', self._typ.currentText() if hasattr(self, '_typ') else type_val),
+                            'priority': self._normalize_header_value('priority', self._prio.currentText() if hasattr(self, '_prio') else prio_val),
+                            'status': self._normalize_header_value('status', current_status),
+                        })
+                        try:
+                            self._update_category_type_display()
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                # Populate display-only primary team fields
+                try:
+                    teams = (d or {}).get('teams') or []
+                    primary = None
+                    for tt in teams:
+                        if (tt or {}).get('primary'):
+                            primary = tt
+                            break
+                    if primary is None and teams:
+                        primary = teams[0]
+                    if primary is None:
+                        name = leader = phone = ''
+                    else:
+                        name = str(primary.get('team_name') or '')
+                        leader = str(primary.get('team_leader') or '')
+                        phone = str(primary.get('team_leader_phone') or '')
+                    if hasattr(self, '_primary_team_name_lbl'):
+                        self._primary_team_name_lbl.setText(name)
+                    if hasattr(self, '_primary_team_leader_lbl'):
+                        self._primary_team_leader_lbl.setText(leader)
+                    if hasattr(self, '_primary_team_phone_lbl'):
+                        self._primary_team_phone_lbl.setText(phone)
+                except Exception:
+                    pass
             except Exception:
                 pass
-            # Populate display-only primary team fields
-            try:
-                teams = (d or {}).get('teams') or []
-                primary = None
-                for tt in teams:
-                    if (tt or {}).get('primary'):
-                        primary = tt; break
-                if primary is None and teams:
-                    primary = teams[0]
-                if primary is None:
-                    name = leader = phone = ""
-                else:
-                    name = str(primary.get('team_name') or '')
-                    leader = str(primary.get('team_leader') or '')
-                    phone = str(primary.get('team_leader_phone') or '')
-                if hasattr(self, '_primary_team_name_lbl'):
-                    self._primary_team_name_lbl.setText(name)
-                if hasattr(self, '_primary_team_leader_lbl'):
-                    self._primary_team_leader_lbl.setText(leader)
-                if hasattr(self, '_primary_team_phone_lbl'):
-                    self._primary_team_phone_lbl.setText(phone)
-            except Exception:
-                pass
-        except Exception:
-            pass
+        finally:
+            self._loading_header = False
 
     # --- Narrative Ops ---
     def load_narrative(self) -> None:
@@ -1752,7 +2061,7 @@ class TaskDetailWindow(QWidget):
     def _save_header(self) -> None:
         try:
             from modules.operations.taskings.repository import update_task_header
-            typ_val = self._typ.currentText() if hasattr(self, '_typ') else ''
+            typ_val = self._typ.currentText().strip() if hasattr(self, '_typ') else ''
             if typ_val in ('(select type)', '(select category first)'):
                 typ_val = ''
             payload = {
@@ -1760,10 +2069,10 @@ class TaskDetailWindow(QWidget):
                 'title': self._title_edit.text().strip() if hasattr(self, '_title_edit') else '',
                 'location': self._location_edit.text().strip() if hasattr(self, '_location_edit') else '',
                 'assignment': self._assignment_edit.text().strip() if hasattr(self, '_assignment_edit') else '',
-                'category': self._cat.currentText() if hasattr(self, '_cat') else '',
+                'category': self._cat.currentText().strip() if hasattr(self, '_cat') else '',
                 'task_type': typ_val,
-                'priority': self._prio.currentText() if hasattr(self, '_prio') else '',
-                'status': self._stat.currentText() if hasattr(self, '_stat') else '',
+                'priority': self._prio.currentText().strip() if hasattr(self, '_prio') else '',
+                'status': self._stat.currentText().strip() if hasattr(self, '_stat') else '',
             }
             update_task_header(int(self._task_id), payload)
             try:
