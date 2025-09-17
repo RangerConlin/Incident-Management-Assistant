@@ -274,8 +274,9 @@ def open_personnel():
     win.exec()
 
 def open_vehicles():
-    path = os.path.abspath("qml/VehiclesWindow.qml")
-    win = QmlWindow(path, "Vehicles Catalog")
+    from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog
+
+    win = VehicleEditDialog()
     win.exec()
 
 def open_aircraft():
