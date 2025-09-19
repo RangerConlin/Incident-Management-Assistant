@@ -9,8 +9,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 from collections import OrderedDict
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIntValidator
@@ -57,6 +58,7 @@ class VehicleRepository:
 
     def __init__(self, db_path: Optional[str | Path] = None) -> None:
         self._db_path: Optional[Path] = Path(db_path) if db_path else None
+        self._vehicle_columns_cache: Optional[set[str]] = None
 
     # ------------------------------------------------------------------
     # Connection helpers
@@ -76,6 +78,28 @@ class VehicleRepository:
         query = "SELECT 1 FROM sqlite_master WHERE type='table' AND lower(name)=? LIMIT 1"
         row = conn.execute(query, (table_name.lower(),)).fetchone()
         return row is not None
+
+    def _get_vehicle_columns(self, conn: sqlite3.Connection | None = None) -> set[str]:
+        """Return a cached set of columns available on the vehicles table."""
+
+        if self._vehicle_columns_cache is not None:
+            return set(self._vehicle_columns_cache)
+
+        owns_connection = False
+        if conn is None:
+            conn = self._connect()
+            owns_connection = True
+        try:
+            info_rows = conn.execute("PRAGMA table_info(vehicles)").fetchall()
+            columns = {
+                row["name"] if isinstance(row, sqlite3.Row) else row[1]
+                for row in info_rows
+            }
+            self._vehicle_columns_cache = set(columns)
+            return columns
+        finally:
+            if owns_connection:
+                conn.close()
 
     # ------------------------------------------------------------------
     # Reference data
@@ -160,6 +184,80 @@ class VehicleRepository:
     # ------------------------------------------------------------------
     # CRUD helpers
     # ------------------------------------------------------------------
+    def list_inventory(
+        self,
+        *,
+        search: str | None = None,
+        type_filter: Any | None = None,
+        status_filter: Any | None = None,
+        sort_key: str = "id",
+        sort_order: str = "asc",
+        offset: int = 0,
+        limit: Optional[int] = 20,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return vehicle records filtered, sorted, and paginated.
+
+        Parameters mirror the vehicle inventory UI requirements. ``limit`` may
+        be ``None`` to fetch all rows for background exports.
+        """
+
+        conn = self._connect()
+        try:
+            select_columns = list(self._base_select_columns(conn))
+            column_clause = ", ".join(select_columns)
+            query = f"SELECT {column_clause} FROM vehicles"
+
+            where_clauses: list[str] = []
+            params: list[Any] = []
+
+            if search:
+                search_value = f"%{search.strip()}%"
+                where_clauses.append(
+                    "("  # ensure precedence for OR block
+                    "CAST(id AS TEXT) LIKE ? OR "
+                    "license_plate LIKE ? OR "
+                    "vin LIKE ? OR "
+                    "CAST(year AS TEXT) LIKE ? OR "
+                    "LOWER(make) LIKE LOWER(?) OR "
+                    "LOWER(model) LIKE LOWER(?) OR "
+                    "LOWER(tags) LIKE LOWER(?)"
+                    ")"
+                )
+                params.extend([search_value] * 7)
+
+            if type_filter not in (None, "", "All"):
+                where_clauses.append("type_id = ?")
+                params.append(self._normalize_reference(type_filter))
+
+            if status_filter not in (None, "", "All"):
+                where_clauses.append("status_id = ?")
+                params.append(self._normalize_reference(status_filter))
+
+            where_clause = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+            sort_expression = self._resolve_sort_expression(sort_key)
+            order_token = "DESC" if str(sort_order).lower() == "desc" else "ASC"
+            order_clause = f" ORDER BY {sort_expression} {order_token}"
+
+            limit_clause = ""
+            if limit is not None:
+                limit_clause = " LIMIT ? OFFSET ?"
+
+            count_query = f"SELECT COUNT(*) FROM vehicles{where_clause}"
+            total = conn.execute(count_query, tuple(params)).fetchone()[0] or 0
+
+            query_params: list[Any] = list(params)
+            if limit is not None:
+                query_params.extend([int(limit), max(0, int(offset))])
+
+            cursor = conn.execute(query + where_clause + order_clause + limit_clause, tuple(query_params))
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
+        records = [self._row_to_dict(row) for row in rows]
+        return records, int(total)
+
     def fetch_vehicle(self, vehicle_id: int | str) -> Optional[dict[str, Any]]:
         conn = self._connect()
         try:
@@ -282,6 +380,57 @@ class VehicleRepository:
             stripped = value.strip()
             return stripped or None
         return value
+
+    def _base_select_columns(self, conn: sqlite3.Connection) -> Iterable[str]:
+        """Return the core set of columns required for listing vehicles."""
+
+        available = self._get_vehicle_columns(conn)
+        ordered: list[str] = []
+        for column in (
+            "id",
+            "license_plate",
+            "vin",
+            "year",
+            "make",
+            "model",
+            "capacity",
+            "type_id",
+            "status_id",
+            "tags",
+            "organization",
+        ):
+            if column in available:
+                ordered.append(column)
+
+        for optional in (
+            "created_at",
+            "created_ts",
+            "created",
+            "updated_at",
+            "updated_ts",
+            "updated",
+        ):
+            if optional in available and optional not in ordered:
+                ordered.append(optional)
+
+        return ordered
+
+    def _resolve_sort_expression(self, sort_key: str) -> str:
+        """Map logical sort keys to safe SQL column expressions."""
+
+        normalized = (sort_key or "id").lower()
+        mapping = {
+            "id": "CAST(id AS INTEGER)",
+            "license_plate": "license_plate COLLATE NOCASE",
+            "vin": "vin COLLATE NOCASE",
+            "vehicle": "(COALESCE(CAST(year AS TEXT), '') || ' ' || COALESCE(make, '') || ' ' || COALESCE(model, '')) COLLATE NOCASE",
+            "cap": "capacity",
+            "capacity": "capacity",
+            "type": "type_id COLLATE NOCASE",
+            "status": "status_id COLLATE NOCASE",
+            "tags": "tags COLLATE NOCASE",
+        }
+        return mapping.get(normalized, "CAST(id AS INTEGER)")
 
     def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
         record = dict(row)

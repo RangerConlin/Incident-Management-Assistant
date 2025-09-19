@@ -8,6 +8,8 @@ from PySide6.QtWidgets import (
 )
 from utils import incident_context
 
+from modules.logistics.vehicle.panels.vehicle_inventory_panel import VehicleInventoryPanel
+
 __all__ = [
     "get_logistics_panel",
     "get_checkin_panel",
@@ -116,9 +118,9 @@ def get_personnel_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_vehicles_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Vehicle Roster."""
-    return _make_panel(
-        "Vehicle Roster",
-        f"Manage vehicles — incident: {incident_id}",
-    )
+    """Return the vehicle inventory management panel."""
+
+    if incident_id is not None:
+        incident_context.set_active_incident(str(incident_id))
+    return VehicleInventoryPanel()
 
