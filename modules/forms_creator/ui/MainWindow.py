@@ -63,6 +63,10 @@ class MainWindow(QMainWindow):
         self.current_field_item: FieldItem | None = None
         self.next_field_id = 1
         self.active_field_type: str | None = None
+        self.field_items: dict[int, FieldItem] = {}
+        self.field_list_items: dict[int, QListWidgetItem] = {}
+        self.field_list: QListWidget | None = None
+        self._syncing_field_list = False
 
         self._build_menu()
         self._build_central_widget()
@@ -120,6 +124,13 @@ class MainWindow(QMainWindow):
         self.palette_list.itemDoubleClicked.connect(self._handle_palette_double_click)
         self.palette_list.currentItemChanged.connect(self._handle_palette_selection)
         palette_layout.addWidget(self.palette_list)
+
+        palette_layout.addWidget(QLabel("Fields"))
+        self.field_list = QListWidget()
+        self.field_list.setEnabled(False)
+        self.field_list.currentItemChanged.connect(self._handle_field_list_selection)
+        palette_layout.addWidget(self.field_list)
+
         splitter.addWidget(palette_container)
 
         # Canvas
@@ -221,15 +232,32 @@ class MainWindow(QMainWindow):
     def load_template(self, template_id: int) -> None:
         template = self.form_service.get_template(template_id)
         self.current_template = template
-        self.next_field_id = max((f.get("id", 0) for f in template.get("fields", [])), default=0) + 1
+        def _coerce_field_id(value: Any) -> int:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 0
+        self.next_field_id = max((
+            _coerce_field_id(f.get("id")) for f in template.get("fields", [])
+        ), default=0) + 1
         self._reset_palette_tool()
         self.scene.clear()
+        self.field_items.clear()
+        self.field_list_items.clear()
+        if self.field_list is not None:
+            self.field_list.blockSignals(True)
+            self.field_list.clear()
+            self.field_list.blockSignals(False)
+            self.field_list.setEnabled(True)
         self.background_item = None
         self.canvas.reset_zoom()
         self._load_background(template)
         for field in template.get("fields", []):
             self._add_field_item(field)
+        self._refresh_field_list()
         self.palette_list.setEnabled(True)
+        if self.field_list is not None:
+            self.field_list.setEnabled(True)
         self.statusBar().showMessage(f"Loaded template {template['name']} v{template['version']}", 5000)
 
     def save_template(self) -> None:
@@ -296,11 +324,129 @@ class MainWindow(QMainWindow):
             f"Click and drag on the canvas to draw a {current.text()} field.", 5000
         )
 
+    def _handle_field_list_selection(
+        self, current: QListWidgetItem | None, previous: QListWidgetItem | None
+    ) -> None:
+        """Sync canvas selection when a field is chosen from the list."""
+        if self._syncing_field_list:
+            return
+        if current is None:
+            return
+        field_id = current.data(Qt.ItemDataRole.UserRole)
+        try:
+            field_key = int(field_id)
+        except (TypeError, ValueError):
+            return
+        field_item = self.field_items.get(field_key)
+        if not field_item:
+            return
+        self.scene.clearSelection()
+        field_item.setSelected(True)
+        self.canvas.centerOn(field_item)
+
+    def _refresh_field_list(self) -> None:
+        """Populate the field list widget to match the template fields."""
+        if self.field_list is None:
+            return
+        self.field_list_items.clear()
+        self.field_list.blockSignals(True)
+        self.field_list.clear()
+        if not self.current_template:
+            self.field_list.blockSignals(False)
+            return
+        fields = list(self.current_template.get("fields", []))
+        def _as_int(value, default=0):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+        def _as_float(value, default=0.0):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+        fields.sort(key=lambda f: (_as_int(f.get("page", 1), 1), _as_float(f.get("y")), _as_float(f.get("x"))))
+        for field in fields:
+            field_id = field.get("id")
+            try:
+                field_key = int(field_id)
+            except (TypeError, ValueError):
+                continue
+            item = QListWidgetItem(self._format_field_list_label(field))
+            item.setData(Qt.ItemDataRole.UserRole, field_key)
+            self.field_list.addItem(item)
+            self.field_list_items[field_key] = item
+        self.field_list.blockSignals(False)
+
+    def _format_field_list_label(self, field: dict[str, Any]) -> str:
+        """Return the human readable label for a field entry."""
+        name = field.get("name") or f"Field {field.get('id')}"
+        field_type = str(field.get("type") or "unknown").title()
+        page = field.get("page", 1)
+        return f"{name} • {field_type} (p{page})"
+
+    def _get_field_by_id(self, field_id: int) -> dict[str, Any] | None:
+        """Locate a field dictionary by its identifier."""
+        if not self.current_template:
+            return None
+        for field in self.current_template.get("fields", []):
+            try:
+                candidate = int(field.get("id"))
+            except (TypeError, ValueError):
+                continue
+            if candidate == field_id:
+                return field
+        return None
+
+    def _sync_field_list_selection(self, field_id: int | None) -> None:
+        """Reflect the active canvas selection in the field list widget."""
+        if self.field_list is None:
+            return
+        self._syncing_field_list = True
+        try:
+            self.field_list.blockSignals(True)
+            if field_id is None:
+                self.field_list.clearSelection()
+            else:
+                try:
+                    field_key = int(field_id)
+                except (TypeError, ValueError):
+                    self.field_list.clearSelection()
+                else:
+                    item = self.field_list_items.get(field_key)
+                    if item:
+                        self.field_list.setCurrentItem(item)
+                    else:
+                        self.field_list.clearSelection()
+        finally:
+            self.field_list.blockSignals(False)
+            self._syncing_field_list = False
+
+    def _update_field_list_item(self, field_id: Any) -> None:
+        """Refresh the label for a single field entry when its data changes."""
+        if field_id is None or self.field_list is None:
+            return
+        try:
+            field_key = int(field_id)
+        except (TypeError, ValueError):
+            return
+        field = self._get_field_by_id(field_key)
+        item = self.field_list_items.get(field_key)
+        if field and item:
+            item.setText(self._format_field_list_label(field))
+
     def _add_field_item(self, field: dict[str, Any], *, select: bool = False) -> FieldItem:
         cls = FIELD_CLASSES.get(field.get("type"), FieldItem)
         item = cls(field)
         self.scene.addItem(item)
         item.setZValue(5)
+        field_id = field.get("id")
+        try:
+            field_key = int(field_id)
+        except (TypeError, ValueError):
+            field_key = None
+        if field_key is not None:
+            self.field_items[field_key] = item
         if select:
             self.scene.clearSelection()
             item.setSelected(True)
@@ -343,6 +489,10 @@ class MainWindow(QMainWindow):
         self.next_field_id += 1
         self.current_template.setdefault("fields", []).append(field)
         self._add_field_item(field, select=select)
+        if self.field_list is not None:
+            self.field_list.setEnabled(True)
+        self._refresh_field_list()
+        self._sync_field_list_selection(field.get("id"))
         self.statusBar().showMessage(f"Added {field_type.title()} field", 4000)
 
     def _reset_palette_tool(self) -> None:
@@ -359,6 +509,7 @@ class MainWindow(QMainWindow):
         self.current_field_item = items[0] if items else None
         if self.current_field_item is None:
             self._clear_properties()
+            self._sync_field_list_selection(None)
             return
         field = self.current_field_item.field
         self.field_name_edit.setText(field.get("name", ""))
@@ -380,6 +531,7 @@ class MainWindow(QMainWindow):
         self.font_size_spin.blockSignals(False)
         self.binding_button.setEnabled(True)
         self.validation_button.setEnabled(True)
+        self._sync_field_list_selection(field.get("id"))
 
     def _clear_properties(self) -> None:
         self.field_name_edit.clear()
@@ -391,6 +543,7 @@ class MainWindow(QMainWindow):
         self.font_size_spin.setValue(10)
         self.binding_button.setEnabled(False)
         self.validation_button.setEnabled(False)
+        self._sync_field_list_selection(None)
 
     def _apply_properties_changes(self) -> None:
         if not self.current_field_item:
@@ -404,6 +557,7 @@ class MainWindow(QMainWindow):
         field["font_size"] = self.font_size_spin.value()
         self.current_field_item.setPos(field["x"], field["y"])
         self.current_field_item.setRect(0, 0, field["width"], field["height"])
+        self._update_field_list_item(field.get("id"))
 
     def _open_binding_dialog(self) -> None:
         if not self.current_field_item:
