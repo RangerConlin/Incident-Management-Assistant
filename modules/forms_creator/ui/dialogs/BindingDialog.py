@@ -25,6 +25,9 @@ class CustomBindingDialog(QDialog):
     def __init__(self, reserved_keys: set[str], parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Add Custom Binding")
+        self.setWhatsThis(
+            "Define a new dotted key that will appear alongside the built-in bindings."
+        )
         self._reserved_keys = reserved_keys
         self._result: dict[str, str | None] | None = None
 
@@ -33,12 +36,22 @@ class CustomBindingDialog(QDialog):
         layout.addLayout(form)
 
         self.label_edit = QLineEdit()
+        self.label_edit.setPlaceholderText("Display name shown in menus (e.g. Operations Chief)")
+        self.label_edit.setToolTip("Human-friendly label that appears in binding pickers.")
         form.addRow("Label", self.label_edit)
 
         self.key_edit = QLineEdit()
+        self.key_edit.setPlaceholderText("incident.teams.current.leader_name")
+        self.key_edit.setToolTip(
+            "Unique dotted path looked up when a form instance is generated."
+        )
         form.addRow("Key", self.key_edit)
 
         self.description_edit = QLineEdit()
+        self.description_edit.setPlaceholderText("Optional helper text for other authors")
+        self.description_edit.setToolTip(
+            "Optional note shown as a tooltip when selecting the binding."
+        )
         form.addRow("Description", self.description_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -84,6 +97,9 @@ class BindingDialog(QDialog):
     def __init__(self, config: dict[str, Any], binder: Binder, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Field Bindings")
+        self.setWhatsThis(
+            "Assign either a fixed value or an incident data key to the selected field."
+        )
         self.binder = binder
         self.bindings: list[dict[str, Any]] = config.get("bindings", []).copy()
 
@@ -94,17 +110,28 @@ class BindingDialog(QDialog):
         self.type_combo = QComboBox()
         self.type_combo.addItem("Static", "static")
         self.type_combo.addItem("System", "system")
+        self.type_combo.setToolTip(
+            "Choose whether the field should use a fixed value or pull from incident data."
+        )
         form.addRow("Source Type", self.type_combo)
 
         self.static_edit = QLineEdit()
+        self.static_edit.setPlaceholderText("Text inserted every time this form is generated")
+        self.static_edit.setToolTip("Enter the literal value to pre-fill this field with.")
         form.addRow("Static Value", self.static_edit)
 
         self.system_combo = QComboBox()
         self._reload_system_bindings()
+        self.system_combo.setToolTip(
+            "Select which incident data point should populate this field."
+        )
         form.addRow("System Key", self.system_combo)
 
         self.add_custom_button = QPushButton("Add Custom Binding…")
         self.add_custom_button.clicked.connect(self._add_custom_binding)
+        self.add_custom_button.setToolTip(
+            "Create a reusable key that maps to your own data source or workflow."
+        )
         layout.addWidget(self.add_custom_button)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)

@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.field_list_items: dict[int, QListWidgetItem] = {}
         self.field_list: QListWidget | None = None
         self._syncing_field_list = False
+        self._template_meta_controls: tuple[QLineEdit, QLineEdit, QLineEdit] | None = None
 
         self._build_menu()
         self._build_central_widget()
@@ -182,6 +183,32 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
     def _build_properties_panel(self) -> None:
+        self.template_name_edit = QLineEdit()
+        self.template_name_edit.setPlaceholderText("e.g. ICS 204 Assignment")
+        self.template_name_edit.setToolTip(
+            "Title shown in the template library and on exported documents."
+        )
+        self.template_name_edit.editingFinished.connect(self._apply_template_metadata_changes)
+        self.properties_layout.addRow("Template Name", self.template_name_edit)
+
+        self.template_category_edit = QLineEdit()
+        self.template_category_edit.setPlaceholderText("e.g. Operations")
+        self.template_category_edit.setToolTip(
+            "High-level grouping such as Planning, Logistics, or Operations."
+        )
+        self.template_category_edit.editingFinished.connect(self._apply_template_metadata_changes)
+        self.properties_layout.addRow("Category", self.template_category_edit)
+
+        self.template_subcategory_edit = QLineEdit()
+        self.template_subcategory_edit.setPlaceholderText("e.g. ICS 204")
+        self.template_subcategory_edit.setToolTip(
+            "Specific form reference (ICS number, agency code, etc.)."
+        )
+        self.template_subcategory_edit.editingFinished.connect(self._apply_template_metadata_changes)
+        self.properties_layout.addRow("Subcategory", self.template_subcategory_edit)
+
+        self.properties_layout.addRow(QLabel(""))
+
         self.field_name_edit = QLineEdit()
         self.field_name_edit.editingFinished.connect(self._apply_properties_changes)
         self.properties_layout.addRow("Name", self.field_name_edit)
@@ -227,6 +254,13 @@ class MainWindow(QMainWindow):
 
         self.properties_layout.addRow(QLabel(""))
 
+        self._template_meta_controls = (
+            self.template_name_edit,
+            self.template_category_edit,
+            self.template_subcategory_edit,
+        )
+        self._set_template_metadata_controls(None)
+
     # ------------------------------------------------------------------
     def _make_toolbar_action(self, text: str, icon_name: str, slot: Callable[[], None]) -> QAction:
         """Create a toolbar action with a themed icon if available."""
@@ -262,6 +296,7 @@ class MainWindow(QMainWindow):
     def load_template(self, template_id: int) -> None:
         template = self.form_service.get_template(template_id)
         self.current_template = template
+        self._set_template_metadata_controls(template)
         def _coerce_field_id(value: Any) -> int:
             try:
                 return int(value)
@@ -294,6 +329,7 @@ class MainWindow(QMainWindow):
         if not self.current_template:
             QMessageBox.warning(self, "Save Template", "No template is currently loaded.")
             return
+        self._apply_template_metadata_changes()
         fields = self.current_template.get("fields", [])
         template_id = self.current_template.get("id")
         self.form_service.save_template(
@@ -470,6 +506,7 @@ class MainWindow(QMainWindow):
         item = cls(field, geometry_changed=self._handle_field_geometry_changed)
         self.scene.addItem(item)
         item.setZValue(5)
+        item.update_field_metadata()
         field_id = field.get("id")
         try:
             field_key = int(field_id)
@@ -589,6 +626,7 @@ class MainWindow(QMainWindow):
         field["font_size"] = self.font_size_spin.value()
         self.current_field_item.setPos(field["x"], field["y"])
         self.current_field_item.setRect(0, 0, field["width"], field["height"])
+        self.current_field_item.update_field_metadata()
         self._update_field_list_item(field.get("id"))
 
     def _open_binding_dialog(self) -> None:
@@ -704,6 +742,43 @@ class MainWindow(QMainWindow):
         if not has_selection and self.field_list is not None:
             has_selection = self.field_list.currentItem() is not None
         self.delete_field_button.setEnabled(has_selection)
+
+    # ------------------------------------------------------------------
+    def _set_template_metadata_controls(self, template: dict[str, Any] | None) -> None:
+        """Enable/disable metadata edits and populate them from the template."""
+
+        if self._template_meta_controls is None:
+            return
+        edits = list(self._template_meta_controls)
+        for edit in edits:
+            edit.blockSignals(True)
+        if template is None:
+            for edit in edits:
+                edit.clear()
+                edit.setEnabled(False)
+        else:
+            self.template_name_edit.setText(template.get("name") or "")
+            self.template_category_edit.setText(template.get("category") or "")
+            self.template_subcategory_edit.setText(template.get("subcategory") or "")
+            for edit in edits:
+                edit.setEnabled(True)
+        for edit in edits:
+            edit.blockSignals(False)
+
+    def _apply_template_metadata_changes(self) -> None:
+        """Persist template level edits back to the loaded template dict."""
+
+        if not self.current_template:
+            return
+        name = self.template_name_edit.text().strip()
+        if not name:
+            name = "Untitled Template"
+            self.template_name_edit.setText(name)
+        category = self.template_category_edit.text().strip() or None
+        subcategory = self.template_subcategory_edit.text().strip() or None
+        self.current_template["name"] = name
+        self.current_template["category"] = category
+        self.current_template["subcategory"] = subcategory
 
     @staticmethod
     def _safe_int(value: Any, default: int | None = None) -> int | None:
