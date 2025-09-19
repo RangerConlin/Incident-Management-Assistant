@@ -11,7 +11,10 @@ class CanvasView(QGraphicsView):
     """A QGraphicsView with handy zoom and pan controls."""
 
     def __init__(self, scene: QGraphicsScene | None = None, parent=None) -> None:
-        super().__init__(scene or QGraphicsScene(), parent)
+        super().__init__(parent)
+        scene = scene or QGraphicsScene(self)
+        self.setScene(scene)
+        self._scene = scene
         self.setRenderHints(self.renderHints() | QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
