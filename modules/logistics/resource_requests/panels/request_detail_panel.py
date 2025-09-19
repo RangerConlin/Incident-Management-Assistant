@@ -131,7 +131,12 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         footer.addStretch(1)
         layout.addLayout(footer)
 
-        QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_Return), self, lambda: self._record_action(ApprovalAction.SUBMIT))
+        QtGui.QShortcut(
+            QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_Return),
+            self,
+            lambda: self._record_action(ApprovalAction.SUBMIT),
+        )
+
 
     # ----------------------------------------------------------------- loading
     def start_new(self) -> None:

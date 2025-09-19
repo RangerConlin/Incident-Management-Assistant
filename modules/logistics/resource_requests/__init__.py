@@ -15,6 +15,30 @@ from .api.service import ResourceRequestService
 
 __all__ = ["get_service", "ResourceRequestService"]
 
+def _sync_contexts(incident_id: str) -> None:
+    """Propagate the active incident identifier to shared context helpers."""
+
+    try:
+        from utils import incident_context
+
+        incident_context.set_active_incident(incident_id)
+    except Exception:
+        # ``incident_context`` is a best-effort helper that may not be available
+        # in light-weight unit tests.  Failing silently keeps the fallback logic
+        # robust without introducing hard dependencies.
+        pass
+
+
+def _get_active_incident_from_state() -> Optional[str]:
+    """Return the active incident number tracked by :mod:`utils.state`."""
+
+    try:
+        from utils.state import AppState
+    except Exception:
+        return None
+
+    value = AppState.get_active_incident()
+    return str(value) if value else None
 
 def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
     """Return a service instance bound to ``incident_id``.
@@ -27,15 +51,28 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
         will create the underlying database file if it does not yet exist to
         support offline-first behaviour mandated by the spec.
     """
+    from utils import incident_db
 
-    if incident_id is None:
-        from utils import incident_db
+    resolved_id = str(incident_id) if incident_id is not None else None
 
-        incident_id = incident_db.get_active_incident_id()
-        if not incident_id:
+    if resolved_id:
+        incident_db.set_active_incident_id(resolved_id)
+        _sync_contexts(resolved_id)
+    else:
+        resolved_id = _get_active_incident_from_state()
+
+        if not resolved_id:
+            existing = incident_db.get_active_incident_id()
+            resolved_id = str(existing) if existing else None
+
+        if not resolved_id:
             raise RuntimeError(
-                "Active incident is not set. Call utils.incident_db.set_active_incident_id first."
+                "Active incident is not set. Select or open an incident before using Resource Requests."
             )
 
-    db_path = Path("data") / "incidents" / f"{incident_id}.db"
-    return ResourceRequestService(incident_id=incident_id, db_path=db_path)
+        incident_db.set_active_incident_id(resolved_id)
+        _sync_contexts(resolved_id)
+
+    db_path = Path("data") / "incidents" / f"{resolved_id}.db"
+    return ResourceRequestService(incident_id=resolved_id, db_path=db_path)
+
