@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QMouseEvent, QPainter, QPen, QWheelEvent
-from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
+from PySide6.QtGui import QContextMenuEvent, QMouseEvent, QPainter, QPen, QWheelEvent
+from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView, QMenu
 
 from .FieldItems import FieldItem
 
@@ -14,6 +14,7 @@ class CanvasView(QGraphicsView):
 
     fieldDrawn = Signal(QRectF)
     fieldCreationAborted = Signal()
+    fieldDeleteRequested = Signal(int)
 
     def __init__(self, scene: QGraphicsScene | None = None, parent=None) -> None:
         super().__init__(parent)
@@ -132,6 +133,22 @@ class CanvasView(QGraphicsView):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        item = self.itemAt(event.pos())
+        field_item = self._field_item_from_graphics_item(item)
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete Field")
+        delete_action.setEnabled(field_item is not None)
+        event.accept()
+        chosen = menu.exec(event.globalPos())
+        if chosen == delete_action and field_item is not None:
+            field_id = field_item.field.get("id")
+            try:
+                field_key = int(field_id)
+            except (TypeError, ValueError):
+                return
+            self.fieldDeleteRequested.emit(field_key)
 
     # ------------------------------------------------------------------
     def begin_field_creation(self, _field_type: str | None = None) -> None:

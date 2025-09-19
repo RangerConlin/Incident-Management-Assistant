@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt, QRectF, Signal
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QAction, QContextMenuEvent, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QMenu,
     QPushButton,
     QSplitter,
     QSpinBox,
@@ -55,6 +56,7 @@ class FieldListWidget(QListWidget):
     """List widget that emits the new order when items are moved."""
 
     orderChanged = Signal(list)
+    contextDeleteRequested = Signal(int)
 
     def dropEvent(self, event):  # noqa: D401,N802 - Qt override
         super().dropEvent(event)
@@ -67,6 +69,20 @@ class FieldListWidget(QListWidget):
             except (TypeError, ValueError):
                 continue
         self.orderChanged.emit(ordered_ids)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:  # noqa: N802
+        item = self.itemAt(event.pos())
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete Field")
+        delete_action.setEnabled(item is not None)
+        event.accept()
+        chosen = menu.exec(event.globalPos())
+        if chosen == delete_action and item is not None:
+            field_id = item.data(Qt.ItemDataRole.UserRole)
+            try:
+                self.contextDeleteRequested.emit(int(field_id))
+            except (TypeError, ValueError):
+                pass
 
 
 class MainWindow(QMainWindow):
@@ -160,6 +176,7 @@ class MainWindow(QMainWindow):
         self.field_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.field_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.field_list.orderChanged.connect(self._on_field_order_changed)
+        self.field_list.contextDeleteRequested.connect(self._handle_field_list_delete_request)
         palette_layout.addWidget(self.field_list)
 
         self.delete_field_button = QPushButton("Delete Field")
@@ -173,6 +190,7 @@ class MainWindow(QMainWindow):
         self.canvas = CanvasView()
         self.canvas.fieldDrawn.connect(self._on_canvas_field_drawn)
         self.canvas.fieldCreationAborted.connect(self._on_canvas_field_aborted)
+        self.canvas.fieldDeleteRequested.connect(self._on_canvas_delete_requested)
         self.scene = self.canvas.scene()
         self.scene.selectionChanged.connect(self._on_selection_changed)
         splitter.addWidget(self.canvas)
@@ -440,6 +458,21 @@ class MainWindow(QMainWindow):
         self.canvas.centerOn(field_item)
         self._update_delete_button_state()
 
+    def _handle_field_list_delete_request(self, field_id: int) -> None:
+        """Delete the requested field from a context menu invocation."""
+
+        if self.field_list is None or not self.current_template:
+            return
+        item = self.field_list_items.get(field_id)
+        if item is not None:
+            self.field_list.setCurrentItem(item)
+        field_item = self.field_items.get(field_id)
+        if field_item is not None:
+            self.scene.clearSelection()
+            field_item.setSelected(True)
+            self.current_field_item = field_item
+        self.delete_selected_field()
+
     def _refresh_field_list(self) -> None:
         """Populate the field list widget to match the template fields."""
         if self.field_list is None:
@@ -549,6 +582,19 @@ class MainWindow(QMainWindow):
     def _on_canvas_field_aborted(self) -> None:
         self.statusBar().showMessage("Field placement canceled", 3000)
         self._reset_palette_tool()
+
+    def _on_canvas_delete_requested(self, field_id: int) -> None:
+        """Handle delete requests triggered from the canvas context menu."""
+
+        field_item = self.field_items.get(field_id)
+        if field_item is not None:
+            self.scene.clearSelection()
+            field_item.setSelected(True)
+            self.current_field_item = field_item
+        item = self.field_list_items.get(field_id)
+        if item is not None and self.field_list is not None:
+            self.field_list.setCurrentItem(item)
+        self.delete_selected_field()
 
     def _create_field_from_rect(self, field_type: str, rect: QRectF, *, select: bool = False) -> None:
         if not self.current_template:
