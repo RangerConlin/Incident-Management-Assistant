@@ -112,12 +112,16 @@ class FormService:
 
         Parameters mirror the master schema.  ``fields`` should be an iterable
         of dictionaries (or :class:`~modules.forms_creator.models.Field`
-        instances) that are JSON serialisable.
+        instances) that are JSON serialisable.  The canonical ``meta.json`` in
+        the template's asset directory is refreshed on each save so external
+        tools (such as the profile manager) can immediately consume updates.
         """
 
         fields_payload = [self._normalise_field(field) for field in fields]
         serialised_fields = json.dumps(fields_payload, ensure_ascii=False)
         now = _utcnow()
+
+        persisted_row: dict[str, Any] | None = None
 
         with db.get_master_connection() as conn:
             if template_id is None:
@@ -180,7 +184,18 @@ class FormService:
                         template_id,
                     ),
                 )
-        return template_id
+
+            persisted = conn.execute(
+                f"SELECT * FROM {self.template_table} WHERE id = ?",
+                (template_id,),
+            ).fetchone()
+            if persisted is not None:
+                persisted_row = dict(persisted)
+
+        if persisted_row is not None:
+            self._write_template_files(persisted_row, fields_payload)
+
+        return int(template_id)
 
     # ------------------------------------------------------------------
     # Instance helpers
@@ -391,3 +406,35 @@ class FormService:
             snapshot = json.load(fh)
         snapshot["id"] = template_id
         return snapshot
+
+    def _write_template_files(self, row: dict[str, Any], fields: list[dict[str, Any]]) -> None:
+        """Persist the canonical ``meta.json`` alongside the template assets."""
+
+        background = Path(row.get("background_path", ""))
+        if not background.is_absolute():
+            background = self.data_dir / background
+        background.mkdir(parents=True, exist_ok=True)
+
+        template_uuid = background.name
+        page_count = int(row.get("page_count", 1) or 1)
+        pages = [f"background_page_{index + 1:03d}.png" for index in range(page_count)]
+
+        payload = {
+            "id": row.get("id"),
+            "template_uuid": template_uuid,
+            "name": row.get("name"),
+            "category": row.get("category"),
+            "subcategory": row.get("subcategory"),
+            "version": row.get("version"),
+            "schema_version": row.get("schema_version"),
+            "background_path": row.get("background_path"),
+            "page_count": page_count,
+            "background_pages": pages,
+            "created_at": row.get("created_at"),
+            "updated_at": row.get("updated_at"),
+            "fields": fields,
+        }
+
+        meta_path = background / "meta.json"
+        with meta_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)

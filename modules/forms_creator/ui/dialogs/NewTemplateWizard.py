@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from pathlib import Path
 from typing import Any
@@ -144,9 +143,6 @@ class NewTemplateWizard(QWizard):
 
         self.imported_field_count = len(fields)
 
-        # Persist metadata for future reference
-        meta_path = template_dir / "meta.json"
-        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
         return template_id
 
     def _copy_image(self, source: Path, target_dir: Path) -> list[Path]:

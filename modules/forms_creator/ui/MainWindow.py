@@ -87,6 +87,9 @@ class MainWindow(QMainWindow):
         self.field_list: QListWidget | None = None
         self._syncing_field_list = False
         self._template_meta_controls: tuple[QLineEdit, QLineEdit, QLineEdit] | None = None
+        self.save_action: QAction | None = None
+        self.save_template_button: QPushButton | None = None
+        self._save_controls_enabled = False
 
         self._build_menu()
         self._build_central_widget()
@@ -116,7 +119,9 @@ class MainWindow(QMainWindow):
 
         toolbar.addAction(self._make_toolbar_action("New", "new.svg", self.new_template))
         toolbar.addAction(self._make_toolbar_action("Open", "open.svg", self.open_template))
-        toolbar.addAction(self._make_toolbar_action("Save", "save.svg", self.save_template))
+        self.save_action = self._make_toolbar_action("Save", "save.svg", self.save_template)
+        self.save_action.setEnabled(False)
+        toolbar.addAction(self.save_action)
         toolbar.addAction(self._make_toolbar_action("Preview", "preview.svg", self.preview_template))
         toolbar.addAction(self._make_toolbar_action("Export", "export.svg", self.export_current_instance))
 
@@ -183,6 +188,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(splitter)
 
     def _build_properties_panel(self) -> None:
+        self.save_template_button = QPushButton("Save Template")
+        self.save_template_button.clicked.connect(self.save_template)
+        self.save_template_button.setEnabled(False)
+        self.properties_layout.addRow(self.save_template_button)
+
         self.template_name_edit = QLineEdit()
         self.template_name_edit.setPlaceholderText("e.g. ICS 204 Assignment")
         self.template_name_edit.setToolTip(
@@ -260,6 +270,7 @@ class MainWindow(QMainWindow):
             self.template_subcategory_edit,
         )
         self._set_template_metadata_controls(None)
+        self._update_save_controls()
 
     # ------------------------------------------------------------------
     def _make_toolbar_action(self, text: str, icon_name: str, slot: Callable[[], None]) -> QAction:
@@ -332,17 +343,26 @@ class MainWindow(QMainWindow):
         self._apply_template_metadata_changes()
         fields = self.current_template.get("fields", [])
         template_id = self.current_template.get("id")
-        self.form_service.save_template(
-            name=self.current_template.get("name", "Untitled"),
-            category=self.current_template.get("category"),
-            subcategory=self.current_template.get("subcategory"),
-            background_path=self.current_template.get("background_path"),
-            page_count=self.current_template.get("page_count", 1),
-            fields=fields,
-            template_id=template_id,
-        )
-        self.load_template(template_id)
-        self.statusBar().showMessage("Template saved", 3000)
+        try:
+            saved_template_id = self.form_service.save_template(
+                name=self.current_template.get("name", "Untitled"),
+                category=self.current_template.get("category"),
+                subcategory=self.current_template.get("subcategory"),
+                background_path=self.current_template.get("background_path"),
+                page_count=self.current_template.get("page_count", 1),
+                fields=fields,
+                template_id=template_id,
+            )
+        except Exception as exc:  # pragma: no cover - Qt dialog path
+            QMessageBox.critical(self, "Save Template", f"Unable to save template:\n{exc}")
+            return
+
+        self.load_template(saved_template_id)
+        version = None
+        if self.current_template is not None:
+            version = self.current_template.get("version")
+        version_text = f" v{version}" if version is not None else ""
+        self.statusBar().showMessage(f"Template saved{version_text}", 3000)
 
     def preview_template(self) -> None:
         if not self.current_template:
@@ -764,6 +784,7 @@ class MainWindow(QMainWindow):
                 edit.setEnabled(True)
         for edit in edits:
             edit.blockSignals(False)
+        self._update_save_controls(template is not None)
 
     def _apply_template_metadata_changes(self) -> None:
         """Persist template level edits back to the loaded template dict."""
@@ -786,6 +807,19 @@ class MainWindow(QMainWindow):
             return int(value)
         except (TypeError, ValueError):
             return default
+
+    def _update_save_controls(self, enabled: bool | None = None) -> None:
+        """Synchronise the enabled state for save-related widgets."""
+
+        if enabled is not None:
+            self._save_controls_enabled = enabled
+        else:
+            enabled = self._save_controls_enabled
+
+        if getattr(self, "save_action", None) is not None:
+            self.save_action.setEnabled(enabled)
+        if getattr(self, "save_template_button", None) is not None:
+            self.save_template_button.setEnabled(enabled)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke test helper
