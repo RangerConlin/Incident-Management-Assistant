@@ -16,6 +16,23 @@ from .api.service import ResourceRequestService
 __all__ = ["get_service", "ResourceRequestService"]
 
 
+_DEFAULT_TRAINING_INCIDENT_ID = "TRAINING-001"
+
+
+def _sync_contexts(incident_id: str) -> None:
+    """Propagate the active incident identifier to shared context helpers."""
+
+    try:
+        from utils import incident_context
+
+        incident_context.set_active_incident(incident_id)
+    except Exception:
+        # ``incident_context`` is a best-effort helper that may not be available
+        # in light-weight unit tests.  Failing silently keeps the fallback logic
+        # robust without introducing hard dependencies.
+        pass
+
+
 def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
     """Return a service instance bound to ``incident_id``.
 
@@ -28,14 +45,31 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
         support offline-first behaviour mandated by the spec.
     """
 
-    if incident_id is None:
-        from utils import incident_db
+    from utils import incident_db
 
-        incident_id = incident_db.get_active_incident_id()
-        if not incident_id:
-            raise RuntimeError(
-                "Active incident is not set. Call utils.incident_db.set_active_incident_id first."
-            )
+    resolved_id = str(incident_id) if incident_id is not None else None
 
-    db_path = Path("data") / "incidents" / f"{incident_id}.db"
-    return ResourceRequestService(incident_id=incident_id, db_path=db_path)
+    if resolved_id:
+        incident_db.set_active_incident_id(resolved_id)
+        _sync_contexts(resolved_id)
+    else:
+        resolved_id = incident_db.get_active_incident_id()
+
+        if not resolved_id:
+            try:
+                from utils import incident_context
+
+                resolved_id = incident_context.get_active_incident_id()
+                if resolved_id:
+                    incident_db.set_active_incident_id(resolved_id)
+            except Exception:
+                resolved_id = None
+
+        if not resolved_id:
+            resolved_id = _DEFAULT_TRAINING_INCIDENT_ID
+            incident_db.set_active_incident_id(resolved_id)
+
+        _sync_contexts(resolved_id)
+
+    db_path = Path("data") / "incidents" / f"{resolved_id}.db"
+    return ResourceRequestService(incident_id=resolved_id, db_path=db_path)
