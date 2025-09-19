@@ -1,3 +1,4 @@
+
 """Panels for the Logistics vehicle module."""
 
 from .vehicle_inventory_panel import VehicleInventoryPanel

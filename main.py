@@ -477,12 +477,16 @@ class MainWindow(QMainWindow):
         self._add_action(init_menu, "Hasty Tools", None, "toolkit.initial.hasty")
         self._add_action(init_menu, "Reflex Taskings", None, "toolkit.initial.reflex")
 
-        # ----- Forms & Library -----
-        m_forms = self.menuBar().addMenu("Resources")
-        self._add_action(m_forms, "Form Library", None, "forms")
-        self._add_action(m_forms, "Reference Library", None, "library")
-        m_forms.addSeparator()
-        self._add_action(m_forms, "User Guide", None, "help.user_guide")
+        # ----- Reference Library & Forms -----
+        m_reference = self.menuBar().addMenu("Reference Library")
+        self._add_action(m_reference, "Browse Library", None, "library")
+
+        forms_menu = m_reference.addMenu("Forms")
+        self._add_action(forms_menu, "Template Library", None, "forms.template_library")
+        self._add_action(forms_menu, "Form Creator", None, "forms.creator")
+
+        m_reference.addSeparator()
+        self._add_action(m_reference, "User Guide", None, "help.user_guide")
 
         # ----- Help -----
         m_help = self.menuBar().addMenu("Help")
@@ -699,9 +703,10 @@ class MainWindow(QMainWindow):
             "toolkit.initial.hasty": self.open_toolkit_initial_hasty,
             "toolkit.initial.reflex": self.open_toolkit_initial_reflex,
 
-            # ----- Forms & Library -----
-            "forms": self.open_forms,
+            # ----- Reference Library & Forms -----
             "library": self.open_reference_library,
+            "forms.template_library": self.open_forms_template_library,
+            "forms.creator": self.open_forms_creator,
             "help.user_guide": self.open_help_user_guide,
 
             # ----- Help -----
@@ -861,15 +866,19 @@ class MainWindow(QMainWindow):
         self._open_qml_modal("qml/TeamTypesWindow.qml", title="Team Types")
 
     def open_edit_vehicles(self) -> None:
-        from modules.logistics.vehicle.panels.vehicle_edit_window import (
-            VehicleEditDialog,
+        from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
+            VehicleInventoryDialog,
         )
-
-        dialog = VehicleEditDialog(parent=self)
+        dialog = VehicleInventoryDialog(parent=self)
         dialog.exec()
 
     def open_edit_aircraft(self) -> None:
-        self._open_qml_modal("qml/AircraftWindow.qml", title="Aircraft")
+        from modules.logistics.aircraft.panels.aircraft_inventory_window import (
+            AircraftInventoryWindow,
+        )
+
+        dialog = AircraftInventoryWindow(parent=self)
+        dialog.exec()
 
     def open_edit_equipment(self) -> None:
         self._open_qml_modal("qml/EquipmentWindow.qml", title="Equipment")
@@ -1302,18 +1311,47 @@ class MainWindow(QMainWindow):
         panel = initial.get_reflex_panel(incident_id)
         self._open_dock_widget(panel, title="Reflex Taskings")
 
-# --- 4.14 Resources (Forms & Library) -----------------------------------
-    def open_forms(self) -> None:
+# --- 4.14 Reference Library (Forms) -----------------------------------
+    def open_forms_template_library(self) -> None:
         from modules import referencelibrary
         incident_id = getattr(self, "current_incident_id", None)
         panel = referencelibrary.get_form_library_panel(incident_id)
-        self._open_dock_widget(panel, title="Form Library")
+        self._open_dock_widget(panel, title="Template Library")
 
     def open_reference_library(self) -> None:
         from modules import referencelibrary
         incident_id = getattr(self, "current_incident_id", None)
         panel = referencelibrary.get_library_panel()
         self._open_dock_widget(panel, title="Reference Library")
+
+    def open_forms_creator(self) -> None:
+        try:
+            from modules.forms_creator.ui.MainWindow import MainWindow as FormsCreatorWindow
+        except Exception as exc:
+            logger.exception("Failed to open Form Creator: %s", exc)
+            QMessageBox.critical(
+                self,
+                "Form Creator Error",
+                f"Unable to open the Form Creator.\n{exc}",
+            )
+            return
+
+        window = FormsCreatorWindow(parent=self)
+        try:
+            window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        except Exception:
+            pass
+        window.show()
+
+        if not hasattr(self, "_forms_creator_windows"):
+            self._forms_creator_windows: list[QMainWindow] = []
+        self._forms_creator_windows.append(window)
+
+        def _cleanup() -> None:
+            if hasattr(self, "_forms_creator_windows") and window in self._forms_creator_windows:
+                self._forms_creator_windows.remove(window)
+
+        window.destroyed.connect(lambda _=None: _cleanup())
 
     def open_help_user_guide(self) -> None:
         from modules import referencelibrary

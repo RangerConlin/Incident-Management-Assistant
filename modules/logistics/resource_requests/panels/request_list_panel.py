@@ -67,11 +67,7 @@ class ResourceRequestListPanel(QtWidgets.QWidget):
         layout.addLayout(button_bar)
 
         QtGui.QShortcut(QtGui.QKeySequence.New, self, self._new_request)
-        QtGui.QShortcut(
-            QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_Return),
-            self,
-            self._submit_selected,
-        )
+        QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_Return), self, self._submit_selected)
 
         self.refresh()
 

@@ -1,3 +1,4 @@
+
 """Vehicle inventory management panel for Logistics module.
 
 This widget implements a desktop-focused split view combining a searchable
@@ -2001,3 +2002,4 @@ class VehicleInventoryPanel(QWidget):
             orientation = Qt.Orientation.Vertical if width < 900 else Qt.Orientation.Horizontal
             if self.splitter.orientation() != orientation:
                 self.splitter.setOrientation(orientation)
+
