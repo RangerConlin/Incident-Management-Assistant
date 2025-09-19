@@ -869,7 +869,12 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def open_edit_aircraft(self) -> None:
-        self._open_qml_modal("qml/AircraftWindow.qml", title="Aircraft")
+        from modules.logistics.aircraft.panels.aircraft_inventory_window import (
+            AircraftInventoryWindow,
+        )
+
+        dialog = AircraftInventoryWindow(parent=self)
+        dialog.exec()
 
     def open_edit_equipment(self) -> None:
         self._open_qml_modal("qml/EquipmentWindow.qml", title="Equipment")
