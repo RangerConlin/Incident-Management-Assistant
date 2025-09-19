@@ -11,10 +11,71 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLineEdit,
+    QMessageBox,
+    QPushButton,
     QVBoxLayout,
 )
 
 from ...services.binder import Binder
+
+
+class CustomBindingDialog(QDialog):
+    """Collect information for a custom system binding entry."""
+
+    def __init__(self, reserved_keys: set[str], parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Custom Binding")
+        self._reserved_keys = reserved_keys
+        self._result: dict[str, str | None] | None = None
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        self.label_edit = QLineEdit()
+        form.addRow("Label", self.label_edit)
+
+        self.key_edit = QLineEdit()
+        form.addRow("Key", self.key_edit)
+
+        self.description_edit = QLineEdit()
+        form.addRow("Description", self.description_edit)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    # ------------------------------------------------------------------
+    def _on_accept(self) -> None:
+        label = self.label_edit.text().strip()
+        key = self.key_edit.text().strip()
+        description = self.description_edit.text().strip()
+
+        if not label or not key:
+            QMessageBox.warning(self, "Custom Binding", "Both label and key are required.")
+            return
+
+        if key in self._reserved_keys:
+            QMessageBox.warning(
+                self,
+                "Custom Binding",
+                "The specified key matches a built-in binding and cannot be overridden.",
+            )
+            return
+
+        self._result = {
+            "label": label,
+            "key": key,
+            "description": description or None,
+        }
+        self.accept()
+
+    # ------------------------------------------------------------------
+    def data(self) -> dict[str, str | None] | None:
+        """Return the collected binding metadata."""
+
+        return self._result
 
 
 class BindingDialog(QDialog):
@@ -39,16 +100,12 @@ class BindingDialog(QDialog):
         form.addRow("Static Value", self.static_edit)
 
         self.system_combo = QComboBox()
-        self.system_bindings = binder.available_keys()
-        for binding in self.system_bindings:
-            self.system_combo.addItem(binding.label, binding.key)
-            if binding.description:
-                self.system_combo.setItemData(
-                    self.system_combo.count() - 1,
-                    binding.description,
-                    Qt.ItemDataRole.ToolTipRole,
-                )
+        self._reload_system_bindings()
         form.addRow("System Key", self.system_combo)
+
+        self.add_custom_button = QPushButton("Add Custom Binding…")
+        self.add_custom_button.clicked.connect(self._add_custom_binding)
+        layout.addWidget(self.add_custom_button)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         layout.addWidget(button_box)
@@ -80,6 +137,7 @@ class BindingDialog(QDialog):
         source_type = self.type_combo.currentData()
         self.static_edit.setEnabled(source_type == "static")
         self.system_combo.setEnabled(source_type == "system")
+        self.add_custom_button.setEnabled(source_type == "system")
 
     def accept(self) -> None:  # noqa: D401
         source_type = self.type_combo.currentData()
@@ -89,3 +147,38 @@ class BindingDialog(QDialog):
             binding = {"source_type": "system", "source_ref": self.system_combo.currentData()}
         self.bindings = [binding]
         super().accept()
+
+    # ------------------------------------------------------------------
+    def _reload_system_bindings(self, *, select_key: str | None = None) -> None:
+        self.system_combo.clear()
+        self.system_bindings = self.binder.available_keys()
+        for binding in self.system_bindings:
+            self.system_combo.addItem(binding.label, binding.key)
+            if binding.description:
+                self.system_combo.setItemData(
+                    self.system_combo.count() - 1,
+                    binding.description,
+                    Qt.ItemDataRole.ToolTipRole,
+                )
+        if select_key:
+            idx = self.system_combo.findData(select_key)
+            if idx >= 0:
+                self.system_combo.setCurrentIndex(idx)
+
+    def _add_custom_binding(self) -> None:
+        dialog = CustomBindingDialog(self.binder.built_in_keys(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        data = dialog.data()
+        if not data:
+            return
+        try:
+            binding = self.binder.add_custom_binding(
+                key=str(data["key"]),
+                label=str(data["label"]),
+                description=data.get("description"),
+            )
+        except ValueError as exc:
+            QMessageBox.warning(self, "Custom Binding", str(exc))
+            return
+        self._reload_system_bindings(select_key=binding.key)

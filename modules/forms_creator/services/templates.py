@@ -56,9 +56,12 @@ class FormService:
 
     def __init__(self, *, data_dir: Path | str = Path("data"), binder: Binder | None = None, exporter: PDFExporter | None = None):
         self.data_dir = Path(data_dir)
-        self.templates_dir = self.data_dir / "forms" / "templates"
+        self.forms_dir = self.data_dir / "forms"
+        self.forms_dir.mkdir(parents=True, exist_ok=True)
+        self.templates_dir = self.forms_dir / "templates"
         self.templates_dir.mkdir(parents=True, exist_ok=True)
-        self.binder = binder or Binder()
+        custom_bindings_path = self.forms_dir / "custom_bindings.json"
+        self.binder = binder or Binder(custom_bindings_path=custom_bindings_path)
         self.exporter = exporter or PDFExporter(base_data_dir=self.data_dir)
         db.init_master_db()
         self.template_table = self._ensure_template_table()

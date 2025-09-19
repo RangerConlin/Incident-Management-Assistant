@@ -4,11 +4,15 @@ Bindings allow authors to connect a field to structured data that is available
 elsewhere in the application.  The implementation below purposefully keeps the
 resolver tiny yet expressive: dotted paths are expanded against regular Python
 mappings and attribute-bearing objects.  Additional providers can be registered
-at runtime to support dynamic keys (for example, computed summaries).
+at runtime to support dynamic keys (for example, computed summaries).  Authors
+can also define their own bindings which are persisted to disk so the options
+reappear the next time the designer is opened.
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -57,8 +61,16 @@ class Binder:
         ),
     )
 
-    def __init__(self, *, system_keys: tuple[SystemBinding, ...] | None = None):
+    def __init__(
+        self,
+        *,
+        system_keys: tuple[SystemBinding, ...] | None = None,
+        custom_bindings_path: Path | str | None = None,
+    ) -> None:
         self._system_keys = system_keys or self.DEFAULT_SYSTEM_KEYS
+        self._custom_bindings_path = Path(custom_bindings_path) if custom_bindings_path else None
+        self._custom_keys: list[SystemBinding] = []
+        self._load_custom_bindings()
         self._providers: dict[str, Callable[[Mapping[str, Any]], Any]] = {}
 
     # ------------------------------------------------------------------
@@ -75,7 +87,45 @@ class Binder:
     def available_keys(self) -> list[SystemBinding]:
         """Return the list of known system binding keys."""
 
-        return list(self._system_keys)
+        return [*self._system_keys, *self._custom_keys]
+
+    # ------------------------------------------------------------------
+    def custom_bindings(self) -> list[SystemBinding]:
+        """Return the list of persisted custom bindings."""
+
+        return list(self._custom_keys)
+
+    # ------------------------------------------------------------------
+    def built_in_keys(self) -> set[str]:
+        """Return the immutable set of built-in system binding keys."""
+
+        return {binding.key for binding in self._system_keys}
+
+    # ------------------------------------------------------------------
+    def add_custom_binding(self, *, key: str, label: str, description: str | None = None) -> SystemBinding:
+        """Persist a user-defined binding and return the stored descriptor."""
+
+        key = key.strip()
+        label = label.strip()
+        description = description.strip() if description else None
+
+        if not key or not label:
+            raise ValueError("Both key and label are required for custom bindings.")
+
+        if key in self.built_in_keys():
+            raise ValueError("The specified key matches a built-in binding and cannot be overridden.")
+
+        binding = SystemBinding(key=key, label=label, description=description)
+
+        for index, existing in enumerate(self._custom_keys):
+            if existing.key == key:
+                self._custom_keys[index] = binding
+                break
+        else:
+            self._custom_keys.append(binding)
+
+        self._save_custom_bindings()
+        return binding
 
     # ------------------------------------------------------------------
     def resolve(self, context: Mapping[str, Any], dotted_key: str) -> Any:
@@ -106,6 +156,52 @@ class Binder:
                 if callable(current):
                     current = current()
         return current
+
+    # ------------------------------------------------------------------
+    # Persistence helpers
+    # ------------------------------------------------------------------
+    def _load_custom_bindings(self) -> None:
+        if self._custom_bindings_path is None:
+            return
+        path = self._custom_bindings_path
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            return
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+        if not isinstance(payload, list):
+            return
+        for entry in payload:
+            if not isinstance(entry, dict):
+                continue
+            key = str(entry.get("key", "")).strip()
+            label = str(entry.get("label", "")).strip()
+            description = entry.get("description")
+            if not key or not label:
+                continue
+            if key in self.built_in_keys():
+                # Built-in keys take precedence; skip invalid overrides silently.
+                continue
+            if description is not None:
+                description = str(description)
+            self._custom_keys.append(SystemBinding(key=key, label=label, description=description))
+
+    def _save_custom_bindings(self) -> None:
+        if self._custom_bindings_path is None:
+            return
+        path = self._custom_bindings_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = [
+            {
+                "key": binding.key,
+                "label": binding.label,
+                "description": binding.description,
+            }
+            for binding in self._custom_keys
+        ]
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 # Convenience singleton for modules that prefer a simple functional interface.

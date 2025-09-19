@@ -31,7 +31,6 @@ from ..assets import get_asset_path
 from ..services.templates import FormService
 from .CanvasView import CanvasView
 from .FieldItems import CheckboxFieldItem, DropdownFieldItem, FieldItem, TextFieldItem
-from .PreviewWidget import TemplatePreview
 from .dialogs.BindingDialog import BindingDialog
 from .dialogs.NewTemplateWizard import NewTemplateWizard
 from .dialogs.PreviewDialog import PreviewDialog
@@ -162,10 +161,6 @@ class MainWindow(QMainWindow):
         self.delete_field_button.clicked.connect(self.delete_selected_field)
         palette_layout.addWidget(self.delete_field_button)
 
-        self.preview_widget = TemplatePreview()
-        self.preview_widget.fieldClicked.connect(self._handle_preview_click)
-        palette_layout.addWidget(self.preview_widget)
-
         splitter.addWidget(palette_container)
 
         # Canvas
@@ -287,7 +282,6 @@ class MainWindow(QMainWindow):
         self.background_item = None
         self.canvas.reset_zoom()
         self._load_background(template)
-        self.preview_widget.set_template(template, self.form_service.data_dir)
         for field in template.get("fields", []):
             self._add_field_item(field)
         self._refresh_field_list()
@@ -399,7 +393,6 @@ class MainWindow(QMainWindow):
         self.field_list.clear()
         if not self.current_template:
             self.field_list.blockSignals(False)
-            self.preview_widget.clear()
             return
         fields = list(self.current_template.get("fields", []))
         for field in fields:
@@ -413,7 +406,6 @@ class MainWindow(QMainWindow):
             self.field_list.addItem(item)
             self.field_list_items[field_key] = item
         self.field_list.blockSignals(False)
-        self.preview_widget.update_fields(fields)
         self._update_delete_button_state()
 
     def _format_field_list_label(self, field: dict[str, Any]) -> str:
@@ -531,7 +523,6 @@ class MainWindow(QMainWindow):
             self.field_list.setEnabled(True)
         self._refresh_field_list()
         self._sync_field_list_selection(field.get("id"))
-        self.preview_widget.update_fields(self.current_template.get("fields", []))
         self.statusBar().showMessage(f"Added {field_type.title()} field", 4000)
 
     def _reset_palette_tool(self) -> None:
@@ -570,7 +561,6 @@ class MainWindow(QMainWindow):
         self.font_size_spin.blockSignals(False)
         self.binding_button.setEnabled(True)
         self.validation_button.setEnabled(True)
-        self.preview_widget.set_highlight(field.get("id"))
         self._update_delete_button_state()
         self._sync_field_list_selection(field.get("id"))
 
@@ -584,7 +574,6 @@ class MainWindow(QMainWindow):
         self.font_size_spin.setValue(10)
         self.binding_button.setEnabled(False)
         self.validation_button.setEnabled(False)
-        self.preview_widget.set_highlight(None)
         self._update_delete_button_state()
         self._sync_field_list_selection(None)
 
@@ -601,7 +590,6 @@ class MainWindow(QMainWindow):
         self.current_field_item.setPos(field["x"], field["y"])
         self.current_field_item.setRect(0, 0, field["width"], field["height"])
         self._update_field_list_item(field.get("id"))
-        self.preview_widget.update_fields(self.current_template.get("fields", []))
 
     def _open_binding_dialog(self) -> None:
         if not self.current_field_item:
@@ -637,7 +625,6 @@ class MainWindow(QMainWindow):
 
         if self.current_template is None:
             return
-        self.preview_widget.update_fields(self.current_template.get("fields", []))
         self._update_field_list_item(field.get("id"))
         if self.current_field_item and self.current_field_item.field is field:
             self.field_x_spin.blockSignals(True)
@@ -667,7 +654,6 @@ class MainWindow(QMainWindow):
         # Append any remaining fields that may have been filtered out from the list widget.
         ordered_fields.extend(id_to_field.values())
         self.current_template["fields"] = ordered_fields
-        self.preview_widget.update_fields(self.current_template.get("fields", []))
 
     def delete_selected_field(self) -> None:
         """Remove the active field from the template and canvas."""
@@ -706,19 +692,8 @@ class MainWindow(QMainWindow):
             self.current_template["fields"] = [f for f in fields if f is not field]
         self.current_field_item = None
         self._clear_properties()
-        self.preview_widget.update_fields(self.current_template.get("fields", []))
         self._update_delete_button_state()
         self.statusBar().showMessage("Field deleted", 4000)
-
-    def _handle_preview_click(self, field_id: int) -> None:
-        """Select the field on the canvas when clicked in the preview."""
-
-        field_item = self.field_items.get(field_id)
-        if not field_item:
-            return
-        self.scene.clearSelection()
-        field_item.setSelected(True)
-        self.canvas.centerOn(field_item)
 
     def _update_delete_button_state(self) -> None:
         """Enable or disable the delete field button based on selection."""
