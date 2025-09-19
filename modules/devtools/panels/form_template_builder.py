@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -16,11 +17,14 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QMessageBox,
+    QComboBox,
+    QCompleter,
 )
 
 from ..services.form_catalog import FormCatalog, TemplateEntry
 from ..services.form_identify import guess_form_id_and_version
 from ..services.pdf_mapgen import extract_acroform_fields, generate_map, extract_schema_paths
+from ..services.binding_library import BindingOption, load_binding_library
 
 
 PDF_DIR = Path("data/forms/pdfs")
@@ -115,14 +119,44 @@ class FormTemplateBuilder(QWidget):
             mapping = generate_map(self.pdf_path, fid or "form", ver or "x", tmp_map, schema_path if schema_path and schema_path.exists() else None, None)
         except Exception:
             mapping = {"fields": {f.name: "" for f in fields}}
-        # Prepare candidate list for a simple searchable combo
-        candidates: List[str] = []
+        # Prepare candidate list for a searchable combo fed by binding library
+        schema_candidates: List[str] = []
         try:
             if schema_path and schema_path.exists():
-                candidates = extract_schema_paths(schema_path, None) or []
+                schema_candidates = extract_schema_paths(schema_path, None) or []
         except Exception:
-            candidates = []
-        from PySide6.QtWidgets import QComboBox
+            schema_candidates = []
+
+        catalog_options = load_binding_library().options
+        catalog_lookup: Dict[str, BindingOption] = {opt.key: opt for opt in catalog_options}
+        for candidate in schema_candidates:
+            if candidate not in catalog_lookup:
+                catalog_lookup[candidate] = BindingOption(
+                    key=candidate,
+                    source="schema",
+                    description="Schema suggestion",
+                )
+
+        option_list = sorted(catalog_lookup.values(), key=lambda opt: opt.key.lower())
+
+        model = QStandardItemModel(self.tbl_fields)
+        for opt in option_list:
+            item = QStandardItem(opt.display_label)
+            item.setEditable(False)
+            item.setData(opt.key, Qt.UserRole)
+            item.setData(opt.source, Qt.UserRole + 1)
+            item.setData(opt.description, Qt.UserRole + 2)
+            tooltip_parts = []
+            if opt.description:
+                tooltip_parts.append(opt.description)
+            if opt.synonyms:
+                tooltip_parts.append(f"Synonyms: {', '.join(opt.synonyms)}")
+            if opt.patterns:
+                tooltip_parts.append(f"Patterns: {', '.join(opt.patterns)}")
+            if tooltip_parts:
+                item.setToolTip("\n".join(tooltip_parts))
+            model.appendRow(item)
+
         self.tbl_fields.setRowCount(0)
         for f in fields:
             r = self.tbl_fields.rowCount()
@@ -130,11 +164,33 @@ class FormTemplateBuilder(QWidget):
             self.tbl_fields.setItem(r, 0, QTableWidgetItem(f.name))
             cbo = QComboBox()
             cbo.setEditable(True)
-            for c in candidates:
-                cbo.addItem(c)
+            cbo.setInsertPolicy(QComboBox.NoInsert)
+            if cbo.lineEdit() is not None:
+                cbo.lineEdit().setClearButtonEnabled(True)
+            cbo.setModel(model)
+            cbo.setModelColumn(0)
+            completer = QCompleter(model, cbo)
+            completer.setCaseSensitivity(Qt.CaseInsensitive)
+            try:
+                completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            except AttributeError:
+                completer.setFilterMode(Qt.MatchContains)
+            completer.setCompletionRole(Qt.DisplayRole)
+            cbo.setCompleter(completer)
+            if cbo.lineEdit() is not None:
+                cbo.lineEdit().setPlaceholderText("Search bindings…")
             pre = str(mapping.get("fields", {}).get(f.name, ""))
             if pre:
-                cbo.setCurrentText(pre)
+                matched_index = -1
+                for idx in range(model.rowCount()):
+                    item = model.item(idx)
+                    if item and item.data(Qt.UserRole) == pre:
+                        matched_index = idx
+                        break
+                if matched_index >= 0:
+                    cbo.setCurrentIndex(matched_index)
+                else:
+                    cbo.setEditText(pre)
             self.tbl_fields.setCellWidget(r, 1, cbo)
 
     def _save(self):
@@ -165,7 +221,11 @@ class FormTemplateBuilder(QWidget):
             editor = self.tbl_fields.cellWidget(r, 1)
             val = ""
             if editor is not None and hasattr(editor, 'currentText'):
-                val = editor.currentText().strip()
+                if hasattr(editor, "currentData"):
+                    data = editor.currentData(Qt.UserRole)
+                else:
+                    data = None
+                val = str(data).strip() if data else editor.currentText().strip()
             if k:
                 mapping["fields"][k] = val
         # save YAML
