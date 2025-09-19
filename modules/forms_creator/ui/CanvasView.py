@@ -6,6 +6,8 @@ from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QMouseEvent, QPainter, QPen, QWheelEvent
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
+from .FieldItems import FieldItem
+
 
 class CanvasView(QGraphicsView):
     """A QGraphicsView with handy zoom and pan controls."""
@@ -63,6 +65,30 @@ class CanvasView(QGraphicsView):
             self._draw_rect.setBrush(Qt.BrushStyle.NoBrush)
             event.accept()
             return
+        if event.button() == Qt.MouseButton.LeftButton and not self._draw_enabled:
+            item = self.itemAt(event.position().toPoint())
+            field_item = self._field_item_from_graphics_item(item)
+            if field_item is not None:
+                modifiers = event.modifiers()
+                extend_selection = bool(
+                    modifiers
+                    & (
+                        Qt.KeyboardModifier.ControlModifier
+                        | Qt.KeyboardModifier.ShiftModifier
+                    )
+                )
+                scene = self.scene()
+                if scene is not None and not extend_selection:
+                    scene.clearSelection()
+                if modifiers & Qt.KeyboardModifier.ControlModifier:
+                    field_item.setSelected(not field_item.isSelected())
+                else:
+                    field_item.setSelected(True)
+                if scene is not None:
+                    scene.setFocusItem(field_item)
+                self.setFocus()
+                event.accept()
+                return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
@@ -144,3 +170,11 @@ class CanvasView(QGraphicsView):
     def _apply_zoom(self, factor: float) -> None:
         self._zoom *= factor
         self.scale(factor, factor)
+
+    # ------------------------------------------------------------------
+    def _field_item_from_graphics_item(self, item) -> FieldItem | None:
+        """Return the FieldItem for ``item`` or its parent chain."""
+
+        while item is not None and not isinstance(item, FieldItem):
+            item = item.parentItem()
+        return item if isinstance(item, FieldItem) else None

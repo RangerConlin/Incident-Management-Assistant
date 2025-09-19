@@ -10,10 +10,14 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QStyle,
+    QToolButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from ...services.binder import Binder
@@ -40,12 +44,28 @@ class CustomBindingDialog(QDialog):
         self.label_edit.setToolTip("Human-friendly label that appears in binding pickers.")
         form.addRow("Label", self.label_edit)
 
+        key_row = QWidget()
+        key_layout = QHBoxLayout(key_row)
+        key_layout.setContentsMargins(0, 0, 0, 0)
+        key_layout.setSpacing(4)
+
         self.key_edit = QLineEdit()
         self.key_edit.setPlaceholderText("incident.teams.current.leader_name")
         self.key_edit.setToolTip(
             "Unique dotted path looked up when a form instance is generated."
         )
-        form.addRow("Key", self.key_edit)
+        key_layout.addWidget(self.key_edit)
+
+        self.key_help_button = QToolButton()
+        self.key_help_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
+        )
+        self.key_help_button.setToolTip("How to craft dotted binding keys")
+        self.key_help_button.setAutoRaise(True)
+        self.key_help_button.clicked.connect(self._show_key_help)
+        key_layout.addWidget(self.key_help_button)
+
+        form.addRow("Key", key_row)
 
         self.description_edit = QLineEdit()
         self.description_edit.setPlaceholderText("Optional helper text for other authors")
@@ -89,6 +109,31 @@ class CustomBindingDialog(QDialog):
         """Return the collected binding metadata."""
 
         return self._result
+
+    # ------------------------------------------------------------------
+    def _show_key_help(self) -> None:
+        """Display guidance on how dotted binding keys are structured."""
+
+        QMessageBox.information(
+            self,
+            "Binding Key Help",
+            (
+                "Binding keys use dotted notation to walk incident data.\n\n"
+                "Start with the data source (for example `incident`, `operations`,"
+                " or `teams`) and add nested fields separated by dots. Each"
+                " segment should be lowercase with no spaces, such as"
+                " `operations.ics204.team_leader`.\n\n"
+                "When this binding is resolved the application will look for"
+                " that path on the context provided while generating the form."
+                " Use descriptive names and keep keys stable so other templates"
+                " and workflows can rely on them.\n\n"
+                "Examples of valid keys include:\n"
+                "  • incident.ic_name\n"
+                "  • incident.op_period\n"
+                "  • operations.ics204.team_leader\n"
+                "  • teams.current.team_id"
+            ),
+        )
 
 
 class BindingDialog(QDialog):
