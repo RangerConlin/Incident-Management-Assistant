@@ -1893,11 +1893,13 @@ class AircraftInventoryWindow(QDialog):
         QMessageBox.information(self, "Print", f"Saved summary to {path}.")
 
     def _build_summary_html(self, record: Dict[str, Any]) -> str:
+
         notes_html = (record.get("notes") or "").replace("\n", "<br/>")
         recent_history = "".join(
             f"<li>{item.get('ts', '')}: {item.get('action', '')} — {item.get('details', '')}</li>"
             for item in (record.get("history") or [])[-5:]
         )
+
         return f"""
         <h2>Aircraft {record.get('tail_number', '')}</h2>
         <p><strong>Callsign:</strong> {record.get('callsign', '')}<br/>
@@ -1909,10 +1911,10 @@ class AircraftInventoryWindow(QDialog):
         <strong>Range:</strong> {record.get('range_nm', 0)} nm<br/>
         <strong>Endurance:</strong> {record.get('endurance_hr', 0)} hr<br/>
         <strong>Crew:</strong> {record.get('crew_min', 0)} / {record.get('crew_max', 0)}</p>
-        <p><strong>Notes:</strong><br/>{notes_html}</p>
+        <p><strong>Notes:</strong><br/>{record.get('notes', '').replace('\n', '<br/>')}</p>
         <h3>Recent History</h3>
         <ul>
-        {recent_history}
+        {''.join(f"<li>{item.get('ts', '')}: {item.get('action', '')} — {item.get('details', '')}</li>" for item in (record.get('history') or [])[-5:])}
         </ul>
         """
 
@@ -1969,3 +1971,4 @@ class AircraftInventoryWindow(QDialog):
         if value is None:
             return ""
         return value
+
