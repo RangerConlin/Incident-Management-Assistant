@@ -75,9 +75,11 @@ def get_personnel_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_vehicles_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Vehicle Roster."""
-    return _make_panel(
-        "Vehicle Roster",
-        f"Manage vehicles — incident: {incident_id}",
+    """Return the vehicle inventory management panel."""
+
+    from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
+        VehicleInventoryWidget,
     )
+
+    return VehicleInventoryWidget()
 
