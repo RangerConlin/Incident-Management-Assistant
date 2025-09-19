@@ -1893,6 +1893,13 @@ class AircraftInventoryWindow(QDialog):
         QMessageBox.information(self, "Print", f"Saved summary to {path}.")
 
     def _build_summary_html(self, record: Dict[str, Any]) -> str:
+
+        notes_html = (record.get("notes") or "").replace("\n", "<br/>")
+        recent_history = "".join(
+            f"<li>{item.get('ts', '')}: {item.get('action', '')} — {item.get('details', '')}</li>"
+            for item in (record.get("history") or [])[-5:]
+        )
+
         return f"""
         <h2>Aircraft {record.get('tail_number', '')}</h2>
         <p><strong>Callsign:</strong> {record.get('callsign', '')}<br/>
@@ -1965,4 +1972,3 @@ class AircraftInventoryWindow(QDialog):
             return ""
         return value
 
-*** End Patch
