@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -41,6 +42,12 @@ class BindingDialog(QDialog):
         self.system_bindings = binder.available_keys()
         for binding in self.system_bindings:
             self.system_combo.addItem(binding.label, binding.key)
+            if binding.description:
+                self.system_combo.setItemData(
+                    self.system_combo.count() - 1,
+                    binding.description,
+                    Qt.ItemDataRole.ToolTipRole,
+                )
         form.addRow("System Key", self.system_combo)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)

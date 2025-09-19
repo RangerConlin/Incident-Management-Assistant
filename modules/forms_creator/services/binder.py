@@ -35,6 +35,26 @@ class Binder:
         SystemBinding("incident.location", "Incident Location", None),
         SystemBinding("planning.scribe", "Planning Scribe", None),
         SystemBinding("teams.current.team_id", "Current Team ID", None),
+        SystemBinding(
+            "operations.ics204.team_leader",
+            "ICS 204 Team Leader",
+            "Leader name for the active ICS 204 assignment",
+        ),
+        SystemBinding(
+            "operations.ics204.team_leader_contact",
+            "ICS 204 Team Leader Contact",
+            "Primary contact information for the ICS 204 team leader",
+        ),
+        SystemBinding(
+            "operations.ics204.assignment",
+            "ICS 204 Assignment Summary",
+            "Narrative assignment details for the ICS 204",
+        ),
+        SystemBinding(
+            "operations.ics204.resources",
+            "ICS 204 Assigned Resources",
+            "List of resources associated with the selected ICS 204",
+        ),
     )
 
     def __init__(self, *, system_keys: tuple[SystemBinding, ...] | None = None):

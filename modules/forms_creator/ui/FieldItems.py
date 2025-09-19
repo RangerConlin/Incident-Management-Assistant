@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QGraphicsRectItem
@@ -10,10 +12,17 @@ from PySide6.QtWidgets import QGraphicsRectItem
 class FieldItem(QGraphicsRectItem):
     """Base graphics item carrying field metadata."""
 
-    def __init__(self, field: dict, parent=None) -> None:
+    def __init__(
+        self,
+        field: dict,
+        *,
+        geometry_changed: Callable[[dict], None] | None = None,
+        parent=None,
+    ) -> None:
         rect = QRectF(0, 0, float(field.get("width", 0)), float(field.get("height", 0)))
         super().__init__(rect, parent)
         self.field = field
+        self._geometry_changed = geometry_changed
         self.setFlags(
             QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable
             | QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable
@@ -32,6 +41,8 @@ class FieldItem(QGraphicsRectItem):
             pos = self.pos()
             self.field["x"] = pos.x()
             self.field["y"] = pos.y()
+            if self._geometry_changed:
+                self._geometry_changed(self.field)
         return super().itemChange(change, value)
 
     def paint(self, painter: QPainter, option, widget=None) -> None:  # noqa: D401,N802

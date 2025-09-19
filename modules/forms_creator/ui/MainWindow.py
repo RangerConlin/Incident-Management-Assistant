@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import Qt, QRectF
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtCore import Qt, QRectF, Signal
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QFileDialog,
     QFormLayout,
@@ -30,6 +31,7 @@ from ..assets import get_asset_path
 from ..services.templates import FormService
 from .CanvasView import CanvasView
 from .FieldItems import CheckboxFieldItem, DropdownFieldItem, FieldItem, TextFieldItem
+from .PreviewWidget import TemplatePreview
 from .dialogs.BindingDialog import BindingDialog
 from .dialogs.NewTemplateWizard import NewTemplateWizard
 from .dialogs.PreviewDialog import PreviewDialog
@@ -48,6 +50,24 @@ FIELD_CLASSES = {
     "image": FieldItem,
     "table": FieldItem,
 }
+
+
+class FieldListWidget(QListWidget):
+    """List widget that emits the new order when items are moved."""
+
+    orderChanged = Signal(list)
+
+    def dropEvent(self, event):  # noqa: D401,N802 - Qt override
+        super().dropEvent(event)
+        ordered_ids: list[int] = []
+        for row in range(self.count()):
+            item = self.item(row)
+            field_id = item.data(Qt.ItemDataRole.UserRole)
+            try:
+                ordered_ids.append(int(field_id))
+            except (TypeError, ValueError):
+                continue
+        self.orderChanged.emit(ordered_ids)
 
 
 class MainWindow(QMainWindow):
@@ -72,6 +92,9 @@ class MainWindow(QMainWindow):
         self._build_central_widget()
         self._build_toolbar()
         self.statusBar().showMessage("Ready")
+
+        QShortcut(QKeySequence(Qt.Key.Key_Delete), self, activated=self.delete_selected_field)
+        QShortcut(QKeySequence(Qt.Key.Key_Backspace), self, activated=self.delete_selected_field)
 
     # ------------------------------------------------------------------
     def _build_menu(self) -> None:
@@ -126,10 +149,22 @@ class MainWindow(QMainWindow):
         palette_layout.addWidget(self.palette_list)
 
         palette_layout.addWidget(QLabel("Fields"))
-        self.field_list = QListWidget()
+        self.field_list = FieldListWidget()
         self.field_list.setEnabled(False)
         self.field_list.currentItemChanged.connect(self._handle_field_list_selection)
+        self.field_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.field_list.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.field_list.orderChanged.connect(self._on_field_order_changed)
         palette_layout.addWidget(self.field_list)
+
+        self.delete_field_button = QPushButton("Delete Field")
+        self.delete_field_button.setEnabled(False)
+        self.delete_field_button.clicked.connect(self.delete_selected_field)
+        palette_layout.addWidget(self.delete_field_button)
+
+        self.preview_widget = TemplatePreview()
+        self.preview_widget.fieldClicked.connect(self._handle_preview_click)
+        palette_layout.addWidget(self.preview_widget)
 
         splitter.addWidget(palette_container)
 
@@ -252,6 +287,7 @@ class MainWindow(QMainWindow):
         self.background_item = None
         self.canvas.reset_zoom()
         self._load_background(template)
+        self.preview_widget.set_template(template, self.form_service.data_dir)
         for field in template.get("fields", []):
             self._add_field_item(field)
         self._refresh_field_list()
@@ -282,7 +318,14 @@ class MainWindow(QMainWindow):
         if not self.current_template:
             QMessageBox.information(self, "Preview", "Load a template first.")
             return
-        dialog = PreviewDialog(self.current_template, parent=self)
+        highlight_id = None
+        if self.current_field_item is not None:
+            highlight_id = self._safe_int(self.current_field_item.field.get("id"))
+        dialog = PreviewDialog(
+            self.current_template,
+            parent=self,
+            highlight_field_id=highlight_id,
+        )
         dialog.exec()
 
     def export_current_instance(self) -> None:
@@ -331,6 +374,7 @@ class MainWindow(QMainWindow):
         if self._syncing_field_list:
             return
         if current is None:
+            self._update_delete_button_state()
             return
         field_id = current.data(Qt.ItemDataRole.UserRole)
         try:
@@ -339,10 +383,12 @@ class MainWindow(QMainWindow):
             return
         field_item = self.field_items.get(field_key)
         if not field_item:
+            self._update_delete_button_state()
             return
         self.scene.clearSelection()
         field_item.setSelected(True)
         self.canvas.centerOn(field_item)
+        self._update_delete_button_state()
 
     def _refresh_field_list(self) -> None:
         """Populate the field list widget to match the template fields."""
@@ -353,19 +399,9 @@ class MainWindow(QMainWindow):
         self.field_list.clear()
         if not self.current_template:
             self.field_list.blockSignals(False)
+            self.preview_widget.clear()
             return
         fields = list(self.current_template.get("fields", []))
-        def _as_int(value, default=0):
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return default
-        def _as_float(value, default=0.0):
-            try:
-                return float(value)
-            except (TypeError, ValueError):
-                return default
-        fields.sort(key=lambda f: (_as_int(f.get("page", 1), 1), _as_float(f.get("y")), _as_float(f.get("x"))))
         for field in fields:
             field_id = field.get("id")
             try:
@@ -377,6 +413,8 @@ class MainWindow(QMainWindow):
             self.field_list.addItem(item)
             self.field_list_items[field_key] = item
         self.field_list.blockSignals(False)
+        self.preview_widget.update_fields(fields)
+        self._update_delete_button_state()
 
     def _format_field_list_label(self, field: dict[str, Any]) -> str:
         """Return the human readable label for a field entry."""
@@ -437,7 +475,7 @@ class MainWindow(QMainWindow):
 
     def _add_field_item(self, field: dict[str, Any], *, select: bool = False) -> FieldItem:
         cls = FIELD_CLASSES.get(field.get("type"), FieldItem)
-        item = cls(field)
+        item = cls(field, geometry_changed=self._handle_field_geometry_changed)
         self.scene.addItem(item)
         item.setZValue(5)
         field_id = field.get("id")
@@ -493,6 +531,7 @@ class MainWindow(QMainWindow):
             self.field_list.setEnabled(True)
         self._refresh_field_list()
         self._sync_field_list_selection(field.get("id"))
+        self.preview_widget.update_fields(self.current_template.get("fields", []))
         self.statusBar().showMessage(f"Added {field_type.title()} field", 4000)
 
     def _reset_palette_tool(self) -> None:
@@ -531,6 +570,8 @@ class MainWindow(QMainWindow):
         self.font_size_spin.blockSignals(False)
         self.binding_button.setEnabled(True)
         self.validation_button.setEnabled(True)
+        self.preview_widget.set_highlight(field.get("id"))
+        self._update_delete_button_state()
         self._sync_field_list_selection(field.get("id"))
 
     def _clear_properties(self) -> None:
@@ -543,6 +584,8 @@ class MainWindow(QMainWindow):
         self.font_size_spin.setValue(10)
         self.binding_button.setEnabled(False)
         self.validation_button.setEnabled(False)
+        self.preview_widget.set_highlight(None)
+        self._update_delete_button_state()
         self._sync_field_list_selection(None)
 
     def _apply_properties_changes(self) -> None:
@@ -558,6 +601,7 @@ class MainWindow(QMainWindow):
         self.current_field_item.setPos(field["x"], field["y"])
         self.current_field_item.setRect(0, 0, field["width"], field["height"])
         self._update_field_list_item(field.get("id"))
+        self.preview_widget.update_fields(self.current_template.get("fields", []))
 
     def _open_binding_dialog(self) -> None:
         if not self.current_field_item:
@@ -587,6 +631,111 @@ class MainWindow(QMainWindow):
         self.background_item.setZValue(-10)
         self.background_item.setEnabled(False)
         self.scene.setSceneRect(0, 0, pixmap.width(), pixmap.height())
+
+    def _handle_field_geometry_changed(self, field: dict[str, Any]) -> None:
+        """Update UI elements when a field is moved on the canvas."""
+
+        if self.current_template is None:
+            return
+        self.preview_widget.update_fields(self.current_template.get("fields", []))
+        self._update_field_list_item(field.get("id"))
+        if self.current_field_item and self.current_field_item.field is field:
+            self.field_x_spin.blockSignals(True)
+            self.field_y_spin.blockSignals(True)
+            self.field_x_spin.setValue(float(field.get("x", 0)))
+            self.field_y_spin.setValue(float(field.get("y", 0)))
+            self.field_x_spin.blockSignals(False)
+            self.field_y_spin.blockSignals(False)
+
+    def _on_field_order_changed(self, ordered_ids: list[int]) -> None:
+        """Persist the drag-and-drop order back to the template list."""
+
+        if not self.current_template:
+            return
+        id_to_field: dict[int, dict[str, Any]] = {}
+        for field in self.current_template.get("fields", []):
+            try:
+                field_id = int(field.get("id"))
+            except (TypeError, ValueError):
+                continue
+            id_to_field[field_id] = field
+        ordered_fields: list[dict[str, Any]] = []
+        for field_id in ordered_ids:
+            field = id_to_field.pop(field_id, None)
+            if field:
+                ordered_fields.append(field)
+        # Append any remaining fields that may have been filtered out from the list widget.
+        ordered_fields.extend(id_to_field.values())
+        self.current_template["fields"] = ordered_fields
+        self.preview_widget.update_fields(self.current_template.get("fields", []))
+
+    def delete_selected_field(self) -> None:
+        """Remove the active field from the template and canvas."""
+
+        if not self.current_template:
+            return
+        field_item: FieldItem | None = self.current_field_item
+        if field_item is None and self.field_list is not None:
+            current = self.field_list.currentItem()
+            if current is not None:
+                field_id = current.data(Qt.ItemDataRole.UserRole)
+                try:
+                    field_item = self.field_items.get(int(field_id))
+                except (TypeError, ValueError):
+                    field_item = None
+        if field_item is None:
+            return
+        field = field_item.field
+        try:
+            field_id = int(field.get("id"))
+        except (TypeError, ValueError):
+            field_id = None
+        self.scene.removeItem(field_item)
+        if field_id is not None:
+            self.field_items.pop(field_id, None)
+            list_item = self.field_list_items.pop(field_id, None)
+            if list_item and self.field_list is not None:
+                row = self.field_list.row(list_item)
+                self.field_list.takeItem(row)
+        fields = self.current_template.get("fields", [])
+        if field_id is not None:
+            self.current_template["fields"] = [
+                f for f in fields if self._safe_int(f.get("id")) != field_id
+            ]
+        else:
+            self.current_template["fields"] = [f for f in fields if f is not field]
+        self.current_field_item = None
+        self._clear_properties()
+        self.preview_widget.update_fields(self.current_template.get("fields", []))
+        self._update_delete_button_state()
+        self.statusBar().showMessage("Field deleted", 4000)
+
+    def _handle_preview_click(self, field_id: int) -> None:
+        """Select the field on the canvas when clicked in the preview."""
+
+        field_item = self.field_items.get(field_id)
+        if not field_item:
+            return
+        self.scene.clearSelection()
+        field_item.setSelected(True)
+        self.canvas.centerOn(field_item)
+
+    def _update_delete_button_state(self) -> None:
+        """Enable or disable the delete field button based on selection."""
+
+        if not hasattr(self, "delete_field_button"):
+            return
+        has_selection = bool(self.current_field_item)
+        if not has_selection and self.field_list is not None:
+            has_selection = self.field_list.currentItem() is not None
+        self.delete_field_button.setEnabled(has_selection)
+
+    @staticmethod
+    def _safe_int(value: Any, default: int | None = None) -> int | None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke test helper
