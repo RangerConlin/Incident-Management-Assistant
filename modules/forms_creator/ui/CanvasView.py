@@ -31,6 +31,7 @@ class CanvasView(QGraphicsView):
         self._drawing = False
         self._draw_start = QPointF()
         self._draw_rect: QGraphicsRectItem | None = None
+        self._space_pressed = False
 
     # ------------------------------------------------------------------
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 (Qt naming convention)
@@ -44,11 +45,11 @@ class CanvasView(QGraphicsView):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.MiddleButton or (
-            event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.SpaceModifier
+            event.button() == Qt.MouseButton.LeftButton and self._space_pressed
         ):
             self._panning = True
             self._pan_start = event.pos()
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            self._update_idle_cursor()
             event.accept()
             return
         if self._draw_enabled and event.button() == Qt.MouseButton.LeftButton:
@@ -113,7 +114,7 @@ class CanvasView(QGraphicsView):
             Qt.MouseButton.LeftButton,
         }:
             self._panning = False
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self._update_idle_cursor()
             event.accept()
             return
         if self._draw_enabled and self._drawing and event.button() == Qt.MouseButton.LeftButton:
@@ -127,6 +128,7 @@ class CanvasView(QGraphicsView):
                 rect = QRectF(self._draw_start.x(), self._draw_start.y(), 150.0, 24.0)
             rect = rect.normalized()
             self.fieldDrawn.emit(rect)
+            self._update_idle_cursor()
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -138,7 +140,7 @@ class CanvasView(QGraphicsView):
         self._draw_enabled = True
         self._drawing = False
         self._draw_start = QPointF()
-        self.setCursor(Qt.CursorShape.CrossCursor)
+        self._update_idle_cursor()
 
     def cancel_field_creation(self) -> None:
         """Leave drawing mode and clean up any preview artefacts."""
@@ -149,16 +151,30 @@ class CanvasView(QGraphicsView):
         if self._draw_rect is not None:
             self._scene.removeItem(self._draw_rect)
             self._draw_rect = None
-        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self._update_idle_cursor()
 
     # ------------------------------------------------------------------
     def keyPressEvent(self, event):  # noqa: N802
+        if event.key() == Qt.Key.Space:
+            if not self._space_pressed:
+                self._space_pressed = True
+                self._update_idle_cursor()
+            event.accept()
+            return
         if event.key() == Qt.Key.Escape and self._draw_enabled:
             self.cancel_field_creation()
             self.fieldCreationAborted.emit()
             event.accept()
             return
         super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):  # noqa: N802
+        if event.key() == Qt.Key.Space:
+            self._space_pressed = False
+            self._update_idle_cursor()
+            event.accept()
+            return
+        super().keyReleaseEvent(event)
 
     # ------------------------------------------------------------------
     def reset_zoom(self) -> None:
@@ -178,3 +194,15 @@ class CanvasView(QGraphicsView):
         while item is not None and not isinstance(item, FieldItem):
             item = item.parentItem()
         return item if isinstance(item, FieldItem) else None
+
+    def _update_idle_cursor(self) -> None:
+        """Set the cursor based on the current interaction state."""
+
+        if self._panning:
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        elif self._space_pressed:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        elif self._draw_enabled:
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
