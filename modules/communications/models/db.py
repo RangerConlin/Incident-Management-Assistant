@@ -15,7 +15,7 @@ from pathlib import Path
 import sqlite3
 from typing import Iterator
 
-from utils import mission_db
+from utils import incident_context
 
 
 MASTER_DB_PATH = Path("data") / "master.db"
@@ -36,11 +36,7 @@ def get_master_conn() -> sqlite3.Connection:
 
 
 def get_incident_conn(incident_number: str | int) -> sqlite3.Connection:
-    """Return a connection to the current incident database.
-
-    The path is resolved via utils.mission_db.
-    """
-    path = mission_db.get_incident_db_path(incident_number)
+    path = incident_context.get_active_incident_db_path(incident_number)
     return _conn(path)
 
 
