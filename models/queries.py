@@ -94,13 +94,15 @@ def fetch_team_equipment(team_id: int) -> List[Dict[str, Any]]:
 
 
 def fetch_team_aircraft(team_id: int) -> List[Dict[str, Any]]:
-    sql = """
-    SELECT id, tail_number, type, callsign
+    conn = get_db_connection()
+    has_status = _has_column(conn, "aircraft", "status")
+    sel_status = ", status" if has_status else ", NULL AS status"
+    sql = f"""
+    SELECT id, tail_number, type, callsign{sel_status}
     FROM aircraft
     WHERE team_id = ?
     ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE;
     """
-    conn = get_db_connection()
     cur = conn.execute(sql, (team_id,))
     return _rows_to_dicts(cur)
 
@@ -147,25 +149,19 @@ def list_available_aircraft(include_team_id: Optional[int] = None) -> List[Dict[
     """List aircraft not assigned to any team; optionally include those on include_team_id."""
     conn = get_db_connection()
     try:
+        has_status = _has_column(conn, "aircraft", "status")
+        sel_status = ", status" if has_status else ", NULL AS status"
+        base_sql = (
+            "SELECT id, tail_number, callsign, team_id"
+            f"{sel_status} FROM aircraft"
+        )
+        order_clause = " ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE"
         if include_team_id is None:
-            cur = conn.execute(
-                """
-                SELECT id, tail_number, callsign, team_id
-                FROM aircraft
-                WHERE team_id IS NULL
-                ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE
-                """
-            )
+            sql = base_sql + " WHERE team_id IS NULL" + order_clause
+            cur = conn.execute(sql)
         else:
-            cur = conn.execute(
-                """
-                SELECT id, tail_number, callsign, team_id
-                FROM aircraft
-                WHERE team_id IS NULL OR team_id = ?
-                ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE
-                """,
-                (int(include_team_id),),
-            )
+            sql = base_sql + " WHERE team_id IS NULL OR team_id = ?" + order_clause
+            cur = conn.execute(sql, (int(include_team_id),))
         return _rows_to_dicts(cur)
     except Exception:
         return []

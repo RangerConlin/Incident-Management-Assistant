@@ -240,6 +240,15 @@ class TeamDetailBridge(QObject):
             self.error.emit(f"Failed to clear needs assistance: {e}")
 
     # ---- Status ----
+    def _default_status_key(self) -> str:
+        for opt in self._status_options:
+            key = str(opt.get("key", "")).strip().lower()
+            if key == "available":
+                return key
+        if self._status_options:
+            return str(self._status_options[0].get("key", "")).strip().lower()
+        return ""
+
     @Slot(str)
     def setStatus(self, new_status: str) -> None:
         try:
@@ -249,7 +258,13 @@ class TeamDetailBridge(QObject):
                 if key.lower() == opt["label"].lower():
                     key = opt["key"]
                     break
-            self._team.status = key.lower()
+            normalized = str(key).strip().lower()
+            if normalized == "wheels down" and not self.isAircraftTeam:
+                fallback = self._default_status_key()
+                normalized = fallback or "available"
+            if not normalized:
+                normalized = self._default_status_key()
+            self._team.status = normalized
             if self._team.team_id:
                 team_repo.set_team_status(int(self._team.team_id), self._team.status)
             self.statusChanged.emit(self._team.status)
@@ -261,6 +276,13 @@ class TeamDetailBridge(QObject):
     @Slot(str)
     def setTeamType(self, code: str) -> None:
         self._team.team_type = str(code)
+        if not self.isAircraftTeam and (self._team.status or "").strip().lower() == "wheels down":
+            fallback = self._default_status_key() or "available"
+            self._team.status = fallback
+            if self._team.team_id:
+                team_repo.set_team_status(int(self._team.team_id), self._team.status)
+            self.statusChanged.emit(self._team.status)
+            self._emit_incident_refresh()
         self.teamChanged.emit()
 
     # ---- Asset list providers (QML binds to these) ----
@@ -334,8 +356,10 @@ class TeamDetailBridge(QObject):
                 {
                     "id": r.get("id"),
                     "tail": r.get("tail_number"),
+                    "tail_number": r.get("tail_number"),
                     "callsign": r.get("callsign"),
                     "type": r.get("type"),
+                    "status": r.get("status"),
                     "base": "",
                     "comms": "",
                 }
@@ -358,10 +382,12 @@ class TeamDetailBridge(QObject):
             # Normalize labels for QML display
             out: list[dict[str, Any]] = []
             for r in rows:
-                label = (r.get("tail_number") or r.get("callsign") or f"#{r.get('id')}")
                 out.append({
                     "id": r.get("id"),
-                    "label": str(label),
+                    "callsign": r.get("callsign"),
+                    "tail_number": r.get("tail_number"),
+                    "status": r.get("status"),
+                    "team_id": r.get("team_id"),
                 })
             return out
         except Exception:
@@ -884,7 +910,14 @@ class TeamDetailBridge(QObject):
         # Placeholder for PDF/HTML export
         pass
 
+class RefreshableComboBox(QComboBox):
+    """Combo box that emits before showing the popup so options can refresh."""
 
+    popupAboutToBeShown = Signal()
+
+    def showPopup(self) -> None:  # type: ignore[override]
+        self.popupAboutToBeShown.emit()
+        super().showPopup()
 
 class TeamDetailWindow(QMainWindow):
     """Widget-based implementation of the Team Detail window."""
@@ -905,7 +938,10 @@ class TeamDetailWindow(QMainWindow):
         self._equipment_cache: List[Dict[str, Any]] = []
         self._personnel_medic_column: Optional[int] = None
         self._assist_anim_state: bool = False
-
+        self._status_options: List[Dict[str, Any]] = []
+        self._filtered_status_options: List[Dict[str, str]] = []
+        self._current_aircraft_id: Optional[int] = None
+        self._refreshing_aircraft: bool = False
         self._notes_timer = QTimer(self)
         self._notes_timer.setSingleShot(True)
         self._notes_timer.setInterval(500)
@@ -1012,6 +1048,14 @@ class TeamDetailWindow(QMainWindow):
         self._name_label = QLabel("Team Name")
         self._name_field = QLineEdit()
         left_form.addRow(self._name_label, self._name_field)
+
+
+        self._aircraft_label = QLabel("Assigned Aircraft")
+        self._aircraft_combo = RefreshableComboBox()
+        self._aircraft_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._aircraft_combo.setVisible(False)
+        self._aircraft_label.setVisible(False)
+        left_form.addRow(self._aircraft_label, self._aircraft_combo)
 
         self._leader_label = QLabel("Team Leader")
         self._leader_field = QLineEdit()
@@ -1181,13 +1225,17 @@ class TeamDetailWindow(QMainWindow):
         self._asset_add_button.clicked.connect(self._handle_add_asset)
         self._equipment_add_button.clicked.connect(self._handle_add_equipment)
 
+        self._aircraft_combo.popupAboutToBeShown.connect(self._refresh_aircraft_options)
+        self._aircraft_combo.currentIndexChanged.connect(self._handle_aircraft_selected)
+
+
     # ---- Data refresh helpers ----
     def _configure_personnel_header(self) -> None:
         header = self._personnel_table.horizontalHeader()
         header.setSectionsClickable(True)
         header.setHighlightSections(False)
         header.setStretchLastSection(False)
-        header.setMinimumSectionSize(70)
+        header.setMinimumSectionSize(23)
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setStyleSheet(
             "QHeaderView::section {"
@@ -1221,13 +1269,37 @@ class TeamDetailWindow(QMainWindow):
 
     def _populate_status_options(self) -> None:
         options = getattr(self._bridge, "statusList", []) or []
-        self._status_combo.blockSignals(True)
-        self._status_combo.clear()
+
+        normalized: List[Dict[str, str]] = []
         for opt in options:
             label = str(opt.get("label", ""))
             key = str(opt.get("key", label)).strip().lower()
-            self._status_combo.addItem(label, key)
+            normalized.append({"label": label, "key": key})
+        self._status_options = normalized
+        self._reload_status_options()
+
+    def _reload_status_options(self) -> None:
+        filtered: List[Dict[str, str]] = []
+        for opt in self._status_options:
+            key = str(opt.get("key", "")).strip().lower()
+            if not self._is_air and key == "wheels down":
+                continue
+            filtered.append({"label": opt.get("label", ""), "key": key})
+        self._filtered_status_options = filtered
+        self._status_combo.blockSignals(True)
+        self._status_combo.clear()
+        for opt in filtered:
+            self._status_combo.addItem(opt["label"], opt["key"])
         self._status_combo.blockSignals(False)
+
+    def _status_fallback_key(self) -> Optional[str]:
+        for opt in self._filtered_status_options:
+            key = opt.get("key")
+            if key == "available":
+                return key
+        if self._filtered_status_options:
+            return self._filtered_status_options[0].get("key")
+        return None
 
     def _on_team_changed(self) -> None:
         self._updating = True
@@ -1263,6 +1335,7 @@ class TeamDetailWindow(QMainWindow):
         self._update_notes_field(team)
         self._populate_personnel_table(self._members_cache)
         self._populate_assets_table(self._asset_cache)
+        self._update_aircraft_assignment_display()
         self._populate_equipment_table(self._equipment_cache)
         self._update_assistance_ui()
         self._update_member_detail_button()
@@ -1284,6 +1357,10 @@ class TeamDetailWindow(QMainWindow):
             self._tabs.setTabText(1, "Aircraft")
             self._add_member_button.setText("Add Aircrew")
             self._asset_add_button.setText("Add Aircraft")
+            self._asset_add_button.setVisible(False)
+            self._aircraft_label.setVisible(True)
+            self._aircraft_combo.setVisible(True)
+
         else:
             self._name_label.setText("Team Name")
             self._leader_label.setText("Team Leader")
@@ -1291,6 +1368,11 @@ class TeamDetailWindow(QMainWindow):
             self._tabs.setTabText(1, "Vehicles")
             self._add_member_button.setText("Add Personnel")
             self._asset_add_button.setText("Add Vehicle")
+            self._asset_add_button.setVisible(True)
+            self._aircraft_label.setVisible(False)
+            self._aircraft_combo.setVisible(False)
+        self._reload_status_options()
+
 
     def _update_title(self, team: Dict[str, Any]) -> None:
         parts: List[str] = []
@@ -1336,11 +1418,135 @@ class TeamDetailWindow(QMainWindow):
 
     def _populate_status_selection(self, team: Dict[str, Any]) -> None:
         status = str(team.get("status", "")).strip().lower()
+        if not self._is_air and status == "wheels down":
+            fallback = self._status_fallback_key()
+            if fallback and fallback != status:
+                try:
+                    self._bridge.setStatus(str(fallback))
+                    status = str(fallback)
+                except Exception:
+                    status = str(fallback)
         self._status_combo.blockSignals(True)
         index = self._status_combo.findData(status)
+        if index < 0 and status:
+            index = self._status_combo.findData(str(status).lower())
         if index >= 0:
             self._status_combo.setCurrentIndex(index)
+        else:
+            fallback = self._status_fallback_key()
+            if fallback is not None:
+                idx = self._status_combo.findData(fallback)
+                if idx >= 0:
+                    self._status_combo.setCurrentIndex(idx)
         self._status_combo.blockSignals(False)
+
+    def _format_aircraft_label(self, record: Dict[str, Any]) -> str:
+        callsign = str(record.get("callsign") or "").strip()
+        tail = str(
+            record.get("tail_number")
+            or record.get("tail")
+            or record.get("tailNumber")
+            or ""
+        ).strip()
+        status = str(record.get("status") or "").strip()
+        if not callsign:
+            fallback = tail or record.get("identifier") or record.get("id")
+            callsign = str(fallback or "—").strip()
+        if not tail:
+            tail = "—"
+        if not status:
+            status = "—"
+        return f"{callsign or '—'} - {tail} - {status}"
+
+    def _update_aircraft_assignment_display(self) -> None:
+        if not hasattr(self, "_aircraft_combo"):
+            return
+        self._refreshing_aircraft = True
+        try:
+            self._aircraft_combo.blockSignals(True)
+            self._aircraft_combo.clear()
+            self._aircraft_combo.addItem("No Aircraft Assigned", None)
+            current_id: Optional[int] = None
+            if self._is_air:
+                self._aircraft_combo.setEnabled(True)
+                current_record = None
+                for rec in self._asset_cache:
+                    if rec.get("id") is not None:
+                        current_record = rec
+                        break
+                if current_record:
+                    current_id = current_record.get("id")
+                    label = self._format_aircraft_label(current_record)
+                    self._aircraft_combo.addItem(label, current_id)
+                    self._aircraft_combo.setCurrentIndex(1)
+                else:
+                    self._aircraft_combo.setCurrentIndex(0)
+            else:
+                self._aircraft_combo.setEnabled(False)
+                self._aircraft_combo.setCurrentIndex(0)
+            self._current_aircraft_id = (
+                int(current_id) if current_id is not None and str(current_id) != "" else None
+            )
+        finally:
+            self._aircraft_combo.blockSignals(False)
+            self._refreshing_aircraft = False
+
+    def _refresh_aircraft_options(self) -> None:
+        if not self._is_air or not hasattr(self, "_aircraft_combo"):
+            return
+        try:
+            options = self._bridge.availableAircraft() if hasattr(self._bridge, "availableAircraft") else []
+        except Exception:
+            options = []
+        current_id = self._current_aircraft_id
+        self._refreshing_aircraft = True
+        try:
+            self._aircraft_combo.blockSignals(True)
+            self._aircraft_combo.clear()
+            self._aircraft_combo.addItem("No Aircraft Assigned", None)
+            seen: set[str] = set()
+            for opt in options or []:
+                opt_id = opt.get("id")
+                label = self._format_aircraft_label(opt)
+                self._aircraft_combo.addItem(label, opt_id)
+                if opt_id is not None and str(opt_id) != "":
+                    seen.add(str(opt_id))
+            if current_id is not None and str(current_id) not in seen:
+                for rec in self._asset_cache:
+                    if str(rec.get("id")) == str(current_id):
+                        label = self._format_aircraft_label(rec)
+                        self._aircraft_combo.addItem(label, current_id)
+                        break
+            target = current_id if current_id is not None else None
+            idx = self._aircraft_combo.findData(target)
+            if idx >= 0:
+                self._aircraft_combo.setCurrentIndex(idx)
+            else:
+                self._aircraft_combo.setCurrentIndex(0)
+        finally:
+            self._aircraft_combo.blockSignals(False)
+            self._refreshing_aircraft = False
+
+    def _handle_aircraft_selected(self, index: int) -> None:
+        if self._updating or self._refreshing_aircraft or not hasattr(self, "_aircraft_combo"):
+            return
+        data = self._aircraft_combo.itemData(index)
+        target = data if data not in ("", None) else None
+        if self._current_aircraft_id is None and target is None:
+            return
+        if target is not None and self._current_aircraft_id is not None:
+            try:
+                if int(target) == int(self._current_aircraft_id):
+                    return
+            except Exception:
+                pass
+        try:
+            self._bridge.setSingleAircraft(target)
+            self._current_aircraft_id = (
+                int(target) if target is not None and str(target) != "" else None
+            )
+        except Exception:
+            pass
 
     def _update_leader_fields(self, team: Dict[str, Any]) -> None:
         leader_id = team.get("team_leader_id")
@@ -1547,7 +1753,8 @@ class TeamDetailWindow(QMainWindow):
 
     def _populate_assets_table(self, assets: List[Dict[str, Any]]) -> None:
         if self._is_air:
-            headers = ["ID", "Tail/Callsign", "Type", "Base", "Comms", "Actions"]
+            headers = ["ID", "Callsign", "Tail Number", "Type", "Status"]
+
         else:
             headers = ["ID", "Callsign/Name", "Type", "Driver", "Phone", "Actions"]
         self._asset_table.clear()
@@ -1562,36 +1769,52 @@ class TeamDetailWindow(QMainWindow):
             id_item.setTextAlignment(Qt.AlignCenter)
             self._asset_table.setItem(row, 0, id_item)
 
-            label_value = ""
             if self._is_air:
-                label_value = asset.get("tail") or asset.get("callsign") or ""
+                callsign_item = QTableWidgetItem(str(asset.get("callsign") or ""))
+                self._asset_table.setItem(row, 1, callsign_item)
+
+                tail_value = asset.get("tail") or asset.get("tail_number")
+                tail_item = QTableWidgetItem(str(tail_value or ""))
+                self._asset_table.setItem(row, 2, tail_item)
+
+                type_item = QTableWidgetItem(str(asset.get("type") or ""))
+                self._asset_table.setItem(row, 3, type_item)
+
+                status_item = QTableWidgetItem(str(asset.get("status") or ""))
+                self._asset_table.setItem(row, 4, status_item)
             else:
                 label_value = asset.get("callsign") or asset.get("name") or ""
-            label_item = QTableWidgetItem(str(label_value))
-            self._asset_table.setItem(row, 1, label_item)
+                label_item = QTableWidgetItem(str(label_value))
+                self._asset_table.setItem(row, 1, label_item)
 
-            type_item = QTableWidgetItem(str(asset.get("type") or ""))
-            self._asset_table.setItem(row, 2, type_item)
+                type_item = QTableWidgetItem(str(asset.get("type") or ""))
+                self._asset_table.setItem(row, 2, type_item)
 
-            driver_value = asset.get("base") if self._is_air else asset.get("driver")
-            driver_item = QTableWidgetItem(str(driver_value or ""))
-            self._asset_table.setItem(row, 3, driver_item)
+                driver_value = asset.get("driver")
+                driver_item = QTableWidgetItem(str(driver_value or ""))
+                self._asset_table.setItem(row, 3, driver_item)
 
-            comm_value = asset.get("comms") or asset.get("phone") or ""
-            comm_item = QTableWidgetItem(str(comm_value))
-            self._asset_table.setItem(row, 4, comm_item)
+                comm_value = asset.get("comms") or asset.get("phone") or ""
+                comm_item = QTableWidgetItem(str(comm_value))
+                self._asset_table.setItem(row, 4, comm_item)
 
-            remove_btn = QPushButton("Remove")
-            remove_btn.clicked.connect(
-                lambda _=False, aid=asset_id: self._bridge.removeAsset(aid) if aid is not None else None
-            )
-            self._asset_table.setCellWidget(row, len(headers) - 1, remove_btn)
+                remove_btn = QPushButton("Remove")
+                remove_btn.clicked.connect(
+                    lambda _=False, aid=asset_id: self._bridge.removeAsset(aid) if aid is not None else None
+                )
+                self._asset_table.setCellWidget(row, len(headers) - 1, remove_btn)
 
         header = self._asset_table.horizontalHeader()
         for col in range(len(headers)):
-            mode = QHeaderView.ResizeToContents
-            if col == 1:
-                mode = QHeaderView.Stretch
+            if self._is_air:
+                mode = QHeaderView.ResizeToContents
+                if col == 2:
+                    mode = QHeaderView.Stretch
+            else:
+                mode = QHeaderView.ResizeToContents
+                if col == 1:
+                    mode = QHeaderView.Stretch
+
             header.setSectionResizeMode(col, mode)
 
     def _populate_equipment_table(self, equipment: List[Dict[str, Any]]) -> None:
