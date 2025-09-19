@@ -1,12 +1,17 @@
-"""Vehicle inventory editing dialog implemented with Qt widgets."""
+"""Vehicle inventory editing dialog implemented with Qt widgets.
+
+Merged to use local SQLite via VehicleRepository (offline-first). Removes HTTP client path
+and all merge-conflict markers. No QML used.
+"""
 
 from __future__ import annotations
 
 import logging
-import os
-from typing import Any, Optional, Protocol
+import sqlite3
+from collections import OrderedDict
+from pathlib import Path
+from typing import Any, Optional
 
-import httpx
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
@@ -23,52 +28,279 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+# Local project import: master DB connector (must return sqlite3.Connection)
+# Falls back to direct-path connection if not provided at init.
+try:
+    from utils.db import get_master_conn  # type: ignore
+except Exception:  # pragma: no cover - optional import for portability
+    get_master_conn = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
-DEFAULT_API_BASE_URL = os.environ.get("IMA_API_BASE_URL", "http://localhost:8000")
+DEFAULT_STATUS_CHOICES: list[str] = [
+    "Available",
+    "In Service",
+    "Out of Service",
+    "Retired",
+]
+
+DEFAULT_TYPE_CHOICES: list[str] = [
+    "Passenger Vehicle",
+    "Utility",
+    "Support",
+    "Other",
+]
 
 
-class ApiClient(Protocol):
-    """Protocol describing the minimal JSON HTTP client interface."""
+class VehicleRepository:
+    """Persistence helper that reads and writes vehicle records in SQLite."""
 
-    def get(self, path: str) -> Any:
-        """Return JSON payload for a GET request."""
+    def __init__(self, db_path: Optional[str | Path] = None) -> None:
+        self._db_path: Optional[Path] = Path(db_path) if db_path else None
 
-    def post(self, path: str, json: dict[str, Any]) -> Any:
-        """Return JSON payload for a POST request."""
+    # ------------------------------------------------------------------
+    # Connection helpers
+    # ------------------------------------------------------------------
+    def _connect(self) -> sqlite3.Connection:
+        if self._db_path is not None:
+            conn = sqlite3.connect(str(self._db_path))
+            conn.row_factory = sqlite3.Row
+            return conn
+        if get_master_conn is not None:
+            conn = get_master_conn()
+            conn.row_factory = sqlite3.Row
+            return conn
+        raise RuntimeError("No database path provided and get_master_conn() is unavailable")
 
-    def put(self, path: str, json: dict[str, Any]) -> Any:
-        """Return JSON payload for a PUT request."""
+    def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
+        query = "SELECT 1 FROM sqlite_master WHERE type='table' AND lower(name)=? LIMIT 1"
+        row = conn.execute(query, (table_name.lower(),)).fetchone()
+        return row is not None
 
+    # ------------------------------------------------------------------
+    # Reference data
+    # ------------------------------------------------------------------
+    def list_vehicle_types(self) -> list[dict[str, Any]]:
+        """Return available vehicle type options."""
 
-class HttpApiClient:
-    """Simple HTTP client powered by httpx for JSON APIs."""
+        conn = self._connect()
+        try:
+            # Preferred reference tables
+            for table_name in ("vehicle_types", "vehicle_type"):
+                if self._table_exists(conn, table_name):
+                    rows = conn.execute(
+                        f"SELECT id, name FROM {table_name} ORDER BY name"
+                    ).fetchall()
+                    return [
+                        {"id": row["id"], "name": row["name"] or str(row["id"]) }
+                        for row in rows
+                    ]
 
-    def __init__(self, base_url: Optional[str] = None, timeout: float = 10.0) -> None:
-        self._base_url = (base_url or DEFAULT_API_BASE_URL).rstrip("/")
-        self._timeout = timeout
+            # Fallback: derive distinct values from vehicles table
+            rows = conn.execute(
+                """
+                SELECT DISTINCT type_id
+                FROM vehicles
+                WHERE TRIM(COALESCE(type_id, '')) != ''
+                ORDER BY type_id
+                """
+            ).fetchall()
+            entries: list[dict[str, Any]] = []
+            for row in rows:
+                value = row["type_id"]
+                if value in (None, ""):
+                    continue
+                label = str(value).strip()
+                entries.append({"id": value, "name": label or str(value)})
+        finally:
+            conn.close()
 
-    def _make_url(self, path: str) -> str:
-        if path.startswith("http://") or path.startswith("https://"):
-            return path
-        if not path.startswith("/"):
-            path = f"/{path}"
-        return f"{self._base_url}{path}"
+        if not entries:
+            entries = [{"id": choice, "name": choice} for choice in DEFAULT_TYPE_CHOICES]
+        return entries
 
-    def get(self, path: str) -> Any:
-        response = httpx.get(self._make_url(path), timeout=self._timeout)
-        response.raise_for_status()
-        return response.json()
+    def list_statuses(self) -> list[dict[str, Any]]:
+        """Return available vehicle status options."""
 
-    def post(self, path: str, json: dict[str, Any]) -> Any:
-        response = httpx.post(self._make_url(path), json=json, timeout=self._timeout)
-        response.raise_for_status()
-        return response.json()
+        conn = self._connect()
+        try:
+            for table_name in ("vehicle_statuses", "statuses"):
+                if self._table_exists(conn, table_name):
+                    rows = conn.execute(
+                        f"SELECT id, name FROM {table_name} ORDER BY name"
+                    ).fetchall()
+                    return [
+                        {"id": row["id"], "name": row["name"] or str(row["id"]) }
+                        for row in rows
+                    ]
 
-    def put(self, path: str, json: dict[str, Any]) -> Any:
-        response = httpx.put(self._make_url(path), json=json, timeout=self._timeout)
-        response.raise_for_status()
-        return response.json()
+            # Fallback: derive distinct values from vehicles table
+            rows = conn.execute(
+                """
+                SELECT DISTINCT status_id
+                FROM vehicles
+                WHERE TRIM(COALESCE(status_id, '')) != ''
+                ORDER BY status_id
+                """
+            ).fetchall()
+            options: "OrderedDict[Any, str]" = OrderedDict()
+            for row in rows:
+                value = row["status_id"]
+                if value in (None, ""):
+                    continue
+                label = str(value).strip() or str(value)
+                options.setdefault(value, label)
+        finally:
+            conn.close()
+
+        for default in DEFAULT_STATUS_CHOICES:
+            options.setdefault(default, default)
+        return [{"id": key, "name": label} for key, label in options.items()]
+
+    # ------------------------------------------------------------------
+    # CRUD helpers
+    # ------------------------------------------------------------------
+    def fetch_vehicle(self, vehicle_id: int | str) -> Optional[dict[str, Any]]:
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                """
+                SELECT id, vin, license_plate, year, make, model, capacity,
+                       type_id, status_id, tags, organization
+                FROM vehicles
+                WHERE id = ?
+                """,
+                (str(vehicle_id),),
+            ).fetchone()
+        finally:
+            conn.close()
+
+        if row is None:
+            return None
+        return self._row_to_dict(row)
+
+    def create_vehicle(self, payload: dict[str, Any]) -> dict[str, Any]:
+        conn = self._connect()
+        try:
+            new_id = self._generate_new_id(conn)
+            params = self._build_params(payload)
+            params.insert(0, new_id)
+            conn.execute(
+                """
+                INSERT INTO vehicles (
+                    id, vin, license_plate, year, make, model,
+                    capacity, type_id, status_id, tags, organization
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                tuple(params),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        record = self.fetch_vehicle(new_id)
+        if record is None:  # pragma: no cover - defensive
+            raise RuntimeError("Vehicle creation failed")
+        return record
+
+    def update_vehicle(self, vehicle_id: int | str, payload: dict[str, Any]) -> dict[str, Any]:
+        conn = self._connect()
+        try:
+            params = self._build_params(payload)
+            params.append(str(vehicle_id))
+            cur = conn.execute(
+                """
+                UPDATE vehicles
+                SET vin = ?,
+                    license_plate = ?,
+                    year = ?,
+                    make = ?,
+                    model = ?,
+                    capacity = ?,
+                    type_id = ?,
+                    status_id = ?,
+                    tags = ?,
+                    organization = ?
+                WHERE id = ?
+                """,
+                tuple(params),
+            )
+            if cur.rowcount == 0:
+                raise LookupError(f"Vehicle {vehicle_id} does not exist")
+            conn.commit()
+        finally:
+            conn.close()
+
+        record = self.fetch_vehicle(vehicle_id)
+        if record is None:  # pragma: no cover - defensive
+            raise RuntimeError("Vehicle update failed")
+        return record
+
+    # ------------------------------------------------------------------
+    # Internal utilities
+    # ------------------------------------------------------------------
+    def _generate_new_id(self, conn: sqlite3.Connection) -> str:
+        row = conn.execute(
+            "SELECT MAX(CAST(id AS INTEGER)) FROM vehicles WHERE CAST(id AS INTEGER) IS NOT NULL"
+        ).fetchone()
+        next_id = (row[0] or 0) + 1
+        # Ensure uniqueness in case of non-numeric identifiers.
+        while conn.execute("SELECT 1 FROM vehicles WHERE id = ?", (str(next_id),)).fetchone():
+            next_id += 1
+        return str(next_id)
+
+    def _build_params(self, payload: dict[str, Any]) -> list[Any]:
+        tags = payload.get("tags") or []
+        if isinstance(tags, str):
+            tags_list = [part.strip() for part in tags.split(",") if part.strip()]
+        else:
+            tags_list = list(tags)
+        tags_value = ", ".join(tags_list) if tags_list else None
+
+        make_value = payload.get("make") or None
+        model_value = payload.get("model") or None
+        organization_value = payload.get("organization")
+
+        params: list[Any] = [
+            payload.get("vin") or None,
+            payload.get("license_plate") or None,
+            payload.get("year"),
+            make_value,
+            model_value,
+            payload.get("capacity", 0),
+            self._normalize_reference(payload.get("type_id")),
+            self._normalize_reference(payload.get("status_id")),
+            tags_value,
+            organization_value,
+        ]
+        return params
+
+    def _normalize_reference(self, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
+
+    def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        record = dict(row)
+        identifier = record.get("id")
+        if isinstance(identifier, str):
+            try:
+                record["id"] = int(identifier)
+            except ValueError:
+                pass
+
+        tags_value = record.get("tags")
+        if isinstance(tags_value, str):
+            record["tags"] = [
+                part.strip() for part in tags_value.split(",") if part.strip()
+            ]
+        elif tags_value is None:
+            record["tags"] = []
+
+        return record
 
 
 class VehicleEditDialog(QDialog):
@@ -79,11 +311,11 @@ class VehicleEditDialog(QDialog):
     def __init__(
         self,
         vehicle_id: int | None = None,
-        api_client: Optional[ApiClient] = None,
+        repository: Optional[VehicleRepository] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self._api_client: ApiClient = api_client or HttpApiClient()
+        self._repository = repository or VehicleRepository()
         self._vehicle_id: int | None = None
         self._current_record: dict[str, Any] | None = None
         self._vehicle_types: list[dict[str, Any]] = []
@@ -238,19 +470,17 @@ class VehicleEditDialog(QDialog):
     # Data loading and population
     # ------------------------------------------------------------------
     def load_reference_lists(self) -> None:
-        """Retrieve vehicle types and status values from the API."""
+        """Load vehicle types and statuses from the master database."""
 
         self._references_loaded = False
         self._update_save_button_state()
 
         while True:
             try:
-                types_payload = self._api_client.get("/api/vehicle-types")
-                statuses_payload = self._api_client.get("/api/statuses")
-                if not isinstance(types_payload, list):
-                    raise ValueError("Vehicle types response was not a list")
-                if not isinstance(statuses_payload, list):
-                    raise ValueError("Statuses response was not a list")
+                types_payload = self._repository.list_vehicle_types()
+                statuses_payload = self._repository.list_statuses()
+                if not types_payload or not statuses_payload:
+                    raise ValueError("Reference lists are empty")
             except Exception as exc:  # pragma: no cover - UI branch
                 logger.error("Failed to load vehicle reference data: %s", exc)
                 choice = QMessageBox.warning(
@@ -300,9 +530,9 @@ class VehicleEditDialog(QDialog):
         """Fetch a vehicle record and populate the form."""
 
         try:
-            record = self._api_client.get(f"/api/vehicles/{vehicle_id}")
-            if not isinstance(record, dict):
-                raise ValueError("Vehicle response was not an object")
+            record = self._repository.fetch_vehicle(vehicle_id)
+            if record is None:
+                raise LookupError(f"Vehicle {vehicle_id} was not found")
         except Exception as exc:  # pragma: no cover - UI branch
             logger.error("Failed to load vehicle %s: %s", vehicle_id, exc)
             QMessageBox.critical(
@@ -315,7 +545,7 @@ class VehicleEditDialog(QDialog):
         self.populate_from_record(record)
 
     def populate_from_record(self, record: dict[str, Any]) -> None:
-        """Fill the widgets using values from an API record."""
+        """Fill the widgets using values from a stored vehicle record."""
 
         self._current_record = record
         self._vehicle_id = record.get("id", self._vehicle_id)
@@ -354,6 +584,16 @@ class VehicleEditDialog(QDialog):
             combo.setCurrentIndex(0)
             return
         index = combo.findData(value)
+        # Be forgiving if the DB stores refs as strings/ints interchangeably
+        if index < 0 and isinstance(value, str):
+            try:
+                numeric_value = int(value)
+            except ValueError:
+                numeric_value = None
+            if numeric_value is not None:
+                index = combo.findData(numeric_value)
+        if index < 0 and isinstance(value, int):
+            index = combo.findData(str(value))
         combo.setCurrentIndex(index if index >= 0 else 0)
 
     # ------------------------------------------------------------------
@@ -405,7 +645,7 @@ class VehicleEditDialog(QDialog):
     # Payload collection and validation
     # ------------------------------------------------------------------
     def collect_payload(self) -> dict[str, Any]:
-        """Collect the current form values into an API payload."""
+        """Collect the current form values into a database payload."""
 
         license_plate = self.license_plate_edit.text().strip()
         vin = self.vin_edit.text().strip()
@@ -437,6 +677,11 @@ class VehicleEditDialog(QDialog):
             "type_id": self.type_combo.currentData(),
             "status_id": self.status_combo.currentData(),
             "tags": tags,
+            "organization": (
+                self._current_record.get("organization")
+                if self._current_record
+                else None
+            ),
         }
         return payload
 
@@ -452,9 +697,11 @@ class VehicleEditDialog(QDialog):
         if year_value is not None and not (1900 <= year_value <= 2100):
             return False, "Year must be between 1900 and 2100."
 
-        if payload.get("type_id") is None:
+        type_id = payload.get("type_id")
+        if type_id is None or (isinstance(type_id, str) and not type_id.strip()):
             return False, "Please select a vehicle type."
-        if payload.get("status_id") is None:
+        status_id = payload.get("status_id")
+        if status_id is None or (isinstance(status_id, str) and not status_id.strip()):
             return False, "Please select a vehicle status."
 
         return True, None
@@ -486,12 +733,20 @@ class VehicleEditDialog(QDialog):
 
         try:
             if self._vehicle_id is None:
-                response = self._api_client.post("/api/vehicles", json=payload)
+                response = self._repository.create_vehicle(payload)
+                new_id = response.get("id")
+                if isinstance(new_id, int):
+                    self._vehicle_id = new_id
             else:
-                response = self._api_client.put(
-                    f"/api/vehicles/{self._vehicle_id}",
-                    json=payload,
-                )
+                response = self._repository.update_vehicle(self._vehicle_id, payload)
+        except LookupError as exc:  # pragma: no cover - UI branch
+            logger.error("Failed to save vehicle %s: %s", self._vehicle_id, exc)
+            QMessageBox.critical(
+                self,
+                "Save Failed",
+                f"The vehicle could not be found.\n\n{exc}",
+            )
+            return
         except Exception as exc:  # pragma: no cover - UI branch
             logger.error("Failed to save vehicle %s: %s", self._vehicle_id, exc)
             QMessageBox.critical(
@@ -501,25 +756,16 @@ class VehicleEditDialog(QDialog):
             )
             return
 
-        if not isinstance(response, dict):
-            response = {"result": response}
+        self._current_record = response
         self.vehicleSaved.emit(response)
         self.accept()
 
     def _format_error_message(self, exc: Exception) -> str:
-        """Generate a user-friendly description of an API error."""
+        """Generate a user-friendly description of a persistence error."""
 
-        response = getattr(exc, "response", None)
-        if response is not None:
-            try:
-                data = response.json()
-            except Exception:  # pragma: no cover - defensive
-                data = None
-            if isinstance(data, dict):
-                detail = data.get("detail") or data.get("message")
-                if detail:
-                    return f"Unable to save the vehicle.\n\n{detail}"
-            text = getattr(response, "text", "")
-            if text:
-                return f"Unable to save the vehicle.\n\n{text}"
+        if isinstance(exc, sqlite3.Error):
+            parts = [str(part) for part in exc.args if part]
+            message = " ".join(parts)
+            if message:
+                return f"Unable to save the vehicle.\n\n{message}"
         return f"Unable to save the vehicle.\n\n{exc}"
