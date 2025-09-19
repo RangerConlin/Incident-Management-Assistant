@@ -211,13 +211,7 @@ class TeamDetailBridge(QObject):
             self._team.last_update_ts = datetime.utcnow()
             team_repo.save_team(self._team)
             # Notify others (refresh Team Status Panel) via incidentChanged
-            try:
-                inc = incident_context.get_active_incident_id()
-                if inc:
-                    from utils.app_signals import app_signals
-                    app_signals.incidentChanged.emit(str(inc))
-            except Exception:
-                pass
+            self._emit_incident_refresh()
             self.saved.emit()
         except Exception as e:
             self.error.emit(f"Failed to save team: {e}")
@@ -228,20 +222,22 @@ class TeamDetailBridge(QObject):
         """Raise the team's needs-attention flag and persist to DB."""
         try:
             self._team.needs_attention = True
-            if self._team.team_id:
-                # Persist minimal change quickly
-                with team_repo._incident_connect() as con:  # type: ignore[attr-defined]
-                    try:
-                        con.execute(
-                            "UPDATE teams SET needs_attention=? WHERE id=?",
-                            (1, int(self._team.team_id)),
-                        )
-                        con.commit()
-                    except Exception:
-                        pass
+            self._persist_needs_attention(True)
             self.teamChanged.emit()
+            self._emit_incident_refresh()
         except Exception as e:
             self.error.emit(f"Failed to flag needs assistance: {e}")
+
+    @Slot()
+    def clearNeedsAssist(self) -> None:
+        """Clear the needs-attention flag and persist the change."""
+        try:
+            self._team.needs_attention = False
+            self._persist_needs_attention(False)
+            self.teamChanged.emit()
+            self._emit_incident_refresh()
+        except Exception as e:
+            self.error.emit(f"Failed to clear needs assistance: {e}")
 
     # ---- Status ----
     @Slot(str)
@@ -258,13 +254,7 @@ class TeamDetailBridge(QObject):
                 team_repo.set_team_status(int(self._team.team_id), self._team.status)
             self.statusChanged.emit(self._team.status)
             # Also request a board refresh
-            try:
-                inc = incident_context.get_active_incident_id()
-                if inc:
-                    from utils.app_signals import app_signals
-                    app_signals.incidentChanged.emit(str(inc))
-            except Exception:
-                pass
+            self._emit_incident_refresh()
         except Exception as e:
             self.error.emit(f"Status change failed: {e}")
 
@@ -478,13 +468,32 @@ class TeamDetailBridge(QObject):
         suitable pilot is found, fall back to the first member.
         """
         try:
-            members = [int(m) for m in self._team.members]
-            # Existing leader still valid?
-            if self._team.team_leader_id in members:
-                return
-            self._team.team_leader_id = None
+            members: list[int] = []
+            for raw in getattr(self._team, "members", []) or []:
+                try:
+                    members.append(int(raw))
+                except (TypeError, ValueError):
+                    continue
+            if not members:
+                for rec in self._personnel or []:
+                    pid = rec.get("id")
+                    try:
+                        if pid is not None:
+                            members.append(int(pid))
+                    except (TypeError, ValueError):
+                        continue
+                if members:
+                    # Cache for future loads so we keep the derived order
+                    self._team.members = members
             if not members:
                 return
+            try:
+                current_leader = int(self._team.team_leader_id)
+            except Exception:
+                current_leader = None
+            if current_leader is not None and current_leader in members:
+                return
+            self._team.team_leader_id = None
             if self.isAircraftTeam:
                 try:
                     from modules.logistics.checkin import repository as checkin_repo
@@ -498,6 +507,32 @@ class TeamDetailBridge(QObject):
                     pass
             if self._team.team_leader_id is None:
                 self._team.team_leader_id = members[0]
+        except Exception:
+            pass
+
+    def _persist_needs_attention(self, active: bool) -> None:
+        if not self._team.team_id:
+            return
+        try:
+            with team_repo._incident_connect() as con:  # type: ignore[attr-defined]
+                try:
+                    con.execute(
+                        "UPDATE teams SET needs_attention=? WHERE id=?",
+                        (1 if active else 0, int(self._team.team_id)),
+                    )
+                    con.commit()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _emit_incident_refresh(self) -> None:
+        try:
+            inc = incident_context.get_active_incident_id()
+            if inc:
+                from utils.app_signals import app_signals as _sig
+
+                _sig.incidentChanged.emit(str(inc))
         except Exception:
             pass
 
@@ -770,13 +805,7 @@ class TeamDetailBridge(QObject):
             self.teamChanged.emit()
             app_signals.teamLeaderChanged.emit(int(self._team.team_id))
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
-            try:
-                inc = incident_context.get_active_incident_id()
-                if inc:
-                    from utils.app_signals import app_signals as _sig
-                    _sig.incidentChanged.emit(str(inc))
-            except Exception:
-                pass
+            self._emit_incident_refresh()
         except Exception as e:
             self.error.emit(f"Failed to set leader: {e}")
 
@@ -1105,7 +1134,7 @@ class TeamDetailWindow(QMainWindow):
         self._task_button.clicked.connect(self._handle_task_button)
         self._unlink_task_button.clicked.connect(self._handle_unlink_task)
         self._edit_team_button.clicked.connect(self._handle_edit_team)
-        self._needs_assist_button.clicked.connect(self._bridge.raiseNeedsAssist)
+        self._needs_assist_button.clicked.connect(self._handle_needs_assist)
         self._status_button.clicked.connect(self._status_combo.showPopup)
         self._view_task_button.clicked.connect(self._handle_view_task)
         self._add_member_button.clicked.connect(self._handle_add_member)
@@ -1493,11 +1522,13 @@ class TeamDetailWindow(QMainWindow):
             self._needs_assist_button.setStyleSheet(
                 "QPushButton { background-color: #c1121f; color: white; font-weight: bold; }"
             )
+            self._needs_assist_button.setToolTip("Clear the needs-assistance flag")
         else:
             self._assist_timer.stop()
             self._assist_strip.setStyleSheet("background-color: #ff4d6d; border-radius: 2px;")
             self._needs_assist_button.setText("Flag Needs Assistance")
             self._needs_assist_button.setStyleSheet("")
+            self._needs_assist_button.setToolTip("Mark this team as needing assistance")
 
     def _apply_status_palette(self) -> None:
         try:
@@ -1608,6 +1639,24 @@ class TeamDetailWindow(QMainWindow):
 
     def _handle_view_task(self) -> None:
         handler = getattr(self._bridge, "openTaskDetail", None)
+        if callable(handler):
+            handler()
+
+    def _handle_needs_assist(self) -> None:
+        active = bool(getattr(self._bridge, "needsAssistActive", False))
+        if active:
+            response = QMessageBox.question(
+                self,
+                "Clear Needs Assistance",
+                "Mark this team as no longer needing assistance?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if response != QMessageBox.Yes:
+                return
+            handler = getattr(self._bridge, "clearNeedsAssist", None)
+        else:
+            handler = getattr(self._bridge, "raiseNeedsAssist", None)
         if callable(handler):
             handler()
 
