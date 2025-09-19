@@ -270,10 +270,15 @@ class TeamDetailBridge(QObject):
         out: list[dict[str, Any]] = []
         lid = int(self._team.team_leader_id) if self._team.team_leader_id is not None else None
         for r in self._personnel:
+            identifier = r.get("identifier") or r.get("callsign")
             out.append(
                 {
                     "id": r.get("id"),
+                    "identifier": identifier,
+                    "callsign": r.get("callsign"),
                     "name": r.get("name"),
+                    "rank": r.get("rank"),
+                    "organization": r.get("organization"),
                     "role": r.get("role"),
                     "phone": r.get("phone"),
                     "isLeader": (lid is not None and int(r.get("id")) == lid),
@@ -288,10 +293,15 @@ class TeamDetailBridge(QObject):
         out: list[dict[str, Any]] = []
         lid = int(self._team.team_leader_id) if self._team.team_leader_id is not None else None
         for r in self._personnel:
+            identifier = r.get("identifier") or r.get("callsign")
             out.append(
                 {
                     "id": r.get("id"),
+                    "identifier": identifier,
+                    "callsign": r.get("callsign"),
                     "name": r.get("name"),
+                    "rank": r.get("rank"),
+                    "organization": r.get("organization"),
                     "role": r.get("role"),
                     "phone": r.get("phone"),
                     "certs": "",  # not modeled in incident db here
@@ -720,25 +730,53 @@ class TeamDetailBridge(QObject):
 
     @Slot('QVariant')
     def updateFromQml(self, data: Dict[str, Any]) -> None:
-        """Bulk-update primitive fields from QML form bindings."""
+        """Bulk-update primitive fields from form bindings without clearing unrelated values."""
         try:
-            self._team.name = str(data.get("name", self._team.name or ""))
-            self._team.callsign = data.get("callsign") or None
-            self._team.role = data.get("role") or None
-            self._team.priority = int(data.get("priority")) if data.get("priority") not in (None, "") else None
-            self._team.team_leader_id = int(data.get("team_leader_id")) if data.get("team_leader_id") not in (None, "") else None
-            self._team.team_type = data.get("team_type", self._team.team_type)
-            self._team.primary_task = data.get("primary_task") or None
-            self._team.assignment = data.get("assignment") or None
-            self._team.team_leader_phone = data.get("team_leader_phone") or None
-            self._team.phone = data.get("phone") or None
-            self._team.notes = data.get("notes") or None
-            lat = data.get("last_known_lat")
-            lon = data.get("last_known_lon")
-            self._team.last_known_lat = float(lat) if (lat not in (None, "")) else None
-            self._team.last_known_lon = float(lon) if (lon not in (None, "")) else None
-            self._team.radio_ids = data.get("radio_ids") or None
-            self._team.route = data.get("route") or None
+            payload = data or {}
+            if "name" in payload:
+                self._team.name = str(payload.get("name") or "")
+            if "callsign" in payload:
+                value = payload.get("callsign")
+                self._team.callsign = str(value) if value not in (None, "") else None
+            if "role" in payload:
+                value = payload.get("role")
+                self._team.role = str(value) if value not in (None, "") else None
+            if "priority" in payload:
+                value = payload.get("priority")
+                self._team.priority = int(value) if value not in (None, "") else None
+            if "team_leader_id" in payload:
+                value = payload.get("team_leader_id")
+                self._team.team_leader_id = int(value) if value not in (None, "") else None
+            if "team_type" in payload:
+                value = payload.get("team_type")
+                self._team.team_type = str(value) if value not in (None, "") else None
+            if "primary_task" in payload:
+                value = payload.get("primary_task")
+                self._team.primary_task = str(value) if value not in (None, "") else None
+            if "assignment" in payload:
+                value = payload.get("assignment")
+                self._team.assignment = str(value) if value not in (None, "") else None
+            if "team_leader_phone" in payload:
+                value = payload.get("team_leader_phone")
+                self._team.team_leader_phone = str(value) if value not in (None, "") else None
+            if "phone" in payload:
+                value = payload.get("phone")
+                self._team.phone = str(value) if value not in (None, "") else None
+            if "notes" in payload:
+                value = payload.get("notes")
+                self._team.notes = str(value) if value not in (None, "") else None
+            if "last_known_lat" in payload:
+                lat = payload.get("last_known_lat")
+                self._team.last_known_lat = float(lat) if lat not in (None, "") else None
+            if "last_known_lon" in payload:
+                lon = payload.get("last_known_lon")
+                self._team.last_known_lon = float(lon) if lon not in (None, "") else None
+            if "radio_ids" in payload:
+                value = payload.get("radio_ids")
+                self._team.radio_ids = str(value) if value not in (None, "") else None
+            if "route" in payload:
+                value = payload.get("route")
+                self._team.route = str(value) if value not in (None, "") else None
             self.teamChanged.emit()
         except Exception as e:
             self.error.emit(f"Invalid input: {e}")
@@ -1078,6 +1116,7 @@ class TeamDetailWindow(QMainWindow):
         self._personnel_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._personnel_table.customContextMenuRequested.connect(self._show_personnel_menu)
         self._personnel_table.itemSelectionChanged.connect(self._on_member_selection_changed)
+        self._configure_personnel_header()
         personnel_layout.addWidget(self._personnel_table)
 
         assets_layout = QVBoxLayout(self._assets_tab)
@@ -1143,6 +1182,33 @@ class TeamDetailWindow(QMainWindow):
         self._equipment_add_button.clicked.connect(self._handle_add_equipment)
 
     # ---- Data refresh helpers ----
+    def _configure_personnel_header(self) -> None:
+        header = self._personnel_table.horizontalHeader()
+        header.setSectionsClickable(True)
+        header.setHighlightSections(False)
+        header.setStretchLastSection(False)
+        header.setMinimumSectionSize(70)
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setStyleSheet(
+            "QHeaderView::section {"
+            " background-color: #f5f5f5;"
+            " border-right: 1px solid #c5c5c5;"
+            " border-bottom: 1px solid #c5c5c5;"
+            " padding: 6px 8px;"
+            "}"
+            "QHeaderView::section:last { border-right: 0; }"
+        )
+
+    def _make_checkbox_cell(self, checked: bool) -> tuple[QWidget, QCheckBox]:
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setAlignment(Qt.AlignCenter)
+        box = QCheckBox(container)
+        box.setChecked(checked)
+        layout.addWidget(box)
+        return container, box
+
     def _populate_team_type_options(self) -> None:
         options = getattr(self._bridge, "teamTypeList", []) or []
         self._team_type_combo.blockSignals(True)
@@ -1338,39 +1404,89 @@ class TeamDetailWindow(QMainWindow):
         self._notes_edit.blockSignals(False)
 
     def _populate_personnel_table(self, members: List[Dict[str, Any]]) -> None:
-        headers = []
         if self._is_air:
-            headers = ["ID", "Name", "Role", "Phone", "Certifications", "PIC", "Actions"]
+            headers = [
+                "ID",
+                "Name",
+                "Rank",
+                "Organization",
+                "Role",
+                "Phone",
+                "Certifications",
+                "PIC",
+                "Actions",
+            ]
+            default_widths = [110, 220, 90, 160, 150, 150, 150, 80, 110]
         else:
-            headers = ["ID", "Name", "Role", "Phone", "Leader", "Medic", "Actions"]
+            headers = [
+                "ID",
+                "Name",
+                "Rank",
+                "Organization",
+                "Role",
+                "Phone",
+                "Leader",
+                "Medic",
+                "Actions",
+            ]
+            default_widths = [110, 220, 90, 160, 150, 150, 80, 80, 110]
+
         self._personnel_table.clear()
         self._personnel_table.setRowCount(len(members))
         self._personnel_table.setColumnCount(len(headers))
         self._personnel_table.setHorizontalHeaderLabels(headers)
+        self._configure_personnel_header()
 
-        roles = []
         try:
             roles = self._bridge.teamRoleOptions() or []
         except Exception:
             roles = []
 
-        role_col = 2
-        phone_col = 3
-        leader_col = 5 if self._is_air else 4
+        identifier_col = 0
+        name_col = 1
+        rank_col = 2
+        org_col = 3
+        role_col = 4
+        phone_col = 5
         actions_col = len(headers) - 1
+
         self._personnel_medic_column = None
-        if not self._is_air:
-            self._personnel_medic_column = 5
+        if self._is_air:
+            cert_col = 6
+            leader_col = 7
+        else:
+            leader_col = 6
+            self._personnel_medic_column = 7
+
+        header = self._personnel_table.horizontalHeader()
+        for col in range(len(headers)):
+            header.setSectionResizeMode(col, QHeaderView.Interactive)
+        for col, width in enumerate(default_widths):
+            if col < len(headers):
+                header.resizeSection(col, width)
 
         for row, member in enumerate(members):
             member_id = member.get("id")
-            id_item = QTableWidgetItem(str(member_id) if member_id is not None else "")
+            identifier_value = member.get("identifier") or member.get("callsign")
+            if not identifier_value and member_id is not None:
+                identifier_value = member_id
+            id_item = QTableWidgetItem(str(identifier_value or ""))
             id_item.setData(Qt.UserRole, member_id)
             id_item.setTextAlignment(Qt.AlignCenter)
-            self._personnel_table.setItem(row, 0, id_item)
+            if member_id is not None:
+                id_item.setToolTip(f"Record #{member_id}")
+            self._personnel_table.setItem(row, identifier_col, id_item)
 
             name_item = QTableWidgetItem(str(member.get("name") or ""))
-            self._personnel_table.setItem(row, 1, name_item)
+            self._personnel_table.setItem(row, name_col, name_item)
+
+            rank_item = QTableWidgetItem(str(member.get("rank") or ""))
+            rank_item.setTextAlignment(Qt.AlignCenter)
+            self._personnel_table.setItem(row, rank_col, rank_item)
+
+            org_item = QTableWidgetItem(str(member.get("organization") or ""))
+            org_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self._personnel_table.setItem(row, org_col, org_item)
 
             role_combo = QComboBox()
             role_combo.addItem("", "")
@@ -1391,39 +1507,43 @@ class TeamDetailWindow(QMainWindow):
             self._personnel_table.setCellWidget(row, role_col, role_combo)
 
             phone_item = QTableWidgetItem(str(member.get("phone") or ""))
+            phone_item.setTextAlignment(Qt.AlignCenter)
             self._personnel_table.setItem(row, phone_col, phone_item)
 
             if self._is_air:
                 certs_item = QTableWidgetItem(str(member.get("certs") or ""))
-                self._personnel_table.setItem(row, 4, certs_item)
-                pic_item = QTableWidgetItem("Yes" if member.get("isPIC") else "")
-                pic_item.setTextAlignment(Qt.AlignCenter)
-                self._personnel_table.setItem(row, leader_col, pic_item)
+                self._personnel_table.setItem(row, cert_col, certs_item)
+                leader_container, leader_box = self._make_checkbox_cell(bool(member.get("isPIC")))
+                leader_box.setToolTip("Mark this member as PIC")
+                leader_box.setEnabled(member_id is not None)
+                leader_box.clicked.connect(
+                    lambda checked, pid=member_id, box=leader_box: self._on_leader_clicked(pid, checked, box)
+                )
+                self._personnel_table.setCellWidget(row, leader_col, leader_container)
             else:
-                leader_item = QTableWidgetItem("Yes" if member.get("isLeader") else "")
-                leader_item.setTextAlignment(Qt.AlignCenter)
-                self._personnel_table.setItem(row, leader_col, leader_item)
+                leader_container, leader_box = self._make_checkbox_cell(bool(member.get("isLeader")))
+                leader_box.setToolTip("Set this member as the team leader")
+                leader_box.setEnabled(member_id is not None)
+                leader_box.clicked.connect(
+                    lambda checked, pid=member_id, box=leader_box: self._on_leader_clicked(pid, checked, box)
+                )
+                self._personnel_table.setCellWidget(row, leader_col, leader_container)
                 medic_col = self._personnel_medic_column
                 if medic_col is not None:
-                    medic_box = QCheckBox()
-                    medic_box.setChecked(bool(member.get("isMedic")))
+                    medic_container, medic_box = self._make_checkbox_cell(bool(member.get("isMedic")))
+                    medic_box.setToolTip("Toggle medic status")
+                    medic_box.setEnabled(member_id is not None)
                     medic_box.stateChanged.connect(
                         lambda state, pid=member_id: self._on_medic_toggled(pid, state)
                     )
-                    self._personnel_table.setCellWidget(row, medic_col, medic_box)
+                    self._personnel_table.setCellWidget(row, medic_col, medic_container)
 
             remove_btn = QPushButton("Remove")
+            remove_btn.setEnabled(member_id is not None)
             remove_btn.clicked.connect(
                 lambda _=False, pid=member_id: self._bridge.removeMember(pid) if pid is not None else None
             )
             self._personnel_table.setCellWidget(row, actions_col, remove_btn)
-
-        header = self._personnel_table.horizontalHeader()
-        for col in range(len(headers)):
-            mode = QHeaderView.ResizeToContents
-            if col == 1:
-                mode = QHeaderView.Stretch
-            header.setSectionResizeMode(col, mode)
 
     def _populate_assets_table(self, assets: List[Dict[str, Any]]) -> None:
         if self._is_air:
@@ -1720,6 +1840,19 @@ class TeamDetailWindow(QMainWindow):
         role_value = value if value not in (None, "") else None
         try:
             self._bridge.setPersonRole(int(person_id), role_value)
+        except Exception:
+            pass
+
+    def _on_leader_clicked(self, person_id: Any, checked: bool, checkbox: QCheckBox) -> None:
+        if self._updating or person_id is None:
+            return
+        if not checked:
+            checkbox.blockSignals(True)
+            checkbox.setChecked(True)
+            checkbox.blockSignals(False)
+            return
+        try:
+            self._bridge.setLeader(int(person_id))
         except Exception:
             pass
 

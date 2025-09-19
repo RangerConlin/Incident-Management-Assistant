@@ -30,14 +30,41 @@ def _rows_to_dicts(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
     return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    try:
+        info = conn.execute(f"PRAGMA table_info({table})")
+        return any(row[1] == column for row in info.fetchall())
+    except Exception:
+        return False
+
+
 def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
-    sql = """
-    SELECT id, name, role, callsign, phone, is_medic
+    conn = get_db_connection()
+    has_callsign = _has_column(conn, "personnel", "callsign")
+    has_rank = _has_column(conn, "personnel", "rank")
+    has_org = _has_column(conn, "personnel", "organization")
+    has_identifier = _has_column(conn, "personnel", "identifier")
+
+    sel_callsign = ", callsign" if has_callsign else ", NULL AS callsign"
+    if has_identifier:
+        sel_identifier = ", identifier"
+    elif has_callsign:
+        sel_identifier = ", callsign AS identifier"
+    else:
+        sel_identifier = ", NULL AS identifier"
+    sel_rank = ", rank" if has_rank else ", NULL AS rank"
+    sel_org = ", organization" if has_org else ", NULL AS organization"
+
+    sql = f"""
+    SELECT id, name, role, phone, is_medic
+           {sel_callsign}
+           {sel_identifier}
+           {sel_rank}
+           {sel_org}
     FROM personnel
     WHERE team_id = ?
     ORDER BY name COLLATE NOCASE;
     """
-    conn = get_db_connection()
     cur = conn.execute(sql, (team_id,))
     return _rows_to_dicts(cur)
 
