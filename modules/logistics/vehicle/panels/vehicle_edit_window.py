@@ -1,4 +1,8 @@
-"""Vehicle inventory editing dialog implemented with Qt widgets."""
+"""Vehicle inventory editing dialog implemented with Qt widgets.
+
+Merged to use local SQLite via VehicleRepository (offline-first). Removes HTTP client path
+and all merge-conflict markers. No QML used.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,6 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Optional
 
-from utils.db import get_master_conn
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
@@ -24,6 +27,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+# Local project import: master DB connector (must return sqlite3.Connection)
+# Falls back to direct-path connection if not provided at init.
+try:
+    from utils.db import get_master_conn  # type: ignore
+except Exception:  # pragma: no cover - optional import for portability
+    get_master_conn = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +66,11 @@ class VehicleRepository:
             conn = sqlite3.connect(str(self._db_path))
             conn.row_factory = sqlite3.Row
             return conn
-        conn = get_master_conn()
-        conn.row_factory = sqlite3.Row
-        return conn
+        if get_master_conn is not None:
+            conn = get_master_conn()
+            conn.row_factory = sqlite3.Row
+            return conn
+        raise RuntimeError("No database path provided and get_master_conn() is unavailable")
 
     def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
         query = "SELECT 1 FROM sqlite_master WHERE type='table' AND lower(name)=? LIMIT 1"
@@ -73,16 +85,18 @@ class VehicleRepository:
 
         conn = self._connect()
         try:
+            # Preferred reference tables
             for table_name in ("vehicle_types", "vehicle_type"):
                 if self._table_exists(conn, table_name):
                     rows = conn.execute(
                         f"SELECT id, name FROM {table_name} ORDER BY name"
                     ).fetchall()
                     return [
-                        {"id": row["id"], "name": row["name"] or str(row["id"])}
+                        {"id": row["id"], "name": row["name"] or str(row["id"]) }
                         for row in rows
                     ]
 
+            # Fallback: derive distinct values from vehicles table
             rows = conn.execute(
                 """
                 SELECT DISTINCT type_id
@@ -91,7 +105,7 @@ class VehicleRepository:
                 ORDER BY type_id
                 """
             ).fetchall()
-            entries = []
+            entries: list[dict[str, Any]] = []
             for row in rows:
                 value = row["type_id"]
                 if value in (None, ""):
@@ -116,10 +130,11 @@ class VehicleRepository:
                         f"SELECT id, name FROM {table_name} ORDER BY name"
                     ).fetchall()
                     return [
-                        {"id": row["id"], "name": row["name"] or str(row["id"])}
+                        {"id": row["id"], "name": row["name"] or str(row["id"]) }
                         for row in rows
                     ]
 
+            # Fallback: derive distinct values from vehicles table
             rows = conn.execute(
                 """
                 SELECT DISTINCT status_id
@@ -128,7 +143,7 @@ class VehicleRepository:
                 ORDER BY status_id
                 """
             ).fetchall()
-            options = OrderedDict()
+            options: "OrderedDict[Any, str]" = OrderedDict()
             for row in rows:
                 value = row["status_id"]
                 if value in (None, ""):
@@ -569,6 +584,7 @@ class VehicleEditDialog(QDialog):
             combo.setCurrentIndex(0)
             return
         index = combo.findData(value)
+        # Be forgiving if the DB stores refs as strings/ints interchangeably
         if index < 0 and isinstance(value, str):
             try:
                 numeric_value = int(value)
