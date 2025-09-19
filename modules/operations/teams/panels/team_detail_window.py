@@ -910,8 +910,6 @@ class TeamDetailBridge(QObject):
         # Placeholder for PDF/HTML export
         pass
 
-
-
 class RefreshableComboBox(QComboBox):
     """Combo box that emits before showing the popup so options can refresh."""
 
@@ -920,8 +918,6 @@ class RefreshableComboBox(QComboBox):
     def showPopup(self) -> None:  # type: ignore[override]
         self.popupAboutToBeShown.emit()
         super().showPopup()
-
-
 
 class TeamDetailWindow(QMainWindow):
     """Widget-based implementation of the Team Detail window."""
@@ -946,7 +942,6 @@ class TeamDetailWindow(QMainWindow):
         self._filtered_status_options: List[Dict[str, str]] = []
         self._current_aircraft_id: Optional[int] = None
         self._refreshing_aircraft: bool = False
-
         self._notes_timer = QTimer(self)
         self._notes_timer.setSingleShot(True)
         self._notes_timer.setInterval(500)
@@ -1053,6 +1048,7 @@ class TeamDetailWindow(QMainWindow):
         self._name_label = QLabel("Team Name")
         self._name_field = QLineEdit()
         left_form.addRow(self._name_label, self._name_field)
+
 
         self._aircraft_label = QLabel("Assigned Aircraft")
         self._aircraft_combo = RefreshableComboBox()
@@ -1228,8 +1224,10 @@ class TeamDetailWindow(QMainWindow):
         self._member_detail_button.clicked.connect(self._handle_member_detail)
         self._asset_add_button.clicked.connect(self._handle_add_asset)
         self._equipment_add_button.clicked.connect(self._handle_add_equipment)
+
         self._aircraft_combo.popupAboutToBeShown.connect(self._refresh_aircraft_options)
         self._aircraft_combo.currentIndexChanged.connect(self._handle_aircraft_selected)
+
 
     # ---- Data refresh helpers ----
     def _configure_personnel_header(self) -> None:
@@ -1271,6 +1269,7 @@ class TeamDetailWindow(QMainWindow):
 
     def _populate_status_options(self) -> None:
         options = getattr(self._bridge, "statusList", []) or []
+
         normalized: List[Dict[str, str]] = []
         for opt in options:
             label = str(opt.get("label", ""))
@@ -1361,6 +1360,7 @@ class TeamDetailWindow(QMainWindow):
             self._asset_add_button.setVisible(False)
             self._aircraft_label.setVisible(True)
             self._aircraft_combo.setVisible(True)
+
         else:
             self._name_label.setText("Team Name")
             self._leader_label.setText("Team Leader")
@@ -1372,6 +1372,7 @@ class TeamDetailWindow(QMainWindow):
             self._aircraft_label.setVisible(False)
             self._aircraft_combo.setVisible(False)
         self._reload_status_options()
+
 
     def _update_title(self, team: Dict[str, Any]) -> None:
         parts: List[str] = []
@@ -1753,6 +1754,7 @@ class TeamDetailWindow(QMainWindow):
     def _populate_assets_table(self, assets: List[Dict[str, Any]]) -> None:
         if self._is_air:
             headers = ["ID", "Callsign", "Tail Number", "Type", "Status"]
+
         else:
             headers = ["ID", "Callsign/Name", "Type", "Driver", "Phone", "Actions"]
         self._asset_table.clear()
@@ -1812,6 +1814,7 @@ class TeamDetailWindow(QMainWindow):
                 mode = QHeaderView.ResizeToContents
                 if col == 1:
                     mode = QHeaderView.Stretch
+
             header.setSectionResizeMode(col, mode)
 
     def _populate_equipment_table(self, equipment: List[Dict[str, Any]]) -> None:
