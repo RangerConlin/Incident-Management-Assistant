@@ -242,48 +242,61 @@ class ResourceRequestService:
                 )
         return item_ids
 
+    def _apply_status_change(
+        self,
+        conn: sqlite3.Connection,
+        request: ResourceRequest,
+        target_status: RequestStatus,
+        actor_id: str,
+        note: Optional[str] = None,
+    ) -> None:
+        validators.validate_status_transition(request.status, target_status)
+
+        updates: Dict[str, object] = {
+            "status": validators.normalise_status_for_transition(request.status, target_status).value,
+            "last_updated_utc": request_model.utcnow(),
+        }
+        if request.status != RequestStatus.DRAFT:
+            updates["version"] = request.version + 1
+
+        self._update_request_row(conn, request.id, updates)
+        change_dict = {
+            "status": {
+                "old": request.status.value,
+                "new": updates["status"],
+            }
+        }
+        if note:
+            change_dict["status_note"] = {"old": None, "new": note}
+        self._write_audit_records(
+            conn,
+            ENTITY_REQUEST,
+            request.id,
+            change_dict,
+            actor_id,
+        )
+
+        request.status = RequestStatus(updates["status"])
+        request.last_updated_utc = updates["last_updated_utc"]
+        if "version" in updates:
+            request.version = int(updates["version"])
+
     def change_status(self, request_id: str, status: str, actor_id: str, note: Optional[str] = None) -> None:
         new_status = validators.validate_status(status)
 
         with self.connection() as conn:
             request = self._fetch_request(conn, request_id)
-            validators.validate_status_transition(request.status, new_status)
-
-            updates: Dict[str, object] = {
-                "status": validators.normalise_status_for_transition(request.status, new_status).value,
-                "last_updated_utc": request_model.utcnow(),
-            }
-            if request.status != RequestStatus.DRAFT:
-                updates["version"] = request.version + 1
-
-            before = request.to_row()
-            after = dict(before)
-            after.update(updates)
-
-            self._update_request_row(conn, request_id, updates)
-            change_dict = {
-                "status": {
-                    "old": request.status.value,
-                    "new": updates["status"],
-                }
-            }
-            if note:
-                change_dict["status_note"] = {"old": None, "new": note}
-            self._write_audit_records(
-                conn,
-                ENTITY_REQUEST,
-                request_id,
-                change_dict,
-                actor_id,
-            )
+            self._apply_status_change(conn, request, new_status, actor_id, note)
 
     def record_approval(self, request_id: str, action: str, actor_id: str, note: Optional[str] = None) -> str:
         parsed_action = validators.validate_approval_action(action, note)
         approval_id = self._generate_id()
         now = request_model.utcnow()
 
+        target_status = ACTION_STATUS_MAP.get(parsed_action)
+
         with self.connection() as conn:
-            self._fetch_request(conn, request_id)
+            request = self._fetch_request(conn, request_id)
             record = ApprovalRecord(
                 id=approval_id,
                 request_id=request_id,
@@ -312,9 +325,8 @@ class ResourceRequestService:
                 actor_id,
             )
 
-        target_status = ACTION_STATUS_MAP.get(parsed_action)
-        if target_status:
-            self.change_status(request_id, target_status.value, actor_id, note=note)
+            if target_status:
+                self._apply_status_change(conn, request, target_status, actor_id, note)
         return approval_id
 
     def assign_fulfillment(
