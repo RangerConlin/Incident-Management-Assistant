@@ -30,14 +30,41 @@ def _rows_to_dicts(cur: sqlite3.Cursor) -> List[Dict[str, Any]]:
     return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    try:
+        info = conn.execute(f"PRAGMA table_info({table})")
+        return any(row[1] == column for row in info.fetchall())
+    except Exception:
+        return False
+
+
 def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
-    sql = """
-    SELECT id, name, role, callsign, phone, is_medic
+    conn = get_db_connection()
+    has_callsign = _has_column(conn, "personnel", "callsign")
+    has_rank = _has_column(conn, "personnel", "rank")
+    has_org = _has_column(conn, "personnel", "organization")
+    has_identifier = _has_column(conn, "personnel", "identifier")
+
+    sel_callsign = ", callsign" if has_callsign else ", NULL AS callsign"
+    if has_identifier:
+        sel_identifier = ", identifier"
+    elif has_callsign:
+        sel_identifier = ", callsign AS identifier"
+    else:
+        sel_identifier = ", NULL AS identifier"
+    sel_rank = ", rank" if has_rank else ", NULL AS rank"
+    sel_org = ", organization" if has_org else ", NULL AS organization"
+
+    sql = f"""
+    SELECT id, name, role, phone, is_medic
+           {sel_callsign}
+           {sel_identifier}
+           {sel_rank}
+           {sel_org}
     FROM personnel
     WHERE team_id = ?
     ORDER BY name COLLATE NOCASE;
     """
-    conn = get_db_connection()
     cur = conn.execute(sql, (team_id,))
     return _rows_to_dicts(cur)
 
@@ -67,13 +94,15 @@ def fetch_team_equipment(team_id: int) -> List[Dict[str, Any]]:
 
 
 def fetch_team_aircraft(team_id: int) -> List[Dict[str, Any]]:
-    sql = """
-    SELECT id, tail_number, type, callsign
+    conn = get_db_connection()
+    has_status = _has_column(conn, "aircraft", "status")
+    sel_status = ", status" if has_status else ", NULL AS status"
+    sql = f"""
+    SELECT id, tail_number, type, callsign{sel_status}
     FROM aircraft
     WHERE team_id = ?
     ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE;
     """
-    conn = get_db_connection()
     cur = conn.execute(sql, (team_id,))
     return _rows_to_dicts(cur)
 
@@ -120,25 +149,19 @@ def list_available_aircraft(include_team_id: Optional[int] = None) -> List[Dict[
     """List aircraft not assigned to any team; optionally include those on include_team_id."""
     conn = get_db_connection()
     try:
+        has_status = _has_column(conn, "aircraft", "status")
+        sel_status = ", status" if has_status else ", NULL AS status"
+        base_sql = (
+            "SELECT id, tail_number, callsign, team_id"
+            f"{sel_status} FROM aircraft"
+        )
+        order_clause = " ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE"
         if include_team_id is None:
-            cur = conn.execute(
-                """
-                SELECT id, tail_number, callsign, team_id
-                FROM aircraft
-                WHERE team_id IS NULL
-                ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE
-                """
-            )
+            sql = base_sql + " WHERE team_id IS NULL" + order_clause
+            cur = conn.execute(sql)
         else:
-            cur = conn.execute(
-                """
-                SELECT id, tail_number, callsign, team_id
-                FROM aircraft
-                WHERE team_id IS NULL OR team_id = ?
-                ORDER BY tail_number COLLATE NOCASE, callsign COLLATE NOCASE
-                """,
-                (int(include_team_id),),
-            )
+            sql = base_sql + " WHERE team_id IS NULL OR team_id = ?" + order_clause
+            cur = conn.execute(sql, (int(include_team_id),))
         return _rows_to_dicts(cur)
     except Exception:
         return []
