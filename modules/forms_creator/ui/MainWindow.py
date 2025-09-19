@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -62,6 +62,7 @@ class MainWindow(QMainWindow):
         self.background_item = None
         self.current_field_item: FieldItem | None = None
         self.next_field_id = 1
+        self.active_field_type: str | None = None
 
         self._build_menu()
         self._build_central_widget()
@@ -111,16 +112,20 @@ class MainWindow(QMainWindow):
         palette_container.setLayout(palette_layout)
         palette_layout.addWidget(QLabel("Field Palette"))
         self.palette_list = QListWidget()
+        self.palette_list.setEnabled(False)
         for key in FIELD_CLASSES.keys():
             item = QListWidgetItem(key.title())
             item.setData(Qt.ItemDataRole.UserRole, key)
             self.palette_list.addItem(item)
         self.palette_list.itemDoubleClicked.connect(self._handle_palette_double_click)
+        self.palette_list.currentItemChanged.connect(self._handle_palette_selection)
         palette_layout.addWidget(self.palette_list)
         splitter.addWidget(palette_container)
 
         # Canvas
         self.canvas = CanvasView()
+        self.canvas.fieldDrawn.connect(self._on_canvas_field_drawn)
+        self.canvas.fieldCreationAborted.connect(self._on_canvas_field_aborted)
         self.scene = self.canvas.scene()
         self.scene.selectionChanged.connect(self._on_selection_changed)
         splitter.addWidget(self.canvas)
@@ -217,12 +222,14 @@ class MainWindow(QMainWindow):
         template = self.form_service.get_template(template_id)
         self.current_template = template
         self.next_field_id = max((f.get("id", 0) for f in template.get("fields", [])), default=0) + 1
+        self._reset_palette_tool()
         self.scene.clear()
         self.background_item = None
         self.canvas.reset_zoom()
         self._load_background(template)
         for field in template.get("fields", []):
             self._add_field_item(field)
+        self.palette_list.setEnabled(True)
         self.statusBar().showMessage(f"Loaded template {template['name']} v{template['version']}", 5000)
 
     def save_template(self) -> None:
@@ -268,15 +275,62 @@ class MainWindow(QMainWindow):
         if not self.current_template:
             QMessageBox.warning(self, "Add Field", "Create or open a template first.")
             return
+        self._create_field_from_rect(field_type, QRectF(50.0, 50.0, 150.0, 24.0), select=True)
+        self._reset_palette_tool()
+
+    def _handle_palette_selection(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
+        if current is None:
+            if previous is not None:
+                self._reset_palette_tool()
+            return
+        if not self.current_template:
+            self.statusBar().showMessage("Open or create a template before adding fields.", 5000)
+            self._reset_palette_tool()
+            return
+        field_type = current.data(Qt.ItemDataRole.UserRole)
+        if not field_type:
+            return
+        self.active_field_type = str(field_type)
+        self.canvas.begin_field_creation(self.active_field_type)
+        self.statusBar().showMessage(
+            f"Click and drag on the canvas to draw a {current.text()} field.", 5000
+        )
+
+    def _add_field_item(self, field: dict[str, Any], *, select: bool = False) -> FieldItem:
+        cls = FIELD_CLASSES.get(field.get("type"), FieldItem)
+        item = cls(field)
+        self.scene.addItem(item)
+        item.setZValue(5)
+        if select:
+            self.scene.clearSelection()
+            item.setSelected(True)
+        return item
+
+    def _on_canvas_field_drawn(self, rect: QRectF) -> None:
+        if not self.current_template or not self.active_field_type:
+            self._reset_palette_tool()
+            return
+        self._create_field_from_rect(self.active_field_type, rect, select=True)
+        self._reset_palette_tool()
+
+    def _on_canvas_field_aborted(self) -> None:
+        self.statusBar().showMessage("Field placement canceled", 3000)
+        self._reset_palette_tool()
+
+    def _create_field_from_rect(self, field_type: str, rect: QRectF, *, select: bool = False) -> None:
+        if not self.current_template:
+            return
+        width = rect.width() if rect.width() > 0 else 150.0
+        height = rect.height() if rect.height() > 0 else 24.0
         field = {
             "id": self.next_field_id,
             "page": 1,
             "name": f"field_{self.next_field_id}",
             "type": field_type,
-            "x": 50.0,
-            "y": 50.0,
-            "width": 150.0,
-            "height": 24.0,
+            "x": float(rect.x()),
+            "y": float(rect.y()),
+            "width": float(width),
+            "height": float(height),
             "font_family": "",
             "font_size": 10,
             "align": "left",
@@ -288,13 +342,17 @@ class MainWindow(QMainWindow):
         }
         self.next_field_id += 1
         self.current_template.setdefault("fields", []).append(field)
-        self._add_field_item(field)
+        self._add_field_item(field, select=select)
+        self.statusBar().showMessage(f"Added {field_type.title()} field", 4000)
 
-    def _add_field_item(self, field: dict[str, Any]) -> None:
-        cls = FIELD_CLASSES.get(field.get("type"), FieldItem)
-        item = cls(field)
-        self.scene.addItem(item)
-        item.setZValue(5)
+    def _reset_palette_tool(self) -> None:
+        self.active_field_type = None
+        if hasattr(self, "canvas"):
+            self.canvas.cancel_field_creation()
+        if hasattr(self, "palette_list"):
+            self.palette_list.blockSignals(True)
+            self.palette_list.clearSelection()
+            self.palette_list.blockSignals(False)
 
     def _on_selection_changed(self) -> None:
         items = self.scene.selectedItems()
