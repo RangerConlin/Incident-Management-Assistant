@@ -404,7 +404,6 @@ class MainWindow(QMainWindow):
         m_log.addSeparator()
         self._add_action(m_log, "Logistics Dashboard", "Ctrl+L", "logistics.dashboard")
         self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
-        self._add_action(m_log, "Resource Requests", "Ctrl+Shift+R", "logistics.requests")
         self._add_action(m_log, "Equipment Inventory", None, "logistics.equipment")
         self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
 
@@ -865,7 +864,6 @@ class MainWindow(QMainWindow):
         from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
             VehicleInventoryDialog,
         )
-
         dialog = VehicleInventoryDialog(parent=self)
         dialog.exec()
 

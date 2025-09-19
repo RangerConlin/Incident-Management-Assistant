@@ -275,7 +275,6 @@ def open_personnel():
 
 def open_vehicles():
     from modules.logistics.vehicle.panels.vehicle_inventory_panel import VehicleInventoryDialog
-
     win = VehicleInventoryDialog()
     win.exec()
 
