@@ -106,18 +106,6 @@ def _window_model_map():
             """)
         ),
 
-        # Aircraft
-        "AircraftWindow.qml": (
-            "AircraftModel",
-            lambda: _make_model("""
-                SELECT id, tail_number, callsign, type, make_model, capacity,
-                       status, base_location, current_assignment, capabilities,
-                       notes, created_at, updated_at
-                FROM aircraft
-                ORDER BY tail_number COLLATE NOCASE;
-            """)
-        ),
-
         # Equipment
         "EquipmentWindow.qml": (
             "EquipmentModel",
@@ -280,8 +268,11 @@ def open_vehicles():
     win.exec()
 
 def open_aircraft():
-    path = os.path.abspath("qml/AircraftWindow.qml")
-    win = QmlWindow(path, "Aircraft Catalog")
+    from modules.logistics.aircraft.panels.aircraft_inventory_window import (
+        AircraftInventoryWindow,
+    )
+
+    win = AircraftInventoryWindow()
     win.exec()
 
 def open_equipment():
