@@ -1,14 +1,28 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Optional
 
-_active_incident_id = None
+_active_incident_id: Optional[str] = None
 
 
-def set_active_incident_id(value: str):
+def set_active_incident_id(value: object | None) -> None:
+    """Persist the active incident identifier for SQLite-backed modules.
+
+    Parameters
+    ----------
+    value:
+        Any incident identifier understood by the wider application.  ``None``
+        clears the active incident.  Non-``None`` values are coerced to
+        ``str`` so callers can pass integers from legacy dialogs without
+        performing their own conversion.
+    """
+
     global _active_incident_id
-    _active_incident_id = value
+    _active_incident_id = None if value is None else str(value)
 
 
-def get_active_incident_id():
+def get_active_incident_id() -> Optional[str]:
     return _active_incident_id
 
 

@@ -22,18 +22,26 @@ class AppState:
             getattr(cls, "_active_incident_number", None),
         )
         cls._active_incident_number = incident_number
+        normalized_incident_id = None if incident_number is None else str(incident_number)
         # Keep incident_context (DB path provider) in sync
         try:
             from utils import incident_context
-            incident_context.set_active_incident(incident_number)  # type: ignore[arg-type]
+            incident_context.set_active_incident(normalized_incident_id)  # type: ignore[arg-type]
         except Exception as e:
             # Non-fatal: selection UI should still work; DB-backed views may error until set
             logger.warning("[state] failed to sync incident_context: %s", e)
+        # Keep incident_db (legacy SQLite helper) in sync
+        try:
+            from utils import incident_db
+
+            incident_db.set_active_incident_id(normalized_incident_id)
+        except Exception as e:
+            logger.warning("[state] failed to sync incident_db: %s", e)
         # Emit Qt signal for interested panels
         try:
             from utils.app_signals import app_signals
-            if incident_number is not None:
-                app_signals.incidentChanged.emit(str(incident_number))
+            if normalized_incident_id is not None:
+                app_signals.incidentChanged.emit(normalized_incident_id)
         except Exception as e:
             logger.warning("[state] failed to emit incidentChanged: %s", e)
 

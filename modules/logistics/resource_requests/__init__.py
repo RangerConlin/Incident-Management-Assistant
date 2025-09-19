@@ -15,7 +15,6 @@ from .api.service import ResourceRequestService
 
 __all__ = ["get_service", "ResourceRequestService"]
 
-
 def _sync_contexts(incident_id: str) -> None:
     """Propagate the active incident identifier to shared context helpers."""
 
@@ -41,7 +40,6 @@ def _get_active_incident_from_state() -> Optional[str]:
     value = AppState.get_active_incident()
     return str(value) if value else None
 
-
 def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
     """Return a service instance bound to ``incident_id``.
 
@@ -53,7 +51,6 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
         will create the underlying database file if it does not yet exist to
         support offline-first behaviour mandated by the spec.
     """
-
     from utils import incident_db
 
     resolved_id = str(incident_id) if incident_id is not None else None
@@ -78,3 +75,4 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
 
     db_path = Path("data") / "incidents" / f"{resolved_id}.db"
     return ResourceRequestService(incident_id=resolved_id, db_path=db_path)
+

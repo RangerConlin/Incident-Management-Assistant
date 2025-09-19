@@ -14,6 +14,7 @@ This package implements the Logistics 4-1 Resource Request workflow for the SARA
 ## Getting Started
 
 1. Install dependencies: `pip install -r requirements.txt`
+
 2. Ensure an incident is active before instantiating the service.  The module
    reads the incident number from :class:`utils.state.AppState` when no explicit
    identifier is provided.
@@ -22,6 +23,7 @@ This package implements the Logistics 4-1 Resource Request workflow for the SARA
    from utils.state import AppState
 
    AppState.set_active_incident("SAR-EXAMPLE")
+
    service = get_service()
    ```
 3. Populate demo data for exploration:

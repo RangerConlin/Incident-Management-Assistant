@@ -137,6 +137,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
             lambda: self._record_action(ApprovalAction.SUBMIT),
         )
 
+
     # ----------------------------------------------------------------- loading
     def start_new(self) -> None:
         self.current_request_id = None
