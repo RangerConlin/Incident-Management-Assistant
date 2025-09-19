@@ -8,6 +8,7 @@ from .panels.template_debug_panel import TemplateDebugPanel
 from .panels.profile_manager_panel import ProfileManagerPanel
 from .panels.form_catalog_manager import FormCatalogManager
 from .panels.form_template_builder import FormTemplateBuilder
+from .panels.binding_library_panel import BindingLibraryPanel
 from .panels.fema_forms_importer import FEMAFormsImporter
 
 
@@ -101,6 +102,24 @@ def attach_dev_menu(main_window):
 
     act_ftb.triggered.connect(_open_ftb)
     dev_menu.addAction(act_ftb)
+
+    # Binding Library Browser
+    act_binding = QAction("Binding Library", main_window)
+
+    def _open_binding():
+        panel = BindingLibraryPanel(parent=main_window)
+        dlg = QDialog(main_window)
+        dlg.setWindowTitle("Binding Library")
+        dlg.setWindowModality(Qt.ApplicationModal)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        v = QVBoxLayout(dlg)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.addWidget(panel)
+        dlg.resize(700, 500)
+        dlg.exec()
+
+    act_binding.triggered.connect(_open_binding)
+    dev_menu.addAction(act_binding)
 
     # FEMA Forms Importer
     act_fema = QAction("Fetch FEMA ICS Forms", main_window)
