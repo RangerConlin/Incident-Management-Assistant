@@ -861,11 +861,10 @@ class MainWindow(QMainWindow):
         self._open_qml_modal("qml/TeamTypesWindow.qml", title="Team Types")
 
     def open_edit_vehicles(self) -> None:
-        from modules.logistics.vehicle.panels.vehicle_edit_window import (
-            VehicleEditDialog,
+        from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
+            VehicleInventoryDialog,
         )
-
-        dialog = VehicleEditDialog(parent=self)
+        dialog = VehicleInventoryDialog(parent=self)
         dialog.exec()
 
     def open_edit_aircraft(self) -> None:

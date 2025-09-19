@@ -274,9 +274,8 @@ def open_personnel():
     win.exec()
 
 def open_vehicles():
-    from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog
-
-    win = VehicleEditDialog()
+    from modules.logistics.vehicle.panels.vehicle_inventory_panel import VehicleInventoryDialog
+    win = VehicleInventoryDialog()
     win.exec()
 
 def open_aircraft():

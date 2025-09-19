@@ -1,9 +1,8 @@
 """Vehicle inventory editing dialog implemented with Qt widgets.
 
-Merged to use local SQLite via VehicleRepository (offline-first). Removes HTTP client path
-and all merge-conflict markers. No QML used.
+Offline‑first: uses local SQLite via VehicleRepository. Removes HTTP client path
+and all merge‑conflict markers. No QML used.
 """
-
 from __future__ import annotations
 
 import logging
@@ -29,10 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 # Local project import: master DB connector (must return sqlite3.Connection)
-# Falls back to direct-path connection if not provided at init.
-try:
+try:  # optional import for portability
     from utils.db import get_master_conn  # type: ignore
-except Exception:  # pragma: no cover - optional import for portability
+except Exception:  # pragma: no cover
     get_master_conn = None  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -64,13 +62,14 @@ class VehicleRepository:
     def _connect(self) -> sqlite3.Connection:
         if self._db_path is not None:
             conn = sqlite3.connect(str(self._db_path))
-            conn.row_factory = sqlite3.Row
-            return conn
-        if get_master_conn is not None:
+        else:
+            if get_master_conn is None:
+                raise RuntimeError(
+                    "get_master_conn is not available and no db_path was provided"
+                )
             conn = get_master_conn()
-            conn.row_factory = sqlite3.Row
-            return conn
-        raise RuntimeError("No database path provided and get_master_conn() is unavailable")
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
         query = "SELECT 1 FROM sqlite_master WHERE type='table' AND lower(name)=? LIMIT 1"
@@ -80,6 +79,53 @@ class VehicleRepository:
     # ------------------------------------------------------------------
     # Reference data
     # ------------------------------------------------------------------
+    def list_vehicles(self, search_text: str | None = None) -> list[dict[str, Any]]:
+        """Return vehicles from the master database, optionally filtered."""
+
+        if search_text is not None:
+            normalized = search_text.strip().lower()
+            search_text = normalized or None
+
+        conn = self._connect()
+        try:
+            base_query = (
+                """
+                SELECT id, vin, license_plate, year, make, model, capacity,
+                       type_id, status_id, tags, organization
+                FROM vehicles
+                """
+            )
+            params: list[Any] = []
+            if search_text:
+                term = f"%{search_text}%"
+                filters = " OR ".join(
+                    [
+                        "lower(COALESCE(vin, '')) LIKE ?",
+                        "lower(COALESCE(license_plate, '')) LIKE ?",
+                        "lower(COALESCE(make, '')) LIKE ?",
+                        "lower(COALESCE(model, '')) LIKE ?",
+                        "lower(COALESCE(tags, '')) LIKE ?",
+                    ]
+                )
+                base_query += f"WHERE {filters}\n"
+                params.extend([term] * 5)
+
+            base_query += (
+                """
+                ORDER BY
+                    CASE WHEN TRIM(COALESCE(make, '')) = '' THEN 1 ELSE 0 END,
+                    lower(COALESCE(make, '')),
+                    lower(COALESCE(model, '')),
+                    CAST(id AS INTEGER)
+                """
+            )
+
+            rows = conn.execute(base_query, tuple(params)).fetchall()
+        finally:
+            conn.close()
+
+        return [self._row_to_dict(row) for row in rows]
+
     def list_vehicle_types(self) -> list[dict[str, Any]]:
         """Return available vehicle type options."""
 
@@ -160,6 +206,21 @@ class VehicleRepository:
     # ------------------------------------------------------------------
     # CRUD helpers
     # ------------------------------------------------------------------
+    def delete_vehicle(self, vehicle_id: int | str) -> None:
+        """Remove a vehicle from the catalog."""
+
+        conn = self._connect()
+        try:
+            cur = conn.execute(
+                "DELETE FROM vehicles WHERE id = ?",
+                (str(vehicle_id),),
+            )
+            if cur.rowcount == 0:
+                raise LookupError(f"Vehicle {vehicle_id} does not exist")
+            conn.commit()
+        finally:
+            conn.close()
+
     def fetch_vehicle(self, vehicle_id: int | str) -> Optional[dict[str, Any]]:
         conn = self._connect()
         try:
