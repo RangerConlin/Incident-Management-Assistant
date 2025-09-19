@@ -16,9 +16,6 @@ from .api.service import ResourceRequestService
 __all__ = ["get_service", "ResourceRequestService"]
 
 
-_DEFAULT_TRAINING_INCIDENT_ID = "TRAINING-001"
-
-
 def _sync_contexts(incident_id: str) -> None:
     """Propagate the active incident identifier to shared context helpers."""
 
@@ -31,6 +28,18 @@ def _sync_contexts(incident_id: str) -> None:
         # in light-weight unit tests.  Failing silently keeps the fallback logic
         # robust without introducing hard dependencies.
         pass
+
+
+def _get_active_incident_from_state() -> Optional[str]:
+    """Return the active incident number tracked by :mod:`utils.state`."""
+
+    try:
+        from utils.state import AppState
+    except Exception:
+        return None
+
+    value = AppState.get_active_incident()
+    return str(value) if value else None
 
 
 def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
@@ -53,22 +62,18 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
         incident_db.set_active_incident_id(resolved_id)
         _sync_contexts(resolved_id)
     else:
-        resolved_id = incident_db.get_active_incident_id()
+        resolved_id = _get_active_incident_from_state()
 
         if not resolved_id:
-            try:
-                from utils import incident_context
-
-                resolved_id = incident_context.get_active_incident_id()
-                if resolved_id:
-                    incident_db.set_active_incident_id(resolved_id)
-            except Exception:
-                resolved_id = None
+            existing = incident_db.get_active_incident_id()
+            resolved_id = str(existing) if existing else None
 
         if not resolved_id:
-            resolved_id = _DEFAULT_TRAINING_INCIDENT_ID
-            incident_db.set_active_incident_id(resolved_id)
+            raise RuntimeError(
+                "Active incident is not set. Select or open an incident before using Resource Requests."
+            )
 
+        incident_db.set_active_incident_id(resolved_id)
         _sync_contexts(resolved_id)
 
     db_path = Path("data") / "incidents" / f"{resolved_id}.db"

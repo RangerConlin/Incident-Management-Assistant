@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QHBoxLayout,
     QSplitter,
+    QMessageBox,
 )
 from utils import incident_context
 
@@ -76,7 +77,18 @@ def get_213rr_panel(incident_id: object | None = None) -> QWidget:
         ResourceRequestListPanel,
     )
 
-    service = get_service(str(incident_id) if incident_id is not None else None)
+    try:
+        service = get_service(str(incident_id) if incident_id is not None else None)
+    except RuntimeError as exc:
+        QMessageBox.critical(
+            None,
+            "Active Incident Required",
+            str(exc),
+        )
+        return _make_panel(
+            "Resource Request (ICS-213RR)",
+            "Select or open an incident to use Resource Requests.",
+        )
 
     container = QWidget()
     layout = QHBoxLayout(container)
