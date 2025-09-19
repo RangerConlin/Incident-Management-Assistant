@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -125,6 +125,15 @@ class AircraftRecord:
         payload["capacity"] = payload["crew_max"]
         payload["capabilities"] = _capabilities_text(self)
         return payload
+
+
+_RECORD_FIELD_NAMES = {fld.name for fld in fields(AircraftRecord)}
+
+
+def _record_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Return only the keys accepted by :class:`AircraftRecord`."""
+
+    return {key: payload[key] for key in payload if key in _RECORD_FIELD_NAMES}
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +397,7 @@ class AircraftRepository:
             conn.close()
 
     def create_aircraft(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        record = AircraftRecord(**payload)
+        record = AircraftRecord(**_record_kwargs(payload))
         prepared = record.to_payload()
         prepared["created_at"] = prepared["updated_at"] = _now_iso()
         conn = self._connect()
@@ -408,7 +417,7 @@ class AircraftRepository:
         if current is None:
             raise LookupError(f"Aircraft {aircraft_id} does not exist")
         merged = {**current, **payload, "id": aircraft_id, "tail_number": current["tail_number"]}
-        record = AircraftRecord(**merged)
+        record = AircraftRecord(**_record_kwargs(merged))
         prepared = record.to_payload()
         prepared["updated_at"] = _now_iso()
         columns = [
