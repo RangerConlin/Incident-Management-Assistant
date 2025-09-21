@@ -11,8 +11,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QStyledItemDelegate,
 )
-from PySide6.QtCore import Qt, QTimer, QRect, QEvent
-from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QBrush
+from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QEvent, QByteArray
+from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
 from utils.styles import team_status_colors, subscribe_theme, get_palette
 from utils.audit import write_audit
@@ -20,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Callable, Any, Optional
 import math
 import logging
+import re
 from pathlib import Path
 
 from .team_alerts import (
@@ -34,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 _ALERT_DATA_ROLE = Qt.UserRole + 10
+_TINT_TARGET_PATTERN = re.compile(r"#000(?:000)?\b", re.IGNORECASE)
 
 
 class AssistanceIconDelegate(QStyledItemDelegate):
@@ -180,22 +183,34 @@ class AssistanceIconDelegate(QStyledItemDelegate):
         icon_px = max(1, int(round(size * dpr)))
         filename = self.ICON_FILES.get(alert_kind, "")
         path = self._asset_dir / filename if filename else None
+        blank = QPixmap(icon_px, icon_px)
+        blank.fill(Qt.transparent)
+        blank.setDevicePixelRatio(dpr)
         if not path or not path.exists():
             logger.warning("Missing alert icon asset: %s", path)
-            pixmap = QPixmap(icon_px, icon_px)
-            pixmap.fill(Qt.transparent)
-            pixmap.setDevicePixelRatio(dpr)
-            return pixmap
-        icon = QIcon(str(path))
-        pixmap = icon.pixmap(icon_px, icon_px)
-        if pixmap.isNull():
-            pixmap = QPixmap(icon_px, icon_px)
-            pixmap.fill(Qt.transparent)
-        painter = QPainter(pixmap)
+            return blank
+        try:
+            svg_text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Unable to read alert icon asset %s: %s", path, exc)
+            return blank
+
+        tint = QColor(color)
+        tint.setAlpha(255)
+        color_hex = tint.toRgb().name(QColor.HexRgb)
+        tinted_svg = _TINT_TARGET_PATTERN.sub(color_hex, svg_text)
+        renderer = QSvgRenderer(QByteArray(tinted_svg.encode("utf-8")))
+        if not renderer.isValid():
+            logger.warning("Invalid alert icon asset: %s", path)
+            return blank
+
+        image = QImage(icon_px, icon_px, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
-        painter.fillRect(pixmap.rect(), color)
+        renderer.render(painter, QRectF(0, 0, icon_px, icon_px))
         painter.end()
+        pixmap = QPixmap.fromImage(image)
         pixmap.setDevicePixelRatio(dpr)
         return pixmap
 
