@@ -9,11 +9,213 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHeaderView,
     QMessageBox,
+    QStyledItemDelegate,
 )
-from PySide6.QtCore import Qt, QTimer
-from utils.styles import team_status_colors, subscribe_theme
+from PySide6.QtCore import Qt, QTimer, QRect, QEvent
+from PySide6.QtGui import QIcon, QPainter, QPixmap, QColor, QBrush
+from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
+from utils.styles import team_status_colors, subscribe_theme, get_palette
 from utils.audit import write_audit
 from datetime import datetime, timezone
+from typing import Callable, Any, Optional
+import math
+import logging
+from pathlib import Path
+
+from .team_alerts import (
+    AlertKind,
+    TeamAlertState,
+    compute_alert_kind,
+    get_checkin_thresholds,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+_ALERT_DATA_ROLE = Qt.UserRole + 10
+
+
+class AssistanceIconDelegate(QStyledItemDelegate):
+    ICON_FILES = {
+        AlertKind.EMERGENCY: "emergency.svg",
+        AlertKind.NEEDS_ASSISTANCE: "assist_triangle.svg",
+        AlertKind.CHECKIN_OVERDUE: "clock_red.svg",
+        AlertKind.CHECKIN_WARNING: "clock_yellow.svg",
+    }
+
+    def __init__(
+        self,
+        parent: QTableWidget,
+        *,
+        now_provider: Callable[[], datetime],
+        thresholds,
+    ) -> None:
+        super().__init__(parent)
+        self._now_provider = now_provider
+        self._thresholds = thresholds
+        self._asset_dir = Path(__file__).resolve().parent.parent / "assets"
+        self._icon_cache: dict[tuple[str, int, int], QPixmap] = {}
+
+    def set_thresholds(self, thresholds) -> None:
+        self._thresholds = thresholds
+
+    def on_theme_changed(self) -> None:
+        self._icon_cache.clear()
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index,
+    ) -> None:
+        super().paint(painter, option, index)
+        alert_kind, _, _, _, _ = self._evaluate_alert(index)
+        if alert_kind == AlertKind.NONE:
+            return
+        color = self._color_for_alert(alert_kind)
+        if color is None:
+            return
+        size = max(12, min(option.rect.width(), option.rect.height()) - 8)
+        widget = option.widget
+        dpr = widget.devicePixelRatioF() if widget is not None else 1.0
+        pixmap = self._pixmap_for(alert_kind, size, dpr, color)
+        if pixmap.isNull():
+            return
+        width = pixmap.width() / dpr
+        height = pixmap.height() / dpr
+        rect = option.rect
+        target = QRect(
+            int(rect.x() + (rect.width() - width) / 2),
+            int(rect.y() + (rect.height() - height) / 2),
+            int(width),
+            int(height),
+        )
+        painter.save()
+        painter.drawPixmap(target, pixmap)
+        painter.restore()
+
+    def helpEvent(self, event, view, option, index) -> bool:
+        if event.type() != QEvent.ToolTip:
+            return super().helpEvent(event, view, option, index)
+        alert_kind, _, _, elapsed_minutes, _ = self._evaluate_alert(index)
+        if alert_kind == AlertKind.NONE:
+            return False
+        text = self._tooltip_text(alert_kind, elapsed_minutes)
+        if not text:
+            return False
+        QToolTip.showText(event.globalPos(), text, view)
+        return True
+
+    def _evaluate_alert(self, index):
+        payload = index.data(_ALERT_DATA_ROLE)
+        state = self._state_from_payload(payload)
+        if state is None:
+            return AlertKind.NONE, None, None, None, None
+        try:
+            now = self._now_provider()
+        except Exception:
+            now = datetime.now(timezone.utc)
+        try:
+            alert_kind = compute_alert_kind(state, now=now, thresholds=self._thresholds)
+        except ValueError:
+            logger.warning("now_provider returned naive datetime; skipping alert rendering")
+            return AlertKind.NONE, state, now, None, None
+        reference = state.last_checkin_at or state.reference_time
+        elapsed = None
+        if (
+            reference is not None
+            and isinstance(reference, datetime)
+            and reference.tzinfo is not None
+            and reference.utcoffset() is not None
+        ):
+            elapsed = max(0.0, (now - reference).total_seconds() / 60.0)
+        return alert_kind, state, now, elapsed, reference
+
+    def _state_from_payload(self, payload: Any) -> Optional[TeamAlertState]:
+        if not isinstance(payload, dict):
+            return None
+        last_checkin = self._parse_datetime(payload.get("last_checkin_at"))
+        reference_time = self._parse_datetime(payload.get("reference_time"))
+        team_status = payload.get("team_status")
+        emergency_flag = bool(payload.get("emergency_flag"))
+        assistance_flag = bool(payload.get("needs_assistance_flag"))
+        return TeamAlertState(
+            emergency_flag=emergency_flag,
+            needs_assistance_flag=assistance_flag,
+            last_checkin_at=last_checkin,
+            team_status=str(team_status) if team_status is not None else None,
+            reference_time=reference_time,
+        )
+
+    def _parse_datetime(self, value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value
+        try:
+            return datetime.fromisoformat(str(value))
+        except Exception:
+            logger.warning("Failed to parse timestamp '%s' for team alert state", value)
+            return None
+
+    def _color_for_alert(self, alert_kind: str) -> Optional[QColor]:
+        palette = get_palette()
+        if alert_kind in {AlertKind.EMERGENCY, AlertKind.CHECKIN_OVERDUE}:
+            return QColor(palette["error"])
+        if alert_kind in {AlertKind.NEEDS_ASSISTANCE, AlertKind.CHECKIN_WARNING}:
+            return QColor(palette["warning"])
+        return None
+
+    def _pixmap_for(self, alert_kind: str, size: int, dpr: float, color: QColor) -> QPixmap:
+        key = (alert_kind, int(size * dpr), color.rgba())
+        cached = self._icon_cache.get(key)
+        if cached is not None:
+            return cached
+        pixmap = self._render_pixmap(alert_kind, size, dpr, color)
+        self._icon_cache[key] = pixmap
+        return pixmap
+
+    def _render_pixmap(self, alert_kind: str, size: int, dpr: float, color: QColor) -> QPixmap:
+        icon_px = max(1, int(round(size * dpr)))
+        filename = self.ICON_FILES.get(alert_kind, "")
+        path = self._asset_dir / filename if filename else None
+        if not path or not path.exists():
+            logger.warning("Missing alert icon asset: %s", path)
+            pixmap = QPixmap(icon_px, icon_px)
+            pixmap.fill(Qt.transparent)
+            pixmap.setDevicePixelRatio(dpr)
+            return pixmap
+        icon = QIcon(str(path))
+        pixmap = icon.pixmap(icon_px, icon_px)
+        if pixmap.isNull():
+            pixmap = QPixmap(icon_px, icon_px)
+            pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+        painter.fillRect(pixmap.rect(), color)
+        painter.end()
+        pixmap.setDevicePixelRatio(dpr)
+        return pixmap
+
+    def _tooltip_text(self, alert_kind: str, elapsed_minutes: Optional[float]) -> Optional[str]:
+        if alert_kind == AlertKind.EMERGENCY:
+            return "Emergency declared"
+        if alert_kind == AlertKind.NEEDS_ASSISTANCE:
+            return "Needs assistance flag is ON"
+        if alert_kind == AlertKind.CHECKIN_OVERDUE:
+            if elapsed_minutes is None:
+                return "Check-in overdue"
+            minutes = max(1, int(math.floor(elapsed_minutes)))
+            return f"Check-in overdue: last update {minutes} min ago"
+        if alert_kind == AlertKind.CHECKIN_WARNING:
+            if elapsed_minutes is None:
+                return "Check-in due soon"
+            remaining = max(0, math.ceil(self._thresholds.overdue_minutes - elapsed_minutes))
+            return f"Check-in due soon: {remaining} min remaining"
+        return None
+
 
 # Use incident DB only (no sample fallback)
 try:
@@ -61,16 +263,34 @@ class TeamStatusPanel(QWidget):
         layout.addWidget(header_bar)
         layout.addWidget(self.table)
 
-        # Set column headers: Needs Attention at far left; Last Update at far right
+        self._now_provider: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
+        self._thresholds = get_checkin_thresholds()
+        self._icon_delegate = AssistanceIconDelegate(
+            self.table,
+            now_provider=self._now_provider,
+            thresholds=self._thresholds,
+        )
+        try:
+            self.table.setItemDelegateForColumn(0, self._icon_delegate)
+        except Exception:
+            pass
+
+        # Set column headers: Needs Assistance at far left; Last Update at far right
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
-            "Needs Attention", "Sortie #", "Team Name", "Team Leader", "Contact #",
+            "Needs Assistance", "Sortie #", "Team Name", "Team Leader", "Contact #",
             "Status", "Assignment", "Location", "Last Update"
         ])
         try:
             hdr = self.table.horizontalHeader()
             hdr.setSectionsMovable(True)
             hdr.setStretchLastSection(False)
+            hdr.setSectionResizeMode(0, QHeaderView.Fixed)
+            hdr.resizeSection(0, 56)
+        except Exception:
+            pass
+        try:
+            self.table.setColumnWidth(0, 56)
         except Exception:
             pass
         # Initial load
@@ -100,29 +320,63 @@ class TeamStatusPanel(QWidget):
             pass
         # Theme changes recolor rows
         try:
-            subscribe_theme(self, lambda *_: self._recolor_all())
+            subscribe_theme(self, self._on_theme_changed)
+        except Exception:
+            pass
+
+    def _on_theme_changed(self, *_: Any) -> None:
+        try:
+            if hasattr(self, "_icon_delegate") and self._icon_delegate is not None:
+                self._icon_delegate.on_theme_changed()
+        except Exception:
+            pass
+        self._recolor_all()
+        try:
+            self.table.viewport().update()
+        except Exception:
+            pass
+
+    def _update_thresholds_from_config(self) -> None:
+        thresholds = get_checkin_thresholds()
+        self._thresholds = thresholds
+        try:
+            if hasattr(self, "_icon_delegate") and self._icon_delegate is not None:
+                self._icon_delegate.set_thresholds(thresholds)
         except Exception:
             pass
 
     def add_team(self, team):
-        row = self.table.rowCount()
-        self.table.insertRow(row)
+        data = {
+            "sortie": getattr(team, "sortie", ""),
+            "name": getattr(team, "name", ""),
+            "leader": getattr(team, "leader", getattr(team, "team_leader", "")),
+            "contact": getattr(team, "contact", getattr(team, "team_leader_phone", "")),
+            "status": getattr(team, "status", ""),
+            "assignment": getattr(team, "assignment", ""),
+            "location": getattr(team, "location", ""),
+            "needs_attention": getattr(team, "needs_attention", False),
+            "needs_assistance_flag": getattr(team, "needs_attention", False),
+            "emergency_flag": getattr(team, "emergency_flag", False),
+            "last_checkin_at": self._normalize_iso(getattr(team, "last_checkin_at", None)),
+            "checkin_reference_at": self._normalize_iso(getattr(team, "checkin_reference_at", None)),
+            "team_status_updated": self._normalize_iso(getattr(team, "last_update_ts", None)),
+            "last_updated": self._normalize_iso(getattr(team, "last_update_ts", None)),
+            "team_id": getattr(team, "team_id", None),
+            "task_id": getattr(team, "current_task_id", None),
+            "tt_id": getattr(team, "tt_id", None),
+        }
+        self._add_team_row(data)
 
-        # Set all column values
-        items = [
-            QTableWidgetItem(team.sortie),
-            QTableWidgetItem(team.name),
-            QTableWidgetItem(team.leader),
-            QTableWidgetItem(team.contact),
-            QTableWidgetItem(team.status),
-            QTableWidgetItem(team.assignment),
-            QTableWidgetItem(team.location)
-        ]
-
-        for col, item in enumerate(items):
-            self.table.setItem(row, col, item)
-
-        self.set_row_color_by_status(row, team.status)  # <- calls class-level method below
+    @staticmethod
+    def _normalize_iso(value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            dt = value
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.isoformat()
+        return str(value)
 
     def _format_elapsed(self, iso_ts: str | None) -> str:
         if not iso_ts:
@@ -149,12 +403,20 @@ class TeamStatusPanel(QWidget):
     def _add_team_row(self, data: dict) -> None:
         row = self.table.rowCount()
         self.table.insertRow(row)
-        status_key = str(data.get("status", ""))
+        status_raw = data.get("status", "")
+        status_key = str(status_raw or "").strip().lower()
         status_display = status_key.title() if status_key else ""
-        needs = "Yes" if bool(data.get("needs_attention", False)) else "No"
+
+        icon_item = QTableWidgetItem("")
+        icon_item.setFlags(icon_item.flags() & ~Qt.ItemIsEditable)
+        icon_item.setTextAlignment(Qt.AlignCenter)
+        self._apply_identity_roles(icon_item, data)
+        alert_payload = self._build_alert_payload(data, status_key)
+        icon_item.setData(_ALERT_DATA_ROLE, alert_payload)
+        self.table.setItem(row, 0, icon_item)
+
         last_up = self._format_elapsed(data.get("last_updated"))
-        vals = [
-            needs,
+        column_texts = [
             str(data.get("sortie", "")),
             str(data.get("name", "")),
             str(data.get("leader", "")),
@@ -164,37 +426,75 @@ class TeamStatusPanel(QWidget):
             str(data.get("location", "")),
             last_up,
         ]
-        for col, text in enumerate(vals):
+        for offset, text in enumerate(column_texts, start=1):
             item = QTableWidgetItem(text)
-            if col == 0:
-                # store ids individually so one missing value doesn't block others
-                v = data.get("tt_id")
-                if v is not None:
-                    try:
-                        item.setData(Qt.UserRole, int(v))
-                    except Exception:
-                        pass
-                v = data.get("task_id")
-                if v is not None:
-                    try:
-                        item.setData(Qt.UserRole + 1, int(v))
-                    except Exception:
-                        pass
-                v = data.get("team_id")
-                if v is not None:
-                    try:
-                        item.setData(Qt.UserRole + 2, int(v))
-                    except Exception:
-                        pass
-            # For the Last Update column (index 8), store the ISO timestamp in item data
-            if col == 8:
+            if offset == 8:
                 try:
                     item.setData(Qt.UserRole, str(data.get("last_updated") or ""))
                 except Exception:
                     pass
-            self.table.setItem(row, col, item)
-        # color by key to match palette
+            self.table.setItem(row, offset, item)
+
         self.set_row_color_by_status(row, status_key)
+
+    def _apply_identity_roles(self, item: QTableWidgetItem, data: dict) -> None:
+        role_keys = (
+            (Qt.UserRole, "tt_id"),
+            (Qt.UserRole + 1, "task_id"),
+            (Qt.UserRole + 2, "team_id"),
+        )
+        for role, key in role_keys:
+            value = data.get(key)
+            if value is None:
+                continue
+            try:
+                item.setData(role, int(value))
+            except Exception:
+                pass
+
+    def _build_alert_payload(self, data: dict, status_key: str) -> dict:
+        team_status_value = data.get("team_status") or data.get("status") or status_key
+        reference_time = (
+            data.get("checkin_reference_at")
+            or data.get("team_status_updated")
+            or data.get("last_updated")
+        )
+        return {
+            "emergency_flag": bool(data.get("emergency_flag", False)),
+            "needs_assistance_flag": bool(
+                data.get("needs_assistance_flag", data.get("needs_attention", False))
+            ),
+            "last_checkin_at": data.get("last_checkin_at"),
+            "team_status": team_status_value,
+            "reference_time": reference_time,
+        }
+
+    def _row_has_emergency(self, row: int) -> bool:
+        try:
+            item = self.table.item(row, 0)
+        except Exception:
+            item = None
+        if not item:
+            return False
+        payload = item.data(_ALERT_DATA_ROLE)
+        if isinstance(payload, dict):
+            try:
+                return bool(payload.get("emergency_flag"))
+            except Exception:
+                return False
+        return False
+
+    @staticmethod
+    def _blend_colors(base: QColor, overlay: QColor, ratio: float) -> QColor:
+        ratio = max(0.0, min(1.0, float(ratio)))
+        base_color = QColor(base)
+        overlay_color = QColor(overlay)
+        r = int(base_color.red() * (1 - ratio) + overlay_color.red() * ratio)
+        g = int(base_color.green() * (1 - ratio) + overlay_color.green() * ratio)
+        b = int(base_color.blue() * (1 - ratio) + overlay_color.blue() * ratio)
+        blended = QColor(max(0, min(r, 255)), max(0, min(g, 255)), max(0, min(b, 255)))
+        blended.setAlpha(255)
+        return blended
 
     def _refresh_last_update_column(self) -> None:
         try:
@@ -254,15 +554,32 @@ class TeamStatusPanel(QWidget):
             pass
 
     def set_row_color_by_status(self, row, status):  # ✅ Now correctly placed
-        style = team_status_colors().get(status.lower())
-        if not style:
-            return
+        status_key = str(status or "").lower()
+        style = team_status_colors().get(status_key)
+        palette_colors = get_palette()
+        default_bg = QColor(palette_colors["bg"])
+        default_fg = QBrush(QColor(palette_colors["fg"]))
+        danger = QColor(palette_colors["error"])
+        highlight = self._row_has_emergency(row)
 
         for col in range(self.table.columnCount()):
             item = self.table.item(row, col)
-            if item:
-                item.setBackground(style["bg"])
+            if not item:
+                continue
+            if style:
+                base_color = QColor(style["bg"].color())
                 item.setForeground(style["fg"])
+            else:
+                base_color = QColor(default_bg)
+                item.setForeground(default_fg)
+
+            if highlight:
+                tinted = self._blend_colors(base_color, danger, 0.25)
+                item.setBackground(QBrush(tinted))
+            elif style:
+                item.setBackground(style["bg"])
+            else:
+                item.setBackground(QBrush(base_color))
 
     def _recolor_all(self) -> None:
         try:
@@ -389,6 +706,7 @@ class TeamStatusPanel(QWidget):
     def reload(self) -> None:
         # Clear and load fresh data from incident DB
         try:
+            self._update_thresholds_from_config()
             self.table.setRowCount(0)
             if not fetch_team_assignment_rows:
                 raise RuntimeError("DB repository not available")

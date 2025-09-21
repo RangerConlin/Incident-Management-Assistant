@@ -113,6 +113,32 @@ def _ensure_teams_attention_column(con: sqlite3.Connection) -> None:
     except Exception:
         pass
 
+
+def _ensure_team_alert_columns(con: sqlite3.Connection) -> None:
+    """Ensure modern alert columns exist on the teams table."""
+    try:
+        cur = con.execute("PRAGMA table_info(teams)")
+        cols = {row[1] for row in cur.fetchall()}
+        to_add: list[tuple[str, str]] = []
+        if "emergency_flag" not in cols:
+            to_add.append(("emergency_flag", "BOOLEAN"))
+        if "last_checkin_at" not in cols:
+            to_add.append(("last_checkin_at", "TEXT"))
+        if "checkin_reference_at" not in cols:
+            to_add.append(("checkin_reference_at", "TEXT"))
+        for col, typ in to_add:
+            try:
+                con.execute(f"ALTER TABLE teams ADD COLUMN {col} {typ}")
+            except Exception:
+                pass
+        if to_add:
+            try:
+                con.commit()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
 def _derive_team_status(row: sqlite3.Row) -> str:
     """Derive a coarse team status from task_teams timestamp columns.
 
@@ -214,6 +240,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         _ensure_teams_current_task_column(con)
         _ensure_teams_name_column(con)
         _ensure_teams_attention_column(con)
+        _ensure_team_alert_columns(con)
         has_msg = _has_table(con, "message_log_entry")
         last_msg_select = (
             "(SELECT MAX(timestamp) FROM message_log_entry me WHERE me.sender = COALESCE(tm.callsign, tm.name) OR me.recipient = COALESCE(tm.callsign, tm.name))"
@@ -235,6 +262,9 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                    tm.status AS team_status,
                    tm.status_updated AS team_status_updated,
                    tm.needs_attention AS needs_attention,
+                   tm.emergency_flag AS emergency_flag,
+                   tm.last_checkin_at AS last_checkin_at,
+                   tm.checkin_reference_at AS checkin_reference_at,
                    {last_msg_select} AS last_msg_ts,
                    p.name AS leader_name,
                    COALESCE(p.phone, p.contact, p.email, '') AS leader_contact
@@ -277,6 +307,19 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             needs_attention = int(needs_attention)
         except Exception:
             needs_attention = 1 if str(needs_attention).strip().lower() in {"true", "yes", "1"} else 0
+        raw_emergency = r["emergency_flag"] if "emergency_flag" in r.keys() else 0
+        try:
+            emergency_flag = bool(int(raw_emergency))
+        except Exception:
+            emergency_flag = str(raw_emergency).strip().lower() in {"true", "yes", "1"}
+        last_checkin_at = r["last_checkin_at"] if "last_checkin_at" in r.keys() else None
+        checkin_reference_at = (
+            r["checkin_reference_at"] if "checkin_reference_at" in r.keys() else None
+        )
+        last_checkin_at = str(last_checkin_at).strip() if last_checkin_at else None
+        checkin_reference_at = (
+            str(checkin_reference_at).strip() if checkin_reference_at else None
+        )
         # Only show a sortie number if the team is currently assigned to a task
         # and that task assignment has a sortie id.
         try:
@@ -299,6 +342,11 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                 "assignment": r["assignment"] or "",
                 "location": r["task_location"] or "",
                 "needs_attention": bool(needs_attention),
+                "needs_assistance_flag": bool(needs_attention),
+                "emergency_flag": emergency_flag,
+                "last_checkin_at": last_checkin_at,
+                "checkin_reference_at": checkin_reference_at,
+                "team_status_updated": ts1 or None,
                 "last_updated": last_updated,
             }
         )
