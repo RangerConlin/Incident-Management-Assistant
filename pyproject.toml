@@ -10,8 +10,10 @@ dependencies = [
     "sqlalchemy",
     "sqlmodel>=0.0.8",
     "pypdf",
-    "PyYAML"
+    "PyYAML",
+    "openpyxl"
 ]
+
 
 [tool.pyside6-project]
 

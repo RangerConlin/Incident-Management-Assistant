@@ -11,3 +11,4 @@ sqlalchemy
 sqlmodel>=0.0.8
 pypdf>=4
 PyYAML
+openpyxl

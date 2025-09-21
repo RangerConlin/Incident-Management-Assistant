@@ -27,6 +27,7 @@ from ..services.pdf_mapgen import extract_acroform_fields, generate_map, extract
 from ..services.binding_library import BindingOption, load_binding_library
 
 
+
 PDF_DIR = Path("data/forms/pdfs")
 MAP_DIR = Path("data/forms/maps")
 
@@ -128,6 +129,7 @@ class FormTemplateBuilder(QWidget):
             schema_candidates = []
 
         catalog_options = load_binding_library().options
+
         catalog_lookup: Dict[str, BindingOption] = {opt.key: opt for opt in catalog_options}
         for candidate in schema_candidates:
             if candidate not in catalog_lookup:

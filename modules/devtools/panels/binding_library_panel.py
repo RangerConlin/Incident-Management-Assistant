@@ -349,12 +349,14 @@ class BindingLibraryPanel(QWidget):
         self.tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbl.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl.itemSelectionChanged.connect(self._update_actions)
         self.tbl.itemDoubleClicked.connect(lambda *_: self._edit_selected_binding())
+
         layout.addWidget(self.tbl, 1)
 
         footer = QHBoxLayout()
@@ -538,6 +540,5 @@ class BindingLibraryPanel(QWidget):
         self.btn_copy.setEnabled(has_binding)
         self.btn_edit.setEnabled(has_binding)
         self.btn_delete.setEnabled(bool(binding and binding.is_defined_in_active))
-
 
 __all__ = ["BindingLibraryPanel"]

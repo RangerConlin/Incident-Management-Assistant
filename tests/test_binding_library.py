@@ -12,6 +12,7 @@ from modules.devtools.services.binding_library import (
     load_binding_library,
     save_binding_option,
 )
+
 from utils.profile_manager import profile_manager
 
 
@@ -62,6 +63,7 @@ def temp_profile_catalog(tmp_path: Path):
                 "patterns": ["^mission.*id$"]
             },
             "ops.chief": {"source": "personnel", "desc": "Operations Section Chief"},
+
         },
     }
     child_catalog = {
