@@ -24,7 +24,8 @@ from PySide6.QtWidgets import (
 from ..services.form_catalog import FormCatalog, TemplateEntry
 from ..services.form_identify import guess_form_id_and_version
 from ..services.pdf_mapgen import extract_acroform_fields, generate_map, extract_schema_paths
-from ..services.binding_library import load_binding_library, BindingOption
+from ..services.binding_library import BindingOption, load_binding_library
+
 
 
 PDF_DIR = Path("data/forms/pdfs")
@@ -127,7 +128,8 @@ class FormTemplateBuilder(QWidget):
         except Exception:
             schema_candidates = []
 
-        catalog_options = load_binding_library()
+        catalog_options = load_binding_library().options
+
         catalog_lookup: Dict[str, BindingOption] = {opt.key: opt for opt in catalog_options}
         for candidate in schema_candidates:
             if candidate not in catalog_lookup:
@@ -146,6 +148,15 @@ class FormTemplateBuilder(QWidget):
             item.setData(opt.key, Qt.UserRole)
             item.setData(opt.source, Qt.UserRole + 1)
             item.setData(opt.description, Qt.UserRole + 2)
+            tooltip_parts = []
+            if opt.description:
+                tooltip_parts.append(opt.description)
+            if opt.synonyms:
+                tooltip_parts.append(f"Synonyms: {', '.join(opt.synonyms)}")
+            if opt.patterns:
+                tooltip_parts.append(f"Patterns: {', '.join(opt.patterns)}")
+            if tooltip_parts:
+                item.setToolTip("\n".join(tooltip_parts))
             model.appendRow(item)
 
         self.tbl_fields.setRowCount(0)

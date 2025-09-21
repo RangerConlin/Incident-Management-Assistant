@@ -6,7 +6,13 @@ from typing import Dict
 
 import pytest
 
-from modules.devtools.services.binding_library import load_binding_library
+from modules.devtools.services.binding_library import (
+    BindingOption,
+    delete_binding_option,
+    load_binding_library,
+    save_binding_option,
+)
+
 from utils.profile_manager import profile_manager
 
 
@@ -50,14 +56,26 @@ def temp_profile_catalog(tmp_path: Path):
         "version": 1,
         "keys": {
             "incident.name": {"source": "constants", "desc": "Base incident name"},
-            "mission.id": {"source": "mission", "desc": "Mission identifier"},
+            "mission.id": {
+                "source": "mission",
+                "desc": "Mission identifier",
+                "synonyms": ["mission number"],
+                "patterns": ["^mission.*id$"]
+            },
+            "ops.chief": {"source": "personnel", "desc": "Operations Section Chief"},
+
         },
     }
     child_catalog = {
         "version": 1,
         "keys": {
             "incident.name": {"desc": "Child incident name"},
-            "planning.chief": {"source": "personnel", "desc": "Planning Section Chief"},
+            "planning.chief": {
+                "source": "personnel",
+                "desc": "Planning Section Chief",
+                "synonyms": ["psc"],
+                "patterns": ["^planning.*chief$"]
+            },
         },
     }
 
@@ -78,14 +96,97 @@ def test_binding_library_merges_catalogs(temp_profile_catalog: str):
     # ensure default active profile resolves to child for this test
     profile_manager._active_id = child_id  # type: ignore[attr-defined]
 
-    options = load_binding_library()
-    direct_options = load_binding_library(child_id)
+    result = load_binding_library()
+    direct_result = load_binding_library(child_id)
 
-    assert [opt.key for opt in options] == [opt.key for opt in direct_options]
+    assert result.active_profile_id == child_id
+    assert [opt.key for opt in result.options] == [opt.key for opt in direct_result.options]
 
-    opt_map = {opt.key: opt for opt in options}
+    opt_map = {opt.key: opt for opt in result.options}
     assert opt_map["incident.name"].source == "constants"
     assert opt_map["incident.name"].description == "Child incident name"
     assert opt_map["mission.id"].source == "mission"
     assert opt_map["planning.chief"].source == "personnel"
-    assert len(opt_map) == 3
+    assert opt_map["mission.id"].synonyms == ["mission number"]
+    assert opt_map["mission.id"].patterns == ["^mission.*id$"]
+    assert opt_map["ops.chief"].origin_profile == "base"
+    assert not opt_map["ops.chief"].is_defined_in_active
+    assert len(opt_map) == 4
+
+
+def test_save_binding_option_creates_override(temp_profile_catalog: str):
+    child_id = temp_profile_catalog
+    profile_manager._active_id = child_id  # type: ignore[attr-defined]
+
+    result = load_binding_library()
+    assert result.catalog_path is not None
+    active_path = Path(result.catalog_path)
+    base_option = next(opt for opt in result.options if opt.key == "ops.chief")
+
+    override = BindingOption(
+        key="ops.chief",
+        source=base_option.source,
+        description="Operations Chief (Override)",
+        synonyms=["osc"],
+        patterns=["^operations.*chief$"],
+        origin_profile=child_id,
+        is_defined_in_active=True,
+        extra=dict(base_option.extra),
+    )
+
+    save_binding_option(override, original_key=base_option.key)
+
+    updated = load_binding_library()
+    opt_map = {opt.key: opt for opt in updated.options}
+    assert opt_map["ops.chief"].description == "Operations Chief (Override)"
+    assert opt_map["ops.chief"].is_defined_in_active
+
+    data = json.loads(active_path.read_text(encoding="utf-8"))
+    assert data["keys"]["ops.chief"]["desc"] == "Operations Chief (Override)"
+    assert "osc" in data["keys"]["ops.chief"]["synonyms"]
+
+
+def test_save_and_delete_binding_option(temp_profile_catalog: str):
+    child_id = temp_profile_catalog
+    profile_manager._active_id = child_id  # type: ignore[attr-defined]
+
+    result = load_binding_library()
+    assert result.catalog_path is not None
+    active_path = Path(result.catalog_path)
+
+    new_binding = BindingOption(
+        key="logistics.staging",
+        source="logistics",
+        description="Staging Area",
+        synonyms=["staging area"],
+        patterns=["^staging.*area$"],
+        origin_profile=child_id,
+        is_defined_in_active=True,
+        extra={},
+    )
+    save_binding_option(new_binding)
+
+    renamed = BindingOption(
+        key="logistics.staging_area",
+        source="logistics",
+        description="Staging Area",
+        synonyms=["staging area"],
+        patterns=["^staging.*area$"],
+        origin_profile=child_id,
+        is_defined_in_active=True,
+        extra={},
+    )
+    save_binding_option(renamed, original_key="logistics.staging")
+
+    data = json.loads(active_path.read_text(encoding="utf-8"))
+    assert "logistics.staging" not in data["keys"]
+    assert "logistics.staging_area" in data["keys"]
+
+    removed = delete_binding_option("logistics.staging_area")
+    assert removed is True
+
+    data = json.loads(active_path.read_text(encoding="utf-8"))
+    assert "logistics.staging_area" not in data["keys"]
+
+    # inherited keys cannot be removed from the parent via delete
+    assert delete_binding_option("ops.chief") is False
