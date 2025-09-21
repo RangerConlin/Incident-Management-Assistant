@@ -234,10 +234,15 @@ class AssistanceIconDelegate(QStyledItemDelegate):
 
 # Use incident DB only (no sample fallback)
 try:
-    from modules.operations.data.repository import fetch_team_assignment_rows, set_team_assignment_status  # type: ignore
+    from modules.operations.data.repository import (
+        fetch_team_assignment_rows,
+        set_team_assignment_status,
+        touch_team_checkin,
+    )  # type: ignore
 except Exception:
     fetch_team_assignment_rows = None  # type: ignore[assignment]
     set_team_assignment_status = None  # type: ignore[assignment]
+    touch_team_checkin = None  # type: ignore[assignment]
 
 
 
@@ -703,9 +708,15 @@ class TeamStatusPanel(QWidget):
                 else:
                     updated = {}
                 updated["last_checkin_at"] = now_iso
-                if not updated.get("reference_time"):
-                    updated["reference_time"] = now_iso
+                updated["reference_time"] = now_iso
                 icon_item.setData(_ALERT_DATA_ROLE, updated)
+
+                team_id_val = icon_item.data(Qt.UserRole + 2)
+                if team_id_val is not None and touch_team_checkin is not None:
+                    try:
+                        touch_team_checkin(int(team_id_val), checkin_time=now, reference_time=now)
+                    except Exception:
+                        logger.warning("Failed to persist check-in reset for team %s", team_id_val)
 
             try:
                 self.table.viewport().update()

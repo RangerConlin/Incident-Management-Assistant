@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
 from utils import incident_context
@@ -138,6 +139,16 @@ def _ensure_team_alert_columns(con: sqlite3.Connection) -> None:
                 pass
     except Exception:
         pass
+
+
+def _iso_timestamp(value: datetime | None) -> str:
+    """Return an ISO-8601 string for ``value`` normalized to UTC."""
+    dt = value or datetime.now(timezone.utc)
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat()
 
 def _derive_team_status(row: sqlite3.Row) -> str:
     """Derive a coarse team status from task_teams timestamp columns.
@@ -351,6 +362,28 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             }
         )
     return out
+
+
+def touch_team_checkin(
+    team_id: int,
+    *,
+    checkin_time: datetime | None = None,
+    reference_time: datetime | None = None,
+) -> None:
+    """Persist an updated check-in baseline for the given team."""
+
+    check_dt = checkin_time or datetime.now(timezone.utc)
+    ref_dt = reference_time or check_dt
+    check_iso = _iso_timestamp(check_dt)
+    ref_iso = _iso_timestamp(ref_dt)
+
+    with _connect() as con:
+        _ensure_team_alert_columns(con)
+        con.execute(
+            "UPDATE teams SET last_checkin_at=?, checkin_reference_at=? WHERE id=?",
+            (check_iso, ref_iso, int(team_id)),
+        )
+        con.commit()
 
 
 def set_task_status(task_id: int, status_key: str) -> None:
