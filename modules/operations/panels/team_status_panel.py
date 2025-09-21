@@ -688,11 +688,29 @@ class TeamStatusPanel(QWidget):
         """Reset the Last Update timer baseline for a given row to now."""
         try:
             from datetime import datetime, timezone
-            now_iso = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(timezone.utc)
+            now_iso = now.isoformat()
             item_last = self.table.item(row, 8)
             if item_last:
                 item_last.setData(Qt.UserRole, now_iso)
                 item_last.setText(self._format_elapsed(now_iso))
+
+            icon_item = self.table.item(row, 0)
+            if icon_item:
+                payload = icon_item.data(_ALERT_DATA_ROLE)
+                if isinstance(payload, dict):
+                    updated = dict(payload)
+                else:
+                    updated = {}
+                updated["last_checkin_at"] = now_iso
+                if not updated.get("reference_time"):
+                    updated["reference_time"] = now_iso
+                icon_item.setData(_ALERT_DATA_ROLE, updated)
+
+            try:
+                self.table.viewport().update()
+            except Exception:
+                pass
         except Exception:
             pass
 
