@@ -83,7 +83,7 @@ def compute_alert_kind(
         )
         return AlertKind.CHECKIN_WARNING
     if reference.tzinfo is None or reference.utcoffset() is None:
-        logger.warning(
+        logger.debug(
             "Team last_checkin_at is naive; treating as overdue for safety."
         )
         return AlertKind.CHECKIN_OVERDUE

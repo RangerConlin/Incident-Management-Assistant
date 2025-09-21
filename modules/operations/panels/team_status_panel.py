@@ -155,12 +155,16 @@ class AssistanceIconDelegate(QStyledItemDelegate):
         if not value:
             return None
         if isinstance(value, datetime):
-            return value
-        try:
-            return datetime.fromisoformat(str(value))
-        except Exception:
-            logger.warning("Failed to parse timestamp '%s' for team alert state", value)
-            return None
+            dt = value
+        else:
+            try:
+                dt = datetime.fromisoformat(str(value))
+            except Exception:
+                logger.warning("Failed to parse timestamp '%s' for team alert state", value)
+                return None
+        if dt.tzinfo is None or dt.utcoffset() is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
 
     def _color_for_alert(self, alert_kind: str) -> Optional[QColor]:
         palette = get_palette()
