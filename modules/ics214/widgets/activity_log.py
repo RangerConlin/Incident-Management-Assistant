@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
+    QHeaderView,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -711,11 +712,12 @@ class Ics214ActivityLogPanel(QWidget):
         )
         header = self.entries_table.horizontalHeader()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, header.ResizeToContents)
-        header.setSectionResizeMode(1, header.ResizeToContents)
-        header.setSectionResizeMode(3, header.ResizeToContents)
-        header.setSectionResizeMode(4, header.ResizeToContents)
-        header.setSectionResizeMode(5, header.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.entries_table.verticalHeader().setVisible(False)
         self.entries_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.entries_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
