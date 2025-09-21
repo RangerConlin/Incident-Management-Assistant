@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal, QEvent, QObject
-from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QFont, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -603,23 +603,44 @@ class ICOverviewWidget(QWidget):
 
     def _apply_theme(self, theme_name: str) -> None:
         palette = style_palette.get_palette()
-        fg = palette["fg"].name()
-        muted_color = palette["muted"]
-        accent = palette["accent"].name()
-        ctrl_bg = palette.get("ctrl_bg", palette["bg"]).name()
-        ctrl_border = palette.get("ctrl_border", palette["divider"]).name()
-        ctrl_hover = palette.get("ctrl_hover", palette["bg"]).name()
-        divider_value = palette.get("divider", tokens.CARD_BORDER)
-        card_surface = palette.get("bg_panel" if theme_name == "light" else "bg_raised", palette["bg"])
-        card_border_value = divider_value
-        subtle = muted_color.lighter(130 if theme_name == "light" else 115).name()
-        faint = muted_color.lighter(160 if theme_name == "light" else 135).name()
-        muted = muted_color.name()
+        fg_default = "#111111" if theme_name == "light" else "#f0f0f0"
 
-        card_bg = card_surface.name() if hasattr(card_surface, "name") else str(card_surface)
-        card_border = (
-            card_border_value.name() if hasattr(card_border_value, "name") else str(card_border_value)
+        def _ensure_color(value: Any, fallback: QColor) -> QColor:
+            if isinstance(value, QColor):
+                return value
+            if hasattr(value, "color"):
+                candidate = value.color()
+                if isinstance(candidate, QColor):
+                    return candidate
+            if isinstance(value, str):
+                candidate = QColor(value)
+                if candidate.isValid():
+                    return candidate
+            return fallback
+
+        base_bg_color = _ensure_color(palette.get("bg"), QColor(tokens.CARD_BG))
+        fg_color = _ensure_color(palette.get("fg"), QColor(fg_default))
+        muted_color = _ensure_color(palette.get("muted"), QColor("#888888"))
+        accent_color = _ensure_color(palette.get("accent"), QColor("#2f80ed"))
+        ctrl_bg_color = _ensure_color(palette.get("ctrl_bg"), base_bg_color)
+        ctrl_hover_color = _ensure_color(palette.get("ctrl_hover"), ctrl_bg_color)
+        divider_color = _ensure_color(palette.get("divider"), QColor(tokens.CARD_BORDER))
+        ctrl_border_color = _ensure_color(palette.get("ctrl_border"), divider_color)
+        card_surface_color = _ensure_color(
+            palette.get("bg_panel" if theme_name == "light" else "bg_raised"),
+            base_bg_color,
         )
+
+        fg = fg_color.name()
+        accent = accent_color.name()
+        ctrl_bg = ctrl_bg_color.name()
+        ctrl_border = ctrl_border_color.name()
+        ctrl_hover = ctrl_hover_color.name()
+        subtle = QColor(muted_color).lighter(130 if theme_name == "light" else 115).name()
+        faint = QColor(muted_color).lighter(160 if theme_name == "light" else 135).name()
+        muted = muted_color.name()
+        card_bg = card_surface_color.name()
+        card_border = divider_color.name()
 
         stylesheet = f"""
         QWidget#ICOverviewWidget {{
