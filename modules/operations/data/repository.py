@@ -298,7 +298,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             "on scene": "arrival",
             "rtb": "returning",
         }.get(status, status)
-        # Compute last update as max of team status_updated and latest comms log
+        # Compute derived last update as max of team status_updated and latest comms log
         try:
             ts1 = (r["team_status_updated"] or "").strip() if "team_status_updated" in r.keys() else ""
         except Exception:
@@ -308,11 +308,11 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         except Exception:
             ts2 = ""
         # Choose lexicographically max ISO timestamp if both exist, else whichever is non-empty
-        last_updated = None
+        derived_last_updated = None
         if ts1 and ts2:
-            last_updated = ts1 if ts1 >= ts2 else ts2
+            derived_last_updated = ts1 if ts1 >= ts2 else ts2
         else:
-            last_updated = ts1 or ts2 or None
+            derived_last_updated = ts1 or ts2 or None
         needs_attention = r["needs_attention"] if "needs_attention" in r.keys() else 0
         try:
             needs_attention = int(needs_attention)
@@ -330,6 +330,11 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         last_checkin_at = str(last_checkin_at).strip() if last_checkin_at else None
         checkin_reference_at = (
             str(checkin_reference_at).strip() if checkin_reference_at else None
+        )
+        last_updated = (
+            last_checkin_at
+            or checkin_reference_at
+            or derived_last_updated
         )
         # Only show a sortie number if the team is currently assigned to a task
         # and that task assignment has a sortie id.

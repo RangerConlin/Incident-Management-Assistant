@@ -366,6 +366,10 @@ class TeamStatusPanel(QWidget):
             pass
 
     def add_team(self, team):
+        last_checkin = self._normalize_iso(getattr(team, "last_checkin_at", None))
+        reference = self._normalize_iso(getattr(team, "checkin_reference_at", None))
+        status_updated = self._normalize_iso(getattr(team, "last_update_ts", None))
+        last_updated = last_checkin or reference or status_updated
         data = {
             "sortie": getattr(team, "sortie", ""),
             "name": getattr(team, "name", ""),
@@ -377,10 +381,10 @@ class TeamStatusPanel(QWidget):
             "needs_attention": getattr(team, "needs_attention", False),
             "needs_assistance_flag": getattr(team, "needs_attention", False),
             "emergency_flag": getattr(team, "emergency_flag", False),
-            "last_checkin_at": self._normalize_iso(getattr(team, "last_checkin_at", None)),
-            "checkin_reference_at": self._normalize_iso(getattr(team, "checkin_reference_at", None)),
-            "team_status_updated": self._normalize_iso(getattr(team, "last_update_ts", None)),
-            "last_updated": self._normalize_iso(getattr(team, "last_update_ts", None)),
+            "last_checkin_at": last_checkin,
+            "checkin_reference_at": reference,
+            "team_status_updated": status_updated,
+            "last_updated": last_updated,
             "team_id": getattr(team, "team_id", None),
             "task_id": getattr(team, "current_task_id", None),
             "tt_id": getattr(team, "tt_id", None),
@@ -476,8 +480,9 @@ class TeamStatusPanel(QWidget):
         team_status_value = data.get("team_status") or data.get("status") or status_key
         reference_time = (
             data.get("checkin_reference_at")
-            or data.get("team_status_updated")
+            or data.get("last_checkin_at")
             or data.get("last_updated")
+            or data.get("team_status_updated")
         )
         return {
             "emergency_flag": bool(data.get("emergency_flag", False)),
