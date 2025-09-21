@@ -7,7 +7,7 @@ from typing import Callable
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
-from . import palette
+from .styles import get_palette
 from .tokens import ICON_SIZE_MD, ICON_SIZE_SM, ALERT_WARNING, ALERT_DANGER
 
 
@@ -117,7 +117,7 @@ _DEF_LOG_COLOR = QColor("#BA68C8")
 
 
 def _card_base(color: QColor) -> tuple[QColor, QColor]:
-    pal = palette.get_palette()
+    pal = get_palette()
     fg = QColor(pal["fg"])
     fg.setAlpha(220)
     base = QColor(color)
