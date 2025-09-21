@@ -91,16 +91,9 @@ class OverviewCard(QFrame):
         self.setObjectName("OverviewCard")
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
-        self.setStyleSheet(
-            """
-            QFrame#OverviewCard {
-                background-color: %s;
-                border: 1px solid %s;
-                border-radius: %dpx;
-            }
-            """
-            % (tokens.CARD_BG, tokens.CARD_BORDER, tokens.CARD_RADIUS)
-        )
+        self._bg_color = tokens.CARD_BG
+        self._border_color = tokens.CARD_BORDER
+        self._update_card_style()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(tokens.DEFAULT_PADDING, tokens.DEFAULT_PADDING, tokens.DEFAULT_PADDING, tokens.DEFAULT_PADDING)
         layout.setSpacing(tokens.SECTION_SPACING)
@@ -137,6 +130,25 @@ class OverviewCard(QFrame):
                 widget.setParent(None)
             self._content_layout.removeItem(item)
 
+    def set_card_colors(self, background: str, border: str) -> None:
+        if background == self._bg_color and border == self._border_color:
+            return
+        self._bg_color = background
+        self._border_color = border
+        self._update_card_style()
+
+    def _update_card_style(self) -> None:
+        self.setStyleSheet(
+            """
+            QFrame#OverviewCard {
+                background-color: %s;
+                border: 1px solid %s;
+                border-radius: %dpx;
+            }
+            """
+            % (self._bg_color, self._border_color, tokens.CARD_RADIUS)
+        )
+
 
 class AlertsCard(OverviewCard):
     """Alerts display card."""
@@ -146,7 +158,7 @@ class AlertsCard(OverviewCard):
         header_row = QHBoxLayout()
         header_row.setSpacing(tokens.SMALL_PADDING)
         info = QLabel("Highest priority alerts", self)
-        info.setStyleSheet("color: #cccccc;")
+        info.setProperty("role", "muted")
         header_row.addWidget(info)
         legend_button = QToolButton(self)
         legend_button.setText("?")
@@ -154,10 +166,8 @@ class AlertsCard(OverviewCard):
         legend_button.setToolTip(
             "Check-in warning triggers at 50 minutes, overdue at 60 minutes."
         )
-        legend_button.setStyleSheet(
-            "QToolButton { border: 1px solid %s; border-radius: 8px; padding: 1px 4px; color: #cccccc; }"
-            % tokens.CARD_BORDER
-        )
+        legend_button.setObjectName("LegendButton")
+        legend_button.setProperty("role", "muted")
         header_row.addWidget(legend_button)
         header_row.addStretch(1)
         self.content_layout.addLayout(header_row)
@@ -171,6 +181,7 @@ class AlertsCard(OverviewCard):
         self._view_all_button = QToolButton(self)
         self._view_all_button.setText("View all alerts")
         self._view_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._view_all_button.setProperty("role", "accent")
         footer_row.addWidget(self._view_all_button)
         self.content_layout.addLayout(footer_row)
 
@@ -199,21 +210,23 @@ class AlertsCard(OverviewCard):
             icon_label.setToolTip(meta.tooltip)
             row_layout.addWidget(icon_label)
             text_label = QLabel(f"{meta.label}", row_widget)
-            text_label.setStyleSheet("font-weight: 600;")
+            text_font = text_label.font()
+            text_font.setBold(True)
+            text_label.setFont(text_font)
             row_layout.addWidget(text_label)
             team_label = QLabel(alert.get("team_name") or "Unknown team", row_widget)
-            team_label.setStyleSheet("color: #d1d1d1;")
+            team_label.setProperty("role", "muted")
             row_layout.addWidget(team_label)
             last_check = timefmt.humanize_relative(alert.get("last_checkin_ts"), default="—")
             time_label = QLabel(last_check, row_widget)
-            time_label.setStyleSheet("color: #a7a7a7;")
+            time_label.setProperty("role", "subtle")
             row_layout.addWidget(time_label)
             row_layout.addStretch(1)
             self._list_layout.addWidget(row_widget)
 
         if self._list_layout.count() == 0:
             empty = QLabel("No active alerts", self)
-            empty.setStyleSheet("color: #888888;")
+            empty.setProperty("role", "faint")
             self._list_layout.addWidget(empty)
 
 
@@ -238,7 +251,7 @@ class TeamsCard(OverviewCard):
     def _make_kpi_block(self, label: str) -> QVBoxLayout:
         layout = QVBoxLayout()
         title = QLabel(label, self)
-        title.setStyleSheet("color: #a7a7a7;")
+        title.setProperty("role", "subtle")
         layout.addWidget(title)
         value = QLabel("0", self)
         value_font = value.font()
@@ -291,7 +304,7 @@ class TeamsCard(OverviewCard):
             )
             layout.addWidget(status_label)
             checkin = QLabel(timefmt.humanize_relative(team.get("last_checkin_ts"), default="—"), row)
-            checkin.setStyleSheet("color: #a7a7a7;")
+            checkin.setProperty("role", "subtle")
             layout.addWidget(checkin)
             alert_container = QHBoxLayout()
             alert_container.setSpacing(2)
@@ -310,7 +323,7 @@ class TeamsCard(OverviewCard):
 
         if self._list_layout.count() == 0 and teams:
             filler = QLabel("All teams nominal", self)
-            filler.setStyleSheet("color: #888888;")
+            filler.setProperty("role", "faint")
             self._list_layout.addWidget(filler)
 
 
@@ -335,7 +348,7 @@ class TasksCard(OverviewCard):
     def _make_kpi(self, label: str) -> QVBoxLayout:
         layout = QVBoxLayout()
         title = QLabel(label, self)
-        title.setStyleSheet("color: #a7a7a7;")
+        title.setProperty("role", "subtle")
         layout.addWidget(title)
         value = QLabel("0", self)
         font = value.font()
@@ -363,20 +376,22 @@ class TasksCard(OverviewCard):
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(tokens.SMALL_PADDING)
             title = QLabel(f"{task.get('task_id', '')} {task.get('title', '')}", row)
-            title.setStyleSheet("font-weight: 600;")
+            title_font = title.font()
+            title_font.setBold(True)
+            title.setFont(title_font)
             layout.addWidget(title)
             due_label = QLabel(timefmt.humanize_relative(task.get("due_time"), default="—"), row)
-            due_label.setStyleSheet("color: #a7a7a7;")
+            due_label.setProperty("role", "subtle")
             layout.addWidget(due_label)
             assigned = QLabel(task.get("assigned_to") or "Unassigned", row)
-            assigned.setStyleSheet("color: #cccccc;")
+            assigned.setProperty("role", "muted")
             layout.addWidget(assigned)
             layout.addStretch(1)
             self._list_layout.addWidget(row)
 
         if self._list_layout.count() == 0:
             empty = QLabel("No tasks due soon", self)
-            empty.setStyleSheet("color: #888888;")
+            empty.setProperty("role", "faint")
             self._list_layout.addWidget(empty)
 
 
@@ -404,7 +419,7 @@ class CommsCard(OverviewCard):
     def _build_metric_block(self, title: str, value_label: QLabel, *, is_value: bool = True) -> QVBoxLayout:
         layout = QVBoxLayout()
         title_label = QLabel(title, self)
-        title_label.setStyleSheet("color: #a7a7a7;")
+        title_label.setProperty("role", "subtle")
         layout.addWidget(title_label)
         if is_value:
             font = value_label.font()
@@ -433,20 +448,22 @@ class CommsCard(OverviewCard):
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(tokens.SMALL_PADDING)
             name = QLabel(channel.get("name") or "", row)
-            name.setStyleSheet("font-weight: 600;")
+            name_font = name.font()
+            name_font.setBold(True)
+            name.setFont(name_font)
             layout.addWidget(name)
             function = QLabel(channel.get("function") or "", row)
-            function.setStyleSheet("color: #cccccc;")
+            function.setProperty("role", "muted")
             layout.addWidget(function)
             mode = QLabel(channel.get("mode") or "", row)
-            mode.setStyleSheet("color: #a7a7a7;")
+            mode.setProperty("role", "subtle")
             layout.addWidget(mode)
             layout.addStretch(1)
             self._list_layout.addWidget(row)
 
         if self._list_layout.count() == 0:
             empty = QLabel("No communications channels configured", self)
-            empty.setStyleSheet("color: #888888;")
+            empty.setProperty("role", "faint")
             self._list_layout.addWidget(empty)
 
 
@@ -461,7 +478,7 @@ class LogisticsCard(OverviewCard):
         statuses = ["Submitted", "In Progress", "Ordered", "Fulfilled"]
         for index, status in enumerate(statuses):
             label = QLabel(status, self)
-            label.setStyleSheet("color: #a7a7a7;")
+            label.setProperty("role", "subtle")
             value = QLabel("0", self)
             font = value.font()
             font.setBold(True)
@@ -472,7 +489,7 @@ class LogisticsCard(OverviewCard):
         self.content_layout.addLayout(grid)
 
         self._others_label = QLabel("", self)
-        self._others_label.setStyleSheet("color: #cccccc;")
+        self._others_label.setProperty("role", "muted")
         self.content_layout.addWidget(self._others_label)
 
         footer = QHBoxLayout()
@@ -480,6 +497,7 @@ class LogisticsCard(OverviewCard):
         self._open_button = QToolButton(self)
         self._open_button.setText("Open Logistics Board")
         self._open_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._open_button.setProperty("role", "accent")
         footer.addWidget(self._open_button)
         self.content_layout.addLayout(footer)
 
@@ -512,6 +530,7 @@ class ICOverviewWidget(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
+        self.setObjectName("ICOverviewWidget")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._current_op = 1
         self._operational_periods: List[int] = []
@@ -524,6 +543,7 @@ class ICOverviewWidget(QWidget):
         self._clock_timer.start()
 
         self._build_ui()
+        style_palette.subscribe_theme(self, self._apply_theme)
         self._refresh_timer.start()
         self.refresh()
 
@@ -581,6 +601,82 @@ class ICOverviewWidget(QWidget):
         self.setTabOrder(self._resource_request_button, self._open_iap_button)
         self.setTabOrder(self._open_iap_button, self._pause_button)
 
+    def _apply_theme(self, theme_name: str) -> None:
+        palette = style_palette.get_palette()
+        fg = palette["fg"].name()
+        muted_color = palette["muted"]
+        accent = palette["accent"].name()
+        ctrl_bg = palette.get("ctrl_bg", palette["bg"]).name()
+        ctrl_border = palette.get("ctrl_border", palette["divider"]).name()
+        ctrl_hover = palette.get("ctrl_hover", palette["bg"]).name()
+        divider_value = palette.get("divider", tokens.CARD_BORDER)
+        card_surface = palette.get("bg_panel" if theme_name == "light" else "bg_raised", palette["bg"])
+        card_border_value = divider_value
+        subtle = muted_color.lighter(130 if theme_name == "light" else 115).name()
+        faint = muted_color.lighter(160 if theme_name == "light" else 135).name()
+        muted = muted_color.name()
+
+        card_bg = card_surface.name() if hasattr(card_surface, "name") else str(card_surface)
+        card_border = (
+            card_border_value.name() if hasattr(card_border_value, "name") else str(card_border_value)
+        )
+
+        stylesheet = f"""
+        QWidget#ICOverviewWidget {{
+            background-color: transparent;
+            color: {fg};
+        }}
+        QWidget#ICOverviewWidget QLabel {{
+            color: {fg};
+        }}
+        QWidget#ICOverviewWidget QLabel[role="muted"],
+        QWidget#ICOverviewWidget QToolButton[role="muted"],
+        QWidget#ICOverviewWidget QPushButton[role="muted"] {{
+            color: {muted};
+        }}
+        QWidget#ICOverviewWidget QLabel[role="subtle"] {{
+            color: {subtle};
+        }}
+        QWidget#ICOverviewWidget QLabel[role="faint"] {{
+            color: {faint};
+        }}
+        QWidget#ICOverviewWidget QLabel[role="accent"],
+        QWidget#ICOverviewWidget QToolButton[role="accent"],
+        QWidget#ICOverviewWidget QPushButton[role="accent"] {{
+            color: {accent};
+        }}
+        QWidget#ICOverviewWidget QFrame#OverviewCard {{
+            background-color: {card_bg};
+            border: 1px solid {card_border};
+            border-radius: {tokens.CARD_RADIUS}px;
+        }}
+        QWidget#ICOverviewWidget QPushButton {{
+            background-color: {card_bg if theme_name == 'dark' else ctrl_bg};
+            border: 1px solid {ctrl_border};
+            color: {fg};
+            padding: 4px 10px;
+        }}
+        QWidget#ICOverviewWidget QPushButton:hover {{
+            background-color: {ctrl_hover};
+        }}
+        QWidget#ICOverviewWidget QToolButton {{
+            background-color: transparent;
+        }}
+        QWidget#ICOverviewWidget QToolButton#LegendButton {{
+            border: 1px solid {card_border};
+            border-radius: 8px;
+            padding: 1px 4px;
+        }}
+        QWidget#ICOverviewWidget QToolButton#LegendButton:hover {{
+            background-color: {ctrl_hover};
+        }}
+        """
+
+        self.setStyleSheet(stylesheet)
+
+        for card in [self._alerts_card, *self._summary_cards]:
+            card.set_card_colors(card_bg, card_border)
+
     def _build_header(self) -> QWidget:
         container = QWidget(self)
         layout = QHBoxLayout(container)
@@ -599,7 +695,7 @@ class ICOverviewWidget(QWidget):
         info_row = QHBoxLayout()
         info_row.setSpacing(tokens.SMALL_PADDING)
         self._incident_number_label = QLabel("#—", container)
-        self._incident_number_label.setStyleSheet("color: #a7a7a7;")
+        self._incident_number_label.setProperty("role", "subtle")
         info_row.addWidget(self._incident_number_label)
         self._status_label = QLabel("", container)
         self._status_label.setStyleSheet(
@@ -637,6 +733,7 @@ class ICOverviewWidget(QWidget):
         self._clock_label = QLabel("--:--:--", container)
         self._clock_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._clock_label.setFixedWidth(80)
+        self._clock_label.setProperty("role", "muted")
         right.addWidget(self._clock_label)
 
         self._new_objective_button = QPushButton("New Objective", container)
