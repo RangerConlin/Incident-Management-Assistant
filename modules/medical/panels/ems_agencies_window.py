@@ -10,7 +10,6 @@ from PySide6.QtCore import QByteArray, QModelIndex, QPoint, Qt, QTimer, QObject,
 from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -291,20 +290,6 @@ class EMSAgenciesWindow(QMainWindow):
         self.search_edit.setClearButtonEnabled(True)
         toolbar.addWidget(self.search_edit)
 
-        # Header badges -------------------------------------------------
-        header_frame = QFrame(self)
-        header_frame.setFrameShape(QFrame.Shape.NoFrame)
-        header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(tokens.DEFAULT_PADDING, tokens.SMALL_PADDING, tokens.DEFAULT_PADDING, tokens.SMALL_PADDING)
-        header_layout.setSpacing(tokens.SMALL_PADDING)
-        self.badge_incident = self._make_badge()
-        self.badge_op = self._make_badge()
-        self.badge_user = self._make_badge()
-        header_layout.addWidget(self.badge_incident)
-        header_layout.addWidget(self.badge_op)
-        header_layout.addWidget(self.badge_user)
-        header_layout.addStretch(1)
-
         # Tabs -----------------------------------------------------------
         self.tabs = QTabWidget(self)
         self.tabs.setDocumentMode(True)
@@ -398,7 +383,6 @@ class EMSAgenciesWindow(QMainWindow):
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-        main_layout.addWidget(header_frame)
         main_layout.addWidget(self.tabs)
         self.setCentralWidget(central)
 
@@ -437,7 +421,6 @@ class EMSAgenciesWindow(QMainWindow):
         # Shortcuts
         QShortcut(QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key_F), self, activated=self.search_edit.setFocus)
 
-        self._update_badges()
         self._update_action_state()
 
     # ------------------------------------------------------------------
@@ -452,7 +435,6 @@ class EMSAgenciesWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _handle_context_change(self) -> None:
         self.setWindowTitle(self._compose_title())
-        self._update_badges()
 
     # ------------------------------------------------------------------
     def _refresh_all(self) -> None:
@@ -508,32 +490,6 @@ class EMSAgenciesWindow(QMainWindow):
                 return f"EMS Agencies — {name}"
             return f"EMS Agencies — Incident {incident_number}"
         return "EMS Agencies — No Active Incident"
-
-    def _make_badge(self) -> QLabel:
-        label = QLabel("—")
-        label.setContentsMargins(tokens.SMALL_PADDING, tokens.TINY_PADDING, tokens.SMALL_PADDING, tokens.TINY_PADDING)
-        label.setStyleSheet(self._badge_stylesheet())
-        return label
-
-    def _badge_stylesheet(self) -> str:
-        pal = app_styles.get_palette()
-        bg = pal["accent"].name()
-        fg = pal["bg"].name()
-        return f"background-color: {bg}; color: {fg}; border-radius: 10px; padding: 4px 8px;"
-
-    def _update_badges(self) -> None:
-        incident_number = AppState.get_active_incident()
-        incident_text = "Incident: —"
-        if incident_number:
-            record = get_incident_by_number(incident_number)
-            name = record.get("name") if record else None
-            incident_text = f"Incident: {name or incident_number}"
-        self.badge_incident.setText(incident_text)
-        op = AppState.get_active_op_period()
-        self.badge_op.setText(f"Operational Period: {op if op else '—'}")
-        user = AppState.get_active_user_id() or "—"
-        role = AppState.get_active_user_role() or "—"
-        self.badge_user.setText(f"User: {user} / {role}")
 
     def _type_chip_colors(self, value: Any) -> tuple[QColor | None, QColor | None]:
         palette = app_styles.get_palette()
