@@ -854,7 +854,10 @@ class MainWindow(QMainWindow):
         self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
 
     def open_edit_personnel(self) -> None:
-        self._open_qml_modal("qml/PersonnelWindow.qml", title="Personnel")
+        from ui.personnel import PersonnelInventoryWindow
+
+        dialog = PersonnelInventoryWindow(parent=self)
+        dialog.exec()
 
     def open_edit_objectives(self) -> None:
         self._open_qml_modal("qml/ObjectivesWindow.qml", title="Objectives")
