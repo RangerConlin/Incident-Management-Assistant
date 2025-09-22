@@ -70,6 +70,53 @@ def test_create_and_check_in_personnel(temp_data_dir: Path) -> None:
     assert incident_row["callsign"] == "ECHO1"
 
 
+def test_search_master_records_filters_and_marks(temp_data_dir: Path) -> None:
+    service = services.CheckInService()
+    first = service.create_master_record(
+        "personnel",
+        {"name": "Charlie Search", "role": "Ground", "callsign": "ALPHA"},
+    )
+    service.create_master_record(
+        "personnel",
+        {"name": "Donna Support", "role": "Logistics", "callsign": "BRAVO"},
+    )
+
+    results = service.search_master_records("personnel", "Charlie")
+    assert len(results) == 1
+    assert results[0]["name"] == "Charlie Search"
+    assert results[0]["_checked_in"] is False
+
+    service.check_in("personnel", str(first["id"]))
+    checked_results = service.search_master_records("personnel", "Charlie")
+    assert checked_results[0]["_checked_in"] is True
+
+
+def test_check_in_with_overrides_updates_incident_only(temp_data_dir: Path) -> None:
+    service = services.CheckInService()
+    created = service.create_master_record(
+        "personnel",
+        {"name": "Evan Override", "role": "Pilot", "callsign": "RAVEN"},
+    )
+    identifier = str(created["id"])
+
+    updated = service.check_in(
+        "personnel",
+        identifier,
+        overrides={"callsign": "RAVEN-2", "phone": "555-0100"},
+    )
+    assert updated["callsign"] == "RAVEN-2"
+    assert updated["phone"] == "555-0100"
+
+    incident_row = _incident_row(temp_data_dir, "personnel", int(identifier))
+    assert incident_row["callsign"] == "RAVEN-2"
+    assert incident_row["phone"] == "555-0100"
+
+    master_rows = service.list_master_records("personnel")
+    master_record = _record_by_id(master_rows, identifier)
+    assert master_record["callsign"] == "RAVEN"
+    assert master_record.get("phone") in (None, "")
+
+
 def test_vehicle_requires_identifier(temp_data_dir: Path) -> None:
     service = services.CheckInService()
     with pytest.raises(ValueError):

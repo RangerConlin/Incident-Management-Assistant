@@ -1,7 +1,7 @@
 """Public API helpers for the simplified check-in service."""
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .services import (
     CheckInService,
@@ -21,10 +21,20 @@ def list_master_records(entity_type: str) -> List[Dict[str, Any]]:
     return get_service().list_master_records(entity_type)
 
 
-def check_in(entity_type: str, record_id: Any) -> Dict[str, Any]:
+def search_master_records(
+    entity_type: str, query: str, limit: int = 50
+) -> List[Dict[str, Any]]:
+    """Search master records that match ``query``."""
+
+    return get_service().search_master_records(entity_type, query, limit)
+
+
+def check_in(
+    entity_type: str, record_id: Any, overrides: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Duplicate ``record_id`` from the master table into the incident DB."""
 
-    return get_service().check_in(entity_type, record_id)
+    return get_service().check_in(entity_type, record_id, overrides=overrides)
 
 
 def create_master_record(entity_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -45,4 +55,5 @@ __all__ = [
     "get_service",
     "iter_entity_configs",
     "list_master_records",
+    "search_master_records",
 ]

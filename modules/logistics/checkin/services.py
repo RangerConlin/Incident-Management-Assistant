@@ -231,8 +231,57 @@ def get_entity_config(entity_type: str) -> EntityConfig:
     return _get_config(entity_type)
 
 
+_SEARCH_COLUMN_CACHE: Dict[str, Tuple[str, ...]] = {}
+
+
+def _search_columns(config: EntityConfig) -> Tuple[str, ...]:
+    """Return the master table columns that should be searched."""
+
+    try:
+        return _SEARCH_COLUMN_CACHE[config.key]
+    except KeyError:
+        pass
+
+    ordered: List[str] = []
+    seen: set[str] = set()
+
+    if config.id_column not in seen:
+        ordered.append(config.id_column)
+        seen.add(config.id_column)
+
+    for column_name, _ in config.display_columns:
+        if column_name not in seen:
+            ordered.append(column_name)
+            seen.add(column_name)
+
+    for field in config.form_fields:
+        if field.name not in seen:
+            ordered.append(field.name)
+            seen.add(field.name)
+
+    _SEARCH_COLUMN_CACHE[config.key] = tuple(ordered)
+    return _SEARCH_COLUMN_CACHE[config.key]
+
+
 class CheckInService:
     """Facade that manages master and incident check-in records."""
+
+    def _rows_with_checked_flag(
+        self, config: EntityConfig, rows: Iterable[sqlite3.Row]
+    ) -> List[Dict[str, Any]]:
+        """Normalize SQLite rows and mark whether they exist in the incident DB."""
+
+        normalized = [dict(row) for row in rows]
+        if not normalized:
+            return normalized
+
+        incident_ids = self._incident_id_set(config)
+        for record in normalized:
+            identifier = record.get(config.id_column)
+            record["_checked_in"] = (
+                str(identifier) in incident_ids if identifier is not None else False
+            )
+        return normalized
 
     def list_master_records(self, entity_type: str) -> List[Dict[str, Any]]:
         """Return all master records for ``entity_type`` sorted for display."""
@@ -243,14 +292,51 @@ class CheckInService:
             rows = master_conn.execute(
                 f"SELECT * FROM {config.master_table} ORDER BY {config.sort_column}"
             ).fetchall()
-        incident_ids = self._incident_id_set(config)
-        results: List[Dict[str, Any]] = []
-        for row in rows:
-            record = dict(row)
-            identifier = record.get(config.id_column)
-            record["_checked_in"] = str(identifier) in incident_ids if identifier is not None else False
-            results.append(record)
-        return results
+        return self._rows_with_checked_flag(config, rows)
+
+    def search_master_records(
+        self, entity_type: str, query: str, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Search master records matching ``query`` and return limited results."""
+
+        config = _get_config(entity_type)
+        trimmed = query.strip()
+        if not trimmed:
+            return []
+
+        terms = [part.strip() for part in trimmed.split() if part.strip()]
+        if not terms:
+            return []
+
+        columns = _search_columns(config)
+        if not columns:
+            return []
+
+        where_parts: List[str] = []
+        params: List[Any] = []
+        for term in terms:
+            like = f"%{term.lower()}%"
+            clause_fragments: List[str] = []
+            for column in columns:
+                clause_fragments.append(
+                    f"LOWER(CAST(COALESCE({column}, '') AS TEXT)) LIKE ?"
+                )
+                params.append(like)
+            where_parts.append("(" + " OR ".join(clause_fragments) + ")")
+
+        where_sql = " AND ".join(where_parts)
+        limit_value = limit if isinstance(limit, int) and limit > 0 else 50
+        params.append(limit_value)
+
+        sql = (
+            f"SELECT * FROM {config.master_table} WHERE {where_sql} "
+            f"ORDER BY {config.sort_column} LIMIT ?"
+        )
+
+        with get_master_conn() as master_conn:
+            _ensure_master_schema(master_conn, config)
+            rows = master_conn.execute(sql, params).fetchall()
+        return self._rows_with_checked_flag(config, rows)
 
     def create_master_record(self, entity_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Insert a new master record and return the stored row."""
@@ -306,11 +392,22 @@ class CheckInService:
         record["_checked_in"] = False
         return record
 
-    def check_in(self, entity_type: str, record_id: Any) -> Dict[str, Any]:
-        """Copy the master record into the incident database."""
+    def check_in(
+        self,
+        entity_type: str,
+        record_id: Any,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Copy the master record into the incident database, applying overrides."""
 
         config = _get_config(entity_type)
         record = self._get_master_record(config, record_id)
+        if overrides:
+            for key, value in overrides.items():
+                if key == config.id_column:
+                    continue
+                if key in record:
+                    record[key] = value
         columns = list(record.keys())
         values = [record[column] for column in columns]
         placeholders = ", ".join("?" for _ in columns)
