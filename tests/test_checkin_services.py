@@ -199,6 +199,51 @@ def test_override_requires_permission(tmp_path, monkeypatch):
         )
 
 
+def test_supports_legacy_master_personnel_schema(tmp_path, monkeypatch):
+    services, schema = _setup_environment(tmp_path, monkeypatch)
+    with sqlite3.connect(tmp_path / "master.db") as conn:
+        conn.execute("DROP TABLE IF EXISTS personnel")
+        conn.execute(
+            """
+            CREATE TABLE personnel (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                role TEXT,
+                contact TEXT,
+                callsign TEXT,
+                unit TEXT
+            )
+            """
+        )
+        conn.executemany(
+            "INSERT INTO personnel (id, name, role, contact, callsign, unit) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                ("LEGACY1", "Legacy Person", "Responder", "555-9999", "ECHO", "LegacyUnit"),
+            ],
+        )
+        conn.commit()
+
+    record = services.upsertCheckIn(
+        {
+            "person_id": "LEGACY1",
+            "ci_status": "CheckedIn",
+            "arrival_time": _iso_now(),
+            "location": "ICP",
+        }
+    )
+    assert record.person_id == "LEGACY1"
+
+    roster = services.getRoster({"include_no_show": True})
+    assert roster
+    entry = roster[0]
+    assert entry.person_id == "LEGACY1"
+    assert entry.role == "Responder"
+    assert entry.phone == "555-9999"
+
+    roles = services.listRoles()
+    assert "Responder" in roles
+
+
 def test_filters_hide_no_show_by_default(services_env):
     services = services_env
     first = services.upsertCheckIn(

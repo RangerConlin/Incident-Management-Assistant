@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -31,6 +32,39 @@ def _now() -> str:
 
 def _row_to_dict(row) -> Dict:
     return dict(row) if row is not None else {}
+
+
+# ---------------------------------------------------------------------------
+# Schema helpers
+# ---------------------------------------------------------------------------
+
+def _collect_personnel_values(conn: sqlite3.Connection, column: str) -> set[str]:
+    """Return a set of distinct non-empty values for ``column`` from personnel.
+
+    The production ``master.db`` shipped with the desktop application exposes a
+    ``role`` column instead of the newer ``primary_role`` field that the
+    refactored check-in module expects.  When the newer column is missing we
+    gracefully fall back to whichever legacy column exists so that the roster
+    filters remain populated without requiring a DB migration.  Any
+    ``OperationalError`` triggered by missing columns is swallowed so callers can
+    attempt multiple field names in succession.
+    """
+
+    try:
+        cur = conn.execute(
+            f"SELECT DISTINCT {column} FROM personnel WHERE {column} IS NOT NULL"
+        )
+    except sqlite3.OperationalError:
+        return set()
+
+    values: set[str] = set()
+    for (value,) in cur.fetchall():
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            values.add(text)
+    return values
 
 
 # ---------------------------------------------------------------------------
@@ -69,11 +103,17 @@ def get_distinct_roles() -> List[str]:
     with get_incident_conn() as conn:
         schema.ensure_incident_schema(conn)
         cur = conn.execute("SELECT DISTINCT role_on_team FROM checkins WHERE role_on_team IS NOT NULL")
-        roles.update(r[0] for r in cur.fetchall() if r[0])
+        roles.update(
+            {
+                str(value).strip()
+                for (value,) in cur.fetchall()
+                if value not in (None, "")
+            }
+        )
     with get_master_conn() as conn:
         schema.ensure_master_schema(conn)
-        cur = conn.execute("SELECT DISTINCT primary_role FROM personnel WHERE primary_role IS NOT NULL")
-        roles.update(r[0] for r in cur.fetchall() if r[0])
+        roles.update(_collect_personnel_values(conn, "primary_role"))
+        roles.update(_collect_personnel_values(conn, "role"))
     return sorted(roles)
 
 

@@ -110,14 +110,30 @@ class PersonnelIdentity:
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "PersonnelIdentity":
+        """Create an identity object from a SQLite row.
+
+        The production ``master.db`` bundled with the application predates the
+        new typed schema introduced for the reworked Check-In module and uses a
+        slightly different set of column names (for example ``role`` instead of
+        ``primary_role`` and ``contact`` instead of ``phone``).  When reading
+        from the database we therefore need to gracefully fall back to the
+        legacy column names so that the UI can operate on existing datasets
+        without requiring a migration.
+        """
+
+        primary_role = row.get("primary_role") or row.get("role") or row.get("rank")
+        phone = row.get("phone") or row.get("contact")
+        home_unit = row.get("home_unit") or row.get("unit")
+        certifications = row.get("certifications") or row.get("certs")
+
         return cls(
-            person_id=row["id"],
+            person_id=str(row["id"]),
             name=row.get("name") or "",
-            primary_role=row.get("primary_role"),
-            phone=row.get("phone"),
+            primary_role=primary_role,
+            phone=phone,
             callsign=row.get("callsign"),
-            certifications=row.get("certifications"),
-            home_unit=row.get("home_unit"),
+            certifications=certifications,
+            home_unit=home_unit,
         )
 
 
