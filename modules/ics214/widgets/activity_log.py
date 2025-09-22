@@ -1009,7 +1009,7 @@ class Ics214ActivityLogPanel(QWidget):
             "individual": [],
             "facility": [],
         }
-        self.setMinimumSize(1100, 780)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._build_ui()
         self.resize(self.sizeHint())
         self._load_initial_data()
