@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any, List
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from .models import (
     ICS214Stream,
@@ -27,6 +28,9 @@ def can_read(user_id: str, stream: ICS214Stream) -> bool:
 def can_write(user_id: str, stream: ICS214Stream) -> bool:
     return True
 
+
+logger = logging.getLogger(__name__)
+
 # Stream CRUD ----------------------------------------------------------------
 
 def create_stream(data: StreamCreate) -> ICS214Stream:
@@ -41,6 +45,144 @@ def list_streams(incident_id: str) -> List[ICS214Stream]:
     with with_incident_session(incident_id) as session:
         result = session.execute(select(ICS214Stream)).scalars().all()
         return result
+
+
+def list_subject_options(incident_id: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Return available log subjects grouped by category for the incident."""
+
+    options: Dict[str, List[Dict[str, Any]]] = {
+        "team": [],
+        "individual": [],
+        "section": [],
+        "facility": [],
+    }
+    with with_incident_session(incident_id) as session:
+        try:
+            rows = (
+                session.execute(
+                    text(
+                        """
+                        SELECT id,
+                               COALESCE(NULLIF(name, ''), NULLIF(callsign, ''), 'Team ' || id) AS label,
+                               NULLIF(callsign, '') AS callsign,
+                               NULLIF(role, '') AS role
+                        FROM teams
+                        ORDER BY label COLLATE NOCASE
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            for row in rows:
+                description_parts = [
+                    part
+                    for part in (row.get("role"), row.get("callsign"))
+                    if part
+                ]
+                options["team"].append(
+                    {
+                        "ref": f"team:{row['id']}",
+                        "label": row["label"],
+                        "description": " — ".join(description_parts),
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - optional data
+            logger.debug("Failed to load teams for ICS-214 subjects: %s", exc)
+
+        try:
+            rows = (
+                session.execute(
+                    text(
+                        """
+                        SELECT id,
+                               COALESCE(NULLIF(name, ''), 'Personnel ' || id) AS label,
+                               NULLIF(role, '') AS role,
+                               NULLIF(callsign, '') AS callsign
+                        FROM personnel
+                        ORDER BY label COLLATE NOCASE
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            for row in rows:
+                description_parts = [
+                    part
+                    for part in (row.get("role"), row.get("callsign"))
+                    if part
+                ]
+                options["individual"].append(
+                    {
+                        "ref": f"individual:{row['id']}",
+                        "label": row["label"],
+                        "description": " — ".join(description_parts),
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - optional data
+            logger.debug("Failed to load personnel for ICS-214 subjects: %s", exc)
+
+        try:
+            rows = (
+                session.execute(
+                    text(
+                        """
+                        SELECT id,
+                               NULLIF(title, '') AS title,
+                               NULLIF(node_type, '') AS node_type,
+                               order_index
+                        FROM org_structures
+                        ORDER BY order_index, title COLLATE NOCASE
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            for row in rows:
+                title = row.get("title")
+                if not title:
+                    continue
+                description = row.get("node_type") or ""
+                options["section"].append(
+                    {
+                        "ref": f"section:{row['id']}",
+                        "label": title,
+                        "description": description,
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - optional data
+            logger.debug("Failed to load org structure for ICS-214 subjects: %s", exc)
+
+        try:
+            rows = (
+                session.execute(
+                    text(
+                        """
+                        SELECT id,
+                               COALESCE(NULLIF(name, ''), 'Facility ' || id) AS label,
+                               NULLIF(location, '') AS location
+                        FROM aid_stations
+                        ORDER BY label COLLATE NOCASE
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            for row in rows:
+                options["facility"].append(
+                    {
+                        "ref": f"facility:aid_station:{row['id']}",
+                        "label": row["label"],
+                        "description": row.get("location", ""),
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - optional data
+            logger.debug("Failed to load facilities for ICS-214 subjects: %s", exc)
+
+    return options
 
 
 def update_stream(incident_id: str, stream_id: str, data: StreamUpdate) -> ICS214Stream | None:

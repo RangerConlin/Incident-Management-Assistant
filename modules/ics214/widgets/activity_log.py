@@ -1,15 +1,17 @@
 """QtWidgets implementation for the redesigned ICS-214 Activity Log module."""
 from __future__ import annotations
 
+import json
+import logging
+import re
+import sqlite3
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-import logging
 from pathlib import Path
-import sqlite3
 from typing import Any, Sequence
 from uuid import uuid4
 
-from PySide6.QtCore import QDate, QDateTime, QTime, QPoint, Qt, Signal
+from PySide6.QtCore import QDate, QDateTime, QTime, QPoint, Qt, Signal, QSize
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -24,6 +26,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -52,10 +56,70 @@ from utils import incident_context
 logger = logging.getLogger(__name__)
 
 
+SUBJECT_REF_PATTERN = re.compile(r"^(team|section|individual|facility):(.+)$", re.IGNORECASE)
+
+DEFAULT_SECTION_SUBJECTS: list[dict[str, str]] = [
+    {"ref": "section:command", "label": "Command"},
+    {"ref": "section:operations", "label": "Operations"},
+    {"ref": "section:planning", "label": "Planning"},
+    {"ref": "section:logistics", "label": "Logistics"},
+    {"ref": "section:finance_admin", "label": "Finance / Admin"},
+    {"ref": "section:intel", "label": "Intelligence"},
+    {"ref": "section:liaison", "label": "Liaison"},
+    {"ref": "section:public_information", "label": "Public Information"},
+    {"ref": "section:medical_safety", "label": "Medical & Safety"},
+    {"ref": "section:communications", "label": "Communications"},
+]
+
+
 def _now_local() -> QDateTime:
     dt = QDateTime.currentDateTime()
     dt.setTimeSpec(Qt.LocalTime)
     return dt
+
+
+def _unique_ordered(values: Sequence[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        normalized = value.strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        ordered.append(value)
+    return ordered
+
+
+def _parse_subject_section(value: Any | None) -> tuple[str | None, str | None, str | None, str | None]:
+    """Decode stored subject metadata from the stream.section field."""
+
+    if value is None:
+        return None, None, None, None
+    raw = str(value).strip()
+    if not raw:
+        return None, None, None, None
+    if raw.startswith("{"):
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            return None, None, raw, None
+        category = payload.get("category") or payload.get("kind") or payload.get("type")
+        category = category.lower() if isinstance(category, str) else None
+        ref = payload.get("ref")
+        label = payload.get("label") or payload.get("name")
+        description = payload.get("description") or payload.get("details")
+        return category, ref, label, description
+    match = SUBJECT_REF_PATTERN.match(raw)
+    if match:
+        category = match.group(1).lower()
+        identifier = match.group(2).strip()
+        ref = f"{category}:{identifier}"
+        pretty = identifier.replace("_", " ").replace("-", " ")
+        label = pretty.title() if pretty and pretty.isalpha() else identifier
+        return category, ref, label, None
+    return None, None, raw, None
 
 
 @dataclass
@@ -119,6 +183,9 @@ class LogHeader:
     op_number: int | None = None
     section: str | None = None
     kind: str | None = None
+    subject_ref: str | None = None
+    subject_label: str | None = None
+    subject_description: str | None = None
     updated_at: QDateTime | None = None
 
     def clone(self) -> "LogHeader":
@@ -568,14 +635,30 @@ class NewLogDialog(QDialog):
         operational_periods: Sequence[tuple[int, str]],
         parent: QWidget | None = None,
         *,
+        subject_options: dict[str, list[dict[str, Any]]] | None = None,
         context: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("ICS 214 Log Details")
         self._context = context or {}
+        base_options = subject_options or {}
+        self._subject_options: dict[str, list[dict[str, Any]]] = {
+            "team": [dict(item) for item in base_options.get("team", [])],
+            "section": [dict(item) for item in base_options.get("section", [])],
+            "individual": [dict(item) for item in base_options.get("individual", [])],
+            "facility": [dict(item) for item in base_options.get("facility", [])],
+        }
+        if not self._subject_options["section"]:
+            self._subject_options["section"] = [dict(item) for item in DEFAULT_SECTION_SUBJECTS]
         self._result: dict[str, Any] | None = None
+        self.selected_kind: str | None = None
+        self.selected_ref: str | None = None
+        self._all_subject_items: list[QListWidgetItem] = []
         self._build_ui(operational_periods)
         self._load_defaults(header)
+        if self.category_list.currentRow() < 0 and self.category_list.count():
+            self.category_list.setCurrentRow(0)
+        self.resize(700, 520)
 
     @property
     def result(self) -> dict[str, Any] | None:
@@ -583,22 +666,50 @@ class NewLogDialog(QDialog):
 
     def _build_ui(self, operational_periods: Sequence[tuple[int, str]]) -> None:
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+
+        layout.addWidget(
+            QLabel("Choose who this log is for, then confirm the details below.", self)
+        )
+
+        selector_layout = QHBoxLayout()
+        self.category_list = QListWidget(self)
+        self.category_list.setMinimumWidth(180)
+        for label, kind in [
+            ("Teams", "team"),
+            ("Sections", "section"),
+            ("Personnel", "individual"),
+            ("Facilities", "facility"),
+        ]:
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, kind)
+            self.category_list.addItem(item)
+        self.category_list.currentItemChanged.connect(self._on_category_changed)
+        selector_layout.addWidget(self.category_list, 1)
+
+        right_layout = QVBoxLayout()
+        self.subject_search = QLineEdit(self)
+        self.subject_search.setPlaceholderText("Search subjects…")
+        self.subject_search.textChanged.connect(self._filter_subjects)
+        right_layout.addWidget(self.subject_search)
+
+        self.subject_list = QListWidget(self)
+        self.subject_list.setSelectionMode(QListWidget.SingleSelection)
+        self.subject_list.itemSelectionChanged.connect(self._on_subject_selected)
+        right_layout.addWidget(self.subject_list, 1)
+        selector_layout.addLayout(right_layout, 2)
+        layout.addLayout(selector_layout)
+
         form = QFormLayout()
+        self.subject_display = QLineEdit(self)
+        self.subject_display.setReadOnly(True)
+        self.subject_display.setPlaceholderText("Select a subject from the list")
+        form.addRow("Subject:", self.subject_display)
 
         self.name_edit = QLineEdit(self)
         self.name_edit.setPlaceholderText("e.g., Team G-12 Day Shift")
         form.addRow("Log Name:", self.name_edit)
-
-        self.type_combo = QComboBox(self)
-        self.type_combo.addItem("Team", "team")
-        self.type_combo.addItem("Section", "section")
-        self.type_combo.addItem("Individual", "individual")
-        self.type_combo.addItem("Facility", "facility")
-        form.addRow("Log Type:", self.type_combo)
-
-        self.section_edit = QLineEdit(self)
-        self.section_edit.setPlaceholderText("Section / Unit")
-        form.addRow("Section / Unit:", self.section_edit)
 
         self.op_combo = QComboBox(self)
         for op_number, label in operational_periods:
@@ -610,54 +721,237 @@ class NewLogDialog(QDialog):
         layout.addLayout(form)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
-        layout.addWidget(buttons)
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _select_category(self, kind: str | None) -> None:
+        target = (kind or "team").lower()
+        for row in range(self.category_list.count()):
+            item = self.category_list.item(row)
+            if (item.data(Qt.UserRole) or "").lower() == target:
+                self.category_list.setCurrentRow(row)
+                return
+        if self.category_list.count():
+            self.category_list.setCurrentRow(0)
+
+    def _populate_subjects(self, kind: str | None) -> None:
+        current_kind = (kind or "team").lower()
+        self.selected_kind = current_kind
+        self.subject_list.blockSignals(True)
+        self.subject_list.clear()
+        self._all_subject_items = []
+        manual_item = QListWidgetItem("Manual entry…")
+        manual_item.setData(Qt.UserRole, {"kind": current_kind, "manual": True})
+        manual_item.setToolTip("Enter a custom subject for this log")
+        self.subject_list.addItem(manual_item)
+        self._all_subject_items.append(manual_item)
+        options = self._subject_options.get(current_kind, [])
+        has_options = False
+        for option in options:
+            label = str(option.get("label") or option.get("ref") or "").strip()
+            if not label:
+                continue
+            item = QListWidgetItem(label)
+            meta = {
+                "kind": current_kind,
+                "ref": option.get("ref"),
+                "label": label,
+                "description": option.get("description"),
+                "manual": False,
+                "extra": option,
+            }
+            item.setData(Qt.UserRole, meta)
+            search_blob = " ".join(
+                filter(
+                    None,
+                    [
+                        label.lower(),
+                        str(option.get("ref", "")).lower(),
+                        str(option.get("description", "")).lower(),
+                    ],
+                )
+            )
+            item.setData(Qt.UserRole + 1, search_blob)
+            if option.get("description"):
+                item.setToolTip(str(option["description"]))
+            self.subject_list.addItem(item)
+            self._all_subject_items.append(item)
+            has_options = True
+        if not has_options:
+            placeholder = QListWidgetItem("No linked records available")
+            placeholder.setFlags(placeholder.flags() & ~Qt.ItemIsSelectable & ~Qt.ItemIsEnabled)
+            placeholder.setData(Qt.UserRole, {"kind": current_kind, "placeholder": True})
+            self.subject_list.addItem(placeholder)
+            self._all_subject_items.append(placeholder)
+        self.subject_list.blockSignals(False)
+        self.subject_list.clearSelection()
+        self.subject_search.blockSignals(True)
+        self.subject_search.clear()
+        self.subject_search.setEnabled(has_options)
+        self.subject_search.blockSignals(False)
+        self.subject_display.clear()
+        self.subject_display.setPlaceholderText("Select a subject from the list")
+        self.subject_display.setReadOnly(True)
+        self.selected_ref = None
+        if not has_options:
+            self.subject_list.setCurrentRow(0)
+
+    def _filter_subjects(self, text: str) -> None:
+        pattern = text.strip().lower()
+        for item in self._all_subject_items:
+            meta = item.data(Qt.UserRole) or {}
+            if meta.get("placeholder"):
+                item.setHidden(bool(pattern))
+                continue
+            if meta.get("manual"):
+                item.setHidden(False)
+                continue
+            search_blob = item.data(Qt.UserRole + 1) or ""
+            item.setHidden(bool(pattern) and pattern not in search_blob)
+
+    def _on_category_changed(
+        self,
+        current: QListWidgetItem | None,
+        previous: QListWidgetItem | None = None,
+    ) -> None:
+        kind = (current.data(Qt.UserRole) if current else None) or "team"
+        self._populate_subjects(str(kind))
+
+    def _on_subject_selected(self) -> None:
+        item = self.subject_list.currentItem()
+        if not item:
+            return
+        meta = item.data(Qt.UserRole) or {}
+        if meta.get("placeholder"):
+            self.subject_list.clearSelection()
+            return
+        kind = meta.get("kind") or self.selected_kind or "team"
+        self.selected_kind = str(kind)
+        if meta.get("manual"):
+            self.selected_ref = None
+            self.subject_display.setReadOnly(False)
+            if not self.subject_display.text():
+                self.subject_display.setPlaceholderText("Enter subject name")
+            self.subject_display.setToolTip("")
+            self.subject_display.setFocus()
+            return
+        label = meta.get("label") or item.text()
+        self.selected_ref = meta.get("ref")
+        self.subject_display.setReadOnly(True)
+        self.subject_display.setText(label)
+        self.subject_display.setToolTip(meta.get("description") or "")
+        if not self.name_edit.text().strip():
+            self.name_edit.setText(label)
+
+    def _select_subject_by_ref(self, ref: str | None) -> bool:
+        if not ref:
+            return False
+        target = ref.strip().lower()
+        if not target:
+            return False
+        for row in range(self.subject_list.count()):
+            item = self.subject_list.item(row)
+            meta = item.data(Qt.UserRole) or {}
+            meta_ref = (meta.get("ref") or "").strip().lower()
+            if meta_ref == target:
+                self.subject_list.setCurrentRow(row)
+                return True
+        return False
+
+    def _select_subject_by_label(self, label: str | None) -> bool:
+        if not label:
+            return False
+        target = label.strip().lower()
+        if not target:
+            return False
+        for row in range(self.subject_list.count()):
+            item = self.subject_list.item(row)
+            meta = item.data(Qt.UserRole) or {}
+            text = (item.text() or "").strip().lower()
+            meta_label = (meta.get("label") or "").strip().lower()
+            if target in {text, meta_label}:
+                self.subject_list.setCurrentRow(row)
+                return True
+        return False
 
     def _load_defaults(self, header: LogHeader | None) -> None:
         if header is not None:
-            self.name_edit.setText(header.log_for_label)
-            if header.log_for_type:
-                idx = self.type_combo.findData(header.log_for_type)
-                if idx >= 0:
-                    self.type_combo.setCurrentIndex(idx)
-            unit = header.unit_or_resource or header.section or ""
-            self.section_edit.setText(unit)
+            kind = (header.kind or header.log_for_type or "").lower() or "team"
+            self._select_category(kind)
+            subject_selected = False
+            if header.subject_ref and self._select_subject_by_ref(header.subject_ref):
+                subject_selected = True
+            elif header.subject_label and self._select_subject_by_label(header.subject_label):
+                subject_selected = True
+            if not subject_selected and header.subject_label:
+                self.subject_display.setText(header.subject_label)
+                self.subject_display.setReadOnly(False)
+                self.selected_kind = kind
+                self.selected_ref = None
+            if header.log_for_label:
+                self.name_edit.setText(header.log_for_label)
             if header.op_number is not None:
                 idx = self.op_combo.findData(header.op_number)
                 if idx >= 0:
                     self.op_combo.setCurrentIndex(idx)
             return
-
         default_type = (self._context.get("default_log_for_type") or "team").lower()
-        idx = self.type_combo.findData(default_type)
-        if idx >= 0:
-            self.type_combo.setCurrentIndex(idx)
         default_ref = self._context.get("default_log_for_ref")
-        if default_ref:
-            self.section_edit.setText(str(default_ref))
         default_name = self._context.get("default_log_name")
-        if default_name:
+        self._select_category(default_type)
+        subject_selected = False
+        if default_ref:
+            ref_candidate = str(default_ref).strip()
+            if ref_candidate:
+                if ":" not in ref_candidate:
+                    ref_candidate = f"{default_type}:{ref_candidate}"
+                subject_selected = self._select_subject_by_ref(ref_candidate)
+                if not subject_selected:
+                    subject_selected = self._select_subject_by_label(str(default_ref))
+        if not subject_selected and default_name:
+            subject_selected = self._select_subject_by_label(str(default_name))
+        if default_name and not self.name_edit.text().strip():
             self.name_edit.setText(str(default_name))
+        if not subject_selected and default_name:
+            self.subject_display.setText(str(default_name))
+            self.subject_display.setReadOnly(False)
+            self.selected_kind = default_type
+            self.selected_ref = None
 
     def _on_accept(self) -> None:
         name = self.name_edit.text().strip()
         if not name:
             QMessageBox.warning(self, "Validation", "Log name is required.")
             return
-        op_number = self.op_combo.currentData()
-        if op_number is None:
+        kind = self.selected_kind or ""
+        if not kind and self.category_list.currentItem():
+            kind = str(self.category_list.currentItem().data(Qt.UserRole) or "").lower()
+        if not kind:
+            QMessageBox.warning(self, "Validation", "Choose a category for the log.")
+            return
+        label = self.subject_display.text().strip()
+        if not label:
+            QMessageBox.warning(self, "Validation", "Select or enter a subject.")
+            return
+        raw_op = self.op_combo.currentData()
+        if raw_op is None:
             op_number = 0
-        try:
-            op_number_int = int(op_number)
-        except (TypeError, ValueError):
-            op_number_int = _parse_op_number(op_number)
-        section = self.section_edit.text().strip() or None
+        else:
+            try:
+                op_number = int(raw_op)
+            except (TypeError, ValueError):
+                op_number = _parse_op_number(raw_op)
+        subject_meta = {"category": kind, "label": label}
+        if self.selected_ref:
+            subject_meta["ref"] = self.selected_ref
+        section_value = json.dumps(subject_meta, ensure_ascii=False)
         self._result = {
             "name": name,
-            "kind": self.type_combo.currentData(),
-            "section": section,
-            "op_number": op_number_int,
+            "kind": kind,
+            "section": section_value,
+            "op_number": op_number,
+            "subject_meta": subject_meta,
         }
         self.accept()
 
@@ -708,10 +1002,21 @@ class Ics214ActivityLogPanel(QWidget):
         self.selected_op_number: int | None = None
         self._last_saved: QDateTime | None = None
         self._loading = False
+        self.subject_options: dict[str, list[dict[str, Any]]] = {
+            "team": [],
+            "section": [],
+            "individual": [],
+            "facility": [],
+        }
+        self.setMinimumSize(1100, 780)
         self._build_ui()
+        self.resize(self.sizeHint())
         self._load_initial_data()
         if self.launch_context:
             self.apply_launch_context(self.launch_context)
+
+    def sizeHint(self) -> QSize:  # type: ignore[override]
+        return QSize(1280, 840)
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -860,6 +1165,65 @@ class Ics214ActivityLogPanel(QWidget):
         menu.addAction("Export PDF", self._on_export)
         return menu
 
+    def _load_subject_options(self) -> None:
+        for key in self.subject_options.keys():
+            self.subject_options[key] = []
+        if not self.incident_id:
+            self.subject_options["section"] = [dict(item) for item in DEFAULT_SECTION_SUBJECTS]
+            return
+        try:
+            options = self.services.list_subject_options(self.incident_id)
+        except AttributeError:
+            options = {}
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception(
+                "Failed to load ICS-214 subject options for incident %s: %s",
+                self.incident_id,
+                exc,
+            )
+            options = {}
+        for key in self.subject_options.keys():
+            values = options.get(key, []) if isinstance(options, dict) else []
+            self.subject_options[key] = [dict(value) for value in values]
+        if not self.subject_options.get("section"):
+            self.subject_options["section"] = [dict(item) for item in DEFAULT_SECTION_SUBJECTS]
+        for header in self.known_logs.values():
+            self._register_subject_option(
+                (header.kind or header.log_for_type or "").lower(),
+                header.subject_ref,
+                header.subject_label,
+                header.subject_description,
+            )
+        if self.header.subject_ref and self.header.subject_label:
+            self._register_subject_option(
+                (self.header.kind or self.header.log_for_type or "").lower(),
+                self.header.subject_ref,
+                self.header.subject_label,
+                self.header.subject_description,
+            )
+
+    def _register_subject_option(
+        self,
+        kind: str | None,
+        ref: str | None,
+        label: str | None,
+        description: str | None = None,
+    ) -> None:
+        if not kind or not ref or not label:
+            return
+        bucket = self.subject_options.setdefault(kind, [])
+        for entry in bucket:
+            if entry.get("ref") == ref:
+                if not entry.get("label"):
+                    entry["label"] = label
+                if description and not entry.get("description"):
+                    entry["description"] = description
+                return
+        record = {"ref": ref, "label": label}
+        if description:
+            record["description"] = description
+        bucket.append(record)
+
     def _load_initial_data(self) -> None:
         self._loading = True
         try:
@@ -880,6 +1244,7 @@ class Ics214ActivityLogPanel(QWidget):
             if self.incident_combo.currentIndex() < 0:
                 self.incident_combo.setCurrentIndex(0)
             self.incident_id = self.incident_combo.currentData()
+            self._load_subject_options()
             self._load_operational_period_options()
             self._reload_streams()
         finally:
@@ -970,21 +1335,34 @@ class Ics214ActivityLogPanel(QWidget):
         header.operational_period = self._operational_period_label(header.op_number)
 
     def _header_from_stream(self, stream: Any) -> LogHeader:
+        stream_kind = (getattr(stream, "kind", "") or "").lower()
+        category, subject_ref, subject_label, subject_description = _parse_subject_section(
+            getattr(stream, "section", None)
+        )
+        if category and not stream_kind:
+            stream_kind = category
         header = LogHeader(
-            log_for_type=(stream.kind or "").lower(),
-            log_for_label=stream.name or stream.id,
-            unit_or_resource=stream.section or "",
+            log_for_type=stream_kind,
+            log_for_label=getattr(stream, "name", None) or getattr(stream, "id", ""),
+            unit_or_resource=subject_label
+            or getattr(stream, "section", None)
+            or "",
             status="OPEN",
             identifier=stream.id,
             incident_id=stream.incident_id,
             stream_id=stream.id,
             op_number=stream.op_number,
-            section=stream.section,
-            kind=stream.kind,
+            section=getattr(stream, "section", None),
+            kind=stream_kind,
+            subject_ref=subject_ref,
+            subject_label=subject_label,
+            subject_description=subject_description,
         )
         self._assign_operational_period(header)
         header.start = _to_qdatetime(stream.created_at)
         header.updated_at = _to_qdatetime(stream.updated_at)
+        if subject_ref and subject_label:
+            self._register_subject_option(stream_kind or category, subject_ref, subject_label, subject_description)
         return header
 
     def _set_empty_state(self) -> None:
@@ -1013,13 +1391,28 @@ class Ics214ActivityLogPanel(QWidget):
         )
         for stream in streams:
             kind = (getattr(stream, "kind", "") or "").lower()
-            section = (getattr(stream, "section", "") or "").strip().lower()
+            category, subject_ref, subject_label, _ = _parse_subject_section(
+                getattr(stream, "section", None)
+            )
+            if category and not kind:
+                kind = category
             name = (getattr(stream, "name", "") or "").strip().lower()
+            section_raw = (getattr(stream, "section", "") or "").strip().lower()
+            candidates = {
+                value
+                for value in {
+                    section_raw,
+                    name,
+                    subject_label.strip().lower() if subject_label else "",
+                    subject_ref.strip().lower() if subject_ref else "",
+                }
+                if value
+            }
             if preferred_type and kind != preferred_type:
                 continue
-            if preferred_ref and preferred_ref not in {section, name}:
+            if preferred_ref and preferred_ref not in candidates:
                 continue
-            if preferred_name and name != preferred_name:
+            if preferred_name and preferred_name not in candidates:
                 continue
             return stream.id
         # Fallbacks: try matching by type only or ref only so context can still
@@ -1031,14 +1424,39 @@ class Ics214ActivityLogPanel(QWidget):
                     return stream.id
         if preferred_ref:
             for stream in streams:
-                section = (getattr(stream, "section", "") or "").strip().lower()
+                category, subject_ref, subject_label, _ = _parse_subject_section(
+                    getattr(stream, "section", None)
+                )
+                section_raw = (getattr(stream, "section", "") or "").strip().lower()
                 name = (getattr(stream, "name", "") or "").strip().lower()
-                if preferred_ref in {section, name}:
+                candidates = {
+                    value
+                    for value in {
+                        section_raw,
+                        name,
+                        subject_ref.strip().lower() if subject_ref else "",
+                        subject_label.strip().lower() if subject_label else "",
+                    }
+                    if value
+                }
+                if preferred_ref in candidates:
                     return stream.id
         if preferred_name:
             for stream in streams:
+                category, subject_ref, subject_label, _ = _parse_subject_section(
+                    getattr(stream, "section", None)
+                )
                 name = (getattr(stream, "name", "") or "").strip().lower()
-                if name == preferred_name:
+                candidates = {
+                    value
+                    for value in {
+                        name,
+                        subject_label.strip().lower() if subject_label else "",
+                        subject_ref.strip().lower() if subject_ref else "",
+                    }
+                    if value
+                }
+                if preferred_name in candidates:
                     return stream.id
         return None
 
@@ -1195,9 +1613,17 @@ class Ics214ActivityLogPanel(QWidget):
 
     def _update_header_card(self) -> None:
         header = self.header
-        role = header.log_for_type.title() if header.log_for_type else "Log"
-        label = header.log_for_label or "—"
-        self.header_log_for.setText(f"Log For: {role} — {label}")
+        parts = _unique_ordered(
+            [
+                header.log_for_type.title() if header.log_for_type else "",
+                header.log_for_label or "",
+                header.subject_label or "",
+            ]
+        )
+        display = " — ".join(parts) if parts else "Log"
+        self.header_log_for.setText(f"Log For: {display}")
+        tooltip_parts = [p for p in [header.subject_label, header.subject_description] if p]
+        self.header_log_for.setToolTip(" — ".join(tooltip_parts) if tooltip_parts else "")
         status = header.status or "—"
         self.header_status.setText(f"Status: {status}")
         self.header_version.setText(f"Version: {header.version}")
@@ -1406,6 +1832,7 @@ class Ics214ActivityLogPanel(QWidget):
             self._context_match_consumed = False
         if not self._applying_context:
             self._preferred_stream_id = None
+        self._load_subject_options()
         self._load_operational_period_options()
         self._reload_streams()
 
@@ -1530,10 +1957,13 @@ class Ics214ActivityLogPanel(QWidget):
                 "Select a log before editing the header.",
             )
             return
+        if self.incident_id:
+            self._load_subject_options()
         dialog = NewLogDialog(
             self.header.clone(),
             self.operational_period_choices,
             self,
+            subject_options=self.subject_options,
             context=self.launch_context,
         )
         if dialog.exec() == QDialog.Accepted and dialog.result:
@@ -1581,10 +2011,12 @@ class Ics214ActivityLogPanel(QWidget):
                 "Select an incident before creating a log.",
             )
             return
+        self._load_subject_options()
         dialog = NewLogDialog(
             None,
             self.operational_period_choices,
             self,
+            subject_options=self.subject_options,
             context=self.launch_context,
         )
         if dialog.exec() == QDialog.Accepted and dialog.result:
@@ -1675,12 +2107,14 @@ class Ics214ActivityLogPanel(QWidget):
             self.log_combo.setItemText(idx, self._log_display_text(header_clone))
 
     def _log_display_text(self, header: LogHeader) -> str:
-        label = header.log_for_label or header.stream_id or "Log"
-        role = header.log_for_type.title() if header.log_for_type else ""
-        if role and not label.lower().startswith(role.lower()):
-            display_name = f"{role} — {label}"
-        else:
-            display_name = label
+        parts = _unique_ordered(
+            [
+                header.log_for_type.title() if header.log_for_type else "",
+                header.log_for_label or "",
+                header.subject_label or "",
+            ]
+        )
+        display_name = " — ".join(parts) if parts else (header.stream_id or "Log")
         period = header.operational_period or self._operational_period_label(
             header.op_number
         )
