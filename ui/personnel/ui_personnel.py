@@ -24,7 +24,7 @@ import csv
 import os
 import sqlite3
 from dataclasses import dataclass, asdict
-from typing import Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from PySide6 import QtCore, QtWidgets
 
@@ -90,6 +90,9 @@ class Certification:
 class MasterDAL:
     def __init__(self, path: str = MASTER_DB_PATH):
         self.path = path
+        self._id_is_integer = False
+        self._has_unit_column = False
+        self._has_contact_column = False
         self._ensure_schema()
 
     def _conn(self) -> sqlite3.Connection:
@@ -104,6 +107,25 @@ class MasterDAL:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         with self._conn() as con:
             cur = con.cursor()
+            metadata = self._prepare_personnel_table(cur)
+            self._create_support_tables(cur)
+            con.commit()
+        self._id_is_integer = metadata["id_is_integer"]
+        self._has_unit_column = metadata["has_unit"]
+        self._has_contact_column = metadata["has_contact"]
+
+    # --- schema helpers -------------------------------------------------
+    def _get_table_info(self, cur: sqlite3.Cursor, table: str) -> Dict[str, tuple]:
+        try:
+            cur.execute(f"PRAGMA table_info({table})")
+        except sqlite3.DatabaseError:
+            return {}
+        rows = cur.fetchall()
+        return {row[1]: row for row in rows}
+
+    def _prepare_personnel_table(self, cur: sqlite3.Cursor) -> Dict[str, bool]:
+        info = self._get_table_info(cur, "personnel")
+        if not info:
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS personnel (
@@ -120,55 +142,90 @@ class MasterDAL:
                 )
                 """
             )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS emergency_info (
-                    personnel_id TEXT UNIQUE,
-                    primary_name TEXT,
-                    primary_relationship TEXT,
-                    primary_phone TEXT,
-                    secondary_name TEXT,
-                    secondary_relationship TEXT,
-                    secondary_phone TEXT,
-                    medical TEXT,
-                    blood_type TEXT,
-                    insurance TEXT,
-                    FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
-                )
-                """
+        else:
+            if "organization" not in info:
+                cur.execute("ALTER TABLE personnel ADD COLUMN organization TEXT")
+                if "unit" in info:
+                    cur.execute(
+                        "UPDATE personnel SET organization = COALESCE(unit, '') WHERE organization IS NULL OR TRIM(organization) = ''"
+                    )
+            if "notes" not in info:
+                cur.execute("ALTER TABLE personnel ADD COLUMN notes TEXT")
+                if "contact" in info:
+                    cur.execute(
+                        "UPDATE personnel SET notes = COALESCE(contact, '') WHERE notes IS NULL OR TRIM(notes) = ''"
+                    )
+            if "photo_url" not in info:
+                cur.execute("ALTER TABLE personnel ADD COLUMN photo_url TEXT")
+            # refresh info after possible ALTER TABLE commands
+        info = self._get_table_info(cur, "personnel")
+        id_info = info.get("id")
+        id_is_integer = bool(id_info and isinstance(id_info[2], str) and "INT" in id_info[2].upper())
+        has_unit = "unit" in info
+        has_contact = "contact" in info
+        return {"id_is_integer": id_is_integer, "has_unit": has_unit, "has_contact": has_contact}
+
+    def _create_support_tables(self, cur: sqlite3.Cursor) -> None:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS emergency_info (
+                personnel_id TEXT UNIQUE,
+                primary_name TEXT,
+                primary_relationship TEXT,
+                primary_phone TEXT,
+                secondary_name TEXT,
+                secondary_relationship TEXT,
+                secondary_phone TEXT,
+                medical TEXT,
+                blood_type TEXT,
+                insurance TEXT,
+                FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
             )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS contact_info (
-                    personnel_id TEXT UNIQUE,
-                    address1 TEXT,
-                    address2 TEXT,
-                    city TEXT,
-                    state TEXT,
-                    zip TEXT,
-                    work_phone TEXT,
-                    secondary_phone TEXT,
-                    pager_id TEXT,
-                    notes TEXT,
-                    FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
-                )
-                """
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS contact_info (
+                personnel_id TEXT UNIQUE,
+                address1 TEXT,
+                address2 TEXT,
+                city TEXT,
+                state TEXT,
+                zip TEXT,
+                work_phone TEXT,
+                secondary_phone TEXT,
+                pager_id TEXT,
+                notes TEXT,
+                FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
             )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS certifications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    personnel_id TEXT,
-                    code TEXT,
-                    name TEXT,
-                    level INTEGER,
-                    expiration TEXT,
-                    docs TEXT,
-                    FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
-                )
-                """
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS certifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                personnel_id TEXT,
+                code TEXT,
+                name TEXT,
+                level INTEGER,
+                expiration TEXT,
+                docs TEXT,
+                FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
             )
-            con.commit()
+            """
+        )
+
+    # --- helpers --------------------------------------------------------
+    def _prepare_personnel_id(self, personnel_id: str) -> str | int:
+        if self._id_is_integer:
+            try:
+                return int(str(personnel_id).strip())
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Personnel IDs must be numeric for this database.") from exc
+        return str(personnel_id)
+
+    def normalize_personnel_id(self, personnel_id: str) -> str:
+        return str(self._prepare_personnel_id(personnel_id))
 
     # --------- Personnel CRUD ---------
     def list_personnel(
@@ -177,8 +234,9 @@ class MasterDAL:
         org_filter: str = "",
         search: str = "",
     ) -> List[Personnel]:
+        id_expr = "CAST(id AS TEXT)" if self._id_is_integer else "id"
         query = [
-            "SELECT id, name, callsign, role, rank, organization, email, phone, notes, photo_url FROM personnel WHERE 1=1"
+            f"SELECT {id_expr} AS id, name, callsign, role, rank, organization, email, phone, notes, photo_url FROM personnel WHERE 1=1"
         ]
         params: list[str] = []
         if role_filter and role_filter != "All Roles":
@@ -190,7 +248,7 @@ class MasterDAL:
         if search:
             like = f"%{search}%"
             query.append(
-                "AND (id LIKE ? OR name LIKE ? OR callsign LIKE ? OR phone LIKE ? OR email LIKE ?)"
+                f"AND ({id_expr} LIKE ? OR name LIKE ? OR callsign LIKE ? OR phone LIKE ? OR email LIKE ?)"
             )
             params.extend([like, like, like, like, like])
         query.append("ORDER BY name COLLATE NOCASE")
@@ -213,49 +271,52 @@ class MasterDAL:
             )
             return [row[0] for row in cur.fetchall() if row[0]]
 
-    def upsert_personnel(self, person: Personnel) -> None:
+    def upsert_personnel(self, person: Personnel) -> str:
+        db_id = self._prepare_personnel_id(person.id)
+        columns = [
+            ("id", db_id),
+            ("name", person.name),
+            ("callsign", person.callsign),
+            ("role", person.role),
+            ("rank", person.rank),
+            ("organization", person.organization),
+            ("email", person.email),
+            ("phone", person.phone),
+            ("notes", person.notes),
+            ("photo_url", person.photo_url),
+        ]
+        if self._has_unit_column:
+            columns.append(("unit", person.organization))
+        if self._has_contact_column:
+            columns.append(("contact", person.notes))
+
+        col_names = ", ".join(name for name, _ in columns)
+        placeholders = ", ".join(["?"] * len(columns))
+        assignments = ", ".join(f"{name}=excluded.{name}" for name, _ in columns if name != "id")
+        values = [value for _, value in columns]
+
+        sql = (
+            f"INSERT INTO personnel ({col_names}) VALUES ({placeholders}) "
+            f"ON CONFLICT(id) DO UPDATE SET {assignments}"
+        )
         with self._conn() as con:
-            con.execute(
-                """
-                INSERT INTO personnel (id, name, callsign, role, rank, organization, email, phone, notes, photo_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    name=excluded.name,
-                    callsign=excluded.callsign,
-                    role=excluded.role,
-                    rank=excluded.rank,
-                    organization=excluded.organization,
-                    email=excluded.email,
-                    phone=excluded.phone,
-                    notes=excluded.notes,
-                    photo_url=excluded.photo_url
-                """,
-                (
-                    person.id,
-                    person.name,
-                    person.callsign,
-                    person.role,
-                    person.rank,
-                    person.organization,
-                    person.email,
-                    person.phone,
-                    person.notes,
-                    person.photo_url,
-                ),
-            )
+            con.execute(sql, values)
+        return str(db_id)
 
     def delete_personnel(self, ids: Iterable[str]) -> None:
         ids = list(ids)
         if not ids:
             return
+        db_ids = [self._prepare_personnel_id(pid) for pid in ids]
         with self._conn() as con:
-            con.executemany("DELETE FROM personnel WHERE id=?", [(pid,) for pid in ids])
+            con.executemany("DELETE FROM personnel WHERE id=?", [(pid,) for pid in db_ids])
 
     def get_personnel(self, pid: str) -> Optional[Personnel]:
+        id_expr = "CAST(id AS TEXT)" if self._id_is_integer else "id"
         with self._conn() as con:
             cur = con.execute(
-                "SELECT id, name, callsign, role, rank, organization, email, phone, notes, photo_url FROM personnel WHERE id=?",
-                (pid,),
+                f"SELECT {id_expr} AS id, name, callsign, role, rank, organization, email, phone, notes, photo_url FROM personnel WHERE id=?",
+                (self._prepare_personnel_id(pid),),
             )
             row = cur.fetchone()
         return Personnel(*row) if row else None
@@ -695,7 +756,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         )
 
     def _collect_emergency(self) -> EmergencyInfo:
-        pid = self.txt_id.text().strip()
+        pid = self.txt_id.text().strip() or self.personnel_id
         return EmergencyInfo(
             personnel_id=pid,
             primary_name=self.em_primary_name.text().strip(),
@@ -710,7 +771,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         )
 
     def _collect_contact(self) -> ContactInfo:
-        pid = self.txt_id.text().strip()
+        pid = self.txt_id.text().strip() or self.personnel_id
         return ContactInfo(
             personnel_id=pid,
             address1=self.addr1.text().strip(),
@@ -748,10 +809,19 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         if not person.id or not person.name:
             QtWidgets.QMessageBox.warning(self, "Missing Required", "ID and Name are required.")
             return
-        self.dal.upsert_personnel(person)
-        self.dal.upsert_emergency(self._collect_emergency())
-        self.dal.upsert_contact(self._collect_contact())
-        self.personnel_id = person.id
+        try:
+            normalized_id = self.dal.upsert_personnel(person)
+        except ValueError as exc:
+            QtWidgets.QMessageBox.warning(self, "Invalid ID", str(exc))
+            return
+        self.personnel_id = normalized_id
+        self.txt_id.setText(normalized_id)
+        emergency = self._collect_emergency()
+        emergency.personnel_id = normalized_id
+        contact = self._collect_contact()
+        contact.personnel_id = normalized_id
+        self.dal.upsert_emergency(emergency)
+        self.dal.upsert_contact(contact)
         self.accept()
 
     def _choose_photo(self) -> None:
@@ -1160,7 +1230,11 @@ class PersonnelInventoryWindow(QtWidgets.QDialog):
             != QtWidgets.QMessageBox.Yes
         ):
             return
-        self.dal.delete_personnel(ids)
+        try:
+            self.dal.delete_personnel(ids)
+        except ValueError as exc:
+            QtWidgets.QMessageBox.warning(self, "Delete Failed", str(exc))
+            return
         self.refresh()
 
     def _on_import(self) -> None:
@@ -1177,14 +1251,30 @@ class PersonnelInventoryWindow(QtWidgets.QDialog):
         except (OSError, csv.Error) as exc:
             QtWidgets.QMessageBox.critical(self, "Import Failed", str(exc))
             return
+        imported = 0
+        skipped: list[str] = []
         for person in records:
-            if person.id and person.name:
+            if not (person.id and person.name):
+                skipped.append(person.id or "<missing id>")
+                continue
+            try:
                 self.dal.upsert_personnel(person)
-        QtWidgets.QMessageBox.information(
-            self,
-            "Import Complete",
-            f"Imported {len(records)} personnel record(s).",
-        )
+            except ValueError as exc:
+                skipped.append(f"{person.id}: {exc}")
+            else:
+                imported += 1
+        message = f"Imported {imported} personnel record(s)."
+        if skipped:
+            detail = "\n".join(skipped[:5])
+            if len(skipped) > 5:
+                detail += f"\n…and {len(skipped) - 5} more"
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Import Completed With Warnings",
+                message + "\nSome records were skipped due to missing or invalid IDs.\n\n" + detail,
+            )
+        else:
+            QtWidgets.QMessageBox.information(self, "Import Complete", message)
         self.refresh()
 
     def _on_export(self) -> None:
