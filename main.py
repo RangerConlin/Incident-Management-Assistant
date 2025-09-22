@@ -323,7 +323,7 @@ class MainWindow(QMainWindow):
         # ----- Edit -----
         m_edit = mb.addMenu("Edit")
         self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
-        self._add_action(m_edit, "Hospitals", None, "edit.hospitals")
+        self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
         self._add_action(m_edit, "Canned Communication Entries", None, "edit.canned_comm_entries")
         self._add_action(m_edit, "Personnel", None, "edit.personnel")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
@@ -848,7 +848,10 @@ class MainWindow(QMainWindow):
         self._open_qml_modal("qml/EmsWindow.qml", title="EMS Agencies")
 
     def open_edit_hospitals(self) -> None:
-        self._open_qml_modal("qml/HospitalsWindow.qml", title="Hospitals")
+        from modules.medical.hospitals import HospitalManagerDialog
+
+        dialog = HospitalManagerDialog(parent=self)
+        dialog.exec()
 
     def open_edit_canned_comm_entries(self) -> None:
         self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
