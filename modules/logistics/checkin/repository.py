@@ -34,6 +34,51 @@ def _row_to_dict(row) -> Dict:
     return dict(row) if row is not None else {}
 
 
+def _quote_identifier(identifier: str) -> str:
+    """Return ``identifier`` wrapped in double quotes for SQL fragments."""
+
+    escaped = identifier.replace("\"", "\"\"")
+    return f'"{escaped}"'
+
+
+def _qualify(table: str, column: str) -> str:
+    """Return a fully qualified column reference."""
+
+    return f"{table}.{_quote_identifier(column)}"
+
+
+def _team_table_info(conn: sqlite3.Connection) -> Optional[Tuple[str, Optional[str]]]:
+    """Return the identifier and label columns for the ``teams`` table.
+
+    Legacy incident databases shipped with the desktop client used an
+    ``INTEGER PRIMARY KEY`` column named ``id`` for team identifiers.  Newer
+    schema revisions introduced a ``team_id`` text column.  This helper inspects
+    the table metadata so callers can generate SQL that works for both layouts.
+    ``None`` is returned when the table does not exist or contains no columns.
+    """
+
+    try:
+        rows = conn.execute("PRAGMA table_info(teams)").fetchall()
+    except sqlite3.OperationalError:
+        return None
+    if not rows:
+        return None
+    column_names = [row["name"] for row in rows if row["name"]]
+    if not column_names:
+        return None
+    lowered = {name.lower(): name for name in column_names}
+    identifier: Optional[str] = None
+    for candidate in ("team_id", "teamid", "id"):
+        match = lowered.get(candidate)
+        if match:
+            identifier = match
+            break
+    if identifier is None:
+        identifier = column_names[0]
+    label = lowered.get("name")
+    return identifier, label
+
+
 # ---------------------------------------------------------------------------
 # Schema helpers
 # ---------------------------------------------------------------------------
@@ -121,15 +166,58 @@ def get_distinct_teams() -> List[Tuple[str, str]]:
     """Return ``(team_id, name)`` tuples for roster filters."""
     with get_incident_conn() as conn:
         schema.ensure_incident_schema(conn)
-        rows = conn.execute("SELECT team_id, COALESCE(name, team_id) FROM teams ORDER BY name").fetchall()
-        return [(r[0], r[1]) for r in rows if r[0]]
+        info = _team_table_info(conn)
+        if not info:
+            return []
+        identifier_col, label_col = info
+        id_expr = _quote_identifier(identifier_col)
+        label_expr = _quote_identifier(label_col) if label_col else "NULL"
+        order_expr = (
+            f"LOWER(COALESCE(TRIM({label_expr}), CAST({id_expr} AS TEXT)))"
+            if label_col
+            else f"LOWER(CAST({id_expr} AS TEXT))"
+        )
+        sql = (
+            f"SELECT {id_expr} AS team_id, {label_expr} AS team_name "
+            f"FROM teams ORDER BY {order_expr}"
+        )
+        rows = conn.execute(sql).fetchall()
+
+    teams: List[Tuple[str, str]] = []
+    for row in rows:
+        raw_id = row["team_id"]
+        if raw_id in (None, ""):
+            continue
+        identifier = str(raw_id)
+        raw_name = row["team_name"]
+        label = str(raw_name).strip() if raw_name not in (None, "") else ""
+        if not label:
+            label = identifier
+        teams.append((identifier, label))
+    return teams
 
 
 def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
     filters.apply_defaults()
     with get_incident_conn() as conn:
         schema.ensure_incident_schema(conn)
-        sql = "SELECT c.*, t.name AS team_name FROM checkins c LEFT JOIN teams t ON t.team_id = c.team_id"
+        team_info = _team_table_info(conn)
+        if team_info:
+            identifier_col, label_col = team_info
+            join_value = f"CAST({_qualify('t', identifier_col)} AS TEXT)"
+            if label_col:
+                label_expr = f"NULLIF(TRIM({_qualify('t', label_col)}), '')"
+                team_name_expr = f"COALESCE({label_expr}, {join_value}) AS team_name"
+            else:
+                team_name_expr = f"{join_value} AS team_name"
+            sql = (
+                "SELECT c.*, "
+                f"{team_name_expr} "
+                "FROM checkins c "
+                f"LEFT JOIN teams t ON {join_value} = c.team_id"
+            )
+        else:
+            sql = "SELECT c.*, NULL AS team_name FROM checkins c"
         conditions: List[str] = []
         params: List[str] = []
         if filters.ci_status:

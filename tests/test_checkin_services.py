@@ -244,6 +244,69 @@ def test_supports_legacy_master_personnel_schema(tmp_path, monkeypatch):
     assert "Responder" in roles
 
 
+def test_list_teams_handles_legacy_incident_table(tmp_path, monkeypatch):
+    services, schema = _setup_environment(tmp_path, monkeypatch)
+    _seed_personnel(tmp_path, schema)
+    incident_db = tmp_path / "incidents" / "INC-1.db"
+    incident_db.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(incident_db) as conn:
+        conn.execute("DROP TABLE IF EXISTS teams")
+        conn.execute(
+            """
+            CREATE TABLE teams (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                status TEXT
+            )
+            """
+        )
+        conn.executemany(
+            "INSERT INTO teams (id, name, status) VALUES (?, ?, ?)",
+            [
+                (1, "Alpha Team", "Active"),
+                (2, None, "Active"),
+            ],
+        )
+        conn.commit()
+
+    teams = services.listTeams()
+    assert ("1", "Alpha Team") in teams
+    assert ("2", "2") in teams
+
+
+def test_roster_joins_against_legacy_team_table(tmp_path, monkeypatch):
+    services, schema = _setup_environment(tmp_path, monkeypatch)
+    _seed_personnel(tmp_path, schema)
+    incident_db = tmp_path / "incidents" / "INC-1.db"
+    incident_db.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(incident_db) as conn:
+        conn.execute("DROP TABLE IF EXISTS teams")
+        conn.execute(
+            """
+            CREATE TABLE teams (
+                id INTEGER PRIMARY KEY,
+                name TEXT
+            )
+            """
+        )
+        conn.execute("INSERT INTO teams (id, name) VALUES (?, ?)", (5, "Bravo Squad"))
+        conn.commit()
+
+    services.upsertCheckIn(
+        {
+            "person_id": "P1",
+            "ci_status": "CheckedIn",
+            "arrival_time": _iso_now(),
+            "location": "ICP",
+            "team_id": "5",
+        }
+    )
+
+    roster = services.getRoster({"include_no_show": True})
+    assert roster[0].team == "Bravo Squad"
+    assert roster[0].team_id == "5"
+
+
 def test_filters_hide_no_show_by_default(services_env):
     services = services_env
     first = services.upsertCheckIn(
