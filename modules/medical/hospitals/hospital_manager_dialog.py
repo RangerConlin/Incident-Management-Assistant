@@ -340,7 +340,13 @@ class HospitalManagerDialog(QDialog):
         widths = [header.sectionSize(i) for i in range(header.count())]
         self._settings.setValue("hospital_manager/column_widths", json.dumps(widths))
         self._settings.setValue("hospital_manager/sort_section", header.sortIndicatorSection())
-        self._settings.setValue("hospital_manager/sort_order", int(header.sortIndicatorOrder()))
+        sort_order = header.sortIndicatorOrder()
+        try:
+            sort_order_value = int(sort_order)
+        except (TypeError, ValueError):
+            value = getattr(sort_order, "value", None)
+            sort_order_value = int(value) if value is not None else 0
+        self._settings.setValue("hospital_manager/sort_order", sort_order_value)
 
     def _refresh(self, select_id: int | None = None) -> None:
         try:
