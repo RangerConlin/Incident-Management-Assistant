@@ -83,6 +83,11 @@ from PySide6.QtWidgets import (
     QProgressBar,
 )
 
+try:  # pragma: no cover - environment-dependent Qt builds may omit QFutureWatcher
+    from PySide6.QtCore import QFutureWatcher
+except ImportError:  # pragma: no cover - fallback when QtConcurrent watcher is unavailable
+    QFutureWatcher = None  # type: ignore[assignment]
+
 from notifications.models import Notification
 from notifications.services import get_notifier
 
@@ -1869,21 +1874,24 @@ class VehicleInventoryPanel(QWidget):
         }
 
         self.export_button.setEnabled(False)
+        if QFutureWatcher is None:
+            try:
+                result = self._perform_export(params)
+            except Exception as exc:  # pragma: no cover - runtime dependent
+                self.export_button.setEnabled(True)
+                self._show_toast("Export failed", str(exc), severity="error")
+                QMessageBox.critical(self, "Export failed", str(exc))
+                return
 
-        run_fn = getattr(QtConcurrent, "run", None)
-        if QFutureWatcher is not None and callable(run_fn):
-            watcher = QFutureWatcher(self)
-            future = run_fn(self._perform_export, params)
-            watcher.setFuture(future)
-            watcher.finished.connect(lambda: self._on_export_finished(watcher))
-            self._export_watcher = watcher
-        else:
-            worker = _ExportWorkerThread(self._perform_export, params, self)
-            worker.completed.connect(self._on_export_finished)
-            worker.failed.connect(self._on_export_failed)
-            worker.finished.connect(lambda: self._on_export_worker_finished(worker))
-            worker.start()
-            self._export_worker = worker
+            self.export_button.setEnabled(True)
+            self._handle_export_result(result)
+            return
+
+        watcher = QFutureWatcher(self)
+        future = QtConcurrent.run(self._perform_export, params)
+        watcher.setFuture(future)
+        watcher.finished.connect(lambda: self._on_export_finished(watcher))
+        self._export_watcher = watcher
 
     @staticmethod
     def _perform_export(params: dict[str, Any]) -> dict[str, Any]:

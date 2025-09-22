@@ -1,13 +1,24 @@
-"""Check-In module for SARApp / ICS Command Assistant.
+"""Public interface helpers for the Logistics Check-In package."""
+from __future__ import annotations
 
-This package implements a minimal offline-first check-in workflow
-supporting personnel and assets. The code is deliberately small but
-heavily commented so it can serve as a starting point for future
-expansion.
-"""
-
-# Re-export the QWidget wrapper for the QML Check-In window so callers can do:
-#   from modules.logistics.checkin import CheckInPanel
-from .panels.CheckInPanel import CheckInPanel
+from typing import Any, TYPE_CHECKING
 
 __all__ = ["CheckInPanel"]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "CheckInPanel":  # pragma: no cover - requires Qt stack
+        try:
+            from .panels.CheckInPanel import CheckInPanel as _CheckInPanel
+        except Exception as exc:  # noqa: BLE001 - propagate root Qt failure
+            raise ImportError(
+                "Qt Check-In panel is not available in this build"
+            ) from exc
+        globals()[name] = _CheckInPanel
+        return _CheckInPanel
+    raise AttributeError(name)
+
+
+if TYPE_CHECKING:  # pragma: no cover - typing aid only
+    from .panels.CheckInPanel import CheckInPanel as CheckInPanel
+
