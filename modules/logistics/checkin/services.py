@@ -1,408 +1,399 @@
-"""Service layer for the Logistics Check-In window."""
+"""Simplified service layer for the Logistics Check-In window.
+
+The previous iteration of this module exposed a large rule engine and a
+complex roster workflow.  The Logistics team requested a leaner
+implementation that focuses on selecting master records and duplicating
+those rows into the active incident database.  This module therefore
+exposes lightweight helpers to list master records, create new entries,
+and copy them into the incident scope.  The tables are created on demand
+so tests can run against temporary SQLite files.
+"""
 from __future__ import annotations
 
-import os
-import re
-from datetime import datetime
-from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from utils.state import AppState
+import sqlite3
 
-from . import repository
-from .exceptions import (
-    CheckInError,
-    ConflictDetails,
-    ConflictError,
-    NoShowGuardError,
-    OfflineQueued,
-    PermissionDenied,
-)
-from .models import (
-    CIStatus,
-    CheckInRecord,
-    CheckInUpsert,
-    HistoryItem,
-    Location,
-    PersonnelIdentity,
-    PersonnelStatus,
-    QueueItem,
-    RosterFilters,
-    RosterRow,
-    UIFlags,
-)
-
-_SHIFT_RE = re.compile(r"^[0-2][0-9][0-5][0-9]$")
-_DATA_DIR = Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
-_QUEUE_PATH = Path(os.environ.get("CHECKIN_QUEUE_PATH", _DATA_DIR / "offline_queue" / "checkin_queue.json"))
+from utils.db import get_incident_conn, get_master_conn
 
 
-def _now() -> datetime:
-    return datetime.now().astimezone()
+@dataclass(frozen=True)
+class FieldSpec:
+    """Metadata describing a field exposed in the "new record" dialog."""
+
+    name: str
+    label: str
+    required: bool = False
+    placeholder: Optional[str] = None
 
 
-# ---------------------------------------------------------------------------
-# Rule engine
-# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class EntityConfig:
+    """Configuration for a master/incident entity pair."""
 
-def apply_rules(record: CheckInRecord, prior: Optional[CheckInRecord] = None) -> CheckInRecord:
-    """Apply deterministic personnel status mapping rules."""
-    record.ui_flags = UIFlags()
-    if record.team_id in {"", "—"}:
-        record.team_id = None
-    if record.location is not Location.OTHER:
-        record.location_other = None
-    if record.ci_status is CIStatus.NO_SHOW:
-        record.personnel_status = PersonnelStatus.UNAVAILABLE
-        record.ui_flags.hidden_by_default = True
-    elif record.ci_status is CIStatus.DEMOBILIZED:
-        record.personnel_status = PersonnelStatus.DEMOBILIZED
-        record.ui_flags.grayed = True
-    elif record.ci_status is CIStatus.CHECKED_IN and not record.team_id:
-        record.personnel_status = PersonnelStatus.AVAILABLE
-    # Legacy normalization handled by CIStatus.normalize earlier
-    return record
+    key: str
+    title: str
+    master_table: str
+    incident_table: str
+    id_column: str
+    sort_column: str
+    display_columns: Tuple[Tuple[str, str], ...]
+    form_fields: Tuple[FieldSpec, ...]
+    id_field: Optional[FieldSpec] = None
+    autoincrement: bool = True
 
 
-# ---------------------------------------------------------------------------
-# Queue store
-# ---------------------------------------------------------------------------
+_MASTER_SCHEMAS: Dict[str, str] = {
+    "personnel": """
+        CREATE TABLE IF NOT EXISTS personnel (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            rank TEXT,
+            callsign TEXT,
+            role TEXT,
+            contact TEXT,
+            unit TEXT,
+            phone TEXT,
+            email TEXT,
+            emergency_contact_name TEXT,
+            emergency_contact_phone TEXT,
+            emergency_contact_relationship TEXT
+        )
+    """,
+    "equipment": """
+        CREATE TABLE IF NOT EXISTS equipment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            type TEXT,
+            serial_number TEXT,
+            condition TEXT,
+            notes TEXT
+        )
+    """,
+    "vehicle": """
+        CREATE TABLE IF NOT EXISTS vehicles (
+            id TEXT PRIMARY KEY,
+            vin TEXT,
+            license_plate TEXT,
+            year INTEGER,
+            make TEXT,
+            model TEXT,
+            capacity INTEGER,
+            type_id TEXT,
+            status_id TEXT NOT NULL DEFAULT 'Available',
+            tags TEXT,
+            organization TEXT
+        )
+    """,
+    "aircraft": """
+        CREATE TABLE IF NOT EXISTS aircraft (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tail_number TEXT NOT NULL,
+            callsign TEXT,
+            type TEXT NOT NULL,
+            make_model TEXT,
+            capacity INTEGER,
+            status TEXT NOT NULL DEFAULT 'Available',
+            base_location TEXT,
+            current_assignment TEXT,
+            capabilities TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """,
+}
+
+_INCIDENT_SCHEMAS: Dict[str, str] = {
+    key: schema.replace("CREATE TABLE IF NOT EXISTS", "CREATE TABLE IF NOT EXISTS")
+    for key, schema in _MASTER_SCHEMAS.items()
+}
+
+ENTITY_CONFIG: Dict[str, EntityConfig] = {
+    "personnel": EntityConfig(
+        key="personnel",
+        title="Personnel",
+        master_table="personnel",
+        incident_table="personnel",
+        id_column="id",
+        sort_column="name",
+        display_columns=(
+            ("id", "ID"),
+            ("name", "Name"),
+            ("role", "Role"),
+            ("callsign", "Callsign"),
+        ),
+        form_fields=(
+            FieldSpec("name", "Name", required=True),
+            FieldSpec("role", "Role"),
+            FieldSpec("callsign", "Callsign"),
+            FieldSpec("phone", "Phone"),
+        ),
+        autoincrement=True,
+    ),
+    "vehicle": EntityConfig(
+        key="vehicle",
+        title="Vehicle",
+        master_table="vehicles",
+        incident_table="vehicles",
+        id_column="id",
+        sort_column="id",
+        display_columns=(
+            ("id", "ID"),
+            ("make", "Make"),
+            ("model", "Model"),
+            ("status_id", "Status"),
+        ),
+        form_fields=(
+            FieldSpec("make", "Make"),
+            FieldSpec("model", "Model"),
+            FieldSpec("license_plate", "License Plate"),
+            FieldSpec("status_id", "Status"),
+        ),
+        id_field=FieldSpec("id", "Vehicle ID", required=True),
+        autoincrement=False,
+    ),
+    "equipment": EntityConfig(
+        key="equipment",
+        title="Equipment",
+        master_table="equipment",
+        incident_table="equipment",
+        id_column="id",
+        sort_column="name",
+        display_columns=(
+            ("id", "ID"),
+            ("name", "Name"),
+            ("type", "Type"),
+            ("condition", "Condition"),
+        ),
+        form_fields=(
+            FieldSpec("name", "Name", required=True),
+            FieldSpec("type", "Type"),
+            FieldSpec("serial_number", "Serial Number"),
+            FieldSpec("condition", "Condition"),
+        ),
+        autoincrement=True,
+    ),
+    "aircraft": EntityConfig(
+        key="aircraft",
+        title="Aircraft",
+        master_table="aircraft",
+        incident_table="aircraft",
+        id_column="id",
+        sort_column="tail_number",
+        display_columns=(
+            ("id", "ID"),
+            ("tail_number", "Tail Number"),
+            ("type", "Type"),
+            ("status", "Status"),
+        ),
+        form_fields=(
+            FieldSpec("tail_number", "Tail Number", required=True),
+            FieldSpec("type", "Type", required=True),
+            FieldSpec("callsign", "Callsign"),
+            FieldSpec("base_location", "Base Location"),
+        ),
+        autoincrement=True,
+    ),
+}
+
+ENTITY_ORDER: Tuple[str, ...] = ("personnel", "vehicle", "equipment", "aircraft")
 
 
-class QueueStore:
-    """Persistence helper for offline operations."""
-
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.items: List[QueueItem] = repository.load_queue_items(str(self.path))
-
-    def enqueue(self, item: QueueItem) -> None:
-        self.items.append(item)
-        repository.save_queue_items(str(self.path), self.items)
-
-    def replace(self, items: Iterable[QueueItem]) -> None:
-        self.items = list(items)
-        repository.save_queue_items(str(self.path), self.items)
-
-    def flush(self, handler: Callable[[QueueItem], bool]) -> None:
-        if not self.items:
-            return
-        remaining: List[QueueItem] = []
-        for item in list(self.items):
-            if not handler(item):
-                remaining.append(item)
-        self.replace(remaining)
-
-    def pending_count(self) -> int:
-        return len(self.items)
+def _get_config(entity_type: str) -> EntityConfig:
+    try:
+        return ENTITY_CONFIG[entity_type]
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise ValueError(f"Unknown entity type: {entity_type}") from exc
 
 
-# ---------------------------------------------------------------------------
-# Service implementation
-# ---------------------------------------------------------------------------
+def _ensure_master_schema(conn: sqlite3.Connection, config: EntityConfig) -> None:
+    conn.execute(_MASTER_SCHEMAS[config.key])
+    conn.commit()
+
+
+def _ensure_incident_schema(conn: sqlite3.Connection, config: EntityConfig) -> None:
+    conn.execute(_INCIDENT_SCHEMAS[config.key])
+    conn.commit()
+
+
+def iter_entity_configs() -> Iterable[EntityConfig]:
+    """Yield entity configurations in UI order."""
+
+    for key in ENTITY_ORDER:
+        yield ENTITY_CONFIG[key]
+
+
+def get_entity_config(entity_type: str) -> EntityConfig:
+    """Return the configuration for ``entity_type``."""
+
+    return _get_config(entity_type)
 
 
 class CheckInService:
-    def __init__(self, queue_store: Optional[QueueStore] = None) -> None:
-        self.queue = queue_store or QueueStore(_QUEUE_PATH)
-        self.offline = False
-        self.last_saved_at: Optional[datetime] = None
+    """Facade that manages master and incident check-in records."""
 
-    # -- Permission helpers -------------------------------------------------
-    @staticmethod
-    def _active_user_role() -> Optional[str]:
-        return AppState.get_active_user_role()
+    def list_master_records(self, entity_type: str) -> List[Dict[str, Any]]:
+        """Return all master records for ``entity_type`` sorted for display."""
 
-    @staticmethod
-    def _active_user_id() -> Optional[str]:
-        return AppState.get_active_user_id()
+        config = _get_config(entity_type)
+        with get_master_conn() as master_conn:
+            _ensure_master_schema(master_conn, config)
+            rows = master_conn.execute(
+                f"SELECT * FROM {config.master_table} ORDER BY {config.sort_column}"
+            ).fetchall()
+        incident_ids = self._incident_id_set(config)
+        results: List[Dict[str, Any]] = []
+        for row in rows:
+            record = dict(row)
+            identifier = record.get(config.id_column)
+            record["_checked_in"] = str(identifier) in incident_ids if identifier is not None else False
+            results.append(record)
+        return results
 
-    def _check_override_permission(self, reason: Optional[str]) -> None:
-        role = self._active_user_role()
-        if role not in {"Logistics", "Command"}:
-            raise PermissionDenied("Override Personnel Status requires Logistics or Command role")
-        if not reason:
-            raise PermissionDenied("Override requires a justification")
+    def create_master_record(self, entity_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new master record and return the stored row."""
 
-    # -- Validation ---------------------------------------------------------
-    def _validate_upsert(self, upsert: CheckInUpsert) -> None:
-        errors: List[str] = []
-        try:
-            datetime.fromisoformat(upsert.arrival_time)
-        except ValueError:
-            errors.append("arrival_time must be ISO 8601")
-        if upsert.location is Location.OTHER:
-            if not (upsert.location_other or "").strip():
-                errors.append("location_other is required when location=Other")
-        else:
-            upsert.location_other = None
-        for label, value in (("shift_start", upsert.shift_start), ("shift_end", upsert.shift_end)):
-            if value:
-                if not _SHIFT_RE.match(value):
-                    errors.append(f"{label} must be HHMM 24-hour")
-        if upsert.shift_start and upsert.shift_end:
-            start = int(upsert.shift_start[:2]) * 60 + int(upsert.shift_start[2:])
-            end = int(upsert.shift_end[:2]) * 60 + int(upsert.shift_end[2:])
-            if end <= start:
-                errors.append("shift_end must be after shift_start")
-        if errors:
-            raise ValueError("; ".join(errors))
+        config = _get_config(entity_type)
+        columns: List[str] = []
+        values: List[Any] = []
+        supplied_id: Optional[Any] = None
 
-    # -- History helpers ----------------------------------------------------
-    def _log_history(
-        self,
-        prior: Optional[CheckInRecord],
-        record: CheckInRecord,
-        actor: str,
-        *,
-        override_reason: Optional[str] = None,
-    ) -> None:
-        if prior is None:
-            repository.log_history(
-                record.person_id,
-                actor,
-                "CHECKIN_CREATE",
-                {
-                    "ci_status": record.ci_status.value,
-                    "personnel_status": record.personnel_status.value,
-                    "arrival_time": record.arrival_time,
-                },
-            )
-            return
+        if config.id_field is not None:
+            supplied = data.get(config.id_column)
+            supplied_str = supplied.strip() if isinstance(supplied, str) else supplied
+            if config.id_field.required and not supplied_str:
+                raise ValueError(f"{config.id_field.label} is required")
+            if supplied_str:
+                supplied_id = supplied_str
+                columns.append(config.id_column)
+                values.append(supplied_str)
 
-        if prior.ci_status != record.ci_status:
-            repository.log_history(
-                record.person_id,
-                actor,
-                "CI_STATUS_CHANGE",
-                {"from": prior.ci_status.value, "to": record.ci_status.value},
-            )
-            if record.ci_status is CIStatus.DEMOBILIZED and prior.ci_status is not CIStatus.DEMOBILIZED:
-                repository.log_history(
-                    record.person_id,
-                    actor,
-                    "DEMOB",
-                    {"status": record.ci_status.value},
-                )
-        if prior.personnel_status != record.personnel_status:
-            repository.log_history(
-                record.person_id,
-                actor,
-                "PERS_STATUS_CHANGE",
-                {"from": prior.personnel_status.value, "to": record.personnel_status.value},
-            )
-        if prior.notes != record.notes:
-            repository.log_history(
-                record.person_id,
-                actor,
-                "NOTE",
-                {"notes": record.notes or ""},
-            )
-        if (
-            prior.team_id != record.team_id
-            or prior.role_on_team != record.role_on_team
-            or prior.operational_period != record.operational_period
-        ):
-            repository.log_history(
-                record.person_id,
-                actor,
-                "ASSIGNMENT_CHANGE",
-                {
-                    "team_id": record.team_id,
-                    "role_on_team": record.role_on_team,
-                    "operational_period": record.operational_period,
-                },
-            )
-        if prior.location != record.location or prior.location_other != record.location_other:
-            repository.log_history(
-                record.person_id,
-                actor,
-                "LOCATION_CHANGE",
-                {
-                    "location": record.location.value,
-                    "location_other": record.location_other,
-                },
-            )
-        if override_reason:
-            repository.log_history(
-                record.person_id,
-                actor,
-                "PERS_STATUS_OVERRIDE",
-                {"personnel_status": record.personnel_status.value, "reason": override_reason},
-            )
+        for field in config.form_fields:
+            raw_value = data.get(field.name)
+            text_value = raw_value.strip() if isinstance(raw_value, str) else raw_value
+            if field.required:
+                if not text_value:
+                    raise ValueError(f"{field.label} is required")
+                columns.append(field.name)
+                values.append(text_value)
+            else:
+                if text_value not in (None, ""):
+                    columns.append(field.name)
+                    values.append(text_value)
 
-    # -- Core upsert --------------------------------------------------------
-    def _execute_upsert(
-        self,
-        upsert: CheckInUpsert,
-        actor: Optional[str],
-    ) -> CheckInRecord:
-        prior = repository.fetch_checkin(upsert.person_id)
-        if upsert.expected_updated_at and prior and prior.updated_at != upsert.expected_updated_at:
-            raise ConflictError(
-                ConflictDetails(
-                    mine=upsert.to_queue_payload(),
-                    latest=prior.to_payload(),
-                )
-            )
-        record = upsert.to_record(base=prior)
-        record = apply_rules(record, prior)
-        if record.ci_status is CIStatus.NO_SHOW and repository.has_activity(record.person_id):
-            raise NoShowGuardError("Cannot mark as No Show after activity has been logged")
-        record.updated_at = _now().isoformat()
-        if prior is None:
-            record.created_at = record.updated_at
-        else:
-            record.created_at = prior.created_at
-        repository.save_checkin(record)
-        actor_id = actor or self._active_user_id() or "system"
-        self._log_history(prior, record, actor_id, override_reason=upsert.override_reason)
-        self.last_saved_at = _now()
-        record.pending = False
-        return record
+        if not columns:
+            raise ValueError("No data provided")
 
-    def upsert_checkin(self, payload: Dict[str, object] | CheckInUpsert) -> CheckInRecord:
-        upsert = payload if isinstance(payload, CheckInUpsert) else CheckInUpsert.from_dict(payload)
-        self._validate_upsert(upsert)
-        if repository.get_person_identity(upsert.person_id) is None:
-            raise ValueError("person_id must exist in master.personnel")
-        if upsert.override_personnel_status:
-            self._check_override_permission(upsert.override_reason)
-        if self.offline:
-            prior = repository.fetch_checkin(upsert.person_id)
-            record = apply_rules(upsert.to_record(base=prior), prior)
-            record.pending = True
-            queue_payload = upsert.to_queue_payload()
-            queue_payload["__actor"] = self._active_user_id()
-            self.queue.enqueue(QueueItem(op="UPSERT_CHECKIN", payload=queue_payload, ts=_now().isoformat()))
-            raise OfflineQueued(record, self.queue.pending_count())
-        record = self._execute_upsert(upsert, self._active_user_id())
-        self.flush_offline_queue()
-        return record
+        placeholders = ", ".join("?" for _ in columns)
+        column_list = ", ".join(columns)
+        sql = f"INSERT INTO {config.master_table} ({column_list}) VALUES ({placeholders})"
 
-    # -- Read queries -------------------------------------------------------
-    def get_roster(self, filters: Dict[str, object] | RosterFilters) -> List[RosterRow]:
-        filters_obj = filters if isinstance(filters, RosterFilters) else RosterFilters.from_dict(filters)
-        return repository.fetch_roster(filters_obj)
-
-    def get_history(self, person_id: str) -> List[HistoryItem]:
-        return repository.list_history(person_id)
-
-    def search_personnel(self, term: str) -> List[PersonnelIdentity]:
-        return repository.search_personnel(term)
-
-    def get_identity(self, person_id: str) -> Optional[PersonnelIdentity]:
-        return repository.get_person_identity(person_id)
-
-    def get_checkin(self, person_id: str) -> Optional[CheckInRecord]:
-        return repository.fetch_checkin(person_id)
-
-    def list_roles(self) -> List[str]:
-        return repository.get_distinct_roles()
-
-    def list_teams(self) -> List[tuple[str, str]]:
-        return repository.get_distinct_teams()
-
-    # -- Offline management -------------------------------------------------
-    def set_offline(self, offline: bool) -> None:
-        self.offline = offline
-
-    def pending_count(self) -> int:
-        return self.queue.pending_count()
-
-    def flush_offline_queue(self) -> None:
-        if not self.queue.pending_count():
-            return
-
-        def _handler(item: QueueItem) -> bool:
-            if item.op != "UPSERT_CHECKIN":
-                return False
-            payload = dict(item.payload)
-            actor = payload.pop("__actor", None)
-            upsert = CheckInUpsert.from_dict(payload)
+        with get_master_conn() as master_conn:
+            _ensure_master_schema(master_conn, config)
             try:
-                identity = repository.get_person_identity(upsert.person_id)
-                if identity is None:
-                    return False
-                self._execute_upsert(upsert, actor)
-            except CheckInError:
-                return False
-            return True
+                cur = master_conn.execute(sql, values)
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(f"{config.title} already exists with that identifier") from exc
+            master_conn.commit()
+            if supplied_id is not None:
+                new_id = supplied_id
+            else:
+                new_id = cur.lastrowid
 
-        self.queue.flush(_handler)
+        record = self._get_master_record(config, new_id)
+        record["_checked_in"] = False
+        return record
+
+    def check_in(self, entity_type: str, record_id: Any) -> Dict[str, Any]:
+        """Copy the master record into the incident database."""
+
+        config = _get_config(entity_type)
+        record = self._get_master_record(config, record_id)
+        columns = list(record.keys())
+        values = [record[column] for column in columns]
+        placeholders = ", ".join("?" for _ in columns)
+        column_list = ", ".join(columns)
+        sql = (
+            f"INSERT OR REPLACE INTO {config.incident_table} ({column_list})"
+            f" VALUES ({placeholders})"
+        )
+        with get_incident_conn() as incident_conn:
+            _ensure_incident_schema(incident_conn, config)
+            incident_conn.execute(sql, values)
+            incident_conn.commit()
+        record["_checked_in"] = True
+        return record
+
+    def _incident_id_set(self, config: EntityConfig) -> set[str]:
+        with get_incident_conn() as incident_conn:
+            _ensure_incident_schema(incident_conn, config)
+            rows = incident_conn.execute(
+                f"SELECT {config.id_column} FROM {config.incident_table}"
+            ).fetchall()
+        identifiers: set[str] = set()
+        for row in rows:
+            value = row[config.id_column]
+            if value is not None:
+                identifiers.add(str(value))
+        return identifiers
+
+    def _normalize_identifier(self, config: EntityConfig, record_id: Any) -> Any:
+        if record_id is None:
+            raise ValueError("Record identifier is required")
+        if config.autoincrement:
+            if isinstance(record_id, int):
+                return record_id
+            text = str(record_id).strip()
+            if not text:
+                raise ValueError("Record identifier is required")
+            try:
+                return int(text)
+            except ValueError as exc:
+                raise ValueError(f"Invalid identifier for {config.title}") from exc
+        return str(record_id).strip()
+
+    def _get_master_record(self, config: EntityConfig, record_id: Any) -> Dict[str, Any]:
+        normalized = self._normalize_identifier(config, record_id)
+        with get_master_conn() as master_conn:
+            _ensure_master_schema(master_conn, config)
+            row = master_conn.execute(
+                f"SELECT * FROM {config.master_table} WHERE {config.id_column} = ?",
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            raise ValueError(f"{config.title} record not found")
+        return dict(row)
 
 
-# ---------------------------------------------------------------------------
-# Module level façade
-# ---------------------------------------------------------------------------
-
-
-_service = CheckInService()
+_service: Optional[CheckInService] = None
 
 
 def get_service() -> CheckInService:
+    """Return a shared :class:`CheckInService` instance."""
+
+    global _service
+    if _service is None:
+        _service = CheckInService()
     return _service
 
 
-def getRoster(filters: Dict[str, object]) -> List[RosterRow]:
-    return _service.get_roster(filters)
+def reset_service() -> None:
+    """Reset the shared service instance (useful for tests)."""
 
-
-def upsertCheckIn(payload: Dict[str, object] | CheckInUpsert) -> CheckInRecord:
-    return _service.upsert_checkin(payload)
-
-
-def getHistory(person_id: str) -> List[HistoryItem]:
-    return _service.get_history(person_id)
-
-
-def searchPersonnel(term: str) -> List[PersonnelIdentity]:
-    return _service.search_personnel(term)
-
-
-def getIdentity(person_id: str) -> Optional[PersonnelIdentity]:
-    return _service.get_identity(person_id)
-
-
-def getCheckIn(person_id: str) -> Optional[CheckInRecord]:
-    return _service.get_checkin(person_id)
-
-
-def listRoles() -> List[str]:
-    return _service.list_roles()
-
-
-def listTeams() -> List[tuple[str, str]]:
-    return _service.list_teams()
-
-
-def setOffline(offline: bool) -> None:
-    _service.set_offline(offline)
-
-
-def pendingQueueCount() -> int:
-    return _service.pending_count()
-
-
-def flushOfflineQueue() -> None:
-    _service.flush_offline_queue()
+    global _service
+    _service = None
 
 
 __all__ = [
-    "apply_rules",
     "CheckInService",
-    "QueueStore",
+    "EntityConfig",
+    "FieldSpec",
+    "ENTITY_ORDER",
+    "ENTITY_CONFIG",
+    "get_entity_config",
+    "iter_entity_configs",
     "get_service",
-    "getRoster",
-    "upsertCheckIn",
-    "getHistory",
-    "getCheckIn",
-    "getIdentity",
-    "searchPersonnel",
-    "listRoles",
-    "listTeams",
-    "setOffline",
-    "pendingQueueCount",
-    "flushOfflineQueue",
+    "reset_service",
 ]
