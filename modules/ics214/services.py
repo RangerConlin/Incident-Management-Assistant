@@ -162,7 +162,10 @@ def list_subject_options(incident_id: str) -> Dict[str, List[Dict[str, Any]]]:
                         """
                         SELECT id,
                                COALESCE(NULLIF(name, ''), 'Facility ' || id) AS label,
-                               NULLIF(location, '') AS location
+                               NULLIF(type, '') AS type,
+                               NULLIF(level, '') AS level,
+                               NULLIF(notes, '') AS notes,
+                               COALESCE(is_24_7, 0) AS is_24_7
                         FROM aid_stations
                         ORDER BY label COLLATE NOCASE
                         """
@@ -172,11 +175,20 @@ def list_subject_options(incident_id: str) -> Dict[str, List[Dict[str, Any]]]:
                 .all()
             )
             for row in rows:
+                description_parts = []
+                if row.get("type"):
+                    description_parts.append(row["type"])
+                if row.get("level"):
+                    description_parts.append(row["level"])
+                if row.get("is_24_7"):
+                    description_parts.append("24/7")
+                if row.get("notes"):
+                    description_parts.append(row["notes"])
                 options["facility"].append(
                     {
                         "ref": f"facility:aid_station:{row['id']}",
                         "label": row["label"],
-                        "description": row.get("location", ""),
+                        "description": " — ".join(description_parts),
                     }
                 )
         except Exception as exc:  # pragma: no cover - optional data
