@@ -16,7 +16,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence
 
 from PySide6 import QtConcurrent
 from PySide6.QtCore import (
@@ -32,8 +32,13 @@ from PySide6.QtCore import (
     QTimer,
     QSettings,
     Signal,
-    QFutureWatcher,
+    QThread,
 )
+
+try:  # QtConcurrent extras were removed from some builds
+    from PySide6.QtCore import QFutureWatcher
+except ImportError:  # pragma: no cover - depends on PySide6 build
+    QFutureWatcher = None  # type: ignore[assignment]
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -84,6 +89,31 @@ from notifications.services import get_notifier
 from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog, VehicleRepository
 
 __all__ = ["VehicleInventoryPanel"]
+
+
+class _ExportWorkerThread(QThread):
+    """Run export tasks in a thread when QFutureWatcher is unavailable."""
+
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(
+        self,
+        task: Callable[[dict[str, Any]], dict[str, Any]],
+        params: dict[str, Any],
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._task = task
+        self._params = params
+
+    def run(self) -> None:  # type: ignore[override]
+        try:
+            result = self._task(self._params)
+        except Exception as exc:  # pragma: no cover - depends on runtime state
+            self.failed.emit(str(exc))
+        else:
+            self.completed.emit(result)
 
 
 # ---------------------------------------------------------------------------
@@ -1331,6 +1361,7 @@ class VehicleInventoryPanel(QWidget):
         self._sort_order = "asc"
         self._selected_vehicle_id: str | None = None
         self._export_watcher: QFutureWatcher | None = None
+        self._export_worker: _ExportWorkerThread | None = None
 
         self._setup_ui()
         self._load_reference_data()
@@ -1832,11 +1863,21 @@ class VehicleInventoryPanel(QWidget):
         }
 
         self.export_button.setEnabled(False)
-        watcher = QFutureWatcher(self)
-        future = QtConcurrent.run(self._perform_export, params)
-        watcher.setFuture(future)
-        watcher.finished.connect(lambda: self._on_export_finished(watcher))
-        self._export_watcher = watcher
+
+        run_fn = getattr(QtConcurrent, "run", None)
+        if QFutureWatcher is not None and callable(run_fn):
+            watcher = QFutureWatcher(self)
+            future = run_fn(self._perform_export, params)
+            watcher.setFuture(future)
+            watcher.finished.connect(lambda: self._on_export_finished(watcher))
+            self._export_watcher = watcher
+        else:
+            worker = _ExportWorkerThread(self._perform_export, params, self)
+            worker.completed.connect(self._on_export_finished)
+            worker.failed.connect(self._on_export_failed)
+            worker.finished.connect(lambda: self._on_export_worker_finished(worker))
+            worker.start()
+            self._export_worker = worker
 
     @staticmethod
     def _perform_export(params: dict[str, Any]) -> dict[str, Any]:
@@ -1950,14 +1991,32 @@ class VehicleInventoryPanel(QWidget):
                 values.append(record.raw.get(field, ""))
         return values
 
-    def _on_export_finished(self, watcher: QFutureWatcher) -> None:
+    def _on_export_finished(self, result_or_watcher: Any) -> None:
         self.export_button.setEnabled(True)
-        try:
-            result = watcher.result()
-        except Exception as exc:  # pragma: no cover - runtime dependent
-            self._show_toast("Export failed", str(exc), severity="error")
-            return
 
+        if hasattr(result_or_watcher, "result"):
+            if result_or_watcher is self._export_watcher:
+                self._export_watcher = None
+            try:
+                result = result_or_watcher.result()
+            except Exception as exc:  # pragma: no cover - runtime dependent
+                self._show_toast("Export failed", str(exc), severity="error")
+                return
+        else:
+            result = result_or_watcher
+
+        self._present_export_result(result)
+
+    def _on_export_failed(self, message: str) -> None:
+        self.export_button.setEnabled(True)
+        self._show_toast("Export failed", message, severity="error")
+
+    def _on_export_worker_finished(self, worker: _ExportWorkerThread) -> None:
+        if self._export_worker is worker:
+            self._export_worker = None
+        worker.deleteLater()
+
+    def _present_export_result(self, result: dict[str, Any]) -> None:
         path = Path(result.get("path"))
         count = result.get("count", 0)
         scope = result.get("scope", "all")
