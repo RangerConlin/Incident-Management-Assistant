@@ -8,7 +8,10 @@ from typing import Dict, List, Optional
 from PySide6 import QtGui
 from PySide6.QtCore import QDateTime, QModelIndex, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QKeySequence, QShortcut, QTextDocument
-from PySide6.QtPrintSupport import QPrinter
+try:  # Qt PrintSupport requires platform GL libs; optional at runtime
+    from PySide6.QtPrintSupport import QPrinter
+except ImportError:  # pragma: no cover - headless environments without GL
+    QPrinter = None  # type: ignore[assignment]
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -686,6 +689,11 @@ class Print211Dialog(QDialog):
         self.btn_export = buttons.addButton("Export PDF", QDialogButtonBox.ActionRole)
         buttons.addButton(QDialogButtonBox.Cancel)
         layout.addWidget(buttons)
+        if QPrinter is None:
+            self.btn_export.setEnabled(False)
+            self.btn_export.setToolTip(
+                "Qt Print Support is unavailable on this system."
+            )
         buttons.accepted.connect(lambda: self.done(1))
         self.btn_export.clicked.connect(lambda: self.done(2))
         buttons.rejected.connect(self.reject)
@@ -1036,6 +1044,13 @@ class CheckInWindow(QWidget):
         if result == 1:
             QMessageBox.information(self, "Print", "Send to printer.")
         else:
+            if QPrinter is None:
+                QMessageBox.warning(
+                    self,
+                    "Print Support Unavailable",
+                    "Qt Print Support is not available; PDF export is disabled.",
+                )
+                return
             path, _ = QFileDialog.getSaveFileName(self, "Export PDF", str(Path.home() / "ics211.pdf"), "PDF Files (*.pdf)")
             if not path:
                 return
