@@ -1,11 +1,23 @@
-from pathlib import Path
+"""Window factory for the QtWidgets-based ICS-214 Activity Log."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # pragma: no cover - import only for typing
+    from .widgets.activity_log import Ics214ActivityLogPanel
 
 __all__ = ["get_ics214_panel"]
 
 
-def get_ics214_panel(incident_id: object | None = None):
-    """Return QWidget hosting the ICS-214 Activity Log QML panel."""
-    from models.qmlwindow import QmlWindow
+def get_ics214_panel(
+    incident_id: Any | None = None,
+    launch_context: dict[str, Any] | None = None,
+) -> "Ics214ActivityLogPanel":
+    """Return the redesigned QtWidgets ICS-214 panel."""
 
-    qml_path = Path(__file__).resolve().parent / "qml" / "Ics214Home.qml"
-    return QmlWindow(str(qml_path), "ICS-214 Activity Log")
+    from .widgets.activity_log import Ics214ActivityLogPanel
+
+    return Ics214ActivityLogPanel(
+        incident_id=incident_id,
+        launch_context=launch_context or {},
+    )
