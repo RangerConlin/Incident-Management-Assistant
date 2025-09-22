@@ -41,17 +41,6 @@ def _window_model_map():
             ORDER BY name COLLATE NOCASE;
         """)
 
-    def _hospitals():
-        return _make_model("""
-            SELECT id, name, address, contact_name,
-                   phone_er, phone_switchboard, travel_time_min,
-                   helipad, trauma_level, burn_center, pediatric_capability,
-                   bed_available, diversion_status, ambulance_radio_channel,
-                   notes, lat, lon
-            FROM hospitals
-            ORDER BY name COLLATE NOCASE;
-        """)
-
     return {
         # Communications resources catalog
         "CommsResourcesWindow.qml": (
@@ -120,12 +109,6 @@ def _window_model_map():
         "EmsWindow.qml": (
             "EMSModel",
             _ems
-        ),
-
-        # Hospitals
-        "HospitalsWindow.qml": (
-            "HospitalsModel",
-            _hospitals
         ),
 
         # Certifications
@@ -285,8 +268,9 @@ def open_ems():
     win.exec()
 
 def open_hospitals():
-    path = os.path.abspath("qml/HospitalsWindow.qml")
-    win = QmlWindow(path, "Hospitals Catalog")
+    from modules.medical.hospitals import HospitalManagerDialog
+
+    win = HospitalManagerDialog()
     win.exec()
 
 def open_certifications():
