@@ -250,7 +250,7 @@ class EMSAgenciesWindow(QMainWindow):
         self.addToolBar(toolbar)
 
         self.act_new = QAction("New", self)
-        self.act_new.setShortcut(QKeySequence(Qt.Modifier.ControlModifier | Qt.Key_N))
+        self.act_new.setShortcut(QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key_N))
         self.act_edit = QAction("Edit", self)
         self.act_edit.setShortcut(QKeySequence(Qt.Key_Return))
         self.act_delete = QAction("Delete", self)
@@ -435,7 +435,7 @@ class EMSAgenciesWindow(QMainWindow):
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
         # Shortcuts
-        QShortcut(QKeySequence(Qt.Modifier.ControlModifier | Qt.Key_F), self, activated=self.search_edit.setFocus)
+        QShortcut(QKeySequence(Qt.KeyboardModifier.ControlModifier | Qt.Key_F), self, activated=self.search_edit.setFocus)
 
         self._update_badges()
         self._update_action_state()
