@@ -1,116 +1,95 @@
+"""PySide6 helpers for launching the ICS 206 management workflow."""
+
 from __future__ import annotations
 
-import os
 from typing import Optional
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PySide6.QtQml import QQmlApplicationEngine, QQmlContext
-from PySide6.QtCore import QObject, Property
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
-from utils.state import AppState
-from utils.app_signals import app_signals
-from .panels import ICS206Panel
+from modules.devtools.panels.form_library_manager import FormLibraryManager
 
 __all__ = ["get_206_panel", "open_206_window"]
 
 
-# Keep strong refs so QML windows/bridges don't get GC'd
-_engines: list[QQmlApplicationEngine] = []
-_bridges: list[ICS206Panel] = []
+def _launch_form_manager(parent: QWidget | None) -> None:
+    """Open the consolidated form manager focused on ICS 206."""
+
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("Manage Forms — ICS 206")
+    dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+
+    layout = QVBoxLayout(dialog)
+    manager = FormLibraryManager(dialog)
+    layout.addWidget(manager)
+    manager.focus_form("ICS_206")
+
+    dialog.resize(1100, 720)
+    dialog.exec()
 
 
-class QmlAppState(QObject):
-    """Minimal QML-facing wrapper exposing AppState values."""
+def open_206_window(parent: QWidget | None = None) -> None:
+    """Present guidance for managing the ICS 206 medical plan."""
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._activeIncident = str(AppState.get_active_incident() or "")
-        op = AppState.get_active_op_period()
-        self._activeOpPeriod = int(op) if op is not None else 0
-        # React to global changes
-        try:
-            app_signals.incidentChanged.connect(self._on_incident)
-            app_signals.opPeriodChanged.connect(self._on_op)
-        except Exception:
-            pass
+    info_dialog = QDialog(parent)
+    info_dialog.setWindowTitle("Medical Plan (ICS 206)")
+    info_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
 
-    def _on_incident(self, number: str) -> None:
-        self._activeIncident = number
+    layout = QVBoxLayout(info_dialog)
 
-    def _on_op(self, op: object) -> None:
-        try:
-            self._activeOpPeriod = int(op) if op is not None else 0
-        except Exception:
-            self._activeOpPeriod = 0
+    message = QLabel(
+        "The ICS 206 medical plan is now authored through the consolidated "
+        "Form Library Manager. Use the button below to review templates, "
+        "assign profiles, and edit bindings for the incident medical plan."
+    )
+    message.setWordWrap(True)
+    layout.addWidget(message)
 
-    def get_activeIncident(self) -> str:  # noqa: N802
-        return self._activeIncident
+    button_row = QHBoxLayout()
+    open_button = QPushButton("Open Manage Forms")
+    open_button.clicked.connect(lambda: _launch_form_manager(info_dialog))
+    button_row.addStretch(1)
+    button_row.addWidget(open_button)
+    layout.addLayout(button_row)
 
-    def get_activeOpPeriod(self) -> int:  # noqa: N802
-        return self._activeOpPeriod
+    buttons = QDialogButtonBox(QDialogButtonBox.Close)
+    buttons.rejected.connect(info_dialog.reject)
+    buttons.accepted.connect(info_dialog.accept)
+    layout.addWidget(buttons)
 
-    activeIncident = Property(str, fget=get_activeIncident, constant=False)  # type: ignore[assignment]
-    activeOpPeriod = Property(int, fget=get_activeOpPeriod, constant=False)  # type: ignore[assignment]
-
-
-def open_206_window() -> QQmlApplicationEngine:
-    """Open the floating, modeless ICS 206 QML ApplicationWindow.
-
-    Returns the engine to allow optional external bookkeeping.
-    """
-    qml_path = os.path.abspath(os.path.join("modules", "medical", "qml", "ICS206Window.qml"))
-
-    engine = QQmlApplicationEngine()
-    ctx: QQmlContext = engine.rootContext()
-
-    # Bridge for CRUD and pdf export signal
-    bridge = ICS206Panel()
-    try:
-        from modules.safety.print_ics_206 import generate as generate_ics206_pdf
-
-        def _on_pdf_requested():
-            inc = AppState.get_active_incident()
-            if not inc:
-                return
-            try:
-                # Placeholder HTML content until a real template renderer is wired
-                generate_ics206_pdf(str(inc), "<html><body>ICS 206</body></html>")
-            except Exception:
-                pass
-
-        bridge.pdfRequested.connect(_on_pdf_requested)
-    except Exception:
-        pass
-
-    # Expose to QML
-    ctx.setContextProperty("ics206Bridge", bridge)
-    ctx.setContextProperty("appState", QmlAppState())
-
-    engine.load(qml_path)
-
-    # Ensure the window is shown (QML has visible: true, but be defensive)
-    roots = engine.rootObjects()
-    if roots:
-        try:
-            roots[0].setProperty("visible", True)
-        except Exception:
-            pass
-
-    _engines.append(engine)
-    _bridges.append(bridge)
-    return engine
+    info_dialog.resize(520, 220)
+    info_dialog.exec()
 
 
-def get_206_panel(incident_id: Optional[object] = None) -> QWidget:
-    """Fallback QWidget placeholder for docking contexts.
+def get_206_panel(_incident_id: Optional[object] = None) -> QWidget:
+    """Return a lightweight panel pointing operators to the new workflow."""
 
-    The main menu currently opens the full QML window via ``open_206_window``.
-    This function remains for API compatibility.
-    """
-    w = QWidget()
-    layout = QVBoxLayout(w)
-    title_lbl = QLabel("Medical Plan (ICS-206)")
-    title_lbl.setStyleSheet("font-size: 18px; font-weight: 600;")
-    layout.addWidget(title_lbl)
-    layout.addWidget(QLabel("The full ICS 206 opens as a separate window from the menu."))
-    return w
+    panel = QWidget()
+    layout = QVBoxLayout(panel)
+
+    title = QLabel("Medical Plan (ICS 206)")
+    title.setStyleSheet("font-size: 18px; font-weight: 600;")
+    layout.addWidget(title)
+
+    body = QLabel(
+        "Use the Form Library Manager to manage ICS 206 templates, map PDF "
+        "fields to bindings, and assign the medical plan to incident profiles."
+    )
+    body.setWordWrap(True)
+    layout.addWidget(body)
+
+    open_button = QPushButton("Open Manage Forms")
+    open_button.clicked.connect(lambda: _launch_form_manager(panel))
+    layout.addWidget(open_button)
+
+    layout.addStretch(1)
+    return panel
+

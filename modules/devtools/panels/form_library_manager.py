@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -40,7 +41,6 @@ from ..services.binding_library import (
     load_binding_library,
     save_binding_option,
 )
-from .binding_library_panel import BindingEditorDialog
 from modules.forms_creator.ui.MainWindow import MainWindow, ProfileTemplateContext
 from utils.profile_manager import ProfileMeta, profile_manager
 
@@ -66,6 +66,267 @@ def _default_mapping_relative_path(form_id: str, version: str) -> Path:
 
 def _to_posix(path: Path) -> str:
     return path.as_posix()
+
+
+_DEFAULT_SOURCES = [
+    "constants",
+    "incident",
+    "operations",
+    "planning",
+    "logistics",
+    "finance",
+    "personnel",
+    "computed",
+    "form",
+]
+
+
+def _collect_lines(widget: QPlainTextEdit) -> List[str]:
+    return [line.strip() for line in widget.toPlainText().splitlines() if line.strip()]
+
+
+def _slugify(value: str) -> str:
+    value = value.strip().lower()
+    value = re.sub(r"[^a-z0-9]+", "_", value)
+    return value.strip("_")
+
+
+def _pattern_from_phrase(phrase: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", ".*", phrase.lower())
+    normalized = normalized.strip(".*")
+    if not normalized:
+        return ""
+    return f"^{normalized}$"
+
+
+def _pattern_from_key(key: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", ".?", key.lower())
+    normalized = normalized.strip(".?")
+    if not normalized:
+        return ""
+    return f"^{normalized}$"
+
+
+class BindingEditorDialog(QDialog):
+    """Interactive helper for creating or editing a binding entry."""
+
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        option: Optional[BindingOption] = None,
+        namespaces: Sequence[str] = (),
+        active_profile: Optional[str] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Binding Editor")
+        self._option = option
+        self._active_profile = active_profile
+        self._original_key = option.key if option else None
+        self._extra = dict(option.extra) if option else {}
+
+        layout = QVBoxLayout(self)
+
+        intro = QLabel(
+            "Bindings map PDF fields to canonical keys used across the incident. "
+            "Provide a descriptive key, optional synonyms for search, and "
+            "regex patterns that help the auto-mapper spot the field."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        if option and not option.is_defined_in_active:
+            inherit_note = QLabel(
+                "This binding is inherited from profile "
+                f"<b>{option.origin_profile or 'unknown'}</b>. "
+                "Saving will create an override in the active profile."
+            )
+            inherit_note.setWordWrap(True)
+            layout.addWidget(inherit_note)
+
+        form = QFormLayout()
+
+        self.txt_key = QLineEdit(option.key if option else "")
+        self.txt_key.setPlaceholderText("e.g., incident.name")
+        form.addRow("Key", self.txt_key)
+
+        self.cbo_source = QComboBox()
+        self.cbo_source.setEditable(True)
+        for src in _DEFAULT_SOURCES:
+            self.cbo_source.addItem(src)
+        if option:
+            self.cbo_source.setCurrentText(option.source or "constants")
+        else:
+            self.cbo_source.setCurrentText("constants")
+        form.addRow("Source", self.cbo_source)
+
+        self.txt_desc = QLineEdit(option.description if option else "")
+        self.txt_desc.setPlaceholderText("Short description shown to authors")
+        form.addRow("Description", self.txt_desc)
+
+        self.txt_synonyms = QPlainTextEdit()
+        self.txt_synonyms.setPlaceholderText("One synonym per line")
+        if option and option.synonyms:
+            self.txt_synonyms.setPlainText("\n".join(option.synonyms))
+        form.addRow("Synonyms", self.txt_synonyms)
+
+        self.txt_patterns = QPlainTextEdit()
+        self.txt_patterns.setPlaceholderText("One regex pattern per line")
+        if option and option.patterns:
+            self.txt_patterns.setPlainText("\n".join(option.patterns))
+        form.addRow("Patterns", self.txt_patterns)
+
+        layout.addLayout(form)
+
+        helper_box = QGroupBox("Binding Helper")
+        helper_layout = QVBoxLayout(helper_box)
+
+        helper_form = QFormLayout()
+        self.cbo_namespace = QComboBox()
+        self.cbo_namespace.setEditable(True)
+        unique_namespaces = sorted({ns for ns in namespaces if ns})
+        for ns in unique_namespaces:
+            self.cbo_namespace.addItem(ns)
+        if option and option.key:
+            ns_guess = option.key.split(".")[0]
+            self.cbo_namespace.setCurrentText(ns_guess)
+        helper_form.addRow("Namespace", self.cbo_namespace)
+
+        self.txt_helper_label = QLineEdit()
+        self.txt_helper_label.setPlaceholderText("Label on the PDF (e.g., Incident Name)")
+        helper_form.addRow("Field label", self.txt_helper_label)
+        helper_layout.addLayout(helper_form)
+
+        helper_actions = QHBoxLayout()
+        self.btn_generate = QPushButton("Build key & synonyms")
+        self.btn_generate.clicked.connect(self._apply_helper)
+        helper_actions.addWidget(self.btn_generate)
+
+        self.btn_patterns = QPushButton("Generate patterns from synonyms")
+        self.btn_patterns.clicked.connect(self._generate_patterns_from_synonyms)
+        helper_actions.addWidget(self.btn_patterns)
+
+        helper_actions.addStretch(1)
+        helper_layout.addLayout(helper_actions)
+
+        helper_hint = QLabel(
+            "Use the helper to convert a plain-language label into a canonical key. "
+            "Synonyms feed the search experience and patterns help auto-mapping."
+        )
+        helper_hint.setWordWrap(True)
+        helper_layout.addWidget(helper_hint)
+
+        layout.addWidget(helper_box)
+
+        self.preview = QPlainTextEdit()
+        self.preview.setReadOnly(True)
+        self.preview.setPlaceholderText("Binding preview")
+        layout.addWidget(self.preview)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.buttons.accepted.connect(self._on_accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addWidget(self.buttons)
+
+        self.txt_key.textChanged.connect(self._update_state)
+        self.cbo_source.editTextChanged.connect(self._update_state)
+        self.txt_desc.textChanged.connect(self._update_state)
+        self.txt_synonyms.textChanged.connect(self._update_state)
+        self.txt_patterns.textChanged.connect(self._update_state)
+
+        self._update_state()
+
+    def _apply_helper(self) -> None:
+        namespace = self.cbo_namespace.currentText().strip()
+        label = self.txt_helper_label.text().strip()
+        if not label:
+            QMessageBox.information(self, "Binding Helper", "Enter a field label to build from.")
+            return
+
+        slug = _slugify(label)
+        key_parts = [namespace, slug] if namespace else [slug]
+        key = ".".join(part for part in key_parts if part)
+        if key:
+            self.txt_key.setText(key)
+
+        if not self.txt_desc.text().strip():
+            self.txt_desc.setText(label)
+
+        synonyms = set(_collect_lines(self.txt_synonyms))
+        synonyms.add(label)
+        synonyms.add(label.title())
+        synonyms.add(label.lower())
+        self.txt_synonyms.setPlainText("\n".join(sorted(s.strip() for s in synonyms if s.strip())))
+
+        if namespace and namespace in _DEFAULT_SOURCES:
+            self.cbo_source.setCurrentText(namespace)
+
+        self._generate_patterns_from_synonyms()
+
+    def _generate_patterns_from_synonyms(self) -> None:
+        patterns = set(_collect_lines(self.txt_patterns))
+        key_pattern = _pattern_from_key(self.txt_key.text())
+        if key_pattern:
+            patterns.add(key_pattern)
+        for synonym in _collect_lines(self.txt_synonyms):
+            pat = _pattern_from_phrase(synonym)
+            if pat:
+                patterns.add(pat)
+        self.txt_patterns.setPlainText("\n".join(sorted(patterns)))
+
+    def _update_state(self) -> None:
+        option = self._build_option()
+        payload = option.to_payload()
+        preview_data = {"key": option.key, **payload}
+        try:
+            preview_text = json.dumps(preview_data, indent=2, ensure_ascii=False)
+        except Exception:
+            preview_text = str(preview_data)
+        self.preview.setPlainText(preview_text)
+
+        error = self._validate()
+        ok_button = self.buttons.button(QDialogButtonBox.Ok)
+        if ok_button is not None:
+            ok_button.setEnabled(error is None)
+
+    def _validate(self) -> Optional[str]:
+        key = self.txt_key.text().strip()
+        if not key:
+            return "Key is required."
+        if any(ch.isspace() for ch in key):
+            return "Key cannot contain whitespace."
+        return None
+
+    def _build_option(self) -> BindingOption:
+        key = self.txt_key.text().strip()
+        source = self.cbo_source.currentText().strip() or "constants"
+        description = self.txt_desc.text().strip()
+        synonyms = _collect_lines(self.txt_synonyms)
+        patterns = _collect_lines(self.txt_patterns)
+        origin = self._active_profile or (self._option.origin_profile if self._option else None)
+        return BindingOption(
+            key=key,
+            source=source,
+            description=description,
+            synonyms=synonyms,
+            patterns=patterns,
+            origin_profile=origin,
+            is_defined_in_active=True,
+            extra=dict(self._extra),
+        )
+
+    def _on_accept(self) -> None:
+        error = self._validate()
+        if error:
+            QMessageBox.warning(self, "Binding Editor", error)
+            return
+        self.accept()
+
+    def result_option(self) -> BindingOption:
+        return self._build_option()
+
+    @property
+    def original_key(self) -> Optional[str]:
+        return self._original_key
 
 
 class NewFormDialog(QDialog):
@@ -560,6 +821,12 @@ class FormLibraryManager(QWidget):
                         self.tree.setCurrentItem(child)
                         return
                 break
+
+    # Exposed for callers that need to direct the manager toward a form.
+    def focus_form(self, form_id: str, version: Optional[str] = None) -> None:
+        self._select_form(form_id)
+        if version:
+            self._select_version(form_id, version)
 
     def _bind_form_details(self, form: Optional[FormEntry]) -> None:
         if form is None:
