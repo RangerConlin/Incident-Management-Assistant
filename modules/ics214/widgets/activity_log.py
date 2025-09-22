@@ -1002,6 +1002,7 @@ class Ics214ActivityLogPanel(QWidget):
         self.selected_op_number: int | None = None
         self._last_saved: QDateTime | None = None
         self._loading = False
+        self._incident_label_cache: dict[str, str] = {}
         self.subject_options: dict[str, list[dict[str, Any]]] = {
             "team": [],
             "section": [],
@@ -1035,8 +1036,12 @@ class Ics214ActivityLogPanel(QWidget):
         layout.addLayout(title_row)
 
         selector_row = QHBoxLayout()
-        self.incident_combo = QComboBox(self)
-        self.incident_combo.currentIndexChanged.connect(self._on_incident_changed)
+        self.incident_label = QLabel("—", self)
+        self.incident_label.setObjectName("incidentLabel")
+        try:
+            self.incident_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        except Exception:  # pragma: no cover - PySide safety
+            pass
         self.op_combo = QComboBox(self)
         self.op_combo.currentTextChanged.connect(self._on_operational_period_changed)
         self.log_combo = QComboBox(self)
@@ -1044,7 +1049,7 @@ class Ics214ActivityLogPanel(QWidget):
         self.new_log_btn = QPushButton("New Log", self)
         self.new_log_btn.clicked.connect(self._open_new_log_dialog)
         selector_row.addWidget(QLabel("Incident:", self))
-        selector_row.addWidget(self.incident_combo)
+        selector_row.addWidget(self.incident_label)
         selector_row.addWidget(QLabel("OP:", self))
         selector_row.addWidget(self.op_combo)
         selector_row.addWidget(QLabel("Log:", self))
@@ -1077,6 +1082,9 @@ class Ics214ActivityLogPanel(QWidget):
         layout.addWidget(entries_label)
 
         self.entries_table = QTableWidget(self)
+        self.entries_table.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Expanding
+        )
         self.entries_table.setColumnCount(6)
         self.entries_table.setHorizontalHeaderLabels(
             ["#", "Time (Local)", "Activity", "Source", "Links", "⋯"]
@@ -1095,9 +1103,10 @@ class Ics214ActivityLogPanel(QWidget):
         self.entries_table.cellDoubleClicked.connect(self._open_editor_for_row)
         self.entries_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.entries_table.customContextMenuRequested.connect(self._show_table_menu)
-        layout.addWidget(self.entries_table)
+        layout.addWidget(self.entries_table, 1)
 
         self.quick_frame = QFrame(self)
+        self.quick_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         quick_layout = QHBoxLayout(self.quick_frame)
         quick_layout.setContentsMargins(4, 4, 4, 4)
         quick_layout.addWidget(QLabel("+ Add entry…", self.quick_frame))
@@ -1135,6 +1144,7 @@ class Ics214ActivityLogPanel(QWidget):
         footer.addWidget(self.reopen_btn)
         footer.addWidget(self.last_saved_label)
         layout.addLayout(footer)
+        layout.setStretch(5, 1)
 
     def _build_header_card(self) -> QWidget:
         frame = QFrame(self)
@@ -1227,23 +1237,10 @@ class Ics214ActivityLogPanel(QWidget):
     def _load_initial_data(self) -> None:
         self._loading = True
         try:
-            incidents = self._load_incident_options()
-            self.incident_combo.blockSignals(True)
-            self.incident_combo.clear()
-            for item in incidents:
-                self.incident_combo.addItem(item["label"], item["id"])
-            self.incident_combo.blockSignals(False)
-            if not incidents:
-                self.incident_id = None
+            self._refresh_incident_label()
+            if not self.incident_id:
                 self._set_empty_state()
                 return
-            if self.incident_id:
-                idx = self.incident_combo.findData(self.incident_id)
-                if idx >= 0:
-                    self.incident_combo.setCurrentIndex(idx)
-            if self.incident_combo.currentIndex() < 0:
-                self.incident_combo.setCurrentIndex(0)
-            self.incident_id = self.incident_combo.currentData()
             self._load_subject_options()
             self._load_operational_period_options()
             self._reload_streams()
@@ -1252,10 +1249,11 @@ class Ics214ActivityLogPanel(QWidget):
 
     def _load_incident_options(self) -> list[dict[str, str]]:
         options: list[dict[str, str]] = []
+        self._incident_label_cache.clear()
         try:
             records = load_incidents_from_master()
         except Exception as exc:
-            logger.exception("Failed to load incidents: %s", exc)
+            logger.debug("Failed to load incidents: %s", exc)
             return options
         for row in records:
             number = getattr(row, "number", None) or getattr(row, "id", None)
@@ -1265,7 +1263,41 @@ class Ics214ActivityLogPanel(QWidget):
             name = getattr(row, "name", "")
             label = f"{name} ({number_str})" if name else number_str
             options.append({"id": number_str, "label": label})
+            self._incident_label_cache[number_str] = label
         return options
+
+    def _refresh_incident_label(self, forced_id: str | None = None) -> None:
+        options = self._load_incident_options()
+        target_id = forced_id
+        if target_id is None:
+            target_id = self.incident_id or incident_context.get_active_incident_id()
+        if target_id:
+            target_str = str(target_id)
+            self.incident_id = target_str
+            label = self._incident_label_cache.get(target_str) or target_str
+        elif options:
+            choice = options[0]
+            self.incident_id = choice["id"]
+            label = choice["label"]
+        else:
+            self.incident_id = None
+            label = "No active incident"
+        self.incident_label.setText(label or "—")
+
+    def _set_incident(self, incident_id: str | None) -> None:
+        normalized = str(incident_id) if incident_id is not None else None
+        same = normalized == self.incident_id
+        self._refresh_incident_label(normalized)
+        if self._loading:
+            return
+        if same and self.incident_id:
+            return
+        if self.incident_id:
+            self._load_subject_options()
+            self._load_operational_period_options()
+            self._reload_streams()
+        else:
+            self._set_empty_state()
 
     def _load_operational_period_options(self) -> None:
         self.operational_period_labels = {0: "Unassigned"}
@@ -1823,19 +1855,6 @@ class Ics214ActivityLogPanel(QWidget):
         self._reload_current_entries()
         self._bump_version()
 
-    def _on_incident_changed(self, index: int) -> None:
-        if self._loading:
-            return
-        incident = self.incident_combo.itemData(index)
-        self.incident_id = str(incident) if incident else None
-        if self.launch_context:
-            self._context_match_consumed = False
-        if not self._applying_context:
-            self._preferred_stream_id = None
-        self._load_subject_options()
-        self._load_operational_period_options()
-        self._reload_streams()
-
     def _on_operational_period_changed(self, text: str) -> None:
         if self._loading:
             return
@@ -2236,17 +2255,14 @@ class Ics214ActivityLogPanel(QWidget):
             self._preferred_stream_id = str(direct_stream) if direct_stream else None
             # Re-run context-based selection for the next stream reload.
             self._context_match_consumed = False
-            pin_incident = context.get("pin_incident")
-            if pin_incident is not None:
-                self.incident_combo.setEnabled(not pin_incident)
+            incident_overridden = False
             pin_op = context.get("pin_operational_period")
             if pin_op is not None:
                 self.op_combo.setEnabled(not pin_op)
             default_incident = context.get("default_incident_id")
-            if default_incident:
-                idx = self.incident_combo.findData(str(default_incident))
-                if idx >= 0:
-                    self.incident_combo.setCurrentIndex(idx)
+            if default_incident is not None:
+                incident_overridden = True
+                self._set_incident(str(default_incident))
             default_op = context.get("default_operational_period")
             if default_op is not None:
                 try:
@@ -2261,7 +2277,7 @@ class Ics214ActivityLogPanel(QWidget):
                 text_filter = filters.get("search") or ""
                 if text_filter:
                     self.search_edit.setText(str(text_filter))
-            if self.incident_id and not self._loading:
+            if self.incident_id and not self._loading and not incident_overridden:
                 self._reload_streams()
         finally:
             self._applying_context = False
