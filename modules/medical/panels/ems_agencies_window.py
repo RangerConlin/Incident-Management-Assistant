@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Mapping, Sequence
 
 from PySide6.QtCore import QByteArray, QModelIndex, QPoint, Qt, QTimer, QObject, QItemSelectionModel, QItemSelection
-from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QPainter, QPen
+from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QDateEdit,
-    QShortcut,
     QAbstractItemView,
     QHeaderView,
 )
