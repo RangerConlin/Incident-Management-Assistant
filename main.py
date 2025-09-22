@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings_manager: SettingsManager | None = None,
                  settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
+        self._ems_window = None
         # Theme wiring is applied after settings bridge is available
 
         if settings_manager is None:
@@ -845,7 +846,16 @@ class MainWindow(QMainWindow):
 
 # --- 4.2 Edit ------------------------------------------------------------
     def open_edit_ems(self) -> None:
-        self._open_qml_modal("qml/EmsWindow.qml", title="EMS Agencies")
+        from modules.medical.panels.ems_agencies_window import EMSAgenciesWindow
+
+        window = getattr(self, '_ems_window', None)
+        if window is None or not isinstance(window, EMSAgenciesWindow):
+            window = EMSAgenciesWindow(parent=self)
+            window.destroyed.connect(lambda: setattr(self, '_ems_window', None))
+            self._ems_window = window
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def open_edit_hospitals(self) -> None:
         self._open_qml_modal("qml/HospitalsWindow.qml", title="Hospitals")
