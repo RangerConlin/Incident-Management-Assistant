@@ -88,7 +88,7 @@ from notifications.services import get_notifier
 
 from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog, VehicleRepository
 
-__all__ = ["VehicleInventoryPanel"]
+__all__ = ["VehicleInventoryPanel", "VehicleInventoryDialog"]
 
 
 class _ExportWorkerThread(QThread):
@@ -402,7 +402,13 @@ class TagsChipDelegate(QStyledItemDelegate):
             self._draw_chip(painter, chip_rect, more_label)
 
         if chips_drawn == 0 and hidden == 0:
-            painter.setPen(QPen(option.palette.color(QPalette.ColorRole.Disabled, QPalette.ColorRole.Text)))
+            painter.setPen(
+                QPen(
+                    option.palette.color(
+                        QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text
+                    )
+                )
+            )
             painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, "—")
 
         painter.restore()
@@ -2061,4 +2067,29 @@ class VehicleInventoryPanel(QWidget):
             orientation = Qt.Orientation.Vertical if width < 900 else Qt.Orientation.Horizontal
             if self.splitter.orientation() != orientation:
                 self.splitter.setOrientation(orientation)
+
+
+class VehicleInventoryDialog(QDialog):
+    """Modal dialog wrapper embedding :class:`VehicleInventoryPanel`."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        repository: VehicleRepository | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Vehicle Inventory")
+        self.resize(1300, 760)
+
+        self._panel = VehicleInventoryPanel(parent=self, repository=repository)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._panel)
+
+    @property
+    def panel(self) -> VehicleInventoryPanel:
+        """Return the embedded inventory panel instance."""
+
+        return self._panel
 
