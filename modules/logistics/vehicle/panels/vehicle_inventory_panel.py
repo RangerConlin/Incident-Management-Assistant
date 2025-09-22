@@ -32,7 +32,6 @@ from PySide6.QtCore import (
     QTimer,
     QSettings,
     Signal,
-    QFutureWatcher,
 )
 from PySide6.QtGui import (
     QAction,
@@ -77,6 +76,11 @@ from PySide6.QtWidgets import (
     QWizardPage,
     QProgressBar,
 )
+
+try:  # pragma: no cover - environment-dependent Qt builds may omit QFutureWatcher
+    from PySide6.QtCore import QFutureWatcher
+except ImportError:  # pragma: no cover - fallback when QtConcurrent watcher is unavailable
+    QFutureWatcher = None  # type: ignore[assignment]
 
 from notifications.models import Notification
 from notifications.services import get_notifier
@@ -1832,6 +1836,19 @@ class VehicleInventoryPanel(QWidget):
         }
 
         self.export_button.setEnabled(False)
+        if QFutureWatcher is None:
+            try:
+                result = self._perform_export(params)
+            except Exception as exc:  # pragma: no cover - runtime dependent
+                self.export_button.setEnabled(True)
+                self._show_toast("Export failed", str(exc), severity="error")
+                QMessageBox.critical(self, "Export failed", str(exc))
+                return
+
+            self.export_button.setEnabled(True)
+            self._handle_export_result(result)
+            return
+
         watcher = QFutureWatcher(self)
         future = QtConcurrent.run(self._perform_export, params)
         watcher.setFuture(future)
@@ -1950,20 +1967,28 @@ class VehicleInventoryPanel(QWidget):
                 values.append(record.raw.get(field, ""))
         return values
 
+    def _handle_export_result(self, result: dict[str, Any]) -> None:
+        path_value = result.get("path")
+        path = Path(path_value) if path_value else None
+        count = result.get("count", 0)
+        scope = result.get("scope", "all")
+        if path is None:
+            message = f"{count} vehicles exported ({scope})."
+        else:
+            message = f"{count} vehicles exported ({scope}). Saved to {path}."
+        self._show_toast("Export ready", message)
+        QMessageBox.information(self, "Export ready", message)
+
     def _on_export_finished(self, watcher: QFutureWatcher) -> None:
         self.export_button.setEnabled(True)
         try:
             result = watcher.result()
         except Exception as exc:  # pragma: no cover - runtime dependent
             self._show_toast("Export failed", str(exc), severity="error")
+            QMessageBox.critical(self, "Export failed", str(exc))
             return
 
-        path = Path(result.get("path"))
-        count = result.get("count", 0)
-        scope = result.get("scope", "all")
-        message = f"{count} vehicles exported ({scope}). Saved to {path}."
-        self._show_toast("Export ready", message)
-        QMessageBox.information(self, "Export ready", message)
+        self._handle_export_result(result)
 
     # ----- Permissions ----------------------------------------------------
     def set_actions_enabled(
