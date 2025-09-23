@@ -21,14 +21,14 @@ class ICS203Repository:
     def list_units(self) -> List[OrgUnit]:
         sql = (
             "SELECT id, incident_id, unit_type, name, parent_unit_id, sort_order "
-            "FROM org_units WHERE incident_id=? ORDER BY sort_order, name"
+            "FROM ics203_units WHERE incident_id=? ORDER BY sort_order, name"
         )
         with get_incident_connection(self.incident_id) as conn:
             rows = conn.execute(sql, (self.incident_id,)).fetchall()
         return [OrgUnit(**dict(row)) for row in rows]
 
     def get_unit(self, unit_id: int) -> Optional[OrgUnit]:
-        sql = "SELECT * FROM org_units WHERE id=? AND incident_id=?"
+        sql = "SELECT * FROM ics203_units WHERE id=? AND incident_id=?"
         with get_incident_connection(self.incident_id) as conn:
             row = conn.execute(sql, (unit_id, self.incident_id)).fetchone()
         return OrgUnit(**dict(row)) if row else None
@@ -45,7 +45,7 @@ class ICS203Repository:
             if unit.id is None:
                 cur = conn.execute(
                     """
-                    INSERT INTO org_units (
+                    INSERT INTO ics203_units (
                         incident_id, unit_type, name, parent_unit_id, sort_order
                     ) VALUES (?,?,?,?,?)
                     """,
@@ -55,7 +55,7 @@ class ICS203Repository:
                 return int(cur.lastrowid)
             conn.execute(
                 """
-                UPDATE org_units
+                UPDATE ics203_units
                 SET unit_type=?, name=?, parent_unit_id=?, sort_order=?
                 WHERE id=? AND incident_id=?
                 """,
@@ -74,7 +74,7 @@ class ICS203Repository:
     def delete_unit(self, unit_id: int) -> None:
         with get_incident_connection(self.incident_id) as conn:
             conn.execute(
-                "DELETE FROM org_units WHERE id=? AND incident_id=?",
+                "DELETE FROM ics203_units WHERE id=? AND incident_id=?",
                 (unit_id, self.incident_id),
             )
             conn.commit()
@@ -84,7 +84,7 @@ class ICS203Repository:
     # ------------------------------------------------------------------
     def list_positions(self, unit_id: int | None = None) -> List[Position]:
         sql = (
-            "SELECT id, incident_id, title, unit_id, sort_order FROM org_positions "
+            "SELECT id, incident_id, title, unit_id, sort_order FROM ics203_positions "
             "WHERE incident_id=?"
         )
         params: list[object] = [self.incident_id]
@@ -100,7 +100,7 @@ class ICS203Repository:
 
     def list_all_positions(self) -> List[Position]:
         sql = (
-            "SELECT id, incident_id, title, unit_id, sort_order FROM org_positions "
+            "SELECT id, incident_id, title, unit_id, sort_order FROM ics203_positions "
             "WHERE incident_id=? ORDER BY sort_order, title"
         )
         with get_incident_connection(self.incident_id) as conn:
@@ -108,7 +108,7 @@ class ICS203Repository:
         return [Position(**dict(row)) for row in rows]
 
     def get_position(self, position_id: int) -> Optional[Position]:
-        sql = "SELECT * FROM org_positions WHERE id=? AND incident_id=?"
+        sql = "SELECT * FROM ics203_positions WHERE id=? AND incident_id=?"
         with get_incident_connection(self.incident_id) as conn:
             row = conn.execute(sql, (position_id, self.incident_id)).fetchone()
         return Position(**dict(row)) if row else None
@@ -118,7 +118,7 @@ class ICS203Repository:
             if position.id is None:
                 cur = conn.execute(
                     """
-                    INSERT INTO org_positions (
+                    INSERT INTO ics203_positions (
                         incident_id, title, unit_id, sort_order
                     ) VALUES (?,?,?,?)
                     """,
@@ -133,7 +133,7 @@ class ICS203Repository:
                 return int(cur.lastrowid)
             conn.execute(
                 """
-                UPDATE org_positions
+                UPDATE ics203_positions
                 SET title=?, unit_id=?, sort_order=?
                 WHERE id=? AND incident_id=?
                 """,
@@ -151,7 +151,7 @@ class ICS203Repository:
     def delete_position(self, position_id: int) -> None:
         with get_incident_connection(self.incident_id) as conn:
             conn.execute(
-                "DELETE FROM org_positions WHERE id=? AND incident_id=?",
+                "DELETE FROM ics203_positions WHERE id=? AND incident_id=?",
                 (position_id, self.incident_id),
             )
             conn.commit()
@@ -160,7 +160,7 @@ class ICS203Repository:
     # Assignment helpers
     # ------------------------------------------------------------------
     def list_assignments(self, position_id: int | None = None) -> List[Assignment]:
-        sql = "SELECT * FROM org_assignments WHERE incident_id=?"
+        sql = "SELECT * FROM ics203_assignments WHERE incident_id=?"
         params: list[object] = [self.incident_id]
         if position_id is not None:
             sql += " AND position_id=?"
@@ -187,7 +187,7 @@ class ICS203Repository:
             if assignment.id is None:
                 cur = conn.execute(
                     """
-                    INSERT INTO org_assignments (
+                    INSERT INTO ics203_assignments (
                         incident_id, position_id, person_id, display_name,
                         callsign, phone, agency, start_utc, end_utc, notes
                     ) VALUES (?,?,?,?,?,?,?,?,?,?)
@@ -198,7 +198,7 @@ class ICS203Repository:
                 return int(cur.lastrowid)
             conn.execute(
                 """
-                UPDATE org_assignments
+                UPDATE ics203_assignments
                 SET position_id=?, person_id=?, display_name=?, callsign=?,
                     phone=?, agency=?, start_utc=?, end_utc=?, notes=?
                 WHERE id=? AND incident_id=?
@@ -223,7 +223,7 @@ class ICS203Repository:
     def delete_assignment(self, assignment_id: int) -> None:
         with get_incident_connection(self.incident_id) as conn:
             conn.execute(
-                "DELETE FROM org_assignments WHERE id=? AND incident_id=?",
+                "DELETE FROM ics203_assignments WHERE id=? AND incident_id=?",
                 (assignment_id, self.incident_id),
             )
             conn.commit()
@@ -232,7 +232,7 @@ class ICS203Repository:
     # Agency representatives
     # ------------------------------------------------------------------
     def list_agency_reps(self) -> List[AgencyRepresentative]:
-        sql = "SELECT * FROM org_agency_reps WHERE incident_id=? ORDER BY name"
+        sql = "SELECT * FROM ics203_agency_reps WHERE incident_id=? ORDER BY name"
         with get_incident_connection(self.incident_id) as conn:
             rows = conn.execute(sql, (self.incident_id,)).fetchall()
         return [AgencyRepresentative(**dict(row)) for row in rows]
@@ -250,7 +250,7 @@ class ICS203Repository:
             if rep.id is None:
                 cur = conn.execute(
                     """
-                    INSERT INTO org_agency_reps (
+                    INSERT INTO ics203_agency_reps (
                         incident_id, name, agency, phone, email, notes
                     ) VALUES (?,?,?,?,?,?)
                     """,
@@ -260,7 +260,7 @@ class ICS203Repository:
                 return int(cur.lastrowid)
             conn.execute(
                 """
-                UPDATE org_agency_reps
+                UPDATE ics203_agency_reps
                 SET name=?, agency=?, phone=?, email=?, notes=?
                 WHERE id=? AND incident_id=?
                 """,
@@ -280,7 +280,7 @@ class ICS203Repository:
     def delete_agency_rep(self, rep_id: int) -> None:
         with get_incident_connection(self.incident_id) as conn:
             conn.execute(
-                "DELETE FROM org_agency_reps WHERE id=? AND incident_id=?",
+                "DELETE FROM ics203_agency_reps WHERE id=? AND incident_id=?",
                 (rep_id, self.incident_id),
             )
             conn.commit()
@@ -304,7 +304,7 @@ class ICS203Repository:
                             parent_id = None
                     cur = conn.execute(
                         """
-                        INSERT OR IGNORE INTO org_units (
+                        INSERT OR IGNORE INTO ics203_units (
                             incident_id, unit_type, name, parent_unit_id, sort_order
                         ) VALUES (?,?,?,?,?)
                         """,
@@ -320,7 +320,7 @@ class ICS203Repository:
                         created_unit_ids.append(int(cur.lastrowid))
                     else:
                         row = conn.execute(
-                            "SELECT id FROM org_units WHERE incident_id=? AND unit_type=? AND name=?",
+                            "SELECT id FROM ics203_units WHERE incident_id=? AND unit_type=? AND name=?",
                             (self.incident_id, obj.unit_type, obj.name),
                         ).fetchone()
                         if row:
@@ -338,7 +338,7 @@ class ICS203Repository:
                             unit_id = None
                     conn.execute(
                         """
-                        INSERT OR IGNORE INTO org_positions (
+                        INSERT OR IGNORE INTO ics203_positions (
                             incident_id, title, unit_id, sort_order
                         ) VALUES (?,?,?,?)
                         """,

@@ -58,7 +58,11 @@ def test_ensure_incident_schema_creates_tables(data_dir: Path) -> None:
             row[0]
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-    assert {"org_units", "org_positions", "org_assignments"}.issubset(tables)
+    assert {
+        "ics203_units",
+        "ics203_positions",
+        "ics203_assignments",
+    }.issubset(tables)
 
 
 def test_repository_apply_template_sets_hierarchy(data_dir: Path) -> None:
