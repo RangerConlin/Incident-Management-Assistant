@@ -1,4 +1,5 @@
 # ===== Part 1: Imports & Logging ============================================
+import json
 import os
 import sys
 import logging
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QInputDialog,
+    QFileDialog,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
@@ -63,6 +65,21 @@ from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
 from utils.profile_manager import profile_manager, ProfileMeta
 
+try:
+    from modules.ui_customization import (
+        UICustomizationRepository,
+        services as ui_customization_services,
+        get_layout_manager_panel,
+        get_dashboard_designer_panel,
+        get_theme_editor_panel,
+    )
+except Exception:  # pragma: no cover - customization optional at runtime
+    UICustomizationRepository = None  # type: ignore[assignment]
+    ui_customization_services = None  # type: ignore[assignment]
+    get_layout_manager_panel = None  # type: ignore[assignment]
+    get_dashboard_designer_panel = None  # type: ignore[assignment]
+    get_theme_editor_panel = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
@@ -95,6 +112,13 @@ class MainWindow(QMainWindow):
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
+        self.customization_repo = None
+        if UICustomizationRepository is not None:
+            try:
+                self.customization_repo = UICustomizationRepository()
+            except Exception as exc:
+                logger.warning("Failed to initialize customization repository: %s", exc)
+
         # Initialize theme manager/bridge using persisted setting
         try:
             app = QApplication.instance()
@@ -122,6 +146,16 @@ class MainWindow(QMainWindow):
             # Non-fatal; app will still run
             self.theme_manager = None  # type: ignore[assignment]
             self.theme_bridge = None   # type: ignore[assignment]
+
+        if self.customization_repo and ui_customization_services and getattr(self, "theme_manager", None):
+            try:
+                ui_customization_services.ensure_active_theme(
+                    self.customization_repo,
+                    self.theme_manager,
+                    self.settings_bridge,
+                )
+            except Exception as exc:
+                logger.warning("Failed to apply customized theme: %s", exc)
 
         # Prepare a Mission Status label (will live inside a dock, not fixed)
         self.active_incident_label = QLabel()
@@ -216,6 +250,18 @@ class MainWindow(QMainWindow):
                         pass
             except Exception as e:
                 logger.warning("Failed to load ADS perspectives: %s", e)
+
+        if self.customization_repo and ui_customization_services:
+            try:
+                applied = ui_customization_services.ensure_active_layout(
+                    self.customization_repo,
+                    self.dock_manager,
+                    self._perspective_file,
+                )
+                if applied:
+                    opened_default = True
+            except Exception as exc:
+                logger.warning("Failed to apply customized layout: %s", exc)
 
         # Load profiles and prepare profile menu actions
         profile_manager.load_all_profiles("profiles")
@@ -318,6 +364,41 @@ class MainWindow(QMainWindow):
         self._add_action(m_menu, "Settings", None, "menu.settings")
         profiles_menu = m_menu.addMenu("Profiles")
         self._init_profiles_menu(profiles_menu)
+        if any(
+            func is not None
+            for func in (
+                get_layout_manager_panel,
+                get_dashboard_designer_panel,
+                get_theme_editor_panel,
+            )
+        ) or self.customization_repo is not None:
+            m_customization = m_menu.addMenu("Customization")
+            added_editor = False
+            if get_layout_manager_panel is not None:
+                act_layout_manager = QAction("Layout Templates…", self)
+                act_layout_manager.triggered.connect(self.open_customization_layout_manager)
+                m_customization.addAction(act_layout_manager)
+                added_editor = True
+            if get_dashboard_designer_panel is not None:
+                act_dashboard = QAction("Dashboard Designer…", self)
+                act_dashboard.triggered.connect(self.open_customization_dashboard_designer)
+                m_customization.addAction(act_dashboard)
+                added_editor = True
+            if get_theme_editor_panel is not None:
+                act_theme = QAction("Theme Designer…", self)
+                act_theme.triggered.connect(self.open_customization_theme_editor)
+                m_customization.addAction(act_theme)
+                added_editor = True
+
+            if self.customization_repo is not None:
+                if added_editor and m_customization.actions():
+                    m_customization.addSeparator()
+                act_export_bundle = QAction("Export Customizations…", self)
+                act_export_bundle.triggered.connect(self.export_customizations_bundle)
+                m_customization.addAction(act_export_bundle)
+                act_import_bundle = QAction("Import Customizations…", self)
+                act_import_bundle.triggered.connect(self.import_customizations_bundle)
+                m_customization.addAction(act_import_bundle)
         m_menu.addSeparator()
         self._add_action(m_menu, "Exit", "Ctrl+Q", "menu.exit")
 
@@ -363,6 +444,11 @@ class MainWindow(QMainWindow):
         act_dark.triggered.connect(lambda: self.settings_bridge.setSetting('themeName', 'dark'))
         theme_menu.addAction(act_light)
         theme_menu.addAction(act_dark)
+        if get_theme_editor_panel is not None:
+            theme_menu.addSeparator()
+            act_theme_designer = QAction("Theme Designer…", self)
+            act_theme_designer.triggered.connect(self.open_customization_theme_editor)
+            theme_menu.addAction(act_theme_designer)
 
         # ----- Command -----
         m_cmd = mb.addMenu("Command")
@@ -1821,6 +1907,104 @@ class MainWindow(QMainWindow):
                 pass
         self._create_default_docks()
 
+    def open_customization_layout_manager(self) -> None:
+        if get_layout_manager_panel is None:
+            QMessageBox.warning(self, "Customization", "Layout manager unavailable.")
+            return
+        try:
+            panel = get_layout_manager_panel(self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization", f"Failed to open layout manager: {exc}")
+            return
+        self._open_dock_widget(panel, title="Layout Templates", float_on_open=True)
+
+    def open_customization_dashboard_designer(self) -> None:
+        if get_dashboard_designer_panel is None:
+            QMessageBox.warning(self, "Customization", "Dashboard designer unavailable.")
+            return
+        try:
+            panel = get_dashboard_designer_panel(self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization", f"Failed to open dashboard designer: {exc}")
+            return
+        self._open_dock_widget(panel, title="Dashboard Designer", float_on_open=True)
+
+    def open_customization_theme_editor(self) -> None:
+        if get_theme_editor_panel is None:
+            QMessageBox.warning(self, "Customization", "Theme designer unavailable.")
+            return
+        try:
+            panel = get_theme_editor_panel(self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization", f"Failed to open theme designer: {exc}")
+            return
+        self._open_dock_widget(panel, title="Theme Designer", float_on_open=True)
+
+    def export_customizations_bundle(self) -> None:
+        if not self.customization_repo:
+            QMessageBox.warning(self, "Customization Export", "Customization services are unavailable.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Customizations",
+            "customizations.json",
+            "JSON Files (*.json)",
+        )
+        if not path:
+            return
+        try:
+            bundle = self.customization_repo.export_bundle()
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(bundle.to_dict(), fh, indent=2)
+            QMessageBox.information(self, "Customization Export", f"Exported to {path}")
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization Export", f"Failed to export: {exc}")
+
+    def import_customizations_bundle(self) -> None:
+        if not self.customization_repo:
+            QMessageBox.warning(self, "Customization Import", "Customization services are unavailable.")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Customizations",
+            "",
+            "JSON Files (*.json)",
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+            from modules.ui_customization.models import CustomizationBundle
+
+            bundle = CustomizationBundle.from_dict(payload)
+            self.customization_repo.import_bundle(bundle, replace=False)
+            if ui_customization_services is not None:
+                try:
+                    dock_manager = getattr(self, "dock_manager", None)
+                    perspective_file = getattr(self, "_perspective_file", None)
+                    if dock_manager and perspective_file:
+                        ui_customization_services.ensure_active_layout(
+                            self.customization_repo,
+                            dock_manager,
+                            perspective_file,
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to apply imported layout: %s", exc)
+                try:
+                    theme_manager = getattr(self, "theme_manager", None)
+                    if theme_manager is not None:
+                        ui_customization_services.ensure_active_theme(
+                            self.customization_repo,
+                            theme_manager,
+                            getattr(self, "settings_bridge", None),
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to apply imported theme: %s", exc)
+            QMessageBox.information(self, "Customization Import", "Import complete.")
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization Import", f"Failed to import: {exc}")
+
     def open_display_templates_dialog(self) -> None:
         """Open a modal dialog to manage dock layout templates (ADS perspectives)."""
         dlg = QDialog(self)
@@ -2110,7 +2294,7 @@ class MainWindow(QMainWindow):
     # --- Metric Widgets (simple counters) ---------------------------------
     def open_home_dashboard(self) -> None:
         from ui.dashboard.home_dashboard import HomeDashboard
-        panel = HomeDashboard(self.settings_manager)
+        panel = HomeDashboard(self.settings_manager, customization_repo=self.customization_repo)
         # docked by default
         self._open_dock_widget(panel, title="Home Dashboard", float_on_open=False)
 
