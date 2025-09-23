@@ -509,10 +509,51 @@ class BindingWizard(QWizard):
 
         intro_layout.addWidget(self.helper_group)
 
+        self.binding_help_group = QGroupBox("How bindings are built")
+        binding_help_layout = QVBoxLayout(self.binding_help_group)
+        binding_help_layout.setContentsMargins(12, 6, 12, 12)
+        binding_help_layout.setSpacing(6)
+
+        namespace_help = QLabel(
+            "<b>Namespace</b>: Pick the incident data section that owns the value. "
+            "For example, use <code>incident</code> for overall details, <code>operations</code> for field "
+            "assignments, or leave it blank when the value is unique to the form."
+        )
+        namespace_help.setWordWrap(True)
+        namespace_help.setTextFormat(Qt.RichText)
+        binding_help_layout.addWidget(namespace_help)
+
+        source_help = QLabel(
+            "<b>Source</b>: Describes where the app pulls the value during PDF generation. Match the namespace "
+            "when the data lives in that section, choose <code>constants</code> for fixed placeholders, and use "
+            "labels like <code>computed</code> when the app calculates the value for you."
+        )
+        source_help.setWordWrap(True)
+        source_help.setTextFormat(Qt.RichText)
+        binding_help_layout.addWidget(source_help)
+
+        binding_recipe_help = QLabel(
+            "<b>Binding key</b>: The wizard combines the namespace with a simplified version of the field label. "
+            "If the namespace is <code>incident</code> and the label is “Incident Name”, the suggested key becomes "
+            "<code>incident.name</code>. You can edit the key on the next step if you need a different path."
+        )
+        binding_recipe_help.setWordWrap(True)
+        binding_recipe_help.setTextFormat(Qt.RichText)
+        binding_help_layout.addWidget(binding_recipe_help)
+
+        binding_payload_help = QLabel(
+            "When you click Finish we store: the binding key, the source, your description, plus any synonyms "
+            "and patterns. Other editors use this information to auto-match PDF fields to incident data."
+        )
+        binding_payload_help.setWordWrap(True)
+        binding_payload_help.setTextFormat(Qt.RichText)
+        binding_help_layout.addWidget(binding_payload_help)
+
+        intro_layout.addWidget(self.binding_help_group)
+
         intro_hint = QLabel(
-            "Namespace becomes the first segment of the binding key (namespace.field). "
-            "Source tells other editors which catalogue or dataset supplies the value. "
-            "Use the guide above if you're unsure which combination fits best."
+            "Need a quick reminder? Namespace is the first part of the key, source explains the data pipeline, and "
+            "the wizard shows every piece in the preview before you save."
         )
         intro_hint.setWordWrap(True)
         intro_layout.addWidget(intro_hint)
@@ -545,6 +586,11 @@ class BindingWizard(QWizard):
         )
         refine_hint.setWordWrap(True)
         refine_layout.addWidget(refine_hint)
+
+        self.binding_recipe_label = QLabel()
+        self.binding_recipe_label.setWordWrap(True)
+        self.binding_recipe_label.setTextFormat(Qt.RichText)
+        refine_layout.addWidget(self.binding_recipe_label)
         self.addPage(self.page_refine)
 
         self.page_review = QWizardPage()
@@ -628,6 +674,7 @@ class BindingWizard(QWizard):
         option = self._build_option()
         if not option.key:
             self.summary.setPlainText("Provide a binding key to see the preview.")
+            self._update_recipe_description()
             return
         payload = option.to_payload()
         preview = {"key": option.key, **payload}
@@ -635,6 +682,95 @@ class BindingWizard(QWizard):
             self.summary.setPlainText(json.dumps(preview, indent=2, ensure_ascii=False))
         except Exception:
             self.summary.setPlainText(str(preview))
+        self._update_recipe_description()
+
+    def _update_recipe_description(self) -> None:
+        if not hasattr(self, "binding_recipe_label"):
+            return
+
+        option = self._build_option()
+        namespace_text = self.namespace_combo.currentText().strip()
+        label_text = self.label_edit.text().strip()
+        key_text = option.key.strip()
+
+        if key_text:
+            key_parts = key_text.split(".")
+            if len(key_parts) > 1:
+                namespace_part = key_parts[0]
+                field_part = ".".join(key_parts[1:])
+            else:
+                namespace_part = ""
+                field_part = key_parts[0]
+            example_key = key_text
+        else:
+            slug = _slugify(label_text) or "field"
+            namespace_part = namespace_text
+            field_part = slug
+            example_key = ".".join(part for part in (namespace_part, field_part) if part)
+
+        if namespace_part:
+            namespace_sentence = (
+                f"<li><b>Step 1:</b> Namespace = <code>{namespace_part}</code>. "
+                "This is the incident data group that stores the value (incident, operations, planning, etc.)."
+                "</li>"
+            )
+        else:
+            namespace_sentence = (
+                "<li><b>Step 1:</b> Namespace is blank, so the binding lives at the top level and you can fill it manually if needed.</li>"
+            )
+
+        if label_text:
+            label_sentence = f" from the label “{label_text}”"
+        else:
+            label_sentence = ""
+
+        field_sentence = (
+            f"<li><b>Step 2:</b> Field name = <code>{field_part}</code>{label_sentence}. "
+            "We turn the PDF field label into a short key you can reuse."
+            "</li>"
+        )
+
+        if example_key:
+            combine_sentence = (
+                f"<li><b>Step 3:</b> Join the pieces → <code>{example_key}</code>. "
+                "This is the binding key shown on the next page."
+                "</li>"
+            )
+        else:
+            combine_sentence = (
+                "<li><b>Step 3:</b> Add a field name so we can show the finished binding key.</li>"
+            )
+
+        source_text = option.source.strip() or "constants"
+        if namespace_text and source_text == namespace_text:
+            source_sentence = (
+                "Because the source matches the namespace, the app will read the value directly from that incident section when generating the PDF."
+            )
+        elif source_text == "constants":
+            source_sentence = (
+                "This source tells the app to pull a fixed value from the profile constants so the same text appears every time."
+            )
+        elif source_text == "computed":
+            source_sentence = (
+                "Computed values are calculated automatically (totals, durations, etc.) and then inserted into the form."
+            )
+        else:
+            source_sentence = (
+                "Use this source label to remind editors which catalogue or helper provides the value during form filling."
+            )
+
+        message = (
+            "<p><b>How this binding comes together</b></p>"
+            "<ol>"
+            f"{namespace_sentence}"
+            f"{field_sentence}"
+            f"{combine_sentence}"
+            "</ol>"
+            f"<p><b>Source</b> = <code>{source_text}</code>. {source_sentence}</p>"
+            "<p>When you finish, we save the binding key, source, description, and any synonyms or patterns so other editors can auto-map this PDF field.</p>"
+        )
+
+        self.binding_recipe_label.setText(message)
 
     def _on_namespace_changed(self, text: str) -> None:
         if not self._updating_helper:
