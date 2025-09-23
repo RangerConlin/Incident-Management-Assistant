@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QTreeWidget,
@@ -410,7 +411,10 @@ class BindingWizard(QWizard):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Binding Wizard")
+        self.setWizardStyle(QWizard.ModernStyle)
         self.setOption(QWizard.NoBackButtonOnStartPage, True)
+        self.setMinimumSize(780, 620)
+        self.resize(900, 720)
         self._active_profile = active_profile
         self._result: Optional[BindingOption] = None
         self._updating_helper = False
@@ -424,11 +428,25 @@ class BindingWizard(QWizard):
             "Tell us how the PDF field is labelled so we can suggest a binding key."
         )
         intro_layout = QVBoxLayout(self.page_intro)
-        intro_form = QFormLayout()
+        intro_layout.setSpacing(16)
+        intro_layout.setContentsMargins(0, 0, 0, 0)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(16)
+        intro_layout.addLayout(top_row)
+
+        details_group = QGroupBox("Field details")
+        details_form = QFormLayout()
+        details_form.setSpacing(12)
+        details_form.setLabelAlignment(Qt.AlignLeft | Qt.AlignTop)
+        details_form.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+        details_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        details_form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        details_group.setLayout(details_form)
 
         self.label_edit = QLineEdit()
         self.label_edit.setPlaceholderText("Label on the PDF, e.g. Incident Name")
-        intro_form.addRow("Field label", self.label_edit)
+        details_form.addRow("Field label", self.label_edit)
 
         self.namespace_combo = QComboBox()
         self.namespace_combo.setEditable(True)
@@ -444,7 +462,7 @@ class BindingWizard(QWizard):
             self.namespace_combo.setCurrentIndex(0)
         else:
             self.namespace_combo.setEditText("incident")
-        intro_form.addRow("Namespace", self.namespace_combo)
+        details_form.addRow("Namespace", self.namespace_combo)
 
         self.source_combo = QComboBox()
         self.source_combo.setEditable(True)
@@ -456,36 +474,53 @@ class BindingWizard(QWizard):
             self.source_combo.addItem(src)
         if "incident" in _DEFAULT_SOURCES:
             self.source_combo.setCurrentText("incident")
-        intro_form.addRow("Source", self.source_combo)
+        details_form.addRow("Source", self.source_combo)
 
         self.description_edit = QLineEdit()
         self.description_edit.setPlaceholderText("Short help text for other authors")
-        intro_form.addRow("Description", self.description_edit)
+        details_form.addRow("Description", self.description_edit)
 
-        intro_layout.addLayout(intro_form)
+        top_row.addWidget(details_group, 3)
+
         self.helper_group = QGroupBox("Need help choosing namespace or source?")
-        helper_layout = QVBoxLayout(self.helper_group)
-        helper_layout.setContentsMargins(12, 6, 12, 12)
-        helper_layout.setSpacing(6)
+        self.helper_group.setMinimumWidth(340)
+        helper_group_layout = QVBoxLayout(self.helper_group)
+        helper_group_layout.setContentsMargins(12, 12, 12, 12)
+        helper_group_layout.setSpacing(10)
 
         helper_intro = QLabel(
             "Select the statement that matches where this value lives in the incident data. "
             "The wizard will fill in the namespace and source for you, and you can still tweak them."
         )
         helper_intro.setWordWrap(True)
-        helper_layout.addWidget(helper_intro)
+        helper_group_layout.addWidget(helper_intro)
+
+        helper_scroll = QScrollArea()
+        helper_scroll.setWidgetResizable(True)
+        helper_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        helper_scroll.setMinimumHeight(320)
+        helper_group_layout.addWidget(helper_scroll, 1)
+
+        helper_container = QWidget()
+        helper_scroll.setWidget(helper_container)
+        helper_cards_layout = QVBoxLayout(helper_container)
+        helper_cards_layout.setContentsMargins(0, 0, 0, 0)
+        helper_cards_layout.setSpacing(8)
 
         self.helper_button_group = QButtonGroup(self)
         self.helper_button_group.setExclusive(True)
 
-        for entry in _NAMESPACE_GUIDE:
+        for idx, entry in enumerate(_NAMESPACE_GUIDE):
             container = QWidget()
             container_layout = QVBoxLayout(container)
             container_layout.setContentsMargins(0, 0, 0, 0)
-            container_layout.setSpacing(2)
+            container_layout.setSpacing(4)
 
             option_button = QRadioButton(entry["title"])
             option_button.setToolTip(entry["description"])
+            option_font = option_button.font()
+            option_font.setBold(True)
+            option_button.setFont(option_font)
             container_layout.addWidget(option_button)
 
             option_desc = QLabel(entry["description"])
@@ -493,7 +528,9 @@ class BindingWizard(QWizard):
             option_desc.setIndent(18)
             container_layout.addWidget(option_desc)
 
-            helper_layout.addWidget(container)
+            helper_cards_layout.addWidget(container)
+            if idx != len(_NAMESPACE_GUIDE) - 1:
+                helper_cards_layout.addSpacing(6)
             self.helper_button_group.addButton(option_button)
             option_button.toggled.connect(
                 lambda checked, ns=entry["namespace"], src=entry["source"]: self._on_helper_choice(ns, src, checked)
@@ -503,16 +540,22 @@ class BindingWizard(QWizard):
             record["button"] = option_button
             self._helper_entries.append(record)
 
+        helper_cards_layout.addStretch(1)
+
+        helper_group_layout.addSpacing(4)
         self.suggestion_label = QLabel()
         self.suggestion_label.setWordWrap(True)
-        helper_layout.addWidget(self.suggestion_label)
+        self.suggestion_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        helper_group_layout.addWidget(self.suggestion_label)
 
-        intro_layout.addWidget(self.helper_group)
+        top_row.addWidget(self.helper_group, 4)
+
+        intro_layout.addSpacing(12)
 
         self.binding_help_group = QGroupBox("How bindings are built")
         binding_help_layout = QVBoxLayout(self.binding_help_group)
-        binding_help_layout.setContentsMargins(12, 6, 12, 12)
-        binding_help_layout.setSpacing(6)
+        binding_help_layout.setContentsMargins(12, 12, 12, 12)
+        binding_help_layout.setSpacing(10)
 
         namespace_help = QLabel(
             "<b>Namespace</b>: Pick the incident data section that owns the value. "
@@ -557,13 +600,19 @@ class BindingWizard(QWizard):
         )
         intro_hint.setWordWrap(True)
         intro_layout.addWidget(intro_hint)
+        intro_layout.addStretch(1)
         self.addPage(self.page_intro)
 
         self.page_refine = QWizardPage()
         self.page_refine.setTitle("Refine the binding")
         self.page_refine.setSubTitle("Adjust the generated key, synonyms, and patterns.")
         refine_layout = QVBoxLayout(self.page_refine)
+        refine_layout.setSpacing(12)
+        refine_layout.setContentsMargins(0, 0, 0, 0)
         refine_form = QFormLayout()
+        refine_form.setSpacing(12)
+        refine_form.setLabelAlignment(Qt.AlignLeft | Qt.AlignTop)
+        refine_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         self.key_edit = QLineEdit()
         self.key_edit.setPlaceholderText("e.g. incident.name")
@@ -571,10 +620,12 @@ class BindingWizard(QWizard):
 
         self.synonyms_edit = QPlainTextEdit()
         self.synonyms_edit.setPlaceholderText("One synonym per line")
+        self.synonyms_edit.setMinimumHeight(110)
         refine_form.addRow("Synonyms", self.synonyms_edit)
 
         self.patterns_edit = QPlainTextEdit()
         self.patterns_edit.setPlaceholderText("One regex pattern per line")
+        self.patterns_edit.setMinimumHeight(110)
         refine_form.addRow("Patterns", self.patterns_edit)
 
         refine_layout.addLayout(refine_form)
@@ -590,19 +641,24 @@ class BindingWizard(QWizard):
         self.binding_recipe_label = QLabel()
         self.binding_recipe_label.setWordWrap(True)
         self.binding_recipe_label.setTextFormat(Qt.RichText)
+        self.binding_recipe_label.setMinimumHeight(120)
         refine_layout.addWidget(self.binding_recipe_label)
+        refine_layout.addStretch(1)
         self.addPage(self.page_refine)
 
         self.page_review = QWizardPage()
         self.page_review.setTitle("Review")
         self.page_review.setSubTitle("Confirm the binding details before saving.")
         review_layout = QVBoxLayout(self.page_review)
+        review_layout.setSpacing(12)
+        review_layout.setContentsMargins(0, 0, 0, 0)
         review_hint = QLabel("Click Finish to store the binding in the active profile.")
         review_hint.setWordWrap(True)
         review_layout.addWidget(review_hint)
         self.summary = QPlainTextEdit()
         self.summary.setReadOnly(True)
         self.summary.setPlaceholderText("Binding summary will appear here.")
+        self.summary.setMinimumHeight(260)
         review_layout.addWidget(self.summary)
         self.addPage(self.page_review)
 
