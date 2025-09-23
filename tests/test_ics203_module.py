@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import utils.db as utils_db
+from PySide6.QtWidgets import QApplication, QMessageBox as QtMessageBox
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -17,6 +18,8 @@ from modules.command.ics203.models import (
     ensure_incident_schema,
     render_template,
 )
+from modules.command.ics203.panels import ics203_panel
+from modules.command.ics203.panels.ics203_panel import ICS203Panel
 
 
 @pytest.fixture()
@@ -25,6 +28,14 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(base))
     monkeypatch.setattr(utils_db, "_DATA_DIR", base)
     return base
+
+
+@pytest.fixture(scope="session")
+def qt_app() -> QApplication:
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    return app
 
 
 def test_ensure_incident_schema_creates_tables(data_dir: Path) -> None:
@@ -89,3 +100,35 @@ def test_master_personnel_search_uses_master_db(data_dir: Path) -> None:
     assert results
     assert results[0]["name"] == "Alex Rivera"
     assert results[0]["agency"] == "County SAR"
+
+
+def test_panel_buttons_disabled_until_load(qt_app: QApplication, data_dir: Path) -> None:
+    panel = ICS203Panel()
+    try:
+        assert not panel.btn_templates.isEnabled()
+        assert not panel.btn_seed.isEnabled()
+        panel.load("incident-123")
+        assert panel.btn_templates.isEnabled()
+        assert panel.btn_seed.isEnabled()
+    finally:
+        panel.deleteLater()
+
+
+def test_panel_warns_when_no_incident(qt_app: QApplication, monkeypatch: pytest.MonkeyPatch) -> None:
+    panel = ICS203Panel()
+    captured: dict[str, tuple[str, str]] = {}
+
+    def fake_warning(parent, title, message):
+        captured["warning"] = (title, message)
+        return QtMessageBox.Ok
+
+    monkeypatch.setattr(ics203_panel.QMessageBox, "warning", fake_warning)
+    try:
+        panel._apply_template()
+    finally:
+        panel.deleteLater()
+
+    assert captured.get("warning") == (
+        "Incident Required",
+        "Load an incident before managing the ICS-203 organization.",
+    )

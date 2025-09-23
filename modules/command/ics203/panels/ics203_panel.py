@@ -110,12 +110,15 @@ class ICS203Panel(QWidget):
         splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 3)
 
+        self._set_toolbar_enabled(False)
+
     # ------------------------------------------------------------------
     def load(self, incident_id: str) -> None:
         self.incident_id = str(incident_id)
         self.controller = ICS203Controller(self.incident_id)
         self._refresh_tree()
         self._clear_assignments()
+        self._set_toolbar_enabled(True)
 
     # ------------------------------------------------------------------
     def _ensure_controller(self) -> ICS203Controller:
@@ -124,6 +127,16 @@ class ICS203Panel(QWidget):
                 raise RuntimeError("Incident must be loaded before using the panel")
             self.controller = ICS203Controller(self.incident_id)
         return self.controller
+
+    def _controller_for_user_action(self) -> Optional[ICS203Controller]:
+        if not self.incident_id:
+            QMessageBox.warning(
+                self,
+                "Incident Required",
+                "Load an incident before managing the ICS-203 organization.",
+            )
+            return None
+        return self._ensure_controller()
 
     def _refresh_tree(self) -> None:
         controller = self._ensure_controller()
@@ -236,7 +249,9 @@ class ICS203Panel(QWidget):
 
     # ------------------------------------------------------------------
     def _add_unit(self) -> None:
-        controller = self._ensure_controller()
+        controller = self._controller_for_user_action()
+        if controller is None:
+            return
         preset_parent = self._selected_unit_id()
         dialog = AddUnitDialog(controller.repo, self.incident_id or "", self, preset_parent)
         if dialog.exec() == dialog.Accepted:
@@ -245,7 +260,9 @@ class ICS203Panel(QWidget):
             self._refresh_tree()
 
     def _add_position(self) -> None:
-        controller = self._ensure_controller()
+        controller = self._controller_for_user_action()
+        if controller is None:
+            return
         preset_unit = self._selected_unit_id()
         dialog = AddPositionDialog(controller.repo, self.incident_id or "", self, preset_unit)
         if dialog.exec() == dialog.Accepted:
@@ -257,29 +274,49 @@ class ICS203Panel(QWidget):
         position_id = self._selected_position_id()
         if position_id is None:
             return
-        controller = self._ensure_controller()
+        controller = self._controller_for_user_action()
+        if controller is None:
+            return
         dialog = AssignPersonDialog(controller.master_repo, self)
         if dialog.exec() == dialog.Accepted:
             controller.add_assignment(position_id, dialog.values())
             self._load_assignments(position_id)
 
     def _seed_structure(self) -> None:
-        controller = self._ensure_controller()
+        controller = self._controller_for_user_action()
+        if controller is None:
+            return
         controller.seed_defaults()
         self._refresh_tree()
 
     def _apply_template(self) -> None:
-        controller = self._ensure_controller()
+        controller = self._controller_for_user_action()
+        if controller is None:
+            return
         dialog = TemplatesDialog(self.incident_id or "", self)
         if dialog.exec() == dialog.Accepted:
             controller.apply_items(dialog.selected_items())
             self._refresh_tree()
 
     def _export(self) -> None:
-        controller = self._ensure_controller()
+        controller = self._controller_for_user_action()
+        if controller is None:
+            return
         try:
             path = controller.export_snapshot()
         except Exception as exc:  # pragma: no cover - user notification
             QMessageBox.critical(self, "Export failed", str(exc))
             return
         QMessageBox.information(self, "Export complete", f"Saved to {path}")
+
+    def _set_toolbar_enabled(self, enabled: bool) -> None:
+        for button in (
+            self.btn_add_unit,
+            self.btn_add_position,
+            self.btn_seed,
+            self.btn_templates,
+            self.btn_export,
+        ):
+            button.setEnabled(enabled)
+        # Always gate Assign Person on the current tree selection.
+        self.btn_assign_person.setEnabled(False)
