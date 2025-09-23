@@ -66,10 +66,6 @@ class LogFilterPanel(QWidget):
         self.priority_combo.addItems(["Any", "Routine", "Priority", "Emergency"])
         form.addRow("Priority", self.priority_combo)
 
-        self.direction_combo = QComboBox()
-        self.direction_combo.addItems(["Any", "Incoming", "Outgoing", "Internal"])
-        form.addRow("Direction", self.direction_combo)
-
         self.channel_combo = QComboBox()
         self.channel_combo.setEditable(True)
         self.channel_combo.addItem("Any", None)
@@ -131,7 +127,6 @@ class LogFilterPanel(QWidget):
         self.end_enabled.toggled.connect(self._emit_filters)
         self.end_edit.dateTimeChanged.connect(self._emit_filters)
         self.priority_combo.currentIndexChanged.connect(self._emit_filters)
-        self.direction_combo.currentIndexChanged.connect(self._emit_filters)
         self.channel_combo.currentIndexChanged.connect(self._emit_filters)
         self.unit_field.textChanged.connect(self._emit_filters)
         self.operator_field.textChanged.connect(self._emit_filters)
@@ -153,8 +148,6 @@ class LogFilterPanel(QWidget):
             query.end_ts_utc = self.end_edit.dateTime().toUTC().toString(Qt.ISODate)
         if self.priority_combo.currentIndex() > 0:
             query.priorities = [self.priority_combo.currentText()]
-        if self.direction_combo.currentIndex() > 0:
-            query.directions = [self.direction_combo.currentText()]
         if self.channel_combo.currentData():
             query.resource_ids = [self.channel_combo.currentData()]
         elif self.channel_combo.currentText() and self.channel_combo.currentIndex() == -1:
@@ -190,7 +183,6 @@ class LogFilterPanel(QWidget):
         self.start_enabled.setChecked(False)
         self.end_enabled.setChecked(False)
         self.priority_combo.setCurrentIndex(0)
-        self.direction_combo.setCurrentIndex(0)
         self.channel_combo.setCurrentIndex(0)
         self.channel_combo.setEditText("")
         self.unit_field.clear()
@@ -260,7 +252,6 @@ class LogFilterPanel(QWidget):
         if filters.get("end_ts_utc"):
             self.end_edit.setDateTime(QDateTime.fromString(str(filters["end_ts_utc"]), Qt.ISODate))
         self._set_combo_value(self.priority_combo, filters.get("priorities"))
-        self._set_combo_value(self.direction_combo, filters.get("directions"))
         if filters.get("resource_ids"):
             value = filters["resource_ids"][0]
             idx = self.channel_combo.findData(value)

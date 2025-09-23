@@ -12,7 +12,6 @@ from ..models import CommsLogEntry
 COLUMNS: Sequence[str] = (
     "Timestamp UTC",
     "Timestamp Local",
-    "Direction",
     "Priority",
     "Channel",
     "Frequency",
@@ -42,7 +41,6 @@ def _entry_row(entry: CommsLogEntry) -> List[str]:
     return [
         entry.ts_utc,
         entry.ts_local,
-        entry.direction,
         entry.priority,
         entry.resource_label,
         entry.frequency,

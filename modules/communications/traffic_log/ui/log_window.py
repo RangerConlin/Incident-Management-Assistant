@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
@@ -66,6 +66,15 @@ class CommunicationsLogWindow(QMainWindow):
         self.action_export_pdf.triggered.connect(lambda: self._export("pdf"))
         toolbar.addAction(self.action_export_pdf)
 
+        self._column_actions: Dict[str, QAction] = {}
+        self.columns_menu = QMenu("Columns", self)
+        self.columns_button = QToolButton(self)
+        self.columns_button.setText("Columns")
+        self.columns_button.setPopupMode(QToolButton.InstantPopup)
+        self.columns_button.setMenu(self.columns_menu)
+        self.columns_button.setToolTip("Choose visible columns")
+        toolbar.addWidget(self.columns_button)
+
         self.filter_panel = LogFilterPanel()
         self.filter_panel.setMinimumWidth(320)
         self.filter_menu = QMenu("Filters", self)
@@ -105,6 +114,8 @@ class CommunicationsLogWindow(QMainWindow):
         self.table_view = CommsLogTableView()
         content_splitter.addWidget(self.table_view)
 
+        self._populate_column_menu()
+
         self.detail_drawer = LogDetailDrawer()
         content_splitter.addWidget(self.detail_drawer)
         content_splitter.setStretchFactor(0, 3)
@@ -130,11 +141,43 @@ class CommunicationsLogWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self._focus_filters)
 
     # ------------------------------------------------------------------
+    def _populate_column_menu(self) -> None:
+        self.columns_menu.clear()
+        self._column_actions.clear()
+        visible = self.table_view.visible_columns()
+        for label in self.table_view.column_labels():
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(label in visible)
+            action.toggled.connect(lambda checked, name=label: self._on_column_toggled(name, checked))
+            self.columns_menu.addAction(action)
+            self._column_actions[label] = action
+
+    def _refresh_column_checks(self) -> None:
+        visible = self.table_view.visible_columns()
+        for name, action in self._column_actions.items():
+            expected = name in visible
+            if action.isChecked() != expected:
+                action.blockSignals(True)
+                action.setChecked(expected)
+                action.blockSignals(False)
+
+    def _on_column_toggled(self, name: str, checked: bool) -> None:
+        if not self.table_view.set_column_visible(name, checked):
+            action = self._column_actions.get(name)
+            if action:
+                action.blockSignals(True)
+                action.setChecked(True)
+                action.blockSignals(False)
+        self._refresh_column_checks()
+
+    # ------------------------------------------------------------------
     def _load_initial_data(self) -> None:
         channels = self.service.list_channels()
         self.filter_panel.populate_channels(channels)
         self.quick_entry.set_channels(channels)
         self.quick_entry.set_default_resource(self.service.last_used_resource())
+        self.quick_entry.set_contact_suggestions(self.service.list_contact_entities())
         presets = self.service.list_filter_presets()
         self.filter_panel.populate_presets(presets)
 

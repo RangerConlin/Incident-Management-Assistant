@@ -50,11 +50,9 @@ class CommsLogService:
                 pass
         return created
 
-    def quick_log(self, message: str, *, direction: Optional[str] = None, priority: Optional[str] = None, **extra: Any) -> CommsLogEntry:
+    def quick_log(self, message: str, *, priority: Optional[str] = None, **extra: Any) -> CommsLogEntry:
         payload = dict(extra)
         payload.setdefault("message", message)
-        if direction:
-            payload.setdefault("direction", direction)
         if priority:
             payload.setdefault("priority", priority)
         if "resource_id" not in payload and self._last_resource_id is not None:
@@ -129,6 +127,13 @@ class CommsLogService:
             if path and path not in existing:
                 existing.append(path)
         return self.repository.update_entry(entry_id, {"attachments": existing})
+
+    def list_contact_entities(self) -> List[Dict[str, Any]]:
+        try:
+            return self.repository.list_contact_entities()
+        except Exception as exc:
+            logger.warning("Unable to list communications contacts: %s", exc)
+            return []
 
     # ------------------------------------------------------------------
     # Integration helpers

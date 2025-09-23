@@ -24,9 +24,6 @@ from ..models import (
     CommsLogEntry,
     DISPOSITION_CLOSED,
     DISPOSITION_OPEN,
-    DIRECTION_INCOMING,
-    DIRECTION_INTERNAL,
-    DIRECTION_OUTGOING,
     PRIORITY_EMERGENCY,
     PRIORITY_PRIORITY,
     PRIORITY_ROUTINE,
@@ -59,10 +56,6 @@ class LogDetailDrawer(QWidget):
 
         self.ts_label = QLabel("—")
         form.addRow("Timestamp", self.ts_label)
-
-        self.direction_combo = QComboBox()
-        self.direction_combo.addItems([DIRECTION_INCOMING, DIRECTION_OUTGOING, DIRECTION_INTERNAL])
-        form.addRow("Direction", self.direction_combo)
 
         self.priority_combo = QComboBox()
         self.priority_combo.addItems([PRIORITY_ROUTINE, PRIORITY_PRIORITY, PRIORITY_EMERGENCY])
@@ -132,7 +125,6 @@ class LogDetailDrawer(QWidget):
         self.notification_field.textChanged.connect(self._update_diff)
         self.follow_checkbox.toggled.connect(self._update_diff)
         self.status_checkbox.toggled.connect(self._update_diff)
-        self.direction_combo.currentIndexChanged.connect(self._update_diff)
         self.priority_combo.currentIndexChanged.connect(self._update_diff)
         self.disposition_combo.currentIndexChanged.connect(self._update_diff)
 
@@ -160,7 +152,6 @@ class LogDetailDrawer(QWidget):
         self.setEnabled(True)
         self.header_label.setText(f"Entry #{entry.id} — {entry.ts_local}")
         self.ts_label.setText(f"Local: {entry.ts_local}\nUTC: {entry.ts_utc}")
-        self.direction_combo.setCurrentText(entry.direction)
         self.priority_combo.setCurrentText(entry.priority)
         self.channel_field.setText(entry.resource_label)
         self.from_field.setText(entry.from_unit)
@@ -191,8 +182,6 @@ class LogDetailDrawer(QWidget):
             return {}
         entry = self._entry
         patch = {}
-        if entry.direction != self.direction_combo.currentText():
-            patch["direction"] = self.direction_combo.currentText()
         if entry.priority != self.priority_combo.currentText():
             patch["priority"] = self.priority_combo.currentText()
         if entry.from_unit != self.from_field.text():

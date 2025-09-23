@@ -15,7 +15,7 @@ def _escape_pdf_text(text: str) -> str:
 
 
 def _wrap_entry_lines(entry: CommsLogEntry) -> List[str]:
-    base = f"{entry.ts_local} | {entry.direction[:3]} | {entry.priority[:3]} | {entry.resource_label} | {entry.from_unit} -> {entry.to_unit}"
+    base = f"{entry.ts_local} | {entry.priority[:3]} | {entry.resource_label} | {entry.from_unit} -> {entry.to_unit}"
     lines = [base]
     for field_label, field_value in (
         ("Message", entry.message),

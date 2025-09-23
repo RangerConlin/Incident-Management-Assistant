@@ -76,7 +76,6 @@ def test_repository_creates_entry_and_audit(setup_env):
     repo = CommsLogRepository(incident_id="test-incident")
     entry = CommsLogEntry(
         message="Rescue team checking in",
-        direction="Incoming",
         priority="Routine",
         resource_id=1,
         from_unit="Team 1",
@@ -107,7 +106,6 @@ def test_service_exports_csv(tmp_path, setup_env):
     service.create_entry(
         {
             "message": "Perimeter established",
-            "direction": "Outgoing",
             "priority": "Priority",
             "resource_id": 1,
             "from_unit": "Base",

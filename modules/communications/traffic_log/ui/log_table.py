@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Iterable, List, Optional, Set
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QColor, QBrush
@@ -28,7 +28,6 @@ class CommsLogTableModel(QAbstractTableModel):
 
     headers = [
         "Timestamp",
-        "Direction",
         "Priority",
         "Channel/Resource",
         "Frequency",
@@ -96,32 +95,30 @@ class CommsLogTableModel(QAbstractTableModel):
         if column == 0:
             return entry.ts_utc if self._use_utc else entry.ts_local
         if column == 1:
-            return entry.direction
-        if column == 2:
             return entry.priority
-        if column == 3:
+        if column == 2:
             return entry.resource_label
-        if column == 4:
+        if column == 3:
             return entry.frequency
-        if column == 5:
+        if column == 4:
             return entry.band
-        if column == 6:
+        if column == 5:
             return entry.mode
-        if column == 7:
+        if column == 6:
             return entry.from_unit
-        if column == 8:
+        if column == 7:
             return entry.to_unit
-        if column == 9:
+        if column == 8:
             return entry.message
-        if column == 10:
+        if column == 9:
             return entry.action_taken
-        if column == 11:
+        if column == 10:
             return "Yes" if entry.follow_up_required else "No"
-        if column == 12:
+        if column == 11:
             return entry.disposition
-        if column == 13:
+        if column == 12:
             return entry.operator_user_id or ""
-        if column == 14:
+        if column == 13:
             related_parts = []
             if entry.task_id:
                 related_parts.append(f"Task {entry.task_id}")
@@ -132,22 +129,22 @@ class CommsLogTableModel(QAbstractTableModel):
             if entry.personnel_id:
                 related_parts.append(f"Personnel {entry.personnel_id}")
             return ", ".join(related_parts)
-        if column == 15:
+        if column == 14:
             return str(len(entry.attachments)) if entry.attachments else ""
-        if column == 16:
+        if column == 15:
             if entry.geotag_lat is not None and entry.geotag_lon is not None:
                 return f"{entry.geotag_lat:.5f}, {entry.geotag_lon:.5f}"
             return ""
-        if column == 17:
+        if column == 16:
             return entry.notification_level or ""
-        if column == 18:
+        if column == 17:
             return "Yes" if entry.is_status_update else "No"
         return ""
 
     def _tooltip_value(self, entry: CommsLogEntry, column: int) -> Optional[str]:
-        if column in (9, 10):
+        if column in (8, 9):
             return self._display_value(entry, column)
-        if column == 15 and entry.attachments:
+        if column == 14 and entry.attachments:
             return "\n".join(entry.attachments)
         return None
 
@@ -177,6 +174,8 @@ class CommsLogTableModel(QAbstractTableModel):
 class CommsLogTableView(QTableView):
     """Table view wrapper with sensible defaults."""
 
+    DEFAULT_VISIBLE_COLUMNS: Set[str] = {"Timestamp", "From", "To", "Message", "Notification"}
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAlternatingRowColors(True)
@@ -188,6 +187,11 @@ class CommsLogTableView(QTableView):
         self.verticalHeader().setVisible(False)
         self.setWordWrap(False)
         self.setModel(CommsLogTableModel(self))
+        self._column_indices = {label: idx for idx, label in enumerate(self.model.headers)}
+        self._visible_columns: Set[str] = set(self.DEFAULT_VISIBLE_COLUMNS)
+        if not self._visible_columns:
+            self._visible_columns = set(self._column_indices.keys())
+        self._apply_column_visibility()
 
     @property
     def model(self) -> CommsLogTableModel:  # type: ignore[override]
@@ -203,6 +207,40 @@ class CommsLogTableView(QTableView):
         if not index.isValid():
             return None
         return self.model.entry_at(index.row())
+
+    # Column visibility -------------------------------------------------
+    def column_labels(self) -> List[str]:
+        return list(self._column_indices.keys())
+
+    def visible_columns(self) -> Set[str]:
+        return set(self._visible_columns)
+
+    def set_visible_columns(self, columns: Iterable[str]) -> None:
+        selection = {col for col in columns if col in self._column_indices}
+        if not selection:
+            # Ensure at least one column remains visible
+            selection = {next(iter(self._column_indices.keys()))}
+        self._visible_columns = selection
+        self._apply_column_visibility()
+
+    def set_column_visible(self, column: str, visible: bool) -> bool:
+        if column not in self._column_indices:
+            return False
+        if visible:
+            self._visible_columns.add(column)
+            self._apply_column_visibility()
+            return True
+        if column in self._visible_columns and len(self._visible_columns) > 1:
+            self._visible_columns.remove(column)
+            self._apply_column_visibility()
+            return True
+        return False
+
+    def _apply_column_visibility(self) -> None:
+        if not hasattr(self, "_column_indices"):
+            return
+        for name, index in self._column_indices.items():
+            self.setColumnHidden(index, name not in self._visible_columns)
 
 
 __all__ = ["CommsLogTableModel", "CommsLogTableView"]

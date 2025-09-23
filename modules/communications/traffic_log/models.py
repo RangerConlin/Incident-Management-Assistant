@@ -2,15 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import json
-
-
-DIRECTION_INCOMING = "Incoming"
-DIRECTION_OUTGOING = "Outgoing"
-DIRECTION_INTERNAL = "Internal"
 
 PRIORITY_ROUTINE = "Routine"
 PRIORITY_PRIORITY = "Priority"
@@ -36,7 +31,6 @@ class CommsLogEntry:
 
     ts_utc: str = field(default_factory=utcnow_iso)
     ts_local: str = field(default_factory=localnow_iso)
-    direction: str = DIRECTION_INCOMING
     priority: str = PRIORITY_ROUTINE
     resource_id: Optional[int] = None
     resource_label: str = ""
@@ -95,7 +89,6 @@ class CommsLogEntry:
             id=row.get("id"),
             ts_utc=row.get("ts_utc") or utcnow_iso(),
             ts_local=row.get("ts_local") or localnow_iso(),
-            direction=row.get("direction") or DIRECTION_INCOMING,
             priority=row.get("priority") or PRIORITY_ROUTINE,
             resource_id=row.get("resource_id"),
             resource_label=row.get("resource_label") or "",
@@ -155,7 +148,6 @@ class CommsLogQuery:
     start_ts_utc: Optional[str] = None
     end_ts_utc: Optional[str] = None
     priorities: Optional[List[str]] = None
-    directions: Optional[List[str]] = None
     resource_ids: Optional[List[int]] = None
     resource_labels: Optional[List[str]] = None
     unit_like: Optional[str] = None
@@ -183,9 +175,6 @@ __all__ = [
     "CommsLogQuery",
     "utcnow_iso",
     "localnow_iso",
-    "DIRECTION_INCOMING",
-    "DIRECTION_OUTGOING",
-    "DIRECTION_INTERNAL",
     "PRIORITY_ROUTINE",
     "PRIORITY_PRIORITY",
     "PRIORITY_EMERGENCY",
