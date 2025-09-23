@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
 from ..controller import ICS203Controller
 from ..models import OrgUnit, Position
 from styles.colors import MUTED_TEXT
+from utils.app_signals import app_signals
+from utils.state import AppState
 from .dialogs import AddPositionDialog, AddUnitDialog, AssignPersonDialog
 from .templates_dialog import TemplatesDialog
 
@@ -111,6 +113,7 @@ class ICS203Panel(QWidget):
         splitter.setStretchFactor(1, 3)
 
         self._set_toolbar_enabled(False)
+        self._init_incident_tracking()
 
     # ------------------------------------------------------------------
     def load(self, incident_id: str) -> None:
@@ -130,12 +133,16 @@ class ICS203Panel(QWidget):
 
     def _controller_for_user_action(self) -> Optional[ICS203Controller]:
         if not self.incident_id:
-            QMessageBox.warning(
-                self,
-                "Incident Required",
-                "Load an incident before managing the ICS-203 organization.",
-            )
-            return None
+            active = self._active_incident_from_state()
+            if active:
+                self.load(active)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Incident Required",
+                    "Load an incident before managing the ICS-203 organization.",
+                )
+                return None
         return self._ensure_controller()
 
     def _refresh_tree(self) -> None:
@@ -320,3 +327,35 @@ class ICS203Panel(QWidget):
             button.setEnabled(enabled)
         # Always gate Assign Person on the current tree selection.
         self.btn_assign_person.setEnabled(False)
+
+    # ------------------------------------------------------------------
+    def _init_incident_tracking(self) -> None:
+        try:
+            app_signals.incidentChanged.connect(self._handle_active_incident_changed)
+        except Exception:
+            pass
+        active = self._active_incident_from_state()
+        if active:
+            self.load(active)
+
+    def _handle_active_incident_changed(self, incident_id: str) -> None:
+        normalized = str(incident_id).strip() if incident_id is not None else ""
+        if not normalized:
+            self.incident_id = None
+            self.controller = None
+            self.tree.clear()
+            self._clear_assignments()
+            self._set_toolbar_enabled(False)
+            return
+        if normalized == self.incident_id:
+            return
+        self.load(normalized)
+
+    def _active_incident_from_state(self) -> Optional[str]:
+        try:
+            value = AppState.get_active_incident()
+        except Exception:
+            return None
+        if not value:
+            return None
+        return str(value)

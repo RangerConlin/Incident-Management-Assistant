@@ -20,6 +20,7 @@ from modules.command.ics203.models import (
 )
 from modules.command.ics203.panels import ics203_panel
 from modules.command.ics203.panels.ics203_panel import ICS203Panel
+from utils.state import AppState
 
 
 @pytest.fixture()
@@ -36,6 +37,16 @@ def qt_app() -> QApplication:
     if app is None:
         app = QApplication([])
     return app
+
+
+@pytest.fixture(autouse=True)
+def reset_app_state() -> None:
+    previous = AppState.get_active_incident()
+    AppState.set_active_incident(None)
+    try:
+        yield
+    finally:
+        AppState.set_active_incident(previous)
 
 
 def test_ensure_incident_schema_creates_tables(data_dir: Path) -> None:
@@ -132,3 +143,29 @@ def test_panel_warns_when_no_incident(qt_app: QApplication, monkeypatch: pytest.
         "Incident Required",
         "Load an incident before managing the ICS-203 organization.",
     )
+
+
+def test_panel_auto_loads_active_incident(
+    qt_app: QApplication, data_dir: Path
+) -> None:
+    AppState.set_active_incident("auto-1")
+    panel = ICS203Panel()
+    try:
+        assert panel.incident_id == "auto-1"
+        assert panel.btn_seed.isEnabled()
+    finally:
+        panel.deleteLater()
+
+
+def test_panel_refreshes_on_incident_change(
+    qt_app: QApplication, data_dir: Path
+) -> None:
+    AppState.set_active_incident("inc-001")
+    panel = ICS203Panel()
+    try:
+        assert panel.incident_id == "inc-001"
+        AppState.set_active_incident("inc-002")
+        qt_app.processEvents()
+        assert panel.incident_id == "inc-002"
+    finally:
+        panel.deleteLater()
