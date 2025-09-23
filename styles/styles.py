@@ -2,9 +2,84 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Literal
 
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QColor, QPalette, QBrush
-from PySide6.QtWidgets import QApplication, QWidget
+try:  # pragma: no cover - allow running without Qt libraries
+    from PySide6.QtCore import QObject, Signal
+    from PySide6.QtGui import QColor, QPalette, QBrush
+    from PySide6.QtWidgets import QApplication, QWidget
+except ImportError:  # pragma: no cover
+    class Signal:  # lightweight signal emulation for tests
+        def __init__(self, *_, **__):
+            self._subs: list[Callable] = []
+
+        def connect(self, callback: Callable) -> None:
+            self._subs.append(callback)
+
+        def emit(self, *args, **kwargs) -> None:
+            for cb in list(self._subs):
+                try:
+                    cb(*args, **kwargs)
+                except Exception:
+                    pass
+
+        def disconnect(self, callback: Callable) -> None:
+            if callback in self._subs:
+                self._subs.remove(callback)
+
+    class QObject:  # pragma: no cover - stub
+        pass
+
+    class QColor:  # simple RGB container
+        def __init__(self, *args):
+            if not args:
+                self._r = self._g = self._b = 0
+            elif isinstance(args[0], str):
+                value = args[0].lstrip("#")
+                if len(value) >= 6:
+                    self._r = int(value[0:2], 16)
+                    self._g = int(value[2:4], 16)
+                    self._b = int(value[4:6], 16)
+                else:
+                    self._r = self._g = self._b = 0
+            else:
+                r, g, b = (list(args) + [0, 0, 0])[:3]
+                self._r, self._g, self._b = int(r), int(g), int(b)
+
+        def red(self) -> int:
+            return self._r
+
+        def green(self) -> int:
+            return self._g
+
+        def blue(self) -> int:
+            return self._b
+
+    class QBrush:  # pragma: no cover - stub
+        def __init__(self, color: "QColor"):
+            self._color = color
+
+        def color(self) -> "QColor":
+            return self._color
+
+    class QPalette:  # pragma: no cover - stub storing values
+        def __init__(self):
+            self._colors: Dict[int, QColor] = {}
+
+        def setColor(self, role: int, color: "QColor") -> None:
+            self._colors[role] = color
+
+    class _StubSignal:
+        def connect(self, *_args, **_kwargs) -> None:
+            pass
+
+    class QWidget:  # pragma: no cover - stub
+        destroyed = _StubSignal()
+
+    class QApplication:  # pragma: no cover - stub
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def setPalette(self, *_args, **_kwargs) -> None:
+            pass
 
 THEME_NAME: Literal["light", "dark"] = "light"
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import List, Dict
+from typing import List, Dict, TYPE_CHECKING
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QScrollArea, QGridLayout, QFrame
@@ -13,6 +13,9 @@ from ui.widgets.components import QuickEntryWidget
 from ui.actions.quick_entry_actions import dispatch as qe_dispatch, execute_cli as qe_cli
 from utils.settingsmanager import SettingsManager
 
+if TYPE_CHECKING:
+    from modules.ui_customization.repository import UICustomizationRepository
+
 
 class HomeDashboard(QWidget):
     """A simple dashboard that arranges widgets on a 12-column grid.
@@ -21,9 +24,15 @@ class HomeDashboard(QWidget):
     Layout entries: { widgetId, x, y, w, h }
     """
 
-    def __init__(self, settings: SettingsManager | None = None, parent=None):
+    def __init__(
+        self,
+        settings: SettingsManager | None = None,
+        parent=None,
+        customization_repo: "UICustomizationRepository | None" = None,
+    ):
         super().__init__(parent)
         self._settings = settings or SettingsManager()
+        self._customization_repo = customization_repo
 
         outer = QVBoxLayout(self)
         scroll = QScrollArea(self)
@@ -38,10 +47,12 @@ class HomeDashboard(QWidget):
         grid.setVerticalSpacing(8)
 
         # Load or seed default layout
-        layout = self._load_layout()
+        layout = self._layout_from_customization()
+        if not layout:
+            layout = self._load_layout()
         if not layout:
             layout = self._default_layout()
-            self._save_layout(layout)
+        self._save_layout(layout)
 
         # Create components per registry
         for item in layout:
@@ -88,6 +99,42 @@ class HomeDashboard(QWidget):
             root = {}
         root["home"] = layout
         self._settings.set("user_layouts", root)
+
+    def _layout_from_customization(self) -> List[Dict]:
+        repo = self._customization_repo
+        if repo is None:
+            return []
+        layout_id = repo.active_layout_id()
+        if not layout_id:
+            return []
+        layout_model = repo.get_layout(layout_id)
+        if not layout_model:
+            return []
+        widgets = list(layout_model.dashboard_widgets or [])
+        if not widgets:
+            return []
+        return self._auto_pack_widgets(widgets)
+
+    def _auto_pack_widgets(self, widget_ids: List[str]) -> List[Dict]:
+        layout: List[Dict] = []
+        x = 0
+        y = 0
+        row_height = 1
+        for wid in widget_ids:
+            spec = W.REGISTRY.get(wid)
+            if not spec:
+                continue
+            width = snap_width(int(getattr(spec.default_size, "w", 3)))
+            height = max(1, int(getattr(spec.default_size, "h", 1)))
+            if x + width > 12:
+                x = 0
+                y += row_height
+                row_height = height
+            else:
+                row_height = max(row_height, height)
+            layout.append({"widgetId": wid, "x": x, "y": y, "w": width, "h": height})
+            x += width
+        return layout
 
     def _default_layout(self) -> List[Dict]:
         # Per spec: include Quick Entry and Clock Dual by default

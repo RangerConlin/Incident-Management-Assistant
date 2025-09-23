@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from math import sqrt
-from PySide6.QtGui import QColor, QBrush
+try:  # pragma: no cover
+    from PySide6.QtGui import QColor, QBrush
+except ImportError:  # pragma: no cover
+    from styles.styles import QColor, QBrush
 
 
 def qcolor_to_hex(c: QColor) -> str:
