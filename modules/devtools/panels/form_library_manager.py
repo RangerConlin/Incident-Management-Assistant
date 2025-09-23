@@ -30,6 +30,8 @@ from PySide6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
+    QWizard,
+    QWizardPage,
     QWidget,
 )
 
@@ -328,6 +330,229 @@ class BindingEditorDialog(QDialog):
     def original_key(self) -> Optional[str]:
         return self._original_key
 
+class BindingWizard(QWizard):
+    """Guided flow for creating a binding option."""
+
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        namespaces: Sequence[str] = (),
+        active_profile: Optional[str] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Binding Wizard")
+        self.setOption(QWizard.NoBackButtonOnStartPage, True)
+        self._active_profile = active_profile
+        self._result: Optional[BindingOption] = None
+
+        namespace_choices = sorted({ns for ns in namespaces if ns} | set(_DEFAULT_SOURCES))
+
+        self.page_intro = QWizardPage()
+        self.page_intro.setTitle("Describe the field")
+        self.page_intro.setSubTitle(
+            "Tell us how the PDF field is labelled so we can suggest a binding key."
+        )
+        intro_layout = QVBoxLayout(self.page_intro)
+        intro_form = QFormLayout()
+
+        self.label_edit = QLineEdit()
+        self.label_edit.setPlaceholderText("Label on the PDF, e.g. Incident Name")
+        intro_form.addRow("Field label", self.label_edit)
+
+        self.namespace_combo = QComboBox()
+        self.namespace_combo.setEditable(True)
+        for choice in namespace_choices:
+            self.namespace_combo.addItem(choice)
+        if "incident" in namespace_choices:
+            self.namespace_combo.setCurrentText("incident")
+        elif namespace_choices:
+            self.namespace_combo.setCurrentIndex(0)
+        else:
+            self.namespace_combo.setEditText("incident")
+        intro_form.addRow("Namespace", self.namespace_combo)
+
+        self.source_combo = QComboBox()
+        self.source_combo.setEditable(True)
+        for src in _DEFAULT_SOURCES:
+            self.source_combo.addItem(src)
+        if "incident" in _DEFAULT_SOURCES:
+            self.source_combo.setCurrentText("incident")
+        intro_form.addRow("Source", self.source_combo)
+
+        self.description_edit = QLineEdit()
+        self.description_edit.setPlaceholderText("Short help text for other authors")
+        intro_form.addRow("Description", self.description_edit)
+
+        intro_layout.addLayout(intro_form)
+        intro_hint = QLabel(
+            "Namespace usually matches the part of the incident data model that owns the field."
+        )
+        intro_hint.setWordWrap(True)
+        intro_layout.addWidget(intro_hint)
+        self.addPage(self.page_intro)
+
+        self.page_refine = QWizardPage()
+        self.page_refine.setTitle("Refine the binding")
+        self.page_refine.setSubTitle("Adjust the generated key, synonyms, and patterns.")
+        refine_layout = QVBoxLayout(self.page_refine)
+        refine_form = QFormLayout()
+
+        self.key_edit = QLineEdit()
+        self.key_edit.setPlaceholderText("e.g. incident.name")
+        refine_form.addRow("Binding key", self.key_edit)
+
+        self.synonyms_edit = QPlainTextEdit()
+        self.synonyms_edit.setPlaceholderText("One synonym per line")
+        refine_form.addRow("Synonyms", self.synonyms_edit)
+
+        self.patterns_edit = QPlainTextEdit()
+        self.patterns_edit.setPlaceholderText("One regex pattern per line")
+        refine_form.addRow("Patterns", self.patterns_edit)
+
+        refine_layout.addLayout(refine_form)
+        self.btn_suggest = QPushButton("Suggest from field label")
+        self.btn_suggest.clicked.connect(self._apply_suggestion)
+        refine_layout.addWidget(self.btn_suggest)
+        refine_hint = QLabel(
+            "Use the suggestion button to auto-build keys, synonyms, and patterns from the label."
+        )
+        refine_hint.setWordWrap(True)
+        refine_layout.addWidget(refine_hint)
+        self.addPage(self.page_refine)
+
+        self.page_review = QWizardPage()
+        self.page_review.setTitle("Review")
+        self.page_review.setSubTitle("Confirm the binding details before saving.")
+        review_layout = QVBoxLayout(self.page_review)
+        review_hint = QLabel("Click Finish to store the binding in the active profile.")
+        review_hint.setWordWrap(True)
+        review_layout.addWidget(review_hint)
+        self.summary = QPlainTextEdit()
+        self.summary.setReadOnly(True)
+        self.summary.setPlaceholderText("Binding summary will appear here.")
+        review_layout.addWidget(self.summary)
+        self.addPage(self.page_review)
+
+        self.label_edit.textChanged.connect(self._on_label_changed)
+        self.namespace_combo.editTextChanged.connect(self._update_summary)
+        self.source_combo.editTextChanged.connect(self._update_summary)
+        self.description_edit.textChanged.connect(self._update_summary)
+        self.key_edit.textChanged.connect(self._update_summary)
+        self.synonyms_edit.textChanged.connect(self._update_summary)
+        self.patterns_edit.textChanged.connect(self._update_summary)
+        self.currentIdChanged.connect(self._on_page_changed)
+
+        self._update_summary()
+
+    def _on_label_changed(self, text: str) -> None:
+        if not self.description_edit.text().strip():
+            self.description_edit.setText(text.strip())
+        self._update_summary()
+
+    def _apply_suggestion(self) -> None:
+        label = self.label_edit.text().strip()
+        if not label:
+            QMessageBox.information(
+                self, "Binding Wizard", "Enter a field label before generating suggestions."
+            )
+            return
+        namespace = self.namespace_combo.currentText().strip()
+        slug = _slugify(label) or "field"
+        key_parts = [namespace, slug] if namespace else [slug]
+        key = ".".join(part for part in key_parts if part)
+        self.key_edit.setText(key)
+
+        if not self.description_edit.text().strip():
+            self.description_edit.setText(label)
+
+        synonyms = set(_collect_lines(self.synonyms_edit))
+        synonyms.add(label)
+        synonyms.add(label.lower())
+        synonyms.add(label.title())
+        synonyms.add(slug.replace("_", " "))
+        self.synonyms_edit.setPlainText("\n".join(sorted(s for s in synonyms if s.strip())))
+
+
+        if namespace and namespace in _DEFAULT_SOURCES:
+            self.source_combo.setCurrentText(namespace)
+
+        patterns = set(_collect_lines(self.patterns_edit))
+        key_pattern = _pattern_from_key(key)
+        if key_pattern:
+            patterns.add(key_pattern)
+        for synonym in _collect_lines(self.synonyms_edit):
+            pattern = _pattern_from_phrase(synonym)
+            if pattern:
+                patterns.add(pattern)
+        self.patterns_edit.setPlainText("\n".join(sorted(patterns)))
+
+        self._update_summary()
+
+    def _on_page_changed(self, _page_id: int) -> None:
+        if self.currentPage() is self.page_review:
+            self._update_summary()
+
+    def _update_summary(self) -> None:
+        option = self._build_option()
+        if not option.key:
+            self.summary.setPlainText("Provide a binding key to see the preview.")
+            return
+        payload = option.to_payload()
+        preview = {"key": option.key, **payload}
+        try:
+            self.summary.setPlainText(json.dumps(preview, indent=2, ensure_ascii=False))
+        except Exception:
+            self.summary.setPlainText(str(preview))
+
+    def _build_option(self) -> BindingOption:
+        key = self.key_edit.text().strip()
+        source = self.source_combo.currentText().strip() or "constants"
+        description = self.description_edit.text().strip()
+        synonyms = _collect_lines(self.synonyms_edit)
+        patterns = _collect_lines(self.patterns_edit)
+        return BindingOption(
+            key=key,
+            source=source,
+            description=description,
+            synonyms=synonyms,
+            patterns=patterns,
+            origin_profile=self._active_profile,
+            is_defined_in_active=True,
+            extra={},
+        )
+
+    def validateCurrentPage(self) -> bool:
+        current = self.currentPage()
+        if current is self.page_intro:
+            if not self.label_edit.text().strip():
+                QMessageBox.warning(
+                    self, "Binding Wizard", "Please provide the label from the PDF form."
+                )
+                return False
+        elif current is self.page_refine:
+            key = self.key_edit.text().strip()
+            if not key:
+                QMessageBox.warning(
+                    self, "Binding Wizard", "Enter a binding key before continuing."
+                )
+                return False
+            if any(ch.isspace() for ch in key):
+                QMessageBox.warning(
+                    self, "Binding Wizard", "Binding keys cannot contain whitespace."
+                )
+                return False
+        return super().validateCurrentPage()
+
+    def accept(self) -> None:
+        option = self._build_option()
+        if not option.key:
+            QMessageBox.warning(self, "Binding Wizard", "Binding key is required.")
+            return
+        self._result = option
+        super().accept()
+
+    def result_option(self) -> Optional[BindingOption]:
+        return self._result
 
 class NewFormDialog(QDialog):
     """Collect the metadata required to register a new form."""
@@ -489,20 +714,35 @@ class ProfileSelectionDialog(QDialog):
 
 
 class BindingLibraryEditorDialog(QDialog):
-    """Compact editor surface for the binding library."""
+    """Expanded editor for managing binding entries."""
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Binding Library")
-        self.resize(720, 420)
+        self.resize(840, 520)
 
-        self._result = None
         self._options: List[BindingOption] = []
+        self._filtered: List[BindingOption] = []
+        self._active: Optional[str] = None
 
         layout = QVBoxLayout(self)
 
+        intro = QLabel(
+            "Bindings connect PDF form fields to incident data keys. Use the guided wizard if you're not sure which key to use."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        search_row = QHBoxLayout()
+        search_label = QLabel("Filter")
+        search_row.addWidget(search_label)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Search by key, description, synonym, or profile…")
+        search_row.addWidget(self.search_edit, 1)
+        layout.addLayout(search_row)
+
         self.table = QTableWidget(0, 4, self)
-        self.table.setHorizontalHeaderLabels(["Key", "Source", "Description", "Origin Profile"])
+        self.table.setHorizontalHeaderLabels(["Key", "Source", "Description", "Defined In"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
@@ -510,13 +750,40 @@ class BindingLibraryEditorDialog(QDialog):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.table.itemSelectionChanged.connect(self._update_buttons)
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
         layout.addWidget(self.table)
 
+        details_group = QGroupBox("Binding Details", self)
+        details_layout = QFormLayout(details_group)
+        self.details_key = QLabel("—")
+        self.details_key.setTextFormat(Qt.PlainText)
+        details_layout.addRow("Key", self.details_key)
+        self.details_source = QLabel("—")
+        self.details_source.setTextFormat(Qt.PlainText)
+        details_layout.addRow("Source", self.details_source)
+        self.details_origin = QLabel("—")
+        self.details_origin.setTextFormat(Qt.PlainText)
+        details_layout.addRow("Defined In", self.details_origin)
+        self.details_description = QLabel("—")
+        self.details_description.setTextFormat(Qt.PlainText)
+        self.details_description.setWordWrap(True)
+        details_layout.addRow("Description", self.details_description)
+        self.details_synonyms = QLabel("—")
+        self.details_synonyms.setTextFormat(Qt.PlainText)
+        self.details_synonyms.setWordWrap(True)
+        details_layout.addRow("Synonyms", self.details_synonyms)
+        self.details_patterns = QLabel("—")
+        self.details_patterns.setTextFormat(Qt.PlainText)
+        self.details_patterns.setWordWrap(True)
+        details_layout.addRow("Patterns", self.details_patterns)
+        layout.addWidget(details_group)
+
         button_row = QHBoxLayout()
-        self.btn_add = QPushButton("Add")
-        self.btn_edit = QPushButton("Edit")
+        self.btn_wizard = QPushButton("Wizard…")
+        self.btn_add = QPushButton("Advanced Editor…")
+        self.btn_edit = QPushButton("Edit…")
         self.btn_delete = QPushButton("Delete")
+        button_row.addWidget(self.btn_wizard)
         button_row.addWidget(self.btn_add)
         button_row.addWidget(self.btn_edit)
         button_row.addWidget(self.btn_delete)
@@ -528,12 +795,98 @@ class BindingLibraryEditorDialog(QDialog):
         close_box.accepted.connect(self.reject)
         layout.addWidget(close_box)
 
+        self.search_edit.textChanged.connect(self._on_filter_changed)
+        self.btn_wizard.clicked.connect(self._launch_wizard)
         self.btn_add.clicked.connect(self._add_option)
         self.btn_edit.clicked.connect(self._edit_option)
         self.btn_delete.clicked.connect(self._delete_option)
 
         self._reload()
         self._update_buttons()
+
+    def _on_filter_changed(self, _text: str) -> None:
+        self._populate_table()
+
+    def _populate_table(self) -> None:
+        selected_key: Optional[str] = None
+        current = self._selected_option()
+        if current:
+            selected_key = current.key
+
+        filter_text = self.search_edit.text().strip().lower()
+        terms = [term for term in filter_text.split() if term]
+
+        self.table.setRowCount(0)
+        self._filtered = []
+
+        for opt in self._options:
+            haystack_parts = [
+                opt.key,
+                opt.source or "",
+                opt.description or "",
+                " ".join(opt.synonyms),
+                " ".join(opt.patterns),
+                opt.origin_profile or "",
+            ]
+            haystack = " ".join(haystack_parts).lower()
+            if terms and not all(term in haystack for term in terms):
+                continue
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(opt.key))
+            self.table.setItem(row, 1, QTableWidgetItem(opt.source or ""))
+            self.table.setItem(row, 2, QTableWidgetItem(opt.description or ""))
+            if opt.is_defined_in_active:
+                origin_text = self._active or opt.origin_profile or ""
+            else:
+                origin_source = opt.origin_profile or "Unknown"
+                origin_text = f"{origin_source} (inherited)"
+            self.table.setItem(row, 3, QTableWidgetItem(origin_text))
+            self.table.item(row, 0).setData(Qt.UserRole, opt)
+            self._filtered.append(opt)
+
+        if self.table.rowCount() == 0:
+            self.table.clearSelection()
+            self._on_selection_changed()
+            return
+
+        target_row = 0
+        if selected_key:
+            for row in range(self.table.rowCount()):
+                item = self.table.item(row, 0)
+                if item and item.text() == selected_key:
+                    target_row = row
+                    break
+        if self.table.currentRow() != target_row:
+            self.table.selectRow(target_row)
+        else:
+            self._on_selection_changed()
+
+    def _on_selection_changed(self) -> None:
+        self._update_buttons()
+        self._refresh_details()
+
+    def _refresh_details(self) -> None:
+        option = self._selected_option()
+        if option is None:
+            self.details_key.setText("—")
+            self.details_source.setText("—")
+            self.details_origin.setText("—")
+            self.details_description.setText("—")
+            self.details_synonyms.setText("—")
+            self.details_patterns.setText("—")
+            return
+        self.details_key.setText(option.key or "—")
+        self.details_source.setText(option.source or "—")
+        if option.is_defined_in_active:
+            origin_text = self._active or option.origin_profile or "Active profile"
+        else:
+            origin_source = option.origin_profile or "Unknown"
+            origin_text = f"{origin_source} (inherited)"
+        self.details_origin.setText(origin_text)
+        self.details_description.setText(option.description or "—")
+        self.details_synonyms.setText("\n".join(option.synonyms) if option.synonyms else "—")
+        self.details_patterns.setText("\n".join(option.patterns) if option.patterns else "—")
 
     def _namespaces(self) -> List[str]:
         namespaces = set()
@@ -542,28 +895,20 @@ class BindingLibraryEditorDialog(QDialog):
                 namespaces.add(opt.key.split(".", 1)[0])
         return sorted(namespaces)
 
-    def _active_profile(self) -> Optional[str]:
+    def _reload(self) -> None:
         try:
             result = load_binding_library()
         except Exception as exc:  # pragma: no cover - dialog feedback
             QMessageBox.critical(self, "Binding Library", f"Unable to load bindings:\n{exc}")
-            return None
+            self._options = []
+            self._filtered = []
+            self._active = None
+            self.table.setRowCount(0)
+            self._refresh_details()
+            return
         self._options = list(result.options)
-        active = result.active_profile_id
-        self.table.setRowCount(0)
-        for opt in self._options:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(opt.key))
-            self.table.setItem(row, 1, QTableWidgetItem(opt.source or ""))
-            self.table.setItem(row, 2, QTableWidgetItem(opt.description or ""))
-            origin = opt.origin_profile or (active if opt.is_defined_in_active else "")
-            self.table.setItem(row, 3, QTableWidgetItem(origin or ""))
-            self.table.item(row, 0).setData(Qt.UserRole, opt)
-        return active
-
-    def _reload(self) -> None:
-        self._active = self._active_profile()
+        self._active = result.active_profile_id
+        self._populate_table()
 
     def _selected_option(self) -> Optional[BindingOption]:
         row = self.table.currentRow()
@@ -617,6 +962,21 @@ class BindingLibraryEditorDialog(QDialog):
             delete_binding_option(option.key)
         except Exception as exc:  # pragma: no cover - dialog feedback
             QMessageBox.critical(self, "Binding Library", f"Failed to delete binding:\n{exc}")
+            return
+        self._reload()
+
+    def _launch_wizard(self) -> None:
+        active = getattr(self, "_active", None)
+        wizard = BindingWizard(self, namespaces=self._namespaces(), active_profile=active)
+        if wizard.exec() != QDialog.Accepted:
+            return
+        option = wizard.result_option()
+        if option is None:
+            return
+        try:
+            save_binding_option(option)
+        except Exception as exc:  # pragma: no cover - dialog feedback
+            QMessageBox.critical(self, "Binding Library", f"Failed to save binding:\n{exc}")
             return
         self._reload()
 
