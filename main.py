@@ -3,7 +3,8 @@ import json
 import os
 import sys
 import logging
-from typing import Callable
+from functools import lru_cache
+from typing import Callable, Optional
 
 DEV_MODE = True
 
@@ -48,7 +49,7 @@ FORCE_DEFAULT_LAYOUT = False
 # (QML utilities kept, though handlers now follow panel-factory pattern)
 from models.qmlwindow import QmlWindow, new_incident_form, open_incident_list
 from utils.state import AppState
-from models.database import get_incident_by_number
+from models.database import get_incident_by_number, get_all_incident_types
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
@@ -86,6 +87,84 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
 
+
+
+@lru_cache(maxsize=1)
+def _incident_type_sets() -> tuple[set[str], set[str]]:
+    """Return sets of planned and SAR incident type names (lowercased)."""
+    planned: set[str] = set()
+    sar: set[str] = set()
+    try:
+        rows = get_all_incident_types()
+    except Exception:
+        rows = []
+    for row in rows:
+        try:
+            _, name, *_rest = row
+        except Exception:
+            continue
+        if not name:
+            continue
+        lowered = str(name).strip().lower()
+        if not lowered:
+            continue
+        is_planned = False
+        try:
+            if len(row) > 3:
+                raw_flag = row[3]
+                if isinstance(raw_flag, str):
+                    is_planned = bool(int(raw_flag))
+                else:
+                    is_planned = bool(raw_flag)
+        except Exception:
+            try:
+                is_planned = bool(row[3])
+            except Exception:
+                is_planned = False
+        if is_planned:
+            planned.add(lowered)
+        if any(token in lowered for token in ("missing", "sar", "search", "elt")):
+            sar.add(lowered)
+    return planned, sar
+
+
+def _classify_incident_category(incident: Optional[dict]) -> Optional[str]:
+    """Map an incident record to a toolkit category."""
+    if not incident:
+        return None
+    raw_type = incident.get("type")
+    if raw_type is None:
+        return None
+    type_name = str(raw_type).strip()
+    if not type_name:
+        return None
+    lowered = type_name.lower()
+    planned_types, sar_types = _incident_type_sets()
+    if lowered in planned_types:
+        return "planned"
+    if lowered in sar_types:
+        return "sar"
+    planned_keywords = (
+        "planned",
+        "event",
+        "parade",
+        "festival",
+        "fair",
+        "concert",
+        "marathon",
+        "race",
+        "demonstration",
+        "rally",
+        "show",
+        "exercise",
+        "drill",
+        "clinic",
+    )
+    if any(keyword in lowered for keyword in planned_keywords):
+        return "planned"
+    if any(keyword in lowered for keyword in ("missing", "sar", "search", "elt")):
+        return "sar"
+    return "disaster"
 
 
 # ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
@@ -663,7 +742,7 @@ class MainWindow(QMainWindow):
         act_team_detail.triggered.connect(_open_team_detail_prompt)
         self.menuDebug.addAction(act_team_detail)
 
-        self._gate_menus_by_availability({})
+        self._refresh_toolkit_menu_gates()
         # you can toggle feature availability here, e.g.: {"planned.promotions": False}
 
     def _gate_menus_by_availability(self, enabled_map: dict[str, bool]):
@@ -675,6 +754,43 @@ class MainWindow(QMainWindow):
                     key = data["module_key"]
                     if key in enabled_map:
                         act.setEnabled(bool(enabled_map[key]))
+
+    def _refresh_toolkit_menu_gates(self, incident: Optional[dict] = None) -> None:
+        """Enable/disable toolkit menu entries based on incident type."""
+        try:
+            if incident is None:
+                incident_id = getattr(self, "current_incident_id", None)
+                if incident_id:
+                    incident = get_incident_by_number(incident_id)
+                else:
+                    incident_number = AppState.get_active_incident()
+                    incident = (
+                        get_incident_by_number(incident_number)
+                        if incident_number
+                        else None
+                    )
+        except Exception:
+            incident = None
+
+        category = _classify_incident_category(incident)
+        enabled = {
+            "toolkit.sar.missing_person": category == "sar",
+            "toolkit.sar.pod": category == "sar",
+            "toolkit.disaster.damage": category == "disaster",
+            "toolkit.disaster.urban_interview": category == "disaster",
+            "toolkit.disaster.photos": category == "disaster",
+            "planned.promotions": category == "planned",
+            "planned.vendors": category == "planned",
+            "planned.safety": category == "planned",
+            "planned.tasking": category == "planned",
+            "planned.health_sanitation": category == "planned",
+            "toolkit.initial.hasty": category in {"sar", "disaster"},
+            "toolkit.initial.reflex": category in {"sar", "disaster"},
+        }
+        if category is None:
+            for key in enabled:
+                enabled[key] = False
+        self._gate_menus_by_availability(enabled)
 
     # ===== Part 3: Central Router (module_key -> handler) ====================
     def open_module(self, key: str):
@@ -2250,6 +2366,10 @@ class MainWindow(QMainWindow):
         # Update the label if it exists (e.g. if the debug panel was created)
         if hasattr(self, "active_incident_label"):
             self.active_incident_label.setText(text)
+        try:
+            self._refresh_toolkit_menu_gates(incident)
+        except Exception:
+            pass
 
     def _init_notifications(self) -> None:
         """Prepare toast container and hook up notifier signals."""
