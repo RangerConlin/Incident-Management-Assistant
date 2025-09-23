@@ -5,18 +5,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
-    QHBoxLayout,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QSplitter,
     QStatusBar,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
+    QWidgetAction,
 )
 
 from ..models import CommsLogQuery
@@ -64,6 +66,21 @@ class CommunicationsLogWindow(QMainWindow):
         self.action_export_pdf.triggered.connect(lambda: self._export("pdf"))
         toolbar.addAction(self.action_export_pdf)
 
+        self.filter_panel = LogFilterPanel()
+        self.filter_panel.setMinimumWidth(320)
+        self.filter_menu = QMenu("Filters", self)
+        self.filter_menu.setMinimumWidth(320)
+        filter_widget_action = QWidgetAction(self)
+        filter_widget_action.setDefaultWidget(self.filter_panel)
+        self.filter_menu.addAction(filter_widget_action)
+
+        self.filter_button = QToolButton(self)
+        self.filter_button.setText("Filters")
+        self.filter_button.setPopupMode(QToolButton.InstantPopup)
+        self.filter_button.setMenu(self.filter_menu)
+        self.filter_button.setToolTip("Show filter options")
+        toolbar.addWidget(self.filter_button)
+
         toolbar.addSeparator()
         self.action_toggle_time = QAction("Toggle UTC", self)
         self.action_toggle_time.setShortcut(QKeySequence("Ctrl+U"))
@@ -78,31 +95,24 @@ class CommunicationsLogWindow(QMainWindow):
         central = QWidget()
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-
-        splitter = QSplitter()
-        splitter.setOrientation(Qt.Horizontal)
-        central_layout.addWidget(splitter, 1)
-
-        self.filter_panel = LogFilterPanel()
-        splitter.addWidget(self.filter_panel)
-
-        center_container = QWidget()
-        center_layout = QVBoxLayout(center_container)
-        center_layout.setContentsMargins(6, 6, 6, 6)
-        center_layout.setSpacing(6)
-        self.table_view = CommsLogTableView()
-        center_layout.addWidget(self.table_view)
-        splitter.addWidget(center_container)
-
-        self.detail_drawer = LogDetailDrawer()
-        splitter.addWidget(self.detail_drawer)
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 3)
-        splitter.setStretchFactor(2, 2)
+        central_layout.setSpacing(6)
 
         self.quick_entry = QuickEntryWidget()
-        central_layout.addWidget(self.quick_entry, 0)
+        central_layout.addWidget(self.quick_entry)
+
+        content_splitter = QSplitter(Qt.Vertical)
+        content_splitter.setChildrenCollapsible(False)
+        self.table_view = CommsLogTableView()
+        content_splitter.addWidget(self.table_view)
+
+        self.detail_drawer = LogDetailDrawer()
+        content_splitter.addWidget(self.detail_drawer)
+        content_splitter.setStretchFactor(0, 3)
+        content_splitter.setStretchFactor(1, 2)
+
+        central_layout.addWidget(content_splitter, 1)
+        central_layout.setStretch(0, 0)
+        central_layout.setStretch(1, 1)
 
         self.setCentralWidget(central)
         self.setStatusBar(QStatusBar())
@@ -191,7 +201,11 @@ class CommunicationsLogWindow(QMainWindow):
         self.quick_entry.message_edit.setFocus()
 
     def _focus_filters(self) -> None:
-        self.filter_panel.text_field.setFocus()
+        if getattr(self, "filter_button", None) and self.filter_button.menu():
+            self.filter_button.showMenu()
+            QTimer.singleShot(0, self.filter_panel.text_field.setFocus)
+        else:
+            self.filter_panel.text_field.setFocus()
 
     def _toggle_time_view(self) -> None:
         self.table_view.model.set_use_utc(self.action_toggle_time.isChecked())
