@@ -110,16 +110,28 @@ class CommunicationsLogWindow(QMainWindow):
         central_layout.addWidget(self.quick_entry)
 
         content_splitter = QSplitter(Qt.Vertical)
-        content_splitter.setChildrenCollapsible(False)
         self.table_view = CommsLogTableView()
         content_splitter.addWidget(self.table_view)
 
         self._populate_column_menu()
 
         self.detail_drawer = LogDetailDrawer()
+        self.detail_drawer.setMinimumHeight(0)
         content_splitter.addWidget(self.detail_drawer)
-        content_splitter.setStretchFactor(0, 3)
-        content_splitter.setStretchFactor(1, 2)
+        content_splitter.setCollapsible(0, False)
+        content_splitter.setCollapsible(1, True)
+        content_splitter.setStretchFactor(0, 6)
+        content_splitter.setStretchFactor(1, 1)
+
+        def _set_initial_splitter_sizes() -> None:
+            total = content_splitter.size().height()
+            if total <= 0:
+                total = self.height() or 600
+            table_height = int(total * 0.72)
+            detail_height = max(120, total - table_height)
+            content_splitter.setSizes([table_height, detail_height])
+
+        QTimer.singleShot(0, _set_initial_splitter_sizes)
 
         central_layout.addWidget(content_splitter, 1)
         central_layout.setStretch(0, 0)
