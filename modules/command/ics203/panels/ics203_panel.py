@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -261,7 +262,7 @@ class ICS203Panel(QWidget):
             return
         preset_parent = self._selected_unit_id()
         dialog = AddUnitDialog(controller.repo, self.incident_id or "", self, preset_parent)
-        if dialog.exec() == dialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             values = dialog.values()
             controller.add_unit(values)
             self._refresh_tree()
@@ -272,7 +273,7 @@ class ICS203Panel(QWidget):
             return
         preset_unit = self._selected_unit_id()
         dialog = AddPositionDialog(controller.repo, self.incident_id or "", self, preset_unit)
-        if dialog.exec() == dialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             values = dialog.values()
             controller.add_position(values)
             self._refresh_tree()
@@ -285,7 +286,7 @@ class ICS203Panel(QWidget):
         if controller is None:
             return
         dialog = AssignPersonDialog(controller.master_repo, self)
-        if dialog.exec() == dialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             controller.add_assignment(position_id, dialog.values())
             self._load_assignments(position_id)
 
@@ -301,7 +302,7 @@ class ICS203Panel(QWidget):
         if controller is None:
             return
         dialog = TemplatesDialog(self.incident_id or "", self)
-        if dialog.exec() == dialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             controller.apply_items(dialog.selected_items())
             self._refresh_tree()
 
