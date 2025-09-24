@@ -630,7 +630,6 @@ class BindingWizard(QWizard):
 
             option_button = QRadioButton(entry["title"])
             option_button.setToolTip(entry["description"])
-            option_button.setWordWrap(True)
             option_font = option_button.font()
             option_font.setBold(True)
             option_button.setFont(option_font)
