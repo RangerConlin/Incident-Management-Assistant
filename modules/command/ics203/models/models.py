@@ -41,6 +41,8 @@ class Assignment:
     callsign: Optional[str] = None
     phone: Optional[str] = None
     agency: Optional[str] = None
+    is_deputy: bool = False
+    is_trainee: bool = False
     start_utc: Optional[str] = None
     end_utc: Optional[str] = None
     notes: Optional[str] = None

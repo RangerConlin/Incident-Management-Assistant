@@ -61,6 +61,11 @@ def _rename_table(conn: sqlite3.Connection, old: str, new: str) -> None:
     conn.execute(f"ALTER TABLE {old} RENAME TO {new}")
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    if column not in _column_names(conn, table):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
 def _columns_match(conn: sqlite3.Connection, table: str, expected: Iterable[str]) -> bool:
     existing = _column_names(conn, table)
     return set(expected).issubset(existing)
@@ -155,6 +160,8 @@ def ensure_incident_schema(incident_id: str | int) -> None:
                 callsign TEXT,
                 phone TEXT,
                 agency TEXT,
+                is_deputy INTEGER NOT NULL DEFAULT 0,
+                is_trainee INTEGER NOT NULL DEFAULT 0,
                 start_utc TEXT,
                 end_utc TEXT,
                 notes TEXT,
@@ -168,6 +175,8 @@ def ensure_incident_schema(incident_id: str | int) -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ics203_assignments_incident ON ics203_assignments(incident_id)"
         )
+        _ensure_column(conn, "ics203_assignments", "is_deputy", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "ics203_assignments", "is_trainee", "INTEGER NOT NULL DEFAULT 0")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS ics203_agency_reps (

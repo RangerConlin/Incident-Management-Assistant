@@ -87,6 +87,8 @@ class ICS203Controller:
             callsign=values.get("callsign"),
             phone=values.get("phone"),
             agency=values.get("agency"),
+            is_deputy=bool(values.get("is_deputy")),
+            is_trainee=bool(values.get("is_trainee")),
             start_utc=None,
             end_utc=None,
             notes=None,
@@ -124,6 +126,8 @@ class ICS203Controller:
                     "Callsign",
                     "Phone",
                     "Agency",
+                    "Deputy",
+                    "Trainee",
                     "Start",
                     "End",
                     "Notes",
@@ -145,6 +149,8 @@ class ICS203Controller:
                             "",
                             "",
                             "",
+                            "",
+                            "",
                         ]
                     )
                     continue
@@ -158,6 +164,8 @@ class ICS203Controller:
                             assignment.callsign or "",
                             assignment.phone or "",
                             assignment.agency or "",
+                            "Yes" if assignment.is_deputy else "",
+                            "Yes" if assignment.is_trainee else "",
                             assignment.start_utc or "",
                             assignment.end_utc or "",
                             assignment.notes or "",

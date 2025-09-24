@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import utils.db as utils_db
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMessageBox as QtMessageBox
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -95,12 +96,24 @@ def test_controller_export_snapshot(data_dir: Path) -> None:
     controller = ICS203Controller("exp")
     ops_id = controller.add_unit({"unit_type": "Section", "name": "Operations", "sort_order": 1})
     pos_id = controller.add_position({"title": "Division Supervisor", "unit_id": ops_id, "sort_order": 0})
-    controller.add_assignment(pos_id, {"display_name": "Alex Rivera", "callsign": "DIV-A"})
+    controller.add_assignment(
+        pos_id,
+        {
+            "display_name": "Alex Rivera",
+            "callsign": "DIV-A",
+            "is_deputy": True,
+            "is_trainee": True,
+        },
+    )
+    assignments = controller.list_assignments(pos_id)
+    assert assignments[0].is_deputy is True
+    assert assignments[0].is_trainee is True
     export_path = controller.export_snapshot()
     assert export_path.exists()
     content = export_path.read_text(encoding="utf-8")
     assert "Division Supervisor" in content
     assert "Alex Rivera" in content
+    assert "Yes" in content
 
 
 def test_master_personnel_search_uses_master_db(data_dir: Path) -> None:
@@ -128,6 +141,33 @@ def test_master_personnel_search_uses_master_db(data_dir: Path) -> None:
     assert results
     assert results[0]["name"] == "Alex Rivera"
     assert results[0]["agency"] == "County SAR"
+
+
+def test_master_personnel_search_supports_unit_column(data_dir: Path) -> None:
+    master_path = data_dir / "master.db"
+    master_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(master_path) as conn:
+        conn.execute("DROP TABLE IF EXISTS personnel")
+        conn.execute(
+            """
+            CREATE TABLE personnel (
+                id INTEGER PRIMARY KEY,
+                name TEXT,
+                callsign TEXT,
+                unit TEXT,
+                phone TEXT
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO personnel (name, callsign, unit, phone) VALUES (?,?,?,?)",
+            ("Taylor Morgan", "OP2", "Ridge County SAR", "555-2222"),
+        )
+        conn.commit()
+    repo = MasterPersonnelRepository()
+    results = repo.search_people("Taylor")
+    assert results
+    assert results[0]["agency"] == "Ridge County SAR"
 
 
 def test_command_staff_template_sets_command_positions(data_dir: Path) -> None:
@@ -197,5 +237,28 @@ def test_panel_refreshes_on_incident_change(
         AppState.set_active_incident("inc-002")
         qt_app.processEvents()
         assert panel.incident_id == "inc-002"
+    finally:
+        panel.deleteLater()
+
+
+def test_panel_context_menu_includes_assign_action(
+    qt_app: QApplication, data_dir: Path
+) -> None:
+    panel = ICS203Panel()
+    try:
+        panel.load("ctx-inc")
+        controller = panel._ensure_controller()
+        controller.add_position({"title": "Safety Officer", "unit_id": None, "sort_order": 0})
+        panel._refresh_tree()
+        root = panel.tree.invisibleRootItem()
+        assert root.childCount() > 0
+        position_item = root.child(0)
+        info = position_item.data(0, Qt.UserRole)
+        assert isinstance(info, dict) and info.get("kind") == "position"
+        menu = panel._build_tree_context_menu(position_item)
+        texts = [action.text() for action in menu.actions()]
+        assert "Add Unit…" in texts
+        assert "Add Position…" in texts
+        assert "Assign Person…" in texts
     finally:
         panel.deleteLater()

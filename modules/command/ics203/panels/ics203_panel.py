@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QBrush
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -92,6 +93,8 @@ class ICS203Panel(QWidget):
         self.tree.setHeaderLabel("Units and Positions")
         self.tree.setSelectionBehavior(QTreeWidget.SelectItems)
         self.tree.itemSelectionChanged.connect(self._handle_tree_selection)
+        self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._show_tree_context_menu)
         tree_layout.addWidget(self.tree)
         splitter.addWidget(tree_container)
 
@@ -101,9 +104,18 @@ class ICS203Panel(QWidget):
         assignments_layout.setContentsMargins(0, 0, 0, 0)
         assignments_layout.addWidget(QLabel("Assignments", assignments_container))
         self.tbl_assignments = QTableWidget(assignments_container)
-        self.tbl_assignments.setColumnCount(6)
+        self.tbl_assignments.setColumnCount(8)
         self.tbl_assignments.setHorizontalHeaderLabels(
-            ["Name", "Callsign", "Phone", "Agency", "Start", "End"]
+            [
+                "Name",
+                "Callsign",
+                "Phone",
+                "Agency",
+                "Deputy",
+                "Trainee",
+                "Start",
+                "End",
+            ]
         )
         self.tbl_assignments.horizontalHeader().setStretchLastSection(True)
         self.tbl_assignments.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -239,6 +251,28 @@ class ICS203Panel(QWidget):
         return None
 
     # ------------------------------------------------------------------
+    def _show_tree_context_menu(self, position: QPoint) -> None:
+        item = self.tree.itemAt(position)
+        if item:
+            self.tree.setCurrentItem(item)
+        menu = self._build_tree_context_menu(item)
+        if menu.actions():
+            menu.exec(self.tree.viewport().mapToGlobal(position))
+
+    def _build_tree_context_menu(self, item: QTreeWidgetItem | None) -> QMenu:
+        menu = QMenu(self)
+        add_unit = menu.addAction("Add Unit…")
+        add_unit.triggered.connect(self._add_unit)
+        add_position = menu.addAction("Add Position…")
+        add_position.triggered.connect(self._add_position)
+        info = item.data(0, Qt.UserRole) if item else None
+        if isinstance(info, dict) and info.get("kind") == "position":
+            menu.addSeparator()
+            assign = menu.addAction("Assign Person…")
+            assign.triggered.connect(self._assign_person)
+        return menu
+
+    # ------------------------------------------------------------------
     def _load_assignments(self, position_id: int) -> None:
         controller = self._ensure_controller()
         assignments = controller.list_assignments(position_id)
@@ -249,8 +283,14 @@ class ICS203Panel(QWidget):
             self.tbl_assignments.setItem(row, 1, QTableWidgetItem(assignment.callsign or ""))
             self.tbl_assignments.setItem(row, 2, QTableWidgetItem(assignment.phone or ""))
             self.tbl_assignments.setItem(row, 3, QTableWidgetItem(assignment.agency or ""))
-            self.tbl_assignments.setItem(row, 4, QTableWidgetItem(assignment.start_utc or ""))
-            self.tbl_assignments.setItem(row, 5, QTableWidgetItem(assignment.end_utc or ""))
+            deputy_item = QTableWidgetItem("✓" if assignment.is_deputy else "")
+            deputy_item.setTextAlignment(Qt.AlignCenter)
+            self.tbl_assignments.setItem(row, 4, deputy_item)
+            trainee_item = QTableWidgetItem("✓" if assignment.is_trainee else "")
+            trainee_item.setTextAlignment(Qt.AlignCenter)
+            self.tbl_assignments.setItem(row, 5, trainee_item)
+            self.tbl_assignments.setItem(row, 6, QTableWidgetItem(assignment.start_utc or ""))
+            self.tbl_assignments.setItem(row, 7, QTableWidgetItem(assignment.end_utc or ""))
 
     def _clear_assignments(self) -> None:
         self.tbl_assignments.setRowCount(0)

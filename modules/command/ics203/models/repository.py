@@ -168,7 +168,13 @@ class ICS203Repository:
         sql += " ORDER BY id"
         with get_incident_connection(self.incident_id) as conn:
             rows = conn.execute(sql, params).fetchall()
-        return [Assignment(**dict(row)) for row in rows]
+        assignments: list[Assignment] = []
+        for row in rows:
+            data = dict(row)
+            data["is_deputy"] = bool(data.get("is_deputy"))
+            data["is_trainee"] = bool(data.get("is_trainee"))
+            assignments.append(Assignment(**data))
+        return assignments
 
     def upsert_assignment(self, assignment: Assignment) -> int:
         payload = (
@@ -179,6 +185,8 @@ class ICS203Repository:
             assignment.callsign,
             assignment.phone,
             assignment.agency,
+            int(bool(assignment.is_deputy)),
+            int(bool(assignment.is_trainee)),
             assignment.start_utc,
             assignment.end_utc,
             assignment.notes,
@@ -189,8 +197,9 @@ class ICS203Repository:
                     """
                     INSERT INTO ics203_assignments (
                         incident_id, position_id, person_id, display_name,
-                        callsign, phone, agency, start_utc, end_utc, notes
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                        callsign, phone, agency, is_deputy, is_trainee,
+                        start_utc, end_utc, notes
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     payload,
                 )
@@ -200,7 +209,8 @@ class ICS203Repository:
                 """
                 UPDATE ics203_assignments
                 SET position_id=?, person_id=?, display_name=?, callsign=?,
-                    phone=?, agency=?, start_utc=?, end_utc=?, notes=?
+                    phone=?, agency=?, is_deputy=?, is_trainee=?,
+                    start_utc=?, end_utc=?, notes=?
                 WHERE id=? AND incident_id=?
                 """,
                 (
@@ -210,6 +220,8 @@ class ICS203Repository:
                     assignment.callsign,
                     assignment.phone,
                     assignment.agency,
+                    int(bool(assignment.is_deputy)),
+                    int(bool(assignment.is_trainee)),
                     assignment.start_utc,
                     assignment.end_utc,
                     assignment.notes,

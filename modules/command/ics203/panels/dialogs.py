@@ -6,10 +6,12 @@ from typing import Dict, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
@@ -183,6 +185,16 @@ class AssignPersonDialog(QDialog):
         self.txt_agency = QLineEdit(self)
         form.addRow("Agency", self.txt_agency)
 
+        roles_container = QWidget(self)
+        roles_layout = QHBoxLayout(roles_container)
+        roles_layout.setContentsMargins(0, 0, 0, 0)
+        self.chk_deputy = QCheckBox("Deputy", roles_container)
+        self.chk_trainee = QCheckBox("Trainee", roles_container)
+        roles_layout.addWidget(self.chk_deputy)
+        roles_layout.addWidget(self.chk_trainee)
+        roles_layout.addStretch(1)
+        form.addRow("Roles", roles_container)
+
         layout.addLayout(form)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=self)
@@ -238,4 +250,6 @@ class AssignPersonDialog(QDialog):
             "callsign": self.txt_callsign.text().strip() or None,
             "phone": self.txt_phone.text().strip() or None,
             "agency": self.txt_agency.text().strip() or None,
+            "is_deputy": self.chk_deputy.isChecked(),
+            "is_trainee": self.chk_trainee.isChecked(),
         }
