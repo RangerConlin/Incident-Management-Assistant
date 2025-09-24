@@ -8,8 +8,11 @@ from typing import Dict, Optional, TYPE_CHECKING
 
 from PySide6 import QtCore, QtWidgets
 
-from ..services.iap_service import IAPService
+from ..services.iap_service import DEFAULT_FORMS, IAPService
 from .components.autofill_preview_panel import AutofillPreviewPanel
+from .iap_form_editor import IAPFormEditor
+from .iap_packet_viewer import IAPPacketViewer
+from .iap_wizard import IAPCreationWizard
 from utils import incident_context
 from utils.state import AppState
 
@@ -37,6 +40,8 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         self.incident_id = resolved_incident or ""
         self._packages: Dict[int, IAPPackage] = {}
         self._current_package: Optional[IAPPackage] = None
+        self._form_editors: Dict[str, IAPFormEditor] = {}
+        self._packet_viewers: list[IAPPacketViewer] = []
         self.setWindowTitle("IAP Builder")
         self.resize(1024, 720)
 
@@ -121,6 +126,7 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         self.forms_view.setRootIsDecorated(False)
         self.forms_view.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.forms_view.currentItemChanged.connect(self._on_form_selection_changed)
+        self.forms_view.itemDoubleClicked.connect(lambda *_: self._on_open_form())
 
         left_layout.addWidget(self.forms_view, 1)
 
@@ -168,12 +174,12 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         self.publish_button.clicked.connect(self._on_publish)
         self.export_button.clicked.connect(self._on_export)
         self.duplicate_button.clicked.connect(self._on_duplicate)
-        self.add_form_button.clicked.connect(self._not_implemented)
-        self.remove_form_button.clicked.connect(self._not_implemented)
-        self.reorder_button.clicked.connect(self._not_implemented)
+        self.add_form_button.clicked.connect(self._on_add_form)
+        self.remove_form_button.clicked.connect(self._on_remove_form)
+        self.reorder_button.clicked.connect(self._on_reorder)
         self.open_form_button.clicked.connect(self._on_open_form)
-        self.packet_viewer_button.clicked.connect(self._not_implemented)
-        self.attachments_button.clicked.connect(self._not_implemented)
+        self.packet_viewer_button.clicked.connect(self._on_packet_viewer)
+        self.attachments_button.clicked.connect(self._on_manage_attachments)
 
     def _show_missing_repository_state(self, message: str) -> None:
         self.incident_label.setText(message)
@@ -243,6 +249,7 @@ class IAPBuilderWindow(QtWidgets.QWidget):
             self.forms_view.setEnabled(True)
             self._populate_header(package)
             self._populate_forms(package)
+            self._update_open_editors()
 
     def _clear_package_view(self) -> None:
         now = datetime.utcnow()
@@ -304,7 +311,16 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         self.formSelected.emit(form)
 
     def _on_new_draft(self) -> None:
-        QtWidgets.QMessageBox.information(self, "Draft", "Draft creation will be implemented in a later milestone.")
+        wizard = IAPCreationWizard(service=self.service, incident_id=self.incident_id, parent=self)
+        if wizard.exec() == QtWidgets.QDialog.Accepted and wizard.result_container.package:
+            self._reload_packages()
+            op_number = wizard.result_container.package.op_number
+            package = self._packages.get(op_number)
+            if package:
+                self._set_current_package(package)
+                self._refresh_op_selector()
+                self._select_form(package.forms[0].form_id if package.forms else None)
+                self._append_change_log(f"Draft OP {op_number} created.")
 
     def _on_publish(self) -> None:
         if not self._current_package:
@@ -320,6 +336,7 @@ class IAPBuilderWindow(QtWidgets.QWidget):
             self._set_current_package(self._packages[op_number])
             self._refresh_op_selector()
         QtWidgets.QMessageBox.information(self, "Publish", f"Package published to {pdf_path}.")
+        self._append_change_log(f"Published OP {self._current_package.op_number}.")
 
     def _on_export(self) -> None:
         if not self._current_package:
@@ -332,7 +349,39 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         QtWidgets.QMessageBox.information(self, "Export", f"Draft exported to {pdf_path}.")
 
     def _on_duplicate(self) -> None:
-        QtWidgets.QMessageBox.information(self, "Duplicate", "Duplicating operational periods will be added later.")
+        if not self._current_package:
+            return
+        default_op = max(self._packages) + 1 if self._packages else self._current_package.op_number + 1
+        new_op, ok = QtWidgets.QInputDialog.getInt(
+            self,
+            "Duplicate OP",
+            "New operational period #",
+            value=default_op,
+            min=1,
+        )
+        if not ok:
+            return
+        if new_op in self._packages:
+            QtWidgets.QMessageBox.warning(self, "Duplicate", f"OP {new_op} already exists.")
+            return
+        try:
+            package = self.service.duplicate_package(
+                self._current_package,
+                new_op,
+                op_start=self.op_start_edit.dateTime().toPython(),
+                op_end=self.op_end_edit.dateTime().toPython(),
+            )
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Duplicate", f"Unable to duplicate package: {exc}")
+            return
+        self._reload_packages()
+        reloaded = self._packages.get(new_op, package)
+        self._set_current_package(reloaded)
+        self._refresh_op_selector()
+        self._append_change_log(f"Duplicated OP {self._current_package.op_number} to OP {new_op}.")
+        index = self.op_selector.findData(new_op)
+        if index >= 0:
+            self.op_selector.setCurrentIndex(index)
 
     def _on_open_form(self) -> None:
         if not self._current_package:
@@ -344,7 +393,167 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         form = self._current_package.get_form(form_id)
         if not form:
             return
-        QtWidgets.QMessageBox.information(self, "Open Form", f"Opening form {form.title} is not yet implemented.")
+        editor = self._form_editors.get(form_id)
+        if editor is None:
+            editor = IAPFormEditor(form, autofill_engine=self.service.autofill_engine)
+            editor.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+            editor.formSaved.connect(self._on_form_saved)
+            editor.destroyed.connect(lambda _=None, fid=form_id: self._form_editors.pop(fid, None))
+            self._form_editors[form_id] = editor
+        else:
+            editor.update_form(form)
+        editor.show()
+        editor.raise_()
+        editor.activateWindow()
 
-    def _not_implemented(self) -> None:
-        QtWidgets.QMessageBox.information(self, "Coming Soon", "This action will be implemented in a future milestone.")
+    def _on_form_saved(self, form: "FormInstance") -> None:
+        if not self._current_package:
+            return
+        try:
+            self.service.save_form(self._current_package, form)
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Save Form", f"Unable to save form: {exc}")
+            return
+        self._append_change_log(f"Saved {form.title}.")
+        self._refresh_current_package(select_form=form.form_id)
+
+    def _on_add_form(self) -> None:
+        if not self._current_package:
+            return
+        available = [
+            form_id
+            for form_id in DEFAULT_FORMS
+            if self._current_package.get_form(form_id) is None
+        ]
+        if not available:
+            QtWidgets.QMessageBox.information(self, "Add Form", "All preset forms are already in this package.")
+            return
+        labels = [f"{DEFAULT_FORMS[form_id]} ({form_id})" for form_id in available]
+        choice, ok = QtWidgets.QInputDialog.getItem(
+            self,
+            "Add Form",
+            "Select a form to add",
+            labels,
+            editable=False,
+        )
+        if not ok:
+            return
+        selected_index = labels.index(choice)
+        form_id = available[selected_index]
+        try:
+            form = self.service.add_form(self._current_package, form_id)
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Add Form", f"Unable to add form: {exc}")
+            return
+        self._append_change_log(f"Added {form.title}.")
+        self._refresh_current_package(select_form=form.form_id)
+
+    def _on_remove_form(self) -> None:
+        if not self._current_package:
+            return
+        current_item = self.forms_view.currentItem()
+        if not current_item:
+            return
+        form_id = current_item.data(0, QtCore.Qt.UserRole)
+        form = self._current_package.get_form(form_id)
+        if not form:
+            return
+        confirm = QtWidgets.QMessageBox.question(
+            self,
+            "Remove Form",
+            f"Remove {form.title} from this package?",
+        )
+        if confirm != QtWidgets.QMessageBox.Yes:
+            return
+        if form_id in self._form_editors:
+            self._form_editors[form_id].close()
+        try:
+            self.service.remove_form(self._current_package, form_id)
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Remove Form", f"Unable to remove form: {exc}")
+            return
+        self._append_change_log(f"Removed {form.title}.")
+        self._refresh_current_package()
+
+    def _on_reorder(self) -> None:
+        self._open_packet_viewer()
+
+    def _on_packet_viewer(self) -> None:
+        self._open_packet_viewer()
+
+    def _open_packet_viewer(self) -> None:
+        if not self._current_package:
+            return
+        viewer = IAPPacketViewer(self._current_package, service=self.service)
+        viewer.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        viewer.orderChanged.connect(lambda *_: self._refresh_current_package())
+        viewer.destroyed.connect(lambda _=None, view=viewer: self._packet_viewers.remove(view) if view in self._packet_viewers else None)
+        self._packet_viewers.append(viewer)
+        viewer.show()
+
+    def _on_manage_attachments(self) -> None:
+        if not self._current_package:
+            return
+        current_item = self.forms_view.currentItem()
+        if not current_item:
+            QtWidgets.QMessageBox.information(self, "Attachments", "Select a form first.")
+            return
+        form_id = current_item.data(0, QtCore.Qt.UserRole)
+        form = self._current_package.get_form(form_id)
+        if not form:
+            return
+        files, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Select attachments")
+        if not files:
+            return
+        updated = False
+        for path in files:
+            if path not in form.attachments:
+                form.attachments.append(path)
+                updated = True
+        if not updated:
+            return
+        try:
+            self.service.save_form(self._current_package, form)
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Attachments", f"Unable to save attachments: {exc}")
+            return
+        self._append_change_log(f"Attached files to {form.title}.")
+        self._refresh_current_package(select_form=form_id)
+
+    def _refresh_current_package(self, select_form: Optional[str] = None) -> None:
+        if not self._current_package:
+            return
+        op_number = self._current_package.op_number
+        try:
+            package = self.service.get_package(self.incident_id, op_number)
+        except Exception:  # pragma: no cover - defensive logging
+            _LOGGER.exception("Unable to refresh package OP %s", op_number)
+            return
+        self._packages[op_number] = package
+        self._set_current_package(package)
+        self._refresh_op_selector()
+        if select_form:
+            self._select_form(select_form)
+
+    def _select_form(self, form_id: Optional[str]) -> None:
+        if not form_id:
+            return
+        for index in range(self.forms_view.topLevelItemCount()):
+            item = self.forms_view.topLevelItem(index)
+            if item.data(0, QtCore.Qt.UserRole) == form_id:
+                self.forms_view.setCurrentItem(item)
+                break
+
+    def _update_open_editors(self) -> None:
+        if not self._current_package:
+            return
+        for form_id, editor in list(self._form_editors.items()):
+            form = self._current_package.get_form(form_id)
+            if form is None:
+                editor.close()
+                continue
+            editor.update_form(form)
+
+    def _append_change_log(self, message: str) -> None:
+        timestamp = datetime.utcnow().strftime("%H:%M:%S")
+        self.change_log.append(f"{timestamp} {message}")

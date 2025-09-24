@@ -33,6 +33,7 @@ class FormInstance:
     attachments: List[str] = field(default_factory=list)
     status: str = "draft"
     last_updated: datetime = field(default_factory=datetime.utcnow)
+    display_order: int = 0
 
     def mark_updated(self) -> None:
         """Update the ``last_updated`` timestamp to *now*.
@@ -87,6 +88,7 @@ class IAPPackage:
             self.forms.append(form)
         else:
             self.forms[existing_index] = form
+        self.forms.sort(key=lambda item: item.display_order)
 
     def get_form(self, form_id: str) -> Optional[FormInstance]:
         """Return the form matching ``form_id`` if present."""
@@ -97,6 +99,8 @@ class IAPPackage:
         """Remove the form with ``form_id`` from ``forms`` if it exists."""
 
         self.forms = [form for form in self.forms if form.form_id != form_id]
+        for index, form in enumerate(self.forms):
+            form.display_order = index
 
     @property
     def is_published(self) -> bool:

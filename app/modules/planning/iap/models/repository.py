@@ -65,6 +65,7 @@ class IAPRepository:
                     last_updated TEXT NOT NULL,
                     fields_json TEXT,
                     attachments_json TEXT,
+                    display_order INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY (incident_id, op_number, form_id),
                     FOREIGN KEY (incident_id, op_number)
                         REFERENCES iap_packages(incident_id, op_number)
@@ -86,6 +87,14 @@ class IAPRepository:
                 )
                 """
             )
+            columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(iap_forms)")
+            }
+            if "display_order" not in columns:
+                conn.execute(
+                    "ALTER TABLE iap_forms ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"
+                )
             conn.commit()
         self._initialized = True
 
@@ -174,15 +183,16 @@ class IAPRepository:
                 """
                 INSERT INTO iap_forms (
                     incident_id, op_number, form_id, title, revision, status,
-                    last_updated, fields_json, attachments_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    last_updated, fields_json, attachments_json, display_order
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(incident_id, op_number, form_id) DO UPDATE SET
                     title = excluded.title,
                     revision = excluded.revision,
                     status = excluded.status,
                     last_updated = excluded.last_updated,
                     fields_json = excluded.fields_json,
-                    attachments_json = excluded.attachments_json
+                    attachments_json = excluded.attachments_json,
+                    display_order = excluded.display_order
                 """,
                 (
                     package.incident_id,
@@ -194,6 +204,7 @@ class IAPRepository:
                     self._serialize_dt(form.last_updated),
                     json.dumps(form.fields or {}),
                     json.dumps(form.attachments or []),
+                    form.display_order,
                 ),
             )
             conn.commit()
@@ -202,8 +213,36 @@ class IAPRepository:
     def save_forms(self, package: IAPPackage, forms: Iterable[FormInstance]) -> None:
         """Bulk persist forms."""
 
-        for form in forms:
+        for index, form in enumerate(forms):
+            form.display_order = index
             self.save_form(package, form)
+
+    def delete_form(self, package: IAPPackage, form_id: str) -> None:
+        """Remove ``form_id`` from the given ``package``."""
+
+        self._ensure_initialized()
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM iap_forms WHERE incident_id = ? AND op_number = ? AND form_id = ?",
+                (package.incident_id, package.op_number, form_id),
+            )
+            conn.commit()
+
+    def update_form_order(self, package: IAPPackage, order: List[str]) -> None:
+        """Persist ``order`` for ``package`` in the database."""
+
+        self._ensure_initialized()
+        with self._connect() as conn:
+            for index, form_id in enumerate(order):
+                conn.execute(
+                    """
+                    UPDATE iap_forms
+                    SET display_order = ?
+                    WHERE incident_id = ? AND op_number = ? AND form_id = ?
+                    """,
+                    (index, package.incident_id, package.op_number, form_id),
+                )
+            conn.commit()
 
     def changelog_for_form(self, form_id: int) -> List[dict]:
         """Return change log entries for the database row ``form_id``."""
@@ -245,18 +284,22 @@ class IAPRepository:
         rows = conn.execute(
             """
             SELECT form_id, title, revision, status, last_updated,
-                   fields_json, attachments_json
+                   fields_json, attachments_json, display_order
             FROM iap_forms
             WHERE incident_id = ? AND op_number = ?
-            ORDER BY form_id
+            ORDER BY display_order, form_id
             """,
             (incident_id, op_number),
         ).fetchall()
         forms: List[FormInstance] = []
-        for row in rows:
+        for index, row in enumerate(rows):
             fields = self._decode_json(row["fields_json"], {})
             attachments = self._decode_json(row["attachments_json"], [])
             last_updated = self._parse_dt(row["last_updated"])
+            try:
+                display_order = int(row["display_order"])
+            except (KeyError, TypeError, ValueError):
+                display_order = index
             forms.append(
                 FormInstance(
                     form_id=row["form_id"],
@@ -267,6 +310,7 @@ class IAPRepository:
                     attachments=attachments,
                     status=row["status"],
                     last_updated=last_updated,
+                    display_order=display_order,
                 )
             )
         return forms

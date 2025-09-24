@@ -81,6 +81,31 @@ def test_list_packages_orders_by_op(tmp_path) -> None:
     assert [pkg.op_number for pkg in packages] == [1, 2]
 
 
+def test_delete_form_removes_row(tmp_path) -> None:
+    repo = IAPRepository(tmp_path / "incident.db")
+    package = _build_package()
+
+    repo.save_package(package)
+    repo.save_forms(package, package.forms)
+    repo.delete_form(package, "ICS-205")
+
+    reloaded = repo.get_package("TEST-INC", 2)
+    assert reloaded.get_form("ICS-205") is None
+    assert [form.form_id for form in reloaded.forms] == ["ICS-202"]
+
+
+def test_update_form_order_persists(tmp_path) -> None:
+    repo = IAPRepository(tmp_path / "incident.db")
+    package = _build_package()
+
+    repo.save_package(package)
+    repo.save_forms(package, package.forms)
+    repo.update_form_order(package, ["ICS-205", "ICS-202"])
+
+    reloaded = repo.get_package("TEST-INC", 2)
+    assert [form.form_id for form in reloaded.forms] == ["ICS-205", "ICS-202"]
+
+
 def test_incident_name_lookup(tmp_path) -> None:
     master_db = tmp_path / "master.db"
     with sqlite3.connect(master_db) as conn:

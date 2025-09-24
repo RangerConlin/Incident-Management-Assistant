@@ -13,6 +13,8 @@ from ..services.iap_service import IAPService
 class IAPPacketViewer(QtWidgets.QWidget):
     """Minimal packet viewer showing the packet outline and watermark toggle."""
 
+    orderChanged = QtCore.Signal(list)
+
     def __init__(
         self,
         package: IAPPackage,
@@ -71,9 +73,10 @@ class IAPPacketViewer(QtWidgets.QWidget):
     # ------------------------------------------------------------------ actions
     def _on_save(self) -> None:
         order = [self.forms_list.item(i).data(QtCore.Qt.UserRole) for i in range(self.forms_list.count())]
-        reordered_forms = sorted(self.package.forms, key=lambda form: order.index(form.form_id))
-        self.package.forms = reordered_forms
-        QtWidgets.QMessageBox.information(self, "Saved", "Packet order saved (stub).")
+        self.service.reorder_forms(self.package, order)
+        self._populate_forms()
+        self.orderChanged.emit(order)
+        QtWidgets.QMessageBox.information(self, "Saved", "Packet order updated.")
 
     def _on_export(self) -> None:
         draft = self.watermark_combo.currentText() == "DRAFT"

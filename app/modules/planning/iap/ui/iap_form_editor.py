@@ -107,7 +107,7 @@ class IAPFormEditor(QtWidgets.QWidget):
 
     def _on_save(self) -> None:
         self.formSaved.emit(self._form)
-        QtWidgets.QMessageBox.information(self, "Saved", "Form changes saved (stub).")
+        QtWidgets.QMessageBox.information(self, "Saved", "Form changes saved.")
 
     def _on_preview(self) -> None:
         QtWidgets.QMessageBox.information(self, "Preview", "PDF preview will be added in a later milestone.")

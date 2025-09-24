@@ -6,7 +6,8 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from copy import deepcopy
+from typing import Dict, Iterable, List, Optional, Sequence
 
 from ..models.autofill import AutofillEngine
 from ..models.exporter import IAPPacketExporter
@@ -72,9 +73,16 @@ class IAPService:
             op_start=op_start,
             op_end=op_end,
         )
-        for form_id in forms:
+        for display_order, form_id in enumerate(forms):
             title = DEFAULT_FORMS.get(form_id, form_id)
-            package.forms.append(FormInstance(form_id=form_id, title=title, op_number=op_number))
+            package.forms.append(
+                FormInstance(
+                    form_id=form_id,
+                    title=title,
+                    op_number=op_number,
+                    display_order=display_order,
+                )
+            )
         repository.save_package(package)
         repository.save_forms(package, package.forms)
         return repository.get_package(incident_id, op_number)
@@ -98,6 +106,82 @@ class IAPService:
         package.add_form(form)
         repository = self._require_repository()
         repository.save_form(package, form)
+        self.refresh_package(package)
+
+    def add_form(self, package: IAPPackage, form_id: str, title: Optional[str] = None) -> FormInstance:
+        """Add a new form to ``package`` and persist it."""
+
+        if package.get_form(form_id):
+            raise ValueError(f"Form {form_id} already exists in package")
+        repository = self._require_repository()
+        display_order = max((form.display_order for form in package.forms), default=-1) + 1
+        form = FormInstance(
+            form_id=form_id,
+            title=title or DEFAULT_FORMS.get(form_id, form_id),
+            op_number=package.op_number,
+            display_order=display_order,
+        )
+        repository.save_form(package, form)
+        self.refresh_package(package)
+        refreshed = package.get_form(form_id)
+        if refreshed is None:  # pragma: no cover - defensive
+            raise RuntimeError(f"Unable to load form {form_id} after insertion")
+        return refreshed
+
+    def remove_form(self, package: IAPPackage, form_id: str) -> None:
+        """Remove ``form_id`` from ``package`` and persist the change."""
+
+        if not package.get_form(form_id):
+            return
+        repository = self._require_repository()
+        repository.delete_form(package, form_id)
+        package.remove_form(form_id)
+        repository.update_form_order(package, [form.form_id for form in package.forms])
+        self.refresh_package(package)
+
+    def reorder_forms(self, package: IAPPackage, order: Sequence[str]) -> None:
+        """Persist ``order`` for ``package`` and update local state."""
+
+        repository = self._require_repository()
+        repository.update_form_order(package, list(order))
+        self.refresh_package(package)
+
+    def duplicate_package(
+        self,
+        package: IAPPackage,
+        new_op_number: int,
+        op_start: Optional[datetime] = None,
+        op_end: Optional[datetime] = None,
+    ) -> IAPPackage:
+        """Create a duplicate of ``package`` with ``new_op_number``."""
+
+        repository = self._require_repository()
+        start = op_start or package.op_start
+        end = op_end or package.op_end
+        duplicate = IAPPackage(
+            incident_id=package.incident_id,
+            op_number=new_op_number,
+            op_start=start,
+            op_end=end,
+            notes=package.notes,
+        )
+        forms: List[FormInstance] = []
+        for form in package.forms:
+            clone = FormInstance(
+                form_id=form.form_id,
+                title=form.title,
+                op_number=new_op_number,
+                revision=0,
+                fields=deepcopy(form.fields),
+                attachments=list(form.attachments),
+                status="draft",
+                display_order=form.display_order,
+            )
+            forms.append(clone)
+        duplicate.forms = sorted(forms, key=lambda item: item.display_order)
+        repository.save_package(duplicate)
+        repository.save_forms(duplicate, duplicate.forms)
+        return repository.get_package(duplicate.incident_id, new_op_number)
 
     def validate_package(self, package: IAPPackage) -> Dict[str, List[str]]:
         """Return validation errors keyed by form ID.
@@ -161,3 +245,18 @@ class IAPService:
         if not self.repository:
             raise RuntimeError("IAP repository is not configured; select an incident first.")
         return self.repository
+
+    def refresh_package(self, package: IAPPackage) -> IAPPackage:
+        """Reload ``package`` from the repository, updating the instance in place."""
+
+        repository = self._require_repository()
+        latest = repository.get_package(package.incident_id, package.op_number)
+        package.op_start = latest.op_start
+        package.op_end = latest.op_end
+        package.created_at = latest.created_at
+        package.status = latest.status
+        package.notes = latest.notes
+        package.version_tag = latest.version_tag
+        package.published_pdf_path = latest.published_pdf_path
+        package.forms = latest.forms
+        return package
