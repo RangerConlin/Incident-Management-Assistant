@@ -1267,6 +1267,213 @@ class BindingWizard(QWizard):
     def result_option(self) -> Optional[BindingOption]:
         return self._result
 
+class ImportPdfWizard(QDialog):
+    """Guided helper that imports a fillable PDF into the catalog."""
+
+    def __init__(
+        self,
+        forms: Dict[str, FormEntry],
+        profiles: Sequence[str],
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Import Fillable PDF")
+        self.resize(560, 520)
+
+        self._forms = {fid.lower(): form for fid, form in forms.items()}
+        self._profiles = list(profiles)
+        self._pdf_path: Optional[Path] = None
+        self._result: Optional[Dict[str, Any]] = None
+        self._template_name_custom = False
+        self._version_map: Dict[str, Set[str]] = {}
+        for form in forms.values():
+            versions = {
+                (tpl.version or "").strip().lower()
+                for tpl in form.templates
+                if tpl.version
+            }
+            if versions:
+                self._version_map[form.id.strip().lower()] = versions
+
+        layout = QVBoxLayout(self)
+
+        intro = QLabel(
+            "Select a fillable PDF, choose how it should appear in the catalog, and we'll extract the fields "
+            "and prepare the template so you can fine-tune it in the Form Creator."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        file_row = QHBoxLayout()
+        self.pdf_label = QLabel("No PDF selected")
+        self.pdf_label.setMinimumWidth(260)
+        file_row.addWidget(self.pdf_label, 1)
+        browse = QPushButton("Choose PDF…")
+        browse.clicked.connect(self._choose_pdf)
+        file_row.addWidget(browse)
+        layout.addLayout(file_row)
+
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        self.form_id_edit = QLineEdit()
+        self.form_id_edit.setPlaceholderText("e.g. ICS_205")
+        self.form_id_edit.textChanged.connect(self._on_form_id_changed)
+        form.addRow("Form ID", self.form_id_edit)
+
+        self.title_edit = QLineEdit()
+        self.title_edit.setPlaceholderText("Human-readable title")
+        self.title_edit.textChanged.connect(self._suggest_template_name)
+        form.addRow("Title", self.title_edit)
+
+        categories: List[str] = []
+        seen_categories: Set[str] = set()
+        for entry in forms.values():
+            category = (entry.category or "").strip()
+            if category and category.lower() not in seen_categories:
+                categories.append(category)
+                seen_categories.add(category.lower())
+        if "Custom" not in seen_categories:
+            categories.insert(0, "Custom")
+            seen_categories.add("custom")
+
+        self.category_combo = QComboBox()
+        self.category_combo.setEditable(True)
+        self.category_combo.setInsertPolicy(QComboBox.NoInsert)
+        for category in categories:
+            self.category_combo.addItem(category)
+        self.category_combo.lineEdit().setPlaceholderText("e.g. ICS, CAP, Custom")
+        form.addRow("Form type", self.category_combo)
+
+        self.version_edit = QLineEdit()
+        self.version_edit.setPlaceholderText("e.g. 2025.09")
+        self.version_edit.textChanged.connect(self._suggest_template_name)
+        form.addRow("Version", self.version_edit)
+
+        self.version_hint = QLabel("A new form will be created if the ID is unknown.")
+        self.version_hint.setWordWrap(True)
+        form.addRow("", self.version_hint)
+
+        self.profile_combo = QComboBox()
+        for pid in self._profiles:
+            self.profile_combo.addItem(pid)
+        form.addRow("Profile", self.profile_combo)
+
+        self.template_name_edit = QLineEdit()
+        self.template_name_edit.setPlaceholderText("Display name for the template")
+        self.template_name_edit.textEdited.connect(self._on_template_name_edited)
+        form.addRow("Template name", self.template_name_edit)
+
+        self.incident_class_edit = QLineEdit()
+        self.incident_class_edit.setPlaceholderText("Incident data class (optional)")
+        form.addRow("Incident class", self.incident_class_edit)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    def _choose_pdf(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(self, "Select PDF", "", "PDF Files (*.pdf)")
+        if not filename:
+            return
+        path = Path(filename)
+        if path.suffix.lower() != ".pdf":
+            QMessageBox.warning(self, "Import Fillable PDF", "Please choose a PDF file.")
+            return
+        self._pdf_path = path
+        self.pdf_label.setText(path.name)
+
+    def _on_form_id_changed(self, text: str) -> None:
+        form_id = text.strip()
+        if not form_id:
+            self.version_hint.setText("Provide a form ID to continue.")
+            return
+        entry = self._forms.get(form_id.lower())
+        if entry:
+            self.title_edit.blockSignals(True)
+            self.title_edit.setText(entry.title or form_id)
+            self.title_edit.blockSignals(False)
+            self.category_combo.blockSignals(True)
+            self.category_combo.setCurrentText(entry.category or "")
+            self.category_combo.blockSignals(False)
+            versions = sorted({tpl.version for tpl in entry.templates if tpl.version})
+            if versions:
+                self.version_hint.setText("Existing versions: " + ", ".join(versions))
+            else:
+                self.version_hint.setText("This form has no versions yet.")
+        else:
+            self.version_hint.setText("This will create a new form entry in the catalog.")
+        self._suggest_template_name()
+
+    def _suggest_template_name(self) -> None:
+        if self._template_name_custom:
+            return
+        title = self.title_edit.text().strip() or self.form_id_edit.text().strip()
+        version = self.version_edit.text().strip()
+        if title and version:
+            suggestion = f"{title} v{version}"
+        else:
+            suggestion = title
+        self.template_name_edit.blockSignals(True)
+        self.template_name_edit.setText(suggestion)
+        self.template_name_edit.blockSignals(False)
+
+    def _on_template_name_edited(self, _text: str) -> None:
+        self._template_name_custom = True
+
+    # ------------------------------------------------------------------
+    # Results
+    # ------------------------------------------------------------------
+    def _on_accept(self) -> None:
+        if self._pdf_path is None:
+            QMessageBox.warning(self, "Import Fillable PDF", "Choose a PDF to import.")
+            return
+        form_id = self.form_id_edit.text().strip()
+        if not form_id:
+            QMessageBox.warning(self, "Import Fillable PDF", "Form ID is required.")
+            return
+        title = self.title_edit.text().strip() or form_id
+        version = self.version_edit.text().strip()
+        if not version:
+            QMessageBox.warning(self, "Import Fillable PDF", "Version is required.")
+            return
+        profile_id = self.profile_combo.currentText().strip()
+        if not profile_id:
+            QMessageBox.warning(self, "Import Fillable PDF", "Select a profile to store the template.")
+            return
+        normalized_id = form_id.lower()
+        existing_versions = self._version_map.get(normalized_id, set())
+        if version.lower() in existing_versions:
+            QMessageBox.warning(
+                self,
+                "Import Fillable PDF",
+                f"Version '{version}' already exists for {form_id}. Choose another version identifier.",
+            )
+            return
+        category = self.category_combo.currentText().strip() or "Custom"
+        template_name = self.template_name_edit.text().strip() or f"{title} v{version}"
+        incident_class = self.incident_class_edit.text().strip() or None
+
+        self._result = {
+            "form_id": form_id,
+            "title": title,
+            "category": category,
+            "version": version,
+            "profile_id": profile_id,
+            "pdf_path": self._pdf_path,
+            "template_name": template_name,
+            "incident_class": incident_class,
+        }
+        self.accept()
+
+    def result(self) -> Optional[Dict[str, Any]]:
+        return self._result
+
+
 class NewFormDialog(QDialog):
     """Collect the metadata required to register a new form."""
 
@@ -1894,6 +2101,11 @@ class FormLibraryManager(QWidget):
         sidebar = QVBoxLayout()
         layout.addLayout(sidebar, 1)
 
+        self.btn_import_pdf = QPushButton("Import Fillable PDF…")
+        self.btn_import_pdf.clicked.connect(self._handle_import_pdf)
+        sidebar.addWidget(self.btn_import_pdf)
+        sidebar.addSpacing(8)
+
         form_group = QGroupBox("Form Details", self)
         form_layout = QFormLayout(form_group)
         self.form_id_label = QLabel("—")
@@ -1963,7 +2175,12 @@ class FormLibraryManager(QWidget):
 
     def _is_custom_form(self, form: FormEntry) -> bool:
         category = (form.category or "").strip().lower()
-        return category == "custom"
+        if category == "custom":
+            return True
+        for raw in self.catalog.data.get("custom_forms", []):
+            if raw.get("id") == form.id:
+                return True
+        return False
 
     def _ensure_entry_paths(self, form_id: str, entry: TemplateEntry) -> TemplateEntry:
         pdf_rel = Path(entry.pdf) if entry.pdf else _default_pdf_relative_path(form_id, entry.version)
@@ -2137,6 +2354,81 @@ class FormLibraryManager(QWidget):
         self._refresh_tree()
         self._select_form(form_id)
 
+    def _handle_import_pdf(self) -> None:
+        profiles = [meta.id for meta in profile_manager.list_profiles()]
+        if not profiles:
+            QMessageBox.warning(
+                self,
+                "Import Fillable PDF",
+                "No incident profiles are available. Create a profile first.",
+            )
+            return
+        wizard = ImportPdfWizard(self._forms_cache, profiles, self)
+        if wizard.exec() != QDialog.Accepted:
+            return
+        payload = wizard.result()
+        if not payload:
+            return
+        form_id = str(payload.get("form_id") or "").strip()
+        version = str(payload.get("version") or "").strip()
+        profile_id = str(payload.get("profile_id") or "").strip()
+        raw_pdf = payload.get("pdf_path")
+        title = str(payload.get("title") or form_id)
+        category = str(payload.get("category") or "Custom")
+        template_name = str(payload.get("template_name") or f"{title} v{version}")
+        incident_class = payload.get("incident_class")
+
+        if not form_id or not version or not profile_id or not raw_pdf:
+            QMessageBox.warning(
+                self,
+                "Import Fillable PDF",
+                "Import details were incomplete. Please try again.",
+            )
+            return
+
+        pdf_path = Path(raw_pdf)
+
+        form = self._forms_cache.get(form_id)
+        created_form = False
+        if form is None:
+            form = FormEntry(
+                id=form_id,
+                title=title or form_id,
+                category=category or "Custom",
+                profiles=[],
+                templates=[],
+            )
+            created_form = True
+        else:
+            form.title = title or form.title
+            if category:
+                form.category = category
+
+        custom_flag = created_form or self._is_custom_form(form)
+        self.catalog.upsert_form(form, custom=custom_flag)
+        self._forms_cache[form_id] = form
+
+        try:
+            import_result, import_error = self._create_template_version(
+                form,
+                version,
+                profile_id,
+                pdf_path,
+                template_title=template_name,
+                incident_class=incident_class,
+            )
+        except Exception as exc:  # pragma: no cover - dialog feedback
+            QMessageBox.critical(self, "Import Fillable PDF", f"Import failed:\n{exc}")
+            return
+
+        self._refresh_tree()
+        self._select_version(form_id, version)
+        self._show_import_feedback(pdf_path, import_result, import_error)
+
+        context = self._current_version_context()
+        if context:
+            self._open_template_editor(context[0], context[1], preferred_profile=profile_id)
+
     def _handle_new_form(self) -> None:
         dialog = NewFormDialog(self._forms_cache.keys(), self)
         if dialog.exec() != QDialog.Accepted:
@@ -2184,6 +2476,9 @@ class FormLibraryManager(QWidget):
         version: str,
         profile_id: str,
         source_pdf: Path,
+        *,
+        template_title: Optional[str] = None,
+        incident_class: Optional[str] = None,
     ) -> Tuple[Optional[TemplateImportResult], Optional[str]]:
         meta_map = self._profile_meta_map()
         profile = meta_map.get(profile_id)
@@ -2202,15 +2497,15 @@ class FormLibraryManager(QWidget):
             "form_id": form.id,
             "version": version,
             "profile_id": profile_id,
-            "incident_class": None,
+            "incident_class": incident_class,
             "bindings": {},
         }
         try:
-            template_title = f"{form.title or form.id} v{version}"
+            template_name = template_title or f"{form.title or form.id} v{version}"
             import_result = import_pdf_template(
                 self.form_service,
                 dest_pdf,
-                name=template_title,
+                name=template_name,
                 category=form.category or None,
                 subcategory=None,
             )
@@ -2333,17 +2628,23 @@ class FormLibraryManager(QWidget):
                 except Exception:
                     pass
 
-    def _handle_edit_template(self) -> None:
-        ctx = self._current_version_context()
-        if ctx is None:
-            QMessageBox.warning(self, "Edit Template", "Select a form version to edit.")
-            return
-        form, tpl = ctx
-        profiles = tpl.profiles or []
-        if not profiles:
+    def _open_template_editor(
+        self,
+        form: FormEntry,
+        tpl: TemplateEntry,
+        preferred_profile: Optional[str] = None,
+    ) -> None:
+        tpl_norm = self._ensure_entry_paths(form.id, tpl)
+        assigned_profiles = list(dict.fromkeys(tpl_norm.profiles or []))
+        available_profiles = list(assigned_profiles)
+        if preferred_profile and preferred_profile not in available_profiles:
+            available_profiles.insert(0, preferred_profile)
+        profile_id = preferred_profile if preferred_profile else (available_profiles[0] if available_profiles else None)
+        if not available_profiles:
             active = profile_manager.get_active_profile_id()
             if active:
-                profiles = [active]
+                available_profiles = [active]
+                profile_id = active
             else:
                 QMessageBox.warning(
                     self,
@@ -2351,34 +2652,42 @@ class FormLibraryManager(QWidget):
                     "Assign the version to at least one profile before editing.",
                 )
                 return
-        profile_id = profiles[0]
-        if len(profiles) > 1:
-            profile_id, ok = QInputDialog.getItem(
-                self,
-                "Choose Profile",
-                "Edit template for profile:",
-                profiles,
-                0,
-                False,
-            )
-            if not ok or not profile_id:
-                return
+        if profile_id is None:
+            if len(available_profiles) > 1:
+                profile_id, ok = QInputDialog.getItem(
+                    self,
+                    "Choose Profile",
+                    "Edit template for profile:",
+                    available_profiles,
+                    0,
+                    False,
+                )
+                if not ok or not profile_id:
+                    return
+            else:
+                profile_id = available_profiles[0]
         meta_map = self._profile_meta_map()
         profile_meta = meta_map.get(profile_id)
         if profile_meta is None:
-            QMessageBox.warning(self, "Edit Template", f"Profile '{profile_id}' is unavailable.")
+            QMessageBox.warning(
+                self,
+                "Edit Template",
+                f"Profile '{profile_id}' is unavailable.",
+            )
             return
-        self._ensure_files_for_profiles(form.id, tpl, profile_id, [profile_id])
+        self._ensure_files_for_profiles(form.id, tpl_norm, profile_id, available_profiles)
         context = ProfileTemplateContext(
             form_id=form.id,
-            version=tpl.version,
+            version=tpl_norm.version,
             profile_id=profile_id,
             profile_path=profile_meta.path,
-            pdf_rel=Path(tpl.pdf) if tpl.pdf else _default_pdf_relative_path(form.id, tpl.version),
-            mapping_rel=Path(tpl.mapping)
-            if tpl.mapping
-            else _default_mapping_relative_path(form.id, tpl.version),
-            assigned_profiles=list(tpl.profiles or []),
+            pdf_rel=Path(tpl_norm.pdf)
+            if tpl_norm.pdf
+            else _default_pdf_relative_path(form.id, tpl_norm.version),
+            mapping_rel=Path(tpl_norm.mapping)
+            if tpl_norm.mapping
+            else _default_mapping_relative_path(form.id, tpl_norm.version),
+            assigned_profiles=list(assigned_profiles),
             custom=self._is_custom_form(form),
         )
         window = MainWindow(parent=self.window())
@@ -2387,6 +2696,14 @@ class FormLibraryManager(QWidget):
         window.destroyed.connect(self._cleanup_closed_editors)
         self._open_editors.append(window)
         window.show()
+
+    def _handle_edit_template(self) -> None:
+        ctx = self._current_version_context()
+        if ctx is None:
+            QMessageBox.warning(self, "Edit Template", "Select a form version to edit.")
+            return
+        form, tpl = ctx
+        self._open_template_editor(form, tpl)
 
     def _on_template_saved(self, payload: Optional[dict]) -> None:
         self._refresh_tree()
