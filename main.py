@@ -577,6 +577,12 @@ class MainWindow(QMainWindow):
         m_comms = mb.addMenu("Communications")
         self._add_action(m_comms, "Communications Unit Log ICS-214", None, "comms.unit_log")
         m_comms.addSeparator()
+        self._add_action(
+            m_comms,
+            "Communications Traffic Log ICS-309",
+            None,
+            "comms.traffic_log",
+        )
         self._add_action(m_comms, "Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
         self._add_action(m_comms, "Communications Plan ICS-205", None, "comms.205")
@@ -858,6 +864,7 @@ class MainWindow(QMainWindow):
 
             # ----- Communications -----
             "comms.unit_log": self.open_comms_unit_log,
+            "comms.traffic_log": self.open_comms_traffic_log,
             "comms.chat": self.open_comms_chat,
             "comms.213": self.open_comms_213,
             "comms.205": self.open_comms_205,
@@ -1297,12 +1304,19 @@ class MainWindow(QMainWindow):
         panel = ics214.get_ics214_panel(incident_id)
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
+    def open_comms_traffic_log(self) -> None:
+        from modules.communications.panels import MessageLogPanel
+
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = MessageLogPanel(self, incident_id=incident_id)
+        self._open_dock_widget(panel, title="Communications Traffic Log")
+
     def open_comms_chat(self) -> None:
         from modules.communications.panels import MessageLogPanel
 
         # TODO: incident-specific scoping for communications panels
         _incident_id = getattr(self, "current_incident_id", None)
-        panel = MessageLogPanel()
+        panel = MessageLogPanel(self, incident_id=_incident_id)
         self._open_dock_widget(panel, title="Messaging")
 
     def open_comms_213(self) -> None:
@@ -1310,7 +1324,7 @@ class MainWindow(QMainWindow):
 
         # TODO: incident-specific scoping for communications panels
         _incident_id = getattr(self, "current_incident_id", None)
-        panel = MessageLogPanel()
+        panel = MessageLogPanel(self, incident_id=_incident_id)
         self._open_dock_widget(panel, title="ICS 213 Messages")
 
     def open_comms_205(self) -> None:
