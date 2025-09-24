@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+import logging
+from datetime import datetime
+from typing import Dict, Optional, TYPE_CHECKING
 
 from PySide6 import QtCore, QtWidgets
 
 from ..services.iap_service import IAPService
 from .components.autofill_preview_panel import AutofillPreviewPanel
+from utils import incident_context
+from utils.state import AppState
 
 if TYPE_CHECKING:  # pragma: no cover - imported for type checkers only
     from ..models.iap_models import IAPPackage
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class IAPBuilderWindow(QtWidgets.QWidget):
@@ -21,20 +28,42 @@ class IAPBuilderWindow(QtWidgets.QWidget):
     def __init__(
         self,
         service: Optional[IAPService] = None,
-        incident_id: str = "demo-incident",
+        incident_id: Optional[str] = None,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.service = service or IAPService()
-        self.incident_id = incident_id
+        resolved_incident = self._resolve_incident_id(incident_id)
+        self.service = service or IAPService(incident_id=resolved_incident)
+        self.incident_id = resolved_incident or ""
+        self._packages: Dict[int, IAPPackage] = {}
         self._current_package: Optional[IAPPackage] = None
         self.setWindowTitle("IAP Builder")
         self.resize(1024, 720)
 
         self._build_ui()
+
+        if not resolved_incident:
+            self._show_missing_repository_state("Select or create an incident to open the IAP Builder.")
+            return
+
+        if not self.service.repository:
+            self._show_missing_repository_state("Incident database unavailable for the selected incident.")
+            return
+
         self._load_initial_data()
 
     # ------------------------------------------------------------------ UI setup
+    def _resolve_incident_id(self, provided: Optional[str]) -> Optional[str]:
+        if provided:
+            return provided
+        active = AppState.get_active_incident()
+        if active:
+            return str(active)
+        try:
+            return incident_context.get_active_incident_id()
+        except Exception:  # pragma: no cover - defensive
+            return None
+
     def _build_ui(self) -> None:
         main_layout = QtWidgets.QVBoxLayout(self)
         header_box = QtWidgets.QGroupBox("Incident Action Plan")
@@ -146,26 +175,84 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         self.packet_viewer_button.clicked.connect(self._not_implemented)
         self.attachments_button.clicked.connect(self._not_implemented)
 
+    def _show_missing_repository_state(self, message: str) -> None:
+        self.incident_label.setText(message)
+        self.op_selector.clear()
+        self.op_selector.addItem("No IAP packages", None)
+        self.op_selector.setEnabled(False)
+        for widget in (
+            self.new_draft_button,
+            self.publish_button,
+            self.export_button,
+            self.duplicate_button,
+            self.add_form_button,
+            self.remove_form_button,
+            self.reorder_button,
+            self.open_form_button,
+            self.packet_viewer_button,
+            self.attachments_button,
+        ):
+            widget.setEnabled(False)
+        self.forms_view.clear()
+        self.forms_view.setEnabled(False)
+        self.autofill_panel.set_messages([message])
+        self.change_log.clear()
+
+    def _reload_packages(self) -> None:
+        try:
+            packages = self.service.list_packages(self.incident_id)
+        except Exception:  # pragma: no cover - defensive logging
+            _LOGGER.exception("Failed to load IAP packages for incident %s", self.incident_id)
+            packages = []
+        self._packages = {pkg.op_number: pkg for pkg in packages}
+
     def _load_initial_data(self) -> None:
-        package = self.service.ensure_demo_package(self.incident_id, op_number=1)
-        self._current_package = package
-        self.incident_label.setText("Pine Ridge Wildfire")
+        self.incident_label.setText(self.service.incident_display_name(self.incident_id))
+        self._reload_packages()
+        if not self._packages:
+            self._set_current_package(None)
+            self._refresh_op_selector()
+            self.autofill_panel.set_messages(["No IAP packages found for this incident."])
+            return
+        first_op = sorted(self._packages)[0]
+        self._set_current_package(self._packages[first_op])
         self._refresh_op_selector()
-        self._populate_header(package)
-        self._populate_forms(package)
 
     # --------------------------------------------------------------------- helpers
     def _refresh_op_selector(self) -> None:
         self.op_selector.blockSignals(True)
         self.op_selector.clear()
-        packages = self.service.list_packages(self.incident_id)
-        for package in packages:
-            self.op_selector.addItem(f"OP {package.op_number}", package.op_number)
-        if self._current_package:
-            index = self.op_selector.findData(self._current_package.op_number)
-            if index >= 0:
-                self.op_selector.setCurrentIndex(index)
+        if not self._packages:
+            self.op_selector.addItem("No IAP packages", None)
+            self.op_selector.setEnabled(False)
+        else:
+            self.op_selector.setEnabled(True)
+            for op_number in sorted(self._packages):
+                self.op_selector.addItem(f"OP {op_number}", op_number)
+            if self._current_package:
+                index = self.op_selector.findData(self._current_package.op_number)
+                if index >= 0:
+                    self.op_selector.setCurrentIndex(index)
         self.op_selector.blockSignals(False)
+
+    def _set_current_package(self, package: Optional[IAPPackage]) -> None:
+        self._current_package = package
+        if package is None:
+            self._clear_package_view()
+        else:
+            self.forms_view.setEnabled(True)
+            self._populate_header(package)
+            self._populate_forms(package)
+
+    def _clear_package_view(self) -> None:
+        now = datetime.utcnow()
+        self.op_start_edit.setDateTime(now)
+        self.op_end_edit.setDateTime(now)
+        self.status_label.setText("No Package")
+        self.forms_view.clear()
+        self.forms_view.setEnabled(False)
+        self.autofill_panel.set_messages(["Select an operational period or create a new draft."])
+        self.change_log.clear()
 
     def _populate_header(self, package: IAPPackage) -> None:
         self.op_start_edit.setDateTime(package.op_start)
@@ -183,19 +270,25 @@ class IAPBuilderWindow(QtWidgets.QWidget):
             self.forms_view.addTopLevelItem(item)
         if self.forms_view.topLevelItemCount():
             self.forms_view.setCurrentItem(self.forms_view.topLevelItem(0))
+        else:
+            self.autofill_panel.set_messages(["No forms have been added to this package yet."])
 
     # ------------------------------------------------------------------- callbacks
     def _on_op_changed(self, index: int) -> None:
         op_number = self.op_selector.itemData(index)
         if op_number is None:
+            self._set_current_package(None)
             return
-        try:
-            package = self.service.get_package(self.incident_id, op_number)
-        except KeyError:
-            return
-        self._current_package = package
-        self._populate_header(package)
-        self._populate_forms(package)
+        package = self._packages.get(op_number)
+        if package is None:
+            try:
+                package = self.service.get_package(self.incident_id, op_number)
+            except Exception:  # pragma: no cover - defensive logging
+                _LOGGER.exception("Unable to load package OP %s", op_number)
+                self._set_current_package(None)
+                return
+            self._packages[op_number] = package
+        self._set_current_package(package)
 
     def _on_form_selection_changed(self, current: QtWidgets.QTreeWidgetItem, previous: QtWidgets.QTreeWidgetItem) -> None:  # noqa: ARG002 - part of Qt API
         if current is None or self._current_package is None:
@@ -216,14 +309,26 @@ class IAPBuilderWindow(QtWidgets.QWidget):
     def _on_publish(self) -> None:
         if not self._current_package:
             return
-        pdf_path = self.service.publish(self._current_package)
-        self._populate_header(self._current_package)
+        try:
+            pdf_path = self.service.publish(self._current_package)
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Publish", f"Unable to publish package: {exc}")
+            return
+        self._reload_packages()
+        op_number = self._current_package.op_number
+        if op_number in self._packages:
+            self._set_current_package(self._packages[op_number])
+            self._refresh_op_selector()
         QtWidgets.QMessageBox.information(self, "Publish", f"Package published to {pdf_path}.")
 
     def _on_export(self) -> None:
         if not self._current_package:
             return
-        pdf_path = self.service.export_pdf(self._current_package, draft=True)
+        try:
+            pdf_path = self.service.export_pdf(self._current_package, draft=True)
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Export", f"Unable to export draft: {exc}")
+            return
         QtWidgets.QMessageBox.information(self, "Export", f"Draft exported to {pdf_path}.")
 
     def _on_duplicate(self) -> None:

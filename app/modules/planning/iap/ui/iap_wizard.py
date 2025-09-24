@@ -10,6 +10,8 @@ from PySide6 import QtCore, QtWidgets
 
 from ..models.iap_models import IAPPackage
 from ..services.iap_service import DEFAULT_FORMS, IAPService
+from utils import incident_context
+from utils.state import AppState
 
 
 @dataclass
@@ -25,16 +27,25 @@ class IAPCreationWizard(QtWidgets.QDialog):
     def __init__(
         self,
         service: Optional[IAPService] = None,
-        incident_id: str = "demo-incident",
+        incident_id: Optional[str] = None,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.service = service or IAPService()
-        self.incident_id = incident_id
+        resolved_incident = self._resolve_incident_id(incident_id)
+        self.service = service or IAPService(incident_id=resolved_incident)
+        self.incident_id = resolved_incident or ""
         self.result_container = WizardResult()
 
         self.setWindowTitle("New IAP Wizard")
         self.resize(720, 480)
+
+        if not resolved_incident:
+            self._show_no_incident_state("Select or create an incident to start a new IAP.")
+            return
+
+        if not self.service.repository:
+            self._show_no_incident_state("Incident database unavailable; unable to create a new IAP draft.")
+            return
 
         self._stack = QtWidgets.QStackedWidget()
         self._build_step_one()
@@ -141,6 +152,28 @@ class IAPCreationWizard(QtWidgets.QDialog):
             self.next_button.setText("Next >")
             self.next_button.setEnabled(True)
 
+    def _resolve_incident_id(self, provided: Optional[str]) -> Optional[str]:
+        if provided:
+            return provided
+        active = AppState.get_active_incident()
+        if active:
+            return str(active)
+        try:
+            return incident_context.get_active_incident_id()
+        except Exception:  # pragma: no cover - defensive
+            return None
+
+    def _show_no_incident_state(self, message: str) -> None:
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addStretch()
+        label = QtWidgets.QLabel(message)
+        label.setWordWrap(True)
+        layout.addWidget(label, alignment=QtCore.Qt.AlignCenter)
+        close_button = QtWidgets.QPushButton("Close")
+        close_button.clicked.connect(self.reject)
+        layout.addWidget(close_button, alignment=QtCore.Qt.AlignCenter)
+        layout.addStretch()
+
     def _standard_ground_forms(self) -> List[str]:
         return [
             "COVER",
@@ -217,13 +250,17 @@ class IAPCreationWizard(QtWidgets.QDialog):
         if not forms:
             QtWidgets.QMessageBox.warning(self, "No Forms", "Select at least one form to generate a draft.")
             return
-        package = self.service.create_package(
-            incident_id=self.incident_id,
-            op_number=self.op_number_spin.value(),
-            op_start=self.op_start_edit.dateTime().toPython(),
-            op_end=self.op_end_edit.dateTime().toPython(),
-            forms=forms,
-        )
+        try:
+            package = self.service.create_package(
+                incident_id=self.incident_id,
+                op_number=self.op_number_spin.value(),
+                op_start=self.op_start_edit.dateTime().toPython(),
+                op_end=self.op_end_edit.dateTime().toPython(),
+                forms=forms,
+            )
+        except Exception as exc:  # pragma: no cover - user facing guard
+            QtWidgets.QMessageBox.warning(self, "Generate Draft", f"Unable to create draft: {exc}")
+            return
         self.result_container.package = package
 
     def _show_placeholder_message(self) -> None:
