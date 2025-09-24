@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, List, Optional, Sequence
 
 from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import QAction, QContextMenuEvent, QIcon, QKeySequence, QPixmap, QShortcut
@@ -30,6 +33,9 @@ from PySide6.QtWidgets import (
 
 from ..assets import get_asset_path
 from ..services.templates import FormService
+from modules.devtools.services import BindingLibraryResult, BindingOption, load_binding_library
+from modules.devtools.services.form_catalog import FormCatalog, TemplateEntry
+from utils.profile_manager import profile_manager
 from .CanvasView import CanvasView
 from .FieldItems import CheckboxFieldItem, DropdownFieldItem, FieldItem, TextFieldItem
 from .dialogs.BindingDialog import BindingDialog
@@ -50,6 +56,26 @@ FIELD_CLASSES = {
     "image": FieldItem,
     "table": FieldItem,
 }
+
+
+@dataclass
+class ProfileTemplateContext:
+    form_id: str
+    version: str
+    profile_id: str
+    profile_path: Path
+    pdf_rel: Path
+    mapping_rel: Path
+    assigned_profiles: List[str]
+    custom: bool = False
+
+    @property
+    def pdf_path(self) -> Path:
+        return self.profile_path / self.pdf_rel
+
+    @property
+    def mapping_path(self) -> Path:
+        return self.profile_path / self.mapping_rel
 
 
 class FieldListWidget(QListWidget):
@@ -88,7 +114,14 @@ class FieldListWidget(QListWidget):
 class MainWindow(QMainWindow):
     """Three-pane designer workspace."""
 
-    def __init__(self, form_service: FormService | None = None, parent=None) -> None:
+    templateSaved = Signal(dict)
+
+    def __init__(
+        self,
+        form_service: FormService | None = None,
+        parent=None,
+        profile_context: ProfileTemplateContext | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Form Creator")
         self.resize(1280, 720)
@@ -102,10 +135,12 @@ class MainWindow(QMainWindow):
         self.field_list_items: dict[int, QListWidgetItem] = {}
         self.field_list: QListWidget | None = None
         self._syncing_field_list = False
-        self._template_meta_controls: tuple[QLineEdit, QLineEdit, QLineEdit] | None = None
+        self._template_meta_controls: tuple[QLineEdit, QLineEdit, QLineEdit, QLineEdit] | None = None
         self.save_action: QAction | None = None
         self.save_template_button: QPushButton | None = None
         self._save_controls_enabled = False
+        self.profile_context: ProfileTemplateContext | None = None
+        self._binding_library_result: BindingLibraryResult | None = None
 
         self._build_menu()
         self._build_central_widget()
@@ -114,6 +149,9 @@ class MainWindow(QMainWindow):
 
         QShortcut(QKeySequence(Qt.Key.Key_Delete), self, activated=self.delete_selected_field)
         QShortcut(QKeySequence(Qt.Key.Key_Backspace), self, activated=self.delete_selected_field)
+
+        if profile_context is not None:
+            self.apply_profile_context(profile_context)
 
     # ------------------------------------------------------------------
     def _build_menu(self) -> None:
@@ -235,6 +273,14 @@ class MainWindow(QMainWindow):
         self.template_subcategory_edit.editingFinished.connect(self._apply_template_metadata_changes)
         self.properties_layout.addRow("Subcategory", self.template_subcategory_edit)
 
+        self.template_data_model_edit = QLineEdit()
+        self.template_data_model_edit.setPlaceholderText("e.g. ICS205")
+        self.template_data_model_edit.setToolTip(
+            "Incident data model or class used when binding this template."
+        )
+        self.template_data_model_edit.editingFinished.connect(self._apply_template_metadata_changes)
+        self.properties_layout.addRow("Incident Data Model", self.template_data_model_edit)
+
         self.properties_layout.addRow(QLabel(""))
 
         self.field_name_edit = QLineEdit()
@@ -286,6 +332,7 @@ class MainWindow(QMainWindow):
             self.template_name_edit,
             self.template_category_edit,
             self.template_subcategory_edit,
+            self.template_data_model_edit,
         )
         self._set_template_metadata_controls(None)
         self._update_save_controls()
@@ -299,6 +346,13 @@ class MainWindow(QMainWindow):
         action = QAction(icon, text, self)
         action.triggered.connect(slot)
         return action
+
+    def _load_binding_library_result(self) -> BindingLibraryResult:
+        try:
+            self._binding_library_result = load_binding_library()
+        except Exception:
+            self._binding_library_result = BindingLibraryResult([], None, None)
+        return self._binding_library_result
 
     # ------------------------------------------------------------------
     def new_template(self) -> None:
@@ -322,18 +376,23 @@ class MainWindow(QMainWindow):
             template_id = int(selected.split(":", 1)[0])
             self.load_template(template_id)
 
-    def load_template(self, template_id: int) -> None:
-        template = self.form_service.get_template(template_id)
-        self.current_template = template
-        self._set_template_metadata_controls(template)
+    def _load_template_payload(self, template: dict[str, Any]) -> None:
+        self.current_template = dict(template)
+        data_model = self.current_template.get("data_model") or self.current_template.get("incident_class")
+        self._set_template_metadata_controls(self.current_template)
+        if data_model:
+            self.template_data_model_edit.setText(str(data_model))
+        else:
+            self.template_data_model_edit.clear()
+
         def _coerce_field_id(value: Any) -> int:
             try:
                 return int(value)
             except (TypeError, ValueError):
                 return 0
-        self.next_field_id = max((
-            _coerce_field_id(f.get("id")) for f in template.get("fields", [])
-        ), default=0) + 1
+
+        fields = self.current_template.get("fields", [])
+        self.next_field_id = max((_coerce_field_id(f.get("id")) for f in fields), default=0) + 1
         self._reset_palette_tool()
         self.scene.clear()
         self.field_items.clear()
@@ -345,14 +404,49 @@ class MainWindow(QMainWindow):
             self.field_list.setEnabled(True)
         self.background_item = None
         self.canvas.reset_zoom()
-        self._load_background(template)
-        for field in template.get("fields", []):
+        self._load_background(self.current_template)
+        for field in fields:
             self._add_field_item(field)
         self._refresh_field_list()
         self.palette_list.setEnabled(True)
         if self.field_list is not None:
             self.field_list.setEnabled(True)
-        self.statusBar().showMessage(f"Loaded template {template['name']} v{template['version']}", 5000)
+        name = self.current_template.get("name", "Template")
+        version = self.current_template.get("version")
+        version_text = f" v{version}" if version is not None else ""
+        self.statusBar().showMessage(f"Loaded template {name}{version_text}", 5000)
+
+    def load_template(self, template_id: int) -> None:
+        template = self.form_service.get_template(template_id)
+        self._load_template_payload(template)
+
+    def apply_profile_context(self, context: ProfileTemplateContext) -> None:
+        self.profile_context = context
+        self.setWindowTitle(f"Form Creator — {context.form_id} v{context.version}")
+        self.template_data_model_edit.setEnabled(True)
+        self._load_profile_template()
+
+    def _load_profile_template(self) -> None:
+        ctx = self.profile_context
+        if ctx is None:
+            return
+        mapping_path = ctx.mapping_path
+        if mapping_path.exists():
+            try:
+                data = json.loads(mapping_path.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+            template_data = data.get("template")
+            if isinstance(template_data, dict):
+                self._load_template_payload(template_data)
+            data_model = data.get("incident_class") or data.get("data_model")
+            if isinstance(data_model, str):
+                self.template_data_model_edit.setText(data_model)
+        else:
+            mapping_path.parent.mkdir(parents=True, exist_ok=True)
+            self.current_template = None
+            self._set_template_metadata_controls(None)
+            self._update_save_controls(False)
 
     def save_template(self) -> None:
         if not self.current_template:
@@ -361,6 +455,7 @@ class MainWindow(QMainWindow):
         self._apply_template_metadata_changes()
         fields = self.current_template.get("fields", [])
         template_id = self.current_template.get("id")
+        data_model_value = self.template_data_model_edit.text().strip()
         try:
             saved_template_id = self.form_service.save_template(
                 name=self.current_template.get("name", "Untitled"),
@@ -376,11 +471,98 @@ class MainWindow(QMainWindow):
             return
 
         self.load_template(saved_template_id)
+        if self.current_template is not None:
+            if data_model_value:
+                self.current_template["data_model"] = data_model_value
+            else:
+                self.current_template.pop("data_model", None)
+            self.template_data_model_edit.setText(data_model_value)
         version = None
         if self.current_template is not None:
             version = self.current_template.get("version")
         version_text = f" v{version}" if version is not None else ""
         self.statusBar().showMessage(f"Template saved{version_text}", 3000)
+
+        try:
+            self._persist_profile_mapping(data_model_value)
+        except Exception as exc:  # pragma: no cover - Qt dialog path
+            QMessageBox.warning(
+                self,
+                "Form Creator",
+                f"The template was saved but the binding mapping could not be written:\n{exc}",
+            )
+
+    def _persist_profile_mapping(self, data_model_value: str) -> None:
+        ctx = self.profile_context
+        if ctx is None or not self.current_template:
+            return
+        mapping_path = ctx.mapping_path
+        mapping_path.parent.mkdir(parents=True, exist_ok=True)
+        bindings: dict[str, dict[str, Any]] = {}
+        for field in self.current_template.get("fields", []):
+            name = str(field.get("name") or field.get("id") or "").strip()
+            if not name:
+                continue
+            config = field.get("config", {})
+            entries = config.get("bindings")
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            source_type = entry.get("source_type", "static")
+            if source_type == "system":
+                key = entry.get("source_ref")
+                if key:
+                    bindings[name] = {"type": "system", "key": key}
+            elif source_type == "static":
+                bindings[name] = {"type": "static", "value": entry.get("value", "")}
+            else:
+                bindings[name] = {"type": source_type, "value": entry.get("value")}
+
+        payload = {
+            "form_id": ctx.form_id,
+            "version": ctx.version,
+            "profile_id": ctx.profile_id,
+            "incident_class": data_model_value or None,
+            "bindings": bindings,
+            "template": self.current_template,
+        }
+        mapping_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        catalog = FormCatalog()
+        profiles = sorted(set(ctx.assigned_profiles or []) | {ctx.profile_id})
+        entry = TemplateEntry(
+            version=ctx.version,
+            pdf=ctx.pdf_rel.as_posix(),
+            mapping=ctx.mapping_rel.as_posix(),
+            profiles=profiles,
+        )
+        catalog.add_template(ctx.form_id, entry, custom=ctx.custom)
+        ctx.assigned_profiles = profiles
+
+        source_pdf = ctx.pdf_path
+        meta_map = {meta.id: meta for meta in profile_manager.list_profiles()}
+        for profile_id in profiles:
+            meta = meta_map.get(profile_id)
+            if meta is None:
+                continue
+            if source_pdf.exists():
+                dest_pdf = meta.path / ctx.pdf_rel
+                dest_pdf.parent.mkdir(parents=True, exist_ok=True)
+                if profile_id != ctx.profile_id and not dest_pdf.exists():
+                    shutil.copy2(source_pdf, dest_pdf)
+            dest_mapping = meta.path / ctx.mapping_rel
+            dest_mapping.parent.mkdir(parents=True, exist_ok=True)
+            if dest_mapping != mapping_path:
+                shutil.copy2(mapping_path, dest_mapping)
+
+        self.templateSaved.emit(
+            {
+                "form_id": ctx.form_id,
+                "version": ctx.version,
+                "profile_id": ctx.profile_id,
+                "mapping_path": ctx.mapping_rel.as_posix(),
+            }
+        )
 
     def preview_template(self) -> None:
         if not self.current_template:
@@ -699,7 +881,14 @@ class MainWindow(QMainWindow):
         if not self.current_field_item:
             return
         field = self.current_field_item.field
-        dialog = BindingDialog(field.get("config", {}), self.form_service.binder, self)
+        binding_result = self._load_binding_library_result()
+        options = binding_result.options if binding_result else []
+        dialog = BindingDialog(
+            field.get("config", {}),
+            self.form_service.binder,
+            self,
+            binding_options=options,
+        )
         if dialog.exec() == dialog.DialogCode.Accepted:
             field.setdefault("config", {})["bindings"] = dialog.bindings
 
@@ -826,6 +1015,8 @@ class MainWindow(QMainWindow):
             self.template_name_edit.setText(template.get("name") or "")
             self.template_category_edit.setText(template.get("category") or "")
             self.template_subcategory_edit.setText(template.get("subcategory") or "")
+            data_model = template.get("data_model") or template.get("incident_class")
+            self.template_data_model_edit.setText(data_model or "")
             for edit in edits:
                 edit.setEnabled(True)
         for edit in edits:
@@ -843,9 +1034,14 @@ class MainWindow(QMainWindow):
             self.template_name_edit.setText(name)
         category = self.template_category_edit.text().strip() or None
         subcategory = self.template_subcategory_edit.text().strip() or None
+        data_model = self.template_data_model_edit.text().strip() or None
         self.current_template["name"] = name
         self.current_template["category"] = category
         self.current_template["subcategory"] = subcategory
+        if data_model:
+            self.current_template["data_model"] = data_model
+        else:
+            self.current_template.pop("data_model", None)
 
     @staticmethod
     def _safe_int(value: Any, default: int | None = None) -> int | None:
