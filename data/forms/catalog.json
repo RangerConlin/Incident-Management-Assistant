@@ -25,13 +25,16 @@
       "id": "ICS_203",
       "title": "Organization Assignment List",
       "category": "ICS",
-      "profiles": [],
+      "profiles": [
+        "ics_base"
+      ],
       "templates": [
         {
           "version": "3 FEMA",
           "pdf": "data/forms/pdfs/ICS_203_v3 FEMA.pdf",
           "mapping": "data/forms/maps/ICS_203_v3 FEMA.map.yaml",
-          "schema": null
+          "schema": null,
+          "profiles": []
         }
       ]
     },

@@ -106,6 +106,7 @@ def global_qss(tokens: dict) -> str:
         QTabBar::tab:!selected {{
             margin-top: 2px;
         }}
+
         QToolTip {{
             background: {tokens['bg_raised']};
             color: {tokens['fg_primary']};

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Dict, List, Optional
 import json
@@ -15,6 +15,7 @@ class TemplateEntry:
     pdf: str  # relative path
     mapping: Optional[str] = None  # relative path (YAML)
     schema: Optional[str] = None   # relative path (JSON schema)
+    profiles: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -117,10 +118,32 @@ class FormCatalog:
                     # dedupe by version
                     for i, t in enumerate(templ):
                         if t.get("version") == tpl.version:
-                            templ[i] = asdict(tpl)
+                            existing = TemplateEntry(**t)
+                            merged_profiles = set(existing.profiles or []) | {
+                                p.strip() for p in tpl.profiles if p.strip()
+                            }
+                            pdf = tpl.pdf or existing.pdf
+                            mapping = tpl.mapping if tpl.mapping is not None else existing.mapping
+                            schema = tpl.schema if tpl.schema is not None else existing.schema
+                            updated = TemplateEntry(
+                                version=tpl.version,
+                                pdf=pdf,
+                                mapping=mapping,
+                                schema=schema,
+                                profiles=sorted(merged_profiles),
+                            )
+                            templ[i] = asdict(updated)
                             self.save()
                             return True
-                    templ.append(asdict(tpl))
+                    normalized_profiles = sorted({p.strip() for p in tpl.profiles if p.strip()})
+                    new_entry = TemplateEntry(
+                        version=tpl.version,
+                        pdf=tpl.pdf,
+                        mapping=tpl.mapping,
+                        schema=tpl.schema,
+                        profiles=normalized_profiles,
+                    )
+                    templ.append(asdict(new_entry))
                     self.save()
                     return True
             return False

@@ -1351,15 +1351,8 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_medical_206(self) -> None:
-        # Open the full-featured QML ICS 206 window
         from modules import medical
-        try:
-            medical.open_206_window()
-        except Exception as e:
-            # Fallback: show placeholder dock panel if QML fails
-            incident_id = getattr(self, "current_incident_id", None)
-            panel = medical.get_206_panel(incident_id)
-            self._open_dock_widget(panel, title="Medical Plan (ICS 206)")
+        medical.open_206_window(self)
 
     def open_safety_208(self) -> None:
         from modules import safety
