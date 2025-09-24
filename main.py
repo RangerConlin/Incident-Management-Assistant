@@ -64,6 +64,7 @@ from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
 from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
+from ui.settings import SettingsWindow
 from utils.profile_manager import profile_manager, ProfileMeta
 
 try:
@@ -182,6 +183,7 @@ class MainWindow(QMainWindow):
                  settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
         self._ems_window = None
+        self._settings_window = None
         # Theme wiring is applied after settings bridge is available
 
         if settings_manager is None:
@@ -1007,47 +1009,17 @@ class MainWindow(QMainWindow):
         show_incident_selector()
 
     def open_menu_settings(self) -> None:
-        # Open the existing QML settings window (ApplicationWindow root) via QQuickView as a modal window
-        from pathlib import Path
-        from PySide6.QtQml import QQmlApplicationEngine
+        """Open the widget-based Settings window."""
+        window = getattr(self, "_settings_window", None)
+        if window is None or not isinstance(window, SettingsWindow):
+            window = SettingsWindow(self.settings_bridge, parent=self)
+            window.setAttribute(Qt.WA_DeleteOnClose, True)
+            window.destroyed.connect(lambda: setattr(self, "_settings_window", None))
+            self._settings_window = window
 
-        engine = QQmlApplicationEngine()
-        # Inject settings + theme bridges so settings pages can read/write and see colors
-        engine.rootContext().setContextProperty("settingsBridge", self.settings_bridge)
-        try:
-            if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                engine.rootContext().setContextProperty("themeBridge", self.theme_bridge)
-        except Exception:
-            pass
-
-        qml_file = Path(__file__).resolve().parent / "qml" / "settingswindow.qml"
-        engine.load(QUrl.fromLocalFile(str(qml_file)))
-
-        if not engine.rootObjects():
-            logger.error("Settings window failed to load: %s", qml_file)
-            return
-
-        win = engine.rootObjects()[0]
-        # Tie to main window and make modal if possible
-        try:
-            if hasattr(win, "setTitle"):
-                win.setTitle("Settings")
-            if self.windowHandle() and hasattr(win, "setTransientParent"):
-                win.setTransientParent(self.windowHandle())
-            if hasattr(win, "setModality"):
-                win.setModality(Qt.ApplicationModal)
-            if hasattr(win, "show"):
-                win.show()
-        except Exception:
-            pass
-
-        # Keep references alive
-        if not hasattr(self, "_open_qml_engines"):
-            self._open_qml_engines = []
-        if not hasattr(self, "_open_qml_windows"):
-            self._open_qml_windows = []
-        self._open_qml_engines.append(engine)
-        self._open_qml_windows.append(win)
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def open_menu_exit(self) -> None:
         # Exit remains a direct action rather than opening a panel.
