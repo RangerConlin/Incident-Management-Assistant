@@ -63,6 +63,11 @@ class CommunicationsLogWindow(QMainWindow):
         self.action_save.triggered.connect(self._save_current_entry)
         toolbar.addAction(self.action_save)
 
+        self.action_toggle_details = QAction("Show Details", self)
+        self.action_toggle_details.setEnabled(False)
+        self.action_toggle_details.triggered.connect(self._toggle_detail_panel)
+        toolbar.addAction(self.action_toggle_details)
+
         self.action_export_csv = QAction("Export CSV", self)
         self.action_export_csv.triggered.connect(lambda: self._export("csv"))
         toolbar.addAction(self.action_export_csv)
@@ -141,15 +146,10 @@ class CommunicationsLogWindow(QMainWindow):
         content_splitter.setStretchFactor(0, 6)
         content_splitter.setStretchFactor(1, 1)
 
-        def _set_initial_splitter_sizes() -> None:
-            total = content_splitter.size().height()
-            if total <= 0:
-                total = self.height() or 600
-            table_height = int(total * 0.72)
-            detail_height = max(120, total - table_height)
-            content_splitter.setSizes([table_height, detail_height])
-
-        QTimer.singleShot(0, _set_initial_splitter_sizes)
+        self.content_splitter = content_splitter
+        self._detail_last_size = 240
+        self._detail_visible = True
+        content_splitter.splitterMoved.connect(self._on_splitter_moved)
 
         central_layout.addWidget(content_splitter, 1)
         central_layout.setStretch(0, 0)
@@ -168,9 +168,13 @@ class CommunicationsLogWindow(QMainWindow):
         self.detail_drawer.createTaskRequested.connect(lambda entry_id: self._create_follow_up_task(entry_id))
         self.table_view.selectionModel().currentChanged.connect(self._on_selection_changed)
         self.table_view.customContextMenuRequested.connect(self._on_table_context_menu)
+        self.table_view.doubleClicked.connect(self._on_table_double_clicked)
 
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self._focus_filters)
         QShortcut(QKeySequence("Ctrl+M"), self, activated=self._toggle_status_update_shortcut)
+
+        self._set_detail_visible(False)
+        self._update_detail_button_state()
 
     # ------------------------------------------------------------------
     def _populate_column_menu(self) -> None:
@@ -217,19 +221,87 @@ class CommunicationsLogWindow(QMainWindow):
     def _refresh_entries(self, *, select_id: Optional[int] = None) -> None:
         entries = self.service.list_entries(self._current_query)
         self.table_view.set_entries(entries)
+        entry_displayed = False
         if select_id is not None:
             for row, entry in enumerate(entries):
                 if entry.id == select_id:
                     self.table_view.selectRow(row)
                     self.detail_drawer.display_entry(entry)
+                    entry_displayed = True
                     break
-        else:
+        if not entry_displayed:
             self._update_detail_from_selection()
         self.statusBar().showMessage(f"{len(entries)} entries")
 
     def _update_detail_from_selection(self) -> None:
         entry = self.table_view.selected_entry()
         self.detail_drawer.display_entry(entry)
+        self._update_detail_button_state()
+
+    def _update_detail_button_state(self) -> None:
+        has_entry = self.table_view.selected_entry() is not None
+        self.action_toggle_details.setEnabled(has_entry)
+        if not has_entry:
+            self._set_detail_visible(False)
+        self.action_save.setEnabled(self._detail_visible and self.detail_drawer.isEnabled())
+
+    def _set_detail_visible(self, visible: bool) -> None:
+        if visible == self._detail_visible:
+            self.action_save.setEnabled(self._detail_visible and self.detail_drawer.isEnabled())
+            return
+        self._detail_visible = visible
+        if visible:
+            self.detail_drawer.show()
+            sizes = self.content_splitter.sizes()
+            total = sum(sizes)
+            if total <= 0:
+                total = self.content_splitter.size().height()
+            if total <= 0:
+                total = self.height() or 600
+            detail_size = self._detail_last_size
+            if detail_size <= 0 or detail_size >= total:
+                detail_size = max(180, total // 4) if total > 0 else 180
+            table_size = max(total - detail_size, 0)
+            if table_size <= 0:
+                table_size = max(int(total * 0.7), 1)
+                detail_size = total - table_size
+            self.content_splitter.setSizes([table_size, detail_size])
+            self.action_toggle_details.setText("Hide Details")
+        else:
+            sizes = self.content_splitter.sizes()
+            if len(sizes) >= 2 and sizes[1] > 0:
+                self._detail_last_size = sizes[1]
+            self.detail_drawer.hide()
+            total = sum(sizes)
+            if total <= 0:
+                total = self.content_splitter.size().height()
+            if total <= 0:
+                total = self.height() or 600
+            self.content_splitter.setSizes([total, 0])
+            self.action_toggle_details.setText("Show Details")
+        self.action_save.setEnabled(self._detail_visible and self.detail_drawer.isEnabled())
+
+    def _toggle_detail_panel(self) -> None:
+        if self._detail_visible:
+            self._set_detail_visible(False)
+        else:
+            if self.table_view.selected_entry() is None:
+                return
+            self._set_detail_visible(True)
+
+    def _on_table_double_clicked(self, index) -> None:  # noqa: D401
+        if not index.isValid():
+            return
+        if self.table_view.selected_entry() is None:
+            return
+        self._set_detail_visible(True)
+
+    def _on_splitter_moved(self, _pos: int, _index: int) -> None:  # noqa: D401
+        if not self._detail_visible:
+            return
+        sizes = self.content_splitter.sizes()
+        if len(sizes) >= 2 and sizes[1] > 0:
+            self._detail_last_size = sizes[1]
 
     # ------------------------------------------------------------------
     def _on_filters_changed(self, query: CommsLogQuery) -> None:
