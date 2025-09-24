@@ -40,11 +40,11 @@ def get_incident_overview_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_iap_builder_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for IAP Builder."""
-    return _make_panel(
-        "IAP Builder",
-        f"Build an Incident Action Plan — incident: {incident_id}",
-    )
+    """Return the Planning module's IAP Builder widget."""
+
+    from modules.planning.windows import get_iap_builder_panel as planning_iap_builder
+
+    return planning_iap_builder(incident_id)
 
 
 def get_objectives_panel(incident_id: object | None = None) -> QWidget:

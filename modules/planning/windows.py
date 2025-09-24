@@ -4,6 +4,7 @@ __all__ = [
     "get_dashboard_panel",
     "get_approvals_panel",
     "get_forecast_panel",
+    "get_iap_builder_panel",
     "get_op_manager_panel",
     "get_taskmetrics_panel",
     "get_strategic_objectives_panel",
@@ -46,6 +47,16 @@ def get_op_manager_panel(incident_id: object | None = None) -> QWidget:
         "Operational Period Manager",
         f"OP builder — incident: {incident_id}",
     )
+
+
+def get_iap_builder_panel(incident_id: object | None = None) -> QWidget:
+    """Return the Qt Widgets based IAP Builder panel."""
+
+    from app.modules.planning.iap.ui.iap_builder_window import IAPBuilderWindow
+
+    incident_key = str(incident_id) if incident_id is not None else "demo-incident"
+    return IAPBuilderWindow(incident_id=incident_key)
+
 
 def get_taskmetrics_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Task Metrics Dashboard."""
