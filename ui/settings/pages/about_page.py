@@ -12,7 +12,7 @@ class AboutPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        title = QLabel("Incident Management Assistant\nVersion 3.0")
+        title = QLabel("Incident Management Assistant\nVersion 0.0.1")
         title.setStyleSheet("font-size: 16px; font-weight: 600;")
         title.setWordWrap(True)
         layout.addWidget(title)
@@ -25,7 +25,7 @@ class AboutPage(QWidget):
         license_label.setWordWrap(True)
         layout.addWidget(license_label)
 
-        contact_label = QLabel("Contact: support@incidentassistant.example.com | +1 (555) 010-2048")
+        contact_label = QLabel("Contact: bpheley@mi214cap.org | 517-554-0085")
         contact_label.setWordWrap(True)
         layout.addWidget(contact_label)
 
