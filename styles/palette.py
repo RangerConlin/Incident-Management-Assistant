@@ -4,9 +4,9 @@
 
 LIGHT = {
     # Base surface/foreground
-    "bg_window": "#FFFFFF",       # TODO: insert official
-    "bg_panel":  "#F7F7F8",       # "
-    "bg_raised": "#FFFFFF",       # "
+    "bg_window": "#d1d1d1",       # TODO: insert official
+    "bg_panel":  "#1313AB",       # "
+    "bg_raised": "#74FF0A",       # "
     "fg_primary": "#0F0F0F",      # "
     "fg_muted":   "#5A5F6A",      # "
 
@@ -18,11 +18,11 @@ LIGHT = {
     "info":      "#338EDA",       # "
 
     # Controls
-    "ctrl_bg":   "#FFFFFF",
+    "ctrl_bg":   "#A70C74",
     "ctrl_border":"#D5D8DE",
-    "ctrl_hover":"#EEF2F7",
+    "ctrl_hover":"#D6C614",
     "ctrl_focus":"#2F80ED",
-    "divider":   "#E7E9EE",
+    "divider":   "#F23333",
 }
 
 DARK = {
