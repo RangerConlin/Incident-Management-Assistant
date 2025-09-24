@@ -51,6 +51,12 @@ from ..services.binding_library import (
     save_binding_option,
 )
 from ..services.pdf_mapgen import extract_acroform_fields
+from modules.forms_creator.services import FormService
+from modules.forms_creator.services.template_importer import (
+    TemplateImportError,
+    TemplateImportResult,
+    import_pdf_template,
+)
 from modules.forms_creator.ui.MainWindow import MainWindow, ProfileTemplateContext
 from utils.profile_manager import ProfileMeta, profile_manager
 
@@ -1873,6 +1879,7 @@ class FormLibraryManager(QWidget):
         self.setWindowTitle("Form Library Manager")
 
         self.catalog = FormCatalog()
+        self.form_service = FormService()
         self._forms_cache: Dict[str, FormEntry] = {}
         self._open_editors: List[MainWindow] = []
 
@@ -2161,12 +2168,15 @@ class FormLibraryManager(QWidget):
             return
         version, profile_id, pdf_path = result
         try:
-            self._create_template_version(form, version, profile_id, pdf_path)
+            import_result, import_error = self._create_template_version(
+                form, version, profile_id, pdf_path
+            )
         except Exception as exc:  # pragma: no cover - dialog feedback
             QMessageBox.critical(self, "Add Version", f"Failed to add version:\n{exc}")
             return
         self._refresh_tree()
         self._select_version(form_id, version)
+        self._show_import_feedback(pdf_path, import_result, import_error)
 
     def _create_template_version(
         self,
@@ -2174,7 +2184,7 @@ class FormLibraryManager(QWidget):
         version: str,
         profile_id: str,
         source_pdf: Path,
-    ) -> None:
+    ) -> Tuple[Optional[TemplateImportResult], Optional[str]]:
         meta_map = self._profile_meta_map()
         profile = meta_map.get(profile_id)
         if profile is None:
@@ -2186,13 +2196,35 @@ class FormLibraryManager(QWidget):
         shutil.copy2(source_pdf, dest_pdf)
         mapping_path = profile.path / rel_mapping
         mapping_path.parent.mkdir(parents=True, exist_ok=True)
-        if not mapping_path.exists():
-            placeholder = {
-                "form_id": form.id,
-                "version": version,
-                "bindings": {},
-            }
-            mapping_path.write_text(json.dumps(placeholder, indent=2), encoding="utf-8")
+        import_result: Optional[TemplateImportResult] = None
+        import_error: Optional[str] = None
+        mapping_payload: Dict[str, Any] = {
+            "form_id": form.id,
+            "version": version,
+            "profile_id": profile_id,
+            "incident_class": None,
+            "bindings": {},
+        }
+        try:
+            template_title = f"{form.title or form.id} v{version}"
+            import_result = import_pdf_template(
+                self.form_service,
+                dest_pdf,
+                name=template_title,
+                category=form.category or None,
+                subcategory=None,
+            )
+        except TemplateImportError as exc:
+            import_error = str(exc)
+        except Exception as exc:  # pragma: no cover - defensive feedback
+            import_error = str(exc)
+        else:
+            mapping_payload["template"] = import_result.template
+
+        mapping_path.write_text(
+            json.dumps(mapping_payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
         tpl = TemplateEntry(
             version=version,
             pdf=_to_posix(rel_pdf),
@@ -2203,6 +2235,39 @@ class FormLibraryManager(QWidget):
         profiles_union = sorted(set(form.profiles or []) | {profile_id})
         form.profiles = profiles_union
         self.catalog.upsert_form(form, custom=self._is_custom_form(form))
+        return import_result, import_error
+
+    def _show_import_feedback(
+        self,
+        source_pdf: Path,
+        result: Optional[TemplateImportResult],
+        error: Optional[str],
+    ) -> None:
+        if error:
+            QMessageBox.warning(
+                self,
+                "Add Version",
+                (
+                    f"Copied {source_pdf.name}, but automatic template preparation failed:\n"
+                    f"{error}\n\nOpen the template in the Form Creator to build it manually."
+                ),
+            )
+            return
+        if result is None:
+            return
+        if result.field_count:
+            plural = "s" if result.field_count != 1 else ""
+            message = (
+                f"Prepared {result.field_count} field{plural} from {source_pdf.name} "
+                "and saved them to the template."
+            )
+        else:
+            message = (
+                f"Prepared a template from {source_pdf.name}, but no fillable fields were detected."
+            )
+        if result.warnings:
+            message += "\n\n" + "\n".join(result.warnings)
+        QMessageBox.information(self, "Add Version", message)
 
     def _handle_assign_profiles(self) -> None:
         ctx = self._current_version_context()
