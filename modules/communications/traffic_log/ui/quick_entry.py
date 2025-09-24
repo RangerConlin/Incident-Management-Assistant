@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Dict, Iterable, List, Optional
 
 from PySide6.QtCore import QDateTime, Qt, Signal, QStringListModel
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -28,6 +29,8 @@ from ..models import (
 
 class GrowingTextEdit(QTextEdit):
     """QTextEdit that starts as a single line and grows with content."""
+
+    focusChanged = Signal(bool)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -53,6 +56,14 @@ class GrowingTextEdit(QTextEdit):
         target = min(self._maximum_height, target)
         self.setFixedHeight(target)
 
+    def focusInEvent(self, event) -> None:  # type: ignore[override]
+        super().focusInEvent(event)
+        self.focusChanged.emit(True)
+
+    def focusOutEvent(self, event) -> None:  # type: ignore[override]
+        super().focusOutEvent(event)
+        self.focusChanged.emit(False)
+
 
 class QuickEntryWidget(QWidget):
     """Bottom dock widget used for rapid keyboard-first data entry."""
@@ -67,6 +78,7 @@ class QuickEntryWidget(QWidget):
         self._from_link: Optional[Dict[str, object]] = None
         self._to_link: Optional[Dict[str, object]] = None
         self._completer_model = QStringListModel(self)
+        self._priority_shortcuts: List[QShortcut] = []
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -118,6 +130,7 @@ class QuickEntryWidget(QWidget):
         message_layout.addWidget(QLabel("Message"))
         message_layout.addWidget(self.message_edit, 1)
         layout.addLayout(message_layout)
+        self.message_edit.focusChanged.connect(self._on_message_focus_changed)
 
         action_layout = QHBoxLayout()
         self.action_edit = QLineEdit()
@@ -143,6 +156,17 @@ class QuickEntryWidget(QWidget):
         toggle_layout.addWidget(self.save_button)
 
         layout.addLayout(toggle_layout)
+
+        # Numeric shortcuts for priority selection
+        for key, priority in (
+            ("1", PRIORITY_ROUTINE),
+            ("2", PRIORITY_PRIORITY),
+            ("3", PRIORITY_EMERGENCY),
+        ):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(lambda p=priority: self.set_priority(p))
+            self._priority_shortcuts.append(shortcut)
 
     # ------------------------------------------------------------------
     # Public API
@@ -219,6 +243,18 @@ class QuickEntryWidget(QWidget):
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+    def set_priority(self, priority: str) -> None:
+        index = self.priority_combo.findText(priority)
+        if index >= 0:
+            self.priority_combo.setCurrentIndex(index)
+
+    def focus_message(self) -> None:
+        self.message_edit.setFocus()
+
+    def _on_message_focus_changed(self, focused: bool) -> None:
+        for shortcut in self._priority_shortcuts:
+            shortcut.setEnabled(not focused)
+
     def _normalize(self, text: str) -> str:
         return text.strip().lower()
 

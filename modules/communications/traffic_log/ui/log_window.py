@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -21,7 +21,12 @@ from PySide6.QtWidgets import (
     QWidgetAction,
 )
 
-from ..models import CommsLogQuery
+from ..models import (
+    CommsLogQuery,
+    PRIORITY_EMERGENCY,
+    PRIORITY_PRIORITY,
+    PRIORITY_ROUTINE,
+)
 from ..services import CommsLogService
 from .log_detail import LogDetailDrawer
 from .log_filters import LogFilterPanel
@@ -108,9 +113,22 @@ class CommunicationsLogWindow(QMainWindow):
 
         self.quick_entry = QuickEntryWidget()
         central_layout.addWidget(self.quick_entry)
+        self._priority_shortcuts: List[QShortcut] = []
+        for key, priority in (
+            ("1", PRIORITY_ROUTINE),
+            ("2", PRIORITY_PRIORITY),
+            ("3", PRIORITY_EMERGENCY),
+        ):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(lambda p=priority: self.quick_entry.set_priority(p))
+            self._priority_shortcuts.append(shortcut)
+        self.quick_entry.message_edit.focusChanged.connect(self._on_entry_message_focus_changed)
+        self._on_entry_message_focus_changed(self.quick_entry.message_edit.hasFocus())
 
         content_splitter = QSplitter(Qt.Vertical)
         self.table_view = CommsLogTableView()
+        self.table_view.setContextMenuPolicy(Qt.CustomContextMenu)
         content_splitter.addWidget(self.table_view)
 
         self._populate_column_menu()
@@ -149,8 +167,10 @@ class CommunicationsLogWindow(QMainWindow):
         self.detail_drawer.saveRequested.connect(self._on_detail_save)
         self.detail_drawer.createTaskRequested.connect(lambda entry_id: self._create_follow_up_task(entry_id))
         self.table_view.selectionModel().currentChanged.connect(self._on_selection_changed)
+        self.table_view.customContextMenuRequested.connect(self._on_table_context_menu)
 
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self._focus_filters)
+        QShortcut(QKeySequence("Ctrl+M"), self, activated=self._toggle_status_update_shortcut)
 
     # ------------------------------------------------------------------
     def _populate_column_menu(self) -> None:
@@ -253,7 +273,7 @@ class CommunicationsLogWindow(QMainWindow):
         self._on_detail_save(int(entry.id), patch)
 
     def _focus_quick_entry(self) -> None:
-        self.quick_entry.message_edit.setFocus()
+        self.quick_entry.focus_message()
 
     def _focus_filters(self) -> None:
         if getattr(self, "filter_button", None) and self.filter_button.menu():
@@ -265,6 +285,12 @@ class CommunicationsLogWindow(QMainWindow):
     def _toggle_time_view(self) -> None:
         self.table_view.model.set_use_utc(self.action_toggle_time.isChecked())
 
+    def _toggle_status_update_shortcut(self) -> None:
+        entry = self.table_view.selected_entry()
+        if not entry or entry.id is None:
+            return
+        self._apply_status_update(int(entry.id), not entry.is_status_update)
+
     def _create_follow_up_task(self, entry_id: Optional[int] = None) -> None:
         entry = self.table_view.selected_entry() if entry_id is None else self.service.get_entry(entry_id)
         if not entry:
@@ -275,6 +301,52 @@ class CommunicationsLogWindow(QMainWindow):
             self._refresh_entries(select_id=entry.id)
         else:
             QMessageBox.information(self, "Task Creation", "Task module unavailable or task could not be created.")
+
+    def _on_table_context_menu(self, pos: QPoint) -> None:
+        index = self.table_view.indexAt(pos)
+        if not index.isValid():
+            return
+        entry = self.table_view.entry_at(index.row())
+        if not entry or entry.id is None:
+            return
+        menu = QMenu(self.table_view)
+
+        status_action = QAction("Status Update", self)
+        status_action.setCheckable(True)
+        status_action.setChecked(entry.is_status_update)
+        status_action.triggered.connect(
+            lambda checked, entry_id=int(entry.id): self._apply_status_update(entry_id, checked)
+        )
+        menu.addAction(status_action)
+
+        follow_action = QAction("Follow-up Required", self)
+        follow_action.setCheckable(True)
+        follow_action.setChecked(entry.follow_up_required)
+        follow_action.triggered.connect(
+            lambda checked, entry_id=int(entry.id): self._apply_follow_up(entry_id, checked)
+        )
+        menu.addAction(follow_action)
+
+        disposition_menu = menu.addMenu("Disposition")
+        for label in ("Open", "Closed"):
+            disp_action = QAction(label, self)
+            disp_action.setCheckable(True)
+            disp_action.setChecked(entry.disposition == label)
+            disp_action.triggered.connect(
+                lambda _checked, entry_id=int(entry.id), text=label: self._apply_disposition(entry_id, text)
+            )
+            disposition_menu.addAction(disp_action)
+
+        menu.addSeparator()
+        task_action = QAction("Create Follow-up Task", self)
+        task_action.triggered.connect(lambda entry_id=int(entry.id): self._create_follow_up_task(entry_id))
+        menu.addAction(task_action)
+
+        menu.exec(self.table_view.viewport().mapToGlobal(pos))
+
+    def _on_entry_message_focus_changed(self, focused: bool) -> None:
+        for shortcut in self._priority_shortcuts:
+            shortcut.setEnabled(not focused)
 
     def _export(self, fmt: str) -> None:
         if fmt == "csv":
@@ -304,6 +376,36 @@ class CommunicationsLogWindow(QMainWindow):
             return
         presets = self.service.list_filter_presets()
         self.filter_panel.populate_presets(presets)
+
+    # ------------------------------------------------------------------
+    # Context actions
+    # ------------------------------------------------------------------
+    def _apply_status_update(self, entry_id: int, value: bool) -> None:
+        try:
+            updated = self.service.mark_status_update(entry_id, value)
+        except Exception as exc:
+            QMessageBox.warning(self, "Status Update", str(exc))
+            return
+        self.statusBar().showMessage("Status flag updated", 1500)
+        self._refresh_entries(select_id=updated.id)
+
+    def _apply_follow_up(self, entry_id: int, value: bool) -> None:
+        try:
+            updated = self.service.mark_follow_up(entry_id, value)
+        except Exception as exc:
+            QMessageBox.warning(self, "Follow-up", str(exc))
+            return
+        self.statusBar().showMessage("Follow-up updated", 1500)
+        self._refresh_entries(select_id=updated.id)
+
+    def _apply_disposition(self, entry_id: int, disposition: str) -> None:
+        try:
+            updated = self.service.mark_disposition(entry_id, disposition)
+        except Exception as exc:
+            QMessageBox.warning(self, "Disposition", str(exc))
+            return
+        self.statusBar().showMessage(f"Disposition set to {disposition}", 1500)
+        self._refresh_entries(select_id=updated.id)
 
 
 __all__ = ["CommunicationsLogWindow"]
