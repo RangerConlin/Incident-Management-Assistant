@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTabWidget,
     QTableWidget,
@@ -542,15 +543,12 @@ class BindingWizard(QWizard):
             self.namespace_combo.setCurrentIndex(0)
         else:
             self.namespace_combo.setEditText("incident")
-        namespace_container = QWidget()
-        namespace_layout = QVBoxLayout(namespace_container)
-        namespace_layout.setContentsMargins(0, 0, 0, 0)
-        namespace_layout.setSpacing(4)
-        namespace_layout.addWidget(self.namespace_combo)
+        self.namespace_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        details_form.addRow("Namespace", self.namespace_combo)
         self.namespace_hint = QLabel()
         self.namespace_hint.setWordWrap(True)
-        namespace_layout.addWidget(self.namespace_hint)
-        details_form.addRow("Namespace", namespace_container)
+        self.namespace_hint.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        details_form.addRow("", self.namespace_hint)
 
         self.source_combo = QComboBox()
         self.source_combo.setEditable(True)
@@ -562,15 +560,12 @@ class BindingWizard(QWizard):
             self.source_combo.addItem(src)
         if "incident" in _DEFAULT_SOURCES:
             self.source_combo.setCurrentText("incident")
-        source_container = QWidget()
-        source_layout = QVBoxLayout(source_container)
-        source_layout.setContentsMargins(0, 0, 0, 0)
-        source_layout.setSpacing(4)
-        source_layout.addWidget(self.source_combo)
+        self.source_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        details_form.addRow("Source", self.source_combo)
         self.source_hint = QLabel()
         self.source_hint.setWordWrap(True)
-        source_layout.addWidget(self.source_hint)
-        details_form.addRow("Source", source_container)
+        self.source_hint.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        details_form.addRow("", self.source_hint)
 
         self.description_edit = QLineEdit()
         self.description_edit.setPlaceholderText("Short help text for other authors")
