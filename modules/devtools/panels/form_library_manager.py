@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from html import escape
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTreeWidget,
@@ -151,6 +153,77 @@ _NAMESPACE_GUIDE = [
         "keywords": ("static", "placeholder", "constant", "always", "fixed"),
     },
 ]
+
+
+_NAMESPACE_DESCRIPTIONS: Dict[str, str] = {
+    "incident": "Overall incident record: name, number, type, operational period, and location.",
+    "operations": "Operations section data: assignments, tactics, team status, and tasking details.",
+    "planning": "Planning section: situation reports, IAP preparation notes, objectives, and map products.",
+    "logistics": "Logistics tracking: supply requests, equipment, transport, and facilities.",
+    "finance": "Finance and administrative records such as timekeeping, expenses, and reimbursements.",
+    "personnel": "Personnel directory with contact information, roles, and qualifications.",
+    "computed": "Calculated values the app derives (totals, durations, metrics).",
+    "form": "Information typed directly into this form while editing, such as notes or signatures.",
+    "constants": "Use sparingly. Keep the namespace that matches where the text is referenced even if the source is constants.",
+    "": "No namespace yet. The binding key will start with the cleaned field label until you choose one.",
+}
+
+
+_SOURCE_DESCRIPTIONS: Dict[str, str] = {
+    "incident": "Read from the main incident record (name, objectives, operational period, etc.).",
+    "operations": "Pull assignments, tactics, and team data recorded under Operations.",
+    "planning": "Use Planning datasets such as situation updates, resource status, and map notes.",
+    "logistics": "Gather logistics information like supplies, equipment, transport, and facilities.",
+    "finance": "Use Finance/Admin timekeeping, expense, and reimbursement records.",
+    "personnel": "Look up roster and qualification data from the personnel directory.",
+    "constants": "Keep a fixed phrase from the profile constants catalogue so every form shows the same text.",
+    "computed": "Run a calculation (totals, durations, metrics) when the PDF is generated.",
+    "form": "Use the value entered while editing this form (review notes, signatures, etc.).",
+}
+
+
+def _describe_namespace(namespace: str) -> str:
+    key = (namespace or "").strip().lower()
+    if key in _NAMESPACE_DESCRIPTIONS:
+        return _NAMESPACE_DESCRIPTIONS[key]
+    if key:
+        return (
+            "Custom namespace. Use it when the value belongs to a specialised data set or plugin outside the standard "
+            "incident sections."
+        )
+    return _NAMESPACE_DESCRIPTIONS[""]
+
+
+def _describe_source(source: str, namespace: str) -> str:
+    source_key = (source or "").strip().lower()
+    namespace_key = (namespace or "").strip().lower()
+    description = _SOURCE_DESCRIPTIONS.get(
+        source_key,
+        "Custom data provider. Use this label to remind editors where the app pulls the value from.",
+    )
+
+    if namespace_key and source_key == namespace_key:
+        return (
+            f"{description} It matches the namespace, so the app reads the value directly from that incident section."
+        )
+    if source_key == "constants":
+        if namespace_key:
+            return (
+                f"{description} The binding key still starts with '{namespace}', but the text comes from the constants catalogue."
+            )
+        return description + " Use this when the same phrase should appear on every generated form."
+    if source_key == "computed":
+        return description + " The wizard runs the calculation each time the form is produced."
+    if namespace_key and source_key:
+        return (
+            f"{description} The key keeps the namespace '{namespace}', but the data is fetched from the {source} provider."
+        )
+    if not source_key:
+        return (
+            "No source selected yet. The wizard will default to constants so the text stays the same for every form until you "
+            "choose another option."
+        )
+    return description
 
 
 def _collect_lines(widget: QPlainTextEdit) -> List[str]:
@@ -413,8 +486,8 @@ class BindingWizard(QWizard):
         self.setWindowTitle("Binding Wizard")
         self.setWizardStyle(QWizard.ModernStyle)
         self.setOption(QWizard.NoBackButtonOnStartPage, True)
-        self.setMinimumSize(780, 620)
-        self.resize(900, 720)
+        self.setMinimumSize(820, 640)
+        self.resize(1040, 760)
         self._active_profile = active_profile
         self._result: Optional[BindingOption] = None
         self._updating_helper = False
@@ -431,11 +504,17 @@ class BindingWizard(QWizard):
         intro_layout.setSpacing(16)
         intro_layout.setContentsMargins(0, 0, 0, 0)
 
-        top_row = QHBoxLayout()
-        top_row.setSpacing(16)
-        intro_layout.addLayout(top_row)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        intro_layout.addWidget(splitter, 1)
+
+        details_panel = QWidget()
+        details_panel_layout = QVBoxLayout(details_panel)
+        details_panel_layout.setContentsMargins(0, 0, 0, 0)
+        details_panel_layout.setSpacing(12)
 
         details_group = QGroupBox("Field details")
+        details_group.setMinimumWidth(320)
         details_form = QFormLayout()
         details_form.setSpacing(12)
         details_form.setLabelAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -462,7 +541,15 @@ class BindingWizard(QWizard):
             self.namespace_combo.setCurrentIndex(0)
         else:
             self.namespace_combo.setEditText("incident")
-        details_form.addRow("Namespace", self.namespace_combo)
+        namespace_container = QWidget()
+        namespace_layout = QVBoxLayout(namespace_container)
+        namespace_layout.setContentsMargins(0, 0, 0, 0)
+        namespace_layout.setSpacing(4)
+        namespace_layout.addWidget(self.namespace_combo)
+        self.namespace_hint = QLabel()
+        self.namespace_hint.setWordWrap(True)
+        namespace_layout.addWidget(self.namespace_hint)
+        details_form.addRow("Namespace", namespace_container)
 
         self.source_combo = QComboBox()
         self.source_combo.setEditable(True)
@@ -474,23 +561,40 @@ class BindingWizard(QWizard):
             self.source_combo.addItem(src)
         if "incident" in _DEFAULT_SOURCES:
             self.source_combo.setCurrentText("incident")
-        details_form.addRow("Source", self.source_combo)
+        source_container = QWidget()
+        source_layout = QVBoxLayout(source_container)
+        source_layout.setContentsMargins(0, 0, 0, 0)
+        source_layout.setSpacing(4)
+        source_layout.addWidget(self.source_combo)
+        self.source_hint = QLabel()
+        self.source_hint.setWordWrap(True)
+        source_layout.addWidget(self.source_hint)
+        details_form.addRow("Source", source_container)
 
         self.description_edit = QLineEdit()
         self.description_edit.setPlaceholderText("Short help text for other authors")
         details_form.addRow("Description", self.description_edit)
 
-        top_row.addWidget(details_group, 3)
+        details_panel_layout.addWidget(details_group)
+
+        self.selection_summary_label = QLabel()
+        self.selection_summary_label.setWordWrap(True)
+        self.selection_summary_label.setTextFormat(Qt.RichText)
+        self.selection_summary_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        details_panel_layout.addWidget(self.selection_summary_label)
+        details_panel_layout.addStretch(1)
+
+        splitter.addWidget(details_panel)
 
         self.helper_group = QGroupBox("Need help choosing namespace or source?")
-        self.helper_group.setMinimumWidth(340)
+        self.helper_group.setMinimumWidth(360)
         helper_group_layout = QVBoxLayout(self.helper_group)
         helper_group_layout.setContentsMargins(12, 12, 12, 12)
         helper_group_layout.setSpacing(10)
 
         helper_intro = QLabel(
-            "Select the statement that matches where this value lives in the incident data. "
-            "The wizard will fill in the namespace and source for you, and you can still tweak them."
+            "Pick the statement that matches where editors maintain this value. Namespace = data folder, Source = how the app "
+            "fetches it when generating a PDF."
         )
         helper_intro.setWordWrap(True)
         helper_group_layout.addWidget(helper_intro)
@@ -548,7 +652,16 @@ class BindingWizard(QWizard):
         self.suggestion_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         helper_group_layout.addWidget(self.suggestion_label)
 
-        top_row.addWidget(self.helper_group, 4)
+        helper_panel = QWidget()
+        helper_panel_layout = QVBoxLayout(helper_panel)
+        helper_panel_layout.setContentsMargins(0, 0, 0, 0)
+        helper_panel_layout.setSpacing(0)
+        helper_panel_layout.addWidget(self.helper_group)
+        helper_panel_layout.addStretch(1)
+        splitter.addWidget(helper_panel)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 4)
+        splitter.setSizes([420, 540])
 
         intro_layout.addSpacing(12)
 
@@ -558,35 +671,46 @@ class BindingWizard(QWizard):
         binding_help_layout.setSpacing(10)
 
         namespace_help = QLabel(
-            "<b>Namespace</b>: Pick the incident data section that owns the value. "
-            "For example, use <code>incident</code> for overall details, <code>operations</code> for field "
-            "assignments, or leave it blank when the value is unique to the form."
+            "<b>Namespace</b>: Think of this as the folder in the incident data tree. Choose where someone keeps the value — "
+            "<code>incident</code> for overall details, <code>operations</code> for assignments, <code>planning</code> for "
+            "situation updates, and so on."
         )
         namespace_help.setWordWrap(True)
         namespace_help.setTextFormat(Qt.RichText)
         binding_help_layout.addWidget(namespace_help)
 
         source_help = QLabel(
-            "<b>Source</b>: Describes where the app pulls the value during PDF generation. Match the namespace "
-            "when the data lives in that section, choose <code>constants</code> for fixed placeholders, and use "
-            "labels like <code>computed</code> when the app calculates the value for you."
+            "<b>Source</b>: Explains how the app fills the value when a PDF is generated. Match the namespace to read directly "
+            "from that section, pick <code>constants</code> for headers that never change, and use <code>computed</code> for "
+            "totals or other calculated numbers."
         )
         source_help.setWordWrap(True)
         source_help.setTextFormat(Qt.RichText)
         binding_help_layout.addWidget(source_help)
 
         binding_recipe_help = QLabel(
-            "<b>Binding key</b>: The wizard combines the namespace with a simplified version of the field label. "
-            "If the namespace is <code>incident</code> and the label is “Incident Name”, the suggested key becomes "
-            "<code>incident.name</code>. You can edit the key on the next step if you need a different path."
+            "<b>Together</b>: The binding key starts with the namespace and the wizard cleans the PDF label for the rest. "
+            "Source simply tells the generator where that key gets its data."
         )
         binding_recipe_help.setWordWrap(True)
         binding_recipe_help.setTextFormat(Qt.RichText)
         binding_help_layout.addWidget(binding_recipe_help)
 
+        examples_help = QLabel(
+            "<b>Examples</b>:<ul>"
+            "<li><code>incident.name</code> — namespace <code>incident</code>, source <code>incident</code>; pulls from the main incident record.</li>"
+            "<li><code>operations.team_1.leader</code> — namespace <code>operations</code>, source <code>operations</code>; reads from the assignment roster.</li>"
+            "<li><code>incident.footer</code> — namespace <code>incident</code>, source <code>constants</code>; prints the same footer text every time.</li>"
+            "<li><code>form.reviewer_signature</code> — namespace <code>form</code>, source <code>form</code>; captured while filling out the form.</li>"
+            "</ul>"
+        )
+        examples_help.setWordWrap(True)
+        examples_help.setTextFormat(Qt.RichText)
+        binding_help_layout.addWidget(examples_help)
+
         binding_payload_help = QLabel(
-            "When you click Finish we store: the binding key, the source, your description, plus any synonyms "
-            "and patterns. Other editors use this information to auto-match PDF fields to incident data."
+            "When you finish we store the binding key, the source, your description, plus any synonyms and patterns so other "
+            "editors can auto-match this PDF field in the future."
         )
         binding_payload_help.setWordWrap(True)
         binding_payload_help.setTextFormat(Qt.RichText)
@@ -727,6 +851,7 @@ class BindingWizard(QWizard):
             self._update_summary()
 
     def _update_summary(self) -> None:
+        self._update_namespace_source_summary()
         option = self._build_option()
         if not option.key:
             self.summary.setPlainText("Provide a binding key to see the preview.")
@@ -739,6 +864,41 @@ class BindingWizard(QWizard):
         except Exception:
             self.summary.setPlainText(str(preview))
         self._update_recipe_description()
+
+    def _update_namespace_source_summary(self) -> None:
+        namespace_text = self.namespace_combo.currentText().strip()
+        source_text = self.source_combo.currentText().strip() or "constants"
+        label_text = self.label_edit.text().strip()
+
+        namespace_description = _describe_namespace(namespace_text)
+        source_description = _describe_source(source_text, namespace_text)
+
+        if hasattr(self, "namespace_hint"):
+            self.namespace_hint.setText(namespace_description)
+        if hasattr(self, "source_hint"):
+            self.source_hint.setText(source_description)
+
+        if hasattr(self, "selection_summary_label"):
+            namespace_display = namespace_text or "(none yet)"
+            source_display = source_text or "constants"
+            namespace_label_html = escape(namespace_display)
+            source_label_html = escape(source_display)
+            namespace_desc_html = escape(namespace_description)
+            source_desc_html = escape(source_description)
+            summary_parts = [
+                f"<b>Namespace</b> = <code>{namespace_label_html}</code>: {namespace_desc_html}",
+                f"<b>Source</b> = <code>{source_label_html}</code>: {source_desc_html}",
+            ]
+            if label_text:
+                slug = _slugify(label_text) or "field"
+                key_preview = ".".join(part for part in (namespace_text, slug) if part)
+                key_preview_html = escape(key_preview)
+                summary_parts.append(
+                    f"<b>Preview key</b>: <code>{key_preview_html}</code> (namespace + cleaned field label)."
+                )
+            else:
+                summary_parts.append("Add the PDF field label so we can preview the binding key.")
+            self.selection_summary_label.setText("<br>".join(summary_parts))
 
     def _update_recipe_description(self) -> None:
         if not hasattr(self, "binding_recipe_label"):
@@ -764,31 +924,27 @@ class BindingWizard(QWizard):
             field_part = slug
             example_key = ".".join(part for part in (namespace_part, field_part) if part)
 
-        if namespace_part:
-            namespace_sentence = (
-                f"<li><b>Step 1:</b> Namespace = <code>{namespace_part}</code>. "
-                "This is the incident data group that stores the value (incident, operations, planning, etc.)."
-                "</li>"
-            )
-        else:
-            namespace_sentence = (
-                "<li><b>Step 1:</b> Namespace is blank, so the binding lives at the top level and you can fill it manually if needed.</li>"
-            )
+        namespace_display = namespace_part or namespace_text
+        namespace_label = namespace_display or "(none yet)"
+        namespace_description = _describe_namespace(namespace_display)
+        namespace_sentence = (
+            f"<li><b>Step 1:</b> Namespace = <code>{escape(namespace_label)}</code>. {escape(namespace_description)}</li>"
+        )
 
         if label_text:
-            label_sentence = f" from the label “{label_text}”"
+            label_sentence = f" from the label “{escape(label_text)}”"
         else:
             label_sentence = ""
 
         field_sentence = (
-            f"<li><b>Step 2:</b> Field name = <code>{field_part}</code>{label_sentence}. "
+            f"<li><b>Step 2:</b> Field name = <code>{escape(field_part)}</code>{label_sentence}. "
             "We turn the PDF field label into a short key you can reuse."
             "</li>"
         )
 
         if example_key:
             combine_sentence = (
-                f"<li><b>Step 3:</b> Join the pieces → <code>{example_key}</code>. "
+                f"<li><b>Step 3:</b> Join the pieces → <code>{escape(example_key)}</code>. "
                 "This is the binding key shown on the next page."
                 "</li>"
             )
@@ -798,22 +954,8 @@ class BindingWizard(QWizard):
             )
 
         source_text = option.source.strip() or "constants"
-        if namespace_text and source_text == namespace_text:
-            source_sentence = (
-                "Because the source matches the namespace, the app will read the value directly from that incident section when generating the PDF."
-            )
-        elif source_text == "constants":
-            source_sentence = (
-                "This source tells the app to pull a fixed value from the profile constants so the same text appears every time."
-            )
-        elif source_text == "computed":
-            source_sentence = (
-                "Computed values are calculated automatically (totals, durations, etc.) and then inserted into the form."
-            )
-        else:
-            source_sentence = (
-                "Use this source label to remind editors which catalogue or helper provides the value during form filling."
-            )
+        source_sentence = _describe_source(source_text, namespace_display)
+        source_sentence_html = escape(source_sentence)
 
         message = (
             "<p><b>How this binding comes together</b></p>"
@@ -822,7 +964,7 @@ class BindingWizard(QWizard):
             f"{field_sentence}"
             f"{combine_sentence}"
             "</ol>"
-            f"<p><b>Source</b> = <code>{source_text}</code>. {source_sentence}</p>"
+            f"<p><b>Source</b> = <code>{escape(source_text)}</code>. {source_sentence_html}</p>"
             "<p>When you finish, we save the binding key, source, description, and any synonyms or patterns so other editors can auto-map this PDF field.</p>"
         )
 
@@ -937,8 +1079,9 @@ class BindingWizard(QWizard):
             self.suggestion_label.setText(message)
         else:
             self.suggestion_label.setText(
-                "Need a starting point? Pick 'incident' for overall incident details or 'operations' for assignment data. "
-                "Use 'constants' when the value should stay the same every time."
+                "Need a starting point? Namespace is the data folder (incident, operations, planning). Source tells the wizard "
+                "where to fetch the value — match the namespace for live data or choose constants/computed when the text is "
+                "fixed or calculated."
             )
 
     def _build_option(self) -> BindingOption:
