@@ -5,7 +5,7 @@ import re
 import shutil
 from html import escape
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -50,6 +50,7 @@ from ..services.binding_library import (
     load_binding_library,
     save_binding_option,
 )
+from ..services.pdf_mapgen import extract_acroform_fields
 from modules.forms_creator.ui.MainWindow import MainWindow, ProfileTemplateContext
 from utils.profile_manager import ProfileMeta, profile_manager
 
@@ -252,6 +253,107 @@ def _pattern_from_key(key: str) -> str:
     if not normalized:
         return ""
     return f"^{normalized}$"
+
+
+def _humanize_field_name(field_name: str) -> str:
+    text = str(field_name or "")
+    if not text:
+        return ""
+    text = text.replace("\\", " ")
+    text = re.sub(r"[\[\]{}]", " ", text)
+    text = re.sub(r"[._]+", " ", text)
+    text = re.sub(r"[-/:]+", " ", text)
+    text = re.sub(r"(?<!^)(?=[A-Z])", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip().title()
+
+
+def _auto_binding_option_from_field(
+    field_name: str,
+    *,
+    namespace: str,
+    source: str,
+    seen_keys: Set[str],
+    origin_profile: Optional[str],
+    pdf_name: Optional[str] = None,
+) -> Optional[Tuple[BindingOption, str]]:
+    raw_name = str(field_name or "").strip()
+    if not raw_name:
+        return None
+
+    namespace_value = (namespace or "").strip()
+    source_value = (source or "").strip()
+
+    human_label = _humanize_field_name(raw_name)
+    fallback_slug = _slugify(raw_name)
+    slug_source = human_label or raw_name
+    slug = _slugify(slug_source) or fallback_slug
+    stem = slug or fallback_slug or "field"
+
+    base_key = ".".join(part for part in (namespace_value, slug) if part)
+    if not base_key:
+        base_key = ".".join(part for part in (namespace_value, stem) if part)
+    if not base_key:
+        base_key = stem
+    if not base_key:
+        return None
+
+    candidate = base_key
+    counter = 2
+    while candidate in seen_keys:
+        suffix = f"_{counter}"
+        candidate = ".".join(part for part in (namespace_value, f"{stem}{suffix}") if part)
+        counter += 1
+    seen_keys.add(candidate)
+
+    synonyms_candidates = [
+        raw_name,
+        re.sub(r"[._]+", " ", raw_name).strip(),
+        human_label,
+        human_label.lower() if human_label else "",
+        stem.replace("_", " ") if stem else "",
+    ]
+    synonyms: List[str] = []
+    seen_synonyms: Set[str] = set()
+    for candidate_syn in synonyms_candidates:
+        text = (candidate_syn or "").strip()
+        if not text:
+            continue
+        lowered = text.lower()
+        if lowered in seen_synonyms:
+            continue
+        seen_synonyms.add(lowered)
+        synonyms.append(text)
+
+    patterns: Set[str] = set()
+    key_pattern = _pattern_from_key(candidate)
+    if key_pattern:
+        patterns.add(key_pattern)
+    for synonym in synonyms:
+        pattern = _pattern_from_phrase(synonym)
+        if pattern:
+            patterns.add(pattern)
+
+    base_desc = human_label or raw_name or "PDF field"
+    description = f"Auto-generated binding for {base_desc}"
+    if raw_name and raw_name.lower() != base_desc.lower():
+        description += f" (PDF field '{raw_name}')"
+    if pdf_name:
+        description += f" — imported from {pdf_name}"
+
+    option = BindingOption(
+        key=candidate,
+        source=source_value or (namespace_value or "constants"),
+        description=description,
+        synonyms=synonyms,
+        patterns=sorted(patterns),
+        origin_profile=origin_profile,
+        is_defined_in_active=True,
+        extra={"pdf_field": raw_name},
+    )
+
+    preview_label = human_label or raw_name
+    return option, preview_label
 
 
 class BindingEditorDialog(QDialog):
@@ -1384,10 +1486,12 @@ class BindingLibraryEditorDialog(QDialog):
         layout.addWidget(details_group)
 
         button_row = QHBoxLayout()
+        self.btn_generate_pdf = QPushButton("Generate from PDF…")
         self.btn_wizard = QPushButton("Wizard…")
         self.btn_add = QPushButton("Advanced Editor…")
         self.btn_edit = QPushButton("Edit…")
         self.btn_delete = QPushButton("Delete")
+        button_row.addWidget(self.btn_generate_pdf)
         button_row.addWidget(self.btn_wizard)
         button_row.addWidget(self.btn_add)
         button_row.addWidget(self.btn_edit)
@@ -1401,6 +1505,7 @@ class BindingLibraryEditorDialog(QDialog):
         layout.addWidget(close_box)
 
         self.search_edit.textChanged.connect(self._on_filter_changed)
+        self.btn_generate_pdf.clicked.connect(self._generate_from_pdf)
         self.btn_wizard.clicked.connect(self._launch_wizard)
         self.btn_add.clicked.connect(self._add_option)
         self.btn_edit.clicked.connect(self._edit_option)
@@ -1500,6 +1605,15 @@ class BindingLibraryEditorDialog(QDialog):
                 namespaces.add(opt.key.split(".", 1)[0])
         return sorted(namespaces)
 
+    def _guess_default_namespace(self) -> str:
+        option = self._selected_option()
+        if option and option.key and "." in option.key:
+            return option.key.split(".", 1)[0]
+        namespaces = self._namespaces()
+        if namespaces:
+            return namespaces[0]
+        return "incident"
+
     def _reload(self) -> None:
         try:
             result = load_binding_library()
@@ -1570,6 +1684,164 @@ class BindingLibraryEditorDialog(QDialog):
             return
         self._reload()
 
+    def _generate_from_pdf(self) -> None:
+        target_profile = self._active or profile_manager.get_active_profile_id()
+        if not target_profile:
+            QMessageBox.warning(
+                self,
+                "Generate from PDF",
+                "Select an active profile before generating bindings.",
+            )
+            return
+
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Fillable PDF",
+            "",
+            "PDF Files (*.pdf)",
+        )
+        if not filename:
+            return
+
+        pdf_path = Path(filename)
+        if pdf_path.suffix.lower() != ".pdf":
+            QMessageBox.warning(self, "Generate from PDF", "Please choose a PDF file.")
+            return
+
+        try:
+            fields = extract_acroform_fields(pdf_path)
+        except Exception as exc:  # pragma: no cover - dialog feedback
+            QMessageBox.critical(
+                self,
+                "Generate from PDF",
+                f"Unable to read the PDF fields:\n{exc}",
+            )
+            return
+
+        if not fields:
+            QMessageBox.information(
+                self,
+                "Generate from PDF",
+                "No fillable fields were found in the selected PDF.",
+            )
+            return
+
+        namespace_guess = self._guess_default_namespace()
+        namespace_text, ok = QInputDialog.getText(
+            self,
+            "Default Namespace",
+            "Namespace for generated bindings:",
+            text=namespace_guess,
+        )
+        if not ok:
+            return
+        namespace = namespace_text.strip()
+
+        default_source = namespace or "constants"
+        source_choices = list(dict.fromkeys([default_source, *_DEFAULT_SOURCES]))
+        try:
+            default_index = source_choices.index(default_source)
+        except ValueError:
+            default_index = 0
+        source_text, ok = QInputDialog.getItem(
+            self,
+            "Default Source",
+            "Source for generated bindings:",
+            source_choices,
+            default_index,
+            True,
+        )
+        if not ok:
+            return
+        source = source_text.strip() or default_source
+
+        existing_keys = {opt.key for opt in self._options}
+        seen_keys: Set[str] = set(existing_keys)
+        generated: List[Tuple[BindingOption, str, str]] = []
+        skipped: List[str] = []
+
+        for field in fields:
+            raw_name = getattr(field, "name", "")
+            result = _auto_binding_option_from_field(
+                raw_name,
+                namespace=namespace,
+                source=source,
+                seen_keys=seen_keys,
+                origin_profile=target_profile,
+                pdf_name=pdf_path.name,
+            )
+            if not result:
+                if raw_name:
+                    skipped.append(raw_name)
+                continue
+            option, label = result
+            generated.append((option, raw_name or option.key, label))
+
+        if not generated:
+            message = "No new bindings could be generated."
+            if skipped:
+                skipped_preview = ", ".join(skipped[:5])
+                if len(skipped) > 5:
+                    skipped_preview += "…"
+                message += f" Skipped fields: {skipped_preview}."
+            QMessageBox.information(self, "Generate from PDF", message)
+            return
+
+        preview_lines = [
+            f"• {opt.key} ← {label}" for opt, _field, label in generated[:8]
+        ]
+        confirm_message = (
+            f"Generate {len(generated)} bindings from {pdf_path.name}?\n\n"
+            f"Namespace: {namespace or '(none)'}\n"
+            f"Source: {source or default_source}"
+        )
+        if preview_lines:
+            confirm_message += "\n\nExamples:\n" + "\n".join(preview_lines)
+        if skipped:
+            skipped_preview = ", ".join(skipped[:5])
+            if len(skipped) > 5:
+                skipped_preview += "…"
+            confirm_message += f"\n\nSkipped fields: {skipped_preview}"
+
+        if (
+            QMessageBox.question(
+                self,
+                "Generate from PDF",
+                confirm_message,
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            != QMessageBox.Yes
+        ):
+            return
+
+        errors: List[str] = []
+        saved = 0
+        for option, field_name, _label in generated:
+            try:
+                save_binding_option(option, profile_id=target_profile)
+            except Exception as exc:  # pragma: no cover - dialog feedback
+                errors.append(f"{field_name}: {exc}")
+            else:
+                saved += 1
+
+        if errors:
+            error_preview = "\n".join(errors[:5])
+            if len(errors) > 5:
+                error_preview += "\n…"
+            QMessageBox.warning(
+                self,
+                "Generate from PDF",
+                f"Saved {saved} bindings, but {len(errors)} failed:\n{error_preview}",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Generate from PDF",
+                f"Saved {saved} bindings from {pdf_path.name}.",
+            )
+
+        self._reload()
+
     def _launch_wizard(self) -> None:
         active = getattr(self, "_active", None)
         wizard = BindingWizard(self, namespaces=self._namespaces(), active_profile=active)
@@ -1589,6 +1861,8 @@ class BindingLibraryEditorDialog(QDialog):
         has_selection = self.table.currentRow() >= 0
         self.btn_edit.setEnabled(has_selection)
         self.btn_delete.setEnabled(has_selection)
+        active_profile = self._active or profile_manager.get_active_profile_id()
+        self.btn_generate_pdf.setEnabled(bool(active_profile))
 
 
 class FormLibraryManager(QWidget):
