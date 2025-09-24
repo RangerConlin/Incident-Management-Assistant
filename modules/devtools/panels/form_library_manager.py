@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QSplitter,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTreeWidget,
@@ -586,55 +587,61 @@ class BindingWizard(QWizard):
 
         splitter.addWidget(details_panel)
 
-        self.helper_group = QGroupBox("Need help choosing namespace or source?")
-        self.helper_group.setMinimumWidth(360)
-        helper_group_layout = QVBoxLayout(self.helper_group)
-        helper_group_layout.setContentsMargins(12, 12, 12, 12)
-        helper_group_layout.setSpacing(10)
+        helper_panel = QWidget()
+        helper_panel_layout = QVBoxLayout(helper_panel)
+        helper_panel_layout.setContentsMargins(0, 0, 0, 0)
+        helper_panel_layout.setSpacing(12)
+
+        help_tabs = QTabWidget()
+        help_tabs.setDocumentMode(True)
+        helper_panel_layout.addWidget(help_tabs, 1)
+
+        guide_tab = QWidget()
+        guide_layout = QVBoxLayout(guide_tab)
+        guide_layout.setContentsMargins(12, 12, 12, 12)
+        guide_layout.setSpacing(12)
 
         helper_intro = QLabel(
             "Pick the statement that matches where editors maintain this value. Namespace = data folder, Source = how the app "
             "fetches it when generating a PDF."
         )
         helper_intro.setWordWrap(True)
-        helper_group_layout.addWidget(helper_intro)
+        guide_layout.addWidget(helper_intro)
 
         helper_scroll = QScrollArea()
         helper_scroll.setWidgetResizable(True)
         helper_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        helper_scroll.setMinimumHeight(320)
-        helper_group_layout.addWidget(helper_scroll, 1)
+        guide_layout.addWidget(helper_scroll, 1)
 
         helper_container = QWidget()
         helper_scroll.setWidget(helper_container)
         helper_cards_layout = QVBoxLayout(helper_container)
         helper_cards_layout.setContentsMargins(0, 0, 0, 0)
-        helper_cards_layout.setSpacing(8)
+        helper_cards_layout.setSpacing(12)
 
         self.helper_button_group = QButtonGroup(self)
         self.helper_button_group.setExclusive(True)
 
-        for idx, entry in enumerate(_NAMESPACE_GUIDE):
-            container = QWidget()
-            container_layout = QVBoxLayout(container)
-            container_layout.setContentsMargins(0, 0, 0, 0)
-            container_layout.setSpacing(4)
+        for entry in _NAMESPACE_GUIDE:
+            card = QWidget()
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(0, 0, 0, 0)
+            card_layout.setSpacing(6)
 
             option_button = QRadioButton(entry["title"])
             option_button.setToolTip(entry["description"])
+            option_button.setWordWrap(True)
             option_font = option_button.font()
             option_font.setBold(True)
             option_button.setFont(option_font)
-            container_layout.addWidget(option_button)
+            card_layout.addWidget(option_button)
 
             option_desc = QLabel(entry["description"])
             option_desc.setWordWrap(True)
             option_desc.setIndent(18)
-            container_layout.addWidget(option_desc)
+            card_layout.addWidget(option_desc)
 
-            helper_cards_layout.addWidget(container)
-            if idx != len(_NAMESPACE_GUIDE) - 1:
-                helper_cards_layout.addSpacing(6)
+            helper_cards_layout.addWidget(card)
             self.helper_button_group.addButton(option_button)
             option_button.toggled.connect(
                 lambda checked, ns=entry["namespace"], src=entry["source"]: self._on_helper_choice(ns, src, checked)
@@ -646,29 +653,23 @@ class BindingWizard(QWizard):
 
         helper_cards_layout.addStretch(1)
 
-        helper_group_layout.addSpacing(4)
-        self.suggestion_label = QLabel()
-        self.suggestion_label.setWordWrap(True)
-        self.suggestion_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        helper_group_layout.addWidget(self.suggestion_label)
+        help_tabs.addTab(guide_tab, "Namespace guide")
 
-        helper_panel = QWidget()
-        helper_panel_layout = QVBoxLayout(helper_panel)
-        helper_panel_layout.setContentsMargins(0, 0, 0, 0)
-        helper_panel_layout.setSpacing(0)
-        helper_panel_layout.addWidget(self.helper_group)
-        helper_panel_layout.addStretch(1)
-        splitter.addWidget(helper_panel)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 4)
-        splitter.setSizes([420, 540])
+        basics_tab = QWidget()
+        basics_layout = QVBoxLayout(basics_tab)
+        basics_layout.setContentsMargins(0, 0, 0, 0)
+        basics_layout.setSpacing(0)
 
-        intro_layout.addSpacing(12)
+        basics_scroll = QScrollArea()
+        basics_scroll.setWidgetResizable(True)
+        basics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        basics_layout.addWidget(basics_scroll)
 
-        self.binding_help_group = QGroupBox("How bindings are built")
-        binding_help_layout = QVBoxLayout(self.binding_help_group)
-        binding_help_layout.setContentsMargins(12, 12, 12, 12)
-        binding_help_layout.setSpacing(10)
+        basics_container = QWidget()
+        basics_scroll.setWidget(basics_container)
+        basics_content_layout = QVBoxLayout(basics_container)
+        basics_content_layout.setContentsMargins(12, 12, 12, 12)
+        basics_content_layout.setSpacing(12)
 
         namespace_help = QLabel(
             "<b>Namespace</b>: Think of this as the folder in the incident data tree. Choose where someone keeps the value — "
@@ -677,7 +678,7 @@ class BindingWizard(QWizard):
         )
         namespace_help.setWordWrap(True)
         namespace_help.setTextFormat(Qt.RichText)
-        binding_help_layout.addWidget(namespace_help)
+        basics_content_layout.addWidget(namespace_help)
 
         source_help = QLabel(
             "<b>Source</b>: Explains how the app fills the value when a PDF is generated. Match the namespace to read directly "
@@ -686,7 +687,7 @@ class BindingWizard(QWizard):
         )
         source_help.setWordWrap(True)
         source_help.setTextFormat(Qt.RichText)
-        binding_help_layout.addWidget(source_help)
+        basics_content_layout.addWidget(source_help)
 
         binding_recipe_help = QLabel(
             "<b>Together</b>: The binding key starts with the namespace and the wizard cleans the PDF label for the rest. "
@@ -694,7 +695,7 @@ class BindingWizard(QWizard):
         )
         binding_recipe_help.setWordWrap(True)
         binding_recipe_help.setTextFormat(Qt.RichText)
-        binding_help_layout.addWidget(binding_recipe_help)
+        basics_content_layout.addWidget(binding_recipe_help)
 
         examples_help = QLabel(
             "<b>Examples</b>:<ul>"
@@ -706,7 +707,7 @@ class BindingWizard(QWizard):
         )
         examples_help.setWordWrap(True)
         examples_help.setTextFormat(Qt.RichText)
-        binding_help_layout.addWidget(examples_help)
+        basics_content_layout.addWidget(examples_help)
 
         binding_payload_help = QLabel(
             "When you finish we store the binding key, the source, your description, plus any synonyms and patterns so other "
@@ -714,13 +715,31 @@ class BindingWizard(QWizard):
         )
         binding_payload_help.setWordWrap(True)
         binding_payload_help.setTextFormat(Qt.RichText)
-        binding_help_layout.addWidget(binding_payload_help)
+        basics_content_layout.addWidget(binding_payload_help)
 
-        intro_layout.addWidget(self.binding_help_group)
+        reminder_help = QLabel(
+            "Need a refresher later? The wizard keeps the namespace + source breakdown below the form fields and previews the binding payload on the next step."
+        )
+        reminder_help.setWordWrap(True)
+        basics_content_layout.addWidget(reminder_help)
+        basics_content_layout.addStretch(1)
+
+        help_tabs.addTab(basics_tab, "Binding basics")
+
+        self.suggestion_label = QLabel()
+        self.suggestion_label.setWordWrap(True)
+        self.suggestion_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        helper_panel_layout.addWidget(self.suggestion_label)
+
+        splitter.addWidget(helper_panel)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 4)
+        splitter.setSizes([420, 540])
+
+        intro_layout.addSpacing(8)
 
         intro_hint = QLabel(
-            "Need a quick reminder? Namespace is the first part of the key, source explains the data pipeline, and "
-            "the wizard shows every piece in the preview before you save."
+            "Namespace is the first part of the key, source explains the data pipeline, and the preview shows every piece before you save."
         )
         intro_hint.setWordWrap(True)
         intro_layout.addWidget(intro_hint)
