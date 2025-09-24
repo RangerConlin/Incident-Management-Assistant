@@ -78,6 +78,19 @@ def test_repository_apply_template_sets_hierarchy(data_dir: Path) -> None:
     assert division_alpha.parent_unit_id == branch.id
 
 
+def test_air_operations_template_creates_groups(data_dir: Path) -> None:
+    repo = ICS203Repository("air")
+    repo.apply_batch(render_template("Operations → Air Operations Branch", "air"))
+    units = {unit.name: unit for unit in repo.list_units()}
+    assert "Air Tactical Group" in units
+    assert "Air Support Group" in units
+    air_branch = units["Air Operations Branch"]
+    assert units["Air Tactical Group"].parent_unit_id == air_branch.id
+    assert units["Air Support Group"].parent_unit_id == air_branch.id
+    titles = {position.title for position in repo.list_all_positions()}
+    assert "Helibase Manager" in titles
+
+
 def test_controller_export_snapshot(data_dir: Path) -> None:
     controller = ICS203Controller("exp")
     ops_id = controller.add_unit({"unit_type": "Section", "name": "Operations", "sort_order": 1})
@@ -115,6 +128,19 @@ def test_master_personnel_search_uses_master_db(data_dir: Path) -> None:
     assert results
     assert results[0]["name"] == "Alex Rivera"
     assert results[0]["agency"] == "County SAR"
+
+
+def test_command_staff_template_sets_command_positions(data_dir: Path) -> None:
+    repo = ICS203Repository("command")
+    repo.apply_batch(render_template("Command Staff", "command"))
+    units = {unit.name: unit for unit in repo.list_units()}
+    assert "Command" in units
+    command_unit_id = units["Command"].id
+    positions = repo.list_all_positions()
+    titles = {position.title for position in positions}
+    assert {"Incident Commander", "Public Information Officer"}.issubset(titles)
+    agency_rep = next(p for p in positions if p.title == "Agency Representative")
+    assert agency_rep.unit_id == command_unit_id
 
 
 def test_panel_buttons_disabled_until_load(qt_app: QApplication, data_dir: Path) -> None:
