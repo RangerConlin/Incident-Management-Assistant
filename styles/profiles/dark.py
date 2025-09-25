@@ -31,9 +31,11 @@ PALETTE: Dict[str, str] = {
     # Semantic window surfaces used by the legacy styling helpers.
     "bg_window":    "#0F1115",
     "bg_panel":     "#151821",
+    "menu_bar_bg":  "#1313AB",
     "bg_raised":    "#1B1F2A",
     "fg_primary":   "#ECEFF4",
     "fg_muted":     "#A4ADBA",
+    "dock_tab_bg":  "#AF0909",
 
     # Secondary accent and message tones for reports and charts.
     "accent_alt": "#4CC38A",
@@ -51,9 +53,11 @@ PALETTE: Dict[str, str] = {
 SURFACE: Dict[str, str] = {
     "bg_window": PALETTE["bg_window"],
     "bg_panel": PALETTE["bg_panel"],
+    "menu_bar_bg": PALETTE["menu_bar_bg"],
     "bg_raised": PALETTE["bg_raised"],
     "fg_primary": PALETTE["fg_primary"],
     "fg_muted": PALETTE["fg_muted"],
+    "dock_tab_bg": PALETTE["dock_tab_bg"],
     "accent": PALETTE["accent"],
     "accent_alt": PALETTE["accent_alt"],
     "warning": PALETTE["warning"],

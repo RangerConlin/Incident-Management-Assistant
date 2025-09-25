@@ -2,13 +2,14 @@ from textwrap import dedent
 
 
 def global_qss(tokens: dict) -> str:
+    menu_bar_bg = tokens.get("menu_bar_bg", tokens.get("bg_panel"))
     return dedent(f"""
         QMainWindow {{
             background: {tokens['bg_window']};
             color: {tokens['fg_primary']};
         }}
         QMenuBar {{
-            background: {tokens['bg_panel']};
+            background: {menu_bar_bg};
             color: {tokens['fg_primary']};
             border-bottom: 1px solid {tokens['divider']};
         }}
@@ -41,14 +42,14 @@ def global_qss(tokens: dict) -> str:
             border: 1px solid {tokens['divider']};
         }}
         QDockWidget::title {{
-            background: {tokens['bg_raised']};
+            background: {tokens['dock_tab_bg']};
             color: {tokens['fg_primary']};
             padding: 4px 8px;
         }}
         QPushButton,
         QToolButton,
         QCommandLinkButton {{
-            background: {tokens['ctrl_bg']};
+            background: {tokens['btn_bg']};
             color: {tokens['fg_primary']};
             border: 1px solid {tokens['ctrl_border']};
             border-radius: 4px;
@@ -57,28 +58,29 @@ def global_qss(tokens: dict) -> str:
         QPushButton:hover,
         QToolButton:hover,
         QCommandLinkButton:hover {{
-            background: {tokens['ctrl_hover']};
+            background: {tokens['btn_hover']};
         }}
         QPushButton:pressed,
         QToolButton:pressed,
         QCommandLinkButton:pressed {{
-            background: {tokens['bg_raised']};
+            background: {tokens['btn_pressed']};
         }}
         QPushButton:checked,
         QToolButton:checked,
         QCommandLinkButton:checked {{
-            background: {tokens['bg_raised']};
+            background: {tokens['btn_checked']};
             border-color: {tokens['ctrl_focus']};
         }}
         QPushButton:focus,
         QToolButton:focus,
         QCommandLinkButton:focus {{
+            baqckground: {tokens['btn_focus']};
             border: 1px solid {tokens['ctrl_focus']};
         }}
         QPushButton:disabled,
         QToolButton:disabled,
         QCommandLinkButton:disabled {{
-            background: {tokens['bg_panel']};
+            background: {tokens['btn_disabled']};
             color: {tokens['fg_muted']};
             border-color: {tokens['divider']};
         }}
