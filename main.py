@@ -370,6 +370,20 @@ class MainWindow(QMainWindow):
         menu.addAction(act)
         return act
 
+    def _set_theme_from_menu(self, theme_name: str, combo_index: int) -> None:
+        """Persist theme selection from the View → Theme menu."""
+        bridge = getattr(self, "settings_bridge", None)
+        if bridge is None:
+            return
+        try:
+            bridge.setSetting("themeIndex", combo_index)
+        except Exception:
+            pass
+        try:
+            bridge.setSetting("themeName", theme_name)
+        except Exception:
+            pass
+
     def _init_profiles_menu(self, profiles_menu: QMenu) -> None:
         """Populate the Profiles submenu with available profiles."""
         group = QActionGroup(self)
@@ -512,17 +526,30 @@ class MainWindow(QMainWindow):
         act_dark = QAction("Dark", self)
         act_dark.setCheckable(True)
         theme_group.addAction(act_dark)
+
+        def _update_theme_menu(theme_name: str) -> None:
+            name = (theme_name or "light").lower()
+            act_light.setChecked(name == "light")
+            act_dark.setChecked(name == "dark")
+
         try:
-            current_theme = self.theme_manager.theme if self.theme_manager else 'light'
+            current_theme = self.theme_manager.theme if self.theme_manager else "light"
         except Exception:
-            current_theme = 'light'
-        if current_theme == "light":
-            act_light.setChecked(True)
-        else:
-            act_dark.setChecked(True)
+            current_theme = "light"
+        _update_theme_menu(current_theme)
+
         # Persist selection via settings bridge which drives ThemeManager
-        act_light.triggered.connect(lambda: self.settings_bridge.setSetting('themeName', 'light'))
-        act_dark.triggered.connect(lambda: self.settings_bridge.setSetting('themeName', 'dark'))
+        act_light.triggered.connect(lambda: self._set_theme_from_menu("light", 2))
+        act_dark.triggered.connect(lambda: self._set_theme_from_menu("dark", 1))
+
+        if hasattr(self.settings_bridge, "settingChanged"):
+            try:
+                self.settings_bridge.settingChanged.connect(
+                    lambda key, value: _update_theme_menu(str(value)) if key == "themeName" else None
+                )
+            except Exception:
+                pass
+
         theme_menu.addAction(act_light)
         theme_menu.addAction(act_dark)
         if get_theme_editor_panel is not None:
