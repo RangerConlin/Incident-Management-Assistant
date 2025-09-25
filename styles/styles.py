@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, Literal
+from typing import Callable, Dict, Literal, cast
 
 try:  # pragma: no cover - allow running without Qt libraries
     from PySide6.QtCore import QObject, Signal
@@ -81,7 +81,13 @@ except ImportError:  # pragma: no cover
         def setPalette(self, *_args, **_kwargs) -> None:
             pass
 
-THEME_NAME: Literal["light", "dark"] = "light"
+from styles.profiles import get_profile_name, load_profile
+
+_initial_profile = get_profile_name()
+if _initial_profile not in {"light", "dark"}:
+    _initial_profile = "light"
+
+THEME_NAME: Literal["light", "dark"] = cast(Literal["light", "dark"], _initial_profile)
 
 
 class StyleBus(QObject):
@@ -93,74 +99,58 @@ class StyleBus(QObject):
 style_bus = StyleBus()
 
 
-_LIGHT_PALETTE: Dict[str, QColor] = {
-    "bg": QColor("#f5f5f5"),
-    "fg": QColor("#000000"),
-    "muted": QColor("#666666"),
-    "accent": QColor("#003a67"),
-    "success": QColor("#388e3c"),
-    "warning": QColor("#ffa000"),
-    "error": QColor("#d32f2f"),
+def _ensure_qcolor(value: str | tuple[int, int, int] | QColor) -> QColor:
+    if isinstance(value, QColor):
+        return value
+    if isinstance(value, (tuple, list)):
+        r, g, b = (list(value) + [0, 0, 0])[:3]
+        return QColor(int(r), int(g), int(b))
+    return QColor(str(value))
+
+
+def _build_palette(profile_module) -> Dict[str, QColor]:
+    data = getattr(profile_module, "PALETTE", {})
+    return {key: _ensure_qcolor(value) for key, value in data.items()}
+
+
+def _build_status(profile_module, attribute: str) -> Dict[str, Dict[str, QBrush]]:
+    data = getattr(profile_module, attribute, {})
+    mapping: Dict[str, Dict[str, QBrush]] = {}
+    for key, colors in data.items():
+        bg = _ensure_qcolor(colors.get("bg", "#000000"))
+        fg = _ensure_qcolor(colors.get("fg", "#ffffff"))
+        mapping[key] = {"bg": QBrush(bg), "fg": QBrush(fg)}
+    return mapping
+
+
+def _build_team_types(profile_module) -> Dict[str, QColor]:
+    data = getattr(profile_module, "TEAM_TYPE_COLORS", {})
+    return {key: _ensure_qcolor(value) for key, value in data.items()}
+
+
+_LIGHT_PROFILE = load_profile("light")
+_DARK_PROFILE = load_profile("dark")
+
+_LIGHT_PALETTE: Dict[str, QColor] = _build_palette(_LIGHT_PROFILE)
+_DARK_PALETTE: Dict[str, QColor] = _build_palette(_DARK_PROFILE)
+
+_TASK_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "TASK_STATUS")
+_TASK_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "TASK_STATUS")
+
+_TEAM_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "TEAM_STATUS")
+_TEAM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "TEAM_STATUS")
+
+_light_team_types = _build_team_types(_LIGHT_PROFILE)
+_dark_team_types = _build_team_types(_DARK_PROFILE)
+if not _dark_team_types:
+    _dark_team_types = _light_team_types
+
+_TEAM_TYPE_COLOR_TABLE: Dict[str, Dict[str, QColor]] = {
+    "light": _light_team_types,
+    "dark": _dark_team_types,
 }
 
-_DARK_PALETTE: Dict[str, QColor] = {
-    "bg": QColor("#2c2c2c"),
-    "fg": QColor("#B4B4B4"),
-    "muted": QColor("#888888"),
-    "accent": QColor("#90caf9"),
-    "success": QColor("#4caf50"),
-    "warning": QColor("#ffb300"),
-    "error": QColor("#ef5350"),
-}
-
-_TASK_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = {
-    "created": {"bg": QBrush(QColor("#6e7b8b")), "fg": QBrush(QColor("#333333"))},
-    "planned": {"bg": QBrush(QColor("#ce93d8")), "fg": QBrush(QColor("#333333"))},
-    "assigned": {"bg": QBrush(QColor("#ffeb3b")), "fg": QBrush(QColor("#333333"))},
-    "in progress": {"bg": QBrush(QColor("#17c4e8")), "fg": QBrush(QColor("#333333"))},
-    "complete": {"bg": QBrush(QColor("#386a3c")), "fg": QBrush(QColor("#333333"))},
-    "cancelled": {"bg": QBrush(QColor("#d32f2f")), "fg": QBrush(QColor("#333333"))},
-}
-
-_TASK_STATUS_DARK: Dict[str, Dict[str, QBrush]] = {
-    k: {"bg": v["bg"], "fg": QBrush(QColor("#e0e0e0"))} for k, v in _TASK_STATUS_LIGHT.items()
-}
-
-_TEAM_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = {
-    "aol": {"bg": QBrush(QColor("#085ec7")), "fg": QBrush(QColor("#e0e0e0"))},
-    "arrival": {"bg": QBrush(QColor("#17c4eb")), "fg": QBrush(QColor("#333333"))},
-    "assigned": {"bg": QBrush(QColor("#ffeb3b")), "fg": QBrush(QColor("#333333"))},
-    "available": {"bg": QBrush(QColor("#388e3c")), "fg": QBrush(QColor("#ffffff"))},
-    "break": {"bg": QBrush(QColor("#9c27b0")), "fg": QBrush(QColor("#333333"))},
-    "briefed": {"bg": QBrush(QColor("#ffeb3b")), "fg": QBrush(QColor("#333333"))},
-    "crew rest": {"bg": QBrush(QColor("#9c27b0")), "fg": QBrush(QColor("#333333"))},
-    "enroute": {"bg": QBrush(QColor("#ffeb3b")), "fg": QBrush(QColor("#333333"))},
-    "out of service": {"bg": QBrush(QColor("#d32f2f")), "fg": QBrush(QColor("#333333"))},
-    "report writing": {"bg": QBrush(QColor("#ce93d8")), "fg": QBrush(QColor("#333333"))},
-    "returning": {"bg": QBrush(QColor("#0288d1")), "fg": QBrush(QColor("#e1e1e1"))},
-    "tol": {"bg": QBrush(QColor("#085ec7")), "fg": QBrush(QColor("#e0e0e0"))},
-    "wheels down": {"bg": QBrush(QColor("#0288d1")), "fg": QBrush(QColor("#e1e1e1"))},
-    "post incident": {"bg": QBrush(QColor("#ce93d8")), "fg": QBrush(QColor("#333333"))},
-    "find": {"bg": QBrush(QColor("#ffa000")), "fg": QBrush(QColor("#333333"))},
-    "complete": {"bg": QBrush(QColor("#386a3c")), "fg": QBrush(QColor("#333333"))},
-}
-
-_TEAM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = {
-    k: {"bg": v["bg"], "fg": QBrush(QColor("#e0e0e0"))} for k, v in _TEAM_STATUS_LIGHT.items()
-}
-
-TEAM_TYPE_COLORS: Dict[str, QColor] = {
-    "GT": QColor("#228b22"),
-    "UDF": QColor("#ffeb3b"),
-    "LSAR": QColor("#228b22"),
-    "DF": QColor("#ffeb3b"),
-    "GT/UAS": QColor("#00b987"),
-    "UDF/UAS": QColor("#ffd54f"),
-    "UAS": QColor("#00cec9"),
-    "AIR": QColor("#00a8ff"),
-    "K9": QColor("#8b0000"),
-    "UTIL": QColor("#7a7a7a"),
-}
+TEAM_TYPE_COLORS: Dict[str, QColor] = _TEAM_TYPE_COLOR_TABLE.get(THEME_NAME, _light_team_types)
 
 
 def get_palette() -> Dict[str, QColor]:
@@ -186,13 +176,14 @@ def apply_app_palette(app: QApplication) -> None:
 
 def set_theme(name: str) -> None:
     """Set the current theme and emit change signal."""
-    global THEME_NAME
+    global THEME_NAME, TEAM_TYPE_COLORS
     name = name.lower()
     if name not in {"light", "dark"}:
         return
     if name == THEME_NAME:
         return
     THEME_NAME = name
+    TEAM_TYPE_COLORS = _TEAM_TYPE_COLOR_TABLE.get(name, _light_team_types)
     style_bus.THEME_CHANGED.emit(name)
 
 
