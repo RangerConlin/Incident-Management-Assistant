@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal, Slot, Property
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
 
-from styles.palette import THEMES
+from styles.profiles import builtin_theme_tokens
 
 
 class ThemeManager(QObject):
@@ -13,9 +13,12 @@ class ThemeManager(QObject):
     def __init__(self, app: QApplication, initial_theme: str = "light"):
         super().__init__()
         self._app = app
-        self._builtin_themes: Dict[str, Dict[str, str]] = dict(THEMES)
+        self._builtin_themes: Dict[str, Dict[str, str]] = builtin_theme_tokens()
+        if not self._builtin_themes:
+            self._builtin_themes = {"light": {}}
+        self._default_theme = next(iter(self._builtin_themes))
         self._custom_tokens: Dict[str, Dict[str, str]] = {}
-        self._theme = initial_theme if initial_theme in self._builtin_themes else "light"
+        self._theme = initial_theme if initial_theme in self._builtin_themes else self._default_theme
         self.apply_palette()
 
     # Expose as Qt Property if needed
@@ -43,8 +46,8 @@ class ThemeManager(QObject):
     def tokens(self) -> Dict[str, str]:
         if self._theme.startswith("custom:" ):
             key = self._theme.split("custom:", 1)[1]
-            return self._custom_tokens.get(key, self._builtin_themes.get("light", {}))
-        return self._builtin_themes.get(self._theme, self._builtin_themes.get("light", {}))
+            return self._custom_tokens.get(key, self._builtin_themes.get(self._default_theme, {}))
+        return self._builtin_themes.get(self._theme, self._builtin_themes.get(self._default_theme, {}))
 
     def apply_palette(self):
         """Apply base QWidget palette; QML reads tokens via ThemeBridge."""
@@ -71,7 +74,7 @@ class ThemeManager(QObject):
         theme_id = (theme_id or "").strip().lower()
         if not theme_id:
             return
-        base_tokens = dict(self._builtin_themes.get(base_theme or "light", self._builtin_themes.get("light", {})))
+        base_tokens = dict(self._builtin_themes.get(base_theme or self._default_theme, self._builtin_themes.get(self._default_theme, {})))
         base_tokens.update(tokens)
         self._custom_tokens[theme_id] = base_tokens
 

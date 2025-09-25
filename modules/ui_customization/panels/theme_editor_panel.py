@@ -20,7 +20,10 @@ from PySide6.QtWidgets import (
     QInputDialog,
 )
 
-from styles.palette import THEMES
+from styles.profiles import builtin_theme_tokens
+
+
+_BUILTIN_THEMES = builtin_theme_tokens() or {"light": {}}
 
 from ..models import ThemeProfile
 from ..repository import UICustomizationRepository
@@ -58,7 +61,8 @@ class ThemeEditorPanel(QWidget):
 
         base_row = QHBoxLayout()
         base_row.addWidget(QLabel("Base Theme:"))
-        self._base_label = QLabel("light", self)
+        default_theme = next(iter(_BUILTIN_THEMES))
+        self._base_label = QLabel(default_theme, self)
         base_row.addWidget(self._base_label)
         editor_col.addLayout(base_row)
 
@@ -222,13 +226,13 @@ class ThemeEditorPanel(QWidget):
             self,
             "Base Theme",
             "Start from theme:",
-            list(THEMES.keys()),
+            list(_BUILTIN_THEMES.keys()),
             0,
             False,
         )
         if not ok_base:
             return
-        tokens = dict(THEMES.get(base_theme, {}))
+        tokens = dict(_BUILTIN_THEMES.get(base_theme, {}))
         theme = ThemeProfile(id="", name=str(name).strip(), base_theme=str(base_theme), description="", tokens=tokens)
         theme = self._repo.upsert_theme(theme)
         self.refresh()

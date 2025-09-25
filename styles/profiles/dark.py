@@ -1,12 +1,5 @@
-"""Dark theme color library.
-
-The dark profile mirrors the structure of :mod:`styles.profiles.light` while
-providing darker surface values and higher contrast foreground selections.
-"""
 from __future__ import annotations
-
 from typing import Dict
-
 
 NAMED_COLORS: Dict[str, str] = {
     # Core hyperlink and focus colour tuned for dark backgrounds.
@@ -24,7 +17,6 @@ NAMED_COLORS: Dict[str, str] = {
     # Strong error colour for blocking states.
     "DANGER_RED": "#e5484d",
 }
-
 
 PALETTE: Dict[str, str] = {
     # Core surfaces/foregrounds consumed by the Qt palette helpers.
@@ -56,7 +48,6 @@ PALETTE: Dict[str, str] = {
     "divider":      "#242A36",
 }
 
-
 SURFACE: Dict[str, str] = {
     "bg_window": PALETTE["bg_window"],
     "bg_panel": PALETTE["bg_panel"],
@@ -74,7 +65,6 @@ SURFACE: Dict[str, str] = {
     "ctrl_focus": PALETTE["ctrl_focus"],
     "divider": PALETTE["divider"],
 }
-
 
 TEAM_STATUS: Dict[str, Dict[str, str]] = {
     "aol":              {"bg": "#0b3d75", "fg": "#f5f5f5"},
@@ -125,4 +115,3 @@ __all__ = [
     "TASK_STATUS",
     "TEAM_TYPE_COLORS",
 ]
-

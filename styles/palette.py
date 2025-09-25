@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from styles.profiles import load_profile
+from styles.profiles import load_profile, profile_tokens
 
 
 _LIGHT_PROFILE = load_profile("light")
 _DARK_PROFILE = load_profile("dark")
 
 
-LIGHT = dict(getattr(_LIGHT_PROFILE, "SURFACE", {}))
-DARK = dict(getattr(_DARK_PROFILE, "SURFACE", {}))
+LIGHT = profile_tokens("light")
+DARK = profile_tokens("dark")
 
 TEAM_STATUS = dict(getattr(_LIGHT_PROFILE, "TEAM_STATUS_REFERENCE", {}))
 TASK_STATUS = dict(getattr(_LIGHT_PROFILE, "TASK_STATUS_REFERENCE", {}))

@@ -1,15 +1,5 @@
-"""Light theme color library.
-
-This profile consolidates every color token used by the application for the
-light appearance.  It merges the legacy palette definitions from
-``styles/styles.py`` with the semantic groupings that used to live in
-``styles/palette.py`` so downstream modules can source every required color
-from a single location.
-"""
 from __future__ import annotations
-
 from typing import Dict
-
 
 NAMED_COLORS: Dict[str, str] = {
     # Signature brand blue used for hyperlinks and key interactive affordances.
@@ -28,7 +18,6 @@ NAMED_COLORS: Dict[str, str] = {
     "DANGER_RED": "#d64545",
 }
 
-
 # Unified palette used by Qt widgets and adapters.  These colours combine the
 # historical palette module entries (bg_window/bg_panel/etc.) with the surface
 # colours required by ``styles.styles`` (bg/fg/muted/...).
@@ -44,8 +33,8 @@ PALETTE: Dict[str, str] = {
 
     # Window specific surfaces from the semantic palette for legacy widgets.
     "bg_window":    "#d1d1d1",
-    "bg_panel":     "#1313AB",
-    "bg_raised":    "#74FF0A",
+    "bg_panel":     "#9E9E9E",
+    "bg_raised":    "#686868",
     "fg_primary":   "#0F0F0F",
     "fg_muted":     "#5A5F6A",
 
@@ -55,13 +44,12 @@ PALETTE: Dict[str, str] = {
     "info":         "#338EDA",
 
     # Control states for button chrome, hover rings, focus outlines, and dividers.
-    "ctrl_bg":      "#A70C74",
+    "ctrl_bg":      "#E9E9E9",
     "ctrl_border":  "#D5D8DE",
-    "ctrl_hover":   "#D6C614",
+    "ctrl_hover":   "#858585",
     "ctrl_focus":   "#2F80ED",
-    "divider":      "#F23333",
+    "divider":      "#000000",
 }
-
 
 # Additional semantic groupings from the original palette module are exposed so
 # reporting or theming tools can continue to reference them.
@@ -82,7 +70,6 @@ SURFACE: Dict[str, str] = {
     "ctrl_focus": PALETTE["ctrl_focus"],
     "divider": PALETTE["divider"],
 }
-
 
 # Team status colours for Qt table rows and other widgets.  These map the
 # lowercase workflow statuses used throughout the operations module.
@@ -126,7 +113,6 @@ TEAM_TYPE_COLORS: Dict[str, str] = {
     "K9": "#8b0000",
     "UTIL": "#7a7a7a",
 }
-
 
 __all__ = [
     "NAMED_COLORS",
