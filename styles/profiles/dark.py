@@ -3,19 +3,19 @@ from typing import Dict
 
 NAMED_COLORS: Dict[str, str] = {
     # Core hyperlink and focus colour tuned for dark backgrounds.
-    "PRIMARY_BLUE": "#58a6ff",
+    "PRIMARY_BLUE":  "#58a6ff",
     # Shared accent orange for complementary highlights.
     "ACCENT_ORANGE": "#d29922",
     # Muted descriptive text for labels or placeholder copy.
-    "MUTED_TEXT": "#8b949e",
+    "MUTED_TEXT":    "#8b949e",
     # Positive confirmation and health indicators.
     "SUCCESS_GREEN": "#3fb950",
     # Alert tone for risky operations that should pop on dark UI.
-    "WARNING_RED": "#f0883e",
+    "WARNING_RED":   "#f0883e",
     # Soft blue for neutral information and assistive hints.
-    "INFO_BLUE": "#5eb0ef",
+    "INFO_BLUE":     "#5eb0ef",
     # Strong error colour for blocking states.
-    "DANGER_RED": "#e5484d",
+    "DANGER_RED":    "#e5484d",
 }
 
 PALETTE: Dict[str, str] = {
