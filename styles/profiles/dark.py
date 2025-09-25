@@ -20,13 +20,13 @@ NAMED_COLORS: Dict[str, str] = {
 
 PALETTE: Dict[str, str] = {
     # Core surfaces/foregrounds consumed by the Qt palette helpers.
-    "bg":       "#2c2c2c",
-    "fg":       "#b4b4b4",
-    "muted":    "#888888",
-    "accent":   "#90caf9",
-    "success":  "#4caf50",
-    "warning":  "#ffb300",
-    "error":    "#ef5350",
+    "bg":           "#2c2c2c",
+    "fg":           "#b4b4b4",
+    "muted":        "#888888",
+    "accent":       "#90caf9",
+    "success":      "#4caf50",
+    "warning":      "#ffb300",
+    "error":        "#ef5350",
 
     # Semantic window surfaces used by the legacy styling helpers.
     "bg_window":    "#0F1115",
@@ -38,9 +38,9 @@ PALETTE: Dict[str, str] = {
     "dock_tab_bg":  "#AF0909",
 
     # Secondary accent and message tones for reports and charts.
-    "accent_alt": "#4CC38A",
-    "danger":     "#E5484D",
-    "info":       "#5EB0EF",
+    "accent_alt":   "#4CC38A",
+    "danger":       "#E5484D",
+    "info":         "#5EB0EF",
 
     # Control chrome states for hover/focus feedback and separators.
     "ctrl_bg":      "#1B1F2A",
@@ -48,9 +48,18 @@ PALETTE: Dict[str, str] = {
     "ctrl_hover":   "#212737",
     "ctrl_focus":   "#5CA3FF",
     "divider":      "#242A36",
+
+    # Buttons
+    "btn_bg":       "#E9E9E9",
+    "btn_border":   "#D5D8DE",
+    "btn_hover":    "#858585",
+    "btn_focus":    "#2F80ED",
+    "btn_disabled": "#000000",
+    "btn_checked":  "#2F80ED",
 }
 
 SURFACE: Dict[str, str] = {
+    # Window specific surfaces from the semantic palette for legacy widgets.
     "bg_window": PALETTE["bg_window"],
     "bg_panel": PALETTE["bg_panel"],
     "menu_bar_bg": PALETTE["menu_bar_bg"],
@@ -58,16 +67,25 @@ SURFACE: Dict[str, str] = {
     "fg_primary": PALETTE["fg_primary"],
     "fg_muted": PALETTE["fg_muted"],
     "dock_tab_bg": PALETTE["dock_tab_bg"],
+    # Additional semantic accents used by reports and specialty panels.
     "accent": PALETTE["accent"],
     "accent_alt": PALETTE["accent_alt"],
     "warning": PALETTE["warning"],
     "danger": PALETTE["danger"],
     "info": PALETTE["info"],
+    # Control states for button chrome, hover rings, focus outlines, and dividers.
     "ctrl_bg": PALETTE["ctrl_bg"],
     "ctrl_border": PALETTE["ctrl_border"],
     "ctrl_hover": PALETTE["ctrl_hover"],
     "ctrl_focus": PALETTE["ctrl_focus"],
     "divider": PALETTE["divider"],
+    # Buttons
+    "btn_bg": PALETTE["btn_bg"],
+    "btn_border": PALETTE["btn_border"],
+    "btn_hover": PALETTE["btn_hover"],
+    "btn_focus": PALETTE["btn_focus"],
+    "btn_disabled": PALETTE["btn_disabled"],
+    "btn_checked": PALETTE["btn_checked"],
 }
 
 TEAM_STATUS: Dict[str, Dict[str, str]] = {
@@ -90,12 +108,12 @@ TEAM_STATUS: Dict[str, Dict[str, str]] = {
 }
 
 TASK_STATUS: Dict[str, Dict[str, str]] = {
-    "created":      {"bg": "#444c55", "fg": "#f5f5f5"},
-    "planned":      {"bg": "#6d5478", "fg": "#f5f5f5"},
-    "assigned":     {"bg": "#a88f1a", "fg": "#f5f5f5"},
-    "in progress":  {"bg": "#1f6088", "fg": "#f5f5f5"},
-    "complete":     {"bg": "#2f6d34", "fg": "#f5f5f5"},
-    "cancelled":    {"bg": "#8c2f2f", "fg": "#f5f5f5"},
+    "created":          {"bg": "#444c55", "fg": "#f5f5f5"},
+    "planned":          {"bg": "#6d5478", "fg": "#f5f5f5"},
+    "assigned":         {"bg": "#a88f1a", "fg": "#f5f5f5"},
+    "in progress":      {"bg": "#1f6088", "fg": "#f5f5f5"},
+    "complete":         {"bg": "#2f6d34", "fg": "#f5f5f5"},
+    "cancelled":        {"bg": "#8c2f2f", "fg": "#f5f5f5"},
 }
 
 TEAM_TYPE_COLORS: Dict[str, str] = {
