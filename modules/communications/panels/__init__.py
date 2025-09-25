@@ -10,8 +10,9 @@ from PySide6.QtWidgets import QLabel, QMessageBox, QVBoxLayout, QWidget
 
 from ..traffic_log import create_log_window
 from .ics205_window import ICS205Window
+from .canned_comm_entries_window import CannedCommEntriesWindow
 
-__all__ = ["MessageLogPanel", "ICS205Window"]
+__all__ = ["MessageLogPanel", "ICS205Window", "CannedCommEntriesWindow"]
 
 logger = logging.getLogger(__name__)
 

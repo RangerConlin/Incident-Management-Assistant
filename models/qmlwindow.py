@@ -54,16 +54,6 @@ def _window_model_map():
             """)
         ),
 
-        # Canned comm entries
-        "CannedCommEntriesWindow.qml": (
-            "CannedCommEntriesModel",
-            lambda: _make_model("""
-                SELECT id, title, category, message, notification_level, status_update, is_active
-                FROM canned_comm_entries
-                ORDER BY category COLLATE NOCASE, title COLLATE NOCASE;
-            """)
-        ),
-
         # Team types
         "TeamTypesWindow.qml": (
             "TeamTypesModel",
@@ -230,9 +220,11 @@ def open_comms_resources():
     win.exec()
 
 def open_canned_comm_entries():
-    path = os.path.abspath("qml/CannedCommEntriesWindow.qml")
-    win = QmlWindow(path, "Canned Communications Entries")
-    win.exec()
+    from modules.communications.panels.canned_comm_entries_window import (
+        open_canned_comm_entries_window,
+    )
+
+    return open_canned_comm_entries_window()
 
 def open_team_types():
     path = os.path.abspath("qml/TeamTypesWindow.qml")

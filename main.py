@@ -1045,7 +1045,25 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def open_edit_canned_comm_entries(self) -> None:
-        self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
+        from modules.communications.panels.canned_comm_entries_window import (
+            CannedCommEntriesWindow,
+        )
+
+        window = getattr(self, "_canned_comm_window", None)
+        if window is None or not isinstance(window, CannedCommEntriesWindow):
+            if not hasattr(self, "_catalog_bridge"):
+                self._catalog_bridge = CatalogBridge(db_path="data/master.db")
+            window = CannedCommEntriesWindow(
+                catalog_bridge=self._catalog_bridge,
+                parent=self,
+            )
+            window.setAttribute(Qt.WA_DeleteOnClose, True)
+            window.destroyed.connect(lambda: setattr(self, "_canned_comm_window", None))
+            self._canned_comm_window = window
+
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def open_edit_personnel(self) -> None:
         from ui.personnel import PersonnelInventoryWindow
@@ -1749,14 +1767,6 @@ class MainWindow(QMainWindow):
             ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
         except Exception:
             pass
-
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
 
         # Incident bridge (incident-scoped CRUD)
         try:
@@ -2480,20 +2490,6 @@ class MetricWidget(QWidget):
         ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
 
         base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
-
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
 
         # Inject per-window SQLite models for master catalog windows
         try:
