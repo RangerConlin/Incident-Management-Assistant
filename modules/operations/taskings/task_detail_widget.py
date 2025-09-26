@@ -1031,9 +1031,10 @@ class TaskDetailWindow(QWidget):
             log_layout.setContentsMargins(0, 0, 0, 0)
             self._log_tabs = QTabWidget(log_container)
             log_layout.addWidget(self._log_tabs)
-            # ICS-214
+            # ICS-214 (team-specific)
             ics214 = QWidget(self); ics_layout = QVBoxLayout(ics214); ics_layout.setContentsMargins(0, 0, 0, 0)
-            ics_bar = QHBoxLayout();
+            ics_bar = QHBoxLayout()
+            # Toolbar actions only; ICS-214 stream is always scoped to this task
             self._btn_214_refresh = QPushButton("Refresh")
             self._btn_214_export = QPushButton("Export 214")
             self._btn_214_edit = QPushButton("Edit")
@@ -1069,6 +1070,11 @@ class TaskDetailWindow(QWidget):
             self._tbl_teamlog.setModel(self._model_teamlog); self._tbl_teamlog.setSortingEnabled(True)
             teamlog_layout.addWidget(self._tbl_teamlog)
             self._log_tabs.addTab(teamlog, "Team Log")
+            # Default to ICS-214 sub-tab
+            try:
+                self._log_tabs.setCurrentIndex(0)
+            except Exception:
+                pass
             # Actions
             self._btn_tlog_refresh.clicked.connect(self._load_task_log)
             self._btn_tlog_export.clicked.connect(self._export_task_log)
@@ -1782,14 +1788,25 @@ class TaskDetailWindow(QWidget):
                     crit = (crit_widget.currentIndex() == 1)
             except Exception:
                 crit = False
-            from modules.operations.taskings.bridge import TaskingsBridge
-            ok = bool(TaskingsBridge().addIcs214Entry(text, crit))
+            inc, sid = self._get_ops_214_stream()
+            ok = False
+            if inc and sid:
+                try:
+                    from modules.ics214 import services
+                    from modules.ics214.schemas import EntryCreate
+                    from utils.state import AppState
+                    uid = AppState.get_active_user_id()
+                    services.add_entry(str(inc), str(sid), EntryCreate(text=text, critical_flag=bool(crit), actor_user_id=str(uid) if uid is not None else None))
+                    ok = True
+                    self._load_ics214()
+                except Exception:
+                    ok = False
             try:
                 from PySide6.QtWidgets import QMessageBox
                 if ok:
-                    QMessageBox.information(self, "ICS-214", "Added entry to Operations Unit Log.")
+                    QMessageBox.information(self, "ICS-214", "Added entry to Team log.")
                 else:
-                    QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure an active incident is selected.")
+                    QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure a team is selected and an active incident is set.")
             except Exception:
                 pass
         except Exception:
@@ -1806,14 +1823,25 @@ class TaskDetailWindow(QWidget):
             text = str(self._nar_model.item(r, 2).text() or "")
             crit_txt = str(self._nar_model.item(r, 5).text() or "No")
             crit = crit_txt.strip().lower() in ("yes", "1", "true")
-            from modules.operations.taskings.bridge import TaskingsBridge
-            ok = bool(TaskingsBridge().addIcs214Entry(text, crit))
+            inc, sid = self._get_ops_214_stream()
+            ok = False
+            if inc and sid:
+                try:
+                    from modules.ics214 import services
+                    from modules.ics214.schemas import EntryCreate
+                    from utils.state import AppState
+                    uid = AppState.get_active_user_id()
+                    services.add_entry(str(inc), str(sid), EntryCreate(text=text, critical_flag=bool(crit), actor_user_id=str(uid) if uid is not None else None))
+                    ok = True
+                    self._load_ics214()
+                except Exception:
+                    ok = False
             try:
                 from PySide6.QtWidgets import QMessageBox
                 if ok:
-                    QMessageBox.information(self, "ICS-214", "Added entry to Operations Unit Log.")
+                    QMessageBox.information(self, "ICS-214", "Added entry to Team log.")
                 else:
-                    QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure an active incident is selected.")
+                    QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure a team is selected and an active incident is set.")
             except Exception:
                 pass
         except Exception:
@@ -1896,17 +1924,22 @@ class TaskDetailWindow(QWidget):
             inc = incident_context.get_active_incident_id()
             if not inc:
                 return None, None
+            # Use task id to scope the ICS-214 stream
+            task_id = int(self._task_id)
             streams = services.list_streams(inc)
             stream = None
             for s in streams:
                 try:
-                    if getattr(s, "name", "") == "Operations Unit Log":
+                    sec = getattr(s, 'section', None) or ''
+                    name = getattr(s, 'name', '')
+                    if (f'"ref": "task:{int(task_id)}"' in str(sec)) or (name.strip() == f"Task {int(task_id)}"):
                         stream = s
                         break
                 except Exception:
                     continue
             if stream is None:
-                stream = services.create_stream(StreamCreate(incident_id=inc, name="Operations Unit Log", section="Operations"))
+                section = '{"category": "task", "ref": "task:%d", "label": "Task %d"}' % (int(task_id), int(task_id))
+                stream = services.create_stream(StreamCreate(incident_id=str(inc), name=f"Task {int(task_id)}", section=section, kind="task"))
             return inc, getattr(stream, "id", None)
         except Exception:
             return None, None

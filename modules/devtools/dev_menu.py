@@ -2,11 +2,13 @@
 
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QMessageBox
 
 from .panels.template_debug_panel import TemplateDebugPanel
 from .panels.profile_manager_panel import ProfileManagerPanel
 from .panels.form_library_manager import FormLibraryManager
+from .panels.dev_cert_catalog_editor import DevCertCatalogEditor
+from modules.personnel.services import cert_seeder
 
 
 def attach_dev_menu(main_window):
@@ -81,3 +83,36 @@ def attach_dev_menu(main_window):
 
     act_forms.triggered.connect(_open_forms)
     dev_menu.addAction(act_forms)
+
+    # Certification Catalog Editor (Developer-only)
+    act_cert_editor = QAction("Certification Catalog Editor", main_window)
+
+    def _open_cert_editor():
+        try:
+            panel = DevCertCatalogEditor(parent=main_window)
+        except Exception as e:
+            QMessageBox.critical(main_window, "Developer Tools", str(e))
+            return
+
+        dlg = QDialog(main_window)
+        dlg.setWindowTitle("Certification Catalog Editor")
+        dlg.setWindowModality(Qt.ApplicationModal)
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        v = QVBoxLayout(dlg)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.addWidget(panel)
+        dlg.resize(1000, 700)
+        dlg.exec()
+
+    act_cert_editor.triggered.connect(_open_cert_editor)
+    dev_menu.addAction(act_cert_editor)
+
+    # Rerun Catalog Seeder
+    act_seed = QAction("Rerun Catalog Seeder", main_window)
+
+    def _run_seed():
+        changed, msg = cert_seeder.sync()
+        QMessageBox.information(main_window, "Catalog Seeder", msg)
+
+    act_seed.triggered.connect(_run_seed)
+    dev_menu.addAction(act_seed)

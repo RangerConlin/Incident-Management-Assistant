@@ -919,12 +919,18 @@ def list_audit_logs(
             where.append("(action LIKE ? OR detail LIKE ?)")
             params.extend([f"%{search}%", f"%{search}%"])
         if task_id is not None:
+            # Match by explicit taskid column if present, but also include
+            # JSON payload fallbacks used by write_audit: either "task_id": N
+            # or {"panel": "task", "id": N}.
+            like_taskid = f"%\"task_id\": {int(task_id)}%"
+            like_panel_task = "%\"panel\": \"task\"%"
+            like_id = f"%\"id\": {int(task_id)}%"
             if "taskid" in cols:
-                where.append("taskid = ?")
-                params.append(int(task_id))
+                where.append("(taskid = ? OR detail LIKE ? OR (detail LIKE ? AND detail LIKE ?))")
+                params.extend([int(task_id), like_taskid, like_panel_task, like_id])
             else:
-                where.append("detail LIKE ?")
-                params.append(f"%\"task_id\": {int(task_id)}%")
+                where.append("(detail LIKE ? OR (detail LIKE ? AND detail LIKE ?))")
+                params.extend([like_taskid, like_panel_task, like_id])
         # Build ORDER BY using whitelisted columns only
         dir_sql = "ASC" if (str(sort_dir or "").lower() == "asc") else "DESC"
         order_expr = None

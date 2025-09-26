@@ -1072,7 +1072,26 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def open_edit_canned_comm_entries(self) -> None:
-        self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
+        # Use the QtWidgets-based window under root panels
+        from panels.canned_comm_entries_window import (
+            CannedCommEntriesWindow,
+        )
+
+        window = getattr(self, "_canned_comm_window", None)
+        if window is None or not isinstance(window, CannedCommEntriesWindow):
+            if not hasattr(self, "_catalog_bridge"):
+                self._catalog_bridge = CatalogBridge(db_path="data/master.db")
+            window = CannedCommEntriesWindow(
+                catalog_bridge=self._catalog_bridge,
+                parent=self,
+            )
+            window.setAttribute(Qt.WA_DeleteOnClose, True)
+            window.destroyed.connect(lambda: setattr(self, "_canned_comm_window", None))
+            self._canned_comm_window = window
+
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def open_edit_personnel(self) -> None:
         from ui.personnel import PersonnelInventoryWindow
@@ -1081,13 +1100,50 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def open_edit_objectives(self) -> None:
-        self._open_qml_modal("qml/ObjectivesWindow.qml", title="Objectives")
+        try:
+            from types import SimpleNamespace
+            import os
+            from modules.planning.widgets.objectives_editor import (
+                show_objectives_editor,
+            )
+
+            data_dir = os.environ.get("CHECKIN_DATA_DIR", "data")
+            state = SimpleNamespace(data_dir=data_dir)
+            editor = show_objectives_editor(state)
+            self._register_child_window(editor)
+            try:
+                editor.raise_()
+                editor.activateWindow()
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Objectives", f"Failed to open Objectives Editor:\n{e}")
+            except Exception:
+                print(f"[main] Failed to open Objectives Editor: {e}")
 
     def open_edit_task_types(self) -> None:
-        self._open_qml_modal("qml/TaskTypesWindow.qml", title="Task Types")
+        from modules.common.widgets.type_editors.task_types_editor import (
+            TaskTypesEditorDialog,
+        )
+
+        dialog = TaskTypesEditorDialog(parent=self)
+        self._register_child_window(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def open_edit_team_types(self) -> None:
-        self._open_qml_modal("qml/TeamTypesWindow.qml", title="Team Types")
+        from modules.common.widgets.type_editors.team_types_editor import (
+            TeamTypesEditorDialog,
+        )
+
+        dialog = TeamTypesEditorDialog(parent=self)
+        self._register_child_window(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def open_edit_vehicles(self) -> None:
         from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
@@ -1105,10 +1161,25 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def open_edit_equipment(self) -> None:
-        self._open_qml_modal("qml/EquipmentWindow.qml", title="Equipment")
+        try:
+            from panels.equipment_edit_panel import EquipmentEditPanel
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Equipment Panel Error", f"Unable to load Equipment panel.\n{exc}")
+            return
+        panel = EquipmentEditPanel(db_path="data/master.db")
+        self._open_dock_widget(panel, title="Equipment")
 
     def open_edit_comms_resources(self) -> None:
-        self._open_qml_modal("qml/CommsResourcesWindow.qml", title="Communications Resources (ICS-217)")
+        # Open new QWidget-based Comms Resource Editor (dock-friendly)
+        try:
+            from panels.comms_resource_editor import CommsResourceEditor
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Load Failed", f"Unable to load Comms Resource Editor: {e}")
+            return
+        panel = CommsResourceEditor()
+        self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
 
     def open_edit_safety_templates(self) -> None:
         self._open_qml_modal("qml/SafetyTemplatesWindow.qml", title="Incident Safety Analysis (ICS-215A)")
@@ -1333,11 +1404,27 @@ class MainWindow(QMainWindow):
         # Create as standalone (no docking, no parent) per spec
         # Parent to main window to ensure proper Qt thread affinity/ownership
         win = create_ics205_window(self)
-        try:
-            self._child_windows.append(win)  # keep reference
-        except Exception:
-            self._child_windows = [win]
+        self._register_child_window(win)
         win.show()
+
+    def _register_child_window(self, window):
+        if window is None:
+            return
+        try:
+            self._child_windows.append(window)
+        except Exception:
+            self._child_windows = [window]
+
+        def _cleanup(*_args):
+            try:
+                self._child_windows = [w for w in self._child_windows if w is not window]
+            except Exception:
+                self._child_windows = []
+
+        try:
+            window.destroyed.connect(_cleanup)
+        except Exception:
+            pass
 
 # --- 4.8 Intel -----------------------------------------------------------
     def open_intel_unit_log(self) -> None:
@@ -1776,14 +1863,6 @@ class MainWindow(QMainWindow):
             ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
         except Exception:
             pass
-
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
 
         # Incident bridge (incident-scoped CRUD)
         try:
@@ -2506,22 +2585,6 @@ class MetricWidget(QWidget):
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
         ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
 
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
-
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
-
         # Inject per-window SQLite models for master catalog windows
         try:
             # Strip the full suffix "Window.qml" (10 chars) to get the base name
@@ -2782,6 +2845,14 @@ if __name__ == "__main__":
     except Exception:
         _theme_manager = None  # type: ignore[assignment]
         _theme_bridge = None   # type: ignore[assignment]
+
+    # Seed the certification catalog mirror on app start (idempotent)
+    try:
+        from modules.personnel.services.cert_seeder import sync as _cert_sync
+        _changed, _msg = _cert_sync()
+        print(f"[catalog] {_msg}")
+    except Exception as e:
+        print(f"[catalog] Seeder failed: {e}")
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
     # Share the app-level theme objects with the window (used to inject into QML contexts)
