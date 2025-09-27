@@ -41,39 +41,8 @@ def _window_model_map():
             ORDER BY name COLLATE NOCASE;
         """)
 
-    def _hospitals():
-        return _make_model("""
-            SELECT id, name, address, contact_name,
-                   phone_er, phone_switchboard, travel_time_min,
-                   helipad, trauma_level, burn_center, pediatric_capability,
-                   bed_available, diversion_status, ambulance_radio_channel,
-                   notes, lat, lon
-            FROM hospitals
-            ORDER BY name COLLATE NOCASE;
-        """)
-
     return {
-        # Communications resources catalog
-        "CommsResourcesWindow.qml": (
-            "CommsResourcesModel",
-            lambda: _make_model("""
-                SELECT id,
-                       alpha_tag, function, freq_rx, rx_tone, freq_tx, tx_tone,
-                       system, mode, notes, line_a, line_c
-                FROM comms_resources
-                ORDER BY alpha_tag COLLATE NOCASE;
-            """)
-        ),
-
-        # Canned comm entries
-        "CannedCommEntriesWindow.qml": (
-            "CannedCommEntriesModel",
-            lambda: _make_model("""
-                SELECT id, title, category, message, notification_level, status_update, is_active
-                FROM canned_comm_entries
-                ORDER BY category COLLATE NOCASE, title COLLATE NOCASE;
-            """)
-        ),
+        # (Comms resources now uses QWidget editor; QML entry removed)
 
         # Team types
         "TeamTypesWindow.qml": (
@@ -106,26 +75,12 @@ def _window_model_map():
             """)
         ),
 
-        # Equipment
-        "EquipmentWindow.qml": (
-            "EquipmentModel",
-            lambda: _make_model("""
-                SELECT id, name, type, serial_number, condition, notes
-                FROM equipment
-                ORDER BY name COLLATE NOCASE;
-            """)
-        ),
+        # Equipment: legacy QML removed; replaced by QWidget panel
 
         # EMS facilities
         "EmsWindow.qml": (
             "EMSModel",
             _ems
-        ),
-
-        # Hospitals
-        "HospitalsWindow.qml": (
-            "HospitalsModel",
-            _hospitals
         ),
 
         # Certifications
@@ -242,14 +197,19 @@ def open_incident_list(main_window=None):
 # ---------------------------------------
 
 def open_comms_resources():
-    path = os.path.abspath("qml/CommsResourcesWindow.qml")
-    win = QmlWindow(path, "Communications Resources")
-    win.exec()
+    # Redirect to QWidget-based editor for ICS-217
+    from PySide6.QtWidgets import QApplication
+    try:
+        from panels.comms_resource_editor import CommsResourceEditor
+    except Exception as e:
+        # Fall back to message in console to avoid hard crash in headless contexts
+        print(f"CommsResourceEditor unavailable: {e}")
+        return
+    w = CommsResourceEditor()
+    w.show()
 
-def open_canned_comm_entries():
-    path = os.path.abspath("qml/CannedCommEntriesWindow.qml")
-    win = QmlWindow(path, "Canned Communications Entries")
-    win.exec()
+# def open_canned_comm_entries():
+#     Legacy QML launcher removed; see panels.canned_comm_entries_window
 
 def open_team_types():
     path = os.path.abspath("qml/TeamTypesWindow.qml")
@@ -285,8 +245,9 @@ def open_ems():
     win.exec()
 
 def open_hospitals():
-    path = os.path.abspath("qml/HospitalsWindow.qml")
-    win = QmlWindow(path, "Hospitals Catalog")
+    from modules.medical.hospitals import HospitalManagerDialog
+
+    win = HospitalManagerDialog()
     win.exec()
 
 def open_certifications():

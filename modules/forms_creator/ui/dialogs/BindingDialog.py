@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Sequence
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...services.binder import Binder
+from modules.devtools.services import BindingOption
 
 
 class CustomBindingDialog(QDialog):
@@ -150,7 +151,14 @@ class CustomBindingDialog(QDialog):
 class BindingDialog(QDialog):
     """Simple binding editor supporting static and system bindings."""
 
-    def __init__(self, config: dict[str, Any], binder: Binder, parent=None) -> None:
+    def __init__(
+        self,
+        config: dict[str, Any],
+        binder: Binder,
+        parent=None,
+        *,
+        binding_options: Sequence[BindingOption] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Field Bindings")
         self.setWhatsThis(
@@ -158,6 +166,7 @@ class BindingDialog(QDialog):
         )
         self.binder = binder
         self.bindings: list[dict[str, Any]] = config.get("bindings", []).copy()
+        self._binding_options: list[BindingOption] = list(binding_options or [])
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -235,6 +244,7 @@ class BindingDialog(QDialog):
     def _reload_system_bindings(self, *, select_key: str | None = None) -> None:
         self.system_combo.clear()
         self.system_bindings = self.binder.available_keys()
+        seen_keys = set()
         for binding in self.system_bindings:
             self.system_combo.addItem(binding.label, binding.key)
             if binding.description:
@@ -243,6 +253,23 @@ class BindingDialog(QDialog):
                     binding.description,
                     Qt.ItemDataRole.ToolTipRole,
                 )
+            seen_keys.add(binding.key)
+        for option in self._binding_options:
+            if not option.key or option.key in seen_keys:
+                continue
+            label = option.display_label or option.key
+            index = self.system_combo.count()
+            self.system_combo.addItem(label, option.key)
+            tooltip_parts = []
+            if option.description:
+                tooltip_parts.append(option.description)
+            if option.synonyms:
+                tooltip_parts.append(f"Synonyms: {', '.join(option.synonyms)}")
+            if option.patterns:
+                tooltip_parts.append(f"Patterns: {', '.join(option.patterns)}")
+            if tooltip_parts:
+                self.system_combo.setItemData(index, "\n".join(tooltip_parts), Qt.ItemDataRole.ToolTipRole)
+            seen_keys.add(option.key)
         if select_key:
             idx = self.system_combo.findData(select_key)
             if idx >= 0:

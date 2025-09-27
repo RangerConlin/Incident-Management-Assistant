@@ -1,10 +1,7 @@
-from pathlib import Path
-
-from PySide6.QtCore import QUrl
-from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from .panels.incident_dashboard_panel import IncidentDashboardPanel
+from .ics203 import get_ics203_panel
 
 __all__ = [
     "get_incident_dashboard_panel",
@@ -43,11 +40,11 @@ def get_incident_overview_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_iap_builder_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for IAP Builder."""
-    return _make_panel(
-        "IAP Builder",
-        f"Build an Incident Action Plan — incident: {incident_id}",
-    )
+    """Return the Planning module's IAP Builder widget."""
+
+    from modules.planning.windows import get_iap_builder_panel as planning_iap_builder
+
+    return planning_iap_builder(incident_id)
 
 
 def get_objectives_panel(incident_id: object | None = None) -> QWidget:
@@ -58,12 +55,8 @@ def get_objectives_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_staff_org_panel(incident_id: object | None = None) -> QWidget:
-    """Return QWidget wrapping the QML staff organization panel."""
-    qml_file = Path(__file__).resolve().parent / "qml" / "StaffOrg.qml"
-    widget = QQuickWidget()
-    widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
-    widget.setSource(QUrl.fromLocalFile(qml_file.as_posix()))
-    return widget
+    """Return the QtWidgets-based ICS-203 panel."""
+    return get_ics203_panel(str(incident_id) if incident_id is not None else None)
 
 
 def get_sitrep_panel(incident_id: object | None = None) -> QWidget:

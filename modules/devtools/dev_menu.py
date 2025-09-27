@@ -2,14 +2,13 @@
 
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QMessageBox
 
 from .panels.template_debug_panel import TemplateDebugPanel
 from .panels.profile_manager_panel import ProfileManagerPanel
-from .panels.form_catalog_manager import FormCatalogManager
-from .panels.form_template_builder import FormTemplateBuilder
-from .panels.binding_library_panel import BindingLibraryPanel
-from .panels.fema_forms_importer import FEMAFormsImporter
+from .panels.form_library_manager import FormLibraryManager
+from .panels.dev_cert_catalog_editor import DevCertCatalogEditor
+from modules.personnel.services import cert_seeder
 
 
 def attach_dev_menu(main_window):
@@ -67,74 +66,53 @@ def attach_dev_menu(main_window):
     act_prof.triggered.connect(_open_prof)
     dev_menu.addAction(act_prof)
 
-    # Form Catalog Manager
-    act_catalog = QAction("Form Catalog Manager", main_window)
+    # Form Library Manager
+    act_forms = QAction("Manage Forms…", main_window)
 
-    def _open_catalog():
-        panel = FormCatalogManager(parent=main_window)
+    def _open_forms():
+        panel = FormLibraryManager(parent=main_window)
         dlg = QDialog(main_window)
-        dlg.setWindowTitle("Form Catalog Manager")
+        dlg.setWindowTitle("Manage Forms")
         dlg.setWindowModality(Qt.ApplicationModal)
         dlg.setAttribute(Qt.WA_DeleteOnClose, True)
         v = QVBoxLayout(dlg)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
-        dlg.resize(900, 700)
+        dlg.resize(1100, 720)
         dlg.exec()
 
-    act_catalog.triggered.connect(_open_catalog)
-    dev_menu.addAction(act_catalog)
+    act_forms.triggered.connect(_open_forms)
+    dev_menu.addAction(act_forms)
 
-    # Form Template Builder
-    act_ftb = QAction("Form Template Builder", main_window)
+    # Certification Catalog Editor (Developer-only)
+    act_cert_editor = QAction("Certification Catalog Editor", main_window)
 
-    def _open_ftb():
-        panel = FormTemplateBuilder(parent=main_window)
+    def _open_cert_editor():
+        try:
+            panel = DevCertCatalogEditor(parent=main_window)
+        except Exception as e:
+            QMessageBox.critical(main_window, "Developer Tools", str(e))
+            return
+
         dlg = QDialog(main_window)
-        dlg.setWindowTitle("Form Template Builder")
+        dlg.setWindowTitle("Certification Catalog Editor")
         dlg.setWindowModality(Qt.ApplicationModal)
         dlg.setAttribute(Qt.WA_DeleteOnClose, True)
         v = QVBoxLayout(dlg)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
-        dlg.resize(1000, 760)
+        dlg.resize(1000, 700)
         dlg.exec()
 
-    act_ftb.triggered.connect(_open_ftb)
-    dev_menu.addAction(act_ftb)
+    act_cert_editor.triggered.connect(_open_cert_editor)
+    dev_menu.addAction(act_cert_editor)
 
-    # Binding Library Browser
-    act_binding = QAction("Binding Library", main_window)
+    # Rerun Catalog Seeder
+    act_seed = QAction("Rerun Catalog Seeder", main_window)
 
-    def _open_binding():
-        panel = BindingLibraryPanel(parent=main_window)
-        dlg = QDialog(main_window)
-        dlg.setWindowTitle("Binding Library")
-        dlg.setWindowModality(Qt.ApplicationModal)
-        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
-        v = QVBoxLayout(dlg)
-        v.setContentsMargins(0, 0, 0, 0)
-        v.addWidget(panel)
-        dlg.resize(700, 500)
-        dlg.exec()
+    def _run_seed():
+        changed, msg = cert_seeder.sync()
+        QMessageBox.information(main_window, "Catalog Seeder", msg)
 
-    act_binding.triggered.connect(_open_binding)
-    dev_menu.addAction(act_binding)
-
-    # FEMA Forms Importer
-    act_fema = QAction("Fetch FEMA ICS Forms", main_window)
-
-    def _open_fema():
-        panel = FEMAFormsImporter(parent=main_window)
-        dlg = QDialog(main_window)
-        dlg.setWindowTitle("FEMA ICS Forms Importer")
-        dlg.setWindowModality(Qt.ApplicationModal)
-        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
-        v = QVBoxLayout(dlg)
-        v.setContentsMargins(0, 0, 0, 0)
-        v.addWidget(panel)
-        dlg.resize(700, 600)
-        dlg.exec()
-
-    act_fema.triggered.connect(_open_fema)
-    dev_menu.addAction(act_fema)
+    act_seed.triggered.connect(_run_seed)
+    dev_menu.addAction(act_seed)

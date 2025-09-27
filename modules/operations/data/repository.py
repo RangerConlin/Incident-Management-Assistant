@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
 from utils import incident_context
@@ -113,6 +114,42 @@ def _ensure_teams_attention_column(con: sqlite3.Connection) -> None:
     except Exception:
         pass
 
+
+def _ensure_team_alert_columns(con: sqlite3.Connection) -> None:
+    """Ensure modern alert columns exist on the teams table."""
+    try:
+        cur = con.execute("PRAGMA table_info(teams)")
+        cols = {row[1] for row in cur.fetchall()}
+        to_add: list[tuple[str, str]] = []
+        if "emergency_flag" not in cols:
+            to_add.append(("emergency_flag", "BOOLEAN"))
+        if "last_checkin_at" not in cols:
+            to_add.append(("last_checkin_at", "TEXT"))
+        if "checkin_reference_at" not in cols:
+            to_add.append(("checkin_reference_at", "TEXT"))
+        for col, typ in to_add:
+            try:
+                con.execute(f"ALTER TABLE teams ADD COLUMN {col} {typ}")
+            except Exception:
+                pass
+        if to_add:
+            try:
+                con.commit()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _iso_timestamp(value: datetime | None) -> str:
+    """Return an ISO-8601 string for ``value`` normalized to UTC."""
+    dt = value or datetime.now(timezone.utc)
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat()
+
 def _derive_team_status(row: sqlite3.Row) -> str:
     """Derive a coarse team status from task_teams timestamp columns.
 
@@ -214,6 +251,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         _ensure_teams_current_task_column(con)
         _ensure_teams_name_column(con)
         _ensure_teams_attention_column(con)
+        _ensure_team_alert_columns(con)
         has_msg = _has_table(con, "message_log_entry")
         last_msg_select = (
             "(SELECT MAX(timestamp) FROM message_log_entry me WHERE me.sender = COALESCE(tm.callsign, tm.name) OR me.recipient = COALESCE(tm.callsign, tm.name))"
@@ -235,6 +273,9 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                    tm.status AS team_status,
                    tm.status_updated AS team_status_updated,
                    tm.needs_attention AS needs_attention,
+                   tm.emergency_flag AS emergency_flag,
+                   tm.last_checkin_at AS last_checkin_at,
+                   tm.checkin_reference_at AS checkin_reference_at,
                    {last_msg_select} AS last_msg_ts,
                    p.name AS leader_name,
                    COALESCE(p.phone, p.contact, p.email, '') AS leader_contact
@@ -257,7 +298,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             "on scene": "arrival",
             "rtb": "returning",
         }.get(status, status)
-        # Compute last update as max of team status_updated and latest comms log
+        # Compute derived last update as max of team status_updated and latest comms log
         try:
             ts1 = (r["team_status_updated"] or "").strip() if "team_status_updated" in r.keys() else ""
         except Exception:
@@ -267,16 +308,34 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         except Exception:
             ts2 = ""
         # Choose lexicographically max ISO timestamp if both exist, else whichever is non-empty
-        last_updated = None
+        derived_last_updated = None
         if ts1 and ts2:
-            last_updated = ts1 if ts1 >= ts2 else ts2
+            derived_last_updated = ts1 if ts1 >= ts2 else ts2
         else:
-            last_updated = ts1 or ts2 or None
+            derived_last_updated = ts1 or ts2 or None
         needs_attention = r["needs_attention"] if "needs_attention" in r.keys() else 0
         try:
             needs_attention = int(needs_attention)
         except Exception:
             needs_attention = 1 if str(needs_attention).strip().lower() in {"true", "yes", "1"} else 0
+        raw_emergency = r["emergency_flag"] if "emergency_flag" in r.keys() else 0
+        try:
+            emergency_flag = bool(int(raw_emergency))
+        except Exception:
+            emergency_flag = str(raw_emergency).strip().lower() in {"true", "yes", "1"}
+        last_checkin_at = r["last_checkin_at"] if "last_checkin_at" in r.keys() else None
+        checkin_reference_at = (
+            r["checkin_reference_at"] if "checkin_reference_at" in r.keys() else None
+        )
+        last_checkin_at = str(last_checkin_at).strip() if last_checkin_at else None
+        checkin_reference_at = (
+            str(checkin_reference_at).strip() if checkin_reference_at else None
+        )
+        last_updated = (
+            last_checkin_at
+            or checkin_reference_at
+            or derived_last_updated
+        )
         # Only show a sortie number if the team is currently assigned to a task
         # and that task assignment has a sortie id.
         try:
@@ -299,10 +358,37 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                 "assignment": r["assignment"] or "",
                 "location": r["task_location"] or "",
                 "needs_attention": bool(needs_attention),
+                "needs_assistance_flag": bool(needs_attention),
+                "emergency_flag": emergency_flag,
+                "last_checkin_at": last_checkin_at,
+                "checkin_reference_at": checkin_reference_at,
+                "team_status_updated": ts1 or None,
                 "last_updated": last_updated,
             }
         )
     return out
+
+
+def touch_team_checkin(
+    team_id: int,
+    *,
+    checkin_time: datetime | None = None,
+    reference_time: datetime | None = None,
+) -> None:
+    """Persist an updated check-in baseline for the given team."""
+
+    check_dt = checkin_time or datetime.now(timezone.utc)
+    ref_dt = reference_time or check_dt
+    check_iso = _iso_timestamp(check_dt)
+    ref_iso = _iso_timestamp(ref_dt)
+
+    with _connect() as con:
+        _ensure_team_alert_columns(con)
+        con.execute(
+            "UPDATE teams SET last_checkin_at=?, checkin_reference_at=? WHERE id=?",
+            (check_iso, ref_iso, int(team_id)),
+        )
+        con.commit()
 
 
 def set_task_status(task_id: int, status_key: str) -> None:
@@ -366,9 +452,10 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
         # Also maintain team-level status to support unassigned contexts
         try:
             _ensure_teams_status_columns(con)
-            trow = con.execute("SELECT teamid FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
-            if trow and trow[0] is not None:
-                team_id = int(trow[0])
+            trow = con.execute("SELECT task_id, teamid FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
+            task_id_for_214 = int(trow[0]) if trow and trow[0] is not None else None
+            if trow and trow[1] is not None:
+                team_id = int(trow[1])
                 display = {
                     "enroute": "En Route",
                     "on scene": "On Scene",
@@ -386,6 +473,48 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
                 app_signals.teamStatusChanged.emit(int(team_id))
         except Exception:
             pass
+    # Also append ICS-214 entries for both the team and associated task streams
+    try:
+        from utils import incident_context as _ic
+        from modules.ics214 import services as _ics
+        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
+        inc = _ic.get_active_incident_id()
+        if inc:
+            # Build display status
+            disp = {
+                "enroute": "En Route",
+                "arrival": "On Scene",
+                "on scene": "On Scene",
+                "rtb": "RTB",
+            }.get(key, str(status_key).title())
+            text = f"Team status changed to {disp}"
+            streams = _ics.list_streams(str(inc))
+            # Team stream
+            if 'team_id' in locals() and team_id is not None:
+                team_stream = None
+                for s in streams:
+                    sec = getattr(s, 'section', None) or ''
+                    name = getattr(s, 'name', '')
+                    if (f'"ref": "team:{int(team_id)}"' in str(sec)) or (name.strip() == f"Team {int(team_id)}"):
+                        team_stream = s; break
+                if team_stream is None:
+                    section = '{"category": "team", "ref": "team:%d", "label": "Team %d"}' % (int(team_id), int(team_id))
+                    team_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Team {int(team_id)}", section=section, kind="team"))
+                _ics.add_entry(str(inc), getattr(team_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
+            # Task stream (if known)
+            if 'task_id_for_214' in locals() and task_id_for_214 is not None:
+                task_stream = None
+                for s in streams:
+                    sec = getattr(s, 'section', None) or ''
+                    name = getattr(s, 'name', '')
+                    if (f'"ref": "task:{int(task_id_for_214)}"' in str(sec)) or (name.strip() == f"Task {int(task_id_for_214)}"):
+                        task_stream = s; break
+                if task_stream is None:
+                    section = '{"category": "task", "ref": "task:%d", "label": "Task %d"}' % (int(task_id_for_214), int(task_id_for_214))
+                    task_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Task {int(task_id_for_214)}", section=section, kind="task"))
+                _ics.add_entry(str(inc), getattr(task_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
+    except Exception:
+        pass
 
 
 def set_team_status(team_id: int, status_key: str) -> None:
@@ -449,3 +578,43 @@ def set_team_status(team_id: int, status_key: str) -> None:
             app_signals.teamStatusChanged.emit(int(team_id))
         except Exception:
             pass
+    # Also append ICS-214 entries for both the team and associated task streams
+    try:
+        from utils import incident_context as _ic
+        from modules.ics214 import services as _ics
+        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
+        inc = _ic.get_active_incident_id()
+        if inc:
+            disp = {
+                "enroute": "En Route",
+                "arrival": "On Scene",
+                "on scene": "On Scene",
+                "rtb": "RTB",
+            }.get(key, str(status_key).title())
+            text = f"Team status changed to {disp}"
+            streams = _ics.list_streams(str(inc))
+            # Team stream
+            team_stream = None
+            for s in streams:
+                sec = getattr(s, 'section', None) or ''
+                name = getattr(s, 'name', '')
+                if (f'"ref": "team:{int(team_id)}"' in str(sec)) or (name.strip() == f"Team {int(team_id)}"):
+                    team_stream = s; break
+            if team_stream is None:
+                section = '{"category": "team", "ref": "team:%d", "label": "Team %d"}' % (int(team_id), int(team_id))
+                team_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Team {int(team_id)}", section=section, kind="team"))
+            _ics.add_entry(str(inc), getattr(team_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
+            # Task stream if team is currently assigned
+            if 'task_id' in locals() and task_id is not None:
+                task_stream = None
+                for s in streams:
+                    sec = getattr(s, 'section', None) or ''
+                    name = getattr(s, 'name', '')
+                    if (f'"ref": "task:{int(task_id)}"' in str(sec)) or (name.strip() == f"Task {int(task_id)}"):
+                        task_stream = s; break
+                if task_stream is None:
+                    section = '{"category": "task", "ref": "task:%d", "label": "Task %d"}' % (int(task_id), int(task_id))
+                    task_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Task {int(task_id)}", section=section, kind="task"))
+                _ics.add_entry(str(inc), getattr(task_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
+    except Exception:
+        pass

@@ -1,8 +1,10 @@
 # ===== Part 1: Imports & Logging ============================================
+import json
 import os
 import sys
 import logging
-from typing import Callable
+from functools import lru_cache
+from typing import Callable, Optional
 
 DEV_MODE = True
 
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QInputDialog,
+    QFileDialog,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
@@ -46,7 +49,7 @@ FORCE_DEFAULT_LAYOUT = False
 # (QML utilities kept, though handlers now follow panel-factory pattern)
 from models.qmlwindow import QmlWindow, new_incident_form, open_incident_list
 from utils.state import AppState
-from models.database import get_incident_by_number
+from models.database import get_incident_by_number, get_all_incident_types
 from bridge.settings_bridge import QmlSettingsBridge
 from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
@@ -61,7 +64,23 @@ from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
 from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
+from ui.settings import SettingsWindow
 from utils.profile_manager import profile_manager, ProfileMeta
+
+try:
+    from modules.ui_customization import (
+        UICustomizationRepository,
+        services as ui_customization_services,
+        get_layout_manager_panel,
+        get_dashboard_designer_panel,
+        get_theme_editor_panel,
+    )
+except Exception:  # pragma: no cover - customization optional at runtime
+    UICustomizationRepository = None  # type: ignore[assignment]
+    ui_customization_services = None  # type: ignore[assignment]
+    get_layout_manager_panel = None  # type: ignore[assignment]
+    get_dashboard_designer_panel = None  # type: ignore[assignment]
+    get_theme_editor_panel = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -69,6 +88,84 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
 
+
+
+@lru_cache(maxsize=1)
+def _incident_type_sets() -> tuple[set[str], set[str]]:
+    """Return sets of planned and SAR incident type names (lowercased)."""
+    planned: set[str] = set()
+    sar: set[str] = set()
+    try:
+        rows = get_all_incident_types()
+    except Exception:
+        rows = []
+    for row in rows:
+        try:
+            _, name, *_rest = row
+        except Exception:
+            continue
+        if not name:
+            continue
+        lowered = str(name).strip().lower()
+        if not lowered:
+            continue
+        is_planned = False
+        try:
+            if len(row) > 3:
+                raw_flag = row[3]
+                if isinstance(raw_flag, str):
+                    is_planned = bool(int(raw_flag))
+                else:
+                    is_planned = bool(raw_flag)
+        except Exception:
+            try:
+                is_planned = bool(row[3])
+            except Exception:
+                is_planned = False
+        if is_planned:
+            planned.add(lowered)
+        if any(token in lowered for token in ("missing", "sar", "search", "elt")):
+            sar.add(lowered)
+    return planned, sar
+
+
+def _classify_incident_category(incident: Optional[dict]) -> Optional[str]:
+    """Map an incident record to a toolkit category."""
+    if not incident:
+        return None
+    raw_type = incident.get("type")
+    if raw_type is None:
+        return None
+    type_name = str(raw_type).strip()
+    if not type_name:
+        return None
+    lowered = type_name.lower()
+    planned_types, sar_types = _incident_type_sets()
+    if lowered in planned_types:
+        return "planned"
+    if lowered in sar_types:
+        return "sar"
+    planned_keywords = (
+        "planned",
+        "event",
+        "parade",
+        "festival",
+        "fair",
+        "concert",
+        "marathon",
+        "race",
+        "demonstration",
+        "rally",
+        "show",
+        "exercise",
+        "drill",
+        "clinic",
+    )
+    if any(keyword in lowered for keyword in planned_keywords):
+        return "planned"
+    if any(keyword in lowered for keyword in ("missing", "sar", "search", "elt")):
+        return "sar"
+    return "disaster"
 
 
 # ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
@@ -85,6 +182,8 @@ class MainWindow(QMainWindow):
     def __init__(self, settings_manager: SettingsManager | None = None,
                  settings_bridge: QmlSettingsBridge | None = None):
         super().__init__()
+        self._ems_window = None
+        self._settings_window = None
         # Theme wiring is applied after settings bridge is available
 
         if settings_manager is None:
@@ -93,6 +192,13 @@ class MainWindow(QMainWindow):
             settings_bridge = QmlSettingsBridge(settings_manager)
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
+
+        self.customization_repo = None
+        if UICustomizationRepository is not None:
+            try:
+                self.customization_repo = UICustomizationRepository()
+            except Exception as exc:
+                logger.warning("Failed to initialize customization repository: %s", exc)
 
         # Initialize theme manager/bridge using persisted setting
         try:
@@ -121,6 +227,16 @@ class MainWindow(QMainWindow):
             # Non-fatal; app will still run
             self.theme_manager = None  # type: ignore[assignment]
             self.theme_bridge = None   # type: ignore[assignment]
+
+        if self.customization_repo and ui_customization_services and getattr(self, "theme_manager", None):
+            try:
+                ui_customization_services.ensure_active_theme(
+                    self.customization_repo,
+                    self.theme_manager,
+                    self.settings_bridge,
+                )
+            except Exception as exc:
+                logger.warning("Failed to apply customized theme: %s", exc)
 
         # Prepare a Mission Status label (will live inside a dock, not fixed)
         self.active_incident_label = QLabel()
@@ -216,6 +332,18 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.warning("Failed to load ADS perspectives: %s", e)
 
+        if self.customization_repo and ui_customization_services:
+            try:
+                applied = ui_customization_services.ensure_active_layout(
+                    self.customization_repo,
+                    self.dock_manager,
+                    self._perspective_file,
+                )
+                if applied:
+                    opened_default = True
+            except Exception as exc:
+                logger.warning("Failed to apply customized layout: %s", exc)
+
         # Load profiles and prepare profile menu actions
         profile_manager.load_all_profiles("profiles")
         self._profile_actions: list[QAction] = []
@@ -241,6 +369,20 @@ class MainWindow(QMainWindow):
         act.triggered.connect(lambda: self.open_module(module_key))
         menu.addAction(act)
         return act
+
+    def _set_theme_from_menu(self, theme_name: str, combo_index: int) -> None:
+        """Persist theme selection from the View → Theme menu."""
+        bridge = getattr(self, "settings_bridge", None)
+        if bridge is None:
+            return
+        try:
+            bridge.setSetting("themeIndex", combo_index)
+        except Exception:
+            pass
+        try:
+            bridge.setSetting("themeName", theme_name)
+        except Exception:
+            pass
 
     def _init_profiles_menu(self, profiles_menu: QMenu) -> None:
         """Populate the Profiles submenu with available profiles."""
@@ -317,13 +459,48 @@ class MainWindow(QMainWindow):
         self._add_action(m_menu, "Settings", None, "menu.settings")
         profiles_menu = m_menu.addMenu("Profiles")
         self._init_profiles_menu(profiles_menu)
+        if any(
+            func is not None
+            for func in (
+                get_layout_manager_panel,
+                get_dashboard_designer_panel,
+                get_theme_editor_panel,
+            )
+        ) or self.customization_repo is not None:
+            m_customization = m_menu.addMenu("Customization")
+            added_editor = False
+            if get_layout_manager_panel is not None:
+                act_layout_manager = QAction("Layout Templates…", self)
+                act_layout_manager.triggered.connect(self.open_customization_layout_manager)
+                m_customization.addAction(act_layout_manager)
+                added_editor = True
+            if get_dashboard_designer_panel is not None:
+                act_dashboard = QAction("Dashboard Designer…", self)
+                act_dashboard.triggered.connect(self.open_customization_dashboard_designer)
+                m_customization.addAction(act_dashboard)
+                added_editor = True
+            if get_theme_editor_panel is not None:
+                act_theme = QAction("Theme Designer…", self)
+                act_theme.triggered.connect(self.open_customization_theme_editor)
+                m_customization.addAction(act_theme)
+                added_editor = True
+
+            if self.customization_repo is not None:
+                if added_editor and m_customization.actions():
+                    m_customization.addSeparator()
+                act_export_bundle = QAction("Export Customizations…", self)
+                act_export_bundle.triggered.connect(self.export_customizations_bundle)
+                m_customization.addAction(act_export_bundle)
+                act_import_bundle = QAction("Import Customizations…", self)
+                act_import_bundle.triggered.connect(self.import_customizations_bundle)
+                m_customization.addAction(act_import_bundle)
         m_menu.addSeparator()
         self._add_action(m_menu, "Exit", "Ctrl+Q", "menu.exit")
 
         # ----- Edit -----
         m_edit = mb.addMenu("Edit")
         self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
-        self._add_action(m_edit, "Hospitals", None, "edit.hospitals")
+        self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
         self._add_action(m_edit, "Canned Communication Entries", None, "edit.canned_comm_entries")
         self._add_action(m_edit, "Personnel", None, "edit.personnel")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
@@ -349,19 +526,37 @@ class MainWindow(QMainWindow):
         act_dark = QAction("Dark", self)
         act_dark.setCheckable(True)
         theme_group.addAction(act_dark)
+
+        def _update_theme_menu(theme_name: str) -> None:
+            name = (theme_name or "light").lower()
+            act_light.setChecked(name == "light")
+            act_dark.setChecked(name == "dark")
+
         try:
-            current_theme = self.theme_manager.theme if self.theme_manager else 'light'
+            current_theme = self.theme_manager.theme if self.theme_manager else "light"
         except Exception:
-            current_theme = 'light'
-        if current_theme == "light":
-            act_light.setChecked(True)
-        else:
-            act_dark.setChecked(True)
+            current_theme = "light"
+        _update_theme_menu(current_theme)
+
         # Persist selection via settings bridge which drives ThemeManager
-        act_light.triggered.connect(lambda: self.settings_bridge.setSetting('themeName', 'light'))
-        act_dark.triggered.connect(lambda: self.settings_bridge.setSetting('themeName', 'dark'))
+        act_light.triggered.connect(lambda: self._set_theme_from_menu("light", 2))
+        act_dark.triggered.connect(lambda: self._set_theme_from_menu("dark", 1))
+
+        if hasattr(self.settings_bridge, "settingChanged"):
+            try:
+                self.settings_bridge.settingChanged.connect(
+                    lambda key, value: _update_theme_menu(str(value)) if key == "themeName" else None
+                )
+            except Exception:
+                pass
+
         theme_menu.addAction(act_light)
         theme_menu.addAction(act_dark)
+        if get_theme_editor_panel is not None:
+            theme_menu.addSeparator()
+            act_theme_designer = QAction("Theme Designer…", self)
+            act_theme_designer.triggered.connect(self.open_customization_theme_editor)
+            theme_menu.addAction(act_theme_designer)
 
         # ----- Command -----
         m_cmd = mb.addMenu("Command")
@@ -411,6 +606,12 @@ class MainWindow(QMainWindow):
         m_comms = mb.addMenu("Communications")
         self._add_action(m_comms, "Communications Unit Log ICS-214", None, "comms.unit_log")
         m_comms.addSeparator()
+        self._add_action(
+            m_comms,
+            "Communications Traffic Log ICS-309",
+            None,
+            "comms.traffic_log",
+        )
         self._add_action(m_comms, "Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
         self._add_action(m_comms, "Communications Plan ICS-205", None, "comms.205")
@@ -576,7 +777,7 @@ class MainWindow(QMainWindow):
         act_team_detail.triggered.connect(_open_team_detail_prompt)
         self.menuDebug.addAction(act_team_detail)
 
-        self._gate_menus_by_availability({})
+        self._refresh_toolkit_menu_gates()
         # you can toggle feature availability here, e.g.: {"planned.promotions": False}
 
     def _gate_menus_by_availability(self, enabled_map: dict[str, bool]):
@@ -588,6 +789,43 @@ class MainWindow(QMainWindow):
                     key = data["module_key"]
                     if key in enabled_map:
                         act.setEnabled(bool(enabled_map[key]))
+
+    def _refresh_toolkit_menu_gates(self, incident: Optional[dict] = None) -> None:
+        """Enable/disable toolkit menu entries based on incident type."""
+        try:
+            if incident is None:
+                incident_id = getattr(self, "current_incident_id", None)
+                if incident_id:
+                    incident = get_incident_by_number(incident_id)
+                else:
+                    incident_number = AppState.get_active_incident()
+                    incident = (
+                        get_incident_by_number(incident_number)
+                        if incident_number
+                        else None
+                    )
+        except Exception:
+            incident = None
+
+        category = _classify_incident_category(incident)
+        enabled = {
+            "toolkit.sar.missing_person": category == "sar",
+            "toolkit.sar.pod": category == "sar",
+            "toolkit.disaster.damage": category == "disaster",
+            "toolkit.disaster.urban_interview": category == "disaster",
+            "toolkit.disaster.photos": category == "disaster",
+            "planned.promotions": category == "planned",
+            "planned.vendors": category == "planned",
+            "planned.safety": category == "planned",
+            "planned.tasking": category == "planned",
+            "planned.health_sanitation": category == "planned",
+            "toolkit.initial.hasty": category in {"sar", "disaster"},
+            "toolkit.initial.reflex": category in {"sar", "disaster"},
+        }
+        if category is None:
+            for key in enabled:
+                enabled[key] = False
+        self._gate_menus_by_availability(enabled)
 
     # ===== Part 3: Central Router (module_key -> handler) ====================
     def open_module(self, key: str):
@@ -655,6 +893,7 @@ class MainWindow(QMainWindow):
 
             # ----- Communications -----
             "comms.unit_log": self.open_comms_unit_log,
+            "comms.traffic_log": self.open_comms_traffic_log,
             "comms.chat": self.open_comms_chat,
             "comms.213": self.open_comms_213,
             "comms.205": self.open_comms_205,
@@ -797,47 +1036,17 @@ class MainWindow(QMainWindow):
         show_incident_selector()
 
     def open_menu_settings(self) -> None:
-        # Open the existing QML settings window (ApplicationWindow root) via QQuickView as a modal window
-        from pathlib import Path
-        from PySide6.QtQml import QQmlApplicationEngine
+        """Open the widget-based Settings window."""
+        window = getattr(self, "_settings_window", None)
+        if window is None or not isinstance(window, SettingsWindow):
+            window = SettingsWindow(self.settings_bridge, parent=self)
+            window.setAttribute(Qt.WA_DeleteOnClose, True)
+            window.destroyed.connect(lambda: setattr(self, "_settings_window", None))
+            self._settings_window = window
 
-        engine = QQmlApplicationEngine()
-        # Inject settings + theme bridges so settings pages can read/write and see colors
-        engine.rootContext().setContextProperty("settingsBridge", self.settings_bridge)
-        try:
-            if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                engine.rootContext().setContextProperty("themeBridge", self.theme_bridge)
-        except Exception:
-            pass
-
-        qml_file = Path(__file__).resolve().parent / "qml" / "settingswindow.qml"
-        engine.load(QUrl.fromLocalFile(str(qml_file)))
-
-        if not engine.rootObjects():
-            logger.error("Settings window failed to load: %s", qml_file)
-            return
-
-        win = engine.rootObjects()[0]
-        # Tie to main window and make modal if possible
-        try:
-            if hasattr(win, "setTitle"):
-                win.setTitle("Settings")
-            if self.windowHandle() and hasattr(win, "setTransientParent"):
-                win.setTransientParent(self.windowHandle())
-            if hasattr(win, "setModality"):
-                win.setModality(Qt.ApplicationModal)
-            if hasattr(win, "show"):
-                win.show()
-        except Exception:
-            pass
-
-        # Keep references alive
-        if not hasattr(self, "_open_qml_engines"):
-            self._open_qml_engines = []
-        if not hasattr(self, "_open_qml_windows"):
-            self._open_qml_windows = []
-        self._open_qml_engines.append(engine)
-        self._open_qml_windows.append(win)
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def open_menu_exit(self) -> None:
         # Exit remains a direct action rather than opening a panel.
@@ -845,25 +1054,96 @@ class MainWindow(QMainWindow):
 
 # --- 4.2 Edit ------------------------------------------------------------
     def open_edit_ems(self) -> None:
-        self._open_qml_modal("qml/EmsWindow.qml", title="EMS Agencies")
+        from modules.medical.panels.ems_agencies_window import EMSAgenciesWindow
+
+        window = getattr(self, '_ems_window', None)
+        if window is None or not isinstance(window, EMSAgenciesWindow):
+            window = EMSAgenciesWindow(parent=self)
+            window.destroyed.connect(lambda: setattr(self, '_ems_window', None))
+            self._ems_window = window
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def open_edit_hospitals(self) -> None:
-        self._open_qml_modal("qml/HospitalsWindow.qml", title="Hospitals")
+        from modules.medical.hospitals import HospitalManagerDialog
+
+        dialog = HospitalManagerDialog(parent=self)
+        dialog.exec()
 
     def open_edit_canned_comm_entries(self) -> None:
-        self._open_qml_modal("qml/CannedCommEntriesWindow.qml", title="Canned Communication Entries")
+        # Use the QtWidgets-based window under root panels
+        from panels.canned_comm_entries_window import (
+            CannedCommEntriesWindow,
+        )
+
+        window = getattr(self, "_canned_comm_window", None)
+        if window is None or not isinstance(window, CannedCommEntriesWindow):
+            if not hasattr(self, "_catalog_bridge"):
+                self._catalog_bridge = CatalogBridge(db_path="data/master.db")
+            window = CannedCommEntriesWindow(
+                catalog_bridge=self._catalog_bridge,
+                parent=self,
+            )
+            window.setAttribute(Qt.WA_DeleteOnClose, True)
+            window.destroyed.connect(lambda: setattr(self, "_canned_comm_window", None))
+            self._canned_comm_window = window
+
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def open_edit_personnel(self) -> None:
-        self._open_qml_modal("qml/PersonnelWindow.qml", title="Personnel")
+        from ui.personnel import PersonnelInventoryWindow
+
+        dialog = PersonnelInventoryWindow(parent=self)
+        dialog.exec()
 
     def open_edit_objectives(self) -> None:
-        self._open_qml_modal("qml/ObjectivesWindow.qml", title="Objectives")
+        try:
+            from types import SimpleNamespace
+            import os
+            from modules.planning.widgets.objectives_editor import (
+                show_objectives_editor,
+            )
+
+            data_dir = os.environ.get("CHECKIN_DATA_DIR", "data")
+            state = SimpleNamespace(data_dir=data_dir)
+            editor = show_objectives_editor(state)
+            self._register_child_window(editor)
+            try:
+                editor.raise_()
+                editor.activateWindow()
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "Objectives", f"Failed to open Objectives Editor:\n{e}")
+            except Exception:
+                print(f"[main] Failed to open Objectives Editor: {e}")
 
     def open_edit_task_types(self) -> None:
-        self._open_qml_modal("qml/TaskTypesWindow.qml", title="Task Types")
+        from modules.common.widgets.type_editors.task_types_editor import (
+            TaskTypesEditorDialog,
+        )
+
+        dialog = TaskTypesEditorDialog(parent=self)
+        self._register_child_window(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def open_edit_team_types(self) -> None:
-        self._open_qml_modal("qml/TeamTypesWindow.qml", title="Team Types")
+        from modules.common.widgets.type_editors.team_types_editor import (
+            TeamTypesEditorDialog,
+        )
+
+        dialog = TeamTypesEditorDialog(parent=self)
+        self._register_child_window(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def open_edit_vehicles(self) -> None:
         from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
@@ -881,10 +1161,25 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def open_edit_equipment(self) -> None:
-        self._open_qml_modal("qml/EquipmentWindow.qml", title="Equipment")
+        try:
+            from panels.equipment_edit_panel import EquipmentEditPanel
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Equipment Panel Error", f"Unable to load Equipment panel.\n{exc}")
+            return
+        panel = EquipmentEditPanel(db_path="data/master.db")
+        self._open_dock_widget(panel, title="Equipment")
 
     def open_edit_comms_resources(self) -> None:
-        self._open_qml_modal("qml/CommsResourcesWindow.qml", title="Communications Resources (ICS-217)")
+        # Open new QWidget-based Comms Resource Editor (dock-friendly)
+        try:
+            from panels.comms_resource_editor import CommsResourceEditor
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Load Failed", f"Unable to load Comms Resource Editor: {e}")
+            return
+        panel = CommsResourceEditor()
+        self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
 
     def open_edit_safety_templates(self) -> None:
         self._open_qml_modal("qml/SafetyTemplatesWindow.qml", title="Incident Safety Analysis (ICS-215A)")
@@ -1079,12 +1374,19 @@ class MainWindow(QMainWindow):
         panel = ics214.get_ics214_panel(incident_id)
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
+    def open_comms_traffic_log(self) -> None:
+        from modules.communications.panels import MessageLogPanel
+
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = MessageLogPanel(self, incident_id=incident_id)
+        self._open_dock_widget(panel, title="Communications Traffic Log")
+
     def open_comms_chat(self) -> None:
         from modules.communications.panels import MessageLogPanel
 
         # TODO: incident-specific scoping for communications panels
         _incident_id = getattr(self, "current_incident_id", None)
-        panel = MessageLogPanel()
+        panel = MessageLogPanel(self, incident_id=_incident_id)
         self._open_dock_widget(panel, title="Messaging")
 
     def open_comms_213(self) -> None:
@@ -1092,7 +1394,7 @@ class MainWindow(QMainWindow):
 
         # TODO: incident-specific scoping for communications panels
         _incident_id = getattr(self, "current_incident_id", None)
-        panel = MessageLogPanel()
+        panel = MessageLogPanel(self, incident_id=_incident_id)
         self._open_dock_widget(panel, title="ICS 213 Messages")
 
     def open_comms_205(self) -> None:
@@ -1102,11 +1404,27 @@ class MainWindow(QMainWindow):
         # Create as standalone (no docking, no parent) per spec
         # Parent to main window to ensure proper Qt thread affinity/ownership
         win = create_ics205_window(self)
-        try:
-            self._child_windows.append(win)  # keep reference
-        except Exception:
-            self._child_windows = [win]
+        self._register_child_window(win)
         win.show()
+
+    def _register_child_window(self, window):
+        if window is None:
+            return
+        try:
+            self._child_windows.append(window)
+        except Exception:
+            self._child_windows = [window]
+
+        def _cleanup(*_args):
+            try:
+                self._child_windows = [w for w in self._child_windows if w is not window]
+            except Exception:
+                self._child_windows = []
+
+        try:
+            window.destroyed.connect(_cleanup)
+        except Exception:
+            pass
 
 # --- 4.8 Intel -----------------------------------------------------------
     def open_intel_unit_log(self) -> None:
@@ -1147,15 +1465,8 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_medical_206(self) -> None:
-        # Open the full-featured QML ICS 206 window
         from modules import medical
-        try:
-            medical.open_206_window()
-        except Exception as e:
-            # Fallback: show placeholder dock panel if QML fails
-            incident_id = getattr(self, "current_incident_id", None)
-            panel = medical.get_206_panel(incident_id)
-            self._open_dock_widget(panel, title="Medical Plan (ICS 206)")
+        medical.open_206_window(self)
 
     def open_safety_208(self) -> None:
         from modules import safety
@@ -1553,14 +1864,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
-
         # Incident bridge (incident-scoped CRUD)
         try:
             if not hasattr(self, "_incident_bridge"):
@@ -1804,6 +2107,104 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         self._create_default_docks()
+
+    def open_customization_layout_manager(self) -> None:
+        if get_layout_manager_panel is None:
+            QMessageBox.warning(self, "Customization", "Layout manager unavailable.")
+            return
+        try:
+            panel = get_layout_manager_panel(self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization", f"Failed to open layout manager: {exc}")
+            return
+        self._open_dock_widget(panel, title="Layout Templates", float_on_open=True)
+
+    def open_customization_dashboard_designer(self) -> None:
+        if get_dashboard_designer_panel is None:
+            QMessageBox.warning(self, "Customization", "Dashboard designer unavailable.")
+            return
+        try:
+            panel = get_dashboard_designer_panel(self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization", f"Failed to open dashboard designer: {exc}")
+            return
+        self._open_dock_widget(panel, title="Dashboard Designer", float_on_open=True)
+
+    def open_customization_theme_editor(self) -> None:
+        if get_theme_editor_panel is None:
+            QMessageBox.warning(self, "Customization", "Theme designer unavailable.")
+            return
+        try:
+            panel = get_theme_editor_panel(self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization", f"Failed to open theme designer: {exc}")
+            return
+        self._open_dock_widget(panel, title="Theme Designer", float_on_open=True)
+
+    def export_customizations_bundle(self) -> None:
+        if not self.customization_repo:
+            QMessageBox.warning(self, "Customization Export", "Customization services are unavailable.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Customizations",
+            "customizations.json",
+            "JSON Files (*.json)",
+        )
+        if not path:
+            return
+        try:
+            bundle = self.customization_repo.export_bundle()
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(bundle.to_dict(), fh, indent=2)
+            QMessageBox.information(self, "Customization Export", f"Exported to {path}")
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization Export", f"Failed to export: {exc}")
+
+    def import_customizations_bundle(self) -> None:
+        if not self.customization_repo:
+            QMessageBox.warning(self, "Customization Import", "Customization services are unavailable.")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Customizations",
+            "",
+            "JSON Files (*.json)",
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+            from modules.ui_customization.models import CustomizationBundle
+
+            bundle = CustomizationBundle.from_dict(payload)
+            self.customization_repo.import_bundle(bundle, replace=False)
+            if ui_customization_services is not None:
+                try:
+                    dock_manager = getattr(self, "dock_manager", None)
+                    perspective_file = getattr(self, "_perspective_file", None)
+                    if dock_manager and perspective_file:
+                        ui_customization_services.ensure_active_layout(
+                            self.customization_repo,
+                            dock_manager,
+                            perspective_file,
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to apply imported layout: %s", exc)
+                try:
+                    theme_manager = getattr(self, "theme_manager", None)
+                    if theme_manager is not None:
+                        ui_customization_services.ensure_active_theme(
+                            self.customization_repo,
+                            theme_manager,
+                            getattr(self, "settings_bridge", None),
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to apply imported theme: %s", exc)
+            QMessageBox.information(self, "Customization Import", "Import complete.")
+        except Exception as exc:
+            QMessageBox.warning(self, "Customization Import", f"Failed to import: {exc}")
 
     def open_display_templates_dialog(self) -> None:
         """Open a modal dialog to manage dock layout templates (ADS perspectives)."""
@@ -2050,6 +2451,10 @@ class MainWindow(QMainWindow):
         # Update the label if it exists (e.g. if the debug panel was created)
         if hasattr(self, "active_incident_label"):
             self.active_incident_label.setText(text)
+        try:
+            self._refresh_toolkit_menu_gates(incident)
+        except Exception:
+            pass
 
     def _init_notifications(self) -> None:
         """Prepare toast container and hook up notifier signals."""
@@ -2094,7 +2499,7 @@ class MainWindow(QMainWindow):
     # --- Metric Widgets (simple counters) ---------------------------------
     def open_home_dashboard(self) -> None:
         from ui.dashboard.home_dashboard import HomeDashboard
-        panel = HomeDashboard(self.settings_manager)
+        panel = HomeDashboard(self.settings_manager, customization_repo=self.customization_repo)
         # docked by default
         self._open_dock_widget(panel, title="Home Dashboard", float_on_open=False)
 
@@ -2179,22 +2584,6 @@ class MetricWidget(QWidget):
         ctx = view.rootContext()
         ctx.setContextProperty("catalogBridge", self._catalog_bridge)
         ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
-
-        base = os.path.basename(qml_rel_path)
-        if base == "CannedCommEntriesWindow.qml":
-            try:
-                from utils.constants import TEAM_STATUSES
-                ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-            except Exception:
-                pass
 
         # Inject per-window SQLite models for master catalog windows
         try:
@@ -2456,6 +2845,14 @@ if __name__ == "__main__":
     except Exception:
         _theme_manager = None  # type: ignore[assignment]
         _theme_bridge = None   # type: ignore[assignment]
+
+    # Seed the certification catalog mirror on app start (idempotent)
+    try:
+        from modules.personnel.services.cert_seeder import sync as _cert_sync
+        _changed, _msg = _cert_sync()
+        print(f"[catalog] {_msg}")
+    except Exception as e:
+        print(f"[catalog] Seeder failed: {e}")
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
     # Share the app-level theme objects with the window (used to inject into QML contexts)

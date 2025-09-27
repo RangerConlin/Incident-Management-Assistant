@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, List
 from datetime import datetime
 
 from PySide6.QtCore import QObject, Property, Signal, Slot, Qt, QTimer, QPoint
-from PySide6.QtGui import QColor, QPalette, QTextOption
+from PySide6.QtGui import QColor, QPalette, QTextOption, QStandardItemModel, QStandardItem
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QTableWidget,
+    QTableView,
     QTableWidgetItem,
     QTabWidget,
     QTextEdit,
@@ -1199,14 +1200,28 @@ class TeamDetailWindow(QMainWindow):
         self._equipment_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         equipment_layout.addWidget(self._equipment_table)
 
+        # Logs tab: ICS-214 for this team
         logs_layout = QVBoxLayout(self._logs_tab)
         logs_layout.setContentsMargins(0, 0, 0, 0)
         logs_layout.setSpacing(8)
-        placeholder = QLabel("Logs will appear here when implemented.")
-        placeholder.setAlignment(Qt.AlignCenter)
-        placeholder.setStyleSheet("color: #555555;")
-        logs_layout.addWidget(placeholder)
-        self._tabs.setTabEnabled(3, False)
+        bar = QHBoxLayout()
+        self._btn_214_refresh = QPushButton("Refresh")
+        self._btn_214_export = QPushButton("Export 214")
+        self._btn_214_edit = QPushButton("Edit")
+        self._btn_214_delete = QPushButton("Delete")
+        for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete):
+            bar.addWidget(b)
+        bar.addStretch(1)
+        logs_layout.addLayout(bar)
+        self._tbl_214 = QTableView(self)
+        self._model_214 = QStandardItemModel(0, 3, self)
+        self._model_214.setHorizontalHeaderLabels(["Timestamp", "Entry", "Entered By"])
+        self._tbl_214.setModel(self._model_214)
+        try:
+            self._tbl_214.setSortingEnabled(True)
+        except Exception:
+            pass
+        logs_layout.addWidget(self._tbl_214)
 
         # Connections for form controls
         self._team_type_combo.currentIndexChanged.connect(self._handle_team_type_changed)
@@ -1227,6 +1242,153 @@ class TeamDetailWindow(QMainWindow):
 
         self._aircraft_combo.popupAboutToBeShown.connect(self._refresh_aircraft_options)
         self._aircraft_combo.currentIndexChanged.connect(self._handle_aircraft_selected)
+        # Logs actions
+        self._btn_214_refresh.clicked.connect(self._load_team_ics214)
+        self._btn_214_export.clicked.connect(self._export_team_ics214)
+        self._btn_214_delete.clicked.connect(self._delete_team_ics214_entry)
+        self._btn_214_edit.clicked.connect(self._edit_team_ics214_entry)
+
+    # ---- Team ICS-214 helpers ----
+    def _get_team_ics214_stream(self) -> tuple[str | None, str | None]:
+        try:
+            inc = incident_context.get_active_incident_id()
+            if not inc:
+                return None, None
+            from modules.ics214 import services
+            from modules.ics214.schemas import StreamCreate
+            team_id = int(self._team_id) if self._team_id is not None else None
+            if not team_id:
+                return str(inc), None
+            streams = services.list_streams(str(inc))
+            target = None
+            for s in streams:
+                try:
+                    sec = getattr(s, 'section', None) or ''
+                    name = getattr(s, 'name', '')
+                    if (f'"ref": "team:{int(team_id)}"' in str(sec)) or (name.strip() == f"Team {int(team_id)}"):
+                        target = s
+                        break
+                except Exception:
+                    continue
+            if target is None:
+                section = '{"category": "team", "ref": "team:%d", "label": "Team %d"}' % (int(team_id), int(team_id))
+                target = services.create_stream(StreamCreate(incident_id=str(inc), name=f"Team {int(team_id)}", section=section, kind="team"))
+            return str(inc), getattr(target, 'id', None)
+        except Exception:
+            return None, None
+
+    def _load_team_ics214(self) -> None:
+        inc, sid = self._get_team_ics214_stream()
+        if not inc or not sid:
+            try:
+                self._model_214.removeRows(0, self._model_214.rowCount())
+            except Exception:
+                pass
+            return
+        try:
+            from modules.ics214 import services
+            rows = services.list_entries(str(inc), str(sid)) or []
+        except Exception:
+            rows = []
+        try:
+            self._model_214.removeRows(0, self._model_214.rowCount())
+        except Exception:
+            pass
+        for r in rows:
+            it_ts = QStandardItem(self._fmt_ts(str(r.get("timestamp_utc") or "")))
+            it_entry = QStandardItem(str(r.get("text") or ""))
+            it_by = QStandardItem(str(r.get("actor_user_id") or ""))
+            try:
+                it_ts.setData(str(r.get("id") or ""), Qt.UserRole)
+            except Exception:
+                pass
+            self._model_214.appendRow([it_ts, it_entry, it_by])
+
+    def _selected_team_214_entry_id(self) -> str | None:
+        try:
+            idxs = self._tbl_214.selectionModel().selectedRows()
+            if not idxs:
+                return None
+            ridx = idxs[0]
+            return str(self._model_214.item(ridx.row(), 0).data(Qt.UserRole) or "") or None
+        except Exception:
+            return None
+
+    def _export_team_ics214(self) -> None:
+        try:
+            inc, sid = self._get_team_ics214_stream()
+            if not inc or not sid:
+                return
+            from modules.ics214 import services
+            from modules.ics214.schemas import ExportRequest
+            pdf = services.export_stream(str(inc), str(sid), ExportRequest())
+            QMessageBox.information(self, "ICS-214 Export", f"Exported to: {pdf.file_path}")
+        except Exception:
+            pass
+
+    def _delete_team_ics214_entry(self) -> None:
+        try:
+            inc, _sid = self._get_team_ics214_stream()
+            entry_id = self._selected_team_214_entry_id()
+            if not inc or not entry_id:
+                return
+            if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+                return
+            from modules.ics214 import services
+            services.delete_entry(str(inc), str(entry_id))
+            self._load_team_ics214()
+        except Exception:
+            pass
+
+    def _edit_team_ics214_entry(self) -> None:
+        try:
+            inc, _sid = self._get_team_ics214_stream()
+            entry_id = self._selected_team_214_entry_id()
+            if not inc or not entry_id:
+                return
+            try:
+                r = self._tbl_214.selectionModel().selectedRows()[0].row()
+                current = str(self._model_214.item(r, 1).text() or "")
+            except Exception:
+                current = ""
+            from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton
+            dlg = QDialog(self); dlg.setWindowTitle("Edit 214 Entry")
+            lay = QVBoxLayout(dlg)
+            te = QTextEdit(dlg); te.setPlainText(current); lay.addWidget(te)
+            btns = QHBoxLayout(); ok = QPushButton("Save"); cancel = QPushButton("Cancel"); btns.addStretch(1); btns.addWidget(ok); btns.addWidget(cancel); lay.addLayout(btns)
+            ok.clicked.connect(dlg.accept); cancel.clicked.connect(dlg.reject)
+            if dlg.exec_():
+                new_txt = te.toPlainText().strip()
+                if new_txt:
+                    from modules.ics214 import services
+                    from modules.ics214.schemas import EntryUpdate
+                    services.update_entry(str(inc), str(entry_id), EntryUpdate(text=new_txt))
+                    self._load_team_ics214()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _fmt_ts(ts: str | None) -> str:
+        if not ts:
+            return ""
+        s = str(ts)
+        if "." in s:
+            tz_idx = max(s.find("Z"), s.find("+", s.find(".")))
+            if tz_idx > 0:
+                s = s[: s.find(".")] + s[tz_idx:]
+            else:
+                s = s[: s.find(".")]
+        try:
+            if s.endswith("Z"):
+                from datetime import datetime, timezone
+                s = s[:-1] + "+00:00"
+                dt = datetime.fromisoformat(s)
+            else:
+                from datetime import datetime
+                dt = datetime.fromisoformat(s)
+            return dt.strftime("%m/%d/%Y %H:%M:%S")
+        except Exception:
+            return str(ts)
 
 
     # ---- Data refresh helpers ----
@@ -1342,6 +1504,10 @@ class TeamDetailWindow(QMainWindow):
         self._apply_status_palette()
 
         self._updating = False
+        try:
+            self._load_team_ics214()
+        except Exception:
+            pass
 
     def _on_status_changed(self, status_key: str) -> None:
         if self._updating:

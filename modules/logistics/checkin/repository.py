@@ -1,411 +1,435 @@
-"""Database access layer for the check-in module.
-
-This module exposes simple functions that interact with both the
-persistent master database and the currently active incident database.
-Functions are intentionally straightforward and heavily commented so
-that they can be expanded in future iterations without major refactors.
-"""
+"""SQLite repository helpers for the Logistics Check-In module."""
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Dict, List, Optional
+import json
 import sqlite3
+from datetime import datetime
+from typing import Dict, List, Optional, Sequence, Tuple
 
-from utils.db import get_master_conn, get_incident_conn
-from utils.state import AppState
-from utils.schema_placeholders import ensure_master_tables_exist, ensure_incident_tables_exist
+from utils.db import get_incident_conn, get_master_conn
+
+from . import schema
+from .models import (
+    CIStatus,
+    CheckInRecord,
+    HistoryItem,
+    PersonnelIdentity,
+    PersonnelStatus,
+    QueueItem,
+    RosterFilters,
+    RosterRow,
+    UIFlags,
+)
+
 
 # ---------------------------------------------------------------------------
-# Lookup helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _row_to_dict(row: sqlite3.Row) -> Optional[Dict]:
-    """Convert a Row to a plain dict."""
-    return dict(row) if row else None
+def _now() -> str:
+    return datetime.now().astimezone().isoformat()
 
 
-def find_personnel_by_id(pid: str) -> Optional[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM personnel_master WHERE id = ?", (pid,))
-        return _row_to_dict(cur.fetchone())
+def _row_to_dict(row) -> Dict:
+    return dict(row) if row is not None else {}
 
 
-def find_personnel_by_name(first: str, last: str) -> List[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
+def _quote_identifier(identifier: str) -> str:
+    """Return ``identifier`` wrapped in double quotes for SQL fragments."""
+
+    escaped = identifier.replace("\"", "\"\"")
+    return f'"{escaped}"'
+
+
+def _qualify(table: str, column: str) -> str:
+    """Return a fully qualified column reference."""
+
+    return f"{table}.{_quote_identifier(column)}"
+
+
+def _team_table_info(conn: sqlite3.Connection) -> Optional[Tuple[str, Optional[str]]]:
+    """Return the identifier and label columns for the ``teams`` table.
+
+    Legacy incident databases shipped with the desktop client used an
+    ``INTEGER PRIMARY KEY`` column named ``id`` for team identifiers.  Newer
+    schema revisions introduced a ``team_id`` text column.  This helper inspects
+    the table metadata so callers can generate SQL that works for both layouts.
+    ``None`` is returned when the table does not exist or contains no columns.
+    """
+
+    try:
+        rows = conn.execute("PRAGMA table_info(teams)").fetchall()
+    except sqlite3.OperationalError:
+        return None
+    if not rows:
+        return None
+    column_names = [row["name"] for row in rows if row["name"]]
+    if not column_names:
+        return None
+    lowered = {name.lower(): name for name in column_names}
+    identifier: Optional[str] = None
+    for candidate in ("team_id", "teamid", "id"):
+        match = lowered.get(candidate)
+        if match:
+            identifier = match
+            break
+    if identifier is None:
+        identifier = column_names[0]
+    label = lowered.get("name")
+    return identifier, label
+
+
+# ---------------------------------------------------------------------------
+# Schema helpers
+# ---------------------------------------------------------------------------
+
+def _collect_personnel_values(conn: sqlite3.Connection, column: str) -> set[str]:
+    """Return a set of distinct non-empty values for ``column`` from personnel.
+
+    The production ``master.db`` shipped with the desktop application exposes a
+    ``role`` column instead of the newer ``primary_role`` field that the
+    refactored check-in module expects.  When the newer column is missing we
+    gracefully fall back to whichever legacy column exists so that the roster
+    filters remain populated without requiring a DB migration.  Any
+    ``OperationalError`` triggered by missing columns is swallowed so callers can
+    attempt multiple field names in succession.
+    """
+
+    try:
         cur = conn.execute(
-            "SELECT * FROM personnel_master WHERE first_name = ? AND last_name = ?",
-            (first, last),
+            f"SELECT DISTINCT {column} FROM personnel WHERE {column} IS NOT NULL"
         )
-        return [dict(row) for row in cur.fetchall()]
+    except sqlite3.OperationalError:
+        return set()
 
+    values: set[str] = set()
+    for (value,) in cur.fetchall():
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            values.add(text)
+    return values
 
-def find_equipment_by_id(eid: str) -> Optional[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM equipment_master WHERE id = ?", (eid,))
-        return _row_to_dict(cur.fetchone())
-
-
-def find_equipment_by_name(name: str) -> List[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM equipment_master WHERE name = ?", (name,))
-        return [dict(row) for row in cur.fetchall()]
-
-
-def find_vehicle_by_id(vid: str) -> Optional[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM vehicle_master WHERE id = ?", (vid,))
-        return _row_to_dict(cur.fetchone())
-
-
-def find_vehicle_by_name(name: str) -> List[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM vehicle_master WHERE name = ?", (name,))
-        return [dict(row) for row in cur.fetchall()]
-
-
-def find_aircraft_by_id(aid: str) -> Optional[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM aircraft_master WHERE id = ?", (aid,))
-        return _row_to_dict(cur.fetchone())
-
-
-def find_aircraft_by_callsign(callsign: str) -> List[Dict]:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        cur = conn.execute("SELECT * FROM aircraft_master WHERE callsign = ?", (callsign,))
-        return [dict(row) for row in cur.fetchall()]
-
-
-def search_personnel(term: str, status: str = "") -> List[Dict]:
-    """Search personnel by id, name, or callsign."""
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        q = f"%{term}%"
-        sql = (
-            "SELECT * FROM personnel_master WHERE "
-            "(id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR callsign LIKE ?)"
-        )
-        params = [q, q, q, q]
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        cur = conn.execute(sql, params)
-        return [dict(row) for row in cur.fetchall()]
-
-
-def search_equipment(term: str, status: str = "") -> List[Dict]:
-    """Search equipment by id or name."""
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        q = f"%{term}%"
-        sql = "SELECT * FROM equipment_master WHERE (id LIKE ? OR name LIKE ?)"
-        params = [q, q]
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        cur = conn.execute(sql, params)
-        return [dict(row) for row in cur.fetchall()]
-
-
-def search_vehicle(term: str, status: str = "") -> List[Dict]:
-    """Search vehicles by id, name, or callsign."""
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        q = f"%{term}%"
-        sql = (
-            "SELECT * FROM vehicle_master WHERE "
-            "(id LIKE ? OR name LIKE ? OR callsign LIKE ?)"
-        )
-        params = [q, q, q]
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        cur = conn.execute(sql, params)
-        return [dict(row) for row in cur.fetchall()]
-
-
-def search_aircraft(term: str, status: str = "") -> List[Dict]:
-    """Search aircraft by id, tail number, or callsign."""
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        q = f"%{term}%"
-        sql = (
-            "SELECT * FROM aircraft_master WHERE "
-            "(id LIKE ? OR tail_number LIKE ? OR callsign LIKE ?)"
-        )
-        params = [q, q, q]
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        cur = conn.execute(sql, params)
-        return [dict(row) for row in cur.fetchall()]
 
 # ---------------------------------------------------------------------------
-# Master creation helpers
+# Master lookups
 # ---------------------------------------------------------------------------
 
-def _timestamp() -> str:
-    return datetime.utcnow().isoformat()
-
-
-def create_or_update_personnel_master(data: Dict) -> None:
+def get_person_identity(person_id: str) -> Optional[PersonnelIdentity]:
+    """Fetch read-only identity information from ``master.db``."""
     with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        payload = data.copy()
-        payload.setdefault("callsign", None)
-        payload.setdefault("role", None)
-        payload.setdefault("status", "Available")
-        payload.setdefault("created_at", _timestamp())
-        payload["updated_at"] = _timestamp()
-        conn.execute(
-            """
-            INSERT INTO personnel_master (id, first_name, last_name, callsign, role, status, created_at, updated_at)
-            VALUES (:id, :first_name, :last_name, :callsign, :role, :status, :created_at, :updated_at)
-            ON CONFLICT(id) DO UPDATE SET
-                first_name=excluded.first_name,
-                last_name=excluded.last_name,
-                callsign=excluded.callsign,
-                role=excluded.role,
-                status=excluded.status,
-                updated_at=excluded.updated_at
-            """,
-            payload,
-        )
-        conn.commit()
+        schema.ensure_master_schema(conn)
+        cur = conn.execute("SELECT * FROM personnel WHERE id = ?", (person_id,))
+        row = cur.fetchone()
+        return PersonnelIdentity.from_row(dict(row)) if row else None
 
 
-def create_or_update_equipment_master(data: Dict) -> None:
+def search_personnel(term: str, limit: int = 50) -> List[PersonnelIdentity]:
+    """Return personnel whose id, name, or callsign match ``term``."""
+    like = f"%{term.lower()}%"
+    sql = (
+        "SELECT * FROM personnel WHERE "
+        "lower(id) LIKE ? OR lower(name) LIKE ? OR lower(callsign) LIKE ? ORDER BY name"
+    )
     with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        payload = data.copy()
-        payload.setdefault("name", None)
-        payload.setdefault("type", None)
-        payload.setdefault("assigned_to", None)
-        payload.setdefault("status", "Available")
-        payload.setdefault("created_at", _timestamp())
-        payload["updated_at"] = _timestamp()
-        conn.execute(
-            """
-            INSERT INTO equipment_master (id, name, type, status, assigned_to, created_at, updated_at)
-            VALUES (:id, :name, :type, :status, :assigned_to, :created_at, :updated_at)
-            ON CONFLICT(id) DO UPDATE SET
-                name=excluded.name,
-                type=excluded.type,
-                status=excluded.status,
-                assigned_to=excluded.assigned_to,
-                updated_at=excluded.updated_at
-            """,
-            payload,
-        )
-        conn.commit()
+        schema.ensure_master_schema(conn)
+        rows = conn.execute(sql, (like, like, like)).fetchmany(limit)
+        return [PersonnelIdentity.from_row(dict(row)) for row in rows]
 
-
-def create_or_update_vehicle_master(data: Dict) -> None:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        payload = data.copy()
-        payload.setdefault("name", None)
-        payload.setdefault("type", None)
-        payload.setdefault("callsign", None)
-        payload.setdefault("assigned_to", None)
-        payload.setdefault("status", "Available")
-        payload.setdefault("created_at", _timestamp())
-        payload["updated_at"] = _timestamp()
-        conn.execute(
-            """
-            INSERT INTO vehicle_master (id, name, type, status, callsign, assigned_to, created_at, updated_at)
-            VALUES (:id, :name, :type, :status, :callsign, :assigned_to, :created_at, :updated_at)
-            ON CONFLICT(id) DO UPDATE SET
-                name=excluded.name,
-                type=excluded.type,
-                status=excluded.status,
-                callsign=excluded.callsign,
-                assigned_to=excluded.assigned_to,
-                updated_at=excluded.updated_at
-            """,
-            payload,
-        )
-        conn.commit()
-
-
-def create_or_update_aircraft_master(data: Dict) -> None:
-    with get_master_conn() as conn:
-        ensure_master_tables_exist(conn)
-        payload = data.copy()
-        # Allow callers to provide only a callsign; use it for id/tail if missing
-        if "callsign" in payload:
-            payload.setdefault("id", payload.get("callsign"))
-            payload.setdefault("tail_number", payload.get("callsign"))
-        else:
-            payload.setdefault("callsign", None)
-        payload.setdefault("type", None)
-        payload.setdefault("assigned_to", None)
-        payload.setdefault("status", "Available")
-        payload.setdefault("created_at", _timestamp())
-        payload["updated_at"] = _timestamp()
-        conn.execute(
-            """
-            INSERT INTO aircraft_master (id, tail_number, type, status, callsign, assigned_to, created_at, updated_at)
-            VALUES (:id, :tail_number, :type, :status, :callsign, :assigned_to, :created_at, :updated_at)
-            ON CONFLICT(id) DO UPDATE SET
-                tail_number=excluded.tail_number,
-                type=excluded.type,
-                status=excluded.status,
-                callsign=excluded.callsign,
-                assigned_to=excluded.assigned_to,
-                updated_at=excluded.updated_at
-            """,
-            payload,
-        )
-        conn.commit()
 
 # ---------------------------------------------------------------------------
-# Incident copy helpers
+# Roster queries
 # ---------------------------------------------------------------------------
 
-def _incident_insert(sql: str, payload: Dict) -> None:
+def get_distinct_roles() -> List[str]:
+    """Return a sorted list of roles present in the roster."""
+    roles: set[str] = set()
     with get_incident_conn() as conn:
-        ensure_incident_tables_exist(conn)
-        conn.execute(sql, payload)
+        schema.ensure_incident_schema(conn)
+        cur = conn.execute("SELECT DISTINCT role_on_team FROM checkins WHERE role_on_team IS NOT NULL")
+        roles.update(
+            {
+                str(value).strip()
+                for (value,) in cur.fetchall()
+                if value not in (None, "")
+            }
+        )
+    with get_master_conn() as conn:
+        schema.ensure_master_schema(conn)
+        roles.update(_collect_personnel_values(conn, "primary_role"))
+        roles.update(_collect_personnel_values(conn, "role"))
+    return sorted(roles)
+
+
+def get_distinct_teams() -> List[Tuple[str, str]]:
+    """Return ``(team_id, name)`` tuples for roster filters."""
+    with get_incident_conn() as conn:
+        schema.ensure_incident_schema(conn)
+        info = _team_table_info(conn)
+        if not info:
+            return []
+        identifier_col, label_col = info
+        id_expr = _quote_identifier(identifier_col)
+        label_expr = _quote_identifier(label_col) if label_col else "NULL"
+        order_expr = (
+            f"LOWER(COALESCE(TRIM({label_expr}), CAST({id_expr} AS TEXT)))"
+            if label_col
+            else f"LOWER(CAST({id_expr} AS TEXT))"
+        )
+        sql = (
+            f"SELECT {id_expr} AS team_id, {label_expr} AS team_name "
+            f"FROM teams ORDER BY {order_expr}"
+        )
+        rows = conn.execute(sql).fetchall()
+
+    teams: List[Tuple[str, str]] = []
+    for row in rows:
+        raw_id = row["team_id"]
+        if raw_id in (None, ""):
+            continue
+        identifier = str(raw_id)
+        raw_name = row["team_name"]
+        label = str(raw_name).strip() if raw_name not in (None, "") else ""
+        if not label:
+            label = identifier
+        teams.append((identifier, label))
+    return teams
+
+
+def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
+    filters.apply_defaults()
+    with get_incident_conn() as conn:
+        schema.ensure_incident_schema(conn)
+        team_info = _team_table_info(conn)
+        if team_info:
+            identifier_col, label_col = team_info
+            join_value = f"CAST({_qualify('t', identifier_col)} AS TEXT)"
+            if label_col:
+                label_expr = f"NULLIF(TRIM({_qualify('t', label_col)}), '')"
+                team_name_expr = f"COALESCE({label_expr}, {join_value}) AS team_name"
+            else:
+                team_name_expr = f"{join_value} AS team_name"
+            sql = (
+                "SELECT c.*, "
+                f"{team_name_expr} "
+                "FROM checkins c "
+                f"LEFT JOIN teams t ON {join_value} = c.team_id"
+            )
+        else:
+            sql = "SELECT c.*, NULL AS team_name FROM checkins c"
+        conditions: List[str] = []
+        params: List[str] = []
+        if filters.ci_status:
+            conditions.append("c.ci_status = ?")
+            params.append(filters.ci_status.value)
+        if filters.personnel_status:
+            conditions.append("c.personnel_status = ?")
+            params.append(filters.personnel_status.value)
+        if filters.team:
+            conditions.append("c.team_id = ?")
+            params.append(filters.team)
+        if not filters.include_no_show:
+            conditions.append("c.ci_status != ?")
+            params.append(CIStatus.NO_SHOW.value)
+        if conditions:
+            sql += " WHERE " + " AND ".join(conditions)
+        sql += " ORDER BY c.updated_at DESC"
+        rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    roster: List[RosterRow] = []
+    for row in rows:
+        identity = get_person_identity(row["person_id"])
+        if identity is None:
+            # Skip orphaned records; log? For now just skip.
+            continue
+        role = row.get("role_on_team") or identity.primary_role
+        if filters.role and (role or "") != filters.role:
+            continue
+        if filters.q:
+            term = filters.q.lower()
+            haystack = "|".join(
+                filter(
+                    None,
+                    [
+                        identity.person_id,
+                        identity.name,
+                        identity.callsign,
+                        identity.phone,
+                        row.get("incident_callsign"),
+                        row.get("incident_phone"),
+                    ],
+                )
+            ).lower()
+            if term not in haystack:
+                continue
+        ci_status = CIStatus.normalize(row["ci_status"])
+        personnel_status = PersonnelStatus.normalize(row["personnel_status"])
+        team_label = row.get("team_name") or row.get("team_id")
+        if not team_label:
+            team_label = "—"
+        ui_flags = UIFlags(
+            hidden_by_default=ci_status is CIStatus.NO_SHOW,
+            grayed=ci_status is CIStatus.DEMOBILIZED,
+        )
+        row_class = "row-demob" if ui_flags.grayed else None
+        roster.append(
+            RosterRow(
+                person_id=row["person_id"],
+                name=identity.name,
+                role=role,
+                team=team_label,
+                phone=row.get("incident_phone") or identity.phone,
+                callsign=row.get("incident_callsign") or identity.callsign,
+                ci_status=ci_status,
+                personnel_status=personnel_status,
+                updated_at=row.get("updated_at"),
+                team_id=row.get("team_id"),
+                row_class=row_class,
+                ui_flags=ui_flags,
+            )
+        )
+
+    roster.sort(key=lambda r: r.name.lower())
+    return roster
+
+
+# ---------------------------------------------------------------------------
+# Check-in persistence
+# ---------------------------------------------------------------------------
+
+def fetch_checkin(person_id: str) -> Optional[CheckInRecord]:
+    with get_incident_conn() as conn:
+        schema.ensure_incident_schema(conn)
+        cur = conn.execute("SELECT * FROM checkins WHERE person_id = ?", (person_id,))
+        row = cur.fetchone()
+        return CheckInRecord.from_row(dict(row)) if row else None
+
+
+def save_checkin(record: CheckInRecord) -> CheckInRecord:
+    payload = record.to_payload()
+    if payload.get("team_id") in {"—", ""}:
+        payload["team_id"] = None
+    with get_incident_conn() as conn:
+        schema.ensure_incident_schema(conn)
+        conn.execute(
+            """
+            INSERT INTO checkins (
+                person_id, ci_status, personnel_status, arrival_time, location,
+                location_other, shift_start, shift_end, notes, incident_callsign,
+                incident_phone, team_id, role_on_team, operational_period,
+                created_at, updated_at
+            )
+            VALUES (
+                :person_id, :ci_status, :personnel_status, :arrival_time, :location,
+                :location_other, :shift_start, :shift_end, :notes, :incident_callsign,
+                :incident_phone, :team_id, :role_on_team, :operational_period,
+                :created_at, :updated_at
+            )
+            ON CONFLICT(person_id) DO UPDATE SET
+                ci_status=excluded.ci_status,
+                personnel_status=excluded.personnel_status,
+                arrival_time=excluded.arrival_time,
+                location=excluded.location,
+                location_other=excluded.location_other,
+                shift_start=excluded.shift_start,
+                shift_end=excluded.shift_end,
+                notes=excluded.notes,
+                incident_callsign=excluded.incident_callsign,
+                incident_phone=excluded.incident_phone,
+                team_id=excluded.team_id,
+                role_on_team=excluded.role_on_team,
+                operational_period=excluded.operational_period,
+                updated_at=excluded.updated_at
+            """,
+            payload,
+        )
+        conn.commit()
+    return record
+
+
+# ---------------------------------------------------------------------------
+# History helpers
+# ---------------------------------------------------------------------------
+
+def log_history(person_id: str, actor: str, event_type: str, payload: Dict) -> None:
+    entry = json.dumps(payload, separators=(",", ":"))
+    with get_incident_conn() as conn:
+        schema.ensure_incident_schema(conn)
+        conn.execute(
+            "INSERT INTO history (person_id, ts, actor, event_type, payload) VALUES (?, ?, ?, ?, ?)",
+            (person_id, _now(), actor, event_type, entry),
+        )
         conn.commit()
 
 
-def copy_personnel_to_incident(personnel: Dict) -> None:
-    incident_id = AppState.get_active_incident()
-    if incident_id is None:
-        raise RuntimeError("Active incident not set")
-    payload = personnel.copy()
-    payload.update(
-        {
-            "incident_id": incident_id,
-            "status": "Checked-In",
-            "checked_in_at": _timestamp(),
-            "updated_at": _timestamp(),
-        }
-    )
-    payload.setdefault("callsign", None)
-    payload.setdefault("role", None)
-    _incident_insert(
-        """
-        INSERT INTO personnel_incident (id, incident_id, first_name, last_name, callsign, role, status, checked_in_at, updated_at)
-        VALUES (:id, :incident_id, :first_name, :last_name, :callsign, :role, :status, :checked_in_at, :updated_at)
-        ON CONFLICT(id) DO UPDATE SET
-            incident_id=excluded.incident_id,
-            first_name=excluded.first_name,
-            last_name=excluded.last_name,
-            callsign=excluded.callsign,
-            role=excluded.role,
-            status=excluded.status,
-            checked_in_at=excluded.checked_in_at,
-            updated_at=excluded.updated_at
-        """,
-        payload,
-    )
+def list_history(person_id: str) -> List[HistoryItem]:
+    with get_incident_conn() as conn:
+        schema.ensure_incident_schema(conn)
+        rows = conn.execute(
+            "SELECT * FROM history WHERE person_id = ? ORDER BY ts DESC", (person_id,)
+        ).fetchall()
+    history: List[HistoryItem] = []
+    for row in rows:
+        payload = json.loads(row["payload"]) if row["payload"] else {}
+        history.append(
+            HistoryItem(
+                id=row["id"],
+                ts=row["ts"],
+                actor=row["actor"],
+                event_type=row["event_type"],
+                payload=payload,
+            )
+        )
+    return history
 
 
-def copy_equipment_to_incident(equipment: Dict) -> None:
-    incident_id = AppState.get_active_incident()
-    if incident_id is None:
-        raise RuntimeError("Active incident not set")
-    payload = equipment.copy()
-    payload.update(
-        {
-            "incident_id": incident_id,
-            "status": "Checked-In",
-            "checked_in_at": _timestamp(),
-            "updated_at": _timestamp(),
-        }
-    )
-    payload.setdefault("type", None)
-    payload.setdefault("assigned_to", None)
-    _incident_insert(
-        """
-        INSERT INTO equipment_incident (id, incident_id, name, type, status, assigned_to, checked_in_at, updated_at)
-        VALUES (:id, :incident_id, :name, :type, :status, :assigned_to, :checked_in_at, :updated_at)
-        ON CONFLICT(id) DO UPDATE SET
-            incident_id=excluded.incident_id,
-            name=excluded.name,
-            type=excluded.type,
-            status=excluded.status,
-            assigned_to=excluded.assigned_to,
-            checked_in_at=excluded.checked_in_at,
-            updated_at=excluded.updated_at
-        """,
-        payload,
-    )
+def has_activity(person_id: str) -> bool:
+    """Return ``True`` if history contains activity beyond initial create."""
+    activity_events = {"ASSIGNMENT_CHANGE", "NOTE", "LOCATION_CHANGE"}
+    with get_incident_conn() as conn:
+        schema.ensure_incident_schema(conn)
+        rows = conn.execute(
+            "SELECT event_type FROM history WHERE person_id = ?",
+            (person_id,),
+        ).fetchall()
+    return any(row[0] in activity_events for row in rows)
 
 
-def copy_vehicle_to_incident(vehicle: Dict) -> None:
-    incident_id = AppState.get_active_incident()
-    if incident_id is None:
-        raise RuntimeError("Active incident not set")
-    payload = vehicle.copy()
-    payload.update(
-        {
-            "incident_id": incident_id,
-            "status": "Checked-In",
-            "checked_in_at": _timestamp(),
-            "updated_at": _timestamp(),
-        }
-    )
-    payload.setdefault("type", None)
-    payload.setdefault("callsign", None)
-    payload.setdefault("assigned_to", None)
-    _incident_insert(
-        """
-        INSERT INTO vehicle_incident (id, incident_id, name, type, status, callsign, assigned_to, checked_in_at, updated_at)
-        VALUES (:id, :incident_id, :name, :type, :status, :callsign, :assigned_to, :checked_in_at, :updated_at)
-        ON CONFLICT(id) DO UPDATE SET
-            incident_id=excluded.incident_id,
-            name=excluded.name,
-            type=excluded.type,
-            status=excluded.status,
-            callsign=excluded.callsign,
-            assigned_to=excluded.assigned_to,
-            checked_in_at=excluded.checked_in_at,
-            updated_at=excluded.updated_at
-        """,
-        payload,
-    )
+# ---------------------------------------------------------------------------
+# Offline queue persistence
+# ---------------------------------------------------------------------------
+
+def save_queue_items(path: str, items: Sequence[QueueItem]) -> None:
+    payload = {
+        "version": 1,
+        "items": [item.to_dict() for item in items],
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, separators=(",", ":"))
 
 
-def copy_aircraft_to_incident(aircraft: Dict) -> None:
-    incident_id = AppState.get_active_incident()
-    if incident_id is None:
-        raise RuntimeError("Active incident not set")
-    payload = aircraft.copy()
-    payload.update(
-        {
-            "incident_id": incident_id,
-            "status": "Checked-In",
-            "checked_in_at": _timestamp(),
-            "updated_at": _timestamp(),
-        }
-    )
-    payload.setdefault("tail_number", aircraft.get("tail_number"))
-    payload.setdefault("type", None)
-    payload.setdefault("callsign", None)
-    payload.setdefault("assigned_to", None)
-    _incident_insert(
-        """
-        INSERT INTO aircraft_incident (id, incident_id, tail_number, type, status, callsign, assigned_to, checked_in_at, updated_at)
-        VALUES (:id, :incident_id, :tail_number, :type, :status, :callsign, :assigned_to, :checked_in_at, :updated_at)
-        ON CONFLICT(id) DO UPDATE SET
-            incident_id=excluded.incident_id,
-            tail_number=excluded.tail_number,
-            type=excluded.type,
-            status=excluded.status,
-            callsign=excluded.callsign,
-            assigned_to=excluded.assigned_to,
-            checked_in_at=excluded.checked_in_at,
-            updated_at=excluded.updated_at
-        """,
-        payload,
-    )
+def load_queue_items(path: str) -> List[QueueItem]:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except FileNotFoundError:
+        return []
+    items = payload.get("items", [])
+    return [QueueItem.from_payload(item) for item in items]
+
+
+__all__ = [
+    "get_person_identity",
+    "search_personnel",
+    "get_distinct_roles",
+    "get_distinct_teams",
+    "fetch_roster",
+    "fetch_checkin",
+    "save_checkin",
+    "log_history",
+    "list_history",
+    "has_activity",
+    "save_queue_items",
+    "load_queue_items",
+]

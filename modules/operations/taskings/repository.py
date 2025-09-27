@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
 import sqlite3
 from dataclasses import asdict
@@ -8,6 +10,9 @@ from typing import Any, Dict, List, Optional
 from utils import incident_context
 from utils.audit import write_audit
 from .models import Task, TaskTeam, TaskDetail
+
+
+logger = logging.getLogger(__name__)
 
 
 def _connect() -> sqlite3.Connection:
@@ -914,12 +919,18 @@ def list_audit_logs(
             where.append("(action LIKE ? OR detail LIKE ?)")
             params.extend([f"%{search}%", f"%{search}%"])
         if task_id is not None:
+            # Match by explicit taskid column if present, but also include
+            # JSON payload fallbacks used by write_audit: either "task_id": N
+            # or {"panel": "task", "id": N}.
+            like_taskid = f"%\"task_id\": {int(task_id)}%"
+            like_panel_task = "%\"panel\": \"task\"%"
+            like_id = f"%\"id\": {int(task_id)}%"
             if "taskid" in cols:
-                where.append("taskid = ?")
-                params.append(int(task_id))
+                where.append("(taskid = ? OR detail LIKE ? OR (detail LIKE ? AND detail LIKE ?))")
+                params.extend([int(task_id), like_taskid, like_panel_task, like_id])
             else:
-                where.append("detail LIKE ?")
-                params.append(f"%\"task_id\": {int(task_id)}%")
+                where.append("(detail LIKE ? OR (detail LIKE ? AND detail LIKE ?))")
+                params.extend([like_taskid, like_panel_task, like_id])
         # Build ORDER BY using whitelisted columns only
         dir_sql = "ASC" if (str(sort_dir or "").lower() == "asc") else "DESC"
         order_expr = None
@@ -1067,7 +1078,38 @@ def create_team(team_leader_id: Optional[int] = None) -> int:
             (int(team_leader_id) if team_leader_id is not None else None,),
         )
         con.commit()
-        return int(cur.lastrowid)
+        team_id = int(cur.lastrowid)
+    _auto_create_team_activity_log(team_id)
+    return team_id
+
+
+def _auto_create_team_activity_log(team_id: int) -> None:
+    incident_id = incident_context.get_active_incident_id()
+    if not incident_id:
+        return
+    try:
+        from modules.ics214 import services as ics214_services
+        from modules.ics214.schemas import StreamCreate
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.debug("ICS-214 service unavailable for team %s: %s", team_id, exc)
+        return
+    label = f"Team {team_id}"
+    try:
+        section = json.dumps(
+            {"category": "team", "ref": f"team:{team_id}", "label": label},
+            ensure_ascii=False,
+        )
+        ics214_services.create_stream(
+            StreamCreate(
+                incident_id=str(incident_id),
+                name=label,
+                op_number=0,
+                kind="team",
+                section=section,
+            )
+        )
+    except Exception as exc:  # pragma: no cover - best-effort linkage
+        logger.debug("Failed to auto-create ICS-214 for team %s: %s", team_id, exc)
 
 
 def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Optional[str] = None, primary: bool = False) -> int:

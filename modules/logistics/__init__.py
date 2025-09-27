@@ -22,9 +22,11 @@ try:  # pragma: no cover - executed only when Qt is available
         get_personnel_panel,
         get_vehicles_panel,
     )
-except Exception:  # pragma: no cover - Qt not available
-    def _missing(*_: object, **__: object) -> None:
-        raise ImportError("Qt GUI components are not available in this build")
+except Exception as exc:  # pragma: no cover - Qt not available
+    def _missing(*_: object, __exc: Exception = exc, **__: object) -> None:
+        raise ImportError(
+            "Qt GUI components are not available in this build"
+        ) from __exc
 
     get_logistics_panel = get_checkin_panel = get_equipment_panel = _missing
     get_213rr_panel = get_personnel_panel = get_vehicles_panel = _missing

@@ -7,24 +7,35 @@ from fastapi.testclient import TestClient
 
 from modules.ics214.api import router
 
-app = FastAPI()
-app.include_router(router, prefix="/api/ics214")
-client = TestClient(app)
-
 
 def test_create_entry_ws_and_export(tmp_path):
-    # Create stream
-    res = client.post("/api/ics214/streams", json={"incident_id": "m1", "name": "Test"})
-    stream_id = res.json()["id"]
+    app = FastAPI()
+    app.include_router(router, prefix="/api/ics214")
 
-    with client.websocket_connect(f"/api/ics214/streams/{stream_id}/ws") as ws:
-        client.post(f"/api/ics214/streams/{stream_id}/entries", params={"incident_id": "m1"}, json={"text": "hello"})
-        data = ws.receive_json()
-        assert data["text"] == "hello"
+    with TestClient(app) as client:
+        # Create stream
+        res = client.post("/api/ics214/streams", json={"incident_id": "m1", "name": "Test"})
+        stream_id = res.json()["id"]
 
-    res = client.get(f"/api/ics214/streams/{stream_id}/entries", params={"incident_id": "m1"})
-    assert len(res.json()) == 1
+        with client.websocket_connect(f"/api/ics214/streams/{stream_id}/ws") as ws:
+            client.post(
+                f"/api/ics214/streams/{stream_id}/entries",
+                params={"incident_id": "m1"},
+                json={"text": "hello"},
+            )
+            data = ws.receive_json()
+            assert data["text"] == "hello"
 
-    res = client.post(f"/api/ics214/streams/{stream_id}/export", params={"incident_id": "m1"}, json={"include_auto": True, "include_attachments": False})
-    path = res.json()["file_path"]
-    assert os.path.exists(path)
+        res = client.get(
+            f"/api/ics214/streams/{stream_id}/entries",
+            params={"incident_id": "m1"},
+        )
+        assert len(res.json()) == 1
+
+        res = client.post(
+            f"/api/ics214/streams/{stream_id}/export",
+            params={"incident_id": "m1"},
+            json={"include_auto": True, "include_attachments": False},
+        )
+        path = res.json()["file_path"]
+        assert os.path.exists(path)

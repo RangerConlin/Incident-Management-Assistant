@@ -1,21 +1,17 @@
-"""Optional widget wrapper to host the QML check-in window."""
+"""QtWidgets implementation of the Logistics Check-In panel."""
 from __future__ import annotations
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout
-from PySide6.QtQuickWidgets import QQuickWidget
-from PySide6.QtQml import QQmlEngine
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from ..checkin_bridge import CheckInBridge
+from ..widgets import CheckInWindow
 
 
 class CheckInPanel(QWidget):
-    """Simple QWidget that loads the QML CheckInWindow."""
+    """Container that embeds :class:`CheckInWindow` in a dock/widget."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        self.bridge = CheckInBridge()
-        self.view = QQuickWidget()
-        self.view.engine().rootContext().setContextProperty("checkInBridge", self.bridge)
-        self.view.setSource("modules/logistics/checkin/qml/CheckInWindow.qml")
-        layout.addWidget(self.view)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.window = CheckInWindow(self)
+        layout.addWidget(self.window)

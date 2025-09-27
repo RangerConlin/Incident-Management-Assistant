@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Signal, Slot, Property
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
 
-from styles.palette import THEMES
+from styles.profiles import builtin_theme_tokens
 
 
 class ThemeManager(QObject):
@@ -13,7 +13,12 @@ class ThemeManager(QObject):
     def __init__(self, app: QApplication, initial_theme: str = "light"):
         super().__init__()
         self._app = app
-        self._theme = initial_theme if initial_theme in THEMES else "light"
+        self._builtin_themes: Dict[str, Dict[str, str]] = builtin_theme_tokens()
+        if not self._builtin_themes:
+            self._builtin_themes = {"light": {}}
+        self._default_theme = next(iter(self._builtin_themes))
+        self._custom_tokens: Dict[str, Dict[str, str]] = {}
+        self._theme = initial_theme if initial_theme in self._builtin_themes else self._default_theme
         self.apply_palette()
 
     # Expose as Qt Property if needed
@@ -23,7 +28,14 @@ class ThemeManager(QObject):
     @Slot(str)
     def setTheme(self, name: str):
         name = (name or "").lower()
-        if name not in THEMES or name == self._theme:
+        if name.startswith("custom:"):
+            key = name.split("custom:", 1)[1]
+            if key in self._custom_tokens and self._theme != f"custom:{key}":
+                self._theme = f"custom:{key}"
+                self.apply_palette()
+                self.themeChanged.emit(self._theme)
+            return
+        if name not in self._builtin_themes or name == self._theme:
             return
         self._theme = name
         self.apply_palette()
@@ -32,24 +44,54 @@ class ThemeManager(QObject):
     theme = Property(str, fget=getTheme, fset=setTheme, notify=themeChanged)
 
     def tokens(self) -> Dict[str, str]:
-        return THEMES[self._theme]
+        if self._theme.startswith("custom:" ):
+            key = self._theme.split("custom:", 1)[1]
+            return self._custom_tokens.get(key, self._builtin_themes.get(self._default_theme, {}))
+        return self._builtin_themes.get(self._theme, self._builtin_themes.get(self._default_theme, {}))
 
     def apply_palette(self):
         """Apply base QWidget palette; QML reads tokens via ThemeBridge."""
         tokens = self.tokens()
         pal = QPalette()
         # Windows
-        pal.setColor(QPalette.Window, QColor(tokens["bg_window"]))
-        pal.setColor(QPalette.WindowText, QColor(tokens["fg_primary"]))
+        pal.setColor(QPalette.Window, QColor(tokens.get("bg_window", "#FFFFFF")))
+        pal.setColor(QPalette.WindowText, QColor(tokens.get("fg_primary", "#000000")))
         # Base text/controls
-        pal.setColor(QPalette.Base, QColor(tokens["ctrl_bg"]))
-        pal.setColor(QPalette.Text, QColor(tokens["fg_primary"]))
+        pal.setColor(QPalette.Base, QColor(tokens.get("ctrl_bg", "#FFFFFF")))
+        pal.setColor(QPalette.Text, QColor(tokens.get("fg_primary", "#000000")))
         # Buttons
-        pal.setColor(QPalette.Button, QColor(tokens["ctrl_bg"]))
-        pal.setColor(QPalette.ButtonText, QColor(tokens["fg_primary"]))
+        pal.setColor(QPalette.Button, QColor(tokens.get("ctrl_bg", "#FFFFFF")))
+        pal.setColor(QPalette.ButtonText, QColor(tokens.get("fg_primary", "#000000")))
         # Accents (use as Highlight)
-        pal.setColor(QPalette.Highlight, QColor(tokens["accent"]))
-        pal.setColor(QPalette.HighlightedText, QColor("#FFFFFF"))
+        pal.setColor(QPalette.Highlight, QColor(tokens.get("accent", "#2F80ED")))
+        pal.setColor(QPalette.HighlightedText, QColor(tokens.get("highlighted_text", "#FFFFFF")))
 
-        self._app.setPalette(pal)
+        if self._app is not None:
+            self._app.setPalette(pal)
+
+    # Custom theme helpers -------------------------------------------------
+    def register_custom_theme(self, theme_id: str, tokens: Dict[str, str], *, base_theme: str | None = None) -> None:
+        theme_id = (theme_id or "").strip().lower()
+        if not theme_id:
+            return
+        base_tokens = dict(self._builtin_themes.get(base_theme or self._default_theme, self._builtin_themes.get(self._default_theme, {})))
+        base_tokens.update(tokens)
+        self._custom_tokens[theme_id] = base_tokens
+
+    def apply_custom_theme(self, theme_id: str) -> None:
+        theme_id = (theme_id or "").strip().lower()
+        if theme_id not in self._custom_tokens:
+            return
+        name = f"custom:{theme_id}"
+        if self._theme == name:
+            self.apply_palette()
+            self.themeChanged.emit(self._theme)
+            return
+        self._theme = name
+        self.apply_palette()
+        self.themeChanged.emit(self._theme)
+
+    def remove_custom_theme(self, theme_id: str) -> None:
+        theme_id = (theme_id or "").strip().lower()
+        self._custom_tokens.pop(theme_id, None)
 

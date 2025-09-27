@@ -12,6 +12,7 @@ Master DB schema is never altered here.
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+import os
 import sqlite3
 from typing import Iterator
 
@@ -35,8 +36,20 @@ def get_master_conn() -> sqlite3.Connection:
     return _conn(MASTER_DB_PATH)
 
 
-def get_incident_conn(incident_number: str | int) -> sqlite3.Connection:
-    path = incident_context.get_active_incident_db_path(incident_number)
+def get_incident_conn(incident_number: str | int | None = None) -> sqlite3.Connection:
+    """Return a connection to the incident database.
+
+    Falls back to the active incident configured via ``incident_context`` when
+    no explicit identifier is provided.
+    """
+    if incident_number is None:
+        incident = incident_context.get_active_incident_id()
+        if incident is None:
+            raise RuntimeError("Active incident not set")
+        incident_number = incident
+    base = Path(os.environ.get("CHECKIN_DATA_DIR", "data")) / "incidents"
+    base.mkdir(parents=True, exist_ok=True)
+    path = base / f"{incident_number}.db"
     return _conn(path)
 
 

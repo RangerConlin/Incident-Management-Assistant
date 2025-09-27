@@ -16,7 +16,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence
 
 from PySide6 import QtConcurrent
 from PySide6.QtCore import (
@@ -32,8 +32,13 @@ from PySide6.QtCore import (
     QTimer,
     QSettings,
     Signal,
-    QFutureWatcher,
+    QThread,
 )
+
+try:  # QtConcurrent extras were removed from some builds
+    from PySide6.QtCore import QFutureWatcher
+except ImportError:  # pragma: no cover - depends on PySide6 build
+    QFutureWatcher = None  # type: ignore[assignment]
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -78,12 +83,42 @@ from PySide6.QtWidgets import (
     QProgressBar,
 )
 
+try:  # pragma: no cover - environment-dependent Qt builds may omit QFutureWatcher
+    from PySide6.QtCore import QFutureWatcher
+except ImportError:  # pragma: no cover - fallback when QtConcurrent watcher is unavailable
+    QFutureWatcher = None  # type: ignore[assignment]
+
 from notifications.models import Notification
 from notifications.services import get_notifier
 
 from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog, VehicleRepository
 
-__all__ = ["VehicleInventoryPanel"]
+__all__ = ["VehicleInventoryPanel", "VehicleInventoryDialog"]
+
+
+class _ExportWorkerThread(QThread):
+    """Run export tasks in a thread when QFutureWatcher is unavailable."""
+
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(
+        self,
+        task: Callable[[dict[str, Any]], dict[str, Any]],
+        params: dict[str, Any],
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._task = task
+        self._params = params
+
+    def run(self) -> None:  # type: ignore[override]
+        try:
+            result = self._task(self._params)
+        except Exception as exc:  # pragma: no cover - depends on runtime state
+            self.failed.emit(str(exc))
+        else:
+            self.completed.emit(result)
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +407,13 @@ class TagsChipDelegate(QStyledItemDelegate):
             self._draw_chip(painter, chip_rect, more_label)
 
         if chips_drawn == 0 and hidden == 0:
-            painter.setPen(QPen(option.palette.color(QPalette.ColorRole.Disabled, QPalette.ColorRole.Text)))
+            painter.setPen(
+                QPen(
+                    option.palette.color(
+                        QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text
+                    )
+                )
+            )
             painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, "—")
 
         painter.restore()
@@ -1331,6 +1372,7 @@ class VehicleInventoryPanel(QWidget):
         self._sort_order = "asc"
         self._selected_vehicle_id: str | None = None
         self._export_watcher: QFutureWatcher | None = None
+        self._export_worker: _ExportWorkerThread | None = None
 
         self._setup_ui()
         self._load_reference_data()
@@ -1832,6 +1874,19 @@ class VehicleInventoryPanel(QWidget):
         }
 
         self.export_button.setEnabled(False)
+        if QFutureWatcher is None:
+            try:
+                result = self._perform_export(params)
+            except Exception as exc:  # pragma: no cover - runtime dependent
+                self.export_button.setEnabled(True)
+                self._show_toast("Export failed", str(exc), severity="error")
+                QMessageBox.critical(self, "Export failed", str(exc))
+                return
+
+            self.export_button.setEnabled(True)
+            self._handle_export_result(result)
+            return
+
         watcher = QFutureWatcher(self)
         future = QtConcurrent.run(self._perform_export, params)
         watcher.setFuture(future)
@@ -1950,14 +2005,32 @@ class VehicleInventoryPanel(QWidget):
                 values.append(record.raw.get(field, ""))
         return values
 
-    def _on_export_finished(self, watcher: QFutureWatcher) -> None:
+    def _on_export_finished(self, result_or_watcher: Any) -> None:
         self.export_button.setEnabled(True)
-        try:
-            result = watcher.result()
-        except Exception as exc:  # pragma: no cover - runtime dependent
-            self._show_toast("Export failed", str(exc), severity="error")
-            return
 
+        if hasattr(result_or_watcher, "result"):
+            if result_or_watcher is self._export_watcher:
+                self._export_watcher = None
+            try:
+                result = result_or_watcher.result()
+            except Exception as exc:  # pragma: no cover - runtime dependent
+                self._show_toast("Export failed", str(exc), severity="error")
+                return
+        else:
+            result = result_or_watcher
+
+        self._present_export_result(result)
+
+    def _on_export_failed(self, message: str) -> None:
+        self.export_button.setEnabled(True)
+        self._show_toast("Export failed", message, severity="error")
+
+    def _on_export_worker_finished(self, worker: _ExportWorkerThread) -> None:
+        if self._export_worker is worker:
+            self._export_worker = None
+        worker.deleteLater()
+
+    def _present_export_result(self, result: dict[str, Any]) -> None:
         path = Path(result.get("path"))
         count = result.get("count", 0)
         scope = result.get("scope", "all")
@@ -2002,4 +2075,29 @@ class VehicleInventoryPanel(QWidget):
             orientation = Qt.Orientation.Vertical if width < 900 else Qt.Orientation.Horizontal
             if self.splitter.orientation() != orientation:
                 self.splitter.setOrientation(orientation)
+
+
+class VehicleInventoryDialog(QDialog):
+    """Modal dialog wrapper embedding :class:`VehicleInventoryPanel`."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        repository: VehicleRepository | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Vehicle Inventory")
+        self.resize(1300, 760)
+
+        self._panel = VehicleInventoryPanel(parent=self, repository=repository)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._panel)
+
+    @property
+    def panel(self) -> VehicleInventoryPanel:
+        """Return the embedded inventory panel instance."""
+
+        return self._panel
 
