@@ -173,6 +173,18 @@ class ObjectiveTaskInfo:
 
 
 @dataclass(slots=True)
+class TaskObjectiveLink:
+    """Represents a linkage between a task and an objective/strategy."""
+
+    link_id: int
+    objective_id: int
+    objective_code: str
+    objective_text: str
+    strategy_id: int
+    strategy_text: str
+
+
+@dataclass(slots=True)
 class ObjectiveSummary:
     """Summary row exposed to the table model."""
 
@@ -564,6 +576,42 @@ class ObjectiveRepository:
         if strategy:
             strategy.updated_at = datetime.utcnow()
             strategy.updated_by = user_id
+        self.session.flush()
+
+    def list_links_for_task(self, task_id: int) -> list[TaskObjectiveLink]:
+        """Return existing objective/strategy links for the given task id."""
+        rows = (
+            self.session.execute(
+                select(
+                    ObjectiveStrategyTaskLink.id,
+                    IncidentObjective.id,
+                    IncidentObjective.code,
+                    IncidentObjective.text,
+                    ObjectiveStrategy.id,
+                    ObjectiveStrategy.text,
+                )
+                .where(
+                    ObjectiveStrategyTaskLink.task_id == int(task_id),
+                    ObjectiveStrategyTaskLink.objective_id == IncidentObjective.id,
+                    ObjectiveStrategyTaskLink.strategy_id == ObjectiveStrategy.id,
+                )
+                .order_by(IncidentObjective.display_order.asc(), ObjectiveStrategy.id.asc())
+            )
+            .all()
+        )
+        out: list[TaskObjectiveLink] = []
+        for link_id, obj_id, obj_code, obj_text, strat_id, strat_text in rows:
+            out.append(
+                TaskObjectiveLink(
+                    link_id=int(link_id),
+                    objective_id=int(obj_id),
+                    objective_code=str(obj_code or ""),
+                    objective_text=str(obj_text or ""),
+                    strategy_id=int(strat_id),
+                    strategy_text=str(strat_text or ""),
+                )
+            )
+        return out
 
     def list_tasks(self, objective_id: int) -> list[ObjectiveTaskInfo]:
         strategies = {

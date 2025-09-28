@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QSplitter,
     QMessageBox,
-
 )
 from utils import incident_context
 
@@ -40,18 +39,18 @@ def _get_checkin_panel():
 
 
 def _get_home_panel():
-    """Return the concrete QWidget class for the dashboard."""
-    from .panels.logistics_home_panel import LogisticsHomePanel
+    """Return the concrete QWidget class for the dashboard (Qt Widgets)."""
+    # Use the new Logistics Dashboard QtWidgets implementation (no QML)
+    from .panels.logdashboard import LogisticsDashboardWidget
 
-    return LogisticsHomePanel
+    return LogisticsDashboardWidget
 
 
 def get_logistics_panel(incident_id: object | None = None) -> QWidget:
-    """Return the main Logistics dashboard panel."""
-
+    """Return the main Logistics dashboard panel (Qt Widgets)."""
     HomePanel = _get_home_panel()
-    incident = str(incident_id) if incident_id is not None else None
-    return HomePanel(incident)
+    # New dashboard does not require incident_id on init; controllers handle context
+    return HomePanel()
 
 
 def get_checkin_panel(incident_id: object | None = None) -> QWidget:

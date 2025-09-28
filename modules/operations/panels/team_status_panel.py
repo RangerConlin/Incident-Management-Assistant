@@ -574,7 +574,11 @@ class TeamStatusPanel(QWidget):
 
     def _refresh_last_update_column(self) -> None:
         try:
-            col = 8  # Last Update is rightmost
+            # Column index for "Last Update" (0-based). Header order:
+            # 0: Needs Assistance, 1: Sortie, 2: Team Name, 3: Team Type,
+            # 4: Team Leader, 5: Contact #, 6: Status, 7: Assignment,
+            # 8: Location, 9: Last Update
+            col = 9
             rows = self.table.rowCount()
             for r in range(rows):
                 item = self.table.item(r, col)

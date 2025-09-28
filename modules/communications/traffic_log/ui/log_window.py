@@ -47,7 +47,7 @@ class CommunicationsLogWindow(QMainWindow):
 
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
-        self.setWindowTitle("Communications Traffic Log")
+        self.setWindowTitle("Communications Dashboard")
 
         toolbar = QToolBar("Log Toolbar")
         toolbar.setMovable(False)
@@ -62,6 +62,8 @@ class CommunicationsLogWindow(QMainWindow):
         self.action_save.setShortcut(QKeySequence("Ctrl+S"))
         self.action_save.triggered.connect(self._save_current_entry)
         toolbar.addAction(self.action_save)
+
+        # Inline canned button exists in Quick Entry; toolbar action removed
 
         self.action_toggle_details = QAction("Show Details", self)
         self.action_toggle_details.setEnabled(False)
@@ -163,7 +165,6 @@ class CommunicationsLogWindow(QMainWindow):
         self.filter_panel.presetSaveRequested.connect(self._on_save_preset)
         self.filter_panel.presetDeleteRequested.connect(self._on_delete_preset)
         self.quick_entry.submitted.connect(self._on_quick_entry_submitted)
-        self.quick_entry.attachmentsRequested.connect(self._on_quick_entry_attachments)
         self.detail_drawer.saveRequested.connect(self._on_detail_save)
         self.detail_drawer.createTaskRequested.connect(lambda entry_id: self._create_follow_up_task(entry_id))
         self.table_view.selectionModel().currentChanged.connect(self._on_selection_changed)
@@ -321,10 +322,7 @@ class CommunicationsLogWindow(QMainWindow):
         self._refresh_entries(select_id=entry.id)
         self.quick_entry.set_default_resource(self.service.last_used_resource())
 
-    def _on_quick_entry_attachments(self) -> None:
-        paths, _ = QFileDialog.getOpenFileNames(self, "Select Attachments")
-        if paths:
-            self.quick_entry.add_attachments(paths)
+    # Attachments UI removed from Quick Entry
 
     def _on_detail_save(self, entry_id: int, patch: dict) -> None:
         try:
@@ -346,6 +344,8 @@ class CommunicationsLogWindow(QMainWindow):
 
     def _focus_quick_entry(self) -> None:
         self.quick_entry.focus_message()
+
+    
 
     def _focus_filters(self) -> None:
         if getattr(self, "filter_button", None) and self.filter_button.menu():

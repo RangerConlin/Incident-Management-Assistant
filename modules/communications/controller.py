@@ -70,7 +70,6 @@ PLAN_COLUMNS = [
     ("mode", "Mode"),
     ("band", "Band"),
     ("priority", "Priority"),
-    ("include_on_205", "205"),
     ("remarks", "Remarks"),
 ]
 

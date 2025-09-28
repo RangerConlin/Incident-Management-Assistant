@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Dict, Iterable, List, Optional
 
 from PySide6.QtCore import QDateTime, Qt, Signal, QStringListModel
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut, QTextCursor
 from PySide6.QtWidgets import (
+    QDialog,
     QCheckBox,
     QComboBox,
     QCompleter,
@@ -25,6 +26,9 @@ from ..models import (
     PRIORITY_PRIORITY,
     PRIORITY_ROUTINE,
 )
+
+from .canned_picker import CannedCommPickerDialog
+from utils.constants import TEAM_STATUSES
 
 
 class GrowingTextEdit(QTextEdit):
@@ -79,6 +83,7 @@ class QuickEntryWidget(QWidget):
         self._to_link: Optional[Dict[str, object]] = None
         self._completer_model = QStringListModel(self)
         self._priority_shortcuts: List[QShortcut] = []
+        self._template_had_status: bool = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -126,29 +131,30 @@ class QuickEntryWidget(QWidget):
 
         message_layout = QHBoxLayout()
         self.message_edit = GrowingTextEdit()
+        self.message_edit.setReadOnly(False)
         self.message_edit.setPlaceholderText("Message body")
         message_layout.addWidget(QLabel("Message"))
         message_layout.addWidget(self.message_edit, 1)
+        # Add canned message button on the same row
+        self.canned_button = QPushButton("Canned…")
+        self.canned_button.setToolTip("Insert a canned communication message")
+        self.canned_button.clicked.connect(self._pick_canned_message)
+        message_layout.addWidget(self.canned_button)
         layout.addLayout(message_layout)
         self.message_edit.focusChanged.connect(self._on_message_focus_changed)
 
-        action_layout = QHBoxLayout()
-        self.action_edit = QLineEdit()
-        self.action_edit.setPlaceholderText("Action taken")
-        action_layout.addWidget(QLabel("Action"))
-        action_layout.addWidget(self.action_edit, 1)
-        layout.addLayout(action_layout)
-
         toggle_layout = QHBoxLayout()
-        self.status_checkbox = QCheckBox("Status Update")
         self.followup_checkbox = QCheckBox("Follow-up Required")
-        toggle_layout.addWidget(self.status_checkbox)
         toggle_layout.addWidget(self.followup_checkbox)
+        # Optional status change dropdown (applies if template lacks one)
+        self.status_change_combo = QComboBox()
+        self.status_change_combo.setToolTip("Optional status change tag")
+        self.status_change_combo.addItem("", None)
+        for opt in TEAM_STATUSES:
+            self.status_change_combo.addItem(opt, opt)
+        toggle_layout.addWidget(QLabel("Status"))
+        toggle_layout.addWidget(self.status_change_combo)
         toggle_layout.addStretch(1)
-
-        self.attach_button = QPushButton("Attach…")
-        self.attach_button.clicked.connect(self.attachmentsRequested.emit)
-        toggle_layout.addWidget(self.attach_button)
 
         self.save_button = QPushButton("Save")
         self.save_button.setDefault(True)
@@ -192,11 +198,10 @@ class QuickEntryWidget(QWidget):
             if not primary:
                 continue
             secondary = str(item.get("secondary") or "").strip()
-            display = primary if not secondary else f"{primary} — {secondary}"
+            display = primary if not secondary else f"{primary} / {secondary}"
             alias_values = list(item.get("aliases") or [])
             alias_values.extend([primary, secondary, display])
             alias_keys = {self._normalize(alias) for alias in alias_values if alias}
-            # Include split tokens such as callsigns separated by '/'
             for alias in list(alias_keys):
                 if "/" in alias:
                     for segment in alias.split("/"):
@@ -229,16 +234,18 @@ class QuickEntryWidget(QWidget):
 
     def reset(self) -> None:
         self.message_edit.clear()
-        self.action_edit.clear()
         self.followup_checkbox.setChecked(False)
-        self.status_checkbox.setChecked(False)
         self.from_field.clear()
         self.to_field.clear()
         self._from_link = None
         self._to_link = None
         self._attachments.clear()
-        self.attach_button.setText("Attach…")
         self.message_edit.setFocus()
+        try:
+            self.status_change_combo.setCurrentIndex(0)
+        except Exception:
+            pass
+        self._template_had_status = False
 
     # ------------------------------------------------------------------
     # Internal
@@ -250,6 +257,19 @@ class QuickEntryWidget(QWidget):
 
     def focus_message(self) -> None:
         self.message_edit.setFocus()
+
+    # Convenience used by integrations (e.g., canned comms picker)
+    def insert_message_text(self, text: str, *, replace: bool = True) -> None:
+        if replace:
+            self.message_edit.setPlainText(text or "")
+        else:
+            existing = self.message_edit.toPlainText()
+            if existing:
+                self.message_edit.setPlainText(f"{existing}\n{text}" if text else existing)
+            else:
+                self.message_edit.setPlainText(text or "")
+        # Move cursor to end for convenience
+        self.message_edit.moveCursor(QTextCursor.End)
 
     def _on_message_focus_changed(self, focused: bool) -> None:
         for shortcut in self._priority_shortcuts:
@@ -312,6 +332,15 @@ class QuickEntryWidget(QWidget):
         if not message:
             return
         ts_local = self.timestamp_edit.dateTime()
+        # Apply manual status tag only if template did not specify one
+        try:
+            if not getattr(self, "_template_had_status", False):
+                manual = self.status_change_combo.currentData()
+                if manual:
+                    prefix = f"[Status: {manual}]"
+                    message = f"{prefix}\n{message}" if message else prefix
+        except Exception:
+            pass
         payload: Dict[str, object] = {
             "ts_local": ts_local.toString(Qt.ISODate),
             "ts_utc": ts_local.toUTC().toString(Qt.ISODate),
@@ -321,9 +350,7 @@ class QuickEntryWidget(QWidget):
             "from_unit": self.from_field.text().strip(),
             "to_unit": self.to_field.text().strip(),
             "message": message,
-            "action_taken": self.action_edit.text().strip(),
             "follow_up_required": self.followup_checkbox.isChecked(),
-            "is_status_update": self.status_checkbox.isChecked(),
             "attachments": list(self._attachments),
         }
         for match in (self._from_link, self._to_link):
@@ -345,8 +372,35 @@ class QuickEntryWidget(QWidget):
         for path in paths:
             if path and path not in self._attachments:
                 self._attachments.append(path)
-        if self._attachments:
-            self.attach_button.setText(f"Attach… ({len(self._attachments)})")
+        # Attach button removed; no UI update here
+
+    def _pick_canned_message(self) -> None:
+        dialog = CannedCommPickerDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        entry = dialog.selected_entry() or {}
+        text = str(entry.get("message") or "")
+        if not text:
+            return
+        self.insert_message_text(text, replace=True)
+        # Apply priority if provided
+        priority = entry.get("priority")
+        if isinstance(priority, str) and priority:
+            idx = self.priority_combo.findText(priority)
+            if idx >= 0:
+                self.priority_combo.setCurrentIndex(idx)
+        # Track template-provided status and reflect in dropdown
+        try:
+            self._template_had_status = bool(entry.get("status_update"))
+            if self._template_had_status:
+                val = str(entry.get("status_update") or "").strip()
+                if val:
+                    i = self.status_change_combo.findData(val)
+                    if i >= 0:
+                        self.status_change_combo.setCurrentIndex(i)
+        except Exception:
+            self._template_had_status = False
 
 
 __all__ = ["QuickEntryWidget"]
+

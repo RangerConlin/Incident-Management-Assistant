@@ -562,20 +562,18 @@ class MainWindow(QMainWindow):
         m_cmd = mb.addMenu("Command")
         self._add_action(m_cmd, "Command Unit Log ICS-214", None, "command.unit_log")
         m_cmd.addSeparator()
-        self._add_action(
-            m_cmd, "Incident Dashboard — Command", None, "command.incident_dashboard"
-        )
+        self._add_action(m_cmd, "Incident Dashboard — Command", None, "command.incident_dashboard")
         self._add_action(m_cmd, "Incident Overview", None, "command.incident_overview")
         self._add_action(m_cmd, "Incident Action Plan Builder", None, "command.iap")
-        self._add_action(m_cmd, "Incident Objectives (ICS 202)", None, "command.objectives")
-        self._add_action(m_cmd, "Command Staff Organization (ICS 203)", None, "command.staff_org")
-        self._add_action(m_cmd, "Situation Report (ICS 209)", None, "command.sitrep")
+        self._add_action(m_cmd, "Incident Objectives (ICS-202)", None, "command.objectives")
+        self._add_action(m_cmd, "Command Staff Organization (ICS-203)", None, "command.staff_org")
+        self._add_action(m_cmd, "Situation Report (ICS-209)", None, "command.sitrep")
 
         # ----- Planning -----
         m_plan = mb.addMenu("Planning")
         self._add_action(m_plan, "Planning Unit Log ICS-214", None, "planning.unit_log")
         m_plan.addSeparator()
-        self._add_action(m_plan, "Planning Dashboard", "Ctrl+Alt+D", "planning.dashboard")
+        self._add_action(m_plan, "Planning Dashboard", "Ctrl+Alt+D", "planning.glance")
         self._add_action(m_plan, "Pending Approvals", None, "planning.approvals")
         self._add_action(m_plan, "Planning Forecast", None, "planning.forecast")
         self._add_action(m_plan, "Operational Period Manager", None, "planning.op_manager")
@@ -587,7 +585,7 @@ class MainWindow(QMainWindow):
         m_ops = mb.addMenu("Operations")
         self._add_action(m_ops, "Operations Unit Log ICS-214", None, "operations.unit_log")
         m_ops.addSeparator()
-        self._add_action(m_ops, "Assignments Dashboard", "Ctrl+1", "operations.dashboard")
+        self._add_action(m_ops, "Operations Dashboard", "Ctrl+1", "operations.dashboard")
         self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
@@ -606,15 +604,13 @@ class MainWindow(QMainWindow):
         m_comms = mb.addMenu("Communications")
         self._add_action(m_comms, "Communications Unit Log ICS-214", None, "comms.unit_log")
         m_comms.addSeparator()
-        self._add_action(
-            m_comms,
-            "Communications Traffic Log ICS-309",
-            None,
-            "comms.traffic_log",
-        )
+        self._add_action(m_comms, "Communications Dashboard", None,"comms.traffic_log",)
+        self._add_action(m_comms, "Communications Plan (ICS-205)", None, "comms.205")
+        self._add_action(m_comms, "Communications Log (ICS-309)", None, "comms.log_board")
+        self._add_action(m_comms, "Communications Quick Entry", None, "comms.quick_entry")
         self._add_action(m_comms, "Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
-        self._add_action(m_comms, "Communications Plan ICS-205", None, "comms.205")
+        
 
         # ----- Intel -----
         m_intel = mb.addMenu("Intel")
@@ -867,7 +863,7 @@ class MainWindow(QMainWindow):
 
             # ----- Planning -----
             "planning.unit_log": self.open_planning_unit_log,
-            "planning.dashboard": self.open_planning_dashboard,
+            "planning.glance": self.open_planning_glance,
             "planning.approvals": self.open_planning_approvals,
             "planning.forecast": self.open_planning_forecast,
             "planning.op_manager": self.open_planning_op_manager,
@@ -894,6 +890,8 @@ class MainWindow(QMainWindow):
             # ----- Communications -----
             "comms.unit_log": self.open_comms_unit_log,
             "comms.traffic_log": self.open_comms_traffic_log,
+            "comms.log_board": self.open_comms_log_board,
+            "comms.quick_entry": self.open_comms_quick_entry,
             "comms.chat": self.open_comms_chat,
             "comms.213": self.open_comms_213,
             "comms.205": self.open_comms_205,
@@ -1234,11 +1232,27 @@ class MainWindow(QMainWindow):
         panel = ics214.get_ics214_panel(incident_id)
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
-    def open_planning_dashboard(self) -> None:
-        from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = planning.get_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Planning Dashboard")
+    def open_planning_glance(self) -> None:
+        """Open the Planning — At-a-Glance widget (compact, modeless/dock)."""
+        try:
+            from modules.planning.panels.plandashboard import (
+                make_planning_glance_widget,
+                PlanningGlanceWidget,
+            )
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Planning At-a-Glance", f"Widget unavailable.\n{e}")
+            except Exception:
+                print(f"[warn] PlanningGlanceWidget unavailable: {e}")
+            return
+
+        widget: PlanningGlanceWidget = make_planning_glance_widget(self)
+        # Set a reasonable auto-refresh interval; controllers can override.
+        try:
+            widget.setAutoRefresh(30000)
+        except Exception:
+            pass
+        self._open_dock_widget(widget, title="Planning — At-a-Glance")
 
     def open_planning_approvals(self) -> None:
         from modules import planning
@@ -1284,10 +1298,304 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_operations_dashboard(self) -> None:
-        from modules import operations
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = operations.get_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Assignments Dashboard")
+        """Open the Operations Dashboard (compact) and wire live data."""
+        try:
+            from modules.operations.panels.opsdashboard import make_ops_glance_widget, OpsGlanceWidget
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Operations Dashboard", f"Widget unavailable.\n{e}")
+            except Exception:
+                print(f"[warn] OpsGlanceWidget unavailable: {e}")
+            return
+
+        widget: OpsGlanceWidget = make_ops_glance_widget(self)
+        self._wire_ops_glance(widget)
+        self._open_dock_widget(widget, title="Operations — Dashboard")
+
+    # ---- Ops Glance data wiring ----
+    def _wire_ops_glance(self, w) -> None:
+        from utils.app_signals import app_signals
+        from utils.state import AppState
+        from utils import incident_context
+        import sqlite3
+        from datetime import datetime, timedelta, timezone
+
+        # Button/signal wiring
+        def _open_task(task_id: str) -> None:
+            try:
+                from modules.operations.taskings.windows import open_task_detail_window
+                open_task_detail_window(int(task_id))
+            except Exception as exc:
+                try:
+                    QMessageBox.warning(self, "Open Task", f"Could not open task detail.\n{exc}")
+                except Exception:
+                    print(f"[warn] open_task failed: {exc}")
+
+        w.openTaskRequested.connect(_open_task)
+
+        def _reassign(task_id_or_none, team_name_or_none) -> None:
+            # Route to relevant UI for reassignment
+            try:
+                if task_id_or_none:
+                    from modules.operations.taskings.windows import open_task_detail_window
+                    open_task_detail_window(int(task_id_or_none))
+                elif team_name_or_none:
+                    from modules.operations.teams.windows import open_team_detail_window
+                    open_team_detail_window(None)
+            except Exception as exc:
+                print(f"[warn] reassign action failed: {exc}")
+
+        w.reassignRequested.connect(_reassign)
+
+        def _mark_complete(task_id: str) -> None:
+            try:
+                from modules.operations.data.repository import set_task_status
+                set_task_status(int(task_id), "complete")
+                _refresh()
+            except Exception as exc:
+                print(f"[warn] mark complete failed: {exc}")
+
+        w.markCompleteRequested.connect(_mark_complete)
+
+        w.openFullDashboardRequested.connect(self.open_operations_dashboard)
+        w.view214LogRequested.connect(self.open_operations_unit_log)
+
+        def _export_214() -> None:
+            try:
+                from modules.operations.taskings.repository import export_audit_csv
+                path = export_audit_csv()
+                try:
+                    QMessageBox.information(self, "Exported 214", f"Audit CSV saved to:\n{path}")
+                except Exception:
+                    print(f"[info] Audit CSV saved to: {path}")
+            except Exception as exc:
+                print(f"[warn] export 214 failed: {exc}")
+
+        w.export214Requested.connect(_export_214)
+
+        def _print_204() -> None:
+            # Open Assignments Dashboard for printing controls; specialized print flows live there
+            self.open_operations_dashboard()
+
+        w.print204Requested.connect(_print_204)
+
+        def _ack_alerts() -> None:
+            # No-op placeholder; application may implement read/unread later
+            try:
+                QMessageBox.information(self, "Alerts", "Acknowledged recent alerts.")
+            except Exception:
+                pass
+
+        w.acknowledgeAlertsRequested.connect(_ack_alerts)
+        w.refreshRequested.connect(lambda: _refresh())
+
+        # Refresh function using live data
+        def _refresh() -> None:
+            # Overlay if no active incident
+            try:
+                active_id = incident_context.get_active_incident_id()
+                w.setIncidentOverlayVisible(False if active_id else True)
+            except Exception:
+                w.setIncidentOverlayVisible(True)
+                return
+
+            # Context header
+            try:
+                op = AppState.get_active_op_period() or "—"
+                role = AppState.get_active_user_role() or "—"
+            except Exception:
+                op, role = "—", "—"
+            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
+            w.set_context(str(op), now_text, str(role))
+
+            # Open DB
+            try:
+                db_path = incident_context.get_active_incident_db_path()
+                con = sqlite3.connect(str(db_path))
+                con.row_factory = sqlite3.Row
+            except Exception as exc:
+                print(f"[warn] ops dashboard DB open failed: {exc}")
+                return
+
+            # KPIs
+            k_active = k_due = k_assigned = k_available = k_blocking = k_new_debriefs = 0
+            try:
+                rows = con.execute("SELECT id, status, due_time FROM tasks").fetchall()
+                def _norm(s):
+                    key = (s or '').strip().lower()
+                    return {
+                        'completed': 'complete',
+                        'complete': 'complete',
+                        'cancelled': 'cancelled',
+                        'draft': 'created',
+                        'created': 'created',
+                        'planned': 'planned',
+                        'assigned': 'assigned',
+                        'in progress': 'in progress',
+                    }.get(key, key)
+                open_rows = [r for r in rows if _norm(r['status']) not in {'complete', 'cancelled'}]
+                k_active = len(open_rows)
+                now = datetime.now(timezone.utc)
+                in2h = now + timedelta(hours=2)
+                def _parse(dtstr):
+                    try:
+                        dt = datetime.fromisoformat(str(dtstr))
+                        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        return None
+                k_due = sum(1 for r in open_rows if (p:=_parse(r['due_time'])) and now <= p <= in2h)
+            except Exception:
+                pass
+
+            # Teams snapshot + counts + blocking
+            try:
+                from modules.operations.data.repository import fetch_team_assignment_rows
+                teams = fetch_team_assignment_rows() or []
+                # KPI semantics: assigned <-> has a current task; available <-> no current task
+                def _has_task(t):
+                    tid = t.get('task_id')
+                    try:
+                        return int(tid) > 0
+                    except Exception:
+                        return bool(tid)
+                k_assigned = sum(1 for t in teams if _has_task(t))
+                k_available = sum(1 for t in teams if not _has_task(t))
+                k_blocking = sum(1 for t in teams if t.get('needs_attention') or t.get('emergency_flag'))
+                # Update Team Snapshot display
+                w.update_team_snapshot([
+                    {
+                        'name': t.get('name') or t.get('sortie') or 'Team',
+                        'status': str(t.get('status') or '').title(),
+                        'assigned': t.get('assignment') or '',
+                        'leader': t.get('leader') or '',
+                        'last_checkin_at': t.get('last_checkin_at') or t.get('last_updated') or '',
+                    }
+                    for t in teams[:6]
+                ])
+            except Exception as exc:
+                print(f"[warn] fetch_team_assignment_rows failed: {exc}")
+
+            # New Debriefs
+            try:
+                row = con.execute(
+                    "SELECT COUNT(*) AS c FROM task_debriefs WHERE COALESCE(status,'')='Submitted' AND (reviewed_at IS NULL OR TRIM(reviewed_at)='')"
+                ).fetchone()
+                k_new_debriefs = int(row[0]) if row and row[0] is not None else 0
+            except Exception:
+                k_new_debriefs = 0
+
+            w.update_kpis({
+                'active_tasks': k_active,
+                'due_2h': k_due,
+                'teams_assigned': k_assigned,
+                'teams_available': k_available,
+                'blocking_issues': k_blocking,
+                'new_debriefs': k_new_debriefs,
+            })
+
+            # Alerts (last 30 min) from audit logs
+            try:
+                from modules.operations.taskings.repository import list_audit_logs
+                cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+                rows = list_audit_logs(limit=100)
+                alerts = []
+                for r in rows:
+                    ts = r.get('ts_utc') or r.get('timestamp') or ''
+                    try:
+                        dt = datetime.fromisoformat(str(ts)) if ts else None
+                        if dt and dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        dt = None
+                    if dt is not None and dt >= cutoff:
+                        msg = r.get('action') or 'Audit'
+                        who = r.get('changed_by_display') or ''
+                        if who:
+                            msg = f"{msg} — {who}"
+                        alerts.append({'id': r.get('id'), 'ts': ts[-8:] if ts else '', 'message': msg})
+                w.update_alerts(alerts[:8])
+            except Exception as exc:
+                print(f"[warn] list_audit_logs failed: {exc}")
+
+            # Top Tasks (simple heuristic: open tasks by priority desc, soonest due)
+            try:
+                rows = con.execute(
+                    "SELECT id, title, priority, status, COALESCE(assignment,'') AS assignment, COALESCE(due_time,'') AS due_time FROM tasks"
+                ).fetchall()
+                def _norm2(s):
+                    key = (s or '').strip().lower()
+                    return key not in {'completed','complete','cancelled'}
+                def _prio(v):
+                    try:
+                        return int(v)
+                    except Exception:
+                        return 0
+                def _due_val(v):
+                    try:
+                        dt = datetime.fromisoformat(str(v)) if v else None
+                        if dt is None:
+                            return datetime.max.replace(tzinfo=None)
+                        return dt
+                    except Exception:
+                        return datetime.max.replace(tzinfo=None)
+                open_rows = [r for r in rows if _norm2(r['status'])]
+                open_rows.sort(key=lambda r: (-_prio(r['priority']), _due_val(r['due_time'])))
+                tasks = []
+                for r in open_rows[:5]:
+                    tasks.append({
+                        'id': int(r['id']),
+                        'title': r['title'] or '(untitled)',
+                        'assignee': r['assignment'] or '',
+                        'due': (str(r['due_time']) or '')[-5:] if r['due_time'] else '',
+                        'priority': r['priority'],
+                        'status': (r['status'] or ''),
+                    })
+                w.update_top_tasks(tasks)
+            except Exception as exc:
+                print(f"[warn] top tasks query failed: {exc}")
+
+            # Comms snapshot from ICS-205
+            try:
+                from modules.operations.taskings.repository import list_incident_channels
+                ch = list_incident_channels() or []
+                channels = []
+                for c in ch[:5]:
+                    # Handle both dicts and sqlite3.Row
+                    if hasattr(c, 'keys'):
+                        name = (c['channel'] if 'channel' in c.keys() else c['channel_name']) if c else 'Channel'
+                        role = ''
+                        for key in ('function','mode','system'):
+                            if key in c.keys() and c[key]:
+                                role = c[key]; break
+                    else:
+                        name = c.get('channel') or c.get('channel_name') or 'Channel'
+                        role = c.get('function') or c.get('mode') or (c.get('system') or '')
+                    channels.append({'name': name, 'role': role or '', 'status': 'OK'})
+                w.update_comms_snapshot(channels)
+            except Exception as exc:
+                print(f"[warn] comms list failed: {exc}")
+
+            try:
+                con.close()
+            except Exception:
+                pass
+
+        # Initial refresh and subscriptions
+        _refresh()
+        try:
+            app_signals.incidentChanged.connect(lambda *_: _refresh())
+            app_signals.opPeriodChanged.connect(lambda *_: _refresh())
+            app_signals.userChanged.connect(lambda *_: _refresh())
+            app_signals.teamStatusChanged.connect(lambda *_: _refresh())
+            app_signals.taskHeaderChanged.connect(lambda *_: _refresh())
+            app_signals.messageLogged.connect(lambda *_1, _2: _refresh())
+        except Exception:
+            pass
+        # Auto-refresh every 60s by default
+        try:
+            w.setAutoRefresh(60000)
+        except Exception:
+            pass
 
     def open_operations_team_assignments(self) -> None:
         from modules import operations
@@ -1338,10 +1646,108 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_logistics_dashboard(self) -> None:
-        from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = logistics.get_logistics_panel(incident_id)
-        self._open_dock_widget(panel, title="Logistics Dashboard")
+        """Open the Logistics Dashboard (modeless) and enable auto-refresh."""
+        try:
+            from modules.logistics.panels.logdashboard import (
+                make_logistics_dashboard,
+                LogisticsDashboardWidget,
+            )
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Logistics Dashboard", f"Widget unavailable.\n{e}")
+            except Exception:
+                print(f"[warn] LogisticsDashboardWidget unavailable: {e}")
+            return
+
+        widget: LogisticsDashboardWidget = make_logistics_dashboard(self)
+        # Wire signals and a basic refresh function (time/role/overlay)
+        self._wire_logistics_dashboard(widget)
+        # Reasonable default refresh interval
+        try:
+            widget.setAutoRefresh(15000)
+        except Exception:
+            pass
+        # Show as a docked, modeless panel for consistency with app UX
+        self._open_dock_widget(widget, title="Logistics Dashboard")
+
+    def _wire_logistics_dashboard(self, w) -> None:
+        """Attach handlers and simple refresh that updates header context.
+
+        This keeps the widget useful before full Logistics data plumbing exists.
+        """
+        from utils.state import AppState
+        from utils import incident_context
+        from datetime import datetime
+
+        # Button/signal wiring (minimal useful mapping)
+        try:
+            w.new213RRRequested.connect(self.open_logistics_213rr)
+        except Exception:
+            pass
+        try:
+            w.newCheckInRequested.connect(self.open_logistics_211)
+            w.open211_218Requested.connect(self.open_logistics_211)
+        except Exception:
+            pass
+        try:
+            w.openQueueRequested.connect(self.open_logistics_requests)
+        except Exception:
+            pass
+        try:
+            w.openDemobBoardRequested.connect(lambda: QMessageBox.information(self, "Demob", "Demob board not implemented yet."))
+        except Exception:
+            pass
+        try:
+            w.acknowledgeAlertsRequested.connect(lambda: QMessageBox.information(self, "Alerts", "Acknowledged recent alerts."))
+        except Exception:
+            pass
+        try:
+            w.openFullDashboardRequested.connect(self.open_logistics_dashboard)
+        except Exception:
+            pass
+
+        # Refresh function focused on header + safe defaults
+        def _refresh() -> None:
+            try:
+                active_id = incident_context.get_active_incident_id()
+                w.setIncidentOverlayVisible(False if active_id else True)
+            except Exception:
+                w.setIncidentOverlayVisible(True)
+                return
+
+            try:
+                op = AppState.get_active_op_period() or "—"
+            except Exception:
+                op = "—"
+            try:
+                role = AppState.get_active_user_role() or "—"
+            except Exception:
+                role = "—"
+            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
+            try:
+                w.set_context(str(op), now_text, str(role))
+            except Exception:
+                pass
+
+            # Fill with safe defaults until Logistics data wiring exists
+            try:
+                w.update_kpis({
+                    "open_requests": 0,
+                    "approvals_pending": 0,
+                    "low_stock_alerts": 0,
+                    "checkins_today": 0,
+                    "vehicles_ready": "0/0",
+                    "facilities_ok": "0/0",
+                })
+            except Exception:
+                pass
+
+        try:
+            w.refreshRequested.connect(lambda: _refresh())
+        except Exception:
+            pass
+        # Prime the header immediately on open
+        _refresh()
 
     def open_logistics_211(self) -> None:
         from modules import logistics
@@ -1379,7 +1785,7 @@ class MainWindow(QMainWindow):
 
         incident_id = getattr(self, "current_incident_id", None)
         panel = MessageLogPanel(self, incident_id=incident_id)
-        self._open_dock_widget(panel, title="Communications Traffic Log")
+        self._open_dock_widget(panel, title="Communications Dashboard")
 
     def open_comms_chat(self) -> None:
         from modules.communications.panels import MessageLogPanel
@@ -1406,6 +1812,22 @@ class MainWindow(QMainWindow):
         win = create_ics205_window(self)
         self._register_child_window(win)
         win.show()
+
+    def open_comms_log_board(self) -> None:
+        # Dockable table-focused log board
+        from modules.communications.traffic_log import create_log_board_window
+
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = create_log_board_window(self, incident_id=incident_id)
+        self._open_dock_widget(panel, title="Communications Log Board")
+
+    def open_comms_quick_entry(self) -> None:
+        # Dockable quick entry panel
+        from modules.communications.traffic_log import create_quick_entry_window
+
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = create_quick_entry_window(self, incident_id=incident_id)
+        self._open_dock_widget(panel, title="New Communications Entry")
 
     def _register_child_window(self, window):
         if window is None:

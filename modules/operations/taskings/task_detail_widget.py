@@ -423,6 +423,69 @@ class TaskDetailWindow(QWidget):
         nar_scroll.setWidget(nar_content)
         tabs.addTab(nar_scroll, "Narrative")
 
+        # Planning tab (Objectives linkage)
+        plan_content = QWidget(self)
+        plan_layout = QVBoxLayout(plan_content)
+        try:
+            plan_layout.setContentsMargins(0, 0, 0, 0)
+        except Exception:
+            pass
+        plan_row = QHBoxLayout()
+        try:
+            plan_row.setContentsMargins(0, 0, 0, 0)
+        except Exception:
+            pass
+        self._plan_obj_cb = QComboBox(plan_content)
+        self._plan_obj_cb.setEditable(False)
+        self._plan_obj_cb.currentIndexChanged.connect(lambda _i: self._on_plan_obj_changed())
+        self._plan_strat_cb = QComboBox(plan_content)
+        self._plan_strat_cb.setEditable(False)
+        self._plan_refresh_btn = QPushButton("Refresh", plan_content)
+        self._plan_refresh_btn.clicked.connect(self._load_planning)
+        self._plan_link_btn = QPushButton("Link Task", plan_content)
+        self._plan_link_btn.clicked.connect(self._link_task_to_strategy)
+        plan_row.addWidget(QLabel("Objective:"))
+        plan_row.addWidget(self._plan_obj_cb, 2)
+        plan_row.addWidget(QLabel("Strategy:"))
+        plan_row.addWidget(self._plan_strat_cb, 2)
+        plan_row.addWidget(self._plan_refresh_btn)
+        plan_row.addWidget(self._plan_link_btn)
+        plan_layout.addLayout(plan_row)
+
+        self._plan_headers = ["LinkId", "Objective", "Strategy", "Remove"]
+        self._plan_links_model = QStandardItemModel(0, len(self._plan_headers), self)
+        self._plan_links_model.setHorizontalHeaderLabels(self._plan_headers)
+        self._plan_links_table = QTableView(self)
+        self._plan_links_table.setModel(self._plan_links_model)
+        self._plan_links_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._plan_links_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._plan_links_table.setAlternatingRowColors(True)
+        self._plan_links_table.setSortingEnabled(True)
+        self._plan_links_table.setColumnHidden(0, True)
+        try:
+            ph: QHeaderView = self._plan_links_table.horizontalHeader()
+            ph.setStretchLastSection(False)
+            ph.setSectionResizeMode(QHeaderView.Interactive)
+            ph.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            ph.setSectionResizeMode(2, QHeaderView.Stretch)
+            ph.setSortIndicatorShown(True)
+        except Exception:
+            pass
+        try:
+            self._plan_btn_delegate = _ButtonDelegate(self._plan_links_table)
+            self._plan_links_table.setItemDelegateForColumn(3, self._plan_btn_delegate)
+            self._plan_btn_delegate.clicked.connect(self._on_plan_remove_clicked)
+        except Exception:
+            pass
+        plan_layout.addWidget(self._plan_links_table, 1)
+        # Defer adding the Planning tab until the very end so it appears on the far right
+        self._planning_content = plan_content
+        # Load data when the window is constructed
+        try:
+            self._load_planning()
+        except Exception:
+            pass
+
         # Teams tab
         teams_content = QWidget(self)
         teams_layout = QVBoxLayout(teams_content)
@@ -1109,7 +1172,26 @@ class TaskDetailWindow(QWidget):
         self._att_delete_btn.clicked.connect(self._att_delete)
         self._att_generate_btn.clicked.connect(self._att_generate)
         self._att_refresh_btn.clicked.connect(self.load_attachments)
-        tabs.addTab(QLabel("Planning - coming soon"), "Planning")
+        # Ensure no leftover placeholder Planning tabs remain (from older builds)
+        try:
+            i = 0
+            while i < tabs.count():
+                try:
+                    if str(tabs.tabText(i)).strip().lower().startswith("planning"):
+                        if isinstance(tabs.widget(i), QLabel):
+                            tabs.removeTab(i)
+                            continue
+                except Exception:
+                    pass
+                i += 1
+        except Exception:
+            pass
+        # Finally add the functional Planning tab at the far right
+        try:
+            if getattr(self, "_planning_content", None) is not None:
+                tabs.addTab(self._planning_content, "Planning")
+        except Exception:
+            pass
 
         # Remove duplicate placeholder tabs for Teams/Personnel if present
         try:
@@ -2452,6 +2534,108 @@ class TaskDetailWindow(QWidget):
                 self._load_header()
             except Exception:
                 pass
+        except Exception:
+            pass
+
+    # --- Planning / Objectives linkage ---------------------------------
+    def _load_planning(self) -> None:
+        """Populate objectives, strategies and current links for this task."""
+        try:
+            from modules._infra.repository import with_incident_session
+            from modules.command.models.objectives import ObjectiveRepository, ObjectiveFilters
+            from utils import incident_context
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            with with_incident_session(str(incident_id)) as session:
+                repo = ObjectiveRepository(session, str(incident_id))
+                # Load objectives into combo (store id in UserRole)
+                objectives = repo.list_objectives(ObjectiveFilters())
+                self._plan_obj_cb.blockSignals(True)
+                self._plan_obj_cb.clear()
+                for o in objectives:
+                    self._plan_obj_cb.addItem(f"{o.code} — {o.text}", o.id)
+                self._plan_obj_cb.blockSignals(False)
+                # Build strategies for selected objective
+                self._on_plan_obj_changed(repo)
+                # Load existing links for this task
+                links = repo.list_links_for_task(int(self._task_id))
+        except Exception:
+            links = []
+        try:
+            self._plan_links_model.removeRows(0, self._plan_links_model.rowCount())
+        except Exception:
+            pass
+        for link in links:
+            it_id = QStandardItem(str(link.link_id))
+            it_obj = QStandardItem(f"{link.objective_code} — {link.objective_text}")
+            it_strat = QStandardItem(str(link.strategy_text))
+            it_rm = QStandardItem("Remove")
+            try:
+                it_rm.setData(int(link.link_id), Qt.UserRole)
+            except Exception:
+                pass
+            self._plan_links_model.appendRow([it_id, it_obj, it_strat, it_rm])
+
+    def _on_plan_obj_changed(self, repo=None) -> None:
+        try:
+            if repo is None:
+                from modules._infra.repository import with_incident_session
+                from modules.command.models.objectives import ObjectiveRepository
+                from utils import incident_context
+                incident_id = incident_context.get_active_incident_id()
+                if not incident_id:
+                    return
+                with with_incident_session(str(incident_id)) as session:
+                    repo = ObjectiveRepository(session, str(incident_id))
+            obj_id = int(self._plan_obj_cb.currentData()) if self._plan_obj_cb.count() else None
+            self._plan_strat_cb.clear()
+            if obj_id is None:
+                return
+            strategies = repo.list_strategies(int(obj_id))
+            for s in strategies:
+                self._plan_strat_cb.addItem(s.text, s.id)
+        except Exception:
+            pass
+
+    def _link_task_to_strategy(self) -> None:
+        try:
+            from modules._infra.repository import with_incident_session
+            from modules.command.models.objectives import ObjectiveRepository
+            from utils import incident_context
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            obj_id = int(self._plan_obj_cb.currentData()) if self._plan_obj_cb.count() else None
+            strat_id = int(self._plan_strat_cb.currentData()) if self._plan_strat_cb.count() else None
+            if obj_id is None or strat_id is None:
+                return
+            with with_incident_session(str(incident_id)) as session:
+                repo = ObjectiveRepository(session, str(incident_id))
+                repo.link_task(int(obj_id), int(strat_id), int(self._task_id))
+            self._load_planning()
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Planning", f"Failed to link: {e}")
+            except Exception:
+                pass
+
+    def _on_plan_remove_clicked(self, index):
+        try:
+            link_id = index.data(Qt.UserRole)
+            if link_id is None:
+                # Try first column hidden id
+                link_id = int(self._plan_links_model.item(index.row(), 0).text())
+            from modules._infra.repository import with_incident_session
+            from modules.command.models.objectives import ObjectiveRepository
+            from utils import incident_context
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            with with_incident_session(str(incident_id)) as session:
+                repo = ObjectiveRepository(session, str(incident_id))
+                repo.unlink_task(int(link_id))
+            self._load_planning()
         except Exception:
             pass
 

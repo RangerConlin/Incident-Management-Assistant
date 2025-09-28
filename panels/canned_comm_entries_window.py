@@ -29,6 +29,11 @@ from PySide6.QtWidgets import (
 
 from bridge.catalog_bridge import CatalogBridge
 from utils.constants import TEAM_STATUSES
+from modules.communications.traffic_log.models import (
+    PRIORITY_EMERGENCY,
+    PRIORITY_PRIORITY,
+    PRIORITY_ROUTINE,
+)
 
 
 NOTIFICATION_LEVEL_CHOICES: List[tuple[int, str]] = [
@@ -50,6 +55,7 @@ TABLE_COLUMNS: List[TableColumn] = [
     TableColumn("title", "Title", 240),
     TableColumn("category", "Category", 180),
     TableColumn("message", "Message", 320),
+    TableColumn("priority", "Priority", 120),
     TableColumn("notification_level", "Notify Level", 160),
     TableColumn("status_update", "Status Update", 200),
     TableColumn("is_active", "Active", 80),
@@ -99,6 +105,13 @@ class CannedCommEntryDialog(QDialog):
             self.notification_combo.addItem(label, value)
         form.addRow("Notify Level", self.notification_combo)
 
+        # Priority for auto-fill in Comms Log
+        self.priority_combo = QComboBox()
+        self.priority_combo.addItem("", None)
+        for p in (PRIORITY_ROUTINE, PRIORITY_PRIORITY, PRIORITY_EMERGENCY):
+            self.priority_combo.addItem(p, p)
+        form.addRow("Priority", self.priority_combo)
+
         self.status_combo = QComboBox()
         self.status_combo.addItem("", None)
         for option in status_options:
@@ -139,6 +152,12 @@ class CannedCommEntryDialog(QDialog):
             index = 0
         self.notification_combo.setCurrentIndex(index)
 
+        priority_value = entry.get("priority") or None
+        pr_index = self.priority_combo.findData(priority_value)
+        if pr_index < 0:
+            pr_index = 0
+        self.priority_combo.setCurrentIndex(pr_index)
+
         status_value = entry.get("status_update")
         status_index = self.status_combo.findData(status_value if status_value else None)
         if status_index < 0:
@@ -163,11 +182,13 @@ class CannedCommEntryDialog(QDialog):
         category_text = self.category_input.text().strip()
         message_text = self.message_edit.toPlainText()
         status_value = self.status_combo.currentData()
+        priority_value = self.priority_combo.currentData()
 
         return {
             "title": title_text,
             "category": category_text or None,
             "message": message_text,
+            "priority": priority_value or None,
             "notification_level": int(self.notification_combo.currentData() or 0),
             "status_update": status_value or None,
             "is_active": bool(self.active_checkbox.isChecked()),
@@ -246,6 +267,11 @@ class CannedCommEntriesWindow(QMainWindow):
         for index, column in enumerate(TABLE_COLUMNS):
             if column.width is not None:
                 header.resizeSection(index, column.width)
+        # Hide ID column; keep it for internal lookups
+        try:
+            self.table.setColumnHidden(0, True)
+        except Exception:
+            pass
 
         layout.addWidget(self.table)
 
@@ -257,6 +283,23 @@ class CannedCommEntriesWindow(QMainWindow):
         if not rows:
             return None
         row_index = rows[0].row()
+        # Resolve by stable primary key from the (hidden) ID column to avoid view sorting issues
+        try:
+            id_item = self.table.item(row_index, 0)
+            entry_id = id_item.data(Qt.UserRole) if id_item is not None else None
+            if entry_id is None and id_item is not None:
+                entry_id = id_item.text()
+            if entry_id is not None:
+                try:
+                    target = int(entry_id)
+                except Exception:
+                    target = entry_id
+                for e in self._entries:
+                    if int(e.get("id", -1)) == target:
+                        return e
+        except Exception:
+            pass
+        # Fallback: index-based mapping (may be incorrect if user-sorted)
         if 0 <= row_index < len(self._entries):
             return self._entries[row_index]
         return None

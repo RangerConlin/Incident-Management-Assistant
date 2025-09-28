@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 
 from PySide6.QtCore import QObject, Slot
 
-from models.master_catalog import make_service, ENTITY_CONFIGS
+from models.master_catalog import make_service, ENTITY_CONFIGS, ensure_column
 
 
 class CatalogBridge(QObject):
@@ -21,6 +21,12 @@ class CatalogBridge(QObject):
         self._services: Dict[str, Any] = {
             key: make_service(db_path, key) for key in ENTITY_CONFIGS.keys()
         }
+        # Lightweight schema guard: ensure optional fields exist when needed
+        try:
+            ensure_column(self._db_path, "canned_comm_entries", "priority", "TEXT")
+        except Exception:
+            # Non-fatal; proceed without priority if migration fails
+            pass
 
     # --- utilities -----------------------------------------------------
     def _svc(self, key: str):

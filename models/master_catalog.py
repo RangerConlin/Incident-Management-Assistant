@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+import sqlite3 as _sqlite3
 
 
 def dict_factory(cursor: sqlite3.Cursor, row: tuple) -> Dict[str, Any]:
@@ -213,8 +214,17 @@ ENTITY_CONFIGS: Dict[str, Dict[str, Any]] = {
     "canned_comm_entries": {
         "table": "canned_comm_entries",
         "pk": "id",
-        "searchFields": ["title", "category", "message", "id"],
-        "columns": ["id", "title", "category", "message", "notification_level", "status_update", "is_active"],
+        "searchFields": ["title", "category", "message", "priority", "id"],
+        "columns": [
+            "id",
+            "title",
+            "category",
+            "message",
+            "priority",
+            "notification_level",
+            "status_update",
+            "is_active",
+        ],
         "defaultSort": {"key": "title", "order": "asc"},
     },
     "task_types": {
@@ -253,4 +263,27 @@ def make_service(db_path: str, key: str) -> BaseService:
         pk=cfg.get("pk", "id"),
         search_fields=cfg.get("searchFields"),
     )
+
+
+def ensure_column(db_path: str, table: str, column: str, coltype: str) -> None:
+    """Ensure a column exists on a SQLite table; add if missing.
+
+    Safe to run repeatedly. Swallows errors to avoid impacting UI flows.
+    """
+    try:
+        conn = _sqlite3.connect(db_path)
+        try:
+            cur = conn.execute(f"PRAGMA table_info({table})")
+            cols = {str(r[1]).lower() for r in cur.fetchall()}
+            if column.lower() in cols:
+                return
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        # Non-fatal; the UI will continue, and operations that rely on this
+        # column will simply omit it if unavailable.
+        pass
+
 

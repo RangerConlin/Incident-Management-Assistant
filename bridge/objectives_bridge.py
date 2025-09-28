@@ -90,17 +90,38 @@ class ObjectiveBridge(QObject):
             }
 
             # Minimal base tables (only if missing) ------------------------
+            #
+            # IMPORTANT: The Command module's SQLAlchemy models expect a modern
+            # schema for `incident_objectives` that includes fields such as
+            # `incident_id`, `op_period_id`, `code`, `text`, `owner_section`,
+            # `tags_json`, `display_order`, timestamps and audit fields. The
+            # original QML bridge used a smaller legacy schema. To keep both
+            # pathways working and avoid runtime errors when listing
+            # objectives, we provision a superset schema when creating the
+            # table, and we also non-destructively add any missing columns on
+            # existing databases.
             if "incident_objectives" not in existing:
                 c.execute(
                     """
                     CREATE TABLE IF NOT EXISTS incident_objectives (
                         id INTEGER PRIMARY KEY,
+                        -- ORM/modern fields
+                        incident_id TEXT,
+                        op_period_id INTEGER,
+                        code TEXT,
+                        text TEXT,
+                        priority TEXT,
+                        status TEXT,
+                        owner_section TEXT,
+                        tags_json TEXT,
+                        display_order INTEGER DEFAULT 0,
+                        created_at TEXT,
+                        updated_at TEXT,
+                        created_by TEXT,
+                        updated_by TEXT,
+                        -- Legacy/bridge fields kept for compatibility
                         mission_id INTEGER,
                         description TEXT,
-                        status TEXT,
-                        priority TEXT,
-                        created_by INTEGER,
-                        created_at TEXT,
                         due_time TEXT,
                         customer TEXT,
                         assigned_section TEXT,
@@ -108,6 +129,37 @@ class ObjectiveBridge(QObject):
                     )
                     """
                 )
+            else:
+                # Table exists; ensure modern columns are present so ORM queries don't fail
+                required_cols = [
+                    ("incident_id", "TEXT"),
+                    ("op_period_id", "INTEGER"),
+                    ("code", "TEXT"),
+                    ("text", "TEXT"),
+                    ("owner_section", "TEXT"),
+                    ("tags_json", "TEXT"),
+                    ("display_order", "INTEGER DEFAULT 0"),
+                    ("updated_at", "TEXT"),
+                    ("updated_by", "TEXT"),
+                ]
+                # Also ensure legacy fields exist for QML views that may rely on them
+                legacy_cols = [
+                    ("mission_id", "INTEGER"),
+                    ("description", "TEXT"),
+                    ("due_time", "TEXT"),
+                    ("customer", "TEXT"),
+                    ("assigned_section", "TEXT"),
+                    ("closed_at", "TEXT"),
+                ]
+                # Discover current columns
+                existing_cols = {r[1] for r in c.execute("PRAGMA table_info(incident_objectives)")}
+                for col, decl in required_cols + legacy_cols:
+                    if col not in existing_cols:
+                        try:
+                            c.execute(f"ALTER TABLE incident_objectives ADD COLUMN {col} {decl}")
+                        except sqlite3.OperationalError:
+                            # Non-fatal; continue attempting to add the rest
+                            pass
             if "planning_logs" not in existing:
                 c.execute(
                     """
@@ -142,6 +194,10 @@ class ObjectiveBridge(QObject):
                 )
                 c.execute(
                     "CREATE INDEX IF NOT EXISTS idx_incident_objectives_status ON incident_objectives(status)"
+                )
+                # Helpful for ORM path which filters by incident_id
+                c.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_incident_objectives_incident ON incident_objectives(incident_id)"
                 )
                 c.execute(
                     "CREATE INDEX IF NOT EXISTS idx_planning_logs_incident ON planning_logs(incident_id)"
