@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Iterable, List, Optional
 
-from PySide6.QtCore import (  # type: ignore[attr-defined]
+from PySide6.QtCore import (  
     QAbstractTableModel,
     QModelIndex,
     QPoint,

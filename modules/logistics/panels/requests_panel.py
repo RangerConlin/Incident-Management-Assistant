@@ -5,7 +5,7 @@
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QPushButton, QTableWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QPushButton, QTableWidget, QVBoxLayout, QWidget, QHBoxLayout
 from PySide6.QtQml import QQmlApplicationEngine
 
 
@@ -21,9 +21,23 @@ class RequestsPanel(QWidget):
         self.table = QTableWidget()
         layout.addWidget(self.table)
 
+        # Compact header row for actions
+        bar = QWidget(self)
+        hb = QHBoxLayout(bar)
+        try:
+            hb.setContentsMargins(0, 0, 0, 0)
+            hb.setSpacing(6)
+        except Exception:
+            pass
         self.new_btn = QPushButton("New Request")
-        layout.addWidget(self.new_btn)
+        try:
+            self.new_btn.setFixedSize(120, 28)
+        except Exception:
+            pass
         self.new_btn.clicked.connect(self.open_detail)
+        hb.addWidget(self.new_btn)
+        hb.addStretch(1)
+        layout.addWidget(bar)
 
     def open_detail(self) -> None:
         """Open the detail dialog using QML."""

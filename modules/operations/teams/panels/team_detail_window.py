@@ -1758,7 +1758,19 @@ class TeamDetailWindow(QMainWindow):
 
     def _update_task_widgets(self, team: Dict[str, Any]) -> None:
         task_id = team.get("current_task_id") or team.get("primary_task_id")
-        task_display = str(task_id) if task_id else ""
+        task_display = ""
+        if task_id:
+            try:
+                from modules.operations.taskings.repository import get_task  # type: ignore
+                t = get_task(int(task_id))
+                title = (t.title or "").strip()
+                number = (t.task_id or "").strip()
+                if title and number:
+                    task_display = f"{title} ({number})"
+                else:
+                    task_display = title or number or str(task_id)
+            except Exception:
+                task_display = str(task_id)
         self._task_field.setText(task_display)
         if task_id:
             self._task_button.setText("Open")

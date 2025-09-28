@@ -261,6 +261,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         sql = f"""
             SELECT tm.id AS team_id,
                    tm.current_task_id AS task_id,
+                   tm.team_type AS team_type,
                    (SELECT tt2.sortie_id
                       FROM task_teams tt2
                      WHERE tt2.teamid = tm.id
@@ -291,6 +292,11 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         team_id = int(r["team_id"]) if r["team_id"] is not None else None
         # Prefer explicit team name; else use sortie, else synthetic label
         team_label = r["team_name"] or r["sortie_id"] or (f"Team {team_id}" if team_id is not None else "Team")
+        team_type = (r["team_type"] if "team_type" in r.keys() else None) or ""
+        try:
+            team_type = str(team_type).upper()
+        except Exception:
+            team_type = str(team_type)
         ts = r["team_status"] if "team_status" in r.keys() else None
         status = str(ts).strip().lower() if ts else "available"
         status = {
@@ -352,6 +358,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                 "team_id": team_id,
                 "sortie": sortie_display,
                 "name": str(team_label),
+                "team_type": team_type,
                 "leader": r["leader_name"] or "",
                 "contact": r["leader_contact"] or "",
                 "status": status,

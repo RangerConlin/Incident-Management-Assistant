@@ -1,4 +1,18 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QMenu,
+    QAbstractItemView,
+    QHBoxLayout,
+    QPushButton,
+    QHeaderView,
+    QMessageBox,
+    QToolButton,
+    QDialog,
+)
+from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtCore import Qt
 from utils.styles import task_status_colors, subscribe_theme
 from utils.audit import write_audit
@@ -23,12 +37,28 @@ class TaskStatusPanel(QWidget):
             hb.setSpacing(6)
         except Exception:
             pass
+        btn_filters = QToolButton(header_bar)
+        try:
+            btn_filters.setText("\u2699")  # gear
+            btn_filters.setToolTip("Settings")
+            btn_filters.setFixedSize(28, 28)
+            btn_filters.setPopupMode(QToolButton.InstantPopup)
+        except Exception:
+            pass
+        self._text_size: str = "medium"
+        self._load_text_size()
+        self._settings_btn = btn_filters
+        hb.addWidget(btn_filters)
+
         btn_open = QPushButton("Open Detail")
+        btn_open.setFixedSize(120, 28)
         btn_new = QPushButton("New Task")
+        btn_new.setFixedSize(120, 28)
         btn_open.clicked.connect(self._on_open_detail)
         btn_new.clicked.connect(self._on_new_task)
         hb.addWidget(btn_open)
         hb.addWidget(btn_new)
+        hb.addStretch(1)
 
         self.table = QTableWidget()
         # Make table read-only; edits go through context menus / detail windows
@@ -48,15 +78,36 @@ class TaskStatusPanel(QWidget):
 
         # Set column headers
         self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels([
+        headers = [
             "Task #", "Task Name", "Assigned Team(s)", "Status", "Priority", "Location"
-        ])
+        ]
+        self.table.setHorizontalHeaderLabels(headers)
+        # Column registry for visibility settings
+        self._columns: list[tuple[int, str, str]] = [
+            (0, "number", headers[0]),
+            (1, "name", headers[1]),
+            (2, "assigned_teams", headers[2]),
+            (3, "status", headers[3]),
+            (4, "priority", headers[4]),
+            (5, "location", headers[5]),
+        ]
         try:
             hdr = self.table.horizontalHeader()
             hdr.setSectionsMovable(True)
             hdr.setStretchLastSection(False)
         except Exception:
             pass
+        # Apply any saved column visibility
+        self._load_column_visibility()
+        # Build settings menu now that columns exist
+        try:
+            self._build_settings_menu()
+        except Exception:
+            pass
+        # Filter state
+        self._filters: list[dict] = []
+        self._match_all: bool = True
+        self._load_filters()
         # Initial load
         self.reload()
         # React to incident changes
@@ -124,6 +175,7 @@ class TaskStatusPanel(QWidget):
             if not fetch_task_rows:
                 raise RuntimeError("DB repository not available")
             rows = fetch_task_rows()
+            rows = self._apply_filters(rows)
             for data in rows:
                 self._add_task_row(data)
         except Exception as e:
@@ -236,5 +288,231 @@ class TaskStatusPanel(QWidget):
         except Exception as e:
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView
             QMessageBox.critical(self, "New Task", f"Failed to create new task:\n{e}")
+
+    # --------------------------- Filters / Presets --------------------------- #
+    def _open_filters_dialog(self) -> None:
+        try:
+            from modules.common.widgets.custom_filter_dialog import CustomFilterDialog, FieldSpec
+            fields = [
+                FieldSpec(key="number", label="Task #", type="number"),
+                FieldSpec(key="name", label="Task Name", type="string"),
+                FieldSpec(key="assigned_teams", label="Assigned Teams", type="string"),
+                FieldSpec(key="status", label="Status", type="string"),
+                FieldSpec(key="priority", label="Priority", type="string"),
+                FieldSpec(key="location", label="Location", type="string"),
+            ]
+            seed = {
+                "High Priority": {"rules": [{"field": "priority", "op": "=", "value": "High"}], "matchAll": True},
+                "In Progress": {"rules": [{"field": "status", "op": "=", "value": "In Progress"}], "matchAll": True},
+            }
+            dlg = CustomFilterDialog(
+                fields,
+                rules=self._filters,
+                match_all=self._match_all,
+                context_key="statusboard.task",
+                seed_presets=seed,
+                parent=self,
+            )
+            if dlg.exec() == QDialog.Accepted:
+                self._filters = dlg.rules()
+                self._match_all = dlg.match_all()
+                self._persist_filters()
+                self.reload()
+        except Exception as e:
+            QMessageBox.critical(self, "Filters", f"Failed to open filters dialog:\n{e}")
+
+    def _apply_filters(self, rows: list[dict]) -> list[dict]:
+        if not self._filters:
+            return rows
+
+        def value_for(row: dict, key: str):
+            val = row.get(key)
+            if key == "assigned_teams" and isinstance(val, (list, tuple)):
+                return ", ".join(map(str, val))
+            return val
+
+        def match(rule: dict, row: dict) -> bool:
+            key = rule.get("field")
+            op = str(rule.get("op", "")).lower()
+            needle = str(rule.get("value", ""))
+            hay = value_for(row, key)
+            if hay is None:
+                hay_s = ""
+            else:
+                hay_s = str(hay)
+            # Try numeric comparison
+            if op in {"=", "!=", ">", ">=", "<", "<="}:
+                try:
+                    a = float(hay_s)
+                    b = float(needle)
+                    if op == "=":
+                        return a == b
+                    if op == "!=":
+                        return a != b
+                    if op == ">":
+                        return a > b
+                    if op == ">=":
+                        return a >= b
+                    if op == "<":
+                        return a < b
+                    if op == "<=":
+                        return a <= b
+                except Exception:
+                    pass
+            # Fallback to case-insensitive string comparisons
+            a = hay_s.lower()
+            b = needle.lower()
+            if op in {"=", "equals"}:
+                return a == b
+            if op in {"!=", "not equals"}:
+                return a != b
+            if op in {"contains"}:
+                return b in a
+            if op in {"not contains"}:
+                return b not in a
+            if op in {"starts with"}:
+                return a.startswith(b)
+            if op in {"ends with"}:
+                return a.endswith(b)
+            return True
+
+        out = []
+        for row in rows:
+            results = [match(rule, row) for rule in self._filters]
+            ok = all(results) if self._match_all else any(results)
+            if ok:
+                out.append(row)
+        return out
+
+    def _persist_filters(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            s.set("statusboard.task.filters", {"rules": self._filters, "matchAll": self._match_all})
+        except Exception:
+            pass
+
+    # ------------------------------ Settings menu --------------------------- #
+    def _build_settings_menu(self) -> None:
+        menu = QMenu(self)
+        menu.addAction("Filters...", self._open_filters_dialog)
+        menu.addSeparator()
+        # Columns submenu
+        cols_menu = QMenu("Columns", menu)
+        self._col_actions = {}
+        for idx, key, label in self._columns:
+            act = cols_menu.addAction(label, lambda i=idx: self._toggle_column(i))
+            act.setCheckable(True)
+            try:
+                act.setChecked(not self.table.isColumnHidden(idx))
+            except Exception:
+                act.setChecked(True)
+            self._col_actions[idx] = act
+        menu.addMenu(cols_menu)
+        # Text size submenu
+        size_menu = QMenu("Text Size", menu)
+        self._size_actions = {}
+        for label in ("small", "medium", "large"):
+            act = size_menu.addAction(label.title(), lambda l=label: self._set_text_size(l))
+            act.setCheckable(True)
+            self._size_actions[label] = act
+        menu.addMenu(size_menu)
+        self._settings_btn.setMenu(menu)
+        self._update_text_size_checks()
+        self._update_column_checks()
+
+    def _update_text_size_checks(self) -> None:
+        try:
+            for k, a in getattr(self, "_size_actions", {}).items():
+                a.setChecked(k == self._text_size)
+        except Exception:
+            pass
+
+    def _update_column_checks(self) -> None:
+        try:
+            for idx, act in getattr(self, "_col_actions", {}).items():
+                act.setChecked(not self.table.isColumnHidden(idx))
+        except Exception:
+            pass
+
+    def _set_text_size(self, label: str) -> None:
+        self._text_size = label if label in ("small", "medium", "large") else "medium"
+        self._persist_text_size()
+        self._apply_text_size()
+        self._update_text_size_checks()
+
+    def _persist_text_size(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set("statusboard.task.textSize", self._text_size)
+        except Exception:
+            pass
+
+    def _load_text_size(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            self._text_size = SettingsManager().get("statusboard.task.textSize", "medium") or "medium"
+            self._apply_text_size()
+        except Exception:
+            pass
+
+    def _apply_text_size(self) -> None:
+        size_map = {"small": 10, "medium": 12, "large": 14}
+        pt = size_map.get(self._text_size, 12)
+        try:
+            f = QFont(self.table.font())
+            f.setPointSize(pt)
+            self.table.setFont(f)
+            hdrf = QFont(f)
+            self.table.horizontalHeader().setFont(hdrf)
+            self.table.verticalHeader().setFont(hdrf)
+            # Adjust row height to font metrics
+            fm = QFontMetrics(f)
+            self.table.verticalHeader().setDefaultSectionSize(fm.height() + 8)
+        except Exception:
+            pass
+
+    # -------------------------- Column visibility -------------------------- #
+    def _toggle_column(self, index: int) -> None:
+        try:
+            hidden = self.table.isColumnHidden(index)
+            self.table.setColumnHidden(index, not hidden)
+            self._persist_column_visibility()
+            self._update_column_checks()
+        except Exception:
+            pass
+
+    def _persist_column_visibility(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            hidden_keys: list[str] = []
+            for idx, key, _ in self._columns:
+                if self.table.isColumnHidden(idx):
+                    hidden_keys.append(key)
+            SettingsManager().set("statusboard.task.columns.hidden", hidden_keys)
+        except Exception:
+            pass
+
+    def _load_column_visibility(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            hidden = SettingsManager().get("statusboard.task.columns.hidden", []) or []
+            key_to_index = {key: idx for idx, key, _ in self._columns}
+            for key in hidden:
+                if key in key_to_index:
+                    self.table.setColumnHidden(key_to_index[key], True)
+        except Exception:
+            pass
+
+    def _load_filters(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            filt = s.get("statusboard.task.filters", None)
+            if isinstance(filt, dict):
+                self._filters = list(filt.get("rules", []))
+                self._match_all = bool(filt.get("matchAll", True))
+        except Exception:
+            pass
 
 
