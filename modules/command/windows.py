@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from .panels.incident_dashboard_panel import IncidentDashboardPanel
+from .panels.incident_objectives_panel import IncidentObjectivesPanel
 from .ics203 import get_ics203_panel
 
 __all__ = [
@@ -48,10 +49,9 @@ def get_iap_builder_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_objectives_panel(incident_id: object | None = None) -> QWidget:
-    """Return the strategic objectives panel from Planning."""
-    from modules.planning.windows import get_strategic_objectives_panel
+    """Return the Qt Widgets incident objectives panel."""
 
-    return get_strategic_objectives_panel(incident_id)
+    return IncidentObjectivesPanel()
 
 
 def get_staff_org_panel(incident_id: object | None = None) -> QWidget:
