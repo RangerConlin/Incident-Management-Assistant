@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Iterable, List, Optional
 
-from PySide6.QtCore import (  # type: ignore[attr-defined]
+from PySide6.QtCore import (  
     QAbstractTableModel,
     QModelIndex,
     QPoint,
@@ -335,7 +335,7 @@ class IncidentObjectivesPanel(QWidget):
 
     # ------------------------------------------------------------------
     def reload(self) -> None:
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             self._model.set_objectives([])
             return
@@ -379,7 +379,7 @@ class IncidentObjectivesPanel(QWidget):
         )
 
     def _export_ics202(self) -> None:
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             QMessageBox.warning(self, "Export", "Select an incident to export ICS-202 data.")
             return
@@ -437,7 +437,7 @@ class IncidentObjectivesPanel(QWidget):
         objective = self._model.objective_for_row(source_index.row())
         if not objective:
             return
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             return
         next_status = target or ("active" if objective.status != "active" else "completed")
@@ -458,7 +458,7 @@ class IncidentObjectivesPanel(QWidget):
         )
 
     def _persist_reorder(self, ordered_ids: List[int]) -> None:
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             return
         try:

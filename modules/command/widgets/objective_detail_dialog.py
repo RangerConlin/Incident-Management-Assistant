@@ -200,7 +200,7 @@ class ObjectiveDetailDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _refresh(self) -> None:
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id or self._objective_id is None:
             return
         try:
@@ -266,7 +266,7 @@ class ObjectiveDetailDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _save(self) -> None:
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             QMessageBox.warning(self, "Save", "Select an incident before saving objectives.")
             return
@@ -303,7 +303,7 @@ class ObjectiveDetailDialog(QDialog):
         self._tab_widget.setCurrentIndex(3)
 
     def _show_snippet(self) -> None:
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id or self._objective_id is None:
             return
         try:
@@ -323,7 +323,7 @@ class ObjectiveDetailDialog(QDialog):
         text, ok = QInputDialog.getText(self, "New Strategy", "Strategy description")
         if not ok or not text.strip():
             return
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             return
         try:
@@ -342,7 +342,7 @@ class ObjectiveDetailDialog(QDialog):
         text, ok = QInputDialog.getText(self, "Edit Strategy", "Strategy description")
         if not ok:
             return
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             return
         try:
@@ -358,7 +358,7 @@ class ObjectiveDetailDialog(QDialog):
         current = self._current_strategy_id()
         if current is None:
             return
-        incident_id = incident_context.get_active_incident()
+        incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             return
         if QMessageBox.question(
