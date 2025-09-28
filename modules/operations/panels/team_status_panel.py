@@ -10,9 +10,11 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QMessageBox,
     QStyledItemDelegate,
+    QToolButton,
+    QDialog,
 )
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QEvent, QByteArray
-from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage
+from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage, QFont, QFontMetrics
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
 from utils.styles import team_status_colors, subscribe_theme, get_palette
@@ -263,12 +265,28 @@ class TeamStatusPanel(QWidget):
             hb.setSpacing(6)
         except Exception:
             pass
+        btn_filters = QToolButton(header_bar)
+        try:
+            btn_filters.setText("\u2699")  # gear
+            btn_filters.setToolTip("Settings")
+            btn_filters.setFixedSize(28, 28)
+            btn_filters.setPopupMode(QToolButton.InstantPopup)
+        except Exception:
+            pass
+        self._text_size: str = "medium"
+        self._settings_btn = btn_filters
+        self._load_text_size()
+        hb.addWidget(btn_filters)
+
         btn_open = QPushButton("Open Detail")
+        btn_open.setFixedSize(120, 28)
         btn_new = QPushButton("New Team")
+        btn_new.setFixedSize(120, 28)
         btn_open.clicked.connect(lambda: self._on_open_detail())
         btn_new.clicked.connect(lambda: self._on_new_team())
         hb.addWidget(btn_open)
         hb.addWidget(btn_new)
+        hb.addStretch(1)
 
         self.table = QTableWidget()
         # Make table read-only; edits go through context menus / detail windows
@@ -300,11 +318,24 @@ class TeamStatusPanel(QWidget):
             pass
 
         # Set column headers: Needs Assistance at far left; Last Update at far right
-        self.table.setColumnCount(9)
-        self.table.setHorizontalHeaderLabels([
-            "Needs Assistance", "Sortie #", "Team Name", "Team Leader", "Contact #",
+        self.table.setColumnCount(10)
+        headers = [
+            "Needs Assistance", "Sortie #", "Team Name", "Team Type", "Team Leader", "Contact #",
             "Status", "Assignment", "Location", "Last Update"
-        ])
+        ]
+        self.table.setHorizontalHeaderLabels(headers)
+        # Column registry for visibility settings (exclude col 0 - alert icon)
+        self._columns: list[tuple[int, str, str]] = [
+            (1, "sortie", headers[1]),
+            (2, "name", headers[2]),
+            (3, "team_type", headers[3]),
+            (4, "leader", headers[4]),
+            (5, "contact", headers[5]),
+            (6, "status", headers[6]),
+            (7, "assignment", headers[7]),
+            (8, "location", headers[8]),
+            (9, "last_updated", headers[9]),
+        ]
         try:
             hdr = self.table.horizontalHeader()
             hdr.setSectionsMovable(True)
@@ -317,6 +348,21 @@ class TeamStatusPanel(QWidget):
             self.table.setColumnWidth(0, 56)
         except Exception:
             pass
+        # Apply saved column visibility
+        try:
+            self._load_column_visibility()
+        except Exception:
+            pass
+        # Build settings menu now that columns exist
+        try:
+            self._build_settings_menu()
+        except Exception:
+            pass
+
+        # Filters state
+        self._filters: list[dict] = []
+        self._match_all: bool = True
+        self._load_filters()
         # Initial load
         self.reload()
         # Start a 1s timer to refresh the Last Update column
@@ -447,6 +493,7 @@ class TeamStatusPanel(QWidget):
         column_texts = [
             str(data.get("sortie", "")),
             str(data.get("name", "")),
+            str(data.get("team_type", "")),
             str(data.get("leader", "")),
             str(data.get("contact", "")),
             status_display,
@@ -456,7 +503,7 @@ class TeamStatusPanel(QWidget):
         ]
         for offset, text in enumerate(column_texts, start=1):
             item = QTableWidgetItem(text)
-            if offset == 8:
+            if offset == 9:
                 try:
                     item.setData(Qt.UserRole, str(data.get("last_updated") or ""))
                 except Exception:
@@ -612,7 +659,7 @@ class TeamStatusPanel(QWidget):
 
     def _recolor_all(self) -> None:
         try:
-            status_col = 5
+            status_col = 6
             rows = self.table.rowCount()
             for r in range(rows):
                 item = self.table.item(r, status_col)
@@ -676,7 +723,7 @@ class TeamStatusPanel(QWidget):
             team_id = int(item.data(Qt.UserRole + 2)) if item and item.data(Qt.UserRole + 2) is not None else None
             if not team_id:
                 raise RuntimeError("No team id associated with row")
-            item_status = self.table.item(row, 5)
+            item_status = self.table.item(row, 6)
             old_status = (item_status.text() if item_status else "").strip().lower()
             try:
                 from modules.operations.data.repository import set_team_status  # local import to avoid cycles
@@ -687,8 +734,8 @@ class TeamStatusPanel(QWidget):
             set_team_status(team_id, str(new_status))
             # Update UI
             display = str(new_status).title()
-            # Status column index is 5 after adding Needs Attention at 0
-            self.table.item(row, 5).setText(display)
+            # Status column index is 6 after adding Needs + Sortie + Name + Type + Leader + Contact
+            self.table.item(row, 6).setText(display)
             self.set_row_color_by_status(row, str(new_status))
             write_audit("status.change", {"panel": "team", "id": team_id, "old": old_status, "new": str(new_status)})
         except Exception as e:
@@ -764,11 +811,271 @@ class TeamStatusPanel(QWidget):
             if not fetch_team_assignment_rows:
                 raise RuntimeError("DB repository not available")
             rows = fetch_team_assignment_rows()
+            rows = self._apply_filters(rows)
             for data in rows:
                 self._add_team_row(data)
         except Exception as e:
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
             QMessageBox.critical(self, "Team Board Error", f"Failed to load team assignments from incident DB:\n{e}")
+
+    # --------------------------- Filters / Presets --------------------------- #
+    def _open_filters_dialog(self) -> None:
+        try:
+            from modules.common.widgets.custom_filter_dialog import CustomFilterDialog, FieldSpec
+            fields = [
+                FieldSpec(key="sortie", label="Sortie #", type="number"),
+                FieldSpec(key="name", label="Team Name", type="string"),
+                FieldSpec(key="team_type", label="Team Type", type="string"),
+                FieldSpec(key="leader", label="Team Leader", type="string"),
+                FieldSpec(key="contact", label="Contact #", type="string"),
+                FieldSpec(key="status", label="Status", type="string"),
+                FieldSpec(key="assignment", label="Assignment", type="string"),
+                FieldSpec(key="location", label="Location", type="string"),
+                FieldSpec(key="last_updated", label="Last Update (ISO)", type="date"),
+            ]
+            seed = {
+                "Ground Teams": {"rules": [{"field": "team_type", "op": "=", "value": "GT"}], "matchAll": True},
+                "Aircrews": {"rules": [{"field": "team_type", "op": "=", "value": "AIR"}], "matchAll": True},
+            }
+            dlg = CustomFilterDialog(
+                fields,
+                rules=self._filters,
+                match_all=self._match_all,
+                context_key="statusboard.team",
+                seed_presets=seed,
+                parent=self,
+            )
+            if dlg.exec() == QDialog.Accepted:
+                self._filters = dlg.rules()
+                self._match_all = dlg.match_all()
+                self._persist_filters()
+                self.reload()
+        except Exception as e:
+            QMessageBox.critical(self, "Filters", f"Failed to open filters dialog:\n{e}")
+
+    def _clear_filters(self) -> None:
+        self._filters = []
+        self._match_all = True
+        self._persist_filters()
+        self.reload()
+
+    def _apply_filters(self, rows: list[dict]) -> list[dict]:
+        if not self._filters:
+            return rows
+
+        def value_for(row: dict, key: str):
+            return row.get(key)
+
+        def parse_iso(s: str):
+            from datetime import datetime
+            try:
+                return datetime.fromisoformat(s.replace("Z", "+00:00"))
+            except Exception:
+                return None
+
+        def match(rule: dict, row: dict) -> bool:
+            key = rule.get("field")
+            op = str(rule.get("op", "")).lower()
+            needle = str(rule.get("value", ""))
+            hay = value_for(row, key)
+            if hay is None:
+                hay_s = ""
+            else:
+                hay_s = str(hay)
+            # Datetime compare for last_updated if ISO
+            if key == "last_updated" and op in {"=", "!=", ">", ">=", "<", "<="}:
+                a = parse_iso(hay_s)
+                b = parse_iso(needle)
+                if a and b:
+                    if op == "=":
+                        return a == b
+                    if op == "!=":
+                        return a != b
+                    if op == ">":
+                        return a > b
+                    if op == ">=":
+                        return a >= b
+                    if op == "<":
+                        return a < b
+                    if op == "<=":
+                        return a <= b
+            # Numeric compare for sortie
+            if key == "sortie" and op in {"=", "!=", ">", ">=", "<", "<="}:
+                try:
+                    a = float(hay_s)
+                    b = float(needle)
+                    if op == "=":
+                        return a == b
+                    if op == "!=":
+                        return a != b
+                    if op == ">":
+                        return a > b
+                    if op == ">=":
+                        return a >= b
+                    if op == "<":
+                        return a < b
+                    if op == "<=":
+                        return a <= b
+                except Exception:
+                    pass
+            # Fallback to case-insensitive string comparisons
+            a = hay_s.lower()
+            b = needle.lower()
+            if op in {"=", "equals"}:
+                return a == b
+            if op in {"!=", "not equals"}:
+                return a != b
+            if op in {"contains"}:
+                return b in a
+            if op in {"not contains"}:
+                return b not in a
+            if op in {"starts with"}:
+                return a.startswith(b)
+            if op in {"ends with"}:
+                return a.endswith(b)
+            return True
+
+        out = []
+        for row in rows:
+            results = [match(rule, row) for rule in self._filters]
+            ok = all(results) if self._match_all else any(results)
+            if ok:
+                out.append(row)
+        return out
+
+    def _persist_filters(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            s.set("statusboard.team.filters", {"rules": self._filters, "matchAll": self._match_all})
+        except Exception:
+            pass
+
+    # ------------------------------ Settings menu --------------------------- #
+    def _build_settings_menu(self) -> None:
+        menu = QMenu(self)
+        menu.addAction("Filters…", self._open_filters_dialog)
+        menu.addSeparator()
+        # Columns submenu (exclude col 0 - alert icon)
+        cols_menu = QMenu("Columns", menu)
+        self._col_actions = {}
+        for idx, key, label in getattr(self, "_columns", []):
+            act = cols_menu.addAction(label, lambda i=idx: self._toggle_column(i))
+            act.setCheckable(True)
+            try:
+                act.setChecked(not self.table.isColumnHidden(idx))
+            except Exception:
+                act.setChecked(True)
+            self._col_actions[idx] = act
+        menu.addMenu(cols_menu)
+        size_menu = QMenu("Text Size", menu)
+        self._size_actions = {}
+        for label in ("small", "medium", "large"):
+            act = size_menu.addAction(label.title(), lambda l=label: self._set_text_size(l))
+            act.setCheckable(True)
+            self._size_actions[label] = act
+        menu.addMenu(size_menu)
+        self._settings_btn.setMenu(menu)
+        self._update_text_size_checks()
+        try:
+            self._update_column_checks()
+        except Exception:
+            pass
+
+    def _update_text_size_checks(self) -> None:
+        try:
+            for k, a in getattr(self, "_size_actions", {}).items():
+                a.setChecked(k == self._text_size)
+        except Exception:
+            pass
+
+    def _set_text_size(self, label: str) -> None:
+        self._text_size = label if label in ("small", "medium", "large") else "medium"
+        self._persist_text_size()
+        self._apply_text_size()
+        self._update_text_size_checks()
+
+    def _persist_text_size(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set("statusboard.team.textSize", self._text_size)
+        except Exception:
+            pass
+
+    def _load_text_size(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            self._text_size = SettingsManager().get("statusboard.team.textSize", "medium") or "medium"
+            self._apply_text_size()
+        except Exception:
+            pass
+
+    def _apply_text_size(self) -> None:
+        size_map = {"small": 10, "medium": 12, "large": 14}
+        pt = size_map.get(self._text_size, 12)
+        try:
+            f = QFont(self.table.font())
+            f.setPointSize(pt)
+            self.table.setFont(f)
+            hdrf = QFont(f)
+            self.table.horizontalHeader().setFont(hdrf)
+            self.table.verticalHeader().setFont(hdrf)
+            fm = QFontMetrics(f)
+            self.table.verticalHeader().setDefaultSectionSize(fm.height() + 8)
+        except Exception:
+            pass
+
+    def _update_column_checks(self) -> None:
+        try:
+            for idx, act in getattr(self, "_col_actions", {}).items():
+                act.setChecked(not self.table.isColumnHidden(idx))
+        except Exception:
+            pass
+
+    # -------------------------- Column visibility -------------------------- #
+    def _toggle_column(self, index: int) -> None:
+        try:
+            if index == 0:
+                return
+            hidden = self.table.isColumnHidden(index)
+            self.table.setColumnHidden(index, not hidden)
+            self._persist_column_visibility()
+            self._update_column_checks()
+        except Exception:
+            pass
+
+    def _persist_column_visibility(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            hidden_keys: list[str] = []
+            for idx, key, _ in getattr(self, "_columns", []):
+                if self.table.isColumnHidden(idx):
+                    hidden_keys.append(key)
+            SettingsManager().set("statusboard.team.columns.hidden", hidden_keys)
+        except Exception:
+            pass
+
+    def _load_column_visibility(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            hidden = SettingsManager().get("statusboard.team.columns.hidden", []) or []
+            key_to_index = {key: idx for idx, key, _ in getattr(self, "_columns", [])}
+            for key in hidden:
+                if key in key_to_index:
+                    self.table.setColumnHidden(key_to_index[key], True)
+        except Exception:
+            pass
+
+    def _load_filters(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            filt = s.get("statusboard.team.filters", None)
+            if isinstance(filt, dict):
+                self._filters = list(filt.get("rules", []))
+                self._match_all = bool(filt.get("matchAll", True))
+        except Exception:
+            pass
 
 
 

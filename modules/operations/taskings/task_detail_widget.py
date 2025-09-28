@@ -116,8 +116,10 @@ class TaskDetailWindow(QWidget):
     def __init__(self, task_id: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._task_id = int(task_id)
-        self.setWindowTitle(f"Task Detail — {task_id}")
-        self.resize(1100, 720)
+        # Title is updated after header load; keep minimal placeholder
+        self.setWindowTitle("Task Detail")
+        # Default width adjusted (+40% from 600 -> 840)
+        self.resize(840, 720)
 
         root = QVBoxLayout(self)
         try:
@@ -145,14 +147,15 @@ class TaskDetailWindow(QWidget):
             "types_by_cat": dict(TASK_TYPES_BY_CATEGORY),
         }
 
+        # Slightly more saturated backgrounds per status
         self._status_bg_colors = {
-            "draft": "#f8f9fa",
-            "planned": "#fff4ce",
-            "assigned": "#e0f2ff",
-            "in progress": "#d1ecf1",
-            "complete": "#d4edda",
-            "completed": "#d4edda",
-            "cancelled": "#f8d7da",
+            "draft": "#e9ecef",        # light gray -> a touch deeper
+            "planned": "#ce93d8",      # match task status purple
+            "assigned": "#bfe1ff",     # very light blue -> medium-light blue
+            "in progress": "#a8e0ea",  # light cyan -> more saturated teal/cyan
+            "complete": "#bfe6c3",     # pale green -> richer green
+            "completed": "#bfe6c3",
+            "cancelled": "#f5b7b1",    # light red -> warmer red
         }
 
         self._loading_header = False
@@ -267,18 +270,15 @@ class TaskDetailWindow(QWidget):
         stack = QVBoxLayout()
         self._title_edit = QLineEdit(self); self._title_edit.setPlaceholderText("Title")
         self._location_edit = QLineEdit(self); self._location_edit.setPlaceholderText("Location")
-        self._category_type_display = QLineEdit(self); self._category_type_display.setPlaceholderText("Category / Type")
-        try:
-            self._category_type_display.setReadOnly(True)
-        except Exception:
-            pass
+        # Removed redundant Category/Type read-only display between Location and Assignment
+        self._category_type_display = None  # kept for compatibility with update helpers
         self._assignment_edit = QLineEdit(self); self._assignment_edit.setPlaceholderText("Assignment")
         for edit, field in ((self._title_edit, 'title'), (self._location_edit, 'location'), (self._assignment_edit, 'assignment')):
             try:
                 edit.editingFinished.connect(partial(self._on_header_line_edit, field, edit))
             except Exception:
                 pass
-        for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Category / Type", self._category_type_display), ("Assignment", self._assignment_edit)]:
+        for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Assignment", self._assignment_edit)]:
             row = QVBoxLayout()
             _lbl = QLabel(lab)
             try:
@@ -1222,6 +1222,37 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
 
+    def _update_window_title(self) -> None:
+        try:
+            cat = (self._header_field_cache.get('category') or '').strip()
+        except Exception:
+            cat = ''
+        try:
+            typ = (self._header_field_cache.get('task_type') or '').strip()
+        except Exception:
+            typ = ''
+        try:
+            tid = (self._header_field_cache.get('task_id') or str(self._task_id)).strip()
+        except Exception:
+            tid = str(self._task_id)
+        try:
+            assign = (self._header_field_cache.get('assignment') or '').strip()
+        except Exception:
+            assign = ''
+        try:
+            primary = self._primary_team_name_lbl.text().strip() if hasattr(self, '_primary_team_name_lbl') and self._primary_team_name_lbl is not None else ''
+        except Exception:
+            primary = ''
+        bracket = '[' + ' / '.join([p for p in (cat, typ) if p]) + ']'
+        if bracket == '[]':
+            bracket = '[Task]'
+        parts = [bracket, tid]
+        if assign:
+            parts.append(assign)
+        if primary:
+            parts.append(primary)
+        self.setWindowTitle(' - '.join(parts))
+
     def _persist_header_fields(self, updates: Dict[str, Any]) -> None:
         if not updates:
             return
@@ -1241,6 +1272,12 @@ class TaskDetailWindow(QWidget):
             try:
                 from utils.app_signals import app_signals
                 app_signals.taskHeaderChanged.emit(int(self._task_id), dict(changed))
+            except Exception:
+                pass
+            try:
+                # Update window title when header fields affecting it change
+                if any(k in changed for k in ('category', 'task_type', 'task_id', 'assignment')):
+                    self._update_window_title()
             except Exception:
                 pass
         except Exception:
@@ -1667,6 +1704,11 @@ class TaskDetailWindow(QWidget):
                         self._primary_team_leader_lbl.setText(leader)
                     if hasattr(self, '_primary_team_phone_lbl'):
                         self._primary_team_phone_lbl.setText(phone)
+                except Exception:
+                    pass
+                try:
+                    # Update title now that header and primary have been set
+                    self._update_window_title()
                 except Exception:
                     pass
             except Exception:
@@ -2405,6 +2447,11 @@ class TaskDetailWindow(QWidget):
                 return
             set_primary_team(int(self._task_id), int(tt_id))
             self.load_teams()
+            # Also refresh header/primary display and window title
+            try:
+                self._load_header()
+            except Exception:
+                pass
         except Exception:
             pass
 

@@ -63,5 +63,62 @@
     },
     "uiDebugTools": true,
     "themeName": "light",
-    "active_profile_id": "ics_base"
+    "active_profile_id": "ics_base",
+    "statusboard.team.presets": {
+        "Ground Teams": {
+            "rules": [
+                {
+                    "field": "name",
+                    "op": "contains",
+                    "value": "Ground"
+                }
+            ],
+            "matchAll": true
+        },
+        "Aircrews": {
+            "rules": [
+                {
+                    "field": "name",
+                    "op": "contains",
+                    "value": "Air"
+                }
+            ],
+            "matchAll": true
+        }
+    },
+    "statusboard.task.presets": {
+        "High Priority": {
+            "rules": [
+                {
+                    "field": "priority",
+                    "op": "=",
+                    "value": "High"
+                }
+            ],
+            "matchAll": true
+        },
+        "In Progress": {
+            "rules": [
+                {
+                    "field": "status",
+                    "op": "=",
+                    "value": "In Progress"
+                }
+            ],
+            "matchAll": true
+        }
+    },
+    "statusboard.team.preset_selected": "Ground Teams",
+    "statusboard.team.filters": {
+        "rules": [],
+        "matchAll": true
+    },
+    "statusboard.task.filters": {
+        "rules": [],
+        "matchAll": true
+    },
+    "statusboard.team.textSize": "small",
+    "statusboard.team.columns.hidden": [
+        "team_type"
+    ]
 }
