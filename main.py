@@ -616,7 +616,10 @@ class MainWindow(QMainWindow):
         m_intel = mb.addMenu("Intel")
         self._add_action(m_intel, "Intel Unit Log ICS-214", None, "intel.unit_log")
         m_intel.addSeparator()
-        self._add_action(m_intel, "Intel Dashboard", None, "intel.dashboard")
+        # New primary dashboard
+        self._add_action(m_intel, "Intel — Dashboard", None, "intel.dashboard")
+        # Expose the data-centric Intel window under a clear non-dashboard label
+        self._add_action(m_intel, "Intel — Data Manager", None, "intel.data_manager")
         self._add_action(m_intel, "Clue Log", None, "intel.clue_log")
         self._add_action(m_intel, "Add Clue", None, "intel.add_clue")
 
@@ -629,6 +632,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
         self._add_action(m_med, "CAP ORM", None, "safety.caporm")
+        m_med.addSeparator()
+        self._add_action(m_med, "Weather Safety", None, "safety.weather")
 
         # ----- Liaison -----
         m_lia = mb.addMenu("Liaison")
@@ -639,6 +644,11 @@ class MainWindow(QMainWindow):
 
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
+        # Public Information dashboard (widget-based)
+        self._add_action(m_pub, "Public Information", None, "public.dashboard")
+        # Public Affairs — Dashboard entry
+        self._add_action(m_pub, "Public Affairs Dashboard", None, "public.affairs_dashboard")
+        m_pub.addSeparator()
         self._add_action(m_pub, "Public Information Unit Log ICS-214", None, "public.unit_log")
         m_pub.addSeparator()
         self._add_action(m_pub, "Media Releases", None, "public.media_releases")
@@ -646,6 +656,9 @@ class MainWindow(QMainWindow):
 
         # ----- Finance/Admin -----
         m_fin = mb.addMenu("Finance/Admin")
+        # Primary dashboard entry
+        self._add_action(m_fin, "Finance/Admin Dashboard", None, "finance.dashboard")
+        m_fin.addSeparator()
         self._add_action(m_fin, "Finance Unit Log ICS-214", None, "finance.unit_log")
         m_fin.addSeparator()
         self._add_action(m_fin, "Time Tracking", None, "finance.time")
@@ -899,6 +912,7 @@ class MainWindow(QMainWindow):
             # ----- Intel -----
             "intel.unit_log": self.open_intel_unit_log,
             "intel.dashboard": self.open_intel_dashboard,
+            "intel.data_manager": self.open_intel_data_manager,
             "intel.clue_log": self.open_intel_clue_log,
             "intel.add_clue": self.open_intel_add_clue,
 
@@ -909,6 +923,7 @@ class MainWindow(QMainWindow):
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
             "safety.caporm": self.open_safety_caporm,
+            "safety.weather": self.open_safety_weather,
 
             # ----- Liaison -----
             "liaison.unit_log": self.open_liaison_unit_log,
@@ -916,11 +931,14 @@ class MainWindow(QMainWindow):
             "liaison.requests": self.open_liaison_requests,
 
             # ----- Public Information -----
+            "public.dashboard": self.open_public_dashboard,
             "public.unit_log": self.open_public_unit_log,
             "public.media_releases": self.open_public_media_releases,
             "public.inquiries": self.open_public_inquiries,
+            "public.affairs_dashboard": self.open_public_affairs_dashboard,
 
             # ----- Finance/Admin -----
+            "finance.dashboard": self.open_finance_admin_dashboard,
             "finance.unit_log": self.open_finance_unit_log,
             "finance.time": self.open_finance_time,
             "finance.procurement": self.open_finance_procurement,
@@ -1196,10 +1214,20 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Incident Dashboard — Command")
 
     def open_command_incident_overview(self) -> None:
-        from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = command.get_incident_overview_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Overview")
+        # Replace placeholder with real Incident Overview panel (widgets only)
+        try:
+            from modules.command.panels.incident_overview import (
+                IncidentOverviewPanel,
+                create_command_incident_overview_panel,
+            )
+            widget = create_command_incident_overview_panel(self.dock_manager, getattr(self, "app_context", None))
+            self._open_dock_widget(widget, title=IncidentOverviewPanel.panel_title)
+        except Exception:
+            # Fallback to legacy placeholder if import fails
+            from modules import command
+            incident_id = getattr(self, "current_incident_id", None)
+            panel = command.get_incident_overview_panel(incident_id)
+            self._open_dock_widget(panel, title="Incident Overview")
 
     def open_command_iap(self) -> None:
         from modules import command
@@ -1856,10 +1884,67 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_intel_dashboard(self) -> None:
+        """Open the Intel — Dashboard (modeless) using the new QWidget."""
+        try:
+            from modules.intel.panels.inteldashboard import (
+                make_intel_dashboard,
+                IntelDashboardWidget,
+            )
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Intel — Dashboard", f"Widget unavailable.\n{e}")
+            except Exception:
+                print(f"[warn] IntelDashboardWidget unavailable: {e}")
+            return
+
+        widget: IntelDashboardWidget = make_intel_dashboard(self)
+        self._wire_intel_dashboard(widget)
+        try:
+            widget.setAutoRefresh(15000)
+        except Exception:
+            pass
+        self._open_dock_widget(widget, title="Intel — Dashboard")
+
+    def _wire_intel_dashboard(self, w) -> None:
+        """Attach a simple refresher to keep header/overlay up to date."""
+        from utils.state import AppState
+        from utils import incident_context
+        from datetime import datetime
+
+        def _refresh() -> None:
+            try:
+                active_id = incident_context.get_active_incident_id()
+                w.setIncidentOverlayVisible(False if active_id else True)
+            except Exception:
+                w.setIncidentOverlayVisible(True)
+                return
+
+            try:
+                op = AppState.get_active_op_period() or "—"
+            except Exception:
+                op = "—"
+            try:
+                role = AppState.get_active_user_role() or "—"
+            except Exception:
+                role = "—"
+            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
+            try:
+                w.set_context(str(op), now_text, str(role))
+            except Exception:
+                pass
+
+        try:
+            w.refreshRequested.connect(lambda: _refresh())
+        except Exception:
+            pass
+        _refresh()
+
+    def open_intel_data_manager(self) -> None:
+        """Open the primary data-centric Intel window (non-dashboard)."""
         from modules import intel
         incident_id = getattr(self, "current_incident_id", None)
         panel = intel.get_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Intel Dashboard")
+        self._open_dock_widget(panel, title="Intel — Data Manager")
 
     def open_intel_clue_log(self) -> None:
         from modules import intel
@@ -1908,6 +1993,12 @@ class MainWindow(QMainWindow):
         panel = safety.get_caporm_panel(incident_id)
         self._open_dock_widget(panel, title="CAP ORM")
 
+    def open_safety_weather(self) -> None:
+        from modules import safety
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = safety.get_weather_panel(incident_id)
+        self._open_dock_widget(panel, title="Weather Safety")
+
 # --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
@@ -1928,6 +2019,27 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Customer Requests")
 
 # --- 4.11 Public Information --------------------------------------------
+    def open_public_dashboard(self) -> None:
+        from modules import public_info
+        from utils.state import AppState
+        incident_id = getattr(self, "current_incident_id", None)
+        if not incident_id:
+            try:
+                incident_id = AppState.get_active_incident()
+            except Exception:
+                incident_id = None
+        try:
+            uid = AppState.get_active_user_id()
+        except Exception:
+            uid = None
+        try:
+            role = AppState.get_active_user_role()
+        except Exception:
+            role = None
+        current_user = {"id": uid, "roles": ([] if not role else [role])}
+        panel = public_info.get_public_info_panel(incident_id, current_user)
+        self._open_dock_widget(panel, title="Public Information")
+
     def open_public_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
@@ -1946,7 +2058,224 @@ class MainWindow(QMainWindow):
         panel = public_info.get_inquiries_panel(incident_id)
         self._open_dock_widget(panel, title="Public Inquiries")
 
+    def open_public_affairs_dashboard(self) -> None:
+        """Create/show the Public Affairs — Dashboard as a modeless widget.
+
+        Wires basic context/overlay refresh and starts auto-refresh at 15s.
+        """
+        try:
+            from modules.publicaffairs.panels.padashboard import (
+                make_public_affairs_dashboard,
+                PublicAffairsDashboardWidget,
+            )
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Public Affairs — Dashboard", f"Widget unavailable.\n{e}")
+            except Exception:
+                print(f"[warn] PublicAffairsDashboardWidget unavailable: {e}")
+            return
+
+        # Reuse a single instance; raise if already open
+        existing = getattr(self, "_public_affairs_dashboard", None)
+        if existing is not None and getattr(existing, "isVisible", lambda: False)():
+            try:
+                existing.raise_()
+                existing.activateWindow()
+            except Exception:
+                pass
+            return
+
+        w: PublicAffairsDashboardWidget = make_public_affairs_dashboard(self)
+        w.setWindowTitle("Public Affairs — Dashboard")
+
+        # Lightweight refresh that sets context and overlay only
+        def _refresh() -> None:
+            try:
+                from utils import incident_context
+                active_id = incident_context.get_active_incident_id()
+                w.setIncidentOverlayVisible(False if active_id else True)
+            except Exception:
+                w.setIncidentOverlayVisible(True)
+            try:
+                from utils.state import AppState
+                from datetime import datetime
+                op = AppState.get_active_op_period() or "—"
+                role = AppState.get_active_user_role() or "—"
+                now_text = datetime.now().strftime("%H:%M")
+                w.set_context(str(op), now_text, str(role))
+            except Exception:
+                pass
+
+        # Wire refresh and kick off timer
+        try:
+            w.refreshRequested.connect(_refresh)
+            _refresh()
+            w.setAutoRefresh(15000)
+        except Exception:
+            pass
+
+        # Keep reference to avoid GC
+        self._public_affairs_dashboard = w
+        def _clear_ref(*_):
+            try:
+                setattr(self, "_public_affairs_dashboard", None)
+            except Exception:
+                pass
+        try:
+            w.destroyed.connect(_clear_ref)
+        except Exception:
+            pass
+
+        w.setAttribute(Qt.WA_DeleteOnClose, True)
+        w.show()
+
 # --- 4.12 Finance/Admin --------------------------------------------------
+    def open_finance_admin_dashboard(self) -> None:
+        """Open the Finance/Admin — Dashboard (modeless) and enable auto-refresh."""
+        try:
+            from modules.finance.panels.findashboard import (
+                make_finance_admin_dashboard,
+                FinanceAdminDashboardWidget,
+            )
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Finance/Admin Dashboard", f"Widget unavailable.\n{e}")
+            except Exception:
+                print(f"[warn] FinanceAdminDashboardWidget unavailable: {e}")
+            return
+
+        widget: FinanceAdminDashboardWidget = make_finance_admin_dashboard(self)
+        # Wire signals and a basic refresh function (time/role/overlay + placeholders)
+        self._wire_finance_admin_dashboard(widget)
+        try:
+            widget.setAutoRefresh(15000)
+        except Exception:
+            pass
+        # Show as a docked, modeless panel
+        self._open_dock_widget(widget, title="Finance/Admin — Dashboard")
+
+    def _wire_finance_admin_dashboard(self, w) -> None:
+        """Attach handlers and simple refresh that updates context and placeholders."""
+        from utils.state import AppState
+        from utils import incident_context
+        from datetime import datetime
+
+        # Signal wiring
+        try:
+            w.openQueueRequested.connect(self.open_finance_procurement)
+        except Exception:
+            pass
+        try:
+            w.acknowledgeAlertsRequested.connect(lambda: QMessageBox.information(self, "Alerts", "Acknowledged recent alerts."))
+        except Exception:
+            pass
+        try:
+            w.openActionRequested.connect(lambda _id: self.open_finance_procurement())
+            w.approveRequested.connect(lambda _id: QMessageBox.information(self, "Approve", f"Approved: {_id}"))
+            w.holdRequested.connect(lambda _id: QMessageBox.information(self, "Hold", f"Placed on hold: {_id}"))
+        except Exception:
+            pass
+        try:
+            w.openTimekeepingRequested.connect(self.open_finance_time)
+        except Exception:
+            pass
+        try:
+            # No dedicated Equipment Use panel yet; route to procurement for now
+            w.openEquipmentUseRequested.connect(self.open_finance_procurement)
+        except Exception:
+            pass
+        try:
+            w.openReimbursementsRequested.connect(self.open_finance_summary)
+        except Exception:
+            pass
+        try:
+            w.newPurchaseOrderRequested.connect(self.open_finance_procurement)
+            w.newTimeEntryRequested.connect(self.open_finance_time)
+            w.newEquipmentRecordRequested.connect(self.open_finance_procurement)
+        except Exception:
+            pass
+        try:
+            w.openBudgetRequested.connect(self.open_finance_summary)
+            w.exportCostSummaryRequested.connect(lambda: QMessageBox.information(self, "Export", "Exported cost summary (placeholder)."))
+            w.openFullFinanceAdminRequested.connect(self.open_finance_admin_dashboard)
+        except Exception:
+            pass
+
+        def _refresh() -> None:
+            # Overlay visibility based on active incident
+            try:
+                active_id = incident_context.get_active_incident_id()
+                w.setIncidentOverlayVisible(False if active_id else True)
+            except Exception:
+                w.setIncidentOverlayVisible(True)
+                return
+
+            # Header context
+            try:
+                op = AppState.get_active_op_period() or "—"
+            except Exception:
+                op = "—"
+            try:
+                role = AppState.get_active_user_role() or "—"
+            except Exception:
+                role = "—"
+            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
+            try:
+                w.set_context(str(op), now_text, str(role))
+            except Exception:
+                pass
+
+            # Placeholder data until real wiring exists
+            try:
+                w.update_kpis({
+                    "pos_open": 0,
+                    "invoices_pending": 0,
+                    "reimburse_pending": 0,
+                    "budget_remaining": "—",
+                    "cost_op_today": "—",
+                    "overtime_hours": "—",
+                })
+            except Exception:
+                pass
+            try:
+                w.update_alerts([])
+            except Exception:
+                pass
+            try:
+                w.update_actions([])
+            except Exception:
+                pass
+            try:
+                w.update_finance_snapshot({
+                    "ops_cost_today": "—",
+                    "ops_cost_to_date": "—",
+                    "budget_total": "—",
+                    "budget_used": "—",
+                    "budget_remaining": "—",
+                    "sections_over_cap": [],
+                })
+            except Exception:
+                pass
+            try:
+                w.update_time_equip({
+                    "time_entries_today": 0,
+                    "crews_pending": 0,
+                    "equipment_hours_today": "0h",
+                    "equipment_pending": 0,
+                })
+            except Exception:
+                pass
+            try:
+                w.update_reimburse_queue([])
+            except Exception:
+                pass
+
+        try:
+            w.refreshRequested.connect(lambda: _refresh())
+        except Exception:
+            pass
+        # Prime immediately on open
+        _refresh()
     def open_finance_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)

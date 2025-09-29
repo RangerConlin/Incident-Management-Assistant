@@ -5,7 +5,9 @@ __all__ = [
     "get_215A_panel",
     "get_caporm_panel",
     "get_safety_panel",
+    "get_weather_panel",
 ]
+
 
 def _make_panel(title: str, body: str) -> QWidget:
     w = QWidget()
@@ -16,12 +18,14 @@ def _make_panel(title: str, body: str) -> QWidget:
     layout.addWidget(QLabel(body))
     return w
 
+
 def get_208_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Safety Plan (ICS-208)."""
     return _make_panel(
         "Safety Plan (ICS-208)",
         f"ICS-208 form — incident: {incident_id}",
     )
+
 
 def get_215A_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Incident Action Safety Analysis (ICS-215A)."""
@@ -30,6 +34,7 @@ def get_215A_panel(incident_id: object | None = None) -> QWidget:
         f"ICS-215A form — incident: {incident_id}",
     )
 
+
 def get_caporm_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for CAP ORM."""
     return _make_panel(
@@ -37,9 +42,23 @@ def get_caporm_panel(incident_id: object | None = None) -> QWidget:
         f"Operational risk management — incident: {incident_id}",
     )
 
+
 def get_safety_panel(incident_id: object | None = None) -> QWidget:
     """Return placeholder QWidget for Safety Dashboard."""
     return _make_panel(
         "Safety Dashboard",
         f"Safety overview — incident: {incident_id}",
     )
+
+
+def get_weather_panel(incident_id: object | None = None) -> QWidget:
+    """Return Weather Summary panel for Safety module."""
+    try:
+        from .weather.ui.summary_panel import WeatherSummaryPanel
+
+        return WeatherSummaryPanel()
+    except Exception:
+        return _make_panel(
+            "Weather Safety",
+            f"Weather safety panel unavailable — incident: {incident_id}",
+        )

@@ -174,7 +174,9 @@ class CommsLogTableModel(QAbstractTableModel):
 class CommsLogTableView(QTableView):
     """Table view wrapper with sensible defaults."""
 
-    DEFAULT_VISIBLE_COLUMNS: Set[str] = {"Timestamp", "From", "To", "Message", "Notification"}
+    # Remove display of the "Notification" column from default view
+    DEFAULT_VISIBLE_COLUMNS: Set[str] = {"Timestamp", "From", "To", "Message"}
+    _HIDDEN_COLUMNS: Set[str] = {"Notification"}
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -210,13 +212,14 @@ class CommsLogTableView(QTableView):
 
     # Column visibility -------------------------------------------------
     def column_labels(self) -> List[str]:
-        return list(self._column_indices.keys())
+        # Exclude hidden columns from menus and selection APIs
+        return [k for k in self._column_indices.keys() if k not in self._HIDDEN_COLUMNS]
 
     def visible_columns(self) -> Set[str]:
         return set(self._visible_columns)
 
     def set_visible_columns(self, columns: Iterable[str]) -> None:
-        selection = {col for col in columns if col in self._column_indices}
+        selection = {col for col in columns if col in self._column_indices and col not in self._HIDDEN_COLUMNS}
         if not selection:
             # Ensure at least one column remains visible
             selection = {next(iter(self._column_indices.keys()))}
@@ -224,7 +227,7 @@ class CommsLogTableView(QTableView):
         self._apply_column_visibility()
 
     def set_column_visible(self, column: str, visible: bool) -> bool:
-        if column not in self._column_indices:
+        if column not in self._column_indices or column in self._HIDDEN_COLUMNS:
             return False
         if visible:
             self._visible_columns.add(column)

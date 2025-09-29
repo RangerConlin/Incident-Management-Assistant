@@ -3,6 +3,7 @@ from .windows import (
     get_215A_panel,
     get_caporm_panel,
     get_safety_panel,
+    get_weather_panel,
 )
 
 __all__ = [
@@ -10,4 +11,5 @@ __all__ = [
     "get_215A_panel",
     "get_caporm_panel",
     "get_safety_panel",
+    "get_weather_panel",
 ]

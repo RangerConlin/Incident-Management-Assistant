@@ -72,3 +72,27 @@ def create_cap_orm(incident_id: str, payload: schemas.CapOrmCreate):
 def build_ics206(incident_id: str, payload: schemas.ICS206Create):
     return services.build_ics206(incident_id, payload)
 
+
+# ---------------------------------------------------------------------------
+# Weather Safety minimal endpoints (for optional API consumption)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/safety/weather/summary")
+def weather_summary(lat: float | None = None, lon: float | None = None):
+    from .weather import WeatherSafetyManager
+
+    mgr = WeatherSafetyManager()
+    if lat is not None and lon is not None:
+        mgr.set_location_override(lat, lon)
+    return mgr.get_summary()
+
+
+@router.get("/api/safety/weather/aviation")
+def weather_aviation(stations: str):
+    from .weather import WeatherSafetyManager
+
+    mgr = WeatherSafetyManager()
+    station_list = [s.strip().upper() for s in stations.split(",") if s.strip()]
+    return mgr.get_aviation(station_list)
+

@@ -28,6 +28,8 @@ from ..models import (
     PRIORITY_ROUTINE,
 )
 from ..services import CommsLogService
+from notifications.models.notification import Notification
+from notifications.services import get_notifier
 from .log_detail import LogDetailDrawer
 from .log_filters import LogFilterPanel
 from .log_table import CommsLogTableView
@@ -383,6 +385,17 @@ class CommunicationsLogWindow(QMainWindow):
             return
         menu = QMenu(self.table_view)
 
+        # Send notifications regarding this entry
+        alert_action = QAction("Send Alert Notification", self)
+        alert_action.triggered.connect(lambda entry_id=int(entry.id): self._send_notification(entry_id, "warning"))
+        menu.addAction(alert_action)
+
+        emergency_action = QAction("Send Emergency Notification", self)
+        emergency_action.triggered.connect(lambda entry_id=int(entry.id): self._send_notification(entry_id, "error"))
+        menu.addAction(emergency_action)
+
+        menu.addSeparator()
+
         status_action = QAction("Status Update", self)
         status_action.setCheckable(True)
         status_action.setChecked(entry.is_status_update)
@@ -415,6 +428,42 @@ class CommunicationsLogWindow(QMainWindow):
         menu.addAction(task_action)
 
         menu.exec(self.table_view.viewport().mapToGlobal(pos))
+
+    def _send_notification(self, entry_id: int, severity: str) -> None:
+        try:
+            entry = self.service.get_entry(entry_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Notification", f"Entry unavailable: {exc}")
+            return
+        if not entry:
+            return
+        title = "Comms Alert" if severity != "error" else "Comms Emergency"
+        parts = []
+        if entry.resource_label:
+            parts.append(entry.resource_label)
+        who = "".join(
+            [
+                f"From {entry.from_unit}" if entry.from_unit else "",
+                f" to {entry.to_unit}" if entry.to_unit else "",
+            ]
+        ).strip()
+        if who:
+            parts.append(who)
+        if entry.message:
+            parts.append(entry.message)
+        msg = " — ".join([p for p in parts if p]) or "Log entry notification"
+        notifier = get_notifier()
+        notifier.notify(
+            Notification(
+                title=title,
+                message=msg,
+                severity="warning" if severity != "error" else "error",
+                source="Communications Log",
+                entity_type="comms_entry",
+                entity_id=str(entry_id),
+            )
+        )
+        self.statusBar().showMessage("Notification sent", 2000)
 
     def _on_entry_message_focus_changed(self, focused: bool) -> None:
         for shortcut in self._priority_shortcuts:
