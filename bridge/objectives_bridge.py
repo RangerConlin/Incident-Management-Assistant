@@ -120,7 +120,7 @@ class ObjectiveBridge(QObject):
                         created_by TEXT,
                         updated_by TEXT,
                         -- Legacy/bridge fields kept for compatibility
-                        mission_id INTEGER,
+                        mission_id INTEGER NOT NULL DEFAULT 1,
                         description TEXT,
                         due_time TEXT,
                         customer TEXT,

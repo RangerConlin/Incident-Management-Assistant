@@ -25,7 +25,8 @@ class MasterPersonnelRepository:
             rows = conn.execute("PRAGMA table_info(personnel)").fetchall()
         except sqlite3.OperationalError:
             return set()
-        return {str(row[1]) for row in rows}
+        # Normalize to lowercase to be resilient to schema casing differences
+        return {str(row[1]).lower() for row in rows}
 
     @staticmethod
     def _coalesce(row: sqlite3.Row, options: Sequence[str]) -> object | None:
@@ -40,18 +41,35 @@ class MasterPersonnelRepository:
         return fallback
 
     def _row_to_result(self, row: sqlite3.Row) -> dict[str, object | None]:
+        # Create a case-insensitive view of the row by lowercasing keys
+        lowered = {str(k).lower(): row[k] for k in row.keys()}
+
+        def coalesce_ci(options: Sequence[str]) -> object | None:
+            fallback: object | None = None
+            for name in options:
+                key = name.lower()
+                if key in lowered:
+                    value = lowered[key]
+                    if value not in (None, ""):
+                        return value
+                    if fallback is None:
+                        fallback = value
+            return fallback
+
         return {
-            "id": self._coalesce(row, ("id", "person_id", "personnel_id")),
-            "name": self._coalesce(row, ("name", "full_name", "display_name")),
-            "callsign": self._coalesce(row, ("callsign", "call_sign")),
-            "phone": self._coalesce(row, ("phone", "contact", "phone_number")),
-            "agency": self._coalesce(row, ("home_unit", "unit", "agency", "department")),
+            "id": coalesce_ci(("id", "person_id", "personnel_id")),
+            "name": coalesce_ci(("name", "full_name", "display_name")),
+            "callsign": coalesce_ci(("callsign", "call_sign")),
+            "phone": coalesce_ci(("phone", "contact", "phone_number")),
+            "agency": coalesce_ci(("home_unit", "unit", "agency", "department")),
         }
 
     @staticmethod
     def _searchable_columns(columns: Iterable[str]) -> List[str]:
-        preferred = ["name", "callsign", "home_unit", "unit", "agency", "contact"]
-        return [column for column in preferred if column in columns]
+        # Include id to support searching by personnel ID as well
+        preferred = ["name", "callsign", "home_unit", "unit", "agency", "contact", "id"]
+        # Columns set is already lowercased; ensure comparison is case-insensitive
+        return [column for column in preferred if column.lower() in {c.lower() for c in columns}]
 
     def search_people(self, query: str, limit: int = 25) -> List[dict[str, object | None]]:
         """Return personnel rows matching ``query``.
@@ -76,8 +94,9 @@ class MasterPersonnelRepository:
                 if not search_columns:
                     return []
                 order_column = "name" if "name" in columns else search_columns[0]
+                # Cast all columns to TEXT to safely apply LOWER/LIKE even if numeric (e.g., id)
                 conditions = [
-                    f"lower(COALESCE({column}, '')) LIKE ?" for column in search_columns
+                    f"LOWER(COALESCE(CAST({column} AS TEXT), '')) LIKE ?" for column in search_columns
                 ]
                 sql = (
                     f"SELECT * FROM personnel WHERE {' OR '.join(conditions)} "

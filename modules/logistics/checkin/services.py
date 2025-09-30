@@ -408,16 +408,27 @@ class CheckInService:
                     continue
                 if key in record:
                     record[key] = value
-        columns = list(record.keys())
-        values = [record[column] for column in columns]
-        placeholders = ", ".join("?" for _ in columns)
-        column_list = ", ".join(columns)
-        sql = (
-            f"INSERT OR REPLACE INTO {config.incident_table} ({column_list})"
-            f" VALUES ({placeholders})"
-        )
         with get_incident_conn() as incident_conn:
             _ensure_incident_schema(incident_conn, config)
+            # Filter to columns present in the incident table to avoid schema mismatches
+            incident_columns = {
+                row[1]
+                for row in incident_conn.execute(
+                    f"PRAGMA table_info({config.incident_table})"
+                ).fetchall()
+            }
+            filtered_columns = [c for c in record.keys() if c in incident_columns]
+            if not filtered_columns:
+                raise ValueError(
+                    f"No compatible columns to insert for {config.incident_table}"
+                )
+            values = [record[c] for c in filtered_columns]
+            placeholders = ", ".join("?" for _ in filtered_columns)
+            column_list = ", ".join(filtered_columns)
+            sql = (
+                f"INSERT OR REPLACE INTO {config.incident_table} ({column_list})"
+                f" VALUES ({placeholders})"
+            )
             incident_conn.execute(sql, values)
             incident_conn.commit()
         record["_checked_in"] = True

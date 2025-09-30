@@ -32,6 +32,8 @@ ICS Command Assistant - Desktop Application
 ## Module 4-1: Resource Request
 ## Module 5: Communications
 ## Module 6: Medical and Safety
+## Module 6-1: CAP Operational Risk Management
+## Module 6-2: Weather
 ## Module 7: Intel
 ## Module 8: Liaison
 ## Module 9: Personnel and Role Management
@@ -1505,7 +1507,95 @@ This module consolidates all health, injury, responder safety, and medical suppo
   - - Triage entries can optionally use barcode/NFC wristbands for field input
   - - Medical plan pulls preloaded hospital and resource info
   - - Works offline and syncs when connectivity is restored
- 
+
+## Module 6-1: Civil Air Patrol Operational Risk Management
+1. Module Name & Description
+Creates, manages, and archives CAPF 160 (Deliberate), CAPF 160S (Real-Time), and CAPF 160HL (Hazard Listing) risk assessments, aligned to CAPR 160-1 guidance and the CAP risk matrix. Supports deliberate planning, quick real-time assessments, and supplemental hazard pages, and integrates with incident data, audit logs, and PDF export. The overall Safety/Medical module already calls for a “CAP ORM Form Generator”; this submodule implements it.
+Reference forms: CAPF 160S real-time worksheet (with approval section and risk matrix) and CAPF 160HL hazard listing supplement
+2. Primary Functions
+ - Form Creation & Editing — Create CAPF 160, 160S, and 160HL with incident/personal data prefill.
+ - Risk Matrix Engine — Select severity/likelihood to compute risk level (L/M/H/EH) using the CAP matrix from CAPF 160S.
+ - Hazard Management — Add multiple hazards to a form; attach 160HL pages as needed (supplement to 160/160S).
+ - Approval Workflow (Policy-Locked) — Manage approvals with hard business rules (see §4). CAPF 160S shows an approval block and notes CAP/CC involvement for H/EH; our policy is stricter and blocks approval entirely until mitigated.
+ - Archiving & Reporting — Version history, audit trail, PDF export in CAP layout.
+3. Submodules / Tools
+ - Form Wizard (New 160/160S/160HL)
+ - Risk Matrix Panel (Interactive grid; live highest-residual chip)
+ - Hazard Library (resusable hazard templates)
+ - Approval Dashboard (queue, statuses, blockers)
+4. Buisiness Rules (Safety Policy)
+ - ORM-001 (Hard Stop): If the highest residual risk on a form (across all hazards) is H or EH, approval is blocked. No override, no admin bypass. Users must   add controls to reduce residual risk to M or L before approval becomes available.
+    Rationale: CAPF 160S requires CAP/CC approval for H/EH; we encode stricter practice that such risks are returned for further mitigation rather than approved.
+ - ORM-002: Highest Residual Risk is computed from all hazard rows’ residual risk (post-control).
+ - ORM-003: Any edit to controls triggers recompute and re-evaluation of approval eligibility.
+5. UI Components
+ - Header Strip: Activity/incident context; status badge; Highest Residual Risk chip (L/M/H/EH).
+ - Hazards Grid: Mirrors CAPF 160/160HL columns: Sub-Activity/Task/Source; Hazard/Outcome; Initial Risk; Control; How to Implement; Who; Residual Risk.
+ - Risk Matrix Modal: Pick Likelihood × Severity; shows computed risk letter (L/M/H/EH) per CAP grid.
+ - Approval Panel: Shows approval fields (name/rank/position/signature). If Highest Residual Risk is H/EH, the Approve button is disabled with banner:
+      “Approval blocked: residual risk is High/Extremely High. Add/adjust controls until residual risk is Medium or Low.”
+ - Export Button: Generates CAP-layout PDF (watermarks “NOT APPROVED — PENDING MITIGATION” while blocked).
+6. Data Models (incident DB unless noted)
+ - orm_forms
+      id (PK), incident_id (FK), form_type (‘160’ | ‘160S’ | ‘160HL’), activity, prepared_by_id, prepared_by_text, date_iso, highest_residual_risk (‘L’|‘M’|‘H’|‘EH’),
+      status (‘draft’|‘pending_mitigation’|‘pending_approval’|‘approved’|‘disapproved’),
+      approval_blocked (BOOL), approval_block_reason (TEXT NULL), approved_by_id (NULL), approved_ts (NULL)
+ - orm_hazards
+      id (PK), form_id (FK), sub_activity, hazard_outcome, initial_risk (‘L’|‘M’|‘H’|‘EH’), control_text, implement_how, implement_who, residual_risk (‘L’|‘M’|‘H’|‘EH’)
+ - hazard_templates (master.db)
+      id, title, description, default_controls
+7. API Endpoints
+ - GET /modules/safety/orm/api — List/search ORM forms (filters: type, status, highest_residual_risk).
+ - POST /modules/safety/orm/api — Create new (type=160|160S|160HL).
+ - GET /modules/safety/orm/api{id} — Get form with hazards, computed highest residual.
+ - PUT /modules/safety/orm/api{id} — Update header fields.
+ - POST /modules/safety/orm/api{id}/hazards — Add hazard row.
+ - PUT /modules/safety/orm/api{id}/hazards/{hid} — Edit hazard row (recompute on save).
+ - DELETE /modules/safety/orm/api{id}/hazards/{hid} — Remove hazard row (recompute).
+ - POST /modules/safety/orm/api{id}/approve — Attempts approval. Returns 422 when blocked by ORM-001 with body:
+    {
+      "error": "approval_blocked",
+      "reason": "highest_residual_risk_h_or_eh",
+      "highest_residual_risk": "H",
+      "message": "Approval is blocked until highest residual risk is Medium or Low."
+    }
+ - POST /api/safety/orm/{id}/disapprove — Mark disapproved with note.
+ - GET /api/safety/orm/{id}/export — PDF export (watermark if blocked).
+ - GET /api/safety/hazard_templates & POST /api/safety/hazard_templates — Manage reusable hazards (master.db).
+8. Workflow
+ - Create 160/160S → fill header (activity; prepared by).
+ - Enter Hazards → for each: set Initial Risk (matrix), define Controls, set Residual Risk (matrix).
+ - Compute Highest Residual Risk → live chip updates.
+ - If H/EH → status auto-sets pending_mitigation, approval disabled.
+ - Mitigate until highest residual = M/L.
+ - Approval unlocked → record approver metadata/signature (as applicable on 160S form).
+ - Export & Archive → PDF + version/audit trail.
+9. Inter-Module Connections
+ - Module 11 (Forms & Docs): Store/export CAPF 160/160S/160HL alongside ICS forms.
+ - Personnel: Prefill “Prepared By” / approver fields.
+ - Planning: Flagged hazards may inform IAP safety messages.
+ - Operations: Publish critical hazards to task briefings/status boards.
+ - Audit Trail: Every change logged with user/time.
+10. Permissions & Audit
+ - Roles: Safety staff can create/edit; designated approvers can approve (when eligible).
+ - Audit entries on: hazard edits, risk recompute, approval attempts (including blocked), exports.
+11. Reports & Exports
+ - ORM Summary Report (by incident/OP): counts by risk band; list of blocked forms and reasons.
+ - PDF Fidelity: Matches official CAP layouts (160/160S/160HL), including the risk matrix and approval sections from 160S.
+12. Edge Cases
+ - No hazards entered: approval disabled until ≥1 hazard row exists.
+ - Mixed residuals: highest value governs (EH > H > M > L).
+ - 160HL pages: unlimited; each row treated as a hazard item under the parent form.
+13. Future Enhancements (Nice-to-Have)
+ - Hazard taxonomy & tags; cross-incident analytics on recurring hazards.
+ - Inline guidance snippets from CAPR 160-1 to assist control selection (stored locally).
+ - One-click “copy hazards from template.”
+14. Implementation notes (service-layer behavior)
+ - On any hazard create/update/delete:
+ - Recalculate highest_residual_risk.
+ - If result is H/EH → set status='pending_mitigation', approval_blocked=true, approval_block_reason='highest_residual_risk_h_or_eh'.
+ - If M/L and form previously blocked → approval_blocked=false; if submitted for approval, allow transition to pending_approval.
+ - The 160S approval block UI mirrors the approval area shown on the form itself, but disables interaction until mitigated; 160HL is treated strictly as a supplemental sheet attached to the parent form.
 ## Module 7: Intel
 1. Module Name & Description
 Intel Module — Core hub for clue management and collection, analysis, and dissemination of intelligence to staff and teams. It captures subject intel, normalizes form aligned data, links clues to tasks/subjects/locations, and exports official SAR & CAP forms.

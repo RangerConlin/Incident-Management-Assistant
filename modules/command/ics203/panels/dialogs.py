@@ -206,7 +206,8 @@ class AssignPersonDialog(QDialog):
     def _perform_search(self, text: str) -> None:
         term = text.strip()
         self.list_results.clear()
-        if len(term) < 2:
+        # Allow 1+ characters for purely numeric terms (ID search), otherwise require 2
+        if not (term.isdigit() and len(term) >= 1) and len(term) < 2:
             return
         results = self._master_repo.search_people(term)
         for person in results:

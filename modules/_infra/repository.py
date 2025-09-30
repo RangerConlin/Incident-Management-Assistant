@@ -67,6 +67,8 @@ def _ensure_objectives_columns(db_path: Path) -> None:
             return
         existing_cols = {r[1] for r in cur.execute("PRAGMA table_info(incident_objectives)")}
         required = [
+            # Legacy column present in some DBs; ensure it exists for compatibility
+            ("mission_id", "INTEGER NOT NULL DEFAULT 1"),
             ("incident_id", "TEXT"),
             ("op_period_id", "INTEGER"),
             ("code", "TEXT"),

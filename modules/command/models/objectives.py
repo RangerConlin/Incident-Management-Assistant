@@ -43,6 +43,9 @@ class IncidentObjective(Base):
     __tablename__ = "incident_objectives"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Many legacy databases include a NOT NULL mission_id used by QML code paths.
+    # Include it here with a safe default to satisfy NOT NULL constraints.
+    mission_id: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     incident_id: Mapped[str] = mapped_column(String, index=True)
     op_period_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     code: Mapped[str] = mapped_column(String, index=True)
