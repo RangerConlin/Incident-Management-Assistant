@@ -632,7 +632,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
         self._add_action(m_med, "CAP ORM", None, "safety.caporm")
-        m_med.addSeparator()`n
+        m_med.addSeparator()
         # ----- Liaison -----
         m_lia = mb.addMenu("Liaison")
         self._add_action(m_lia, "Liaison Unit Log ICS-214", None, "liaison.unit_log")
@@ -1988,7 +1988,8 @@ class MainWindow(QMainWindow):
         from modules import safety
         incident_id = getattr(self, "current_incident_id", None)
         panel = safety.get_caporm_panel(incident_id)
-        self._open_dock_widget(panel, title="CAP ORM")`n# --- 4.10 Liaison --------------------------------------------------------
+        self._open_dock_widget(panel, title="CAP ORM")
+# --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
