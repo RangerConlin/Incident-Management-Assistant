@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
@@ -21,8 +21,7 @@ class HastyTaskRead(BaseModel):
     logistics_request_id: Optional[str] = None
     created_at: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ReflexActionCreate(BaseModel):
@@ -38,5 +37,4 @@ class ReflexActionRead(BaseModel):
     communications_alert_id: Optional[str] = None
     created_at: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

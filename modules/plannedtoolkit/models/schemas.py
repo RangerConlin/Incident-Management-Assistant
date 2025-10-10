@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -26,9 +26,8 @@ class EventTemplateUpdate(EventTemplateBase):
 
 class EventTemplateRead(EventTemplateBase):
     id: int
-
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplateSiteBase(BaseModel):
@@ -46,9 +45,8 @@ class TemplateSiteCreate(TemplateSiteBase):
 class TemplateSiteRead(TemplateSiteBase):
     id: int
     template_id: int
-
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplateRouteBase(BaseModel):
@@ -64,9 +62,8 @@ class TemplateRouteCreate(TemplateRouteBase):
 class TemplateRouteRead(TemplateRouteBase):
     id: int
     template_id: int
-
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplateCommsBase(BaseModel):
@@ -82,7 +79,7 @@ class TemplateCommsRead(TemplateCommsBase):
     template_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplateMedicalBase(BaseModel):
@@ -100,7 +97,7 @@ class TemplateMedicalRead(TemplateMedicalBase):
     template_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplateSafetyBase(BaseModel):
@@ -118,7 +115,7 @@ class TemplateSafetyRead(TemplateSafetyBase):
     template_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplatePermitsBase(BaseModel):
@@ -134,7 +131,7 @@ class TemplatePermitsRead(TemplatePermitsBase):
     template_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplateVendorsBase(BaseModel):
@@ -150,7 +147,7 @@ class TemplateVendorsRead(TemplateVendorsBase):
     template_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TemplateContactsBase(BaseModel):
@@ -166,7 +163,7 @@ class TemplateContactsRead(TemplateContactsBase):
     template_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Event instance schemas
@@ -189,7 +186,7 @@ class EventRead(EventBaseModel):
     template_id: Optional[int] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class EventSiteBase(BaseModel):
@@ -209,7 +206,7 @@ class EventSiteRead(EventSiteBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class EventRouteBase(BaseModel):
@@ -228,7 +225,7 @@ class EventRouteRead(EventRouteBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class OpsPeriodBase(BaseModel):
@@ -247,7 +244,7 @@ class OpsPeriodRead(OpsPeriodBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class StaffingRowBase(BaseModel):
@@ -268,7 +265,7 @@ class StaffingRowRead(StaffingRowBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CommsPlanBase(BaseModel):
@@ -286,7 +283,7 @@ class CommsPlanRead(CommsPlanBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class MedicalPlanBase(BaseModel):
@@ -306,7 +303,7 @@ class MedicalPlanRead(MedicalPlanBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SafetyPlanBase(BaseModel):
@@ -326,7 +323,7 @@ class SafetyPlanRead(SafetyPlanBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PermitBase(BaseModel):
@@ -348,7 +345,7 @@ class PermitRead(PermitBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class VendorBase(BaseModel):
@@ -367,7 +364,7 @@ class VendorRead(VendorBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ContactBase(BaseModel):
@@ -388,7 +385,7 @@ class ContactRead(ContactBase):
     event_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class AttachmentBase(BaseModel):
@@ -408,7 +405,7 @@ class AttachmentRead(AttachmentBase):
     created_at: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class ExportArtifactBase(BaseModel):
@@ -427,7 +424,7 @@ class ExportArtifactRead(ExportArtifactBase):
     created_at: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Helper schemas
@@ -459,3 +456,4 @@ class PermissionOut(BaseModel):
     can_edit: bool = True
     can_finalize: bool = False
     can_export: bool = False
+

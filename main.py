@@ -632,9 +632,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
         self._add_action(m_med, "CAP ORM", None, "safety.caporm")
-        m_med.addSeparator()
-        self._add_action(m_med, "Weather Safety", None, "safety.weather")
-
+        m_med.addSeparator()`n
         # ----- Liaison -----
         m_lia = mb.addMenu("Liaison")
         self._add_action(m_lia, "Liaison Unit Log ICS-214", None, "liaison.unit_log")
@@ -923,8 +921,7 @@ class MainWindow(QMainWindow):
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
             "safety.caporm": self.open_safety_caporm,
-            "safety.weather": self.open_safety_weather,
-
+            
             # ----- Liaison -----
             "liaison.unit_log": self.open_liaison_unit_log,
             "liaison.agencies": self.open_liaison_agencies,
@@ -1991,15 +1988,7 @@ class MainWindow(QMainWindow):
         from modules import safety
         incident_id = getattr(self, "current_incident_id", None)
         panel = safety.get_caporm_panel(incident_id)
-        self._open_dock_widget(panel, title="CAP ORM")
-
-    def open_safety_weather(self) -> None:
-        from modules import safety
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = safety.get_weather_panel(incident_id)
-        self._open_dock_widget(panel, title="Weather Safety")
-
-# --- 4.10 Liaison --------------------------------------------------------
+        self._open_dock_widget(panel, title="CAP ORM")`n# --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
@@ -3619,5 +3608,8 @@ if __name__ == "__main__":
         attach_dev_menu(win)
     win.show()
     sys.exit(app.exec())
+
+
+
 
 

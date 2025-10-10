@@ -96,10 +96,10 @@ class HazardTableModel:
 class ORMWindow(QWidget):
     """Main QWidget for editing CAP ORM data."""
 
-    def __init__(self, incident_id: Optional[int] = None, parent=None):
+    def __init__(self, incident_id: Optional[object] = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("CAP ORM (Per OP)")
-        self._incident_id = (
+        self._incident_id = self._normalize_incident_id(
             incident_id if incident_id is not None else self._resolve_incident_id()
         )
         self._current_op = AppState.get_active_op_period() or 1
@@ -229,13 +229,38 @@ class ORMWindow(QWidget):
         layout.addLayout(actions_layout)
 
     # ------------------------------------------------------------------ helpers
-    def _resolve_incident_id(self) -> Optional[int]:
-        incident = AppState.get_active_incident()
-        if incident is None:
+    def _normalize_incident_id(self, value: Optional[object]) -> Optional[str | int]:
+        if value is None:
             return None
+        if isinstance(value, (int, str)):
+            text = str(value).strip()
+            if not text:
+                return None
+            if text.isdigit():
+                try:
+                    return int(text)
+                except ValueError:
+                    return text
+            return text
+        for attr in ("number", "id", "incident_id"):
+            candidate = getattr(value, attr, None)
+            normalized = self._normalize_incident_id(candidate)
+            if normalized is not None:
+                return normalized
+        return None
+
+    def _resolve_incident_id(self) -> Optional[object]:
+        incident = AppState.get_active_incident()
+        normalized = self._normalize_incident_id(incident)
+        if normalized is not None:
+            return normalized
         try:
-            return int(str(incident))
-        except ValueError:
+            from utils import incident_context
+
+            return self._normalize_incident_id(
+                incident_context.get_active_incident_id()
+            )
+        except Exception:
             return None
 
     def _prepared_by_text(self) -> str:

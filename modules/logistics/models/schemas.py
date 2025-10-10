@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ResourceRequestCreate(BaseModel):
@@ -24,8 +24,7 @@ class ResourceRequestRead(ResourceRequestCreate):
     status: str
     timestamp: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RequestApprovalCreate(BaseModel):
@@ -53,8 +52,7 @@ class EquipmentItemRead(EquipmentItemCreate):
     status: str
     current_holder_id: Optional[int]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PermissionOut(BaseModel):

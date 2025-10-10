@@ -12,7 +12,6 @@ __all__ = [
     "get_215A_panel",
     "get_caporm_panel",
     "get_safety_panel",
-    "get_weather_panel",
 ]
 
 
@@ -65,14 +64,9 @@ def get_safety_panel(incident_id: object | None = None) -> QWidget:
     )
 
 
-def get_weather_panel(incident_id: object | None = None) -> QWidget:
-    """Return Weather Summary panel for Safety module."""
-    try:
-        from .weather.ui.summary_panel import WeatherSummaryPanel
+# Note: weather panel removed.
 
-        return WeatherSummaryPanel()
-    except Exception:
-        return _make_panel(
-            "Weather Safety",
-            f"Weather safety panel unavailable — incident: {incident_id}",
-        )
+
+# No weather controller; weather submodule removed.
+
+

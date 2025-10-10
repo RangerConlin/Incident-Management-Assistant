@@ -68,8 +68,10 @@ def _set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
 def _sync_catalog(conn: sqlite3.Connection) -> None:
     """Upsert all catalog entries into certification_types by `code`.
 
-    Ensures the row has the code-defined stable `id` and attributes.
-    After types are synced, tags are re-written to match the code.
+    Notes
+    - We do NOT insert or update explicit `id` values to avoid collisions with
+      existing rows in user databases. The stable identity is the unique
+      `code`. After types are synced, tags are re-written to match the code.
     """
     for ct in CATALOG:
         upsert(
@@ -77,7 +79,6 @@ def _sync_catalog(conn: sqlite3.Connection) -> None:
             table="certification_types",
             key_columns=("code",),
             values={
-                "id": ct.id,
                 "code": ct.code,
                 "name": ct.name,
                 "description": ct.name,  # description mirrors name for now

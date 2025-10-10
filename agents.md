@@ -7,6 +7,7 @@
 - Domain data lives in `data/`.  
 - Tests live in `tests/` and `modules/**/tests` using `pytest`.  
 - Master design document: **Design Documents/designplan.md**.  
+- Absolutely no new QML is to be used.
 
 ## Directory Orientation
 - `bridge/`: QObject bridges. Slot-friendly, emit signals on state changes.  
@@ -49,6 +50,16 @@
 - `utils.incident_context` selects active incident DB.  
 - Templates/forms in `data/forms`, `data/templates`, and `profiles/`.  
 - Theme tokens in `utils.theme_manager` and `styles/palette.py`.  
+
+### Active Incident Number
+- Source of truth: `utils/state.py` (`AppState`).  
+- Read in UI/bridges: `AppState.get_active_incident()` returns the current incident number (may be `None`).  
+- Prefer string ID for persistence: `utils.incident_context.get_active_incident_id()` (returns `str | None`).  
+- DB path helper: `utils.incident_context.get_active_incident_db_path()` (raises if no active incident).  
+- Set/update selection: `AppState.set_active_incident(<incident_number>)`. This also synchronizes `incident_context` and emits `app_signals.incidentChanged` (`str`).  
+- Reactivity: listen to `utils.app_signals.app_signals.incidentChanged` to refresh bound views.  
+- FastAPI/services: accept `incident_id` explicitly in endpoints/services rather than reading globals.  
+- Tests: set with `AppState.set_active_incident("TEST-123")` or stub via `incident_context.set_active_incident("TEST-123")`; use `CHECKIN_DATA_DIR` to sandbox data paths.  
 
 ## Testing & QA
 - Run with:  

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional, Literal, Dict, Any
 from unittest.mock import Base
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 # ----------------------------------------------------------------------------
 # Shared schemas
@@ -35,9 +35,7 @@ class SafetyReportCreate(SafetyReportBase):
 
 class SafetyReportRead(SafetyReportBase):
     id: int
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----------------------------------------------------------------------------
@@ -61,9 +59,7 @@ class MedicalIncidentCreate(MedicalIncidentBase):
 
 class MedicalIncidentRead(MedicalIncidentBase):
     id: int
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----------------------------------------------------------------------------
@@ -87,9 +83,7 @@ class TriageEntryCreate(TriageEntryBase):
 
 class TriageEntryRead(TriageEntryBase):
     id: int
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----------------------------------------------------------------------------
@@ -110,9 +104,7 @@ class HazardZoneCreate(HazardZoneBase):
 
 class HazardZoneRead(HazardZoneBase):
     id: int
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----------------------------------------------------------------------------
@@ -139,9 +131,7 @@ class CapOrmRead(CapOrmBase):
     incident_id: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----------------------------------------------------------------------------
