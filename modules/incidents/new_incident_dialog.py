@@ -118,6 +118,9 @@ class NewIncidentDialog(QDialog):
         except FileExistsError as e:
             QMessageBox.warning(self, "Already Exists", str(e))
             return
+        except Exception as e:
+            QMessageBox.critical(self, "Incident Database Error", str(e))
+            return
 
         self.created.emit(meta, str(db_path))
         self.accept()

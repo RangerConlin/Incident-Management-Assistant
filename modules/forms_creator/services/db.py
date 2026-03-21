@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator, Iterable
 
+from utils.incident_db import ensure_incident_database
+
 
 DATA_DIR = Path("data")
 MASTER_DB_PATH = DATA_DIR / "master.db"
@@ -50,7 +52,7 @@ def ensure_incident_db(incident_id: str) -> Path:
     if not safe_id:
         raise ValueError("incident_id cannot be empty")
 
-    db_path = INCIDENTS_DIR / f"{safe_id}.db"
+    db_path = ensure_incident_database(safe_id)
     with get_incident_connection(safe_id) as conn:
         conn.executescript(
             """
