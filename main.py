@@ -6,7 +6,7 @@ import logging
 from functools import lru_cache
 from typing import Callable, Optional
 
-DEV_MODE = True
+DEV_MODE = False
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -3528,7 +3528,7 @@ if __name__ == "__main__":
     app.aboutToQuit.connect(_on_quit)
 
     # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-    DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+    DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
     DEBUG_INCIDENT_ID = "2025-FAIR"
     DEBUG_USER_ID = "405021"
     DEBUG_ROLE = "Incident Commander"
@@ -3553,12 +3553,19 @@ if __name__ == "__main__":
         print("[debug] Login bypass enabled: loaded test credentials.")
     else:
         from modules.login_dialog import LoginDialog
-        login = LoginDialog(demo_mode=bool(getattr(args, "demo", False)))
+        # Read startup behavior + last incident before showing login
+        _early_settings = SettingsManager()
+        try:
+            _startup_mode = int(_early_settings.get('startupBehaviorIndex', 0) or 0)
+        except Exception:
+            _startup_mode = 0
+        _default_incident = _early_settings.get('lastIncidentNumber') if _startup_mode == 1 else None
+        login = LoginDialog(demo_mode=bool(getattr(args, 'demo', False)), default_incident_number=_default_incident)
         if login.exec() != QDialog.Accepted:
             sys.exit(0)
 
     # Build main window after session is established
-    settings_manager = SettingsManager()
+    settings_manager = _early_settings
     settings_bridge = QmlSettingsBridge(settings_manager)
 
     # Initialize theme manager/bridge at app level as well
@@ -3609,6 +3616,7 @@ if __name__ == "__main__":
         attach_dev_menu(win)
     win.show()
     sys.exit(app.exec())
+
 
 
 

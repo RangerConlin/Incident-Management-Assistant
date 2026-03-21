@@ -25,7 +25,7 @@
     "uiTemplateIndex": 3,
     "colorProfileIndex": 0,
     "themeIndex": 2,
-    "startupBehaviorIndex": 0,
+    "startupBehaviorIndex": 1,
     "unitIndex": 0,
     "dateFormatIndex": 0,
     "languageIndex": 0,
@@ -120,5 +120,6 @@
     "statusboard.team.textSize": "small",
     "statusboard.team.columns.hidden": [
         "team_type"
-    ]
+    ],
+    "lastIncidentNumber": "26-T-4301"
 }

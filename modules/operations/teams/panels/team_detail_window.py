@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any, Dict, Optional, List
 from datetime import datetime
@@ -27,7 +27,124 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QHeaderView,
+    QDialog,
+    QDialogButtonBox,
 )
+
+class AddTeamMemberDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Personnel to Team")
+        self.resize(640, 520)
+        self.selected_person_id: str | None = None
+        layout = QVBoxLayout(self)
+        # Search
+        row = QHBoxLayout(); layout.addLayout(row)
+        row.addWidget(QLabel("Search:"))
+        self._txt = QLineEdit(self)
+        self._txt.setPlaceholderText("Filter by name, callsign, phone")
+        row.addWidget(self._txt, 1)
+        # Table
+        self._tbl = QTableWidget(self)
+        self._tbl.setColumnCount(4)
+        self._tbl.setHorizontalHeaderLabels(["Name","Role","Team","Phone"])
+        try:
+            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            self._tbl.verticalHeader().setVisible(False)
+            self._tbl.horizontalHeader().setStretchLastSection(True)
+        except Exception:
+            pass
+        layout.addWidget(self._tbl, 1)
+        # Footer
+        bar = QHBoxLayout(); layout.addLayout(bar)
+        self._btn_checkin = QPushButton("Check In New Person...", self)
+        bar.addWidget(self._btn_checkin); bar.addStretch(1)
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=self)
+        layout.addWidget(btns)
+        # Wire
+        self._txt.textChanged.connect(self._reload)
+        self._btn_checkin.clicked.connect(self._open_checkin)
+        btns.accepted.connect(self._accept)
+        btns.rejected.connect(self.reject)
+        # Initial
+        self._reload()
+        self._checkin_window = None
+
+    def _open_checkin(self) -> None:
+        try:
+            from modules.logistics.checkin.widgets.checkin_window import CheckInWindow
+            if getattr(self, '_checkin_window', None) is None:
+                self._checkin_window = CheckInWindow(self)
+                try:
+                    self._checkin_window.destroyed.connect(lambda *_: (setattr(self, '_checkin_window', None), self._reload()))
+                except Exception:
+                    pass
+            w = self._checkin_window
+            try:
+                w.setWindowModality(Qt.ApplicationModal)
+            except Exception:
+                pass
+            try:
+                w.raise_(); w.activateWindow()
+            except Exception:
+                pass
+            w.show()
+        except Exception:
+            try:
+                QMessageBox.information(self, 'Check-In', 'Open Logistics -> Check-In to add people.')
+            except Exception:
+                pass
+
+    def _fetch(self, query: str) -> list:
+
+        try:
+            from modules.logistics.checkin import repository as ci_repo
+            from modules.logistics.checkin.models import RosterFilters
+            f = RosterFilters(q=(query.strip() or None))
+            return ci_repo.fetch_roster(f)
+        except Exception:
+            return []
+
+    def _reload(self) -> None:
+        q = self._txt.text() or ""
+        rows = self._fetch(q)
+        self._tbl.setRowCount(len(rows))
+        for r, item in enumerate(rows):
+            name = getattr(item, 'name', '')
+            role = getattr(item, 'role', '')
+            team = getattr(item, 'team', '') or 'Unassigned'
+            phone = getattr(item, 'phone', '')
+            pid = getattr(item, 'person_id', '')
+            vals = [name, role or '', team, phone or '']
+            for c, val in enumerate(vals):
+                it = QTableWidgetItem(str(val) if val is not None else '')
+                if c == 0:
+                    it.setData(Qt.UserRole, str(pid))
+                self._tbl.setItem(r, c, it)
+
+    def _selected_id(self) -> str | None:
+        try:
+            sels = self._tbl.selectionModel().selectedRows()
+        except Exception:
+            return None
+        if not sels:
+            return None
+        idx = sels[0].row()
+        it = self._tbl.item(idx, 0)
+        return None if it is None else it.data(Qt.UserRole)
+
+    def _accept(self) -> None:
+        pid = self._selected_id()
+        if not pid:
+            try:
+                QMessageBox.information(self, "Select", "Please select a person from the list.")
+            except Exception:
+                pass
+            return
+        self.selected_person_id = str(pid)
+        self.accept()
+
 
 from utils.styles import team_status_colors, TEAM_TYPE_COLORS, subscribe_theme
 from models.database import get_incident_by_number
@@ -369,6 +486,26 @@ class TeamDetailBridge(QObject):
 
     @Slot(result='QVariant')
     def availableMembers(self) -> list[dict]:
+        # Prefer the Check-In roster; fall back to legacy query if needed
+        try:
+            from modules.logistics.checkin import repository as ci_repo
+            from modules.logistics.checkin.models import RosterFilters
+            rows = ci_repo.fetch_roster(RosterFilters())
+            out: list[dict] = []
+            for r in rows:
+                team_id = getattr(r, 'team_id', None)
+                if team_id in (None, '', '-'):  # treat missing/placeholder as unassigned
+                    out.append({
+                        'id': getattr(r, 'person_id', None),
+                        'name': getattr(r, 'name', ''),
+                        'role': getattr(r, 'role', ''),
+                        'callsign': getattr(r, 'callsign', ''),
+                        'phone': getattr(r, 'phone', ''),
+                    })
+            if out:
+                return out
+        except Exception:
+            pass
         try:
             return list_available_personnel() or []
         except Exception:
@@ -376,6 +513,7 @@ class TeamDetailBridge(QObject):
 
     @Slot(result='QVariant')
     def availableAircraft(self) -> list[dict]:
+
         """Return aircraft available for assignment; include current aircraft if any."""
         try:
             tid = int(self._team.team_id) if self._team.team_id is not None else None
@@ -463,7 +601,78 @@ class TeamDetailBridge(QObject):
                 self._equipment = []
                 self._aircraft = []
                 return
-            self._personnel = fetch_team_personnel(tid)
+            # Prefer members_json list for personnel composition
+            members_ids: list[int] = []
+            try:
+                members_ids = [int(x) for x in (self._team.members or [])]
+            except Exception:
+                members_ids = []
+            people: list[dict[str, Any]] = []
+            if members_ids:
+                # Probe incident personnel table once
+                try:
+                    from models.queries import get_db_connection as _dbc
+                    conn = _dbc()
+                    cols = {r[1] for r in conn.execute("PRAGMA table_info(personnel)").fetchall()}
+                    want = ['id','name','role','phone']
+                    if 'callsign' in cols: want.append('callsign')
+                    if 'rank' in cols: want.append('rank')
+                    if 'organization' in cols: want.append('organization')
+                    if 'is_medic' in cols: want.append('is_medic')
+                    col_list = ", ".join(want)
+                    placeholders = ",".join(["?"]*len(members_ids))
+                    rows = {}
+                    if members_ids:
+                        cur = conn.execute(f"SELECT {col_list} FROM personnel WHERE id IN ({placeholders})", tuple(members_ids))
+                        for row in cur.fetchall():
+                            d = dict(row)
+                            rows[str(d.get('id'))] = d
+                except Exception:
+                    rows = {}
+                for pid in members_ids:
+                    base = None
+                    try:
+                        rec = rows.get(str(pid)) if 'rows' in locals() else None
+                        if rec:
+                            base = {
+                                'id': int(pid),
+                                'name': rec.get('name'),
+                                'role': rec.get('role'),
+                                'phone': rec.get('phone'),
+                                'callsign': rec.get('callsign') if 'callsign' in rec else None,
+                                'identifier': rec.get('callsign') if 'callsign' in rec else None,
+                                'rank': rec.get('rank') if 'rank' in rec else None,
+                                'organization': rec.get('organization') if 'organization' in rec else None,
+                                'is_medic': rec.get('is_medic') if 'is_medic' in rec else None,
+                            }
+                    except Exception:
+                        base = None
+                    if base is None:
+                        # Fall back to Check-In identity
+                        try:
+                            from modules.logistics.checkin import repository as ci_repo
+                            ident = ci_repo.get_person_identity(str(pid))
+                        except Exception:
+                            ident = None
+                        if ident:
+                            base = {
+                                'id': int(pid),
+                                'name': getattr(ident,'name',''),
+                                'role': getattr(ident,'primary_role', None),
+                                'phone': getattr(ident,'phone', None),
+                                'callsign': getattr(ident,'callsign', None),
+                                'identifier': getattr(ident,'callsign', None) or None,
+                                'rank': None,
+                                'organization': getattr(ident,'home_unit', None),
+                                'is_medic': None,
+                            }
+                    if base is None:
+                        base = {'id': int(pid), 'name': f'Personnel {pid}', 'role': None, 'phone': None, 'callsign': None, 'identifier': None, 'rank': None, 'organization': None, 'is_medic': None}
+                    people.append(base)
+                self._personnel = people
+            else:
+                # Fallback to DB-derived composition (legacy)
+                self._personnel = fetch_team_personnel(tid)
             self._vehicles = fetch_team_vehicles(tid)
             self._equipment = fetch_team_equipment(tid)
             self._aircraft = fetch_team_aircraft(tid)
@@ -592,23 +801,62 @@ class TeamDetailBridge(QObject):
 
     @Slot('QVariant')
     def addMember(self, person_id: Any = None) -> None:
-        """Assign a person to this team by setting their team_id."""
+        """Add a person to this team by updating teams.members_json; also sync Check-In."""
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
-            if person_id is None:
-                # No-op placeholder for UI without selector wired yet
+            if person_id in (None, ""):
                 return
-            if not self._is_member_role_valid(int(person_id)):
-                self.error.emit("Selected person role not valid for this team")
-                return
-            set_person_team(int(person_id), int(self._team.team_id))
+            pid = int(person_id)
+            # Update team.members list
+            members = list(getattr(self._team, 'members', []) or [])
+            if pid not in members:
+                members.append(pid)
+                self._team.members = members
+                try:
+                    team_repo.save_team(self._team)
+                except Exception:
+                    pass
+            # Best-effort: keep Check-In record aligned so other views remain consistent
+            try:
+                from modules.logistics.checkin import repository as ci_repo
+                from modules.logistics.checkin.models import CheckInRecord, CIStatus, PersonnelStatus, Location
+                now_iso = datetime.now().astimezone().isoformat()
+                rec = ci_repo.fetch_checkin(str(pid))
+                if rec is None:
+                    ident = None
+                    try:
+                        ident = ci_repo.get_person_identity(str(pid))
+                    except Exception:
+                        ident = None
+                    rec = CheckInRecord(
+                        person_id=str(pid),
+                        ci_status=CIStatus.CHECKED_IN,
+                        personnel_status=PersonnelStatus.ASSIGNED,
+                        arrival_time=now_iso,
+                        location=Location.ICP,
+                        incident_callsign=(getattr(ident, 'callsign', None) if ident else None),
+                        incident_phone=(getattr(ident, 'phone', None) if ident else None),
+                        team_id=str(self._team.team_id),
+                        role_on_team=(getattr(ident, 'primary_role', None) if ident else None),
+                    )
+                else:
+                    rec.team_id = str(self._team.team_id)
+                    try:
+                        rec.updated_at = now_iso
+                    except Exception:
+                        pass
+                ci_repo.save_checkin(rec)
+            except Exception:
+                pass
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to add member: {e}")
 
     @Slot(int)
     def removeMember(self, person_id: int) -> None:
+
+
         """Unassign a person from this team (set team_id = NULL)."""
         try:
             if not self._team.team_id:
@@ -2185,13 +2433,23 @@ class TeamDetailWindow(QMainWindow):
         handler = getattr(self._bridge, "openEditTeam", None)
         if callable(handler):
             handler()
-
     def _handle_add_member(self) -> None:
-        handler = getattr(self._bridge, "addMember", None)
-        if callable(handler):
-            handler()
+        try:
+            dlg = AddTeamMemberDialog(self)
+            from PySide6.QtWidgets import QDialog
+            if dlg.exec() == QDialog.Accepted and getattr(dlg, 'selected_person_id', None):
+                pid = dlg.selected_person_id
+                handler = getattr(self._bridge, 'addMember', None)
+                if callable(handler) and pid not in (None, ''):
+                    handler(int(pid))
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, 'Team Detail', f'Could not add member: {e}')
+            except Exception:
+                pass
 
     def _handle_member_detail(self) -> None:
+
         handler = getattr(self._bridge, "openSelectedMember", None)
         if callable(handler):
             handler()

@@ -72,11 +72,12 @@ class LoginDialog(QDialog):
     # Emit when the session is established
     sessionReady = Signal(str, str, str)  # (incident_number, user_id, role)
 
-    def __init__(self, parent: QWidget | None = None, *, demo_mode: bool = False) -> None:
+    def __init__(self, parent: QWidget | None = None, *, demo_mode: bool = False, default_incident_number: str | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Login / Select Incident")
         self.setModal(True)
         self._demo_mode = demo_mode
+        self._default_incident_number = default_incident_number
 
         # Widgets
         self.incident_combo = QComboBox()
@@ -115,6 +116,14 @@ class LoginDialog(QDialog):
 
         self._incidents: List[IncidentItem] = []
         self._load_incidents()
+        # Preselect last incident when provided (startup setting)
+        try:
+            if self._default_incident_number:
+                idx = self.incident_combo.findData(self._default_incident_number)
+                if idx >= 0:
+                    self.incident_combo.setCurrentIndex(idx)
+        except Exception:
+            pass
         self._update_continue_enabled()
 
     # ------------------------------------------------------------------

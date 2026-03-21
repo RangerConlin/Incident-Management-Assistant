@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -113,6 +113,17 @@ class EntityTab(QWidget):
             f"Search {config.title.lower()} by name, ID, or keyword"
         )
         self.search_edit.setObjectName("SearchBox")
+        # Live search as you type
+        try:
+            self.search_edit.textChanged.connect(self._on_search_text_changed)
+        except Exception:
+            pass
+        self._search_timer = QTimer(self)
+        try:
+            self._search_timer.setSingleShot(True); self._search_timer.setInterval(250)
+            self._search_timer.timeout.connect(self._on_search_requested)
+        except Exception:
+            pass
         self.search_edit.returnPressed.connect(self._on_search_requested)
         search_layout.addWidget(self.search_edit, 1)
         self.btn_search = QPushButton("Search", self)
@@ -215,8 +226,11 @@ class EntityTab(QWidget):
     def _run_search(self, *, select_id: Optional[str] = None) -> None:
         query = self.search_edit.text().strip()
         if not query:
-            self._records = []
-            self._populate_table(select_id=None)
+            try:
+                self._records = self.service.list_master_records(self.config.key)
+            except Exception:
+                self._records = []
+            self._populate_table(select_id=select_id)
             return
         try:
             results = self.service.search_master_records(self.config.key, query)
@@ -392,6 +406,10 @@ class CheckInWindow(QWidget):
         for config in iter_entity_configs():
             tab = EntityTab(config, self.service, self)
             self.tabs.addTab(tab, config.title)
+            try:
+                tab.refresh()
+            except Exception:
+                pass
 
     def refresh_all(self) -> None:
         """Refresh all tabs from the underlying databases."""

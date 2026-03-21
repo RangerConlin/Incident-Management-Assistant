@@ -107,6 +107,58 @@ def fetch_team_aircraft(team_id: int) -> List[Dict[str, Any]]:
     return _rows_to_dicts(cur)
 
 
+def list_incident_vehicles() -> List[Dict[str, Any]]:
+    """Return all vehicles that are signed into the active incident.
+
+    This routine is defensive against schema variants. If the incident
+    vehicles table does not provide ``name`` it will synthesize it from
+    ``make`` and ``model`` when available. Optional columns are included
+    when present.
+    """
+    conn = get_db_connection()
+    # Probe available columns
+    has_name = _has_column(conn, "vehicles", "name")
+    has_callsign = _has_column(conn, "vehicles", "callsign")
+    has_type = _has_column(conn, "vehicles", "type")
+    has_make = _has_column(conn, "vehicles", "make")
+    has_model = _has_column(conn, "vehicles", "model")
+    has_team_id = _has_column(conn, "vehicles", "team_id")
+
+    # Build select fragments
+    sel_name = (
+        "name AS name"
+        if has_name
+        else "TRIM(COALESCE(make,'')||' '||COALESCE(model,'')) AS name"
+        if (has_make or has_model)
+        else "CAST(id AS TEXT) AS name"
+    )
+    sel_callsign = "callsign" if has_callsign else "NULL AS callsign"
+    sel_type = "type" if has_type else "NULL AS type"
+    sel_team = "team_id" if has_team_id else "NULL AS team_id"
+
+    # Optional team name via join if teams table exists
+    has_teams = _has_column(conn, "teams", "id") and _has_column(conn, "teams", "name")
+    join_clause = " LEFT JOIN teams t ON v.team_id = t.id" if has_teams and has_team_id else ""
+    sel_team_name = ", t.name AS team_name" if join_clause else ", NULL AS team_name"
+
+    sql = (
+        "SELECT v.id, "
+        + sel_name
+        + ", "
+        + sel_callsign
+        + ", "
+        + sel_type
+        + ", "
+        + sel_team
+        + sel_team_name
+        + " FROM vehicles v"
+        + join_clause
+        + " ORDER BY name COLLATE NOCASE, callsign COLLATE NOCASE"
+    )
+    cur = conn.execute(sql)
+    return _rows_to_dicts(cur)
+
+
 def fetch_team_leader_id(team_id: int) -> Optional[int]:
     """Fetch leader id; prefer `team_leader`, fallback to `leader_id`."""
     conn = get_db_connection()
