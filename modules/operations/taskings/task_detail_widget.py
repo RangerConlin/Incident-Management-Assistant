@@ -2366,9 +2366,13 @@ class TaskDetailWindow(QWidget):
 
     # --- Teams Ops ---
     def load_teams(self) -> None:
+        # Temporarily disconnect itemChanged to avoid save-trigger during populate
+        _reconnect_item_changed = False
         try:
-            self._teams_model.blockSignals(True)
+            self._teams_model.itemChanged.disconnect(self._on_team_item_changed)
+            _reconnect_item_changed = True
         except Exception:
+            # Either not connected yet or disconnect failed; continue
             pass
         try:
             from modules.operations.taskings.repository import list_task_teams
@@ -2421,11 +2425,14 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
             self._teams_model.appendRow(row)
+        
+                # Reconnect itemChanged handler if we disconnected it
         try:
-            self._teams_model.blockSignals(False)
+            if _reconnect_item_changed:
+                self._teams_model.itemChanged.connect(self._on_team_item_changed)
         except Exception:
             pass
-        
+
         try:
             vh = self._teams_table.verticalHeader()
             for r in range(self._teams_model.rowCount()):
@@ -4207,3 +4214,4 @@ class TaskDetailWindow(QWidget):
                 self.load_teams()
             except Exception:
                 pass
+
