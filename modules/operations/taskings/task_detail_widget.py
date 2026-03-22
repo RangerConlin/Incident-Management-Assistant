@@ -2367,6 +2367,10 @@ class TaskDetailWindow(QWidget):
     # --- Teams Ops ---
     def load_teams(self) -> None:
         try:
+            self._teams_model.blockSignals(True)
+        except Exception:
+            pass
+        try:
             from modules.operations.taskings.repository import list_task_teams
             rows = list_task_teams(int(self._task_id)) or []
             try:
