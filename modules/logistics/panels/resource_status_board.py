@@ -1,4 +1,4 @@
-"""Desktop resource status board for the Logistics module."""
+﻿"""Desktop resource status board for the Logistics module."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
     QTableView,
     QTextEdit,
     QVBoxLayout,
@@ -34,6 +36,8 @@ from styles.styles import subscribe_theme
 from modules.logistics.resource_status import RESOURCE_STATUSES, ResourceBoardFilters
 from modules.logistics.resource_status.models import ResourceItem, format_display_datetime, parse_datetime
 from modules.logistics.resource_status.service import ResourceStatusService, get_service
+from modules.logistics.checkin.services import get_service as get_checkin_service
+from modules.logistics.checkin.services import ENTITY_CONFIG
 
 
 STATUS_BRUSHES: dict[str, tuple[str, str]] = {
@@ -224,7 +228,9 @@ class ResourceStatusFilterProxyModel(QSortFilterProxyModel):
 class ResourceEditDialog(QDialog):
     """Create/edit workflow for a tracked incident resource."""
 
-    def __init__(self, parent: Optional[QWidget] = None, item: Optional[ResourceItem] = None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None, item: Optional[ResourceItem] = None, source_entity_type: Optional[str] = None, source_record_id: Optional[str] = None) -> None:
+        self._source_entity_type = source_entity_type
+        self._source_record_id = source_record_id
         super().__init__(parent)
         self.setWindowTitle("Resource Details")
         self._item = item
@@ -301,7 +307,7 @@ class ResourceEditDialog(QDialog):
             eta_value = None
         else:
             eta_value = self.eta_edit.dateTime().toPython().astimezone().isoformat()
-        return {
+        payload = {
             "resource_id": self.resource_id_edit.text().strip(),
             "resource_name": self.resource_name_edit.text().strip(),
             "resource_type": self.resource_type_edit.text().strip(),
@@ -312,6 +318,11 @@ class ResourceEditDialog(QDialog):
             "location": self.location_edit.text().strip() or None,
             "notes": self.notes_edit.toPlainText().strip() or None,
         }
+        if getattr(self, "_source_entity_type", None):
+            payload["source_entity_type"] = self._source_entity_type
+        if getattr(self, "_source_record_id", None):
+            payload["source_record_id"] = self._source_record_id
+        return payload
 
 
 class ResourceStatusBoard(QWidget):
@@ -449,17 +460,7 @@ class ResourceStatusBoard(QWidget):
         source_index = self._proxy.mapToSource(index)
         return self._model.item_at(source_index.row())
 
-    def _add_resource(self) -> None:
-        dialog = ResourceEditDialog(self)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        try:
-            self._service.create_resource(dialog.payload(), actor_name="Desktop Logistics")
-        except Exception as exc:
-            QMessageBox.critical(self, "Unable to Save Resource", str(exc))
-            return
-        self.refresh()
-
+ 
     def _edit_selected(self) -> None:
         item = self._selected_item()
         if item is None:
@@ -475,3 +476,18 @@ class ResourceStatusBoard(QWidget):
             return
         self.refresh()
         self.dataChangedForWorkflow.emit(item.id)
+
+    def _add_resource(self) -> None:
+        dialog = ResourceEditDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        try:
+            created = self._service.create_resource(dialog.payload(), actor_name="Desktop Logistics")
+        except Exception as exc:
+            QMessageBox.critical(self, "Unable to Add Resource", str(exc))
+            return
+        self.refresh()
+        try:
+            self.dataChangedForWorkflow.emit(created.id)
+        except Exception:
+            pass

@@ -386,6 +386,7 @@ class CheckInWindow(QWidget):
         super().__init__(parent)
         self.setObjectName("CheckInWindow")
         self.setWindowTitle("Incident Check-In")
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.service = CheckInService()
 
         layout = QVBoxLayout(self)
@@ -421,3 +422,7 @@ class CheckInWindow(QWidget):
 
 
 __all__ = ["CheckInWindow"]
+
+
+
+

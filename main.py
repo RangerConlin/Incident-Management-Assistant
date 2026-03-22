@@ -4,9 +4,7 @@ import os
 import sys
 import logging
 from functools import lru_cache
-from typing import Callable, Optional
-
-DEV_MODE = False
+from typing import Optional
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -82,11 +80,16 @@ except Exception:  # pragma: no cover - customization optional at runtime
     get_dashboard_designer_panel = None  # type: ignore[assignment]
     get_theme_editor_panel = None  # type: ignore[assignment]
 
-logger = logging.getLogger(__name__)
+# Configure basic logging early
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
+logger = logging.getLogger(__name__)
+
+# Development mode toggle (prevents NameError later);
+# enable with env var IMA_DEV_MODE=true/1/on
+DEV_MODE = str(os.getenv("IMA_DEV_MODE", "")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 
@@ -407,6 +410,23 @@ class MainWindow(QMainWindow):
         act_manage.triggered.connect(self.open_manage_profiles)
         profiles_menu.addAction(act_manage)
 
+    def _add_weather_menu_items(self, parent_menu: QMenu, prefix: str) -> None:
+        """Add Weather submenu entries under the given parent menu.
+
+        The `prefix` determines routing keys, e.g. "planning.weather" or
+        "safety.weather" to match handlers in `open_module`.
+        """
+        weather_menu = parent_menu.addMenu("Weather")
+        self._add_action(weather_menu, "Safety Summary", None, f"{prefix}.summary")
+        self._add_action(weather_menu, "Timeline", None, f"{prefix}.timeline")
+        self._add_action(weather_menu, "Aviation", None, f"{prefix}.aviation")
+        self._add_action(weather_menu, "Advisories & Lightning", None, f"{prefix}.advisories")
+        self._add_action(weather_menu, "Hazard Outlook (HWO)", None, f"{prefix}.hwo")
+        self._add_action(weather_menu, "Sun & Moon Times", None, f"{prefix}.sun_times")
+        weather_menu.addSeparator()
+        self._add_action(weather_menu, "Settings", None, f"{prefix}.settings")
+        self._add_action(weather_menu, "Export Briefing", None, f"{prefix}.export")
+
     def _on_profile_selected(self, meta: ProfileMeta) -> None:
         """Attempt to switch to the chosen profile and show result to user."""
         prev = profile_manager.get_active_profile_id()
@@ -580,6 +600,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_plan, "Task Metrics Dashboard", None, "planning.taskmetrics")
         self._add_action(m_plan, "Strategic Objective Tracker", None, "planning.strategic_objectives")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
+        self._add_weather_menu_items(m_plan, prefix="planning.weather")
 
         # ----- Operations -----
         m_ops = mb.addMenu("Operations")
@@ -597,6 +618,7 @@ class MainWindow(QMainWindow):
         m_log.addSeparator()
         self._add_action(m_log, "Logistics Dashboard", "Ctrl+L", "logistics.dashboard")
         self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
+        self._add_action(m_log, "Resource Status Board", None, "logistics.resource_status")
         self._add_action(m_log, "Equipment Inventory", None, "logistics.equipment")
         self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
 
@@ -633,6 +655,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
         self._add_action(m_med, "CAP ORM", None, "safety.caporm")
         m_med.addSeparator()
+        self._add_weather_menu_items(m_med, prefix="safety.weather")
         # ----- Liaison -----
         m_lia = mb.addMenu("Liaison")
         self._add_action(m_lia, "Liaison Unit Log ICS-214", None, "liaison.unit_log")
@@ -882,6 +905,14 @@ class MainWindow(QMainWindow):
             "planning.strategic_objectives": self.open_planning_strategic_objectives,
             "planning.sitrep": self.open_planning_sitrep,
 
+            "planning.weather.summary": self.open_weather_safety_summary,
+            "planning.weather.timeline": self.open_weather_timeline,
+            "planning.weather.aviation": self.open_weather_aviation,
+            "planning.weather.advisories": self.open_weather_advisories,
+            "planning.weather.hwo": self.open_weather_hwo,
+            "planning.weather.sun_times": self.open_weather_sun_times,
+            "planning.weather.settings": self.open_weather_settings,
+            "planning.weather.export": self.open_weather_export,
             # ----- Operations -----
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
@@ -894,6 +925,7 @@ class MainWindow(QMainWindow):
             "logistics.unit_log": self.open_logistics_unit_log,
             "logistics.dashboard": self.open_logistics_dashboard,
             "logistics.211": self.open_logistics_211,
+            "logistics.resource_status": self.open_logistics_resource_status,
             "logistics.requests": self.open_logistics_requests,
             "logistics.equipment": self.open_logistics_equipment,
             "logistics.213rr": self.open_logistics_213rr,
@@ -922,6 +954,14 @@ class MainWindow(QMainWindow):
             "safety.215A": self.open_safety_215A,
             "safety.caporm": self.open_safety_caporm,
             
+            "safety.weather.summary": self.open_weather_safety_summary,
+            "safety.weather.timeline": self.open_weather_timeline,
+            "safety.weather.aviation": self.open_weather_aviation,
+            "safety.weather.advisories": self.open_weather_advisories,
+            "safety.weather.hwo": self.open_weather_hwo,
+            "safety.weather.sun_times": self.open_weather_sun_times,
+            "safety.weather.settings": self.open_weather_settings,
+            "safety.weather.export": self.open_weather_export,
             # ----- Liaison -----
             "liaison.unit_log": self.open_liaison_unit_log,
             "liaison.agencies": self.open_liaison_agencies,
@@ -1316,6 +1356,46 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Situation Report")
 
 # --- 4.5 Operations ------------------------------------------------------
+    def open_weather_safety_summary(self) -> None:
+        """Open the dockable Weather Safety summary page."""
+        from modules.intel.weather.pages.weather_summary_page import WeatherSummaryPage
+        panel = WeatherSummaryPage(self)
+        self._open_dock_widget(panel, title="Weather Safety")
+
+    def open_weather_timeline(self) -> None:
+        """Open the standalone Weather Timeline window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_weather_timeline()
+
+    def open_weather_aviation(self) -> None:
+        """Open the standalone Aviation Weather window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_aviation_window()
+
+    def open_weather_advisories(self) -> None:
+        """Open the standalone Advisories & Lightning window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_advisories_window()
+
+    def open_weather_hwo(self) -> None:
+        """Open the standalone HWO viewer window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_hwo_viewer()
+
+    def open_weather_sun_times(self) -> None:
+        """Open the standalone sunrise and sunset panel."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_sun_times_panel(self)
+
+    def open_weather_settings(self) -> None:
+        """Open the Weather Safety settings dialog."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_settings_dialog(self)
+
+    def open_weather_export(self) -> None:
+        """Open the Weather Safety briefing export dialog."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_export_dialog(self)
     def open_operations_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
@@ -1791,6 +1871,12 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = logistics.get_equipment_panel(incident_id)
         self._open_dock_widget(panel, title="Equipment Inventory")
+
+    def open_logistics_resource_status(self) -> None:
+        from modules import logistics
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_resource_status_board_panel(incident_id)
+        self._open_dock_widget(panel, title="Resource Status Board")
 
     def open_logistics_213rr(self) -> None:
         from modules import logistics

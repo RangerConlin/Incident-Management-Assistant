@@ -432,6 +432,48 @@ class CheckInService:
             incident_conn.execute(sql, values)
             incident_conn.commit()
         record["_checked_in"] = True
+        # Ensure personnel check-ins create/update a row in incident checkins for roster views
+        if entity_type == "personnel":
+            try:
+                from . import repository as ci_repo
+                from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
+                from datetime import datetime
+                now_iso = datetime.now().astimezone().isoformat()
+                pid = str(record.get("id", ""))
+                if pid:
+                    existing = None
+                    try:
+                        existing = ci_repo.fetch_checkin(pid)
+                    except Exception:
+                        pass
+                    if existing is None:
+                        rec = CheckInRecord(
+                            person_id=pid,
+                            ci_status=CIStatus.CHECKED_IN,
+                            personnel_status=PersonnelStatus.AVAILABLE,
+                            arrival_time=now_iso,
+                            location=Location.ICP,
+                            incident_callsign=record.get("callsign"),
+                            incident_phone=record.get("phone"),
+                            team_id=None,
+                            role_on_team=record.get("role"),
+                        )
+                    else:
+                        rec = existing
+                        try:
+                            rec.ci_status = CIStatus.CHECKED_IN
+                        except Exception:
+                            pass
+                        try:
+                            rec.updated_at = now_iso
+                        except Exception:
+                            pass
+                    try:
+                        ci_repo.save_checkin(rec)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         return record
 
     def _incident_id_set(self, config: EntityConfig) -> set[str]:
@@ -505,3 +547,4 @@ __all__ = [
     "get_service",
     "reset_service",
 ]
+

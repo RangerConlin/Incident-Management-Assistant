@@ -1,0 +1,21 @@
+{
+  "polling_minutes": 10,
+  "providers": {
+    "metar": {
+      "base_url": "",
+      "token": ""
+    },
+    "taf": {
+      "base_url": "",
+      "token": ""
+    },
+    "advisories": {
+      "base_url": "",
+      "token": ""
+    },
+    "lightning": {
+      "base_url": "",
+      "token": ""
+    }
+  }
+}

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any, Dict, Optional, List
 from datetime import datetime
@@ -71,7 +71,7 @@ class AddVehicleDialog(QDialog):
         try:
             from modules.logistics.checkin.widgets.checkin_window import CheckInWindow
             if self._win is None:
-                self._win = CheckInWindow(self)
+                self._win = CheckInWindow(None)
                 try: self._win.destroyed.connect(lambda *_: (setattr(self,'_win',None), self._reload()))
                 except Exception: pass
             self._win.show()
@@ -151,7 +151,7 @@ class AddEquipmentDialog(QDialog):
         try:
             from modules.logistics.checkin.widgets.checkin_window import CheckInWindow
             if self._win is None:
-                self._win = CheckInWindow(self)
+                self._win = CheckInWindow(None)
                 try: self._win.destroyed.connect(lambda *_: (setattr(self,'_win',None), self._reload()))
                 except Exception: pass
             self._win.show()
@@ -234,9 +234,9 @@ class AddTeamMemberDialog(QDialog):
         try:
             from modules.logistics.checkin.widgets.checkin_window import CheckInWindow
             if getattr(self, '_checkin_window', None) is None:
-                self._checkin_window = CheckInWindow(self)
+                self._checkin_window = CheckInWindow(None)
                 try:
-                    self._checkin_window.destroyed.connect(lambda *_: (setattr(self, '_checkin_window', None), self._reload()))
+                    self._checkin_window.destroyed.connect(self._on_checkin_window_destroyed)
                 except Exception:
                     pass
             w = self._checkin_window
@@ -266,7 +266,10 @@ class AddTeamMemberDialog(QDialog):
             return []
 
     def _reload(self) -> None:
-        q = self._txt.text() or ""
+        try:
+            q = self._txt.text() or ""
+        except RuntimeError:
+            return
         rows = self._fetch(q)
         self._tbl.setRowCount(len(rows))
         for r, item in enumerate(rows):
@@ -304,6 +307,13 @@ class AddTeamMemberDialog(QDialog):
         self.selected_person_id = str(pid)
         self.accept()
 
+
+    def _on_checkin_window_destroyed(self, *_: object) -> None:
+        self._checkin_window = None
+        try:
+            self._reload()
+        except Exception:
+            pass
 
 from utils.styles import team_status_colors, TEAM_TYPE_COLORS, subscribe_theme
 from models.database import get_incident_by_number
@@ -1444,7 +1454,7 @@ class TeamDetailWindow(QMainWindow):
         banner_row = QHBoxLayout()
         banner_row.setContentsMargins(10, 6, 10, 6)
         banner_row.setSpacing(8)
-        banner_label = QLabel("⚠️  NEEDS ASSISTANCE")
+        banner_label = QLabel("??  NEEDS ASSISTANCE")
         banner_label.setStyleSheet("color: white; font-weight: bold;")
         banner_row.addWidget(banner_label)
         banner_row.addStretch()
@@ -2734,7 +2744,6 @@ class TeamDetailWindow(QMainWindow):
         handler = getattr(self._bridge, "openSelectedMember", None)
         enabled = bool(callable(handler) and self._personnel_table.selectionModel().hasSelection())
         self._member_detail_button.setEnabled(enabled)
-
 
 
 

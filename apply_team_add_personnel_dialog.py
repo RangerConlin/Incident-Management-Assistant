@@ -12,14 +12,14 @@ new_handle='''
         v = QVBoxLayout(dlg)
         row = QHBoxLayout(); v.addLayout(row)
         row.addWidget(QLabel("Search:"))
-        txt = QLineEdit(dlg); txt.setPlaceholderText("Filter name, callsign, phone…"); row.addWidget(txt, 1)
+        txt = QLineEdit(dlg); txt.setPlaceholderText("Filter name, callsign, phoneâ€¦"); row.addWidget(txt, 1)
         tbl = QTableWidget(dlg); tbl.setColumnCount(4); tbl.setHorizontalHeaderLabels(["Name","Role","Team","Phone"]); v.addWidget(tbl)
         try:
             tbl.setSelectionBehavior(QAbstractItemView.SelectRows); tbl.setSelectionMode(QAbstractItemView.SingleSelection); tbl.verticalHeader().setVisible(False)
         except Exception:
             pass
         bar = QHBoxLayout(); v.addLayout(bar)
-        btn_checkin = QPushButton("Check In New Person…", dlg); bar.addWidget(btn_checkin); bar.addStretch(1)
+        btn_checkin = QPushButton("Check In New Personâ€¦", dlg); bar.addWidget(btn_checkin); bar.addStretch(1)
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=dlg); v.addWidget(btns)
         # Data helpers
         def load_rows(q: str = ""):
