@@ -1,0 +1,18 @@
+{
+  "_comment": "Starter mapping only; PDF field IDs must match the actual form template exactly.",
+  "description": "ICS 205 Radio Communications Plan starter mapping.",
+  "fields": [
+    {"pdf_field": "IncidentName", "source": "incident.name"},
+    {"pdf_field": "OperationalPeriod", "source": {"join": [{"key": "period.start", "transform": "date_short"}, {"literal": "to"}, {"key": "period.end", "transform": "date_short"}], "separator": " "}},
+    {"pdf_field": "Channel1Function", "source": {"literal": "Command"}},
+    {"pdf_field": "Channel1Assignment", "source": {"key": "team.name", "default": "Command Net"}},
+    {"pdf_field": "Channel1Frequency", "source": {"key": "communications.channels.0.frequency", "default": "TBD"}},
+    {"pdf_field": "Channel1Tone", "source": {"key": "communications.channels.0.tone", "default": "CSQ"}},
+    {"pdf_field": "Channel2Function", "source": {"literal": "Tactical"}},
+    {"pdf_field": "Channel2Assignment", "source": {"key": "communications.channels.1.assignment", "default": "Division A"}},
+    {"pdf_field": "Channel2Frequency", "source": {"key": "communications.channels.1.frequency", "default": "TBD"}},
+    {"pdf_field": "Channel2Tone", "source": {"key": "communications.channels.1.tone", "default": "CSQ"}},
+    {"pdf_field": "PreparedBy", "source": {"join": ["preparer.first_name", "preparer.last_name"], "separator": " ", "default": "COML"}},
+    {"pdf_field": "PreparedDate", "source": {"key": "prepared_at", "transform": "date_short"}}
+  ]
+}

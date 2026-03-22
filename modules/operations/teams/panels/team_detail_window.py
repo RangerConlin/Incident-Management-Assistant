@@ -31,6 +31,165 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
 )
 
+
+class AddVehicleDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Vehicle to Team")
+        self.resize(640, 520)
+        self.selected_id: str | None = None
+        layout = QVBoxLayout(self)
+        row = QHBoxLayout(); layout.addLayout(row)
+        row.addWidget(QLabel("Search:"))
+        self._txt = QLineEdit(self); row.addWidget(self._txt, 1)
+        self._tbl = QTableWidget(self); self._tbl.setColumnCount(5)
+        self._tbl.setHorizontalHeaderLabels(["ID","Name","Callsign","Type","Team"])
+        try:
+            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            self._tbl.verticalHeader().setVisible(False)
+            self._tbl.horizontalHeader().setStretchLastSection(True)
+        except Exception: pass
+        try:
+            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        except Exception: pass
+        try:
+            self._tbl.itemDoubleClicked.connect(lambda *_: self._accept())
+        except Exception: pass
+        layout.addWidget(self._tbl, 1)
+        bar = QHBoxLayout(); layout.addLayout(bar)
+        self._btn_checkin = QPushButton("Check In From Master...", self)
+        bar.addWidget(self._btn_checkin); bar.addStretch(1)
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=self)
+        layout.addWidget(btns)
+        self._txt.textChanged.connect(self._reload)
+        btns.accepted.connect(self._accept); btns.rejected.connect(self.reject)
+        self._btn_checkin.clicked.connect(self._open_checkin)
+        self._win = None
+        self._reload()
+    def _open_checkin(self) -> None:
+        try:
+            from modules.logistics.checkin.widgets.checkin_window import CheckInWindow
+            if self._win is None:
+                self._win = CheckInWindow(self)
+                try: self._win.destroyed.connect(lambda *_: (setattr(self,'_win',None), self._reload()))
+                except Exception: pass
+            self._win.show()
+        except Exception:
+            try: QMessageBox.information(self, "Check-In", "Open Logistics -> Check-In to add vehicles.")
+            except Exception: pass
+    def _rows(self) -> list:
+        try:
+            from models.queries import list_incident_vehicles
+            return list_incident_vehicles()
+        except Exception: return []
+    def _reload(self) -> None:
+        q = (self._txt.text() or '').lower().strip()
+        data = self._rows()
+        rows = []
+        for r in data:
+            name = str(r.get('name') or '')
+            callsign = str(r.get('callsign') or '')
+            typ = str(r.get('type') or '')
+            team = str(r.get('team_name') or r.get('team_id') or '').strip() or 'Unassigned'
+            rid = str(r.get('id'))
+            hay = ' '.join([rid,name,callsign,typ,team]).lower()
+            if not q or q in hay:
+                rows.append((rid,name,callsign,typ,team))
+        self._tbl.setRowCount(len(rows))
+        for i,(rid,name,callsign,typ,team) in enumerate(rows):
+            for c,val in enumerate([rid,name,callsign,typ,team]):
+                it = QTableWidgetItem(val)
+                if c==0: it.setData(Qt.UserRole, rid)
+                self._tbl.setItem(i,c,it)
+    def _accept(self) -> None:
+        try:
+            sel = self._tbl.selectionModel().selectedRows()
+            if not sel: return
+            idx = sel[0].row(); it = self._tbl.item(idx,0)
+            self.selected_id = None if it is None else it.data(Qt.UserRole)
+            if not self.selected_id: return
+            self.accept()
+        except Exception: pass
+
+class AddEquipmentDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Equipment to Team")
+        self.resize(640, 520)
+        self.selected_id: str | None = None
+        layout = QVBoxLayout(self)
+        row = QHBoxLayout(); layout.addLayout(row)
+        row.addWidget(QLabel("Search:"))
+        self._txt = QLineEdit(self); row.addWidget(self._txt, 1)
+        self._tbl = QTableWidget(self); self._tbl.setColumnCount(4)
+        self._tbl.setHorizontalHeaderLabels(["ID","Name","Type","Team"])
+        try:
+            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            self._tbl.verticalHeader().setVisible(False)
+            self._tbl.horizontalHeader().setStretchLastSection(True)
+        except Exception: pass
+        try:
+            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        except Exception: pass
+        try:
+            self._tbl.itemDoubleClicked.connect(lambda *_: self._accept())
+        except Exception: pass
+        layout.addWidget(self._tbl, 1)
+        bar = QHBoxLayout(); layout.addLayout(bar)
+        self._btn_checkin = QPushButton("Check In From Master...", self)
+        bar.addWidget(self._btn_checkin); bar.addStretch(1)
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=self)
+        layout.addWidget(btns)
+        self._txt.textChanged.connect(self._reload)
+        btns.accepted.connect(self._accept); btns.rejected.connect(self.reject)
+        self._btn_checkin.clicked.connect(self._open_checkin)
+        self._win = None
+        self._reload()
+    def _open_checkin(self) -> None:
+        try:
+            from modules.logistics.checkin.widgets.checkin_window import CheckInWindow
+            if self._win is None:
+                self._win = CheckInWindow(self)
+                try: self._win.destroyed.connect(lambda *_: (setattr(self,'_win',None), self._reload()))
+                except Exception: pass
+            self._win.show()
+        except Exception:
+            try: QMessageBox.information(self, "Check-In", "Open Logistics -> Check-In to add equipment.")
+            except Exception: pass
+    def _rows(self) -> list:
+        try:
+            from models.queries import list_incident_equipment
+            return list_incident_equipment()
+        except Exception: return []
+    def _reload(self) -> None:
+        q = (self._txt.text() or '').lower().strip()
+        data = self._rows()
+        rows = []
+        for r in data:
+            name = str(r.get('name') or '')
+            typ = str(r.get('type') or '')
+            team = str(r.get('team_name') or r.get('team_id') or '').strip() or 'Unassigned'
+            rid = str(r.get('id'))
+            hay = ' '.join([rid,name,typ,team]).lower()
+            if not q or q in hay:
+                rows.append((rid,name,typ,team))
+        self._tbl.setRowCount(len(rows))
+        for i,(rid,name,typ,team) in enumerate(rows):
+            for c,val in enumerate([rid,name,typ,team]):
+                it = QTableWidgetItem(val)
+                if c==0: it.setData(Qt.UserRole, rid)
+                self._tbl.setItem(i,c,it)
+    def _accept(self) -> None:
+        try:
+            sel = self._tbl.selectionModel().selectedRows()
+            if not sel: return
+            idx = sel[0].row(); it = self._tbl.item(idx,0)
+            self.selected_id = None if it is None else it.data(Qt.UserRole)
+            if not self.selected_id: return
+            self.accept()
+        except Exception: pass
 class AddTeamMemberDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -601,7 +760,7 @@ class TeamDetailBridge(QObject):
                 self._equipment = []
                 self._aircraft = []
                 return
-            # Prefer members_json list for personnel composition
+            # Personnel from members_json (see earlier enrichment)
             members_ids: list[int] = []
             try:
                 members_ids = [int(x) for x in (self._team.members or [])]
@@ -609,7 +768,6 @@ class TeamDetailBridge(QObject):
                 members_ids = []
             people: list[dict[str, Any]] = []
             if members_ids:
-                # Probe incident personnel table once
                 try:
                     from models.queries import get_db_connection as _dbc
                     conn = _dbc()
@@ -648,7 +806,6 @@ class TeamDetailBridge(QObject):
                     except Exception:
                         base = None
                     if base is None:
-                        # Fall back to Check-In identity
                         try:
                             from modules.logistics.checkin import repository as ci_repo
                             ident = ci_repo.get_person_identity(str(pid))
@@ -656,28 +813,52 @@ class TeamDetailBridge(QObject):
                             ident = None
                         if ident:
                             base = {
-                                'id': int(pid),
-                                'name': getattr(ident,'name',''),
-                                'role': getattr(ident,'primary_role', None),
-                                'phone': getattr(ident,'phone', None),
-                                'callsign': getattr(ident,'callsign', None),
-                                'identifier': getattr(ident,'callsign', None) or None,
-                                'rank': None,
-                                'organization': getattr(ident,'home_unit', None),
-                                'is_medic': None,
+                                'id': int(pid), 'name': getattr(ident,'name',''),
+                                'role': getattr(ident,'primary_role', None), 'phone': getattr(ident,'phone', None),
+                                'callsign': getattr(ident,'callsign', None), 'identifier': getattr(ident,'callsign', None) or None,
+                                'rank': None, 'organization': getattr(ident,'home_unit', None), 'is_medic': None,
                             }
                     if base is None:
                         base = {'id': int(pid), 'name': f'Personnel {pid}', 'role': None, 'phone': None, 'callsign': None, 'identifier': None, 'rank': None, 'organization': None, 'is_medic': None}
                     people.append(base)
                 self._personnel = people
             else:
-                # Fallback to DB-derived composition (legacy)
                 self._personnel = fetch_team_personnel(tid)
-            self._vehicles = fetch_team_vehicles(tid)
-            self._equipment = fetch_team_equipment(tid)
+            # Vehicles from team JSON when present
+            veh_ids = [str(v) for v in (getattr(self._team,'vehicles',[]) or [])]
+            if veh_ids:
+                try:
+                    from models.queries import list_incident_vehicles
+                    allv = list_incident_vehicles()
+                    by_id = {str(r.get('id')): r for r in allv}
+                    rows = []
+                    for vid in veh_ids:
+                        r = by_id.get(str(vid)) or {'id': vid, 'name': f'Vehicle {vid}', 'callsign': '', 'type': ''}
+                        rows.append({'id': r.get('id'), 'name': r.get('name'), 'callsign': r.get('callsign'), 'type': r.get('type')})
+                    self._vehicles = rows
+                except Exception:
+                    self._vehicles = fetch_team_vehicles(tid)
+            else:
+                self._vehicles = fetch_team_vehicles(tid)
+            # Equipment from team JSON when present
+            eq_ids = [str(e) for e in (getattr(self._team,'equipment',[]) or [])]
+            if eq_ids:
+                try:
+                    from models.queries import list_incident_equipment
+                    alle = list_incident_equipment()
+                    by_id = {str(r.get('id')): r for r in alle}
+                    rows = []
+                    for eid in eq_ids:
+                        r = by_id.get(str(eid)) or {'id': eid, 'name': f'Equipment {eid}', 'type': ''}
+                        rows.append({'id': r.get('id'), 'name': r.get('name'), 'type': r.get('type'), 'serial': r.get('serial')})
+                    self._equipment = rows
+                except Exception:
+                    self._equipment = fetch_team_equipment(tid)
+            else:
+                self._equipment = fetch_team_equipment(tid)
+            # Aircraft unchanged
             self._aircraft = fetch_team_aircraft(tid)
         except Exception:
-            # Keep previous values on error
             pass
 
     @Slot(int)
@@ -884,24 +1065,20 @@ class TeamDetailBridge(QObject):
     def addVehicle(self, vehicle_id: Any) -> None:
         try:
             if not self._team.team_id:
-                raise RuntimeError("No team id")
-            if vehicle_id is not None and str(vehicle_id) != "":
-                set_vehicle_team(int(vehicle_id), int(self._team.team_id))
+                raise RuntimeError('No team id')
+            if vehicle_id is not None and str(vehicle_id) != '':
+                vid = int(vehicle_id)
+                lst = list(getattr(self._team,'vehicles',[]) or [])
+                if str(vid) not in [str(x) for x in lst]:
+                    lst.append(str(vid)); self._team.vehicles = lst
+                    try: team_repo.save_team(self._team)
+                    except Exception: pass
+                try:
+                    set_vehicle_team(vid, int(self._team.team_id))
+                except Exception: pass
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
-            self.error.emit(f"Failed to add vehicle: {e}")
-
-    # Convenience for QML unified action in Vehicles/Aircraft tab
-    @Slot('QVariant')
-    def addAsset(self, asset_id: Any = None) -> None:
-        try:
-            code = (self._team.team_type or "").upper()
-            if code == "AIR":
-                self.addAircraft(asset_id)
-            else:
-                self.addVehicle(asset_id)
-        except Exception as e:
-            self.error.emit(f"Failed to add asset: {e}")
+            self.error.emit(f'Failed to add vehicle: {e}')
 
     @Slot('QVariant')
     def removeVehicle(self, vehicle_id: Any) -> None:
@@ -929,12 +1106,20 @@ class TeamDetailBridge(QObject):
     def addEquipment(self, eq_id: Any) -> None:
         try:
             if not self._team.team_id:
-                raise RuntimeError("No team id")
-            if eq_id is not None and str(eq_id) != "":
-                set_equipment_team(int(eq_id), int(self._team.team_id))
+                raise RuntimeError('No team id')
+            if eq_id is not None and str(eq_id) != '':
+                eid = int(eq_id)
+                lst = list(getattr(self._team,'equipment',[]) or [])
+                if str(eid) not in [str(x) for x in lst]:
+                    lst.append(str(eid)); self._team.equipment = lst
+                    try: team_repo.save_team(self._team)
+                    except Exception: pass
+                try:
+                    set_equipment_team(eid, int(self._team.team_id))
+                except Exception: pass
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
-            self.error.emit(f"Failed to add equipment: {e}")
+            self.error.emit(f'Failed to add equipment: {e}')
 
     @Slot('QVariant')
     def removeEquipment(self, eq_id: Any) -> None:
@@ -2455,14 +2640,29 @@ class TeamDetailWindow(QMainWindow):
             handler()
 
     def _handle_add_asset(self) -> None:
-        handler = getattr(self._bridge, "addAsset", None)
-        if callable(handler):
-            handler()
+        try:
+            dlg = AddVehicleDialog(self)
+            from PySide6.QtWidgets import QDialog
+            if dlg.exec() == QDialog.Accepted and getattr(dlg,'selected_id',None):
+                vid = dlg.selected_id
+                handler = getattr(self._bridge, 'addVehicle', None)
+                if callable(handler): handler(int(vid))
+        except Exception:
+            handler = getattr(self._bridge, 'addAsset', None)
+            if callable(handler): handler()
 
     def _handle_add_equipment(self) -> None:
-        handler = getattr(self._bridge, "addEquipment", None)
-        if callable(handler):
-            handler()
+        try:
+            dlg = AddEquipmentDialog(self)
+            from PySide6.QtWidgets import QDialog
+            if dlg.exec() == QDialog.Accepted and getattr(dlg,'selected_id',None):
+                eid = dlg.selected_id
+                handler = getattr(self._bridge, 'addEquipment', None)
+                if callable(handler): handler(int(eid))
+        except Exception:
+            handler = getattr(self._bridge, 'addEquipment', None)
+            if callable(handler): handler()
+
 
     def _on_member_selection_changed(self) -> None:
         has_selection = bool(self._personnel_table.selectionModel().selectedRows())

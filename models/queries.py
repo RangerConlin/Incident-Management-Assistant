@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import List, Dict, Any, Optional
 import os
@@ -280,3 +280,29 @@ def set_team_leader_phone(team_id: int, phone: Optional[str]) -> None:
         conn.commit()
     except Exception:
         pass
+
+def list_incident_equipment() -> List[Dict[str, Any]]:
+    """Return all equipment signed into the active incident with optional team info."""
+    conn = get_db_connection()
+    # Probe available columns
+    has_name = _has_column(conn, "equipment", "name")
+    has_type = _has_column(conn, "equipment", "type")
+    has_serial = _has_column(conn, "equipment", "serial") or _has_column(conn, "equipment", "serial_number")
+    has_team_id = _has_column(conn, "equipment", "team_id")
+
+    sel_name = "name" if has_name else "CAST(id AS TEXT) AS name"
+    sel_type = "type" if has_type else "NULL AS type"
+    sel_serial = "serial" if _has_column(conn, "equipment", "serial") else ("serial_number" if _has_column(conn, "equipment", "serial_number") else "NULL AS serial")
+    sel_team = "team_id" if has_team_id else "NULL AS team_id"
+
+    # Optional team name via join if teams table exists
+    has_teams = _has_column(conn, "teams", "id") and _has_column(conn, "teams", "name")
+    join_clause = " LEFT JOIN teams t ON e.team_id = t.id" if has_teams and has_team_id else ""
+    sel_team_name = ", t.name AS team_name" if join_clause else ", NULL AS team_name"
+
+    sql = (
+        "SELECT e.id, " + sel_name + ", " + sel_type + ", " + sel_serial + ", " + sel_team + sel_team_name +
+        " FROM equipment e" + join_clause + " ORDER BY name COLLATE NOCASE"
+    )
+    cur = conn.execute(sql)
+    return _rows_to_dicts(cur)

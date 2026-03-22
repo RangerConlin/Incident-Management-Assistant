@@ -24,7 +24,7 @@ def export_daily_cost_summary(session: Session, incident_id: str, day: str) -> D
     export_dir = BASE_DIR / "data" / "incidents" / incident_id / "exports" / "finance"
     export_dir.mkdir(parents=True, exist_ok=True)
     path = export_dir / f"daily_cost_{day}.csv"
-    with open(path, "w", newline="") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["total_labor", "total_equipment", "total_procurement", "total_other"])
         writer.writerow([row["total_labor"], row["total_equipment"], row["total_procurement"], row["total_other"]])

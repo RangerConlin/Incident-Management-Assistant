@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtCore import Qt
-from utils.styles import task_status_colors, subscribe_theme
+from utils.styles import task_status_colors, subscribe_theme, get_palette
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 from utils.audit import write_audit
 from utils.app_signals import app_signals
 
@@ -65,6 +66,8 @@ class TaskStatusPanel(QWidget):
         try:
             self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            # Outline-only selection; delegate will render the border
+            self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
         except Exception:
             pass
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -75,6 +78,15 @@ class TaskStatusPanel(QWidget):
             pass
         layout.addWidget(header_bar)
         layout.addWidget(self.table)
+
+        # Install outline-only selection delegate for entire table
+        try:
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            self._outline_delegate = RowOutlineSelectionDelegate(self.table, color)
+            self.table.setItemDelegate(self._outline_delegate)
+        except Exception:
+            self._outline_delegate = None
 
         # Set column headers
         self.table.setColumnCount(6)
@@ -120,7 +132,20 @@ class TaskStatusPanel(QWidget):
         except Exception:
             pass
         try:
-            subscribe_theme(self, lambda *_: self._recolor_all())
+            subscribe_theme(self, lambda *_: (self._update_outline_color(), self._recolor_all()))
+        except Exception:
+            pass
+
+    def _update_outline_color(self) -> None:
+        try:
+            if getattr(self, "_outline_delegate", None) is not None:
+                pal = get_palette()
+                color = pal.get("ctrl_focus", pal.get("accent"))
+                self._outline_delegate.setColor(color)
+                try:
+                    self.table.viewport().update()
+                except Exception:
+                    pass
         except Exception:
             pass
 

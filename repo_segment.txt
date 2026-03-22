@@ -1,0 +1,16 @@
+cute("PRAGMA busy_timeout=3000")
+    except Exception:
+        pass
+    return con
+
+
+def _task_status_to_key(value: Any) -> str:
+    if value is None:
+        return ""
+    s = str(value).strip().lower()
+    return {
+        "completed": "complete",
+        "complete": "complete",
+        "draft": "created",
+        "created": "created",
+      

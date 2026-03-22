@@ -1,0 +1,523 @@
+{
+  "_comment": "Field IDs must match the fillable PDF exactly. Adjust any field names as needed for your template.",
+  "description": "ICS 204 Assignment List mapping for \u2018ICS 204 Assignment List.pdf\u2019.",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name_7",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "3 Branch",
+      "source": {
+        "key": "team.branch",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "3 Division",
+      "source": {
+        "key": "team.division",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "3 Group",
+      "source": {
+        "key": "team.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "3 Staging Area",
+      "source": {
+        "key": "team.staging_area",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "6 Work Assignments",
+      "source": {
+        "join": [
+          "tasks.0.description",
+          "tasks.1.description",
+          "tasks.2.description",
+          "tasks.3.description",
+          "tasks.4.description",
+          "tasks.5.description",
+          "tasks.6.description",
+          "tasks.7.description",
+          "tasks.8.description",
+          "tasks.9.description"
+        ],
+        "separator": "\n"
+      }
+    },
+    {
+      "pdf_field": "7 Special Instructions",
+      "source": {
+        "key": "incident.special_instructions",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DivisionGroup Supervisor",
+      "source": {
+        "join": [
+          "team.leader.first_name",
+          "team.leader.last_name"
+        ],
+        "separator": " "
+      }
+    },
+    {
+      "pdf_field": "Branch Director_4",
+      "source": {
+        "key": "team.branch_director",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Operations Section Chief_3",
+      "source": {
+        "key": "operations.chief",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Date From",
+      "source": {
+        "key": "period.start",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Date To",
+      "source": {
+        "key": "period.end",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Time From",
+      "source": {
+        "key": "period.start",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "Time To",
+      "source": {
+        "key": "period.end",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "9 Prepared by Name_2",
+      "source": {
+        "join": [
+          "preparer.first_name",
+          "preparer.last_name"
+        ],
+        "separator": " "
+      }
+    },
+    {
+      "pdf_field": "PositionTitle_7",
+      "source": {
+        "key": "preparer.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DateTime_7",
+      "source": {
+        "key": "prepared_at",
+        "transform": "datetime_short"
+      }
+    },
+    {
+      "pdf_field": "IAP Page_3",
+      "source": {
+        "literal": "1"
+      }
+    },
+    {
+      "pdf_field": "Name/Function1",
+      "source": {
+        "key": "tasks.0.description",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name/Function2",
+      "source": {
+        "key": "tasks.1.description",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name/Function3",
+      "source": {
+        "key": "tasks.2.description",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name/Function4",
+      "source": {
+        "key": "tasks.3.description",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow1",
+      "source": {
+        "key": "team.members.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow2",
+      "source": {
+        "key": "team.members.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow3",
+      "source": {
+        "key": "team.members.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow4",
+      "source": {
+        "key": "team.members.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow5",
+      "source": {
+        "key": "team.members.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow6",
+      "source": {
+        "key": "team.members.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow7",
+      "source": {
+        "key": "team.members.6.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow8",
+      "source": {
+        "key": "team.members.7.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow9",
+      "source": {
+        "key": "team.members.8.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LeaderRow10",
+      "source": {
+        "key": "team.members.9.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow1_2",
+      "source": {
+        "key": "team.members.0.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow2_2",
+      "source": {
+        "key": "team.members.1.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow3_2",
+      "source": {
+        "key": "team.members.2.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow4_2",
+      "source": {
+        "key": "team.members.3.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow5_2",
+      "source": {
+        "key": "team.members.4.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow6_2",
+      "source": {
+        "key": "team.members.5.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow7_2",
+      "source": {
+        "key": "team.members.6.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow8_2",
+      "source": {
+        "key": "team.members.7.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow9_2",
+      "source": {
+        "key": "team.members.8.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow10_2",
+      "source": {
+        "key": "team.members.9.position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 1",
+      "source": {
+        "key": "team.members.0.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 2",
+      "source": {
+        "key": "team.members.1.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 3",
+      "source": {
+        "key": "team.members.2.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 4",
+      "source": {
+        "key": "team.members.3.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 5",
+      "source": {
+        "key": "team.members.4.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 6",
+      "source": {
+        "key": "team.members.5.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 7",
+      "source": {
+        "key": "team.members.6.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 8",
+      "source": {
+        "key": "team.members.7.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 9",
+      "source": {
+        "key": "team.members.8.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Number of Persons, Row 10",
+      "source": {
+        "key": "team.members.9.count",
+        "default": "1"
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow4",
+      "source": {
+        "key": "team.members.3.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow5",
+      "source": {
+        "key": "team.members.4.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow6",
+      "source": {
+        "key": "team.members.5.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow7",
+      "source": {
+        "key": "team.members.6.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow8",
+      "source": {
+        "key": "team.members.7.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow9",
+      "source": {
+        "key": "team.members.8.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow10",
+      "source": {
+        "key": "team.members.9.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow4",
+      "source": {
+        "key": "team.members.3.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow5",
+      "source": {
+        "key": "team.members.4.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow6",
+      "source": {
+        "key": "team.members.5.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow7",
+      "source": {
+        "key": "team.members.6.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow8",
+      "source": {
+        "key": "team.members.7.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow9",
+      "source": {
+        "key": "team.members.8.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow10",
+      "source": {
+        "key": "team.members.9.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc",
+      "source": {
+        "key": "team.members.0.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc_2",
+      "source": {
+        "key": "team.members.1.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc_3",
+      "source": {
+        "key": "team.members.2.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information",
+      "source": {
+        "key": "team.members.0.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information_2",
+      "source": {
+        "key": "team.members.1.notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information_3",
+      "source": {
+        "key": "team.members.2.notes",
+        "default": ""
+      }
+    }
+  ]
+}

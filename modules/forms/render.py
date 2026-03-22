@@ -94,7 +94,7 @@ def render_form(
 
     # Schema validation
     if template.schema_path and Draft7Validator is not None:
-        schema = json.loads(template.schema_path.read_text())
+        schema = json.loads(template.schema_path.read_text(encoding="utf-8"))
         validator = Draft7Validator(schema)
         errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
         if errors:
