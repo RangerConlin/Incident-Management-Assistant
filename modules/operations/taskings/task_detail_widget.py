@@ -549,7 +549,12 @@ class TaskDetailWindow(QWidget):
         self._teams_table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
         self._teams_table.setAlternatingRowColors(True)
         self._teams_table.setSortingEnabled(True)
-        \ \ \ \ \ \ \ \ self\._teams_table\.setColumnHidden\(0,\ True\)\n\ \ \ \ \ \ \ \ try:\n\ \ \ \ \ \ \ \ \ \ \ \ \#\ Persist\ edits\ in\ the\ Sortie\ column\n\ \ \ \ \ \ \ \ \ \ \ \ self\._teams_model\.itemChanged\.connect\(self\._on_team_item_changed\)\n\ \ \ \ \ \ \ \ except\ Exception:\n\ \ \ \ \ \ \ \ \ \ \ \ pass
+        self._teams_table.setColumnHidden(0, True)
+        try:
+            # Persist edits in the Sortie column
+            self._teams_model.itemChanged.connect(self._on_team_item_changed)
+        except Exception:
+            pass
         th: QHeaderView = self._teams_table.horizontalHeader()
         try:
             th.setStretchLastSection(False)
