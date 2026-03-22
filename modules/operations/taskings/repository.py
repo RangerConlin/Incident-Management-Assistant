@@ -63,6 +63,95 @@ def _team_status_from_timestamps(r: sqlite3.Row) -> str:
     return "Assigned"
 
 
+def _table_exists(con: sqlite3.Connection, name: str) -> bool:
+    try:
+        cur = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (str(name),))
+        return cur.fetchone() is not None
+    except Exception:
+        return False
+
+
+def _snapshot_task_roster(con: sqlite3.Connection, task_id: int, team_id: int) -> None:
+    """Best-effort snapshot of a team's current roster into task tables.
+
+    - Inserts (task_id, personnel_id, role, organization, time_assigned)
+      into task_personnel for any personnel where personnel.team_id == team_id.
+    - Inserts (task_id, vehicle_id) into task_vehicles for any vehicles
+      where vehicles.team_id == team_id.
+
+    Silently skips if tables or expected columns are not present.
+    """
+    from datetime import datetime
+
+    now = datetime.utcnow().isoformat()
+
+    # Snapshot personnel
+    try:
+        if _table_exists(con, "task_personnel"):
+            pcols = {r[1] for r in con.execute("PRAGMA table_info(personnel)").fetchall()}
+            if "team_id" in pcols:
+                has_role = "role" in pcols
+                has_org = "organization" in pcols
+                sel_role = ", role" if has_role else ", NULL AS role"
+                sel_org = ", organization" if has_org else ", NULL AS organization"
+                rows = con.execute(
+                    "SELECT id AS person_id" + sel_role + sel_org + " FROM personnel WHERE team_id=?",
+                    (int(team_id),),
+                ).fetchall()
+                if rows:
+                    tcols = [c[1] for c in con.execute("PRAGMA table_info(task_personnel)").fetchall()]
+                    for r in rows:
+                        pid = int(r["person_id"]) if r["person_id"] is not None else None
+                        if pid is None:
+                            continue
+                        prev = con.execute(
+                            "SELECT 1 FROM task_personnel WHERE task_id=? AND personnel_id=? LIMIT 1",
+                            (int(task_id), pid),
+                        ).fetchone()
+                        if prev:
+                            continue
+                        cols: list[str] = []
+                        vals: list[object] = []
+                        if "task_id" in tcols:
+                            cols.append("task_id"); vals.append(int(task_id))
+                        if "personnel_id" in tcols:
+                            cols.append("personnel_id"); vals.append(pid)
+                        if "role" in tcols:
+                            cols.append("role"); vals.append(r.get("role"))
+                        if "organization" in tcols:
+                            cols.append("organization"); vals.append(r.get("organization"))
+                        if "time_assigned" in tcols:
+                            cols.append("time_assigned"); vals.append(now)
+                        if cols:
+                            con.execute(
+                                f"INSERT INTO task_personnel ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})",
+                                tuple(vals),
+                            )
+    except Exception:
+        pass
+
+    # Snapshot vehicles
+    try:
+        if _table_exists(con, "task_vehicles"):
+            vcols = {r[1] for r in con.execute("PRAGMA table_info(vehicles)").fetchall()}
+            if "team_id" in vcols:
+                vrows = con.execute("SELECT id AS vehicle_id FROM vehicles WHERE team_id=?", (int(team_id),)).fetchall()
+                for r in vrows:
+                    vid = r["vehicle_id"]
+                    prev = con.execute(
+                        "SELECT 1 FROM task_vehicles WHERE task_id=? AND vehicle_id=? LIMIT 1",
+                        (int(task_id), vid),
+                    ).fetchone()
+                    if prev:
+                        continue
+                    con.execute(
+                        "INSERT INTO task_vehicles (task_id, vehicle_id) VALUES (?, ?)",
+                        (int(task_id), vid),
+                    )
+    except Exception:
+        pass
+
+
 def get_task(task_id: int) -> Task:
     with _connect() as con:
         _ensure_task_columns(con)
@@ -288,47 +377,64 @@ def list_task_teams(task_id: int) -> List[TaskTeam]:
 
 
 def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
-    """List personnel assigned to teams on this task.
+    """List personnel associated with a task via team linkage or snapshot.
 
     Returns dicts with: active(bool), name, id, rank, role, organization, phone, team_name, team_id.
-    Active is True if the team assignment is not complete/cleared.
     """
     with _connect() as con:
-        # Best-effort column detection for optional fields
+        # Prefer live join via personnel.team_id; else fall back to task_personnel snapshot
         try:
             pcols = {r[1] for r in con.execute("PRAGMA table_info(personnel)").fetchall()}
         except Exception:
             pcols = set()
-        has_rank = "rank" in pcols
-        has_org = "organization" in pcols
-        sel_rank = ", p.rank AS rank" if has_rank else ", NULL AS rank"
-        sel_org = ", p.organization AS organization" if has_org else ", NULL AS organization"
-        sql = (
-            "SELECT p.id AS person_id, p.name AS name, p.role AS role, p.phone AS phone,"
-            "       tm.name AS team_name, tm.id AS team_id,"
-            "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-            f"      {sel_rank}{sel_org}"
-            "  FROM task_teams tt"
-            "  JOIN teams tm ON tm.id = tt.teamid"
-            "  JOIN personnel p ON p.team_id = tm.id"
-            " WHERE tt.task_id = ?"
-            " ORDER BY p.name COLLATE NOCASE"
-        )
-        rows = con.execute(sql, (int(task_id),)).fetchall()
+        if "team_id" in pcols:
+            has_rank = "rank" in pcols
+            has_org = "organization" in pcols
+            sel_rank = ", p.rank AS rank" if has_rank else ", NULL AS rank"
+            sel_org = ", p.organization AS organization" if has_org else ", NULL AS organization"
+            sql = (
+                "SELECT p.id AS person_id, p.name AS name, p.role AS role, p.phone AS phone,"
+                "       tm.name AS team_name, tm.id AS team_id,"
+                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
+                f"      {sel_rank}{sel_org}"
+                "  FROM task_teams tt"
+                "  JOIN teams tm ON tm.id = tt.teamid"
+                "  JOIN personnel p ON p.team_id = tm.id"
+                " WHERE tt.task_id = ?"
+                " ORDER BY p.name COLLATE NOCASE"
+            )
+            rows = con.execute(sql, (int(task_id),)).fetchall()
+        elif _table_exists(con, "task_personnel"):
+            has_rank = "rank" in pcols
+            has_org = "organization" in pcols
+            sel_rank = ", p.rank AS rank" if has_rank else ", NULL AS rank"
+            sel_org = ", p.organization AS organization" if has_org else ", NULL AS organization"
+            sql = (
+                "SELECT tp.personnel_id AS person_id, COALESCE(p.name, '') AS name, COALESCE(p.role, tp.role) AS role,"
+                "       COALESCE(p.phone, '') AS phone"
+                f"      {sel_rank}{sel_org}"
+                "  FROM task_personnel tp"
+                "  LEFT JOIN personnel p ON p.id = tp.personnel_id"
+                " WHERE tp.task_id = ?"
+                " ORDER BY name COLLATE NOCASE"
+            )
+            rows = con.execute(sql, (int(task_id),)).fetchall()
+        else:
+            rows = []
     out: List[Dict[str, Any]] = []
     for r in rows:
-        status = _team_status_from_timestamps(r)
+        status = _team_status_from_timestamps(r) if "time_assigned" in r.keys() else "Assigned"
         active = status not in {"Complete", "RTB"}
         out.append({
             "active": bool(active),
-            "name": r["name"] or "",
-            "id": r["person_id"],
+            "name": r.get("name") or "",
+            "id": r.get("person_id"),
             "rank": r.get("rank"),
-            "role": r["role"] or "",
+            "role": r.get("role") or "",
             "organization": r.get("organization"),
-            "phone": r["phone"] or "",
-            "team_name": r["team_name"] or "",
-            "team_id": r["team_id"],
+            "phone": r.get("phone") or "",
+            "team_name": r.get("team_name") or "",
+            "team_id": r.get("team_id"),
         })
     return out
 
@@ -342,36 +448,47 @@ def _has_column(con: sqlite3.Connection, table: str, col: str) -> bool:
 
 
 def list_task_vehicles(task_id: int) -> List[Dict[str, Any]]:
-    """List vehicles assigned to teams on this task.
+    """List vehicles associated with a task via team linkage or snapshot.
 
     Returns: active(bool), id, license_plate, type, organization, team_name, team_id.
     """
     with _connect() as con:
+        v_has_team = _has_column(con, "vehicles", "team_id")
         has_lp = _has_column(con, "vehicles", "license_plate")
         has_org = _has_column(con, "vehicles", "organization")
         sel_lp = ", v.license_plate AS license_plate" if has_lp else ", NULL AS license_plate"
         sel_org = ", v.organization AS organization" if has_org else ", NULL AS organization"
-        # Fallbacks for some common schemas
         sel_type = "v.type AS type" if _has_column(con, "vehicles", "type") else ("v.make || ' ' || v.model AS type" if _has_column(con, "vehicles", "make") and _has_column(con, "vehicles", "model") else "'' AS type")
-        sql = (
-            "SELECT v.id AS id, " + sel_type +
-            sel_lp + sel_org +
-            ", tm.name AS team_name, tm.id AS team_id,"
-            " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-            "  FROM task_teams tt"
-            "  JOIN teams tm ON tm.id = tt.teamid"
-            "  JOIN vehicles v ON v.team_id = tm.id"
-            " WHERE tt.task_id = ?"
-            " ORDER BY v.id"
-        )
-        rows = con.execute(sql, (int(task_id),)).fetchall()
+        if v_has_team:
+            sql = (
+                "SELECT v.id AS id, " + sel_type +
+                sel_lp + sel_org +
+                ", tm.name AS team_name, tm.id AS team_id,"
+                " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
+                "  FROM task_teams tt"
+                "  JOIN teams tm ON tm.id = tt.teamid"
+                "  JOIN vehicles v ON v.team_id = tm.id"
+                " WHERE tt.task_id = ?"
+                " ORDER BY v.id"
+            )
+            rows = con.execute(sql, (int(task_id),)).fetchall()
+        elif _table_exists(con, "task_vehicles"):
+            # Snapshot fallback: task_vehicles + vehicles details
+            sql = (
+                "SELECT tv.vehicle_id AS id, " + sel_type.replace("v.", "") +
+                sel_lp.replace("v.", "") + sel_org.replace("v.", "") +
+                " FROM task_vehicles tv LEFT JOIN vehicles v ON v.id = tv.vehicle_id WHERE tv.task_id = ? ORDER BY tv.vehicle_id"
+            )
+            rows = con.execute(sql, (int(task_id),)).fetchall()
+        else:
+            rows = []
     out: List[Dict[str, Any]] = []
     for r in rows:
-        status = _team_status_from_timestamps(r)
+        status = _team_status_from_timestamps(r) if "time_assigned" in r.keys() else "Assigned"
         active = status not in {"Complete", "RTB"}
         out.append({
             "active": bool(active),
-            "id": r["id"],
+            "id": r.get("id"),
             "license_plate": r.get("license_plate"),
             "type": r.get("type") or "",
             "organization": r.get("organization"),
@@ -1142,6 +1259,21 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
         con.execute("UPDATE teams SET current_task_id=? WHERE id=?", (int(task_id), int(team_id)))
         con.commit()
         new_id = int(cur.lastrowid)
+        # Snapshot current team roster onto task (personnel/vehicles) where possible
+        try:
+            _snapshot_task_roster(con, int(task_id), int(team_id))
+        except Exception:
+            pass
+        # Auto-set team status to Assigned for newly created assignment
+        try:
+            # Keep timeline/status logic centralized in operations.data.repository
+            # This will no-op the time_assigned stamp if we already set it above,
+            # but ensure team.display status and signals/ICS entries update.
+            from modules.operations.data.repository import set_team_assignment_status  # local import to avoid cycles
+            set_team_assignment_status(int(new_id), "assigned")
+        except Exception:
+            # Best-effort; failure here should not block assignment creation
+            pass
         try:
             write_audit("task.team.add", {"task_id": int(task_id), "team_id": int(team_id) if team_id is not None else None, "tt_id": new_id, "sortie_id": sortie_id, "primary": bool(is_primary)})
         except Exception:
