@@ -1,8 +1,30 @@
 from textwrap import dedent
 
 
+def _rgba(hex_color: str, alpha: float) -> str:
+    """Return an rgba() string from a hex color like #RRGGBB with given alpha.
+
+    Falls back to a sensible blue if the input is malformed. Alpha is clamped
+    into [0,1].
+    """
+    try:
+        value = (hex_color or "").lstrip("#")
+        r = int(value[0:2], 16)
+        g = int(value[2:4], 16)
+        b = int(value[4:6], 16)
+    except Exception:
+        r, g, b = 47, 128, 237  # #2F80ED fallback
+    a = max(0.0, min(1.0, float(alpha)))
+    return f"rgba({r}, {g}, {b}, {a:.3f})"
+
+
 def global_qss(tokens: dict) -> str:
     menu_bar_bg = tokens.get("menu_bar_bg", tokens.get("bg_panel"))
+    # Selection: outline-only so row color remains fully visible.
+    accent = tokens.get("accent", "#2F80ED")
+    focus = tokens.get("ctrl_focus", accent)
+    selection_overlay = "transparent"
+    selection_border = focus
     return dedent(f"""
         QMainWindow {{
             background: {tokens['bg_window']};
@@ -139,6 +161,28 @@ def global_qss(tokens: dict) -> str:
             border: 0px;
             border-right: 1px solid {tokens['divider']};
             border-bottom: 1px solid {tokens['divider']};
+        }}
+        /* Make item-view selection background transparent globally */
+        QTableView, QTreeView, QListView {{
+            selection-background-color: transparent;
+            selection-color: {tokens['fg_primary']};
+        }}
+        /*
+         * Selection styling for tables/lists/trees:
+         * - Transparent fill (no overlay), use a high-contrast border only.
+         */
+        QTableView::item:selected,
+        QTreeView::item:selected,
+        QListView::item:selected {{
+            background: transparent;
+            border: 2px solid {selection_border};
+            border-radius: 3px;
+        }}
+        QTableView::item:selected:!active,
+        QTreeView::item:selected:!active,
+        QListView::item:selected:!active {{
+            background: transparent;
+            border: 2px solid {selection_border};
         }}
         QScrollBar:vertical {{
             background: {tokens['bg_panel']};

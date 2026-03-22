@@ -10,8 +10,15 @@ class SettingsManager:
     def load(self):
         if os.path.exists(self.filename):
             try:
-                with open(self.filename, "r") as f:
+                with open(self.filename, "r", encoding="utf-8") as f:
                     self.settings = json.load(f)
+            except UnicodeDecodeError:
+                # Backward-compat: migrate legacy cp1252/ANSI files to UTF-8
+                with open(self.filename, "r", encoding="cp1252", errors="strict") as f:
+                    self.settings = json.load(f)
+                # write back normalized UTF-8
+                with open(self.filename, "w", encoding="utf-8") as f:
+                    json.dump(self.settings, f, indent=4, ensure_ascii=False)
             except json.JSONDecodeError:
                 print(f"Warning: Failed to decode JSON from {self.filename}. Resetting settings.")
                 self.settings = {}
@@ -21,8 +28,8 @@ class SettingsManager:
             self.save()
 
     def save(self):
-        with open(self.filename, "w") as f:
-            json.dump(self.settings, f, indent=4)
+        with open(self.filename, "w", encoding="utf-8") as f:
+            json.dump(self.settings, f, indent=4, ensure_ascii=False)
 
     def get(self, key, default=None):
         return self.settings.get(key, default)

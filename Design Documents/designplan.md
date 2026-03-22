@@ -2592,3 +2592,34 @@ This forward-looking module explores integration of artificial intelligence to e
   - - Designed for opt-in usage with explicit controls
   - - Intended to support, not replace, human decision-making
  
+
+## Text Encoding (UTF-8 Everywhere)
+- Use UTF-8 for all text: source, JSON, YAML, CSV, Markdown, INI, and templates. Avoid ANSI/Windows-1252.
+- Always specify the encoding explicitly when doing text I/O:
+  - Python builtins: `open(path, 'r', encoding='utf-8')`, `open(path, 'w', encoding='utf-8')`.
+  - Pathlib: `Path(path).read_text(encoding='utf-8')`, `Path(path).write_text(text, encoding='utf-8')`.
+- JSON: `json.load(f)` with files opened as UTF-8; `json.dump(obj, f, ensure_ascii=False)` so real Unicode is preserved.
+- CSV: open with `newline=''` and `encoding='utf-8'`. For legacy Excel targets, prefer `encoding='utf-8-sig'`.
+- SQLite: store/read text as Python `str`. Do not set `text_factory=bytes`; do not manually `.encode()`/`.decode()` DB strings.
+- Qt Widgets: always pass Python `str` to `.setText()`/model data; never pass raw `bytes`.
+- Network/text payloads: decode as UTF-8 unless the server explicitly declares a different charset.
+
+### Rationale
+- Prevents mojibake on Windows where the locale default is cp1252 (e.g., stray `???`, `???`, `?` in UI).
+- Keeps exports/imports consistent across platforms and tools.
+
+### Definition of Done (encoding)
+- All new/changed file I/O includes `encoding='utf-8'` for text.
+- No `Path.read_text()`/`write_text()` without an explicit `encoding`.
+- JSON dumps use `ensure_ascii=False` when human-readable output is intended.
+- If generating CSVs primarily consumed by Excel users, document whether `utf-8-sig` is required.
+
+### Dev check (optional)
+Run a quick grep before submitting:
+```
+rg -n "read_text\(|write_text\(|open\(.*['"]r['"]|open\(.*['"]w['"]" -S | rg -v "encoding=|open\([^)]*[arb]b?"
+```
+This flags text I/O that may be missing an explicit `encoding`.
+
+### Migration note
+The `SettingsManager` transparently migrates legacy cp1252 settings files to UTF-8 on next load.

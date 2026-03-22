@@ -4,8 +4,9 @@ from typing import Iterable
 
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QMenu
 from PySide6.QtCore import Qt
-from utils.styles import team_status_colors, task_status_colors, subscribe_theme
+from utils.styles import team_status_colors, task_status_colors, subscribe_theme, get_palette
 from PySide6QtAds import CDockWidget
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 
 from data.sample_data import (
     TEAM_HEADERS,
@@ -20,6 +21,14 @@ def _make_table(headers: Iterable[str], rows: Iterable[Iterable[object]]) -> QTa
     headers = list(headers)
     table.setColumnCount(len(headers))
     table.setHorizontalHeaderLabels(headers)
+    # Selection should be row-based for clearer outlines
+    try:
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        # Transparent fill; delegate will render an outline
+        table.setStyleSheet("QTableView { selection-background-color: transparent; }")
+    except Exception:
+        pass
     for r, row in enumerate(rows):
         table.insertRow(r)
         for c, value in enumerate(row):
@@ -105,6 +114,15 @@ def create_team_status_dock(parent=None):
     w = QWidget(parent)
     layout = QVBoxLayout(w)
     table = _make_table(TEAM_HEADERS, TEAM_ROWS)
+    # Install outline-only selection delegate using theme focus color
+    try:
+        pal = get_palette()
+        color = pal.get("ctrl_focus", pal.get("accent"))
+        delegate = RowOutlineSelectionDelegate(table, color)
+        table.setItemDelegate(delegate)
+        subscribe_theme(table, lambda *_: delegate.setColor(get_palette().get("ctrl_focus", get_palette().get("accent"))))
+    except Exception:
+        pass
     layout.addWidget(table)
     # Color rows by team status
     try:
@@ -135,6 +153,15 @@ def create_task_status_dock(parent=None):
     w = QWidget(parent)
     layout = QVBoxLayout(w)
     table = _make_table(TASK_HEADERS, TASK_ROWS)
+    # Install outline-only selection delegate using theme focus color
+    try:
+        pal = get_palette()
+        color = pal.get("ctrl_focus", pal.get("accent"))
+        delegate = RowOutlineSelectionDelegate(table, color)
+        table.setItemDelegate(delegate)
+        subscribe_theme(table, lambda *_: delegate.setColor(get_palette().get("ctrl_focus", get_palette().get("accent"))))
+    except Exception:
+        pass
     layout.addWidget(table)
     # Color rows by task status
     try:

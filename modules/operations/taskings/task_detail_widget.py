@@ -307,7 +307,7 @@ class TaskDetailWindow(QWidget):
             pass
         self._nar_entry_top = QTextEdit(self)
         try:
-            self._nar_entry_top.setPlaceholderText("Type narrativeâ€¦ (Enter to add)")
+            self._nar_entry_top.setPlaceholderText("Type narrative… (Enter to add; Shift+Enter = newline)")
         except Exception:
             pass
         # Make it ~3 lines tall
@@ -316,10 +316,23 @@ class TaskDetailWindow(QWidget):
             self._nar_entry_top.setFixedHeight(max(56, int(fm.lineSpacing() * 3 + 12)))
         except Exception:
             self._nar_entry_top.setFixedHeight(72)
-        # Submit on Ctrl+Enter as QTextEdit is multi-line
+        # Submit on Enter; Shift+Enter inserts newline
         try:
             from PySide6.QtGui import QKeySequence
-            self._nar_entry_top.keyPressEvent = (lambda orig: (lambda e: (self.add_narrative() if (e.modifiers() & Qt.ControlModifier and e.key() in (Qt.Key_Return, Qt.Key_Enter)) else orig(e))))(self._nar_entry_top.keyPressEvent)
+            orig = self._nar_entry_top.keyPressEvent
+            def _kpe(e):
+                try:
+                    if e.key() in (Qt.Key_Return, Qt.Key_Enter):
+                        if e.modifiers() & Qt.ShiftModifier:
+                            return orig(e)  # newline
+                        else:
+                            self.add_narrative()
+                            e.accept()
+                            return  # consume
+                    return orig(e)
+                except Exception:
+                    return orig(e)
+            self._nar_entry_top.keyPressEvent = _kpe
         except Exception:
             pass
         self._nar_crit_top = QCheckBox("Critical", self)
@@ -354,7 +367,7 @@ class TaskDetailWindow(QWidget):
             self._nar_entry.setVisible(False)
         except Exception:
             pass
-        self._nar_entry.setPlaceholderText("Type narrativeâ€¦ (Enter to add)")
+        self._nar_entry.setPlaceholderText("Type narrative… (Enter to add; Shift+Enter = newline)")
         self._nar_entry.returnPressed.connect(self.add_narrative)
         self._nar_crit = QComboBox(nar_content)
         try:
@@ -4214,4 +4227,8 @@ class TaskDetailWindow(QWidget):
                 self.load_teams()
             except Exception:
                 pass
+
+
+
+
 

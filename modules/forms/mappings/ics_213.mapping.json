@@ -1,0 +1,16 @@
+{
+  "_comment": "Starter mapping only; PDF field IDs must match the actual form template exactly.",
+  "description": "ICS 213 General Message starter mapping.",
+  "fields": [
+    {"pdf_field": "IncidentName", "source": "incident.name"},
+    {"pdf_field": "To", "source": {"key": "message.to", "default": "Incident Commander"}},
+    {"pdf_field": "From", "source": {"join": ["preparer.first_name", "preparer.last_name"], "separator": " ", "default": "Documentation Unit"}},
+    {"pdf_field": "Subject", "source": {"key": "message.subject", "default": "GENERAL MESSAGE"}},
+    {"pdf_field": "MessageBody", "source": {"key": "message.body", "default": "No message provided."}},
+    {"pdf_field": "Date", "source": {"key": "prepared_at", "transform": "date_short"}},
+    {"pdf_field": "Time", "source": {"key": "message.time", "default": "0000"}},
+    {"pdf_field": "ReplyRequested", "source": {"key": "message.reply_requested", "checkbox": true}},
+    {"pdf_field": "ApprovedBy", "source": {"join": ["preparer.first_name", "preparer.last_name", {"literal": "-"}, "preparer.position"], "separator": " ", "default": "Documentation Unit"}},
+    {"pdf_field": "RoutingNote", "source": {"literal": "Route through established incident channels."}}
+  ]
+}

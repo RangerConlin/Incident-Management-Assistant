@@ -1,0 +1,19 @@
+{
+  "_comment": "Starter mapping only; PDF field IDs must match the actual form template exactly.",
+  "description": "ICS 204 Assignment List starter mapping.",
+  "fields": [
+    {"pdf_field": "IncidentName", "source": "incident.name"},
+    {"pdf_field": "IncidentNumber", "source": {"key": "incident.number", "default": "TBD"}},
+    {"pdf_field": "OperationalPeriod", "source": {"join": [{"key": "period.start", "transform": "date_short"}, {"literal": "to"}, {"key": "period.end", "transform": "date_short"}], "separator": " "}},
+    {"pdf_field": "TeamName", "source": {"key": "team.name", "transform": "upper"}},
+    {"pdf_field": "SupervisorName", "source": {"join": ["team.leader.first_name", "team.leader.last_name"], "separator": " ", "default": "Unassigned"}},
+    {"pdf_field": "SupervisorPosition", "source": {"key": "team.leader.position", "default": "Supervisor"}},
+    {"pdf_field": "Resource1", "source": {"key": "team.members.0.name", "default": ""}},
+    {"pdf_field": "Resource2", "source": {"key": "team.members.1.name", "default": ""}},
+    {"pdf_field": "Resource3", "source": {"key": "team.members.2.name", "default": ""}},
+    {"pdf_field": "WorkAssignment", "source": {"join": ["tasks.0.description", "tasks.1.description", "tasks.2.description"], "separator": " | ", "default": "See IAP"}},
+    {"pdf_field": "SpecialInstructions", "source": {"literal": "Follow current safety plan and report status changes immediately."}},
+    {"pdf_field": "PreparedBy", "source": {"join": ["preparer.first_name", "preparer.last_name"], "separator": " ", "default": "Planning Section"}},
+    {"pdf_field": "PreparedDate", "source": {"key": "prepared_at", "transform": "date_short"}}
+  ]
+}

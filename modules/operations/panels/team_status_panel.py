@@ -18,6 +18,7 @@ from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage, QFont, QFon
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
 from utils.styles import team_status_colors, subscribe_theme, get_palette
+from utils.itemview_delegates import RowOutlineSelectionDelegate, IconWithOutlineDelegate
 from utils.audit import write_audit
 from datetime import datetime, timezone
 from typing import Callable, Any, Optional
@@ -293,6 +294,8 @@ class TeamStatusPanel(QWidget):
         try:
             self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            # Outline-only selection; delegate will render the border
+            self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
         except Exception:
             pass
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -313,9 +316,20 @@ class TeamStatusPanel(QWidget):
             thresholds=self._thresholds,
         )
         try:
-            self.table.setItemDelegateForColumn(0, self._icon_delegate)
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            self._icon_outline_delegate = IconWithOutlineDelegate(self._icon_delegate, self.table, color)
+            self.table.setItemDelegateForColumn(0, self._icon_outline_delegate)
         except Exception:
-            pass
+            self._icon_outline_delegate = None
+        # Row outline selection delegate (installed for whole table)
+        try:
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            self._outline_delegate = RowOutlineSelectionDelegate(self.table, color)
+            self.table.setItemDelegate(self._outline_delegate)
+        except Exception:
+            self._outline_delegate = None
 
         # Set column headers: Needs Assistance at far left; Last Update at far right
         self.table.setColumnCount(10)
@@ -398,6 +412,22 @@ class TeamStatusPanel(QWidget):
         try:
             if hasattr(self, "_icon_delegate") and self._icon_delegate is not None:
                 self._icon_delegate.on_theme_changed()
+        except Exception:
+            pass
+        try:
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            if getattr(self, "_outline_delegate", None) is not None:
+                self._outline_delegate.setColor(color)
+            if getattr(self, "_icon_outline_delegate", None) is not None:
+                self._icon_outline_delegate.setColor(color)
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_outline_delegate", None) is not None:
+                pal = get_palette()
+                color = pal.get("ctrl_focus", pal.get("accent"))
+                self._outline_delegate.setColor(color)
         except Exception:
             pass
         self._recolor_all()

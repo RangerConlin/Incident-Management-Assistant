@@ -121,5 +121,6 @@
     "statusboard.team.columns.hidden": [
         "team_type"
     ],
-    "lastIncidentNumber": "26-T-4301"
+    "lastIncidentNumber": "26-T-4301",
+    "statusboard.task.textSize": "large"
 }
