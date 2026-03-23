@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import List
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QGuiApplication
 from PySide6.QtWidgets import (
     QInputDialog,
     QMainWindow,
@@ -55,12 +55,13 @@ class AviationWeatherWindow(QMainWindow):
         self.setObjectName("aviationWeatherWindow")
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setWindowTitle("Aviation Weather")
-        self.resize(1400, 900)
+        self._set_initial_size()
         self.api = WeatherApiManager.instance()
         self.api.dataUpdated.connect(self._handle_data)
         self._stations = stations or []
         self._setup_ui()
         self._load_state()
+        self._ensure_visible_geometry()
         for station in self._stations:
             self._ensure_station_tab(station)
 
@@ -100,6 +101,16 @@ class AviationWeatherWindow(QMainWindow):
 
         QWidget.setTabOrder(self.tab_widget, self.status_bar)
 
+    def _set_initial_size(self) -> None:
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen else None
+        if avail:
+            w = max(900, min(1200, int(avail.width() * 0.75)))
+            h = max(600, min(800, int(avail.height() * 0.75)))
+            self.resize(w, h)
+        else:
+            self.resize(1100, 720)
+
     def _prompt_add_station(self) -> None:
         station, ok = QInputDialog.getText(self, "Add Station", "ICAO")
         if ok and station:
@@ -129,6 +140,23 @@ class AviationWeatherWindow(QMainWindow):
         geometry = weather_settings().value("geom/AviationWeatherWindow")
         if geometry:
             self.restoreGeometry(geometry)
+
+    def _ensure_visible_geometry(self) -> None:
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if not screen:
+            return
+        avail = screen.availableGeometry()
+        # Clamp size to 90% of available area if oversized
+        new_w = min(self.width(), int(avail.width() * 0.9))
+        new_h = min(self.height(), int(avail.height() * 0.9))
+        if new_w != self.width() or new_h != self.height():
+            self.resize(new_w, new_h)
+        # If outside visible area, center it
+        frame = self.frameGeometry()
+        if not avail.contains(frame):
+            x = avail.center().x() - self.width() // 2
+            y = avail.center().y() - self.height() // 2
+            self.move(max(avail.left(), x), max(avail.top(), y))
 
     def closeEvent(self, event) -> None:  # noqa: D401
         weather_settings().set_value("geom/AviationWeatherWindow", self.saveGeometry())

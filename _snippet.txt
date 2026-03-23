@@ -1,0 +1,13 @@
+            if not set_team_status:
+                raise RuntimeError("DB repository not available")
+            set_team_status(int(team_id), str(status_key))
+            # Reload board
+            self.reload()
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Assign & Set Status", f"Failed to assign team and set status:\n{e}")\r\n\r\n    def show_context_menu(self, position):
+        row = self.table.indexAt(position).row()
+        if row < 0:
+            return
+
+        menu = QMenu(self)

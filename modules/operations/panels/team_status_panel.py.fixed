@@ -709,7 +709,7 @@ class TeamStatusPanel(QWidget):
     
     def _status_requires_task(self, status_key: str) -> bool:
         s = (status_key or '').strip().lower()
-        return s not in {"available", "out of service", "oos", "break", "report writing", "returning", "rtb", "complete", "completed"}
+        return s not in {"available", "out of service", "oos"}
 
     def _get_row_ids(self, row: int) -> tuple[int | None, int | None]:
         try:
@@ -761,32 +761,15 @@ class TeamStatusPanel(QWidget):
         # Add separator
         menu.addSeparator()
 
-                # Grouped status actions
-        try:
-            _, current_task_id = self._get_row_ids(row)
-        except Exception:
-            current_task_id = None
-        def _display_label(key: str) -> str:
-            k = (key or '').strip().lower()
-            if k == 'aol':
-                return 'At Other Location'
-            if k == 'tol':
-                return 'To Other Location'
-            return str(key).title()
-        no_task: list[str] = []
-        needs_task: list[str] = []
-        for status in team_status_colors():
-            (needs_task if self._status_requires_task(status) else no_task).append(status)
-        # First: statuses that do not require a task
-        for status in no_task:
-            menu.addAction(_display_label(status), lambda s=status: self.change_status(row, s))
-        # Separator between groups
-        if needs_task:
-            menu.addSeparator()
-        # Then: statuses that require a task
-        for status in needs_task:
-            if current_task_id is None:
-                sub = QMenu(_display_label(status), self)
+        # Flat list of status options
+                for status in team_status_colors():
+            try:
+                _, current_task_id = self._get_row_ids(row)
+            except Exception:
+                current_task_id = None
+            if current_task_id is None and self._status_requires_task(status):
+                # Build a submenu listing tasks
+                sub = QMenu(f"{status.title()} on task…", self)
                 try:
                     from modules.operations.data.repository import list_tasks_for_assignment  # type: ignore
                 except Exception:
@@ -798,14 +781,16 @@ class TeamStatusPanel(QWidget):
                     except Exception:
                         tasks = []
                 if not tasks:
-                    act = sub.addAction('(no tasks)'); act.setEnabled(False)
+                    act = sub.addAction("(no tasks)"); act.setEnabled(False)
                 else:
                     for t in tasks:
                         label = f"{t.get('task_id') or ('T-' + str(t.get('id')))} — {t.get('title') or ''}".strip()
                         sub.addAction(label, lambda tid=int(t.get('id')), s=status: self._assign_and_set_status(row, tid, s))
                 menu.addMenu(sub)
             else:
-                menu.addAction(_display_label(status), lambda s=status: self.change_status(row, s))# Timer utilities
+                menu.addAction(status.title(), lambda s=status: self.change_status(row, s))
+
+        # Timer utilities
         menu.addSeparator()
         menu.addAction("Reset Timer", lambda: self._reset_last_update_row(row))
 
@@ -1195,9 +1180,6 @@ class TeamStatusPanel(QWidget):
                 self._match_all = bool(filt.get("matchAll", True))
         except Exception:
             pass
-
-
-
 
 
 

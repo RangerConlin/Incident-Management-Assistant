@@ -1104,27 +1104,27 @@ Close/Minimize Controls: Standard window chrome for hiding or closing the window
 ### Tasks
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings	List tasks (filtering, paging, sorting)	Query params: status, priority, assigned_to, date_from, date_to, page, page_size, sort_by	{ tasks: Task[], total: number, page, page_size }
-POST	/api/operations/taskings	Create a new task	{ title, description, category_id, task_type_id, priority, assigned_to, due_time?, task_id? }	{ id: UUID, ...full Task }
+POST	/api/operations/taskings	Create a new task	{ title, description, category_id, task_type_id, priority, assigned_to, due_time", task_id" }	{ id: UUID, ...full Task }
 GET	/api/operations/taskings/{taskId}	Retrieve a single task (with nested sub-resources)	—	{ ...full Task, narrative:[], teams:[], ... }
-PUT	/api/operations/taskings/{taskId}	Update all metadata on a task	{ title?, description?, category_id?, task_type_id?, priority?, assigned_to?, due_time?, task_id?, ics_form_link? }	{ ...updated Task }
+PUT	/api/operations/taskings/{taskId}	Update all metadata on a task	{ title", description", category_id", task_type_id", priority", assigned_to", due_time", task_id", ics_form_link" }	{ ...updated Task }
 PATCH	/api/operations/taskings/{taskId}/status	Update only the task’s status	`{ status: Draft	Planned
 DELETE	/api/operations/taskings/{taskId}	Archive/delete a task	—	204 No Content
 ```
 ### Narrative Entries
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/narrative	List narrative log entries	Query params: sort_by, order, page, page_size	{ entries: NarrativeEntry[], total }
-POST	/api/operations/taskings/{taskId}/narrative	Append a new narrative entry	{ entry_text, entered_by, team_number?, critical_flag? }	{ id: number, timestamp, ... }
+POST	/api/operations/taskings/{taskId}/narrative	Append a new narrative entry	{ entry_text, entered_by, team_number", critical_flag" }	{ id: number, timestamp, ... }
 PATCH	/api/operations/taskings/{taskId}/narrative/{entryId}	Update critical flag (any user)	{ critical_flag: boolean }	{ id, critical_flag, timestamp }
 ### Team Assignments
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/teams	List teams on a task	—	{ teams: TaskTeam[] }
-POST	/api/operations/taskings/{taskId}/teams	Assign a new team	{ team_id, sortie_number? }	{ id: number, assigned_ts }
+POST	/api/operations/taskings/{taskId}/teams	Assign a new team	{ team_id, sortie_number" }	{ id: number, assigned_ts }
 PATCH	/api/operations/taskings/{taskId}/teams/{ttId}	Change team status (auto-stamp)	{ status: string }	{ id, status, updated_ts }
 DELETE	/api/operations/taskings/{taskId}/teams/{ttId}	Remove a team assignment	—	204 No Content
 ### Personnel
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/personnel	List personnel on a task	—	{ personnel: TaskPersonnel[] }
-POST	/api/operations/taskings/{taskId}/personnel	Add a person	{ personnel_id, role, organization, time_assigned? }	{ id, time_assigned }
+POST	/api/operations/taskings/{taskId}/personnel	Add a person	{ personnel_id, role, organization, time_assigned" }	{ id, time_assigned }
 PATCH	/api/operations/taskings/{taskId}/personnel/{pId}	Update time assigned	{ time_assigned: ISODateTime }	{ id, time_assigned }
 DELETE	/api/operations/taskings/{taskId}/personnel/{pId}	Remove from task	—	204 No Content
 ### Vehicles
@@ -1152,11 +1152,11 @@ PUT	/api/operations/taskings/{taskId}/debriefs/{dId}	Update an existing debrief	
 DELETE	/api/operations/taskings/{taskId}/debriefs/{dId}	Delete a debrief record	—	204 No Content
 ### Audit Logs
 Method	Path	Description	Request Body	Response
-GET	/api/operations/taskings/{taskId}/logs	Fetch the change history	Query params: field?, date_from?, date_to?	{ logs: AuditLog[] }
+GET	/api/operations/taskings/{taskId}/logs	Fetch the change history	Query params: field", date_from", date_to"	{ logs: AuditLog[] }
 ### Attachments/Forms
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/attachments	List all attachments and forms	—	{ attachments: Attachment[] }
-POST	/api/operations/taskings/{taskId}/attachments	Upload a file or form template	multipart/form-data: file, type, generate_forms?	{ id, filename, url }
+POST	/api/operations/taskings/{taskId}/attachments	Upload a file or form template	multipart/form-data: file, type, generate_forms"	{ id, filename, url }
 DELETE	/api/operations/taskings/{taskId}/attachments/{aId}	Remove an attachment	—	204 No Content
 ### Planning Links
 Method	Path	Description	Request Body	Response
@@ -1707,8 +1707,8 @@ All endpoints use the active mission DB connection and write audit logs.
 ```
 Below are the key fields; actual DDL created via Alembic migrations.
 7.1 Core
-  - intel_clues: id, mission_id, type, score, at_time, geom(WKT), location_text, entered_by, team_text, description, attachments_json, linked_subject_id?, linked_task_id?, created_at, updated_at.
-  - intel_reports: id, mission_id, title, body_md, audience, linked_subject_id?, linked_task_id?, created_at.
+  - intel_clues: id, mission_id, type, score, at_time, geom(WKT), location_text, entered_by, team_text, description, attachments_json, linked_subject_id", linked_task_id", created_at, updated_at.
+  - intel_reports: id, mission_id, title, body_md, audience, linked_subject_id", linked_task_id", created_at.
   - intel_env_data: id, mission_id, op_period, weather_json, hazards_json, terrain_json, notes.
 7.2 Subject Set (tabbed editor support)
   - intel_subjects: identity & LPB fields (name parts, sex, dob, race, height_cm, weight_kg, eyes, hair, build, lpb_category_code, lpb_notes, photo_url).
@@ -1721,7 +1721,7 @@ Below are the key fields; actual DDL created via Alembic migrations.
   - intel_subject_contacts: subject_id, name, relationship, phone, notes, notify_on_found.
 7.3 Form Aligned Storage
 SAR 134
-  - intel_form_sar134 (parent), intel_form_sar134_entry (rows: clue_number, time_local, resource_text, location_text, utm_text, clue_disposition_text, linked_clue_id?).
+  - intel_form_sar134 (parent), intel_form_sar134_entry (rows: clue_number, time_local, resource_text, location_text, utm_text, clue_disposition_text, linked_clue_id").
 SAR 135
   - intel_form_sar135: fields for clue details, urgency, probabilities; child intel_form_sar135_segment_prob (tier, segment_code).
 SAR 301
@@ -2605,7 +2605,7 @@ This forward-looking module explores integration of artificial intelligence to e
 - Network/text payloads: decode as UTF-8 unless the server explicitly declares a different charset.
 
 ### Rationale
-- Prevents mojibake on Windows where the locale default is cp1252 (e.g., stray `???`, `???`, `?` in UI).
+- Prevents mojibake on Windows where the locale default is cp1252 (e.g., stray `"""`, `"""`, `"` in UI).
 - Keeps exports/imports consistent across platforms and tools.
 
 ### Definition of Done (encoding)
@@ -2617,7 +2617,7 @@ This forward-looking module explores integration of artificial intelligence to e
 ### Dev check (optional)
 Run a quick grep before submitting:
 ```
-rg -n "read_text\(|write_text\(|open\(.*['"]r['"]|open\(.*['"]w['"]" -S | rg -v "encoding=|open\([^)]*[arb]b?"
+rg -n "read_text\(|write_text\(|open\(.*['"]r['"]|open\(.*['"]w['"]" -S | rg -v "encoding=|open\([^)]*[arb]b""
 ```
 This flags text I/O that may be missing an explicit `encoding`.
 

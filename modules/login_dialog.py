@@ -72,7 +72,7 @@ class LoginDialog(QDialog):
     # Emit when the session is established
     sessionReady = Signal(str, str, str)  # (incident_number, user_id, role)
 
-    def __init__(self, parent: QWidget | None = None, *, demo_mode: bool = False, default_incident_number: str | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, demo_mode: bool = False, default_incident_number: str | None = None, default_user_id: str | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Login / Select Incident")
         self.setModal(True)
@@ -83,6 +83,8 @@ class LoginDialog(QDialog):
         self.incident_combo = QComboBox()
         self.btn_new_incident = QPushButton("Create New Incident")
         self.user_id_edit = QLineEdit()
+        if default_user_id:
+            self.user_id_edit.setText(str(default_user_id))
         self.role_combo = QComboBox()
         self.role_combo.addItems(STATIC_ROLES)
 
@@ -149,9 +151,9 @@ class LoginDialog(QDialog):
             QMessageBox.warning(self, "Database Error", f"Failed to load incidents: {e}")
             self._incidents = []
 
-        # Populate combo: show "Name — #Number"; store number as itemData
+        # Populate combo: show "Name - #Number"; store number as itemData
         for it in self._incidents:
-            label = f"{it.name or '(unnamed)'} — #{it.number}"
+            label = f"{it.name or '(unnamed)'} - #{it.number}"
             self.incident_combo.addItem(label, userData=it.number)
 
     def _on_create_new_incident(self) -> None:
@@ -229,4 +231,6 @@ class LoginDialog(QDialog):
 
 
 __all__ = ["LoginDialog", "STATIC_ROLES"]
+
+
 

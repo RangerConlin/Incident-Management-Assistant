@@ -1,4 +1,4 @@
-# AGENTS
+﻿# AGENTS
 
 ## Incident-Management-Assistant Overview
 - Desktop-first incident management suite built with **PySide6**.  
@@ -15,7 +15,7 @@
 - `modules/`: Functional areas (operations, logistics, forms, comms, etc.). Include `data/`, `panels/`, `api.py` or `bridge.py`. Use dataclasses + repositories.  
 - `notifications/`, `panels/`, `ui/`, `ui_bootstrap/`: Widgets, dialogs, bootstrap scripts.  
 - `styles/`, `utils/styles.py`: Shared palette and helpers.  
-- `utils/`: App state, logging, filesystem, theme, incident context. Extend, don’t duplicate.  
+- `utils/`: App state, logging, filesystem, theme, incident context. Extend, don't duplicate.  
 - `tests/`: Pytest suites for models, repositories, bridges. Module-level tests under `modules/**/tests`.  
 - `Design Documents/`, `demos/`, `profiles/`, `notifications/assets/`: Reference and profile content.  
 
@@ -88,3 +88,15 @@
 - Applies to the full repo.  
 - Add nested `AGENTS.md` for unique subtree rules.  
 - Keep current with toolchain and repo structure.  
+
+## Text & Encoding Hygiene
+- All repo text files must be UTF-8 (no BOM) with LF line endings.
+- Avoid pasting from Word/PDF. Paste as plain text and replace curly quotes/dashes as needed.
+- Symptoms to look for: "â€™" for "’", "â€“/â€”" for "–/—", and "Â€" or "â‚¬" for "€".
+- Audit locally: `python scripts/encoding_audit.py --summary`.
+- Gate in CI: `python scripts/encoding_audit.py --fail-on-find` (fails build on hits).
+- Fix approach: reopen the file with UTF-8 encoding in your editor, retype the affected characters, or convert the file encoding to UTF-8.
+- Console note (Windows): set UTF-8 code page before running tools to avoid display issues: `chcp 65001`.
+- Pre-commit hooks: install once with `pipx install pre-commit` or `pip install pre-commit`, then run `pre-commit install`. CI runs the same checks.
+- Local checks: `pre-commit run --all-files`.
+- Encoding gate: current policy fails on decode errors only; once mojibake is cleaned, flip the hook to `--fail-kinds decode-error,mojibake,control,replacement`.

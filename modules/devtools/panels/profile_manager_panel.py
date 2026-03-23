@@ -240,7 +240,7 @@ class ProfileManagerPanel(QWidget):
         confirm = QMessageBox.question(
             self,
             "Delete Profile",
-            f"Delete profile '{meta.name}' ({meta.id})? This cannot be undone.",
+            f"Delete profile '{meta.name}' ({meta.id})" This cannot be undone.",
         )
         if confirm != QMessageBox.Yes:
             return

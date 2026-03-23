@@ -1,10 +1,10 @@
-# ===== Part 1: Imports & Logging ============================================
+﻿# ===== Part 1: Imports & Logging ============================================
 import json
 import os
 import sys
 import logging
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Callable
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -21,12 +21,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QFileDialog,
 )
-from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtCore import Qt, QUrl, QSettings, QTimer
-from PySide6.QtQuick import QQuickView
-from PySide6.QtQuickControls2 import QQuickStyle
-from PySide6.QtQuick import QQuickWindow
 from PySide6QtAds import (
     CDockManager,
     CDockWidget,
@@ -36,7 +32,6 @@ from PySide6QtAds import (
     BottomDockWidgetArea,
     CenterDockWidgetArea,
 )
-QQuickStyle.setStyle("Fusion")
 
 
 # Respect saved dock layouts (ADS perspectives) across sessions
@@ -44,11 +39,9 @@ QQuickStyle.setStyle("Fusion")
 FORCE_DEFAULT_LAYOUT = False
 
 
-# (QML utilities kept, though handlers now follow panel-factory pattern)
-from models.qmlwindow import QmlWindow, new_incident_form, open_incident_list
 from utils.state import AppState
 from models.database import get_incident_by_number, get_all_incident_types
-from bridge.settings_bridge import QmlSettingsBridge
+from bridge.settings_bridge import SettingsBridge
 from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
 from bridge.incident_bridge import IncidentBridge
@@ -64,6 +57,7 @@ from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
 from ui.settings import SettingsWindow
 from utils.profile_manager import profile_manager, ProfileMeta
+from ui.qml_placeholder import show_qml_placeholder
 
 try:
     from modules.ui_customization import (
@@ -183,7 +177,7 @@ class MainWindow(QMainWindow):
     Placeholders are fine if a real module/factory doesn't exist yet.
     """
     def __init__(self, settings_manager: SettingsManager | None = None,
-                 settings_bridge: QmlSettingsBridge | None = None):
+                 settings_bridge: SettingsBridge | None = None):
         super().__init__()
         self._ems_window = None
         self._settings_window = None
@@ -192,7 +186,7 @@ class MainWindow(QMainWindow):
         if settings_manager is None:
             settings_manager = SettingsManager()
         if settings_bridge is None:
-            settings_bridge = QmlSettingsBridge(settings_manager)
+            settings_bridge = SettingsBridge(settings_manager)
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
@@ -214,7 +208,7 @@ class MainWindow(QMainWindow):
             # Apply initial QSS derived from tokens
             if app is not None:
                 app.setStyleSheet(global_qss(self.theme_manager.tokens()))
-            # Keep QSS and QML bridge in sync with theme changes
+            # Keep QSS and legacy UI bridge in sync with theme changes
             self.theme_manager.themeChanged.connect(lambda _:
                 (self.theme_bridge.updateTokens(self.theme_manager.tokens()),
                  app.setStyleSheet(global_qss(self.theme_manager.tokens())) if app is not None else None)
@@ -610,7 +604,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
-        self._add_action(m_ops, "Narrative", None, "operations.narrative")
 
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
@@ -780,7 +773,7 @@ class MainWindow(QMainWindow):
         act_reset.triggered.connect(self._reset_layout)
         self.menuDebug.addAction(act_reset)
 
-        # QML debug openers removed to allow running without QML assets
+        # legacy UI debug openers removed to allow running without legacy UI assets
 
         act_audit = QAction("Audit Console", self)
         def _show_audit():
@@ -1235,7 +1228,7 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
 
     def open_edit_safety_templates(self) -> None:
-        self._open_qml_modal("qml/SafetyTemplatesWindow.qml", title="Incident Safety Analysis (ICS-215A)")
+        show_qml_placeholder(title="Incident Safety Analysis (ICS-215A)", parent=self)
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
@@ -1709,7 +1702,7 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Team Assignments")
 
     def open_operations_team_status(self) -> None:
-        # Prefer the QWidget panel version to avoid QQuickWidget rendering issues
+
         try:
             from modules.operations.panels.team_status_panel import TeamStatusPanel
             panel = TeamStatusPanel(self)
@@ -1722,7 +1715,7 @@ class MainWindow(QMainWindow):
                 print(f"[warn] Team Status panel could not be loaded: {e}")
 
     def open_operations_task_board(self) -> None:
-        # Prefer the QWidget panel version to avoid QQuickWidget rendering issues
+
         try:
             from modules.operations.panels.task_status_panel import TaskStatusPanel
             panel = TaskStatusPanel(self)
@@ -1741,7 +1734,7 @@ class MainWindow(QMainWindow):
         except Exception:
             print("[info] Narrative is managed within each Task's detail window.")
 
-    # QML debug helpers removed to allow running without QML assets
+    # legacy UI debug helpers removed to allow running without legacy UI assets
 
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
@@ -2547,210 +2540,8 @@ class MainWindow(QMainWindow):
         self.dock_manager.addDockWidget(area, dock)
         dock.show()
 
-    def _open_dock_from_qml_view(self, qml_rel_path: str, title: str, float_on_open: bool | None = True, context: dict | None = None) -> None:
-        """Open QML using QQuickView + QWidget::createWindowContainer to avoid QQuickWidget text issues."""
-        try:
-            view = QQuickView()
-        except Exception:
-            # Fallback to original path if QQuickView unavailable
-            self._open_dock_from_qml(qml_rel_path, title, float_on_open=float_on_open, context=context)
-            return
-        try:
-            view.setResizeMode(QQuickView.SizeRootObjectToView)
-        except Exception:
-            pass
-        try:
-            ctx = view.rootContext()
-            # Always expose shared bridges
-            try:
-                if hasattr(self, 'settings_bridge') and self.settings_bridge:
-                    ctx.setContextProperty("settingsBridge", self.settings_bridge)
-            except Exception:
-                pass
-            try:
-                if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                    ctx.setContextProperty("themeBridge", self.theme_bridge)
-            except Exception:
-                pass
-            if context:
-                for k, v in context.items():
-                    ctx.setContextProperty(k, v)
-        except Exception:
-            pass
-        view.setSource(QUrl.fromLocalFile(os.path.abspath(qml_rel_path)))
-        container = QWidget.createWindowContainer(view)
-        try:
-            container.setMinimumSize(200, 120)
-            container.setFocusPolicy(Qt.StrongFocus)
-        except Exception:
-            pass
-        dock = CDockWidget(self.dock_manager, title)
-        dock.setWidget(container)
-        if float_on_open:
-            try:
-                self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
-                dock.show()
-                return
-            except Exception:
-                pass
-        area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
-        self.dock_manager.addDockWidget(area, dock)
-        dock.show()
 
-    def _open_dock_from_qml(self, qml_rel_path: str, title: str, float_on_open: bool | None = True, context: dict | None = None) -> None:
-        widget = QQuickWidget()
-        widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
-        try:
-            # Use QQuickWidget.rootContext() so properties are visible to this component
-            ctx = widget.rootContext()
-            try:
-                if hasattr(self, 'settings_bridge') and self.settings_bridge:
-                    ctx.setContextProperty("settingsBridge", self.settings_bridge)
-            except Exception:
-                pass
-            try:
-                if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                    ctx.setContextProperty("themeBridge", self.theme_bridge)
-            except Exception:
-                pass
-            if context:
-                for k, v in context.items():
-                    ctx.setContextProperty(k, v)
-        except Exception:
-            pass
-        widget.setSource(QUrl.fromLocalFile(os.path.abspath(qml_rel_path)))
-        dock = CDockWidget(self.dock_manager, title)
-        dock.setWidget(widget)
-        if float_on_open:
-            # Preferred: add as floating
-            try:
-                self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
-                dock.show()
-                return
-            except Exception:
-                pass
-            # Alternate: floating container
-            try:
-                container = self.dock_manager.createFloatingDockContainer(dock)  # type: ignore[attr-defined]
-                try:
-                    from PySide6.QtGui import QCursor
-                    container.move(QCursor.pos())  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                try:
-                    container.show()  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                return
-            except Exception:
-                area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
-                self.dock_manager.addDockWidget(area, dock)
-                try:
-                    dock.setFloating(True)
-                except Exception:
-                    pass
-                dock.show()
-                return
-        area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
-        self.dock_manager.addDockWidget(area, dock)
-        dock.show()
 
-    def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
-        """Open a QML Window (as a modal dialog) and inject the catalog bridge.
-
-        This is used by Edit > Master Catalog windows (EMS, Hospitals, etc.).
-        """
-        view = QQuickView()
-        view.setTitle(title)
-        try:
-            view.setResizeMode(QQuickView.SizeRootObjectToView)
-        except Exception:
-            pass
-
-        # Create/reuse a shared CatalogBridge for master catalog windows
-        if not hasattr(self, "_catalog_bridge"):
-            self._catalog_bridge = CatalogBridge(db_path="data/master.db")
-
-        # Expose bridges and models to QML
-        ctx = view.rootContext()
-        # Shared bridges
-        try:
-            if hasattr(self, 'settings_bridge') and self.settings_bridge:
-                ctx.setContextProperty("settingsBridge", self.settings_bridge)
-        except Exception:
-            pass
-        try:
-            if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                ctx.setContextProperty("themeBridge", self.theme_bridge)
-        except Exception:
-            pass
-        ctx.setContextProperty("catalogBridge", self._catalog_bridge)
-        # Provide team status options to all master catalog windows (used by multiple QML files)
-        try:
-            ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-        except Exception:
-            pass
-
-        # Incident bridge (incident-scoped CRUD)
-        try:
-            if not hasattr(self, "_incident_bridge"):
-                self._incident_bridge = IncidentBridge()
-            ctx.setContextProperty("incidentBridge", self._incident_bridge)
-        except Exception as e:
-            print("[main] IncidentBridge init failed:", e)
-
-        # Inject a per-window SqliteTableModel when we can map the window to a table
-        try:
-            # Strip the full suffix "Window.qml" (10 chars) to get the base name
-            name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
-            table = self._resolve_master_table(name)
-            print(f"[main._open_qml_modal] qml='{qml_rel_path}', base='{base}', name='{name}', resolved_table='{table}'")
-            if table:
-                model_name = f"{name}Model"
-                model = SqliteTableModel("data/master.db")
-                sql = f"SELECT * FROM {table}"
-                print(f"[main._open_qml_modal] injecting model '{model_name}' with sql: {sql}")
-                model.load_query(sql)
-                ctx.setContextProperty(model_name, model)
-                try:
-                    print(f"[main._open_qml_modal] model '{model_name}' rowCount={model.rowCount()}")
-                except Exception:
-                    pass
-            elif name == "Narrative":
-                # Inject incident-scoped model for narrative
-                try:
-                    from utils import incident_context
-                    db_path = str(incident_context.get_active_incident_db_path())
-                    model_name = "NarrativeModel"
-                    model = SqliteTableModel(db_path)
-                    sql = "SELECT id, taskid, timestamp, narrative, entered_by, team_num, critical FROM narrative_entries ORDER BY timestamp DESC"
-                    print(f"[main._open_qml_modal] injecting INCIDENT model '{model_name}' with sql: {sql}")
-                    model.load_query(sql)
-                    ctx.setContextProperty(model_name, model)
-                except Exception as e:
-                    print("[main._open_qml_modal] failed to inject NarrativeModel:", e)
-            else:
-                # Log available tables to aid debugging
-                try:
-                    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-                    con = sqlite3.connect(db_path)
-                    cur = con.cursor()
-                    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                    tbls = [r[0] for r in cur.fetchall()]
-                    con.close()
-                    print(f"[main._open_qml_modal] no table for '{name}'. sqlite tables: {tbls}")
-                except Exception as e:
-                    print(f"[main._open_qml_modal] failed to enumerate tables: {e}")
-        except Exception as e:
-            print(f"[main] model injection error for {qml_rel_path}: {e}")
-
-        from pathlib import Path
-        qml_file = Path(__file__).resolve().parent / qml_rel_path
-        view.setSource(QUrl.fromLocalFile(str(qml_file)))
-        view.show()
-        if not hasattr(self, "_open_qml_views"):
-            self._open_qml_views = []
-        self._open_qml_views.append(view)
 
     def _resolve_master_table(self, base_name: str) -> str | None:
         """Resolve a master.db table name for a given Window base name.
@@ -2841,7 +2632,7 @@ class MainWindow(QMainWindow):
         self.dock_manager.addDockWidget(CenterDockWidgetArea, status_dock)
         status_dock.show()
 
-        # Optional sample boards: prefer QWidget panels; fallback to QML
+        # Optional sample boards: prefer QWidget panels; fallback to legacy UI
         if TeamStatusPanel:
             try:
                 team_panel = TeamStatusPanel(self)
@@ -2852,13 +2643,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            try:
-                from data.sample_data import TEAM_ROWS, TEAM_HEADERS
-                qml_team = os.path.join("modules", "operations", "qml", "TeamStatus.qml")
-                team_ctx = {"teamRows": TEAM_ROWS, "teamHeaders": TEAM_HEADERS, "statusColumn": 4}
-                self._open_dock_from_qml_view(qml_team, "Team Status", float_on_open=False, context=team_ctx)
-            except Exception:
-                pass
+            show_qml_placeholder(title="Team Status", parent=self)
 
         if TaskStatusPanel:
             try:
@@ -2870,17 +2655,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            try:
-                from data.sample_data import TASK_ROWS, TASK_HEADERS
-                qml_task = os.path.join("modules", "operations", "qml", "TaskStatus.qml")
-                try:
-                    status_idx = TASK_HEADERS.index("Status")
-                except ValueError:
-                    status_idx = 2
-                task_ctx = {"taskRows": TASK_ROWS, "taskHeaders": TASK_HEADERS, "statusColumn": status_idx}
-                self._open_dock_from_qml_view(qml_task, "Task Status", float_on_open=False, context=task_ctx)
-            except Exception:
-                pass
+            show_qml_placeholder(title="Task Status", parent=self)
 
     def open_new_workspace_window(self) -> None:
         """Create a blank floating dock window you can move to another monitor.
@@ -3284,46 +3059,36 @@ class MainWindow(QMainWindow):
             pass
 
     def _init_notifications(self) -> None:
-        """Prepare toast container and hook up notifier signals."""
-        self._toast_widget = QQuickWidget(self)
-        self._toast_widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
-        qml_path = os.path.abspath(os.path.join("notifications", "qml", "ToastContainer.qml"))
-        self._toast_widget.setSource(QUrl.fromLocalFile(os.path.abspath(qml_path)))
+        self._toast_widget = None
         try:
-            self._toast_widget.setAttribute(Qt.WA_TranslucentBackground, True)
-            self._toast_widget.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        except Exception:
-            pass
-        self._toast_widget.setGeometry(self.width() - 360, 0, 360, self.height())
-        self._toast_widget.lower()
-        notifier = get_notifier()
-        notifier.showToast.connect(self._forward_toast)
-
-    def _forward_toast(self, payload: dict) -> None:
-        root = self._toast_widget.rootObject()
-        if root is not None:
+            notifier = get_notifier()
             try:
-                root.pushToast(payload)
+                notifier.showToast.disconnect(self._forward_toast)
             except Exception:
                 pass
+        except Exception:
+            pass
+
+    def _forward_toast(self, payload: dict) -> None:
+        return
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
-        if hasattr(self, "_toast_widget"):
-            self._toast_widget.setGeometry(
-                self.width() - self._toast_widget.width(),
-                0,
-                self._toast_widget.width(),
-                self.height(),
-            )
-            root = self._toast_widget.rootObject()
+        tw = getattr(self, "_toast_widget", None)
+        if not tw or not hasattr(tw, "setGeometry"):
+            return
+        try:
+            tw.setGeometry(self.width() - tw.width(), 0, tw.width(), self.height())
+            root = getattr(tw, "rootObject", lambda: None)()
             if root is not None:
                 try:
-                    root.setProperty("height", self._toast_widget.height())
+                    root.setProperty("width", tw.width())
+                    root.setProperty("height", tw.height())
                 except Exception:
                     pass
+        except Exception:
+            pass
 
-    # --- Metric Widgets (simple counters) ---------------------------------
     def open_home_dashboard(self) -> None:
         from ui.dashboard.home_dashboard import HomeDashboard
         panel = HomeDashboard(self.settings_manager, customization_repo=self.customization_repo)
@@ -3396,66 +3161,7 @@ class MetricWidget(QWidget):
         lay = QVBoxLayout(self)
         lay.addWidget(lab)
 
-    def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
-        """Open a QML Window (as a modal dialog) and inject the catalog bridge."""
-        view = QQuickView()
-        view.setTitle(title)
-        try:
-            view.setResizeMode(QQuickView.SizeRootObjectToView)
-        except Exception:
-            pass
 
-        if not hasattr(self, "_catalog_bridge"):
-            self._catalog_bridge = CatalogBridge(db_path="data/master.db")
-
-        ctx = view.rootContext()
-        ctx.setContextProperty("catalogBridge", self._catalog_bridge)
-        ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-
-        # Inject per-window SQLite models for master catalog windows
-        try:
-            # Strip the full suffix "Window.qml" (10 chars) to get the base name
-            name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
-            # Map window base name -> table name (validate against sqlite_master)
-            table = self._resolve_master_table(name)
-            print(f"[main._open_qml_modal:MetricWidget] qml='{qml_rel_path}', base='{base}', name='{name}', resolved_table='{table}'")
-            if table:
-                model_name = f"{name}Model"
-                model = SqliteTableModel("data/master.db")
-                sql = f"SELECT * FROM {table}"
-                print(f"[main._open_qml_modal:MetricWidget] injecting model '{model_name}' with sql: {sql}")
-                model.load_query(sql)
-                ctx.setContextProperty(model_name, model)
-                try:
-                    print(f"[main._open_qml_modal:MetricWidget] model '{model_name}' rowCount={model.rowCount()}")
-                except Exception:
-                    pass
-            else:
-                try:
-                    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-                    con = sqlite3.connect(db_path)
-                    cur = con.cursor()
-                    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                    tbls = [r[0] for r in cur.fetchall()]
-                    con.close()
-                    print(f"[main._open_qml_modal:MetricWidget] no table for '{name}'. sqlite tables: {tbls}")
-                except Exception as e:
-                    print(f"[main._open_qml_modal:MetricWidget] failed to enumerate tables: {e}")
-        except Exception as e:
-            print(f"[main] model injection error for {qml_rel_path}: {e}")
-
-        from pathlib import Path
-        qml_file = Path(__file__).resolve().parent / qml_rel_path
-        view.setSource(QUrl.fromLocalFile(str(qml_file)))
-        view.show()
-        if not hasattr(self, "_open_qml_views"):
-            self._open_qml_views = []
-        self._open_qml_views.append(view)
-
-    def _open_qml_placeholder(self, title: str, body: str, float_on_open: bool = True) -> None:
-        qml_file = os.path.join("ui", "qml", "PlaceholderPanel.qml")
-        ctx = {"panelTitle": title, "panelBody": body}
-        self._open_dock_from_qml(qml_file, title, float_on_open=float_on_open, context=ctx)
 
     # (Deprecated widget openers removed in favor of Home Dashboard)
 
@@ -3652,7 +3358,7 @@ if __name__ == "__main__":
 
     # Build main window after session is established
     settings_manager = _early_settings
-    settings_bridge = QmlSettingsBridge(settings_manager)
+    settings_bridge = SettingsBridge(settings_manager)
 
     # Initialize theme manager/bridge at app level as well
     try:
@@ -3689,7 +3395,7 @@ if __name__ == "__main__":
         print(f"[catalog] Seeder failed: {e}")
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
-    # Share the app-level theme objects with the window (used to inject into QML contexts)
+    # Share the app-level theme objects with the window (used to inject into legacy UI contexts)
     try:
         if _theme_manager:
             win.theme_manager = _theme_manager

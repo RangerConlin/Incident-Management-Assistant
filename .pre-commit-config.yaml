@@ -1,0 +1,21 @@
+﻿repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.6.0
+  hooks:
+    - id: check-ast
+    - id: check-byte-order-marker
+    - id: check-case-conflict
+    - id: check-merge-conflict
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+    - id: mixed-line-ending
+      args: [--fix=lf]
+
+- repo: local
+  hooks:
+    - id: encoding-audit
+      name: encoding-audit (UTF-8 + mojibake scan)
+      entry: python scripts/encoding_audit.py --fail-on-find --fail-kinds decode-error
+      language: system
+      types: [text]
+      pass_filenames: false

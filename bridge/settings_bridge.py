@@ -16,3 +16,22 @@ class QmlSettingsBridge(QObject):
     def setSetting(self, key, value):
         self.manager.set(key, value)
         self.settingChanged.emit(key, value)
+
+class SettingsBridge(QObject):
+    """Signal-emitting bridge around SettingsManager (no QML dependency)."""
+    settingChanged = Signal(str, 'QVariant')  # key, value
+
+    def __init__(self, manager):
+        super().__init__()
+        self.manager = manager
+
+    @Slot(str, result='QVariant')
+    def getSetting(self, key):
+        return self.manager.get(key)
+
+    @Slot(str, 'QVariant')
+    def setSetting(self, key, value):
+        self.manager.set(key, value)
+        self.settingChanged.emit(key, value)
+
+# Backwards-compat alias

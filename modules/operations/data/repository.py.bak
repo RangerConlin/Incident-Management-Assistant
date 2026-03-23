@@ -191,26 +191,10 @@ def _derive_team_status(row: sqlite3.Row) -> str:
     return "assigned"
 
 
-
-
-
-def fetch_task_rows() -> List[Dict[str, Any]]:
-    """Return task rows for the Task Status board from the incident DB.
-
-    Each dict contains: number, name, assigned_teams (List[str]), status,
-    priority, location.
-    """
-    with _connect() as con:
-        # Base task headers
-        tasks = con.execute(
-            "SELECT id, task_id, title, status, priority, location FROM tasks ORDER BY id"
-        ).fetchall()
-        # Ensure teams.current_task_id exists for filtering
-        _ensure_teams_current_task_column(con)
-        # Preload active assignments grouped by task_id, per policy: active iff team's current_task_id == task.id
+(con)\r\n        # Preload assignments grouped by task_id
         tt_rows = con.execute(
             """
-            SELECT tt.task_id,
+                        SELECT tt.task_id,
                    tt.teamid,
                    tt.sortie_id,
                    tm.name AS team_name
@@ -244,6 +228,7 @@ def fetch_task_rows() -> List[Dict[str, Any]]:
             }
         )
     return out
+
 
 def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
     """Return team rows for the Team Status board based on teams as the source.
@@ -610,14 +595,14 @@ def set_team_status(team_id: int, status_key: str) -> None:
                 tt_id = int(cur.lastrowid)
             col = col_map[key]
             con.execute(f"UPDATE task_teams SET {col}=? WHERE id=?", (now, tt_id))
-        con.commit()
+        con.commit(
         # Notify boards that assignment list may have changed
         try:
             if 'task_id' in locals() and task_id is not None:
                 from utils.app_signals import app_signals as _sig2
                 _sig2.taskHeaderChanged.emit(int(task_id), {'assigned_teams': True})
         except Exception:
-            pass
+            pass)
         # Emit teamStatusChanged for UI timers
         try:
             from utils.app_signals import app_signals
@@ -678,35 +663,3 @@ def set_team_status(team_id: int, status_key: str) -> None:
 
 
 
-
-
-
-def list_tasks_for_assignment() -> List[Dict[str, Any]]:
-    """Return a lightweight list of tasks for assignment pickers.
-
-    Each row: id, task_id (display number), title, status, location.
-    Safe across schema variants and ordered by id.
-    """
-    with _connect() as con:
-        try:
-            rows = con.execute(
-                "SELECT id, task_id, title, status, priority, location FROM tasks ORDER BY id"
-            ).fetchall()
-        except Exception:
-            rows = []
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        try:
-            out.append(
-                {
-                    "id": int(r["id"]) if r["id"] is not None else 0,
-                    "task_id": r["task_id"],
-                    "title": r["title"],
-                    "status": _task_status_label(r["status"]) if "status" in r.keys() else "",
-                    "priority": _priority_label(r["priority"]) if "priority" in r.keys() else "",
-                    "location": r["location"] if "location" in r.keys() else "",
-                }
-            )
-        except Exception:
-            pass
-    return out
