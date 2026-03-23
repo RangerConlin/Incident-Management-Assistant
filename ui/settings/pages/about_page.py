@@ -12,12 +12,12 @@ class AboutPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        title = QLabel("Incident Management Assistant\nVersion 0.0.1")
+        title = QLabel("Incident Management Assistant\nVersion Alpha 0.0.1")
         title.setStyleSheet("font-size: 16px; font-weight: 600;")
         title.setWordWrap(True)
         layout.addWidget(title)
 
-        copyright_label = QLabel("© 2024 Incident Management Assistant Team. All rights reserved.")
+        copyright_label = QLabel("© 2026 Arcadia Command Solutions LLC. All rights reserved.")
         copyright_label.setWordWrap(True)
         layout.addWidget(copyright_label)
 
@@ -25,7 +25,7 @@ class AboutPage(QWidget):
         license_label.setWordWrap(True)
         layout.addWidget(license_label)
 
-        contact_label = QLabel("Contact: bpheley@mi214cap.org | 517-554-0085")
+        contact_label = QLabel("Contact: pheleyb@arcadiacommandsolutions.com | 517-554-0085")
         contact_label.setWordWrap(True)
         layout.addWidget(contact_label)
 

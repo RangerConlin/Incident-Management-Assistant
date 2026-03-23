@@ -42,8 +42,8 @@ class AddVehicleDialog(QDialog):
         row = QHBoxLayout(); layout.addLayout(row)
         row.addWidget(QLabel("Search:"))
         self._txt = QLineEdit(self); row.addWidget(self._txt, 1)
-        self._tbl = QTableWidget(self); self._tbl.setColumnCount(5)
-        self._tbl.setHorizontalHeaderLabels(["ID","Name","Callsign","Type","Team"])
+        self._tbl = QTableWidget(self); self._tbl.setColumnCount(7)
+        self._tbl.setHorizontalHeaderLabels(["ID","Name","Callsign","Type","Team","Status","ETA"])
         try:
             self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
             self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -95,22 +95,37 @@ class AddVehicleDialog(QDialog):
             rid = str(r.get('id'))
             hay = ' '.join([rid,name,callsign,typ,team]).lower()
             if not q or q in hay:
-                rows.append((rid,name,callsign,typ,team))
+                status = str(r.get('status') or '').strip()
+                if not status:
+                    status = 'Assigned' if (str(r.get('team_id') or r.get('team_name') or '').strip()) else 'Available'
+                eta = str(r.get('eta') or r.get('eta_utc') or '')
+                rows.append((rid,name,callsign,typ,team,status,eta))
         self._tbl.setRowCount(len(rows))
-        for i,(rid,name,callsign,typ,team) in enumerate(rows):
-            for c,val in enumerate([rid,name,callsign,typ,team]):
+        for i,(rid,name,callsign,typ,team,status,eta) in enumerate(rows):
+            for c,val in enumerate([rid,name,callsign,typ,team,status,eta]):
                 it = QTableWidgetItem(val)
+                try:
+                    it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                except Exception:
+                    pass
                 if c==0: it.setData(Qt.UserRole, rid)
                 self._tbl.setItem(i,c,it)
     def _accept(self) -> None:
         try:
-            sel = self._tbl.selectionModel().selectedRows()
-            if not sel: return
-            idx = sel[0].row(); it = self._tbl.item(idx,0)
+            try:
+                sel = self._tbl.selectionModel().selectedRows()
+                idx = sel[0].row() if sel else self._tbl.currentRow()
+            except Exception:
+                idx = self._tbl.currentRow() if hasattr(self._tbl, 'currentRow') else -1
+            if idx is None or idx < 0:
+                return
+            it = self._tbl.item(idx,0)
             self.selected_id = None if it is None else it.data(Qt.UserRole)
-            if not self.selected_id: return
+            if not self.selected_id:
+                return
             self.accept()
-        except Exception: pass
+        except Exception:
+            pass
 
 class AddEquipmentDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -122,8 +137,8 @@ class AddEquipmentDialog(QDialog):
         row = QHBoxLayout(); layout.addLayout(row)
         row.addWidget(QLabel("Search:"))
         self._txt = QLineEdit(self); row.addWidget(self._txt, 1)
-        self._tbl = QTableWidget(self); self._tbl.setColumnCount(4)
-        self._tbl.setHorizontalHeaderLabels(["ID","Name","Type","Team"])
+        self._tbl = QTableWidget(self); self._tbl.setColumnCount(6)
+        self._tbl.setHorizontalHeaderLabels(["ID","Name","Type","Team","Status","ETA"])
         try:
             self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
             self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -174,22 +189,37 @@ class AddEquipmentDialog(QDialog):
             rid = str(r.get('id'))
             hay = ' '.join([rid,name,typ,team]).lower()
             if not q or q in hay:
-                rows.append((rid,name,typ,team))
+                status = str(r.get('status') or '').strip()
+                if not status:
+                    status = 'Assigned' if (str(r.get('team_id') or r.get('team_name') or '').strip()) else 'Available'
+                eta = str(r.get('eta') or r.get('eta_utc') or '')
+                rows.append((rid,name,typ,team,status,eta))
         self._tbl.setRowCount(len(rows))
-        for i,(rid,name,typ,team) in enumerate(rows):
-            for c,val in enumerate([rid,name,typ,team]):
+        for i,(rid,name,typ,team,status,eta) in enumerate(rows):
+            for c,val in enumerate([rid,name,typ,team,status,eta]):
                 it = QTableWidgetItem(val)
+                try:
+                    it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                except Exception:
+                    pass
                 if c==0: it.setData(Qt.UserRole, rid)
                 self._tbl.setItem(i,c,it)
     def _accept(self) -> None:
         try:
-            sel = self._tbl.selectionModel().selectedRows()
-            if not sel: return
-            idx = sel[0].row(); it = self._tbl.item(idx,0)
+            try:
+                sel = self._tbl.selectionModel().selectedRows()
+                idx = sel[0].row() if sel else self._tbl.currentRow()
+            except Exception:
+                idx = self._tbl.currentRow() if hasattr(self._tbl, 'currentRow') else -1
+            if idx is None or idx < 0:
+                return
+            it = self._tbl.item(idx,0)
             self.selected_id = None if it is None else it.data(Qt.UserRole)
-            if not self.selected_id: return
+            if not self.selected_id:
+                return
             self.accept()
-        except Exception: pass
+        except Exception:
+            pass
 class AddTeamMemberDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -205,8 +235,8 @@ class AddTeamMemberDialog(QDialog):
         row.addWidget(self._txt, 1)
         # Table
         self._tbl = QTableWidget(self)
-        self._tbl.setColumnCount(4)
-        self._tbl.setHorizontalHeaderLabels(["Name","Role","Team","Phone"])
+        self._tbl.setColumnCount(6)
+        self._tbl.setHorizontalHeaderLabels(["Name","Role","Team","Status","ETA","Phone"])
         try:
             self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
             self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -214,6 +244,15 @@ class AddTeamMemberDialog(QDialog):
             self._tbl.horizontalHeader().setStretchLastSection(True)
         except Exception:
             pass
+        try:
+            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        except Exception:
+            pass
+        try:
+            self._tbl.itemDoubleClicked.connect(self._on_row_double_clicked)
+        except Exception:
+            pass
+
         layout.addWidget(self._tbl, 1)
         # Footer
         bar = QHBoxLayout(); layout.addLayout(bar)
@@ -278,9 +317,40 @@ class AddTeamMemberDialog(QDialog):
             team = getattr(item, 'team', '') or 'Unassigned'
             phone = getattr(item, 'phone', '')
             pid = getattr(item, 'person_id', '')
-            vals = [name, role or '', team, phone or '']
+            status_val = ''
+            try:
+                from modules.logistics.checkin.models import CIStatus, PersonnelStatus as _PS
+                ci = getattr(item, 'ci_status', None)
+                ps = getattr(item, 'personnel_status', None)
+                if str(ps or '') == str(getattr(_PS, 'ASSIGNED')):
+                    status_val = 'Assigned'
+                elif str(ci or '') == str(getattr(CIStatus, 'CHECKED_IN')) or str(ci or '') == str(getattr(CIStatus, 'AT_ICP')):
+                    status_val = 'Checked In'
+                elif str(ci or '') == str(getattr(CIStatus, 'PENDING')):
+                    status_val = 'Enroute'
+                elif str(ps or '') == str(getattr(_PS, 'AVAILABLE')):
+                    status_val = 'Available'
+                elif ps:
+                    status_val = str(ps)
+                elif ci:
+                    status_val = str(ci)
+            except Exception:
+                status_val = ''
+            eta_val = ''
+            try:
+                from modules.logistics.checkin import repository as _ci_repo
+                rec = _ci_repo.fetch_checkin(str(pid))
+                if rec and str(getattr(rec, 'ci_status', '')) in ('Pending',):
+                    eta_val = getattr(rec, 'arrival_time', '') or ''
+            except Exception:
+                pass
+            vals = [name, role or '', team, status_val, eta_val, phone or '']
             for c, val in enumerate(vals):
                 it = QTableWidgetItem(str(val) if val is not None else '')
+                try:
+                    it.setFlags(it.flags() & ~Qt.ItemIsEditable)
+                except Exception:
+                    pass
                 if c == 0:
                     it.setData(Qt.UserRole, str(pid))
                 self._tbl.setItem(r, c, it)
@@ -289,12 +359,33 @@ class AddTeamMemberDialog(QDialog):
         try:
             sels = self._tbl.selectionModel().selectedRows()
         except Exception:
+            sels = []
+        idx = None
+        if sels:
+            idx = sels[0].row()
+        else:
+            try:
+                idx = self._tbl.currentRow()
+            except Exception:
+                idx = -1
+        if idx is None or idx < 0:
             return None
-        if not sels:
-            return None
-        idx = sels[0].row()
         it = self._tbl.item(idx, 0)
         return None if it is None else it.data(Qt.UserRole)
+
+    def _on_row_double_clicked(self, item):
+        try:
+            row = item.row() if hasattr(item, 'row') else self._tbl.currentRow()
+        except Exception:
+            row = self._tbl.currentRow() if hasattr(self._tbl, 'currentRow') else -1
+        if row is None or row < 0:
+            return
+        it = self._tbl.item(row, 0)
+        pid = None if it is None else it.data(Qt.UserRole)
+        if not pid:
+            return
+        self.selected_person_id = str(pid)
+        self.accept()
 
     def _accept(self) -> None:
         pid = self._selected_id()
@@ -475,6 +566,11 @@ class TeamDetailBridge(QObject):
             self._refresh_assets()
             self._auto_set_pilot()
             self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
             self.statusChanged.emit(self._team.status)
         except Exception as e:
             self.error.emit(f"Failed to load team: {e}")
@@ -511,6 +607,11 @@ class TeamDetailBridge(QObject):
             self._team.needs_attention = True
             self._persist_needs_attention(True)
             self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
             self._emit_incident_refresh()
         except Exception as e:
             self.error.emit(f"Failed to flag needs assistance: {e}")
@@ -522,6 +623,11 @@ class TeamDetailBridge(QObject):
             self._team.needs_attention = False
             self._persist_needs_attention(False)
             self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
             self._emit_incident_refresh()
         except Exception as e:
             self.error.emit(f"Failed to clear needs assistance: {e}")
@@ -885,6 +991,11 @@ class TeamDetailBridge(QObject):
                     pass
                 self._refresh_assets()
                 self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -895,6 +1006,11 @@ class TeamDetailBridge(QObject):
                 lid = fetch_team_leader_id(int(team_id))
                 self._team.team_leader_id = int(lid) if lid is not None else None
                 self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
         except Exception:
             pass
     def _auto_set_pilot(self) -> None:
@@ -999,6 +1115,11 @@ class TeamDetailBridge(QObject):
             if person_id in (None, ""):
                 return
             pid = int(person_id)
+            # Enforce uniqueness across teams and persist
+            try:
+                set_person_team(int(person_id), int(self._team.team_id))
+            except Exception:
+                pass
             # Update team.members list
             members = list(getattr(self._team, 'members', []) or [])
             if pid not in members:
@@ -1053,10 +1174,37 @@ class TeamDetailBridge(QObject):
             if not self._team.team_id:
                 raise RuntimeError("No team id")
             set_person_team(int(person_id), None)
+            # Also sync Check-In record to clear team assignment
+            try:
+                from modules.logistics.checkin import repository as ci_repo
+                rec = ci_repo.fetch_checkin(str(person_id))
+                if rec is not None:
+                    rec.team_id = None
+                    try:
+                        from modules.logistics.checkin.models import PersonnelStatus
+                        rec.personnel_status = PersonnelStatus.AVAILABLE
+                    except Exception:
+                        pass
+                    try:
+                        from datetime import datetime
+                        rec.updated_at = datetime.now().astimezone().isoformat()
+                    except Exception:
+                        pass
+                    ci_repo.save_checkin(rec)
+            except Exception:
+                pass
             # Clear leader if removing current leader
             if self._team.team_leader_id == int(person_id):
                 set_team_leader(int(self._team.team_id), None)
                 self._team.team_leader_id = None
+                try:
+                    set_team_leader_phone(int(self._team.team_id), None)
+                except Exception:
+                    pass
+                try:
+                    self._team.team_leader_phone = None
+                except Exception:
+                    pass
                 app_signals.teamLeaderChanged.emit(int(self._team.team_id))
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1186,6 +1334,11 @@ class TeamDetailBridge(QObject):
         try:
             self._team.current_task_id = int(task_id)
             self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
         except Exception as e:
             self.error.emit(f"Failed to link task: {e}")
 
@@ -1195,6 +1348,11 @@ class TeamDetailBridge(QObject):
             if self._team.current_task_id == int(task_id):
                 self._team.current_task_id = None
                 self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
         except Exception as e:
             self.error.emit(f"Failed to unlink task: {e}")
 
@@ -1248,6 +1406,11 @@ class TeamDetailBridge(QObject):
                 value = payload.get("route")
                 self._team.route = str(value) if value not in (None, "") else None
             self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
         except Exception as e:
             self.error.emit(f"Invalid input: {e}")
 
@@ -1311,6 +1474,11 @@ class TeamDetailBridge(QObject):
             except Exception:
                 pass
             self.teamChanged.emit()
+            try:
+                team_repo.save_team(self._team)
+                self._emit_incident_refresh()
+            except Exception:
+                pass
             app_signals.teamLeaderChanged.emit(int(self._team.team_id))
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
             self._emit_incident_refresh()
@@ -1524,7 +1692,7 @@ class TeamDetailWindow(QMainWindow):
         right_form.setLabelAlignment(Qt.AlignRight)
 
         last_contact_label = QLabel("Last Contact")
-        self._last_contact_value = QLabel("–")
+        self._last_contact_value = QLabel("â€“")
         right_form.addRow(last_contact_label, self._last_contact_value)
 
         task_row_widget = QWidget()
@@ -1534,7 +1702,7 @@ class TeamDetailWindow(QMainWindow):
         self._task_field = QLineEdit()
         self._task_field.setReadOnly(True)
         task_row_layout.addWidget(self._task_field)
-        self._task_button = QPushButton("Link…")
+        self._task_button = QPushButton("Linkâ€¦")
         task_row_layout.addWidget(self._task_button)
         self._unlink_task_button = QPushButton("Unlink")
         self._unlink_task_button.setVisible(False)
@@ -2060,12 +2228,12 @@ class TeamDetailWindow(QMainWindow):
         status = str(record.get("status") or "").strip()
         if not callsign:
             fallback = tail or record.get("identifier") or record.get("id")
-            callsign = str(fallback or "—").strip()
+            callsign = str(fallback or "â€”").strip()
         if not tail:
-            tail = "—"
+            tail = "â€”"
         if not status:
-            status = "—"
-        return f"{callsign or '—'} - {tail} - {status}"
+            status = "â€”"
+        return f"{callsign or 'â€”'} - {tail} - {status}"
 
     def _update_aircraft_assignment_display(self) -> None:
         if not hasattr(self, "_aircraft_combo"):
@@ -2190,7 +2358,7 @@ class TeamDetailWindow(QMainWindow):
 
     def _update_last_contact(self, team: Dict[str, Any]) -> None:
         ts = team.get("last_comm_ts") or team.get("last_contact_ts") or team.get("last_update_ts")
-        label = "–"
+        label = "â€“"
         if ts:
             try:
                 dt = datetime.fromisoformat(str(ts))
@@ -2219,7 +2387,7 @@ class TeamDetailWindow(QMainWindow):
             self._task_button.setText("Open")
             self._unlink_task_button.setVisible(True)
         else:
-            self._task_button.setText("Link…")
+            self._task_button.setText("Linkâ€¦")
             self._unlink_task_button.setVisible(False)
         self._view_task_button.setEnabled(bool(task_id))
 
@@ -2583,6 +2751,12 @@ class TeamDetailWindow(QMainWindow):
             self._handle_view_task()
             return
         dialog = getattr(self._bridge, "linkTaskDialog", None)
+        if dialog is None:
+            try:
+                dialog = TaskLinkDialog(self._bridge, self)
+                setattr(self._bridge, "linkTaskDialog", dialog)
+            except Exception:
+                dialog = None
         if dialog and hasattr(dialog, "open"):
             dialog.open()
             return
@@ -2747,3 +2921,104 @@ class TeamDetailWindow(QMainWindow):
 
 
 
+
+
+
+class TaskLinkDialog(QDialog):
+    """Modal picker to link a team to an existing task.
+
+    Double-clicking a row links the selected task to the current team and
+    sets the team status/timeline to Assigned via repository helpers.
+    """
+
+    def __init__(self, bridge: "TeamDetailBridge", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Select Task to Link")
+        self.resize(760, 520)
+        self._bridge = bridge
+
+        layout = QVBoxLayout(self)
+        row = QHBoxLayout(); layout.addLayout(row)
+        row.addWidget(QLabel("Search:"))
+        self._txt = QLineEdit(self); row.addWidget(self._txt, 1)
+
+        self._tbl = QTableWidget(self)
+        self._tbl.setColumnCount(6)
+        self._tbl.setHorizontalHeaderLabels(["ID", "Number", "Title", "Priority", "Status", "Location"])
+        try:
+            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            self._tbl.verticalHeader().setVisible(False)
+            self._tbl.horizontalHeader().setStretchLastSection(True)
+            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        except Exception:
+            pass
+        try:
+            self._tbl.itemDoubleClicked.connect(lambda *_: self._accept_and_link())
+        except Exception:
+            pass
+        layout.addWidget(self._tbl, 1)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Close, parent=self)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
+
+        self._txt.textChanged.connect(self._reload)
+        self._rows_cache: list[dict] = []
+        self._reload()
+
+    def _load_rows(self) -> list[dict]:
+        try:
+            from modules.operations.data.repository import list_tasks_for_assignment
+            return list_tasks_for_assignment()
+        except Exception:
+            return []
+
+    def _reload(self) -> None:
+        term = (self._txt.text() or "").strip().lower()
+        if not self._rows_cache:
+            self._rows_cache = self._load_rows()
+        rows: list[dict] = []
+        for r in (self._rows_cache or []):
+            hay = " ".join([
+                str(r.get("id", "")),
+                str(r.get("task_id", "")) or "",
+                str(r.get("title", "")) or "",
+                str(r.get("priority", "")) or "",
+                str(r.get("status", "")) or "",
+                str(r.get("location", "")) or "",
+            ]).lower()
+            if not term or term in hay:
+                rows.append(r)
+        self._tbl.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            values = [
+                str(r.get("id", "")),
+                str(r.get("task_id", "")) or "",
+                str(r.get("title", "")) or "",
+                str(r.get("priority", "")) or "",
+                str(r.get("status", "")) or "",
+                str(r.get("location", "")) or "",
+            ]
+            for c, val in enumerate(values):
+                it = QTableWidgetItem(val)
+                if c == 0:
+                    it.setData(Qt.UserRole, r.get("id"))
+                self._tbl.setItem(i, c, it)
+
+    def _accept_and_link(self) -> None:
+        try:
+            sel = self._tbl.selectionModel().selectedRows()
+            if not sel:
+                return
+            idx = sel[0].row(); it = self._tbl.item(idx, 0)
+            task_id = it.data(Qt.UserRole) if it is not None else None
+            if task_id in (None, ""):
+                return
+            try:
+                self._bridge.linkTask(int(task_id))
+            except Exception:
+                pass
+            self.accept()
+        except Exception:
+            pass

@@ -34,3 +34,11 @@ Thumbs.db
 # Temporary files
 tmp_*
 settings/ads_perspectives.ini
+scripts/dev
+old qml/
+_tmp_*
+tests/
+
+# Local dev scripts sandbox (ignored) 
+scripts/local/**
+

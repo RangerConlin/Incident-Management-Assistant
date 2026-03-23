@@ -1,4 +1,4 @@
-"""SQLite repository helpers for the Logistics Check-In module."""
+﻿"""SQLite repository helpers for the Logistics Check-In module."""
 from __future__ import annotations
 
 import json
@@ -267,7 +267,7 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
         personnel_status = PersonnelStatus.normalize(row["personnel_status"])
         team_label = row.get("team_name") or row.get("team_id")
         if not team_label:
-            team_label = "—"
+            team_label = "â€”"
         ui_flags = UIFlags(
             hidden_by_default=ci_status is CIStatus.NO_SHOW,
             grayed=ci_status is CIStatus.DEMOBILIZED,
@@ -279,7 +279,7 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
                 name=identity.name,
                 role=role,
                 team=team_label,
-                phone=row.get("incident_phone") or identity.phone,
+                phone=identity.phone or row.get("incident_phone"),
                 callsign=row.get("incident_callsign") or identity.callsign,
                 ci_status=ci_status,
                 personnel_status=personnel_status,
@@ -308,7 +308,7 @@ def fetch_checkin(person_id: str) -> Optional[CheckInRecord]:
 
 def save_checkin(record: CheckInRecord) -> CheckInRecord:
     payload = record.to_payload()
-    if payload.get("team_id") in {"—", ""}:
+    if payload.get("team_id") in {"â€”", ""}:
         payload["team_id"] = None
     with get_incident_conn() as conn:
         schema.ensure_incident_schema(conn)
@@ -345,6 +345,22 @@ def save_checkin(record: CheckInRecord) -> CheckInRecord:
             payload,
         )
         conn.commit()
+    # Mirror key contact fields into master personnel for consistency
+    try:
+        with get_master_conn() as mconn:
+            schema.ensure_master_schema(mconn)
+            pid = str(payload.get('person_id') or '')
+            if pid:
+                mconn.execute("INSERT OR IGNORE INTO personnel(id, name) VALUES(?, ?)", (pid, pid))
+                if payload.get('incident_phone') not in (None, ''):
+                    mconn.execute("UPDATE personnel SET phone = ? WHERE id = ?", (payload.get("incident_phone"), pid))
+                if payload.get('incident_callsign') not in (None, ''):
+                    mconn.execute("UPDATE personnel SET callsign = ? WHERE id = ?", (payload.get("incident_callsign"), pid))
+                if payload.get('role_on_team') not in (None, ''):
+                    mconn.execute("UPDATE personnel SET primary_role = ? WHERE id = ?", (payload.get("role_on_team"), pid))
+            mconn.commit()
+    except Exception:
+        pass
     return record
 
 
@@ -433,3 +449,5 @@ __all__ = [
     "save_queue_items",
     "load_queue_items",
 ]
+
+

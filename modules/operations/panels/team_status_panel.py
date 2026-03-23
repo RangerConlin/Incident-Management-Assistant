@@ -379,6 +379,14 @@ class TeamStatusPanel(QWidget):
         self._load_filters()
         # Initial load
         self.reload()
+        # Auto-refresh timer (configurable)
+        try:
+            self._auto_refresh_timer = QTimer(self)
+            self._auto_refresh_timer.setSingleShot(False)
+            self._auto_refresh_timer.timeout.connect(self.reload)
+            self._apply_refresh_interval(self._load_refresh_ms())
+        except Exception:
+            pass
         # Start a 1s timer to refresh the Last Update column
         try:
             self._last_update_timer = QTimer(self)
@@ -1087,6 +1095,22 @@ class TeamStatusPanel(QWidget):
                 act.setChecked(True)
             self._col_actions[idx] = act
         menu.addMenu(cols_menu)
+        # Auto-refresh submenu
+        refresh_menu = QMenu("Auto-Refresh", menu)
+        self._refresh_actions = {}
+        options = [
+            (0, "Off"),
+            (15000, "15 sec"),
+            (30000, "30 sec"),
+            (60000, "1 min"),
+            (120000, "2 min"),
+            (300000, "5 min"),
+        ]
+        for ms, label in options:
+            act = refresh_menu.addAction(label, lambda v=ms: self._set_refresh_ms(v))
+            act.setCheckable(True)
+            self._refresh_actions[ms] = act
+        menu.addMenu(refresh_menu)
         size_menu = QMenu("Text Size", menu)
         self._size_actions = {}
         for label in ("small", "medium", "large"):
@@ -1100,6 +1124,7 @@ class TeamStatusPanel(QWidget):
             self._update_column_checks()
         except Exception:
             pass
+        self._update_refresh_checks()
 
     def _update_text_size_checks(self) -> None:
         try:
@@ -1107,6 +1132,50 @@ class TeamStatusPanel(QWidget):
                 a.setChecked(k == self._text_size)
         except Exception:
             pass
+
+    def _update_refresh_checks(self) -> None:
+        try:
+            ms = getattr(self, "_refresh_ms", 0)
+            for val, act in getattr(self, "_refresh_actions", {}).items():
+                act.setChecked(int(val) == int(ms))
+        except Exception:
+            pass
+
+    # ------------------------------ Auto-refresh --------------------------- #
+    def _persist_refresh_ms(self, ms: int) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set("statusboard.team.refreshMs", int(max(0, ms)))
+        except Exception:
+            pass
+
+    def _load_refresh_ms(self) -> int:
+        try:
+            from utils.settingsmanager import SettingsManager
+            val = SettingsManager().get("statusboard.team.refreshMs", 30000)
+            return int(val or 0)
+        except Exception:
+            return 30000
+
+    def _apply_refresh_interval(self, ms: int) -> None:
+        try:
+            self._refresh_ms = int(max(0, ms))
+            t = getattr(self, "_auto_refresh_timer", None)
+            if t is None:
+                return
+            if self._refresh_ms <= 0:
+                t.stop()
+            else:
+                t.setInterval(self._refresh_ms)
+                if not t.isActive():
+                    t.start()
+            self._update_refresh_checks()
+        except Exception:
+            pass
+
+    def _set_refresh_ms(self, ms: int) -> None:
+        self._apply_refresh_interval(ms)
+        self._persist_refresh_ms(ms)
 
     def _set_text_size(self, label: str) -> None:
         self._text_size = label if label in ("small", "medium", "large") else "medium"

@@ -122,5 +122,6 @@
         "team_type"
     ],
     "lastIncidentNumber": "26-T-4301",
-    "statusboard.task.textSize": "large"
+    "statusboard.task.textSize": "large",
+    "statusboard.team.refreshMs": 15000
 }
