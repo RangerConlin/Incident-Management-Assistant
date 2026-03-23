@@ -304,4 +304,3 @@ class TemplateDebugPanel(QWidget):
         QMessageBox.information(
             self, "Activated", f"Active template set: {form_id} → {version}"
         )
-

@@ -714,7 +714,7 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
-    
+
     def _status_requires_task(self, status_key: str) -> bool:
         s = (status_key or '').strip().lower()
         return s not in {"available", "out of service", "oos", "break", "report writing", "returning", "rtb", "complete", "completed"}
@@ -1264,17 +1264,3 @@ class TeamStatusPanel(QWidget):
                 self._match_all = bool(filt.get("matchAll", True))
         except Exception:
             pass
-
-
-
-
-
-
-
-
-
-
-
-
-
-

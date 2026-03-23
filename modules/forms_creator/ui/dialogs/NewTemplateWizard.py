@@ -161,4 +161,3 @@ class NewTemplateWizard(QWizard):
             raise RuntimeError(f"Unable to load image {source}")
         image.save(str(image_path))
         return [image_path]
-

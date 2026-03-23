@@ -16,4 +16,3 @@ Item {
         Button { text: "Transport Ticket" }
     }
 }
-

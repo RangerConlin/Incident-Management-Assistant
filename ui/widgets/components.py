@@ -296,4 +296,3 @@ class ClockDualWidget(QWidget):
             local_dt = datetime.now()
         self.local_lbl.setText(f"Local: {local_dt.strftime('%Y-%m-%d %H:%M:%S')} ({tzname or 'Local'})")
         self.utc_lbl.setText(f"UTC:   {now_utc.strftime('%Y-%m-%d %H:%M:%S')} (UTC)")
-

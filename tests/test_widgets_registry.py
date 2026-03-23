@@ -29,4 +29,3 @@ def test_spec_shapes_minimal():
         assert spec.title and isinstance(spec.title, str)
         assert spec.default_size.w >= spec.min_size.w
         assert spec.default_size.h >= spec.min_size.h
-

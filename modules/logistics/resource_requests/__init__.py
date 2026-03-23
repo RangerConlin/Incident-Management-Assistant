@@ -75,4 +75,3 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
 
     db_path = Path("data") / "incidents" / f"{resolved_id}.db"
     return ResourceRequestService(incident_id=resolved_id, db_path=db_path)
-

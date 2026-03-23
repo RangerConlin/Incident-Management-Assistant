@@ -284,4 +284,3 @@ class CustomFilterDialog(QtWidgets.QDialog):
                 self._preset_combo.removeItem(idx)
             if s.get(f"{self._context_key}.preset_selected", None) == name:
                 s.set(f"{self._context_key}.preset_selected", None)
-

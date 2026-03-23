@@ -313,4 +313,3 @@ Scan complete:
   Mojibake hits: 291
   Control chars: 6
   Replacement chars: 1
-

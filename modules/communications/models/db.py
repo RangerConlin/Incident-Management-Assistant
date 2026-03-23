@@ -123,4 +123,3 @@ def master_cursor() -> Iterator[sqlite3.Cursor]:
 def incident_cursor(incident_number: str | int) -> Iterator[sqlite3.Cursor]:
     with get_incident_conn(incident_number) as c:
         yield c.cursor()
-

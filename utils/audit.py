@@ -79,7 +79,7 @@ def _get_conn(prefer_mission: bool) -> sqlite3.Connection:
                 ("timestamp", "TEXT"),
             ]
             create_sql = (
-                "CREATE TABLE IF NOT EXISTS audit_logs_mig (" + 
+                "CREATE TABLE IF NOT EXISTS audit_logs_mig (" +
                 ", ".join([f"{n} {t}" for n, t in union_columns]) + ")"
             )
             conn.execute(create_sql)

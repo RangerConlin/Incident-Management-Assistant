@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -39,6 +39,11 @@ old qml/
 _tmp_*
 tests/
 
-# Local dev scripts sandbox (ignored) 
+# Local dev scripts sandbox (ignored)
 scripts/local/**
 
+
+# Build artifacts
+dist/
+build/
+*.spec

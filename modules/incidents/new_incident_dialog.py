@@ -131,4 +131,3 @@ class NewIncidentDialog(QDialog):
 
 
 __all__ = ["IncidentMeta", "NewIncidentDialog"]
-

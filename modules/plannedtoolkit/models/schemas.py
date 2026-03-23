@@ -456,4 +456,3 @@ class PermissionOut(BaseModel):
     can_edit: bool = True
     can_finalize: bool = False
     can_export: bool = False
-

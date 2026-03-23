@@ -120,4 +120,3 @@ class AppState:
     @classmethod
     def get_active_op_period_id(cls):
         return cls.get_active_op_period()
-

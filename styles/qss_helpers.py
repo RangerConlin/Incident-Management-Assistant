@@ -194,4 +194,3 @@ def global_qss(tokens: dict) -> str:
             border-radius: 4px;
         }}
     """)
-

@@ -625,7 +625,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "Communications Quick Entry", None, "comms.quick_entry")
         self._add_action(m_comms, "Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
-        
+
 
         # ----- Intel -----
         m_intel = mb.addMenu("Intel")
@@ -946,7 +946,7 @@ class MainWindow(QMainWindow):
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
             "safety.caporm": self.open_safety_caporm,
-            
+
             "safety.weather.summary": self.open_weather_safety_summary,
             "safety.weather.timeline": self.open_weather_timeline,
             "safety.weather.aviation": self.open_weather_aviation,
@@ -3408,9 +3408,3 @@ if __name__ == "__main__":
         attach_dev_menu(win)
     win.show()
     sys.exit(app.exec())
-
-
-
-
-
-

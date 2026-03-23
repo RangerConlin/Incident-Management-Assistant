@@ -403,4 +403,3 @@ class QuickEntryWidget(QWidget):
 
 
 __all__ = ["QuickEntryWidget"]
-

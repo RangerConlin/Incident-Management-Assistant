@@ -39,4 +39,3 @@ def test_profile_lsar_team_leader(tmp_path):
         assert cert_api.person_meets_profile(person_id, "LSAR_TEAM_LEADER") is True
         cert_api.set_personnel_cert(person_id, s1_id, 1, None)
         assert cert_api.person_meets_profile(person_id, "LSAR_TEAM_LEADER") is False
-

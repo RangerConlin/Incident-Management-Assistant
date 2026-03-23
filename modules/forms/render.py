@@ -109,4 +109,3 @@ def render_form(
     else:
         pdf_bytes = render_overlay(field_values)
     return pdf_bytes
-

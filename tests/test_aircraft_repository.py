@@ -49,4 +49,3 @@ def test_assign_team_updates_fields(repo: AircraftRepository) -> None:
     assert updated is not None
     assert updated["assigned_team_name"] == "Team 42"
     assert updated["assigned_team_id"] == "42"
-

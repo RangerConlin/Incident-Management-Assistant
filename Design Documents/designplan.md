@@ -894,7 +894,7 @@ Features: Live status indicator; Inventory filter.
 ### Assignment Details
 Goal: Support CAPF 109, SAR 104, and ICS 204 by capturing form-specific details not located elsewhere in the tab.
 Contains two subtabs:
-o	Ground Information (default) 
+o	Ground Information (default)
 	Previous and Present Search Efforts in Area
 	Time Allocated
 	Size of Assignment
@@ -953,7 +953,7 @@ o	Mode (A/D/M)
 o	Remarks
 ### Debriefing
 Post-task review interface capturing debrief notes, lessons learned, and personnel feedback. Initial screen contains a log of completed debriefs.  Button at the top labeled “Add Debrief”.  This opens a window asking for the sortie number, Debriefer (Enter ID to reference name) and a checklist of different debrief types.  Types include Ground (SAR), Area Search Supplement, Tracking Team Supplement, Hasty Search Supplement, Air (General), Air (SAR Worksheet).  Ground (SAR) must be selected in order for area search, tracking team, or hasty search to be selected.  Air (General) must be selected in order for Air (SAR Worksheet) to be selected.  This check list selects which forms will be displayed.  After entering sortie number, debriefer ID, and selecting forms, the user clicks create which opens up the appropriate forms.  After saving the form, debriefs may be edited.  Information is sent to the planning debrief module and flagged for review.
-o	Ground (SAR) 
+o	Ground (SAR)
 	Assignment Summary (Free Text)
 	Describe Search Efforts in Assignment (Free Text)
 	Describe Portions Unable to Search (Free Text)
@@ -1270,7 +1270,7 @@ The Logistics Module manages all resource, supply, and equipment operations for 
   - Audit Trail: Full change history on all records.
   - Role-Based Access Control: Restricts critical actions to authorized users.
   - Integration with Mobile App: Supports mobile subincidents and updates.
-## Module 4-1: Resource Request 
+## Module 4-1: Resource Request
 Resource Request Module Design Document
 1. Module Name & Description
 **Logistics Resource Request** is the submodule within the Logistics section that enables personnel to create, track, manage, and fulfill requests for resources (personnel, equipment, supplies) during an incident. It streamlines the request-to-delivery workflow, ensuring timely provisioning and transparent status updates.
@@ -1377,7 +1377,7 @@ Resource Request Module Design Document
   - Column Views & Persistence:** Saved board views persist per-user and across sessions.
 
  
-## Module 5: Communications 
+## Module 5: Communications
 
 1. Module Name & Description
 The Communications Module manages all inbound, outbound, and internal messaging across the incident. It includes informal chat, structured message logging (ICS 213), and broadcast tools for alerts and status changes. It links directly with the Communications Unit Leader’s responsibilities and supports message traceability.
@@ -1439,7 +1439,7 @@ The Communications Module manages all inbound, outbound, and internal messaging 
   - - Channels can be filtered by group, location, or operational period
   - - Supports optional encryption for sensitive messages
  
-## Module 6: Medical and Safety 
+## Module 6: Medical and Safety
 1. Module Name & Description
 This module consolidates all health, injury, responder safety, and medical support tracking. It enables on-site triage tracking, responder health logs, safety briefings, and medical plan management. It serves both Medical Unit Leaders and Safety Officers.
 2. Primary Functions
@@ -2329,7 +2329,7 @@ A specialized suite of planning tools designed to support Search and Rescue (SAR
 
  
 ## Module 19: Planned Event Toolkit
-1. Module Name & Description	
+1. Module Name & Description
   Planned Events Toolkit: A suite of standalone modules, activated only for planned incidents (e.g., festivals, parades, marathons). Provides event-specific planning, public safety, and streamlined tasking—independent of core ICS features.
 2. Primary Functions
   - Loads dynamically when incident type is planned
@@ -2446,7 +2446,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
   - Role based perincidents via planned_event_roles
   - Offline support with automatic sync on reconnect
 
- 
+
 ## Module 19-1: Event Promotions and Communications
 1. Module Name & Description
 2. Primary Functions

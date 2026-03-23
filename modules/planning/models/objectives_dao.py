@@ -336,4 +336,3 @@ __all__ = [
     "ObjectivesDAO",
     "PRIORITY_VALUES",
 ]
-

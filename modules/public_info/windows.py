@@ -147,4 +147,3 @@ def get_inquiries_panel(
     v.addWidget(label)
     v.addStretch()
     return root
-

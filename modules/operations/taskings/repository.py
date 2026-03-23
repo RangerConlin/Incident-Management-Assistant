@@ -1661,5 +1661,3 @@ def create_task(title: str = "<New Task>", task_identifier: Optional[str] = None
         new_id = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
         con.commit()
         return new_id
-
-

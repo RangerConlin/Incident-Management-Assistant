@@ -422,7 +422,3 @@ class CheckInWindow(QWidget):
 
 
 __all__ = ["CheckInWindow"]
-
-
-
-

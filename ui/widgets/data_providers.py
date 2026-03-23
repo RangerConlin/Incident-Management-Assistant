@@ -140,4 +140,3 @@ def pio_getMediaLog(limit: int = 25) -> List[str]:
 
 def pio_getPendingApprovals() -> List[str]:
     return ["Press release #3", "Community notice #2"]
-

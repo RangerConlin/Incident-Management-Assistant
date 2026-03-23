@@ -186,4 +186,3 @@ def create_task_status_dock(parent=None):
     dock = CDockWidget("Task Status")
     dock.setWidget(w)
     return dock
-

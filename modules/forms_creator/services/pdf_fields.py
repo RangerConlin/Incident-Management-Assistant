@@ -329,4 +329,3 @@ def _normalise_options(value: object) -> list[str] | None:
                     continue
             options.append(normalised)
     return options or None
-

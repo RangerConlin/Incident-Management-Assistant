@@ -152,4 +152,3 @@ def update_team_status(task_id: int, tt_id: int, payload: Dict[str, Any]):
                 t.complete_ts = now
             return t
     raise HTTPException(404, detail="Team assignment not found")
-

@@ -1971,4 +1971,3 @@ class AircraftInventoryWindow(QDialog):
         if value is None:
             return ""
         return value
-

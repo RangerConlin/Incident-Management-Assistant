@@ -28,4 +28,3 @@ class AircraftCheckTransaction(Base):
     action = Column(String, nullable=False)  # check_out or check_in
     timestamp = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text)
-

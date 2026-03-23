@@ -17,4 +17,3 @@ def test_render_badge_rules():
     assert render_badge("ICS-100", 1) == "ICS-100-T"
     assert render_badge("ICS-100", 2) == "ICS-100"
     assert render_badge("ICS-100", 3) == "ICS-100-SET"
-

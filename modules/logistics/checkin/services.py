@@ -547,4 +547,3 @@ __all__ = [
     "get_service",
     "reset_service",
 ]
-

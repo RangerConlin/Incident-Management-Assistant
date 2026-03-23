@@ -978,10 +978,3 @@ if __name__ == "__main__":
     editor.resize(1100, 700)
     editor.show()
     sys.exit(app.exec())
-
-
-
-
-
-
-

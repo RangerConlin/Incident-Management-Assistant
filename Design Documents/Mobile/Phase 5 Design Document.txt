@@ -155,4 +155,3 @@ Backend sync & testing
 15–17
 
 Final QA, usability checks, packaging
-

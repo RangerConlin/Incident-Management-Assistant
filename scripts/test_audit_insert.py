@@ -10,4 +10,3 @@ write_audit("test.event", {"ping": "pong"}, prefer_mission=False)
 
 row = fetch_last_audit_rows(1)[0]
 print(dict(row))
-

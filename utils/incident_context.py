@@ -48,4 +48,3 @@ __all__ = [
     "get_active_incident_id",
     "get_active_incident_db_path",
 ]
-

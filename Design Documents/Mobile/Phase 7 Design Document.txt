@@ -161,4 +161,3 @@ Backend permissions + integration testing
 14–17
 
 UI polish, documentation, QA
-

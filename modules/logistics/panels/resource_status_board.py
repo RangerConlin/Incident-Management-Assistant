@@ -460,7 +460,7 @@ class ResourceStatusBoard(QWidget):
         source_index = self._proxy.mapToSource(index)
         return self._model.item_at(source_index.row())
 
- 
+
     def _edit_selected(self) -> None:
         item = self._selected_item()
         if item is None:

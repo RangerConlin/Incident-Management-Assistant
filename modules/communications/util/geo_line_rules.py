@@ -15,4 +15,3 @@ def line_c_applies(lat: Any, lon: Any) -> bool:  # noqa: ARG001
 
 
 __all__ = ["line_a_applies", "line_c_applies"]
-

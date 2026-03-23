@@ -231,6 +231,3 @@ class LoginDialog(QDialog):
 
 
 __all__ = ["LoginDialog", "STATIC_ROLES"]
-
-
-

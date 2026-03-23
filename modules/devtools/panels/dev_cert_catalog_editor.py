@@ -282,4 +282,3 @@ class DevCertCatalogEditor(QWidget):
 
 
 __all__ = ["DevCertCatalogEditor"]
-

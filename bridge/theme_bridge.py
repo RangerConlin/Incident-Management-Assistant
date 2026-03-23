@@ -19,4 +19,3 @@ class ThemeBridge(QObject):
     def updateTokens(self, tokens: dict):
         self._tokens = dict(tokens)
         self.tokensChanged.emit(self._tokens)
-

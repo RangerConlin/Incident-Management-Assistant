@@ -131,4 +131,3 @@ def test_add_team_snapshots_roster_when_team_columns_present(incident_data_dir: 
     vehicles = task_repository.list_task_vehicles(task_id)
     assert any(p.get("id") == 101 for p in people)
     assert any(v.get("id") == "V-101" for v in vehicles)
-

@@ -33,4 +33,3 @@ def test_cli_exec_parses_examples():
     assert "Log entry created" in r2
     r3 = execute_cli('comms add "CH5 secure traffic"')
     assert "Comms log entry created" in r3
-

@@ -152,4 +152,3 @@ def get_resource_status_board_panel(incident_id: object | None = None) -> QWidge
     if incident_id is not None:
         incident_context.set_active_incident(str(incident_id))
     return ResourceStatusBoard()
-

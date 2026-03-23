@@ -49,4 +49,3 @@ Item {
         onTriggered: root.searchChanged(field.text)
     }
 }
-

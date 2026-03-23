@@ -98,4 +98,3 @@ def test_team_status_sets_to_assigned_on_add(incident_data_dir: Path) -> None:
     assert row is not None
     assert (row[0] or "").strip().lower() == "assigned"
     assert isinstance(row[1], str) and len((row[1] or "").strip()) > 0
-

@@ -8,4 +8,3 @@ Item { anchors.fill: parent
             background: Rectangle { color: "transparent"; border.color: "#ccc"; radius: 6 } }
     }
 }
-

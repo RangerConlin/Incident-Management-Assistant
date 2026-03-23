@@ -981,4 +981,3 @@ if __name__ == "__main__":
     editor = show_objectives_editor(state)
     editor.raise_()
     sys.exit(app.exec())
-

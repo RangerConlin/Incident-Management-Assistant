@@ -68,5 +68,3 @@ def get_safety_panel(incident_id: object | None = None) -> QWidget:
 
 
 # No weather controller; weather submodule removed.
-
-

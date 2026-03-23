@@ -277,7 +277,7 @@ class PDFFiller:
             return str(value).upper()
         if transform == "lower":
             return str(value).lower()
-        
+
         if transform == "date_short":
             text = str(value).strip()
             if not text:

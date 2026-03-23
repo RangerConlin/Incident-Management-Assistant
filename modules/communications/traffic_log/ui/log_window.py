@@ -347,7 +347,7 @@ class CommunicationsLogWindow(QMainWindow):
     def _focus_quick_entry(self) -> None:
         self.quick_entry.focus_message()
 
-    
+
 
     def _focus_filters(self) -> None:
         if getattr(self, "filter_button", None) and self.filter_button.menu():

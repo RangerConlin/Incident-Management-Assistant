@@ -153,5 +153,3 @@ Backend integration and linking to Phase 2–3 mobile features
 15–17
 
 Final QA, bug fixes, and command UI cleanup
-
-

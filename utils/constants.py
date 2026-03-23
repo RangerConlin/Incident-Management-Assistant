@@ -65,7 +65,7 @@ PERSONNEL_STATUSES = [
     "Pending",
     "Unavailable",
     "Demobilized",
-]    
+]
 
 
 # Detailed team type metadata used throughout the UI. The `planned_only`

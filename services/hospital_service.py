@@ -230,4 +230,3 @@ class HospitalService:
 
 
 __all__ = ["HospitalService"]
-

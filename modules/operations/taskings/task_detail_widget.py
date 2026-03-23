@@ -555,7 +555,7 @@ class TaskDetailWindow(QWidget):
             "Complete",
         ]
         self._teams_model = QStandardItemModel(0, len(self._teams_headers_base), self)
-        self._teams_model.setHorizontalHeaderLabels(list(self._teams_headers_base)) 
+        self._teams_model.setHorizontalHeaderLabels(list(self._teams_headers_base))
         self._teams_table = QTableView(self)
         self._teams_table.setModel(self._teams_model)
         self._teams_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -612,7 +612,7 @@ class TaskDetailWindow(QWidget):
             pass
         self._pers_headers_base = ["Active", "Name", "ID", "Rank", "Role", "Organization", "Phone", "Team"]
         self._pers_model = QStandardItemModel(0, len(self._pers_headers_base), self)
-        self._pers_model.setHorizontalHeaderLabels(list(self._pers_headers_base)) 
+        self._pers_model.setHorizontalHeaderLabels(list(self._pers_headers_base))
         self._pers_table = QTableView(self)
         self._pers_table.setModel(self._pers_model)
         self._pers_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -903,7 +903,7 @@ class TaskDetailWindow(QWidget):
                 try:
                     cb.addItems(list(_RADIO_TASK_FUNCTIONS))
                 except Exception:
-                    cb.addItems(["PRIMARY", "SECONDARY", "COMMAND", "TACTICAL"]) 
+                    cb.addItems(["PRIMARY", "SECONDARY", "COMMAND", "TACTICAL"])
                 return cb
 
             def setEditorData(self, editor, index):  # type: ignore[override]
@@ -2438,7 +2438,7 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
             self._teams_model.appendRow(row)
-        
+
                 # Reconnect itemChanged handler if we disconnected it
         try:
             if _reconnect_item_changed:
@@ -4227,8 +4227,3 @@ class TaskDetailWindow(QWidget):
                 self.load_teams()
             except Exception:
                 pass
-
-
-
-
-

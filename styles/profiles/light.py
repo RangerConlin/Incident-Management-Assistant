@@ -141,4 +141,3 @@ __all__ = [
     "TASK_STATUS",
     "TEAM_TYPE_COLORS",
 ]
-

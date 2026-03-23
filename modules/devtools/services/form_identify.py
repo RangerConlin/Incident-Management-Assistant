@@ -76,4 +76,3 @@ def guess_form_id_and_version(pdf_path: Path) -> Tuple[Optional[str], Optional[s
 
 
 __all__ = ["guess_form_id_and_version"]
-

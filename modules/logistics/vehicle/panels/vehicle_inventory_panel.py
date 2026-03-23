@@ -2100,4 +2100,3 @@ class VehicleInventoryDialog(QDialog):
         """Return the embedded inventory panel instance."""
 
         return self._panel
-

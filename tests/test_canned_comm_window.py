@@ -50,4 +50,3 @@ def test_id_column_hidden_and_selection_maps_correctly():
     assert selected is not None
     # After sort, first by title should be Alpha (id=1)
     assert int(selected.get("id")) == 1
-

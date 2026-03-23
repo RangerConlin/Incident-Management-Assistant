@@ -42,4 +42,3 @@ def render_preview(
         )
 
     return PreviewResult(pdf_bytes=pdf_bytes, preview_png=preview_png, log=str(logs))
-

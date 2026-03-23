@@ -74,4 +74,3 @@ def build_ics206(incident_id: str, payload: schemas.ICS206Create):
 
 
 # Weather Safety endpoints removed with weather submodule.
-

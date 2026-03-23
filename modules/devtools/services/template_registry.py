@@ -161,4 +161,3 @@ class TemplateRegistry:
             "removed": sorted(list(old - new)),
             "common": sorted(list(old & new)),
         }
-

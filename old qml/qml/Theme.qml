@@ -7,4 +7,3 @@ QtObject {
     // Usage: Theme.tokens.bg_window, Theme.tokens.accent, etc.
     property var tokens: ({})
 }
-

@@ -157,4 +157,3 @@ def find_team_ids_by_label(label: str) -> list[int]:
             (term, term),
         ).fetchall()
     return [int(r["id"]) for r in rows]
-

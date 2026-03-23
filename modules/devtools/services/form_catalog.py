@@ -162,4 +162,3 @@ __all__ = [
     "TemplateEntry",
     "CATALOG_PATH",
 ]
-

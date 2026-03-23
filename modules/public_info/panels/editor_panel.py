@@ -312,4 +312,3 @@ class EditorPanel(QWidget):
         v.addWidget(bb)
         dlg.resize(700, 500)
         dlg.exec()
-

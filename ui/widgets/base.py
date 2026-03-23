@@ -44,4 +44,3 @@ def snap_width(w: int) -> int:
     # choose closest by absolute difference, prefer larger on ties
     best = min(ALLOWED_WIDTHS, key=lambda x: (abs(x - w), -x))
     return best
-

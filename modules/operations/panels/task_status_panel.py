@@ -608,5 +608,3 @@ class TaskStatusPanel(QWidget):
     def _set_refresh_ms(self, ms: int) -> None:
         self._apply_refresh_interval(ms)
         self._persist_refresh_ms(ms)
-
-

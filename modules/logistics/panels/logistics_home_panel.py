@@ -52,4 +52,3 @@ class LogisticsHomePanel(QWidget):
             # Simple heading indicating the active incident; real implementation
             # would show KPIs here.
             layout.addWidget(QLabel(f"Active incident: {incident_id}"))
-

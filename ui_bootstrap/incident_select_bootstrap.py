@@ -162,7 +162,3 @@ def show_incident_selector(on_select: Optional[Callable[[int], None]] = None):
 if __name__ == "__main__":
     # Allow manual testing when run directly
     show_incident_selector()
-
-
-
-

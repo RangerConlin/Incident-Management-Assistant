@@ -158,4 +158,3 @@ def get_incident_by_number(incident_number):
         keys = [desc[0] for desc in description]
         return dict(zip(keys, row))
     return None
-
