@@ -1,4 +1,4 @@
-﻿* text=auto eol=lf
+* text=auto eol=lf
 
 # Treat known binaries as binary (no line ending or encoding changes)
 *.png binary

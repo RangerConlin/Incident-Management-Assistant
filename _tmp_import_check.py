@@ -1,4 +1,4 @@
-﻿import importlib.util
+import importlib.util
 p='modules/operations/data/repository.py'
 spec=importlib.util.spec_from_file_location('opsrepo', p)
 m=importlib.util.module_from_spec(spec)

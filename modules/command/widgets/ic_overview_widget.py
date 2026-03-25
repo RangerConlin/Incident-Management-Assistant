@@ -1,4 +1,4 @@
-﻿"""Incident Commander overview widget."""
+"""Incident Commander overview widget."""
 from __future__ import annotations
 
 import logging

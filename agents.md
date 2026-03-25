@@ -1,4 +1,4 @@
-﻿# AGENTS
+# AGENTS
 
 ## Incident-Management-Assistant Overview
 - Desktop-first incident management suite built with **PySide6**.

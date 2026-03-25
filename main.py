@@ -1,4 +1,4 @@
-﻿# ===== Part 1: Imports & Logging ============================================
+# ===== Part 1: Imports & Logging ============================================
 import json
 import os
 import sys

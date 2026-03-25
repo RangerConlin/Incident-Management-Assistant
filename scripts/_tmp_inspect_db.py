@@ -1,4 +1,4 @@
-﻿import sqlite3, sys
+import sqlite3, sys
 
 db = sys.argv[1] if len(sys.argv) > 1 else 'data/incidents/26-T-4301.db'
 conn = sqlite3.connect(db)

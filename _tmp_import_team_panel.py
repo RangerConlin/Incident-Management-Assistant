@@ -1,4 +1,4 @@
-﻿import importlib.util, sys
+import importlib.util, sys
 p='modules/operations/panels/team_status_panel.py'
 spec=importlib.util.spec_from_file_location('tpanel', p)
 m=importlib.util.module_from_spec(spec)

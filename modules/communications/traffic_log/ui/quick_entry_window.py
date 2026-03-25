@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QStatusBar, QWidget, QVBoxLayout

@@ -1,4 +1,4 @@
-﻿name: Encoding + Lint (pre-commit)
+name: Encoding + Lint (pre-commit)
 
 on:
   push:

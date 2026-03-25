@@ -1,4 +1,4 @@
-﻿"""Bootstrap launcher for the Incident selection window.
+"""Bootstrap launcher for the Incident selection window.
 
 This module wires up the model, proxy and controller before loading the
 ``IncidentSelectWindow.qml`` screen. It allows the selector to be executed as

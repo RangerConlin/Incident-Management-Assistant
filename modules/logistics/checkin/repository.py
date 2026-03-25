@@ -1,4 +1,4 @@
-﻿"""SQLite repository helpers for the Logistics Check-In module."""
+"""SQLite repository helpers for the Logistics Check-In module."""
 from __future__ import annotations
 
 import json

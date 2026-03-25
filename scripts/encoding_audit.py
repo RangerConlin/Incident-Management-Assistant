@@ -1,147 +1,210 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 import argparse
 import os
 import sys
-import re
 from pathlib import Path
-from collections import Counter
 
-# Binary-like extensions to skip
-BINARY_EXTS = {
-    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.pdf', '.db', '.db-journal', '.sqlite', '.sqlite3',
-    '.pyc', '.pyd', '.pyo', '.dll', '.exe', '.so', '.dylib', '.ttf', '.woff', '.woff2', '.eot', '.otf', '.zip', '.tar', '.gz', '.7z',
-    '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'
+EXCLUDE_DIRS = {
+    '.git', '.hg', '.svn', '.venv', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache',
+    'node_modules', 'dist', 'build', '.idea', '.vscode', '.history'
 }
 
-SKIP_DIRS = {'.git', '.venv', '.venv313', '__pycache__', 'node_modules', 'reports'}
-SKIP_FILES = {'scripts/encoding_audit.py'}
+BINARY_EXTS = {
+    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.pdf', '.zip', '.gz', '.7z', '.rar',
+    '.mp3', '.mp4', '.avi', '.mov', '.ogg', '.woff', '.woff2', '.ttf', '.otf', '.dll', '.so',
+    '.dylib', '.exe'
+}
 
-# Common mojibake sequences when UTF-8 is decoded as Windows-1252/Latin-1
-MOJIBAKE_PATTERNS = [
-    'â€™', 'â€˜', 'â€œ', 'â€\u009d', 'â€\u009c', 'â€”', 'â€“', 'â€¢', 'â€¦',
-    'Â©', 'Â®', 'Â«', 'Â»', 'Â€', 'â‚¬', 'Â·', 'Â ', 'Ã', '�'
-]
-
-CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
-
-
-def is_binary_path(p: Path) -> bool:
-    return p.suffix.lower() in BINARY_EXTS
+UTF8_BOM = b"\xEF\xBB\xBF"
+UTF16_LE_BOM = b"\xFF\xFE"
+UTF16_BE_BOM = b"\xFE\xFF"
+UTF32_LE_BOM = b"\xFF\xFE\x00\x00"
+UTF32_BE_BOM = b"\x00\x00\xFE\xFF"
 
 
-def iter_text_files(root: Path):
-    for base, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
-        for f in files:
-            p = Path(base) / f
-            if is_binary_path(p):
-                continue
-            rel = str(p).replace('\\', '/')
-            if any(rel.endswith(s) for s in SKIP_FILES):
-                continue
-            yield p
+def is_binary_bytes(sample: bytes) -> bool:
+    if b"\x00" in sample:
+        return True
+    # Heuristic: too many non-text bytes
+    text_chars = bytearray({7,8,9,10,12,13,27} | set(range(0x20, 0x100)))
+    nontext = sample.translate(None, text_chars)
+    return len(nontext) / max(1, len(sample)) > 0.30
 
 
-def try_read_utf8(path: Path):
-    data = path.read_bytes()
+def should_skip(path: Path) -> bool:
+    if any(part in EXCLUDE_DIRS for part in path.parts):
+        return True
+    if path.suffix.lower() in BINARY_EXTS:
+        return True
     try:
-        text = data.decode('utf-8')
-        return text, None
-    except UnicodeDecodeError as e:
-        return None, e
-
-
-def scan_text(text: str):
-    findings = []
-    for m in re.finditer('\uFFFD', text):
-        line_no = text.count('\n', 0, m.start()) + 1
-        col_no = m.start() - (text.rfind('\n', 0, m.start()) + 1)
-        excerpt = text.splitlines()[line_no - 1][:200]
-        findings.append(('replacement', line_no, col_no, excerpt))
-    for m in CONTROL_CHARS_RE.finditer(text):
-        line_no = text.count('\n', 0, m.start()) + 1
-        col_no = m.start() - (text.rfind('\n', 0, m.start()) + 1)
-        excerpt = text.splitlines()[line_no - 1][:200]
-        findings.append(('control', line_no, col_no, excerpt))
-    for pat in MOJIBAKE_PATTERNS:
-        start = 0
-        while True:
-            idx = text.find(pat, start)
-            if idx == -1:
-                break
-            line_no = text.count('\n', 0, idx) + 1
-            col_no = idx - (text.rfind('\n', 0, idx) + 1)
-            excerpt = text.splitlines()[line_no - 1][:200]
-            findings.append(('mojibake', line_no, col_no, excerpt))
-            start = idx + len(pat)
-    return findings
-
-
-def _safe(s: str) -> str:
-    try:
-        return s.encode('ascii', 'backslashreplace').decode('ascii')
+        with path.open('rb') as f:
+            sample = f.read(4096)
+        return is_binary_bytes(sample)
     except Exception:
-        return repr(s)
+        return True
+
+
+def analyze(path: Path):
+    info = {
+        'utf8_bom': False,
+        'utf16_bom': False,
+        'utf32_bom': False,
+        'not_utf8': False,
+        'crlf': False,
+        'error': None,
+    }
+    try:
+        data = path.read_bytes()
+        if data.startswith(UTF8_BOM):
+            info['utf8_bom'] = True
+        elif data.startswith(UTF16_LE_BOM) or data.startswith(UTF16_BE_BOM):
+            info['utf16_bom'] = True
+        elif data.startswith(UTF32_LE_BOM) or data.startswith(UTF32_BE_BOM):
+            info['utf32_bom'] = True
+        # EOL check
+        if b"\r\n" in data:
+            info['crlf'] = True
+        # UTF-8 check (ignore BOM by slicing it off)
+        to_check = data[3:] if info['utf8_bom'] else data
+        to_check.decode('utf-8')
+    except UnicodeDecodeError as e:
+        info['not_utf8'] = True
+        info['error'] = str(e)
+    except Exception as e:
+        info['error'] = f"{type(e).__name__}: {e}"
+    return info
+
+
+def fix_file(path: Path, normalize_eol: bool = False) -> tuple[bool, str | None]:
+    try:
+        data = path.read_bytes()
+        changed = False
+        # Convert UTF-32/16 with BOM to UTF-8
+        if data.startswith(UTF32_LE_BOM) or data.startswith(UTF32_BE_BOM):
+            text = data.decode('utf-32')
+            changed = True
+        elif data.startswith(UTF16_LE_BOM) or data.startswith(UTF16_BE_BOM):
+            text = data.decode('utf-16')
+            changed = True
+        else:
+            # Strip UTF-8 BOM if present
+            if data.startswith(UTF8_BOM):
+                data = data[len(UTF8_BOM):]
+                changed = True
+            # Try utf-8 decode; if fails, re-raise
+            text = data.decode('utf-8')
+        if normalize_eol:
+            new_text = text.replace('\r\n', '\n')
+            if new_text != text:
+                changed = True
+            text = new_text
+        if changed:
+            path.write_text(text, encoding='utf-8', newline='\n' if normalize_eol else None)
+        return changed, None
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
 
 
 def main():
-    ap = argparse.ArgumentParser(description='Scan repository for encoding issues (UTF-8 enforcement).')
-    ap.add_argument('--root', type=Path, default=Path.cwd(), help='Root directory to scan')
-    ap.add_argument('--fail-on-find', action='store_true', help='Exit non-zero if any issues are found')
-    ap.add_argument('--summary', action='store_true', help='Only print summary counts')
-    ap.add_argument('--fail-kinds', default='decode-error,mojibake,control,replacement',
-                    help='Comma-separated kinds that cause non-zero exit: decode-error, mojibake, control, replacement')
-    args = ap.parse_args()
+    p = argparse.ArgumentParser(description='Audit repository text encodings for UTF-8 without BOM.')
+    p.add_argument('--root', default='.', help='Root directory to scan (default: .)')
+    p.add_argument('--summary', action='store_true', help='Print summary of findings')
+    p.add_argument('--list', dest='list_paths', action='store_true', help='List offending file paths')
+    p.add_argument('--fail-on-find', action='store_true', help='Exit with code 1 if any offenders found')
+    p.add_argument('--fix', action='store_true', help='Attempt to convert offenders to UTF-8 (no BOM)')
+    p.add_argument('--normalize-eol', action='store_true', help='When fixing, normalize CRLF to LF')
+    args = p.parse_args()
 
-    fail_kinds = set(k.strip() for k in args.fail_kinds.split(',') if k.strip())
+    root = Path(args.root)
+    offenders = {
+        'utf8_bom': [],
+        'utf16_bom': [],
+        'utf32_bom': [],
+        'not_utf8': [],
+        'crlf': [],
+        'errors': {},
+    }
 
-    total = 0
-    decode_errors = 0
-    hits = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Prune excluded dirs in-place
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+        for name in filenames:
+            pth = Path(dirpath, name)
+            if should_skip(pth):
+                continue
+            info = analyze(pth)
+            if info['utf8_bom']:
+                offenders['utf8_bom'].append(pth)
+            if info['utf16_bom']:
+                offenders['utf16_bom'].append(pth)
+            if info['utf32_bom']:
+                offenders['utf32_bom'].append(pth)
+            if info['not_utf8']:
+                offenders['not_utf8'].append(pth)
+            if info['crlf']:
+                offenders['crlf'].append(pth)
+            if info['error']:
+                offenders['errors'][str(pth)] = info['error']
 
-    for p in iter_text_files(args.root):
-        total += 1
-        text, err = try_read_utf8(p)
-        if err is not None:
-            decode_errors += 1
-            pos = err.start
-            data = p.read_bytes()
-            context = data[max(0, pos-8):pos+8]
-            hexbytes = ' '.join(f'{b:02X}' for b in context)
-            print(f'DECODE-ERROR {p} @ byte {pos}: {hexbytes}')
-            continue
-        findings = scan_text(text)
-        for kind, ln, col, ex in findings:
-            hits.append((p, kind, ln, col, ex.strip()))
+    total_offenders = sum(len(v) for k, v in offenders.items() if k != 'errors')
 
-    by_kind = {'decode-error': decode_errors, 'mojibake': 0, 'control': 0, 'replacement': 0}
-    for _, kind, *_ in hits:
-        by_kind[kind] += 1
+    if args.fix:
+        changed_count = 0
+        for pth in offenders['utf8_bom'] + offenders['utf16_bom'] + offenders['utf32_bom'] + offenders['not_utf8']:
+            changed, err = fix_file(pth, normalize_eol=args.normalize_eol)
+            if err:
+                offenders['errors'][str(pth)] = err
+            if changed:
+                changed_count += 1
+        # Recompute offenders after fix pass
+        offenders = {
+            'utf8_bom': [], 'utf16_bom': [], 'utf32_bom': [], 'not_utf8': [], 'crlf': [], 'errors': offenders['errors']
+        }
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+            for name in filenames:
+                pth = Path(dirpath, name)
+                if should_skip(pth):
+                    continue
+                info = analyze(pth)
+                if info['utf8_bom']:
+                    offenders['utf8_bom'].append(pth)
+                if info['utf16_bom']:
+                    offenders['utf16_bom'].append(pth)
+                if info['utf32_bom']:
+                    offenders['utf32_bom'].append(pth)
+                if info['not_utf8']:
+                    offenders['not_utf8'].append(pth)
+                if info['crlf']:
+                    offenders['crlf'].append(pth)
+                if info['error']:
+                    offenders['errors'][str(pth)] = info['error']
+        total_offenders = sum(len(v) for k, v in offenders.items() if k != 'errors')
+        print(f"Fix pass complete. Files changed: {changed_count}")
 
-    file_counts = Counter(p for p, *_ in hits)
+    if args.summary:
+        print("Encoding audit summary:")
+        print(f"  UTF-8 BOM: {len(offenders['utf8_bom'])}")
+        print(f"  UTF-16 BOM: {len(offenders['utf16_bom'])}")
+        print(f"  UTF-32 BOM: {len(offenders['utf32_bom'])}")
+        print(f"  Not UTF-8 decodable: {len(offenders['not_utf8'])}")
+        print(f"  CRLF endings detected: {len(offenders['crlf'])}")
+        if offenders['errors']:
+            print(f"  Errors: {len(offenders['errors'])}")
+    if args.list_paths:
+        for key in ['utf8_bom','utf16_bom','utf32_bom','not_utf8','crlf']:
+            if offenders[key]:
+                print(f"\n{key}:")
+                for p in offenders[key]:
+                    print(str(p))
+        if offenders['errors']:
+            print("\nerrors:")
+            for p, e in offenders['errors'].items():
+                print(f"{p}: {e}")
 
-    if not args.summary:
-        for p, kind, ln, col, ex in hits[:500]:
-            print(f'{kind.upper():12} {p}:{ln}:{col+1}  ' + _safe(ex))
-        if len(hits) > 500:
-            print(f'... truncated {len(hits) - 500} additional hits ...')
-        if file_counts:
-            print('\nTop files by hits:')
-            for p, c in file_counts.most_common(10):
-                print(f'  {p}: {c}')
-
-    print('\nScan complete:')
-    print(f'  Files scanned: {total}')
-    print(f'  Decode errors: {by_kind["decode-error"]}')
-    print(f'  Mojibake hits: {by_kind["mojibake"]}')
-    print(f'  Control chars: {by_kind["control"]}')
-    print(f'  Replacement chars: {by_kind["replacement"]}')
-
-    if args.fail_on_find:
-        for kind, count in by_kind.items():
-            if kind in fail_kinds and count:
-                sys.exit(1)
+    if args.fail_on_find and total_offenders > 0:
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
