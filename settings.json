@@ -19,7 +19,7 @@
     "commsLogVerbosity": 1,
     "localSyncBackup": true,
     "autoBackupInterval": 5,
-    "aiRecommendations": true,
+    "aiRecommendations": false,
     "lanCollaboration": true,
     "basemapSource": 0,
     "uiTemplateIndex": 3,

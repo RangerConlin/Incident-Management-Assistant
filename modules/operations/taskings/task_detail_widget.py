@@ -348,7 +348,8 @@ class TaskDetailWindow(QWidget):
         root.addWidget(tabs, 1)
 
         # Narrative tab
-        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical", "214+"]
+        # Add a small dropdown cue on Critical to make editability obvious
+        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical ▼", "214+"]
         self._nar_model = QStandardItemModel(0, len(self._nar_headers_base), self)
         self._nar_model.setHorizontalHeaderLabels(self._nar_headers_base)
         nar_content = QWidget(self)
@@ -1126,6 +1127,15 @@ class TaskDetailWindow(QWidget):
             self._model_214 = QStandardItemModel(0, 3, self)
             self._model_214.setHorizontalHeaderLabels(["Timestamp", "Entry", "Entered By"])
             self._tbl_214.setModel(self._model_214); self._tbl_214.setSortingEnabled(True)
+            # Resize behavior: Timestamp autosize to contents; Entry stretches
+            try:
+                hh214 = self._tbl_214.horizontalHeader()
+                hh214.setStretchLastSection(False)
+                hh214.setSectionResizeMode(QHeaderView.Interactive)
+                hh214.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+                hh214.setSectionResizeMode(1, QHeaderView.Stretch)
+            except Exception:
+                pass
             ics_layout.addWidget(self._tbl_214)
             self._log_tabs.addTab(ics214, "ICS-214")
             # Task Log
@@ -1141,6 +1151,13 @@ class TaskDetailWindow(QWidget):
             self._model_tlog = QStandardItemModel(0, 5, self)
             self._model_tlog.setHorizontalHeaderLabels(["Timestamp", "Field Changed", "Old Value", "New Value", "Changed By"])
             self._tbl_tlog.setModel(self._model_tlog); self._tbl_tlog.setSortingEnabled(True)
+            try:
+                hht = self._tbl_tlog.horizontalHeader()
+                hht.setStretchLastSection(False)
+                hht.setSectionResizeMode(QHeaderView.Interactive)
+                hht.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            except Exception:
+                pass
             tlog_layout.addWidget(self._tbl_tlog)
             self._log_tabs.addTab(tlog, "Task Log")
             # Team Log
@@ -1149,6 +1166,13 @@ class TaskDetailWindow(QWidget):
             self._model_teamlog = QStandardItemModel(0, 3, self)
             self._model_teamlog.setHorizontalHeaderLabels(["Timestamp", "Team", "Status Changed To"])
             self._tbl_teamlog.setModel(self._model_teamlog); self._tbl_teamlog.setSortingEnabled(True)
+            try:
+                hhm = self._tbl_teamlog.horizontalHeader()
+                hhm.setStretchLastSection(False)
+                hhm.setSectionResizeMode(QHeaderView.Interactive)
+                hhm.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            except Exception:
+                pass
             teamlog_layout.addWidget(self._tbl_teamlog)
             self._log_tabs.addTab(teamlog, "Team Log")
             # Default to ICS-214 sub-tab

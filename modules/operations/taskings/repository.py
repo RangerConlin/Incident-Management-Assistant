@@ -379,14 +379,23 @@ def list_task_teams(task_id: int) -> List[TaskTeam]:
 def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
     """List personnel associated with a task via team linkage or snapshot.
 
+    Preference order:
+    1) Live join via personnel.team_id for teams assigned to the task.
+    2) teams.members_json → personnel.id for assigned teams.
+    3) Snapshot table task_personnel.
+
     Returns dicts with: active(bool), name, id, rank, role, organization, phone, team_name, team_id.
     """
     with _connect() as con:
-        # Prefer live join via personnel.team_id; else fall back to task_personnel snapshot
+        # Probe columns
         try:
             pcols = {r[1] for r in con.execute("PRAGMA table_info(personnel)").fetchall()}
         except Exception:
             pcols = set()
+
+        out: List[Dict[str, Any]] = []
+
+        # Path 1: personnel.team_id
         if "team_id" in pcols:
             has_rank = "rank" in pcols
             has_org = "organization" in pcols
@@ -404,7 +413,93 @@ def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
                 " ORDER BY p.name COLLATE NOCASE"
             )
             rows = con.execute(sql, (int(task_id),)).fetchall()
-        elif _table_exists(con, "task_personnel"):
+            for r in rows:
+                status = _team_status_from_timestamps(r)
+                active = status not in {"Complete", "RTB"}
+                out.append(
+                    {
+                        "active": bool(active),
+                        "name": r.get("name") or "",
+                        "id": r.get("person_id"),
+                        "rank": r.get("rank"),
+                        "role": r.get("role") or "",
+                        "organization": r.get("organization"),
+                        "phone": r.get("phone") or "",
+                        "team_name": r.get("team_name") or "",
+                        "team_id": r.get("team_id"),
+                    }
+                )
+            return out
+
+        # Path 2: teams.members_json
+        try:
+            tcols = {r[1] for r in con.execute("PRAGMA table_info(teams)").fetchall()}
+        except Exception:
+            tcols = set()
+        if "members_json" in tcols:
+            import json as _json
+            teams_rows = con.execute(
+                "SELECT tm.id AS team_id, tm.name AS team_name, tm.members_json AS members_json,"
+                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
+                "  FROM task_teams tt JOIN teams tm ON tm.id = tt.teamid WHERE tt.task_id = ?",
+                (int(task_id),),
+            ).fetchall()
+            member_to_team: Dict[int, Dict[str, Any]] = {}
+            for tr in teams_rows:
+                try:
+                    ids = [int(x) for x in (_json.loads(tr["members_json"]) or [])]
+                except Exception:
+                    ids = []
+                for mid in ids:
+                    member_to_team.setdefault(
+                        mid,
+                        {
+                            "team_id": int(tr["team_id"]) if tr["team_id"] is not None else None,
+                            "team_name": str(tr["team_name"] or ""),
+                            "time_assigned": tr.get("time_assigned"),
+                            "time_briefed": tr.get("time_briefed"),
+                            "time_enroute": tr.get("time_enroute"),
+                            "time_arrived": tr.get("time_arrived"),
+                            "time_discovery": tr.get("time_discovery"),
+                            "time_complete": tr.get("time_complete"),
+                            "time_cleared": tr.get("time_cleared"),
+                        },
+                    )
+            if member_to_team:
+                has_rank = "rank" in pcols
+                has_org = "organization" in pcols
+                sel_rank = ", rank AS rank" if has_rank else ", NULL AS rank"
+                sel_org = ", organization AS organization" if has_org else ", NULL AS organization"
+                placeholders = ",".join(["?"] * len(member_to_team))
+                sql = (
+                    "SELECT id AS person_id, name AS name, role AS role, phone AS phone"
+                    f"{sel_rank}{sel_org}"
+                    f"  FROM personnel WHERE id IN ({placeholders})"
+                    " ORDER BY name COLLATE NOCASE"
+                )
+                ids = list(member_to_team.keys())
+                rows = con.execute(sql, tuple(ids)).fetchall()
+                for r in rows:
+                    m = member_to_team.get(int(r["person_id"])) or {}
+                    status = _team_status_from_timestamps(m) if hasattr(m, "get") else "Assigned"
+                    active = status not in {"Complete", "RTB"}
+                    out.append(
+                        {
+                            "active": bool(active),
+                            "name": r.get("name") or "",
+                            "id": r.get("person_id"),
+                            "rank": r.get("rank"),
+                            "role": r.get("role") or "",
+                            "organization": r.get("organization"),
+                            "phone": r.get("phone") or "",
+                            "team_name": m.get("team_name", ""),
+                            "team_id": m.get("team_id"),
+                        }
+                    )
+                return out
+
+        # Path 3: snapshot fallback
+        if _table_exists(con, "task_personnel"):
             has_rank = "rank" in pcols
             has_org = "organization" in pcols
             sel_rank = ", p.rank AS rank" if has_rank else ", NULL AS rank"
@@ -419,24 +514,24 @@ def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
                 " ORDER BY name COLLATE NOCASE"
             )
             rows = con.execute(sql, (int(task_id),)).fetchall()
-        else:
-            rows = []
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        status = _team_status_from_timestamps(r) if "time_assigned" in r.keys() else "Assigned"
-        active = status not in {"Complete", "RTB"}
-        out.append({
-            "active": bool(active),
-            "name": r.get("name") or "",
-            "id": r.get("person_id"),
-            "rank": r.get("rank"),
-            "role": r.get("role") or "",
-            "organization": r.get("organization"),
-            "phone": r.get("phone") or "",
-            "team_name": r.get("team_name") or "",
-            "team_id": r.get("team_id"),
-        })
-    return out
+            for r in rows:
+                # Snapshot rows lack team fields; keep these blank
+                out.append(
+                    {
+                        "active": True,
+                        "name": r.get("name") or "",
+                        "id": r.get("person_id"),
+                        "rank": r.get("rank"),
+                        "role": r.get("role") or "",
+                        "organization": r.get("organization"),
+                        "phone": r.get("phone") or "",
+                        "team_name": "",
+                        "team_id": None,
+                    }
+                )
+            return out
+
+    return []
 
 
 def _has_column(con: sqlite3.Connection, table: str, col: str) -> bool:
@@ -450,6 +545,7 @@ def _has_column(con: sqlite3.Connection, table: str, col: str) -> bool:
 def list_task_vehicles(task_id: int) -> List[Dict[str, Any]]:
     """List vehicles associated with a task via team linkage or snapshot.
 
+    Supports schemas with vehicles.team_id, teams.vehicles_json, and task_vehicles snapshot.
     Returns: active(bool), id, license_plate, type, organization, team_name, team_id.
     """
     with _connect() as con:
@@ -458,82 +554,238 @@ def list_task_vehicles(task_id: int) -> List[Dict[str, Any]]:
         has_org = _has_column(con, "vehicles", "organization")
         sel_lp = ", v.license_plate AS license_plate" if has_lp else ", NULL AS license_plate"
         sel_org = ", v.organization AS organization" if has_org else ", NULL AS organization"
-        sel_type = "v.type AS type" if _has_column(con, "vehicles", "type") else ("v.make || ' ' || v.model AS type" if _has_column(con, "vehicles", "make") and _has_column(con, "vehicles", "model") else "'' AS type")
+        sel_type = (
+            "v.type AS type"
+            if _has_column(con, "vehicles", "type")
+            else ("v.make || ' ' || v.model AS type" if _has_column(con, "vehicles", "make") and _has_column(con, "vehicles", "model") else "'' AS type")
+        )
+
+        out: List[Dict[str, Any]] = []
+
+        # Path 1: vehicles.team_id join
         if v_has_team:
             sql = (
-                "SELECT v.id AS id, " + sel_type +
-                sel_lp + sel_org +
-                ", tm.name AS team_name, tm.id AS team_id,"
-                " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-                "  FROM task_teams tt"
-                "  JOIN teams tm ON tm.id = tt.teamid"
-                "  JOIN vehicles v ON v.team_id = tm.id"
-                " WHERE tt.task_id = ?"
-                " ORDER BY v.id"
+                "SELECT v.id AS id, "
+                + sel_type
+                + sel_lp
+                + sel_org
+                + ", tm.name AS team_name, tm.id AS team_id,"
+                + " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
+                + "  FROM task_teams tt"
+                + "  JOIN teams tm ON tm.id = tt.teamid"
+                + "  JOIN vehicles v ON v.team_id = tm.id"
+                + " WHERE tt.task_id = ? ORDER BY v.id"
             )
             rows = con.execute(sql, (int(task_id),)).fetchall()
-        elif _table_exists(con, "task_vehicles"):
-            # Snapshot fallback: task_vehicles + vehicles details
+            for r in rows:
+                status = _team_status_from_timestamps(r)
+                active = status not in {"Complete", "RTB"}
+                out.append(
+                    {
+                        "active": bool(active),
+                        "id": r.get("id"),
+                        "license_plate": r.get("license_plate"),
+                        "type": r.get("type") or "",
+                        "organization": r.get("organization"),
+                        "team_name": r.get("team_name") or "",
+                        "team_id": r.get("team_id"),
+                    }
+                )
+            if out:
+                return out
+
+        # Path 2: teams.vehicles_json
+        if _has_column(con, "teams", "vehicles_json"):
+            import json as _json
+            team_rows = con.execute(
+                "SELECT tm.id AS team_id, tm.name AS team_name, tm.vehicles_json AS vehicles_json,"
+                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
+                "  FROM task_teams tt JOIN teams tm ON tm.id = tt.teamid WHERE tt.task_id = ?",
+                (int(task_id),),
+            ).fetchall()
+            vid_to_team: Dict[int, Dict[str, Any]] = {}
+            for tr in team_rows:
+                try:
+                    vids = [int(x) for x in (_json.loads(tr["vehicles_json"]) or [])]
+                except Exception:
+                    vids = []
+                for vid in vids:
+                    vid_to_team.setdefault(
+                        vid,
+                        {
+                            "team_id": int(tr["team_id"]) if tr["team_id"] is not None else None,
+                            "team_name": str(tr["team_name"] or ""),
+                            "time_assigned": tr.get("time_assigned"),
+                            "time_briefed": tr.get("time_briefed"),
+                            "time_enroute": tr.get("time_enroute"),
+                            "time_arrived": tr.get("time_arrived"),
+                            "time_discovery": tr.get("time_discovery"),
+                            "time_complete": tr.get("time_complete"),
+                            "time_cleared": tr.get("time_cleared"),
+                        },
+                    )
+            if vid_to_team:
+                placeholders = ",".join(["?"] * len(vid_to_team))
+                sql = (
+                    "SELECT v.id AS id, "
+                    + sel_type
+                    + sel_lp
+                    + sel_org
+                    + f" FROM vehicles v WHERE v.id IN ({placeholders}) ORDER BY v.id"
+                )
+                vids = list(vid_to_team.keys())
+                vrows = con.execute(sql, tuple(vids)).fetchall()
+                for r in vrows:
+                    m = vid_to_team.get(int(r["id"])) or {}
+                    status = _team_status_from_timestamps(m) if hasattr(m, "get") else "Assigned"
+                    active = status not in {"Complete", "RTB"}
+                    out.append(
+                        {
+                            "active": bool(active),
+                            "id": r.get("id"),
+                            "license_plate": r.get("license_plate"),
+                            "type": r.get("type") or "",
+                            "organization": r.get("organization"),
+                            "team_name": m.get("team_name", ""),
+                            "team_id": m.get("team_id"),
+                        }
+                    )
+                if out:
+                    return out
+
+        # Path 3: snapshot fallback
+        if _table_exists(con, "task_vehicles"):
             sql = (
-                "SELECT tv.vehicle_id AS id, " + sel_type.replace("v.", "") +
-                sel_lp.replace("v.", "") + sel_org.replace("v.", "") +
-                " FROM task_vehicles tv LEFT JOIN vehicles v ON v.id = tv.vehicle_id WHERE tv.task_id = ? ORDER BY tv.vehicle_id"
+                "SELECT tv.vehicle_id AS id, "
+                + sel_type.replace("v.", "")
+                + sel_lp.replace("v.", "")
+                + sel_org.replace("v.", "")
+                + " FROM task_vehicles tv LEFT JOIN vehicles v ON v.id = tv.vehicle_id WHERE tv.task_id = ? ORDER BY tv.vehicle_id"
             )
             rows = con.execute(sql, (int(task_id),)).fetchall()
-        else:
-            rows = []
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        status = _team_status_from_timestamps(r) if "time_assigned" in r.keys() else "Assigned"
-        active = status not in {"Complete", "RTB"}
-        out.append({
-            "active": bool(active),
-            "id": r.get("id"),
-            "license_plate": r.get("license_plate"),
-            "type": r.get("type") or "",
-            "organization": r.get("organization"),
-            "team_name": r.get("team_name") or "",
-            "team_id": r.get("team_id"),
-        })
-    return out
+            for r in rows:
+                out.append(
+                    {
+                        "active": True,
+                        "id": r.get("id"),
+                        "license_plate": r.get("license_plate"),
+                        "type": r.get("type") or "",
+                        "organization": r.get("organization"),
+                        "team_name": "",
+                        "team_id": None,
+                    }
+                )
+            return out
+
+    return []
 
 
 def list_task_aircraft(task_id: int) -> List[Dict[str, Any]]:
     """List aircraft assigned to teams on this task.
 
+    Supports schemas with aircraft.team_id and teams.aircraft_json.
     Returns: active(bool), callsign, tail_number, type, organization, team_name, team_id.
     """
     with _connect() as con:
         has_org = _has_column(con, "aircraft", "organization")
         sel_org = ", a.organization AS organization" if has_org else ", NULL AS organization"
-        # type field may be named make_model in some schemas
-        sel_type = "a.type AS type" if _has_column(con, "aircraft", "type") else ("a.make_model AS type" if _has_column(con, "aircraft", "make_model") else "'' AS type")
+        sel_type = (
+            "a.type AS type"
+            if _has_column(con, "aircraft", "type")
+            else ("a.make_model AS type" if _has_column(con, "aircraft", "make_model") else "'' AS type")
+        )
+
+        out: List[Dict[str, Any]] = []
+
+        # Path 1: aircraft.team_id
         sql = (
-            "SELECT a.id AS id, a.callsign AS callsign, a.tail_number AS tail_number, " + sel_type +
-            sel_org +
-            ", tm.name AS team_name, tm.id AS team_id,"
-            " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-            "  FROM task_teams tt"
-            "  JOIN teams tm ON tm.id = tt.teamid"
-            "  JOIN aircraft a ON a.team_id = tm.id"
-            " WHERE tt.task_id = ?"
-            " ORDER BY a.tail_number COLLATE NOCASE, a.callsign COLLATE NOCASE"
+            "SELECT a.id AS id, a.callsign AS callsign, a.tail_number AS tail_number, "
+            + sel_type
+            + sel_org
+            + ", tm.name AS team_name, tm.id AS team_id,"
+            + " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
+            + "  FROM task_teams tt"
+            + "  JOIN teams tm ON tm.id = tt.teamid"
+            + "  JOIN aircraft a ON a.team_id = tm.id"
+            + " WHERE tt.task_id = ? ORDER BY a.tail_number COLLATE NOCASE, a.callsign COLLATE NOCASE"
         )
         rows = con.execute(sql, (int(task_id),)).fetchall()
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        status = _team_status_from_timestamps(r)
-        active = status not in {"Complete", "RTB"}
-        out.append({
-            "active": bool(active),
-            "callsign": r.get("callsign") or "",
-            "tail_number": r.get("tail_number") or "",
-            "type": r.get("type") or "",
-            "organization": r.get("organization"),
-            "team_name": r.get("team_name") or "",
-            "team_id": r.get("team_id"),
-        })
-    return out
+        for r in rows:
+            status = _team_status_from_timestamps(r)
+            active = status not in {"Complete", "RTB"}
+            out.append(
+                {
+                    "active": bool(active),
+                    "callsign": r.get("callsign") or "",
+                    "tail_number": r.get("tail_number") or "",
+                    "type": r.get("type") or "",
+                    "organization": r.get("organization"),
+                    "team_name": r.get("team_name") or "",
+                    "team_id": r.get("team_id"),
+                }
+            )
+        if out:
+            return out
+
+        # Path 2: teams.aircraft_json
+        if _has_column(con, "teams", "aircraft_json"):
+            import json as _json
+            team_rows = con.execute(
+                "SELECT tm.id AS team_id, tm.name AS team_name, tm.aircraft_json AS aircraft_json,"
+                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
+                "  FROM task_teams tt JOIN teams tm ON tm.id = tt.teamid WHERE tt.task_id = ?",
+                (int(task_id),),
+            ).fetchall()
+            aid_to_team: Dict[int, Dict[str, Any]] = {}
+            for tr in team_rows:
+                try:
+                    aids = [int(x) for x in (_json.loads(tr["aircraft_json"]) or [])]
+                except Exception:
+                    aids = []
+                for aid in aids:
+                    aid_to_team.setdefault(
+                        aid,
+                        {
+                            "team_id": int(tr["team_id"]) if tr["team_id"] is not None else None,
+                            "team_name": str(tr["team_name"] or ""),
+                            "time_assigned": tr.get("time_assigned"),
+                            "time_briefed": tr.get("time_briefed"),
+                            "time_enroute": tr.get("time_enroute"),
+                            "time_arrived": tr.get("time_arrived"),
+                            "time_discovery": tr.get("time_discovery"),
+                            "time_complete": tr.get("time_complete"),
+                            "time_cleared": tr.get("time_cleared"),
+                        },
+                    )
+            if aid_to_team:
+                placeholders = ",".join(["?"] * len(aid_to_team))
+                sql = (
+                    "SELECT a.id AS id, a.callsign AS callsign, a.tail_number AS tail_number, "
+                    + sel_type
+                    + sel_org
+                    + f" FROM aircraft a WHERE a.id IN ({placeholders}) ORDER BY a.tail_number COLLATE NOCASE, a.callsign COLLATE NOCASE"
+                )
+                aids = list(aid_to_team.keys())
+                arows = con.execute(sql, tuple(aids)).fetchall()
+                for r in arows:
+                    m = aid_to_team.get(int(r["id"])) or {}
+                    status = _team_status_from_timestamps(m) if hasattr(m, "get") else "Assigned"
+                    active = status not in {"Complete", "RTB"}
+                    out.append(
+                        {
+                            "active": bool(active),
+                            "callsign": r.get("callsign") or "",
+                            "tail_number": r.get("tail_number") or "",
+                            "type": r.get("type") or "",
+                            "organization": r.get("organization"),
+                            "team_name": m.get("team_name", ""),
+                            "team_id": m.get("team_id"),
+                        }
+                    )
+                if out:
+                    return out
+
+    return []
 
 
 # --- Task Assignment (Ground/Air details) ------------------------------------

@@ -2049,7 +2049,7 @@ class MainWindow(QMainWindow):
 
     def open_medical_206(self) -> None:
         from modules import medical
-        medical.open_206_window(self)
+        medical.open_206_window()
 
     def open_safety_208(self) -> None:
         from modules import safety
