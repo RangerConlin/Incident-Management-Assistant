@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Iterable
 
 EXCLUDE_DIRS = {
     '.git', '.hg', '.svn', '.venv', 'venv', '__pycache__', '.mypy_cache', '.pytest_cache',
@@ -21,6 +22,17 @@ UTF16_LE_BOM = b"\xFF\xFE"
 UTF16_BE_BOM = b"\xFE\xFF"
 UTF32_LE_BOM = b"\xFF\xFE\x00\x00"
 UTF32_BE_BOM = b"\x00\x00\xFE\xFF"
+
+# Heuristic mojibake patterns called out in AGENTS.md
+MOJIBAKE_PATTERNS = (
+    'â€™',  # ’
+    'â€“',  # –
+    'â€”',  # —
+    'Â€',  # €
+    'â‚¬',  # €
+)
+
+CONTROL_EXCEPTIONS = {'\t', '\n', '\r'}
 
 
 def is_binary_bytes(sample: bytes) -> bool:
@@ -50,7 +62,10 @@ def analyze(path: Path):
         'utf8_bom': False,
         'utf16_bom': False,
         'utf32_bom': False,
-        'not_utf8': False,
+        'not_utf8': False,      # decode-error
+        'mojibake': False,
+        'control': False,
+        'replacement': False,
         'crlf': False,
         'error': None,
     }
@@ -67,7 +82,16 @@ def analyze(path: Path):
             info['crlf'] = True
         # UTF-8 check (ignore BOM by slicing it off)
         to_check = data[3:] if info['utf8_bom'] else data
-        to_check.decode('utf-8')
+        text = to_check.decode('utf-8')
+        # Mojibake patterns
+        if any(pat in text for pat in MOJIBAKE_PATTERNS):
+            info['mojibake'] = True
+        # Replacement characters
+        if '\uFFFD' in text:
+            info['replacement'] = True
+        # Control characters (excluding common whitespace)
+        if any((ord(ch) < 32 and ch not in CONTROL_EXCEPTIONS) for ch in text):
+            info['control'] = True
     except UnicodeDecodeError as e:
         info['not_utf8'] = True
         info['error'] = str(e)
@@ -106,15 +130,32 @@ def fix_file(path: Path, normalize_eol: bool = False) -> tuple[bool, str | None]
         return False, f"{type(e).__name__}: {e}"
 
 
+def parse_fail_kinds(raw: Iterable[str] | None) -> list[str]:
+    if not raw:
+        return []
+    kinds: list[str] = []
+    for token in raw:
+        parts = [p.strip() for p in token.split(',') if p.strip()]
+        kinds.extend(parts)
+    allowed = {'decode-error', 'mojibake', 'control', 'replacement'}
+    for k in kinds:
+        if k not in allowed:
+            raise SystemExit(f"Unknown fail kind: {k}. Allowed: {', '.join(sorted(allowed))}")
+    return kinds
+
+
 def main():
     p = argparse.ArgumentParser(description='Audit repository text encodings for UTF-8 without BOM.')
     p.add_argument('--root', default='.', help='Root directory to scan (default: .)')
     p.add_argument('--summary', action='store_true', help='Print summary of findings')
     p.add_argument('--list', dest='list_paths', action='store_true', help='List offending file paths')
-    p.add_argument('--fail-on-find', action='store_true', help='Exit with code 1 if any offenders found')
+    p.add_argument('--fail-on-find', action='store_true', help='Exit with code 1 if offenders found (see --fail-kinds)')
+    p.add_argument('--fail-kinds', nargs='*', help='Kinds to fail on: decode-error, mojibake, control, replacement. Comma-separated or space-separated.')
     p.add_argument('--fix', action='store_true', help='Attempt to convert offenders to UTF-8 (no BOM)')
     p.add_argument('--normalize-eol', action='store_true', help='When fixing, normalize CRLF to LF')
     args = p.parse_args()
+
+    fail_kinds = parse_fail_kinds(args.fail_kinds)
 
     root = Path(args.root)
     offenders = {
@@ -122,32 +163,29 @@ def main():
         'utf16_bom': [],
         'utf32_bom': [],
         'not_utf8': [],
+        'mojibake': [],
+        'control': [],
+        'replacement': [],
         'crlf': [],
         'errors': {},
     }
 
-    for dirpath, dirnames, filenames in os.walk(root):
-        # Prune excluded dirs in-place
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
-        for name in filenames:
-            pth = Path(dirpath, name)
-            if should_skip(pth):
-                continue
-            info = analyze(pth)
-            if info['utf8_bom']:
-                offenders['utf8_bom'].append(pth)
-            if info['utf16_bom']:
-                offenders['utf16_bom'].append(pth)
-            if info['utf32_bom']:
-                offenders['utf32_bom'].append(pth)
-            if info['not_utf8']:
-                offenders['not_utf8'].append(pth)
-            if info['crlf']:
-                offenders['crlf'].append(pth)
-            if info['error']:
-                offenders['errors'][str(pth)] = info['error']
+    def scan():
+        for dirpath, dirnames, filenames in os.walk(root):
+            # Prune excluded dirs in-place
+            dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+            for name in filenames:
+                pth = Path(dirpath, name)
+                if should_skip(pth):
+                    continue
+                info = analyze(pth)
+                for key in ('utf8_bom','utf16_bom','utf32_bom','not_utf8','mojibake','control','replacement','crlf'):
+                    if info.get(key):
+                        offenders[key].append(pth)
+                if info['error']:
+                    offenders['errors'][str(pth)] = info['error']
 
-    total_offenders = sum(len(v) for k, v in offenders.items() if k != 'errors')
+    scan()
 
     if args.fix:
         changed_count = 0
@@ -158,29 +196,8 @@ def main():
             if changed:
                 changed_count += 1
         # Recompute offenders after fix pass
-        offenders = {
-            'utf8_bom': [], 'utf16_bom': [], 'utf32_bom': [], 'not_utf8': [], 'crlf': [], 'errors': offenders['errors']
-        }
-        for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
-            for name in filenames:
-                pth = Path(dirpath, name)
-                if should_skip(pth):
-                    continue
-                info = analyze(pth)
-                if info['utf8_bom']:
-                    offenders['utf8_bom'].append(pth)
-                if info['utf16_bom']:
-                    offenders['utf16_bom'].append(pth)
-                if info['utf32_bom']:
-                    offenders['utf32_bom'].append(pth)
-                if info['not_utf8']:
-                    offenders['not_utf8'].append(pth)
-                if info['crlf']:
-                    offenders['crlf'].append(pth)
-                if info['error']:
-                    offenders['errors'][str(pth)] = info['error']
-        total_offenders = sum(len(v) for k, v in offenders.items() if k != 'errors')
+        offenders = {k: ([] if k != 'errors' else offenders['errors']) for k in offenders}
+        scan()
         print(f"Fix pass complete. Files changed: {changed_count}")
 
     if args.summary:
@@ -189,11 +206,14 @@ def main():
         print(f"  UTF-16 BOM: {len(offenders['utf16_bom'])}")
         print(f"  UTF-32 BOM: {len(offenders['utf32_bom'])}")
         print(f"  Not UTF-8 decodable: {len(offenders['not_utf8'])}")
+        print(f"  Mojibake patterns: {len(offenders['mojibake'])}")
+        print(f"  Control chars: {len(offenders['control'])}")
+        print(f"  Replacement chars: {len(offenders['replacement'])}")
         print(f"  CRLF endings detected: {len(offenders['crlf'])}")
         if offenders['errors']:
             print(f"  Errors: {len(offenders['errors'])}")
     if args.list_paths:
-        for key in ['utf8_bom','utf16_bom','utf32_bom','not_utf8','crlf']:
+        for key in ['utf8_bom','utf16_bom','utf32_bom','not_utf8','mojibake','control','replacement','crlf']:
             if offenders[key]:
                 print(f"\n{key}:")
                 for p in offenders[key]:
@@ -203,8 +223,21 @@ def main():
             for p, e in offenders['errors'].items():
                 print(f"{p}: {e}")
 
-    if args.fail_on_find and total_offenders > 0:
-        sys.exit(1)
+    if args.fail_on_find:
+        if fail_kinds:
+            kind_map = {
+                'decode-error': 'not_utf8',
+                'mojibake': 'mojibake',
+                'control': 'control',
+                'replacement': 'replacement',
+            }
+            fail_count = sum(len(offenders[kind_map[k]]) for k in fail_kinds)
+            if fail_count:
+                sys.exit(2)
+        else:
+            total = sum(len(offenders[k]) for k in ('utf8_bom','utf16_bom','utf32_bom','not_utf8'))
+            if total:
+                sys.exit(2)
 
 if __name__ == '__main__':
     main()
