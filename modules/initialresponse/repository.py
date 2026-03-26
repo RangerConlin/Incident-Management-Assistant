@@ -42,7 +42,7 @@ def connect(incident_id: str | None = None) -> Iterator[sqlite3.Connection]:
 
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def add_hasty_task(record: HastyTaskRecord) -> HastyTaskRecord:

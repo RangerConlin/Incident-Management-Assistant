@@ -1,4 +1,4 @@
-"""Desktop resource status board for the Logistics module."""
+﻿"""Desktop resource status board for the Logistics module."""
 from __future__ import annotations
 
 from dataclasses import dataclass

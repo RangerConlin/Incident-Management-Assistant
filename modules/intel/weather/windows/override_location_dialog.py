@@ -95,6 +95,25 @@ class OverrideLocationDialog(QDialog):
         self.setFixedSize(360, 320)
         self._update_apply_state()
 
+    # --- Accessors for selection state ---
+    def selected_mode(self) -> str:
+        """Return one of: 'icp', 'manual', or 'city'."""
+        if self.use_icp.isChecked():
+            return "icp"
+        if self.manual_option.isChecked():
+            return "manual"
+        if self.city_option.isChecked():
+            return "city"
+        return "icp"
+
+    def get_manual_coords(self) -> tuple[float, float]:
+        """Return the lat/lon from the manual inputs (even if not selected)."""
+        return float(self.lat_spin.value()), float(self.lon_spin.value())
+
+    def get_city_query(self) -> str:
+        """Return the nearest city/ZIP query text."""
+        return self.search_box.text().strip()
+
     def _update_apply_state(self) -> None:
         manual_valid = self.manual_option.isChecked()
         city_valid = self.city_option.isChecked() and bool(self.search_box.text().strip())

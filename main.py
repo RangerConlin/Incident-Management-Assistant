@@ -411,6 +411,7 @@ class MainWindow(QMainWindow):
         "safety.weather" to match handlers in `open_module`.
         """
         weather_menu = parent_menu.addMenu("Weather")
+        self._add_action(weather_menu, "Current & Forecast", None, f"{prefix}.current")
         self._add_action(weather_menu, "Safety Summary", None, f"{prefix}.summary")
         self._add_action(weather_menu, "Timeline", None, f"{prefix}.timeline")
         self._add_action(weather_menu, "Aviation", None, f"{prefix}.aviation")
@@ -525,6 +526,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Equipment", None, "edit.equipment")
         self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
+        self._add_action(m_edit, "Units and Organizations", None, "edit.units_organizations")
 
         # ----- View (moved under Menu) -----
         m_view = m_menu.addMenu("View")
@@ -582,6 +584,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_cmd, "Incident Objectives (ICS-202)", None, "command.objectives")
         self._add_action(m_cmd, "Command Staff Organization (ICS-203)", None, "command.staff_org")
         self._add_action(m_cmd, "Situation Report (ICS-209)", None, "command.sitrep")
+        m_cmd.addSeparator()
+        self._add_action(m_cmd, "Set ICP Location", None, "command.icp_location")
 
         # ----- Planning -----
         m_plan = mb.addMenu("Planning")
@@ -878,6 +882,7 @@ class MainWindow(QMainWindow):
             "edit.equipment": self.open_edit_equipment,
             "communications.217": self.open_edit_comms_resources,
             "edit.safety_templates": self.open_edit_safety_templates,
+            "edit.units_organizations": self.open_edit_units_organizations,
 
             # ----- Command -----
             "command.unit_log": self.open_command_unit_log,
@@ -887,6 +892,7 @@ class MainWindow(QMainWindow):
             "command.objectives": self.open_command_objectives,
             "command.staff_org": self.open_command_staff_org,
             "command.sitrep": self.open_command_sitrep,
+            "command.icp_location": self.open_command_icp_location,
 
             # ----- Planning -----
             "planning.unit_log": self.open_planning_unit_log,
@@ -899,6 +905,7 @@ class MainWindow(QMainWindow):
             "planning.sitrep": self.open_planning_sitrep,
 
             "planning.weather.summary": self.open_weather_safety_summary,
+            "planning.weather.current": self.open_weather_current_forecast,
             "planning.weather.timeline": self.open_weather_timeline,
             "planning.weather.aviation": self.open_weather_aviation,
             "planning.weather.advisories": self.open_weather_advisories,
@@ -948,6 +955,7 @@ class MainWindow(QMainWindow):
             "safety.caporm": self.open_safety_caporm,
 
             "safety.weather.summary": self.open_weather_safety_summary,
+            "safety.weather.current": self.open_weather_current_forecast,
             "safety.weather.timeline": self.open_weather_timeline,
             "safety.weather.aviation": self.open_weather_aviation,
             "safety.weather.advisories": self.open_weather_advisories,
@@ -1230,6 +1238,23 @@ class MainWindow(QMainWindow):
     def open_edit_safety_templates(self) -> None:
         show_qml_placeholder(title="Incident Safety Analysis (ICS-215A)", parent=self)
 
+    def open_edit_units_organizations(self) -> None:
+        """Open the master-data Units and Organizations editor panel."""
+        try:
+            from modules.personnel_role_management.units_organizations import (
+                UnitsOrganizationsPanel,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Units and Organizations",
+                f"Unable to load Units and Organizations panel:\n{exc}",
+            )
+            return
+
+        panel = UnitsOrganizationsPanel(parent=self)
+        self._open_dock_widget(panel, title="Units and Organizations")
+
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
         from modules import ics214
@@ -1389,6 +1414,24 @@ class MainWindow(QMainWindow):
         """Open the Weather Safety briefing export dialog."""
         from modules.intel.weather.infra import ui_factories
         ui_factories.open_export_dialog(self)
+
+    def open_weather_current_forecast(self) -> None:
+        """Open the Current & Forecast weather window."""
+        try:
+            from modules.intel.weather.infra import ui_factories
+            ui_factories.open_current_forecast_window()
+        except Exception as e:
+            QMessageBox.critical(self, "Weather", f"Failed to open Current & Forecast window:\n{e}")
+    def open_command_icp_location(self) -> None:
+        """Open the ICP Location window for the active incident."""
+        try:
+            from modules.command.windows.icp_location_window import IcpLocationWindow
+        except Exception as e:
+            QMessageBox.critical(self, "ICP Location", f"Failed to load ICP Location window:\n{e}")
+            return
+        window = IcpLocationWindow(self)
+        window.show()
+        window.raise_()
     def open_operations_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)

@@ -27,7 +27,7 @@ def _notify_flagged(report: schemas.SafetyReportRead):
 
 def _audit(action: str, model: str, data: dict):
     _audit_log.append({
-        "ts": datetime.utcnow().isoformat(),
+        "ts": datetime.utcnow().isoformat(timespec="seconds"),
         "action": action,
         "model": model,
         "data": data,

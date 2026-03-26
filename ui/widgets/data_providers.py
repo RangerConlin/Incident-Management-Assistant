@@ -40,8 +40,8 @@ def auth_getCurrentUser() -> Dict[str, Any]:
     return {
         "name": "j.doe",
         "role": "Planning Chief",
-        "login": datetime.now(timezone.utc).isoformat(),
-        "check_in": datetime.now(timezone.utc).isoformat(),
+        "login": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "check_in": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
 

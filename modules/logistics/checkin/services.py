@@ -122,14 +122,20 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
             ("id", "ID"),
             ("name", "Name"),
             ("role", "Role"),
+            ("rank", "Rank"),
             ("callsign", "Callsign"),
         ),
         form_fields=(
             FieldSpec("name", "Name", required=True),
+            FieldSpec("rank", "Rank"),
             FieldSpec("role", "Role"),
             FieldSpec("callsign", "Callsign"),
             FieldSpec("phone", "Phone"),
         ),
+        # Require the user to supply an explicit Personnel ID (numeric).
+        # The underlying schema remains INTEGER PRIMARY KEY AUTOINCREMENT so
+        # leaving it blank in other entry points will still auto-assign.
+        id_field=FieldSpec("id", "Personnel ID", required=True, placeholder="e.g., 10001"),
         autoincrement=True,
     ),
     "vehicle": EntityConfig(
@@ -351,10 +357,18 @@ class CheckInService:
             supplied_str = supplied.strip() if isinstance(supplied, str) else supplied
             if config.id_field.required and not supplied_str:
                 raise ValueError(f"{config.id_field.label} is required")
-            if supplied_str:
-                supplied_id = supplied_str
+            if supplied_str is not None and supplied_str != "":
+                if config.autoincrement:
+                    try:
+                        supplied_id = int(supplied_str)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            f"Invalid identifier for {config.title}. Use a numeric ID."
+                        ) from exc
+                else:
+                    supplied_id = str(supplied_str)
                 columns.append(config.id_column)
-                values.append(supplied_str)
+                values.append(supplied_id)
 
         for field in config.form_fields:
             raw_value = data.get(field.name)
@@ -438,7 +452,7 @@ class CheckInService:
                 from . import repository as ci_repo
                 from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
                 from datetime import datetime
-                now_iso = datetime.now().astimezone().isoformat()
+                now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
                 pid = str(record.get("id", ""))
                 if pid:
                     existing = None

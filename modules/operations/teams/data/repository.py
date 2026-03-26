@@ -101,7 +101,7 @@ def save_team(team: Team) -> Team:
     Returns the persisted Team (with id populated).
     """
     data = team.to_db_dict()
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     data["status_updated"] = now
     with _incident_connect() as con:
         _ensure_team_columns(con)
@@ -135,7 +135,7 @@ def set_team_status(team_id: int, status_key: str) -> None:
 
 def reset_team_comm_timer(team_id: int, when: datetime | None = None) -> None:
     """Update the team's last communication ping to ``when`` or now."""
-    ts = (when or datetime.utcnow()).isoformat()
+    ts = (when or datetime.utcnow()).isoformat(timespec="seconds")
     with _incident_connect() as con:
         _ensure_team_columns(con)
         con.execute(

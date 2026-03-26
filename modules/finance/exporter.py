@@ -28,7 +28,7 @@ def export_daily_cost_summary(session: Session, incident_id: str, day: str) -> D
         writer = csv.writer(f)
         writer.writerow(["total_labor", "total_equipment", "total_procurement", "total_other"])
         writer.writerow([row["total_labor"], row["total_equipment"], row["total_procurement"], row["total_other"]])
-    return {"path": str(path), "created_at": datetime.utcnow().isoformat()}
+    return {"path": str(path), "created_at": datetime.utcnow().isoformat(timespec="seconds")}
 
 
 def list_artifacts(incident_id: str) -> List[Dict[str, str]]:
@@ -37,5 +37,5 @@ def list_artifacts(incident_id: str) -> List[Dict[str, str]]:
         return []
     artifacts = []
     for file in export_dir.iterdir():
-        artifacts.append({"path": str(file), "created_at": datetime.fromtimestamp(file.stat().st_mtime).isoformat()})
+        artifacts.append({"path": str(file), "created_at": datetime.fromtimestamp(file.stat().st_mtime).isoformat(timespec="seconds")})
     return artifacts

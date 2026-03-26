@@ -9,7 +9,7 @@ DB_DIR = "data/incidents"
 
 
 def _utcnow() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 
 def get_db_path(incident_id: str) -> str:

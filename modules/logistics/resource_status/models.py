@@ -1,4 +1,4 @@
-"""Domain models for the Logistics resource status board."""
+﻿"""Domain models for the Logistics resource status board."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -178,14 +178,49 @@ def parse_datetime(value: Any) -> Optional[datetime]:
     return dt if dt.tzinfo else dt.astimezone()
 
 
+
+def _abbr_tz(name: str) -> str:
+    name = (name or '').strip()
+    if not name:
+        return ''
+    upper = name.upper()
+    if upper in {'UTC', 'GMT'}:
+        return upper
+    mapping = {
+        'Eastern Standard Time': 'EST',
+        'Eastern Daylight Time': 'EDT',
+        'Central Standard Time': 'CST',
+        'Central Daylight Time': 'CDT',
+        'Mountain Standard Time': 'MST',
+        'Mountain Daylight Time': 'MDT',
+        'Pacific Standard Time': 'PST',
+        'Pacific Daylight Time': 'PDT',
+        'Alaska Standard Time': 'AKST',
+        'Alaska Daylight Time': 'AKDT',
+        'Hawaii-Aleutian Standard Time': 'HST',
+        'Hawaii-Aleutian Daylight Time': 'HDT',
+        'Atlantic Standard Time': 'AST',
+        'Atlantic Daylight Time': 'ADT',
+        'Newfoundland Standard Time': 'NST',
+        'Newfoundland Daylight Time': 'NDT',
+        'Greenwich Mean Time': 'GMT',
+        'Coordinated Universal Time': 'UTC',
+    }
+    if name in mapping:
+        return mapping[name]
+    parts = [w for w in name.replace('-', ' ').split() if w]
+    abbr = ''.join(p[0].upper() for p in parts)
+    return abbr if 2 <= len(abbr) <= 5 else name
+
 def format_display_datetime(value: Any) -> str:
-    """Return a user-friendly board timestamp string."""
+    """Return a user-friendly board timestamp string with short timezone (e.g., EDT)."""
 
     dt = parse_datetime(value)
     if dt is None:
-        return ""
-    return dt.astimezone().strftime("%Y-%m-%d %H:%M")
-
+        return ''
+    local_dt = dt.astimezone()
+    tz = _abbr_tz(local_dt.tzname() or '')
+    return f"{local_dt:%m-%d-%Y %H:%M} ({tz})"
 
 def _optional_text(value: Any) -> Optional[str]:
     if value in (None, ""):

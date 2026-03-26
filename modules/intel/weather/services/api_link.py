@@ -141,6 +141,10 @@ class WeatherApiManager(QObject):
         self._publish_data()
 
     def _on_metar_result(self, readings: List[MetarReading]) -> None:
+        try:
+            LOGGER.info("METAR result: %d reading(s): %s", len(readings), ", ".join([r.station for r in readings]))
+        except Exception:
+            pass
         for reading in readings:
             self._metar_cache[reading.station] = reading
         cache.write_cache(
@@ -149,6 +153,10 @@ class WeatherApiManager(QObject):
         self._publish_data()
 
     def _on_taf_result(self, tafs: List[TafReading]) -> None:
+        try:
+            LOGGER.info("TAF result: %d reading(s): %s", len(tafs), ", ".join([t.station for t in tafs]))
+        except Exception:
+            pass
         for taf in tafs:
             self._taf_cache[taf.station] = taf
         cache.write_cache(
@@ -178,6 +186,25 @@ class WeatherApiManager(QObject):
             "hwo": self._hwo_payload,
         }
         self.dataUpdated.emit(payload)
+        try:
+            metar_ct = len(payload.get("metar", {}))
+            taf_ct = len(payload.get("taf", {}))
+            adv_ct = len(payload.get("advisories", []))
+            ltg_ct = len(payload.get("lightning", []))
+            LOGGER.debug(
+                "Publish payload => metar:%d taf:%d adv:%d lightning:%d",
+                metar_ct,
+                taf_ct,
+                adv_ct,
+                ltg_ct,
+            )
+            cache.write_cache("last_payload_debug", payload)
+            if metar_ct or taf_ct or adv_ct or ltg_ct:
+                cache.write_cache("last_payload_debug_nonempty", payload)
+            else:
+                cache.write_cache("last_payload_debug_empty", payload)
+        except Exception:  # pragma: no cover - debug path only
+            pass
 
     def _load_cached_payloads(self) -> None:
         cached_metar = cache.read_cache("metar") or {}

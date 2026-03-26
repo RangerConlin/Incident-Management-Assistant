@@ -27,7 +27,7 @@ from .models import (
 # ---------------------------------------------------------------------------
 
 def _now() -> str:
-    return datetime.now().astimezone().isoformat()
+    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _row_to_dict(row) -> Dict:
@@ -267,7 +267,7 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
         personnel_status = PersonnelStatus.normalize(row["personnel_status"])
         team_label = row.get("team_name") or row.get("team_id")
         if not team_label:
-            team_label = "â€”"
+            team_label = "Ã¢â‚¬â€"
         ui_flags = UIFlags(
             hidden_by_default=ci_status is CIStatus.NO_SHOW,
             grayed=ci_status is CIStatus.DEMOBILIZED,
@@ -308,7 +308,7 @@ def fetch_checkin(person_id: str) -> Optional[CheckInRecord]:
 
 def save_checkin(record: CheckInRecord) -> CheckInRecord:
     payload = record.to_payload()
-    if payload.get("team_id") in {"â€”", ""}:
+    if payload.get("team_id") in {"Ã¢â‚¬â€", ""}:
         payload["team_id"] = None
     with get_incident_conn() as conn:
         schema.ensure_incident_schema(conn)

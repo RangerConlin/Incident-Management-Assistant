@@ -308,8 +308,36 @@ class MasterDAL:
         if not ids:
             return
         db_ids = [self._prepare_personnel_id(pid) for pid in ids]
-        with self._conn() as con:
-            con.executemany("DELETE FROM personnel WHERE id=?", [(pid,) for pid in db_ids])
+        try:
+            with self._conn() as con:
+                # Proactively clear legacy references that do not declare ON DELETE CASCADE
+                # 1) Legacy join table
+                try:
+                    con.executemany(
+                        "DELETE FROM personnel_certifications WHERE person_id=?",
+                        [(pid,) for pid in db_ids],
+                    )
+                except sqlite3.DatabaseError:
+                    # Table may not exist in some profiles; ignore if missing
+                    pass
+
+                # 2) Users association — keep user but drop link to personnel
+                try:
+                    con.executemany(
+                        "UPDATE users SET associated_personnel_id = NULL WHERE associated_personnel_id = ?",
+                        [(pid,) for pid in db_ids],
+                    )
+                except sqlite3.DatabaseError:
+                    pass
+
+                # Now delete from personnel (support tables use ON DELETE CASCADE)
+                con.executemany("DELETE FROM personnel WHERE id=?", [(pid,) for pid in db_ids])
+        except sqlite3.IntegrityError as exc:
+            # Surface a friendly message to the UI so the user understands why
+            raise ValueError(
+                "Delete blocked: one or more selected records are still referenced by other tables. "
+                "Unlink related records (assignments, users, certifications) and try again."
+            ) from exc
 
     def get_personnel(self, pid: str) -> Optional[Personnel]:
         id_expr = "CAST(id AS TEXT)" if self._id_is_integer else "id"

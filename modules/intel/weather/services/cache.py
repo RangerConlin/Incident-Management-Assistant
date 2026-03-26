@@ -37,7 +37,8 @@ def write_cache(name: str, data: Dict[str, Any]) -> None:
     """Persist JSON-serialisable data to cache."""
 
     path = cache_path(name)
-    path.write_text(json.dumps(data), encoding="utf-8")
+    # Allow datetimes and other non-JSON types to serialize for caching purposes
+    path.write_text(json.dumps(data, default=str), encoding="utf-8")
 
 
 __all__ = ["read_cache", "write_cache", "cache_path"]

@@ -148,7 +148,7 @@ def _iso_timestamp(value: datetime | None) -> str:
         dt = dt.replace(tzinfo=timezone.utc)
     else:
         dt = dt.astimezone(timezone.utc)
-    return dt.isoformat()
+    return dt.isoformat(timespec="seconds")
 
 def _derive_team_status(row: sqlite3.Row) -> str:
     """Derive a coarse team status from task_teams timestamp columns.
@@ -430,7 +430,7 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
     }
     col = col_map.get(key)
     from datetime import datetime
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     with _connect() as con:
         # Update task_teams timeline (first instance only if already stamped)
         if col:
@@ -532,7 +532,7 @@ def set_team_status(team_id: int, status_key: str) -> None:
     """
     key = str(status_key).strip().lower()
     from datetime import datetime
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     display = {
         "enroute": "En Route",
         "on scene": "On Scene",

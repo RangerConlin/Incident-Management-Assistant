@@ -940,7 +940,28 @@ class TeamDetailBridge(QObject):
                 self._personnel = people
             else:
                 self._personnel = fetch_team_personnel(tid)
-            # Vehicles from team JSON when present
+            # Backfill Organization from Check-In unit when missing
+            try:
+                from modules.logistics.checkin import repository as ci_repo
+                enriched: list[dict[str, Any]] = []
+                for rec in (self._personnel or []):
+                    try:
+                        org = str(rec.get('organization') or '').strip()
+                    except Exception:
+                        org = ''
+                    if not org:
+                        try:
+                            ident = ci_repo.get_person_identity(str(rec.get('id')))
+                        except Exception:
+                            ident = None
+                        if ident and getattr(ident, 'home_unit', None):
+                            tmp = dict(rec)
+                            tmp['organization'] = ident.home_unit
+                            rec = tmp
+                    enriched.append(rec)
+                self._personnel = enriched
+            except Exception:
+                pass            # Vehicles from team JSON when present
             veh_ids = [str(v) for v in (getattr(self._team,'vehicles',[]) or [])]
             if veh_ids:
                 try:
@@ -1133,7 +1154,7 @@ class TeamDetailBridge(QObject):
             try:
                 from modules.logistics.checkin import repository as ci_repo
                 from modules.logistics.checkin.models import CheckInRecord, CIStatus, PersonnelStatus, Location
-                now_iso = datetime.now().astimezone().isoformat()
+                now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
                 rec = ci_repo.fetch_checkin(str(pid))
                 if rec is None:
                     ident = None
@@ -1187,7 +1208,7 @@ class TeamDetailBridge(QObject):
                         pass
                     try:
                         from datetime import datetime
-                        rec.updated_at = datetime.now().astimezone().isoformat()
+                        rec.updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
                     except Exception:
                         pass
                     ci_repo.save_checkin(rec)
@@ -1692,7 +1713,7 @@ class TeamDetailWindow(QMainWindow):
         right_form.setLabelAlignment(Qt.AlignRight)
 
         last_contact_label = QLabel("Last Contact")
-        self._last_contact_value = QLabel("â€“")
+        self._last_contact_value = QLabel("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“")
         right_form.addRow(last_contact_label, self._last_contact_value)
 
         task_row_widget = QWidget()
@@ -1702,7 +1723,7 @@ class TeamDetailWindow(QMainWindow):
         self._task_field = QLineEdit()
         self._task_field.setReadOnly(True)
         task_row_layout.addWidget(self._task_field)
-        self._task_button = QPushButton("Linkâ€¦")
+        self._task_button = QPushButton("LinkÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
         task_row_layout.addWidget(self._task_button)
         self._unlink_task_button = QPushButton("Unlink")
         self._unlink_task_button.setVisible(False)
@@ -2228,12 +2249,12 @@ class TeamDetailWindow(QMainWindow):
         status = str(record.get("status") or "").strip()
         if not callsign:
             fallback = tail or record.get("identifier") or record.get("id")
-            callsign = str(fallback or "â€”").strip()
+            callsign = str(fallback or "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â").strip()
         if not tail:
-            tail = "â€”"
+            tail = "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
         if not status:
-            status = "â€”"
-        return f"{callsign or 'â€”'} - {tail} - {status}"
+            status = "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
+        return f"{callsign or 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'} - {tail} - {status}"
 
     def _update_aircraft_assignment_display(self) -> None:
         if not hasattr(self, "_aircraft_combo"):
@@ -2358,7 +2379,7 @@ class TeamDetailWindow(QMainWindow):
 
     def _update_last_contact(self, team: Dict[str, Any]) -> None:
         ts = team.get("last_comm_ts") or team.get("last_contact_ts") or team.get("last_update_ts")
-        label = "â€“"
+        label = "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“"
         if ts:
             try:
                 dt = datetime.fromisoformat(str(ts))
@@ -2387,7 +2408,7 @@ class TeamDetailWindow(QMainWindow):
             self._task_button.setText("Open")
             self._unlink_task_button.setVisible(True)
         else:
-            self._task_button.setText("Linkâ€¦")
+            self._task_button.setText("LinkÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
             self._unlink_task_button.setVisible(False)
         self._view_task_button.setEnabled(bool(task_id))
 

@@ -6,6 +6,8 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
+from modules.gis.services.schema_bootstrap import ensure_spatial_schema
+
 _active_incident_id: Optional[str] = None
 
 _REQUIRED_INCIDENT_TABLES = {
@@ -113,6 +115,7 @@ def _ensure_notifications_schema(conn: sqlite3.Connection) -> None:
 
 def _ensure_schema_compatibility(conn: sqlite3.Connection) -> None:
     _ensure_notifications_schema(conn)
+    ensure_spatial_schema(conn)
 
     tables = _table_names(conn)
     if "teams" in tables:
@@ -158,6 +161,24 @@ def _ensure_schema_compatibility(conn: sqlite3.Connection) -> None:
         }
         for column, decl in task_columns.items():
             _ensure_column(conn, "tasks", column, decl)
+
+    # Incident meta (single-row) for cross-module state such as ICP location
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_meta (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            icp_address TEXT,
+            icp_lat REAL,
+            icp_lon REAL,
+            updated_at TEXT
+        )
+        """
+    )
+    # Ensure a single row exists to update
+    cur = conn.execute("SELECT COUNT(*) FROM incident_meta")
+    count = int(cur.fetchone()[0])
+    if count == 0:
+        conn.execute("INSERT INTO incident_meta (id) VALUES (1)")
 
     conn.commit()
 

@@ -1,0 +1,2 @@
+"""Windows for Command module."""
+

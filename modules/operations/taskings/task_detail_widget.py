@@ -307,7 +307,7 @@ class TaskDetailWindow(QWidget):
             pass
         self._nar_entry_top = QTextEdit(self)
         try:
-            self._nar_entry_top.setPlaceholderText("Type narrative… (Enter to add; Shift+Enter = newline)")
+            self._nar_entry_top.setPlaceholderText("Type narrativeâ€¦ (Enter to add; Shift+Enter = newline)")
         except Exception:
             pass
         # Make it ~3 lines tall
@@ -349,7 +349,7 @@ class TaskDetailWindow(QWidget):
 
         # Narrative tab
         # Add a small dropdown cue on Critical to make editability obvious
-        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical ▼", "214+"]
+        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical â–¼", "214+"]
         self._nar_model = QStandardItemModel(0, len(self._nar_headers_base), self)
         self._nar_model.setHorizontalHeaderLabels(self._nar_headers_base)
         nar_content = QWidget(self)
@@ -368,7 +368,7 @@ class TaskDetailWindow(QWidget):
             self._nar_entry.setVisible(False)
         except Exception:
             pass
-        self._nar_entry.setPlaceholderText("Type narrative… (Enter to add; Shift+Enter = newline)")
+        self._nar_entry.setPlaceholderText("Type narrativeâ€¦ (Enter to add; Shift+Enter = newline)")
         self._nar_entry.returnPressed.connect(self.add_narrative)
         self._nar_crit = QComboBox(nar_content)
         try:
@@ -1909,7 +1909,7 @@ class TaskDetailWindow(QWidget):
             return
         payload = {
             "taskid": self._task_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "narrative": text,
             "entered_by": "",
             "team_num": "",

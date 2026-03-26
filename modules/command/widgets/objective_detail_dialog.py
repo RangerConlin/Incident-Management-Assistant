@@ -98,8 +98,8 @@ class ObjectiveDetailDialog(QDialog):
         self._tags_edit = QLineEdit()
         self._tags_edit.setPlaceholderText("Tags (comma separated)")
 
-        self._op_label = QLabel("–")
-        self._updated_label = QLabel("–")
+        self._op_label = QLabel("â€“")
+        self._updated_label = QLabel("â€“")
 
         button_row = QHBoxLayout()
         self._save_button = QPushButton("Save")
@@ -221,7 +221,7 @@ class ObjectiveDetailDialog(QDialog):
         self._tags_edit.setText(", ".join(summary.tags))
         self._op_label.setText(str(summary.op_period_id or ""))
         updated_by = summary.updated_by or "Unknown"
-        updated_ts = summary.updated_at.isoformat(sep=" ") if summary.updated_at else ""
+        updated_ts = summary.updated_at.isoformat(sep=" ", timespec="seconds") if summary.updated_at else ""
         self._updated_label.setText(f"{updated_ts} by {updated_by}")
         self._narrative_edit.setPlainText(self._detail.narrative or "")
         self._populate_strategies(detail.strategies)
@@ -260,7 +260,7 @@ class ObjectiveDetailDialog(QDialog):
     def _populate_history(self, history) -> None:
         self._log_list.clear()
         for entry in history:
-            label = f"{entry.ts:%Y-%m-%d %H:%M} – {entry.field}: {entry.old_value or ''} → {entry.new_value or ''}"
+            label = f"{entry.ts:%Y-%m-%d %H:%M} â€“ {entry.field}: {entry.old_value or ''} â†’ {entry.new_value or ''}"
             item = QListWidgetItem(label)
             self._log_list.addItem(item)
 

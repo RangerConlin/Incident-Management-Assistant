@@ -7,6 +7,8 @@ from typing import Optional
 from PySide6.QtWidgets import QWidget
 
 from .window_registry import WindowRegistry
+from ..services.api_link import WeatherApiManager
+from ..windows.override_location_dialog import OverrideLocationDialog
 
 
 def open_alert_details(payload: Optional[dict] = None) -> QWidget:
@@ -82,11 +84,51 @@ def open_export_dialog(parent: Optional[QWidget] = None) -> QWidget:
 
 
 def open_override_location(parent: Optional[QWidget] = None) -> QWidget:
-    from ..windows.override_location_dialog import OverrideLocationDialog
+    """Open the override dialog and, on Apply, request data for selection.
 
-    return WindowRegistry.instance().open_or_raise(
+    Currently handles the 'manual' coordinate path; 'ICP' and 'city/ZIP'
+    selections are placeholders until upstream services provide coordinates
+    and geocoding, respectively.
+    """
+    dialog: OverrideLocationDialog = WindowRegistry.instance().open_or_raise(
         OverrideLocationDialog,
         allow_multiple=True,
+    )  # type: ignore[assignment]
+
+    def _on_accept() -> None:
+        mode = dialog.selected_mode()
+        api = WeatherApiManager.instance()
+        if mode == "manual":
+            lat, lon = dialog.get_manual_coords()
+            api.request_advisories(latitude=lat, longitude=lon)
+            api.request_lightning(latitude=lat, longitude=lon, radius_nm=25.0)
+        elif mode == "icp":
+            try:
+                from utils import incident_meta as _incident_meta
+
+                loc = _incident_meta.get_icp_location()
+                if loc:
+                    api.request_advisories(latitude=loc.latitude, longitude=loc.longitude)
+                    api.request_lightning(latitude=loc.latitude, longitude=loc.longitude, radius_nm=25.0)
+            except Exception:
+                pass
+        # 'city' remains a no-op until a geocoder-backed search is provided
+
+    try:
+        dialog.accepted.disconnect()
+    except Exception:
+        pass
+    dialog.accepted.connect(_on_accept)
+    return dialog
+
+
+def open_current_forecast_window(parent: Optional[QWidget] = None) -> QWidget:
+    from ..windows.current_forecast_window import CurrentForecastWindow
+
+    return WindowRegistry.instance().open_or_raise(
+        CurrentForecastWindow,
+        key="CurrentForecastWindow",
+        allow_multiple=False,
     )
 
 
@@ -120,4 +162,5 @@ __all__ = [
     "open_override_location",
     "open_sun_times_panel",
     "show_alert_toast",
+    "open_current_forecast_window",
 ]

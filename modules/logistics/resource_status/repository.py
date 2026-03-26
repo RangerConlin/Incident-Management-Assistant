@@ -211,4 +211,4 @@ def new_identifier() -> str:
 
 
 def now_local_iso() -> str:
-    return datetime.now().astimezone().isoformat()
+    return datetime.now().astimezone().isoformat(timespec="seconds")

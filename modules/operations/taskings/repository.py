@@ -83,7 +83,7 @@ def _snapshot_task_roster(con: sqlite3.Connection, task_id: int, team_id: int) -
     """
     from datetime import datetime
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
 
     # Snapshot personnel
     try:
@@ -381,7 +381,7 @@ def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
 
     Preference order:
     1) Live join via personnel.team_id for teams assigned to the task.
-    2) teams.members_json → personnel.id for assigned teams.
+    2) teams.members_json â†’ personnel.id for assigned teams.
     3) Snapshot table task_personnel.
 
     Returns dicts with: active(bool), name, id, rank, role, organization, phone, team_name, team_id.
@@ -828,7 +828,7 @@ def save_task_assignment(task_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
     import json
     from datetime import datetime
     payload = dict(data or {})
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     js = json.dumps(payload)
     with _connect() as con:
         _ensure_task_assignments_table(con)
@@ -1126,7 +1126,7 @@ def _build_ics204_mapping_data(*, task_id: int, team: Optional[Dict[str, Any]]) 
         },
         "tasks": tasks,
         "preparer": {"first_name": preparer_first, "last_name": preparer_last, "position": leader_pos},
-        "prepared_at": datetime.utcnow().isoformat(),
+        "prepared_at": datetime.utcnow().isoformat(timespec="seconds"),
     }
 
 def _ensure_task_comms_table(con: sqlite3.Connection) -> None:
@@ -1369,7 +1369,7 @@ def list_task_debriefs(task_id: int) -> List[Dict[str, Any]]:
 def create_debrief(task_id: int, sortie_number: str, debriefer_id: str, types: List[str]) -> int:
     from datetime import datetime
     import json
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     with _connect() as con:
         _ensure_task_debrief_tables(con)
         cur = con.execute(
@@ -1383,7 +1383,7 @@ def create_debrief(task_id: int, sortie_number: str, debriefer_id: str, types: L
 
 def update_debrief_header(debrief_id: int, patch: Dict[str, Any]) -> None:
     from datetime import datetime
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     with _connect() as con:
         _ensure_task_debrief_tables(con)
         patch = dict(patch or {})
@@ -1397,7 +1397,7 @@ def update_debrief_header(debrief_id: int, patch: Dict[str, Any]) -> None:
 def save_debrief_form(debrief_id: int, form_key: str, data: Dict[str, Any]) -> None:
     from datetime import datetime
     import json
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     js = json.dumps(dict(data or {}))
     with _connect() as con:
         _ensure_task_debrief_tables(con)
@@ -1733,7 +1733,7 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
         team_id = create_team(None)
     # Auto-primary if first assignment for the task and primary not explicitly set
     from datetime import datetime
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     with _connect() as con:
         existing = con.execute("SELECT COUNT(*) FROM task_teams WHERE task_id=?", (int(task_id),)).fetchone()[0]
         is_primary = 1 if (primary or existing == 0) else 0
@@ -1888,7 +1888,7 @@ def create_task(title: str = "<New Task>", task_identifier: Optional[str] = None
     Ensures required columns are provided for common tasks schema.
     """
     from datetime import datetime
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.utcnow().isoformat(timespec="seconds")
     with _connect() as con:
         # Generate next task_id if not provided (T-###)
         tid = task_identifier

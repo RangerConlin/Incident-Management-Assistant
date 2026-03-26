@@ -16,7 +16,7 @@ ATTACHMENT_MAX_WARN_BYTES = 10 * 1024 * 1024  # 10 MB: warn user but allow
 
 
 def _now_utc_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 
 def _attachments_dir(task_id: int) -> Path:

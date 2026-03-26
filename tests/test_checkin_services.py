@@ -54,7 +54,7 @@ def test_create_and_check_in_personnel(temp_data_dir: Path) -> None:
     service = services.CheckInService()
     created = service.create_master_record(
         "personnel",
-        {"name": "Alice Example", "role": "Medic", "callsign": "ECHO1"},
+        {"id": 1001, "name": "Alice Example", "role": "Medic", "callsign": "ECHO1"},
     )
     assert created["name"] == "Alice Example"
     assert not created["_checked_in"]
@@ -74,11 +74,11 @@ def test_search_master_records_filters_and_marks(temp_data_dir: Path) -> None:
     service = services.CheckInService()
     first = service.create_master_record(
         "personnel",
-        {"name": "Charlie Search", "role": "Ground", "callsign": "ALPHA"},
+        {"id": 2001, "name": "Charlie Search", "role": "Ground", "callsign": "ALPHA"},
     )
     service.create_master_record(
         "personnel",
-        {"name": "Donna Support", "role": "Logistics", "callsign": "BRAVO"},
+        {"id": 2002, "name": "Donna Support", "role": "Logistics", "callsign": "BRAVO"},
     )
 
     results = service.search_master_records("personnel", "Charlie")
@@ -95,7 +95,7 @@ def test_check_in_with_overrides_updates_incident_only(temp_data_dir: Path) -> N
     service = services.CheckInService()
     created = service.create_master_record(
         "personnel",
-        {"name": "Evan Override", "role": "Pilot", "callsign": "RAVEN"},
+        {"id": 3001, "name": "Evan Override", "role": "Pilot", "callsign": "RAVEN"},
     )
     identifier = str(created["id"])
 

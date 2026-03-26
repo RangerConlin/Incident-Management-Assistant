@@ -487,7 +487,7 @@ class TeamStatusPanel(QWidget):
             dt = value
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
-            return dt.isoformat()
+            return dt.isoformat(timespec="seconds")
         return str(value)
 
     def _format_elapsed(self, iso_ts: str | None) -> str:
@@ -675,7 +675,7 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
-    def set_row_color_by_status(self, row, status):  # âœ… Now correctly placed
+    def set_row_color_by_status(self, row, status):  # Ã¢Å“â€¦ Now correctly placed
         status_key = str(status or "").lower()
         style = team_status_colors().get(status_key)
         palette_colors = get_palette()
@@ -809,7 +809,7 @@ class TeamStatusPanel(QWidget):
                     act = sub.addAction('(no tasks)'); act.setEnabled(False)
                 else:
                     for t in tasks:
-                        label = f"{t.get('task_id') or ('T-' + str(t.get('id')))} — {t.get('title') or ''}".strip()
+                        label = f"{t.get('task_id') or ('T-' + str(t.get('id')))} â€” {t.get('title') or ''}".strip()
                         sub.addAction(label, lambda tid=int(t.get('id')), s=status: self._assign_and_set_status(row, tid, s))
                 menu.addMenu(sub)
             else:
@@ -877,7 +877,7 @@ class TeamStatusPanel(QWidget):
         try:
             from datetime import datetime, timezone
             now = datetime.now(timezone.utc)
-            now_iso = now.isoformat()
+            now_iso = now.isoformat(timespec="seconds")
             item_last = self.table.item(row, 9)
             if item_last:
                 item_last.setData(Qt.UserRole, now_iso)
@@ -1081,7 +1081,7 @@ class TeamStatusPanel(QWidget):
     # ------------------------------ Settings menu --------------------------- #
     def _build_settings_menu(self) -> None:
         menu = QMenu(self)
-        menu.addAction("Filtersâ€¦", self._open_filters_dialog)
+        menu.addAction("FiltersÃ¢â‚¬Â¦", self._open_filters_dialog)
         menu.addSeparator()
         # Columns submenu (exclude col 0 - alert icon)
         cols_menu = QMenu("Columns", menu)
