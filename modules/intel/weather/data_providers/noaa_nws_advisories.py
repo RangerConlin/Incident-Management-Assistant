@@ -1,4 +1,4 @@
-﻿"""NOAA NWS advisories data provider.
+"""NOAA NWS advisories data provider.
 
 Implements the :class:`AdvisoryProvider` interface by calling the public
 National Weather Service API (api.weather.gov). Network calls are performed

@@ -1,4 +1,4 @@
-﻿"""Master-data repository for Units and Organizations.
+"""Master-data repository for Units and Organizations.
 
 This module owns schema creation and CRUD operations for:
 - organizations and nested hierarchy
@@ -147,7 +147,7 @@ class UnitsOrganizationsRepository:
                 CREATE INDEX IF NOT EXISTS idx_rank_struct_sort ON rank_structures(sort_order, name);
                 """
             )
-            
+
             # --- Legacy schema migrations ---
             # Ensure ranks.rank_structure_id exists before creating index.
             cols = {row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in conn.execute("PRAGMA table_info('ranks')").fetchall()}

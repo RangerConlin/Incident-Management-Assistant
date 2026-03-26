@@ -1,2 +1,1 @@
 """Windows for Command module."""
-

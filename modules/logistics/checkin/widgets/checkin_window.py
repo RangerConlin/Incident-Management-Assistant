@@ -1,4 +1,4 @@
-﻿"""Unified Logistics Resource Check-In and Status Board (Qt Widgets).
+"""Unified Logistics Resource Check-In and Status Board (Qt Widgets).
 
 This module replaces the older tab + bottom editor workflow with a board-first
 experience that is optimized for high-volume incident intake.  The design keeps

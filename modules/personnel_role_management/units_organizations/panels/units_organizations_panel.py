@@ -1,4 +1,4 @@
-﻿"""Qt Widgets panel for master-data Units and Organizations management."""
+"""Qt Widgets panel for master-data Units and Organizations management."""
 from __future__ import annotations
 
 from typing import Any
@@ -470,4 +470,3 @@ class UnitsOrganizationsPanel(QWidget):
 
 
 __all__ = ["UnitsOrganizationsPanel"]
-

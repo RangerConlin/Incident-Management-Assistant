@@ -1,4 +1,4 @@
-﻿"""NOAA aviation weather adapters.
+"""NOAA aviation weather adapters.
 
 Updated to use the Aviation Weather Center (AWC) /api/data endpoints
 for METAR and TAF in JSON format.

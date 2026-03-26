@@ -1,4 +1,4 @@
-﻿"""Domain models for the Logistics resource status board."""
+"""Domain models for the Logistics resource status board."""
 from __future__ import annotations
 
 from dataclasses import dataclass

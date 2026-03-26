@@ -121,4 +121,3 @@ def show_window(parent: Optional[Widget] = None) -> IcpLocationWindow:  # type: 
 
 
 __all__ = ["IcpLocationWindow", "show_window"]
-
