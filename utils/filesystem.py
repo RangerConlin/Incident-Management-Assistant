@@ -1,7 +1,9 @@
-import os
+from __future__ import annotations
 
-def ensure_incident_dir():
-    incident_dir = os.path.abspath("data/incidents")
-    if not os.path.exists(incident_dir):
-        os.makedirs(incident_dir)
-    return incident_dir
+from . import incident_storage
+
+
+def ensure_incident_dir() -> str:
+    """Backward-compatible helper returning the incidents root directory."""
+    incident_storage.ensure_layout_initialized()
+    return str(incident_storage.incidents_root())

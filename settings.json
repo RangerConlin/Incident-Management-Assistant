@@ -123,5 +123,16 @@
     ],
     "lastIncidentNumber": "26-T-4301",
     "statusboard.task.textSize": "large",
-    "statusboard.team.refreshMs": 15000
+    "statusboard.team.refreshMs": 15000,
+    "statusboard.team.columns.widths": {
+        "team_type": 24,
+        "sortie": 53,
+        "name": 98,
+        "leader": 114,
+        "contact": 82,
+        "status": 84,
+        "assignment": 257,
+        "location": 338,
+        "last_updated": 75
+    }
 }

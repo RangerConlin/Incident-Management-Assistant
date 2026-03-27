@@ -1307,7 +1307,11 @@ class Ics214ActivityLogPanel(QWidget):
         self.op_combo.addItem("Unassigned", 0)
         rows: list[sqlite3.Row] = []
         if self.incident_id:
-            db_path = Path("data") / "incidents" / f"{self.incident_id}.db"
+            from utils import incident_storage
+            paths = incident_storage.resolve_incident_paths_by_identifier(self.incident_id)
+            if paths is None:
+                raise RuntimeError(f"Unknown incident: {self.incident_id}")
+            db_path = paths.incident_db
             if db_path.exists():
                 conn: sqlite3.Connection | None = None
                 try:

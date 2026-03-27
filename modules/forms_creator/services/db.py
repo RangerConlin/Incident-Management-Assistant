@@ -14,11 +14,12 @@ from pathlib import Path
 from typing import Generator, Iterable
 
 from utils.incident_db import ensure_incident_database
+from utils import incident_storage
 
 
-DATA_DIR = Path("data")
-MASTER_DB_PATH = DATA_DIR / "master.db"
-INCIDENTS_DIR = DATA_DIR / "incidents"
+DATA_DIR = incident_storage.data_root()
+MASTER_DB_PATH = incident_storage.master_db_path()
+INCIDENTS_DIR = incident_storage.incidents_root()
 
 
 def _connect(path: Path) -> sqlite3.Connection:
@@ -100,7 +101,10 @@ def get_incident_connection(incident_id: str) -> Generator[sqlite3.Connection, N
     if not safe_id:
         raise ValueError("incident_id cannot be empty")
 
-    conn = _connect(INCIDENTS_DIR / f"{safe_id}.db")
+    paths = incident_storage.resolve_incident_paths_by_identifier(safe_id)
+    if paths is None:
+        raise RuntimeError(f"Unknown incident: {safe_id}")
+    conn = _connect(paths.incident_db)
     try:
         yield conn
         conn.commit()

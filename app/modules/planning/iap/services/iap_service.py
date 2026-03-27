@@ -6,6 +6,8 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+
+from utils import incident_storage
 from copy import deepcopy
 from typing import Dict, Iterable, List, Optional, Sequence
 
@@ -47,7 +49,7 @@ class IAPService:
         incident_id: Optional[str] = None,
     ):
         data_root = Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
-        output_dir = base_output_dir or (data_root / "incidents")
+        output_dir = base_output_dir or incident_storage.incidents_root()
         self.exporter = exporter or IAPPacketExporter(output_dir)
         self.autofill_engine = autofill_engine or AutofillEngine()
         self.incident_id = incident_id
@@ -229,7 +231,10 @@ class IAPService:
     def _build_repository(self, incident_id: Optional[str], data_root: Path) -> Optional[IAPRepository]:
         incident_path: Optional[Path]
         if incident_id:
-            incident_path = data_root / "incidents" / f"{incident_id}.db"
+            paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+            if paths is None:
+                raise RuntimeError(f"Unknown incident: {incident_id}")
+            incident_path = paths.incident_db
         else:
             try:
                 incident_path = incident_context.get_active_incident_db_path()

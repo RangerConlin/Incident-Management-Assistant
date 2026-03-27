@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from pathlib import Path
+
+from utils import incident_storage
 from typing import Generator
 
 from sqlalchemy import create_engine, text
@@ -221,8 +223,12 @@ def get_master_engine() -> Engine:
 
 
 def get_incident_engine(incident_id: str) -> Engine:
-    incident_path = INCIDENTS_DIR / f"{incident_id}.db"
-    incident_path.parent.mkdir(parents=True, exist_ok=True)
+    paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+    if paths is None:
+        metadata = incident_storage.infer_incident_metadata(str(incident_id))
+        paths = incident_storage.get_incident_paths(incident_number=metadata.get("incident_number") or incident_id, incident_name=metadata.get("name") or incident_id, incident_id=metadata.get("incident_id") or incident_id)
+        incident_storage.ensure_incident_structure(paths, metadata)
+    incident_path = paths.incident_db
     engine = create_engine(f"sqlite:///{incident_path}")
     _init_db(engine, INCIDENT_TABLES)
     return engine

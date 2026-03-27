@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from utils import incident_context
+from utils import incident_context, incident_storage
 from utils.incident_db import create_incident_database
 from utils.state import AppState
 
@@ -93,7 +93,6 @@ def incident_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     shutil.copy2(repo_template, incidents_dir / "template.db")
 
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(base))
-    monkeypatch.setattr(incident_context, "_DATA_DIR", base)
 
     previous_incident = AppState.get_active_incident()
     AppState.set_active_incident(None)
@@ -116,7 +115,11 @@ def _table_names(db_path: Path) -> set[str]:
 def test_create_incident_database_initializes_template_schema(incident_data_dir: Path) -> None:
     db_path = create_incident_database("INC/001")
 
-    assert db_path == incident_data_dir / "incidents" / "INC-001.db"
+    paths = incident_storage.resolve_incident_paths_by_identifier("INC/001") or incident_storage.resolve_incident_paths_by_identifier("INC-001")
+    assert paths is not None
+    assert db_path == paths.incident_db
+    assert paths.spatial_db.exists()
+    assert paths.manifest.exists()
     assert db_path.exists()
     assert db_path.stat().st_size > 0
 

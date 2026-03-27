@@ -17,9 +17,13 @@ MIGRATION_PATH = Path(__file__).resolve().parent / "data" / "migrations" / "0001
 
 def _resolve_db_path(incident_id: str | None = None) -> Path:
     if incident_id:
-        base = Path(os.environ.get("CHECKIN_DATA_DIR", "data")) / "incidents"
-        base.mkdir(parents=True, exist_ok=True)
-        return base / f"{incident_id}.db"
+        from utils import incident_storage
+        paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+        if paths is None:
+            meta = incident_storage.infer_incident_metadata(incident_id)
+            paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or incident_id, incident_name=meta.get("name") or incident_id, incident_id=meta.get("incident_id") or incident_id)
+            incident_storage.ensure_incident_structure(paths, meta)
+        return paths.incident_db
     return Path(incident_context.get_active_incident_db_path())
 
 

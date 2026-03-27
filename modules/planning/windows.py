@@ -68,7 +68,7 @@ def get_taskmetrics_panel(incident_id: object | None = None) -> QWidget:
 def get_strategic_objectives_panel(incident_id: object | None = None) -> QWidget:
     """Return QWidget wrapping the QML strategic objectives panel.
 
-    Resolves the current incident's SQLite DB from ``data/incidents`` (or the
+    Resolves the current incident's SQLite DB from ``<data_root>/incidents`` (or the
     configured data dir via ``utils.incident_context``) instead of using a
     hard-coded path.
     """

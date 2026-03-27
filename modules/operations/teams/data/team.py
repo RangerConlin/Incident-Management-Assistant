@@ -23,6 +23,7 @@ class Team:
     current_task_id: Optional[int] = None
     primary_task: Optional[str] = None
     assignment: Optional[str] = None
+    location: Optional[str] = None
     team_leader_id: Optional[int] = None  # FK to personnel.id
     team_leader_phone: Optional[str] = None
     phone: Optional[str] = None
@@ -60,6 +61,7 @@ class Team:
             "current_task_id": self.current_task_id,
             "primary_task": self.primary_task,
             "assignment": self.assignment,
+            "location": self.location,
             "team_leader": self.team_leader_id,
             "leader_phone": self.team_leader_phone,
             "phone": self.phone,
@@ -131,6 +133,7 @@ class Team:
             current_task_id=(int(_get("current_task_id")) if _get("current_task_id") is not None else None),
             primary_task=_get("primary_task"),
             assignment=_get("assignment"),
+            location=_get("location"),
             team_leader_id=(int(_get("team_leader")) if _get("team_leader") is not None else None),
             team_leader_phone=_get("leader_phone"),
             phone=_get("phone"),
@@ -169,6 +172,7 @@ class Team:
             "current_task_id": self.current_task_id,
             "primary_task": self.primary_task,
             "assignment": self.assignment,
+            "location": self.location,
             "team_leader_id": self.team_leader_id,
             "team_leader_phone": self.team_leader_phone,
             "phone": self.phone,

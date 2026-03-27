@@ -7,9 +7,10 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 import pytest
 
 from modules.public_info.models.repository import PublicInfoRepository
+from utils import incident_storage
 
 TEST_INCIDENT_ID = 999
-DB_PATH = Path("data/incidents") / f"{TEST_INCIDENT_ID}.db"
+DB_PATH = incident_storage.get_incident_paths(incident_number=TEST_INCIDENT_ID, incident_name=TEST_INCIDENT_ID, incident_id=TEST_INCIDENT_ID).incident_db
 
 
 def setup_module(module):

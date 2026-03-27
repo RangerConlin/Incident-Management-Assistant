@@ -107,6 +107,19 @@ class TaskStatusPanel(QWidget):
             hdr = self.table.horizontalHeader()
             hdr.setSectionsMovable(True)
             hdr.setStretchLastSection(False)
+            try:
+                for idx in range(self.table.columnCount()):
+                    hdr.setSectionResizeMode(idx, QHeaderView.Interactive)
+            except Exception:
+                pass
+            try:
+                self._apply_saved_column_widths()
+            except Exception:
+                pass
+            try:
+                hdr.sectionResized.connect(self._on_section_resized)
+            except Exception:
+                pass
         except Exception:
             pass
         # Apply any saved column visibility
@@ -442,6 +455,10 @@ class TaskStatusPanel(QWidget):
                 act.setChecked(True)
             self._col_actions[idx] = act
         menu.addMenu(cols_menu)
+        widths_menu = QMenu("Column Widths", menu)
+        widths_menu.addAction("Auto-fit Now", self._auto_fit_columns)
+        widths_menu.addAction("Reset Saved Widths", self._reset_saved_column_widths)
+        menu.addMenu(widths_menu)
         # Auto-refresh submenu
         refresh_menu = QMenu("Auto-Refresh", menu)
         self._refresh_actions = {}
@@ -530,7 +547,78 @@ class TaskStatusPanel(QWidget):
         except Exception:
             pass
 
-    # -------------------------- Column visibility -------------------------- #
+
+    # -------------------------- Column widths ---------------------------- #
+    def _settings_key_widths(self) -> str:
+        return "statusboard.task.columns.widths"
+
+    def _key_to_index(self) -> dict[str, int]:
+        try:
+            return {key: idx for idx, key, _ in self._columns}
+        except Exception:
+            return {}
+
+    def _index_to_key(self) -> dict[int, str]:
+        try:
+            return {idx: key for idx, key, _ in self._columns}
+        except Exception:
+            return {}
+
+    def _apply_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            widths = SettingsManager().get(self._settings_key_widths(), {}) or {}
+            key_to_index = self._key_to_index()
+            hdr = self.table.horizontalHeader()
+            for key, w in widths.items():
+                if key in key_to_index:
+                    try:
+                        hdr.resizeSection(int(key_to_index[key]), int(w))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def _persist_column_width(self, index: int, width: int) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            data = s.get(self._settings_key_widths(), {}) or {}
+            index_to_key = self._index_to_key()
+            key = index_to_key.get(index)
+            if key is None:
+                return
+            data[str(key)] = int(max(24, width))
+            s.set(self._settings_key_widths(), data)
+        except Exception:
+            pass
+
+    def _on_section_resized(self, index: int, old: int, new: int) -> None:
+        try:
+            self._persist_column_width(index, new)
+        except Exception:
+            pass
+
+    def _auto_fit_columns(self) -> None:
+        try:
+            self.table.resizeColumnsToContents()
+            # Persist current sizes
+            hdr = self.table.horizontalHeader()
+            for idx in range(self.table.columnCount()):
+                try:
+                    self._persist_column_width(idx, hdr.sectionSize(idx))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _reset_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set(self._settings_key_widths(), {})
+        except Exception:
+            pass
+# -------------------------- Column visibility -------------------------- #
     def _toggle_column(self, index: int) -> None:
         try:
             hidden = self.table.isColumnHidden(index)

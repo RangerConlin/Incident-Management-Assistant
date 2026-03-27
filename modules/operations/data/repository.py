@@ -103,6 +103,18 @@ def _ensure_teams_name_column(con: sqlite3.Connection) -> None:
         pass
 
 
+def _ensure_teams_location_column(con: sqlite3.Connection) -> None:
+    """Add teams.location if missing (best-effort)."""
+    try:
+        cur = con.execute("PRAGMA table_info(teams)")
+        cols = {row[1] for row in cur.fetchall()}
+        if "location" not in cols:
+            con.execute("ALTER TABLE teams ADD COLUMN location TEXT")
+            con.commit()
+    except Exception:
+        pass
+
+
 def _ensure_teams_attention_column(con: sqlite3.Connection) -> None:
     """Add teams.needs_attention if missing (best-effort)."""
     try:
@@ -245,25 +257,29 @@ def fetch_task_rows() -> List[Dict[str, Any]]:
         )
     return out
 
+
 def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
     """Return team rows for the Team Status board based on teams as the source.
 
     Each dict contains: team_id, sortie, name(label), leader, contact, status,
-    assignment (task title if currently assigned), location (task location),
-    task_id (current).
+    assignment (task title if currently assigned), location, task_id (current).
     """
     with _connect() as con:
         _ensure_teams_status_columns(con)
         _ensure_teams_current_task_column(con)
         _ensure_teams_name_column(con)
+        _ensure_teams_location_column(con)
         _ensure_teams_attention_column(con)
         _ensure_team_alert_columns(con)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(teams)").fetchall()}
+        has_team_loc = ("location" in cols)
         has_msg = _has_table(con, "message_log_entry")
         last_msg_select = (
             "(SELECT MAX(timestamp) FROM message_log_entry me WHERE me.sender = COALESCE(tm.callsign, tm.name) OR me.recipient = COALESCE(tm.callsign, tm.name))"
             if has_msg
             else "NULL"
         )
+        loc_select = "tm.location AS team_location," if has_team_loc else "NULL AS team_location,"
         sql = f"""
             SELECT tm.id AS team_id,
                    tm.current_task_id AS task_id,
@@ -275,6 +291,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                      ORDER BY tt2.id DESC
                      LIMIT 1) AS sortie_id,
                    tm.name AS team_name,
+                   {loc_select}
                    t.title AS assignment,
                    t.location AS task_location,
                    tm.status AS team_status,
@@ -296,7 +313,6 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for r in rows:
         team_id = int(r["team_id"]) if r["team_id"] is not None else None
-        # Prefer explicit team name; else use sortie, else synthetic label
         team_label = r["team_name"] or r["sortie_id"] or (f"Team {team_id}" if team_id is not None else "Team")
         team_type = (r["team_type"] if "team_type" in r.keys() else None) or ""
         try:
@@ -310,7 +326,6 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             "on scene": "arrival",
             "rtb": "returning",
         }.get(status, status)
-        # Compute derived last update as max of team status_updated and latest comms log
         try:
             ts1 = (r["team_status_updated"] or "").strip() if "team_status_updated" in r.keys() else ""
         except Exception:
@@ -319,12 +334,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             ts2 = (r["last_msg_ts"] or "").strip() if "last_msg_ts" in r.keys() else ""
         except Exception:
             ts2 = ""
-        # Choose lexicographically max ISO timestamp if both exist, else whichever is non-empty
-        derived_last_updated = None
-        if ts1 and ts2:
-            derived_last_updated = ts1 if ts1 >= ts2 else ts2
-        else:
-            derived_last_updated = ts1 or ts2 or None
+        derived_last_updated = ts1 if (ts1 and (not ts2 or ts1 >= ts2)) else (ts2 or None)
         needs_attention = r["needs_attention"] if "needs_attention" in r.keys() else 0
         try:
             needs_attention = int(needs_attention)
@@ -336,26 +346,20 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         except Exception:
             emergency_flag = str(raw_emergency).strip().lower() in {"true", "yes", "1"}
         last_checkin_at = r["last_checkin_at"] if "last_checkin_at" in r.keys() else None
-        checkin_reference_at = (
-            r["checkin_reference_at"] if "checkin_reference_at" in r.keys() else None
-        )
+        checkin_reference_at = r["checkin_reference_at"] if "checkin_reference_at" in r.keys() else None
         last_checkin_at = str(last_checkin_at).strip() if last_checkin_at else None
-        checkin_reference_at = (
-            str(checkin_reference_at).strip() if checkin_reference_at else None
-        )
-        last_updated = (
-            last_checkin_at
-            or checkin_reference_at
-            or derived_last_updated
-        )
-        # Only show a sortie number if the team is currently assigned to a task
-        # and that task assignment has a sortie id.
+        checkin_reference_at = str(checkin_reference_at).strip() if checkin_reference_at else None
+        last_updated = last_checkin_at or checkin_reference_at or derived_last_updated
         try:
             current_task_id = int(r["task_id"]) if r["task_id"] is not None else None
         except Exception:
             current_task_id = None
         raw_sortie = r["sortie_id"] if "sortie_id" in r.keys() else None
         sortie_display = str(raw_sortie) if (current_task_id is not None and raw_sortie) else ""
+        # Location selection: team location preferred over task location
+        team_loc = r["team_location"] if ("team_location" in r.keys() and r["team_location"]) else None
+        task_loc = r["task_location"] if ("task_location" in r.keys() and r["task_location"]) else ""
+        location = team_loc or task_loc or ""
 
         out.append(
             {
@@ -369,7 +373,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                 "contact": r["leader_contact"] or "",
                 "status": status,
                 "assignment": r["assignment"] or "",
-                "location": r["task_location"] or "",
+                "location": location,
                 "needs_attention": bool(needs_attention),
                 "needs_assistance_flag": bool(needs_attention),
                 "emergency_flag": emergency_flag,
@@ -380,8 +384,6 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             }
         )
     return out
-
-
 def touch_team_checkin(
     team_id: int,
     *,

@@ -175,5 +175,8 @@ class ICS203Controller:
 
 
 def _incident_export_dir(incident_id: str) -> Path:
-    base = Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
-    return base / "incidents" / str(incident_id) / "exports"
+    from utils import incident_storage
+    paths = incident_storage.resolve_incident_paths_by_identifier(str(incident_id))
+    if paths is None:
+        raise RuntimeError(f"Unknown incident: {incident_id}")
+    return paths.exports

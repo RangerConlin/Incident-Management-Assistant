@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+
+from utils import incident_storage
 from typing import List
 
 from fastapi import APIRouter
@@ -30,9 +32,9 @@ def clone_template(template_id: int, req: schemas.CloneFromTemplateRequest | Non
 
 @router.get("/events")
 def list_events():
-    incidents_dir = Path("data/incidents")
+    incidents_dir = incident_storage.incidents_root()
     incidents_dir.mkdir(parents=True, exist_ok=True)
-    return {"events": [p.stem for p in incidents_dir.glob("*.db")]}  # simple listing
+    return {"events": [p.name for p in incidents_dir.iterdir() if p.is_dir()]}  # folder-based listing
 
 
 @router.get("/events/{event_id}", response_model=schemas.EventRead | None)

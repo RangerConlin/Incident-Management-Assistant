@@ -5,7 +5,9 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from .message import Status
 
-DB_DIR = "data/incidents"
+from utils import incident_storage
+
+DB_DIR = str(incident_storage.incidents_root())
 
 
 def _utcnow() -> str:
@@ -14,7 +16,12 @@ def _utcnow() -> str:
 
 def get_db_path(incident_id: str) -> str:
     incident_id = str(incident_id)
-    return os.path.join(DB_DIR, f"{incident_id}.db")
+    paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+    if paths is None:
+        meta = incident_storage.infer_incident_metadata(incident_id)
+        paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or incident_id, incident_name=meta.get("name") or incident_id, incident_id=meta.get("incident_id") or incident_id)
+        incident_storage.ensure_incident_structure(paths, meta)
+    return str(paths.incident_db)
 
 
 def get_connection(incident_id: str) -> sqlite3.Connection:

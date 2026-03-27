@@ -34,7 +34,7 @@ class IncidentHandler(QObject):
             new_incident.is_training
         )
         incident_number = new_incident.number
-        create_incident_database(incident_number)
+        create_incident_database(incident_number, incident_name=name)
         AppState.set_active_incident(incident_number)
         print(f" Incident '{name}' created with ID {incident_id} and number {incident_number}")
 

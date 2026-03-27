@@ -844,7 +844,7 @@ class TeamDetailBridge(QObject):
                         return str(r.get("name") or f"#{pid}")
                 except Exception:
                     continue
-            return f"#{pid}"
+            return " - ".join([p for p in [callsign or "(unknown)", tail, status] if p])
         except Exception:
             return ""
 
@@ -1405,6 +1405,9 @@ class TeamDetailBridge(QObject):
             if "assignment" in payload:
                 value = payload.get("assignment")
                 self._team.assignment = str(value) if value not in (None, "") else None
+            if "location" in payload:
+                value = payload.get("location")
+                self._team.location = str(value) if value not in (None, "") else None
             if "team_leader_phone" in payload:
                 value = payload.get("team_leader_phone")
                 self._team.team_leader_phone = str(value) if value not in (None, "") else None
@@ -1713,7 +1716,7 @@ class TeamDetailWindow(QMainWindow):
         right_form.setLabelAlignment(Qt.AlignRight)
 
         last_contact_label = QLabel("Last Contact")
-        self._last_contact_value = QLabel("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“")
+        self._last_contact_value = QLabel("")
         right_form.addRow(last_contact_label, self._last_contact_value)
 
         task_row_widget = QWidget()
@@ -1723,7 +1726,7 @@ class TeamDetailWindow(QMainWindow):
         self._task_field = QLineEdit()
         self._task_field.setReadOnly(True)
         task_row_layout.addWidget(self._task_field)
-        self._task_button = QPushButton("LinkÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
+        self._task_button = QPushButton("Link")
         task_row_layout.addWidget(self._task_button)
         self._unlink_task_button = QPushButton("Unlink")
         self._unlink_task_button.setVisible(False)
@@ -1733,6 +1736,8 @@ class TeamDetailWindow(QMainWindow):
         self._assignment_field = QLineEdit()
         right_form.addRow(QLabel("Assignment"), self._assignment_field)
 
+        self._location_field = QLineEdit()
+        right_form.addRow(QLabel("Location"), self._location_field)
         grid.addWidget(right_widget, 0, 1)
 
         notes_label = QLabel("Notes")
@@ -1861,6 +1866,7 @@ class TeamDetailWindow(QMainWindow):
         self._name_field.editingFinished.connect(self._handle_name_edited)
         self._assignment_field.editingFinished.connect(self._handle_assignment_edited)
         self._notes_edit.textChanged.connect(self._on_notes_changed)
+        self._location_field.editingFinished.connect(self._handle_location_edited)
         self._task_button.clicked.connect(self._handle_task_button)
         self._unlink_task_button.clicked.connect(self._handle_unlink_task)
         self._edit_team_button.clicked.connect(self._handle_edit_team)
@@ -2249,12 +2255,12 @@ class TeamDetailWindow(QMainWindow):
         status = str(record.get("status") or "").strip()
         if not callsign:
             fallback = tail or record.get("identifier") or record.get("id")
-            callsign = str(fallback or "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â").strip()
+            callsign = str(fallback or "(unknown)").strip()
         if not tail:
-            tail = "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
+            tail = ""
         if not status:
-            status = "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"
-        return f"{callsign or 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'} - {tail} - {status}"
+            status = ""
+        return " - ".join([p for p in [callsign or "(unknown)", tail, status] if p])
 
     def _update_aircraft_assignment_display(self) -> None:
         if not hasattr(self, "_aircraft_combo"):
@@ -2377,9 +2383,13 @@ class TeamDetailWindow(QMainWindow):
         self._assignment_field.setText(str(assignment or ""))
         self._assignment_field.blockSignals(False)
 
-    def _update_last_contact(self, team: Dict[str, Any]) -> None:
+        location = team.get("location") or ""
+        if hasattr(self, "_location_field"):
+            self._location_field.blockSignals(True)
+            self._location_field.setText(str(location or ""))
+            self._location_field.blockSignals(False)
         ts = team.get("last_comm_ts") or team.get("last_contact_ts") or team.get("last_update_ts")
-        label = "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“"
+        label = ""
         if ts:
             try:
                 dt = datetime.fromisoformat(str(ts))
@@ -2387,6 +2397,22 @@ class TeamDetailWindow(QMainWindow):
             except Exception:
                 label = str(ts)
         self._last_contact_value.setText(label)
+
+    def _update_last_contact(self, team: Dict[str, Any]) -> None:
+        try:
+            ts = team.get("last_comm_ts") or team.get("last_contact_ts") or team.get("last_update_ts")
+        except Exception:
+            ts = None
+        label = ""
+        if ts:
+            try:
+                label = self._fmt_ts(str(ts))
+            except Exception:
+                label = str(ts)
+        try:
+            self._last_contact_value.setText(label)
+        except Exception:
+            pass
 
     def _update_task_widgets(self, team: Dict[str, Any]) -> None:
         task_id = team.get("current_task_id") or team.get("primary_task_id")
@@ -2405,10 +2431,10 @@ class TeamDetailWindow(QMainWindow):
                 task_display = str(task_id)
         self._task_field.setText(task_display)
         if task_id:
-            self._task_button.setText("Open")
+            self._task_button.setText("Link")
             self._unlink_task_button.setVisible(True)
         else:
-            self._task_button.setText("LinkÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
+            self._task_button.setText("Link")
             self._unlink_task_button.setVisible(False)
         self._view_task_button.setEnabled(bool(task_id))
 
@@ -2751,6 +2777,15 @@ class TeamDetailWindow(QMainWindow):
         except Exception:
             pass
 
+    def _handle_location_edited(self) -> None:
+        if self._updating:
+            return
+        value = self._location_field.text().strip()
+        try:
+            self._bridge.updateFromQml({"location": value})
+        except Exception:
+            pass
+
     def _on_notes_changed(self) -> None:
         if self._updating:
             return
@@ -2885,7 +2920,7 @@ class TeamDetailWindow(QMainWindow):
         if person_id is None:
             return
         menu = QMenu(self)
-        label = "Set as PIC" if self._is_air else "Set as Leader"
+        label = "" if self._is_air else "Set as Leader"
         menu.addAction(label, lambda: self._bridge.setLeader(person_id))
         if not self._is_air and self._personnel_medic_column is not None:
             widget = self._personnel_table.cellWidget(row, self._personnel_medic_column)

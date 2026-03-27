@@ -8,6 +8,8 @@ from PySide6.QtCore import (
 from PySide6.QtCore import QSortFilterProxyModel, QObject, Signal, Slot, QModelIndex
 from PySide6.QtWidgets import QMessageBox
 import os, sqlite3
+
+from utils import incident_storage
 from types import SimpleNamespace
 from typing import List, Any
 import logging
@@ -19,9 +21,7 @@ __all__ = ["IncidentListModel", "IncidentProxyModel", "IncidentController"]
 # ---------------- Helpers (DB) ---------------- #
 
 def _abs_master_db_path() -> str:
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.normpath(os.path.join(here, os.pardir))
-    return os.path.join(repo_root, "data", "master.db")
+    return str(incident_storage.master_db_path())
 
 def _table_exists(cur, name: str) -> bool:
     cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?;", (name,))
@@ -436,13 +436,14 @@ class IncidentController(QObject):
             finally:
                 con.close()
 
-            # Delete incident DB file
-            inc_path = os.path.join(os.path.dirname(db_path), "incidents", f"{number}.db")
+            # Delete incident folder when possible
             try:
-                if os.path.exists(inc_path):
-                    os.remove(inc_path)
+                paths = incident_storage.resolve_incident_paths_by_identifier(str(number))
+                if paths and paths.incident_folder.exists():
+                    import shutil
+                    shutil.rmtree(paths.incident_folder)
             except Exception as e:
-                print(f"[IncidentController] Warning: failed to delete incident DB: {e}")
+                print(f"[IncidentController] Warning: failed to delete incident folder: {e}")
 
             # If the deleted incident was the active one, clear app/session state
             try:

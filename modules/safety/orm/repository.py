@@ -13,13 +13,21 @@ from utils.state import AppState
 
 from .models import ORMForm, ORMHazard
 
-DATA_DIR = Path(os.environ.get("CHECKIN_DATA_DIR", "data")) / "incidents"
+from utils import incident_storage
+
+DATA_DIR = incident_storage.incidents_root()
 
 RISK_LEVELS: Sequence[str] = ("L", "M", "H", "EH")
 
 
 def _db_path_for_incident(incident_id: int | str) -> Path:
-    return DATA_DIR / f"{incident_id}.db"
+    key = str(incident_id)
+    paths = incident_storage.resolve_incident_paths_by_identifier(key)
+    if paths is None:
+        meta = incident_storage.infer_incident_metadata(key)
+        paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or key, incident_name=meta.get("name") or key, incident_id=meta.get("incident_id") or key)
+        incident_storage.ensure_incident_structure(paths, meta)
+    return paths.incident_db
 
 
 def _connect(path: Path) -> sqlite3.Connection:
