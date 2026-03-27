@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 import sqlite3
@@ -160,4 +160,3 @@ def find_team_ids_by_label(label: str) -> list[int]:
             (term, term),
         ).fetchall()
     return [int(r["id"]) for r in rows]
-

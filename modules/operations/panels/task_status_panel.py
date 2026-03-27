@@ -547,7 +547,7 @@ class TaskStatusPanel(QWidget):
         except Exception:
             pass
 
-    
+
     # -------------------------- Column widths ---------------------------- #
     def _settings_key_widths(self) -> str:
         return "statusboard.task.columns.widths"

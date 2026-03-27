@@ -1,2 +1,1 @@
-﻿# Panels package for Projection Dashboard
-
+# Panels package for Projection Dashboard

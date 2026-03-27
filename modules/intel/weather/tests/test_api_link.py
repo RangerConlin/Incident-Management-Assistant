@@ -94,4 +94,3 @@ def test_override_location_apply_triggers_requests(monkeypatch, qapp):
     # Assert
     assert called["advisories"] == (39.0, -84.0)
     assert called["lightning"] == (39.0, -84.0, 25.0)
-

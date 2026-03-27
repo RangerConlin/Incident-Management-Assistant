@@ -41,4 +41,3 @@ def test_create_and_replace_ranks(tmp_path, monkeypatch):
     ctl.save_rank_structure_with_ranks(rid, payload, ranks2)
     listed2 = ctl.list_ranks(rid)
     assert [r["rank_code"] for r in listed2] == ["C"]
-

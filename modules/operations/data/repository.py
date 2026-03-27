@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 import sqlite3
@@ -712,5 +712,3 @@ def list_tasks_for_assignment() -> List[Dict[str, Any]]:
         except Exception:
             pass
     return out
-
-

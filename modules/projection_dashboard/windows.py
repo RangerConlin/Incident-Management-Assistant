@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
@@ -124,7 +124,7 @@ class TeamBoard(QFrame):
         except Exception:
             pass
         self._apply_saved_widths()
-        subscribe_theme(self, lambda *_: self._recolor_all()
+        subscribe_theme(self, lambda *_: self._recolor_all())
 
     def reload(self) -> None:
         rows: List[Dict[str, Any]] = []
@@ -139,7 +139,7 @@ class TeamBoard(QFrame):
         self._resize_columns()
         self._recolor_all()
 
-        def _append_row(self, data: dict[str, Any]) -> None:
+    def _append_row(self, data: dict[str, Any]) -> None:
         r = self.table.rowCount()
         self.table.insertRow(r)
         name = str(data.get("name") or "")
@@ -262,9 +262,17 @@ class TeamBoard(QFrame):
         ])
         hdr_font = _bold_font(self.table.font(), 2, bold=True)
         self.table.horizontalHeader().setFont(hdr_font)
-        layout.addWidget(self.table)`n        try:`n            hdr = self.table.horizontalHeader()`n            hdr.sectionResized.connect(self._on_section_resized)`n        except Exception:`n            pass`n        self._apply_saved_widths()`n        try:`n            hdr = self.table.horizontalHeader()`n            hdr.sectionResized.connect(self._on_section_resized)`n        except Exception:`n            pass`n        self._apply_saved_widths()
+        layout.addWidget(self.table)
+        try:
+            hdr = self.table.horizontalHeader()
+            hdr.sectionResized.connect(self._on_section_resized)
+        except Exception:
+            pass
+        self._apply_saved_widths()
 
-        subscribe_theme(self, lambda *_: self._recolor_all() )`r`n`r`n    def reload(self) -> None:
+        subscribe_theme(self, lambda *_: self._recolor_all())
+
+    def reload(self) -> None:
         rows: List[Dict[str, Any]] = []
         if fetch_task_rows:
             try:
@@ -350,7 +358,9 @@ class AlertsWidget(QFrame):
         self.list.setFocusPolicy(Qt.NoFocus)
         self.list.setSelectionMode(self.list.SelectionMode.NoSelection)
         layout.addWidget(self.list)
-        self._thresholds = get_checkin_thresholds( )`r`n`r`n    def reload(self) -> None:
+        self._thresholds = get_checkin_thresholds()
+
+    def reload(self) -> None:
         teams: List[Dict[str, Any]] = []
         if fetch_team_assignment_rows:
             try:
@@ -493,7 +503,9 @@ class IncidentInfoWidget(QFrame):
             lbl = QLabel("", self)
             layout.addWidget(lbl)
             self.lines.append(lbl)
-        layout.addStretch(1 )`r`n`r`n    def reload(self) -> None:
+        layout.addStretch(1)
+
+    def reload(self) -> None:
         teams = []
         tasks = []
         if fetch_team_assignment_rows:
@@ -642,17 +654,3 @@ def get_projection_dashboard_panel(_incident_id=None) -> QWidget:
     panel = ProjectionDashboard()
     panel.setWindowTitle("Projection Dashboard")
     return panel
-
-
-
-
-
-
-
-
-
-
-
-
-
-

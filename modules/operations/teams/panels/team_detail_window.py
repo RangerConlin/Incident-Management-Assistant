@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any, Dict, Optional, List
 from datetime import datetime
@@ -3078,6 +3078,3 @@ class TaskLinkDialog(QDialog):
             self.accept()
         except Exception:
             pass
-
-
-

@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QTableWidget,
@@ -1240,7 +1240,7 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
-    
+
     # -------------------------- Column widths ---------------------------- #
     def _settings_key_widths(self) -> str:
         return "statusboard.team.columns.widths"
@@ -1383,5 +1383,3 @@ class TeamStatusPanel(QWidget):
                 pass
         except Exception:
             pass
-
-

@@ -196,5 +196,3 @@ class Team:
         data["primary_task_id"] = data["current_task_id"]
         data["needs_assist"] = data["needs_attention"]
         return data
-
-
