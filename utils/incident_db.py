@@ -6,10 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from modules.gis.services.schema_bootstrap import ensure_spatial_schema
-<<<<<<< ours
 from . import incident_storage
-=======
->>>>>>> theirs
 
 _active_incident_id: Optional[str] = None
 

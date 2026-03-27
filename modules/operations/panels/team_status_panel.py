@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import (
+﻿from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QTableWidget,
@@ -356,6 +356,19 @@ class TeamStatusPanel(QWidget):
             hdr.setStretchLastSection(False)
             hdr.setSectionResizeMode(0, QHeaderView.Fixed)
             hdr.resizeSection(0, 56)
+            try:
+                for idx in range(1, self.table.columnCount()):
+                    hdr.setSectionResizeMode(idx, QHeaderView.Interactive)
+            except Exception:
+                pass
+            try:
+                self._apply_saved_column_widths()
+            except Exception:
+                pass
+            try:
+                hdr.sectionResized.connect(self._on_section_resized)
+            except Exception:
+                pass
         except Exception:
             pass
         try:
@@ -675,7 +688,7 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
-    def set_row_color_by_status(self, row, status):  # Ã¢Å“â€¦ Now correctly placed
+    def set_row_color_by_status(self, row, status):  # Now correctly placed
         status_key = str(status or "").lower()
         style = team_status_colors().get(status_key)
         palette_colors = get_palette()
@@ -766,7 +779,10 @@ class TeamStatusPanel(QWidget):
         menu.addAction("View Team Detail", lambda: self.view_team_detail(row))
         menu.addAction("View Task Detail (Widget)", lambda: self.view_task_detail(row))
 
+        menu.addAction("Edit Location…", lambda: self._edit_location(row))
         # Add separator
+        menu.addSeparator()
+
         menu.addSeparator()
 
                 # Grouped status actions
@@ -809,7 +825,7 @@ class TeamStatusPanel(QWidget):
                     act = sub.addAction('(no tasks)'); act.setEnabled(False)
                 else:
                     for t in tasks:
-                        label = f"{t.get('task_id') or ('T-' + str(t.get('id')))} â€” {t.get('title') or ''}".strip()
+                        label = ((t.get('task_id') or ('T-' + str(t.get('id')))) + ' - ' + (t.get('title') or '')).strip()
                         sub.addAction(label, lambda tid=int(t.get('id')), s=status: self._assign_and_set_status(row, tid, s))
                 menu.addMenu(sub)
             else:
@@ -1081,7 +1097,7 @@ class TeamStatusPanel(QWidget):
     # ------------------------------ Settings menu --------------------------- #
     def _build_settings_menu(self) -> None:
         menu = QMenu(self)
-        menu.addAction("FiltersÃ¢â‚¬Â¦", self._open_filters_dialog)
+        menu.addAction("Filters...", self._open_filters_dialog)
         menu.addSeparator()
         # Columns submenu (exclude col 0 - alert icon)
         cols_menu = QMenu("Columns", menu)
@@ -1095,6 +1111,10 @@ class TeamStatusPanel(QWidget):
                 act.setChecked(True)
             self._col_actions[idx] = act
         menu.addMenu(cols_menu)
+        widths_menu = QMenu("Column Widths", menu)
+        widths_menu.addAction("Auto-fit Now", self._auto_fit_columns)
+        widths_menu.addAction("Reset Saved Widths", self._reset_saved_column_widths)
+        menu.addMenu(widths_menu)
         # Auto-refresh submenu
         refresh_menu = QMenu("Auto-Refresh", menu)
         self._refresh_actions = {}
@@ -1220,7 +1240,89 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
-    # -------------------------- Column visibility -------------------------- #
+    
+    # -------------------------- Column widths ---------------------------- #
+    def _settings_key_widths(self) -> str:
+        return "statusboard.team.columns.widths"
+
+    def _key_to_index(self) -> dict[str, int]:
+        try:
+            return {key: idx for idx, key, _ in getattr(self, "_columns", [])}
+        except Exception:
+            return {}
+
+    def _index_to_key(self) -> dict[int, str]:
+        try:
+            return {idx: key for idx, key, _ in getattr(self, "_columns", [])}
+        except Exception:
+            return {}
+
+    def _apply_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            widths = SettingsManager().get(self._settings_key_widths(), {}) or {}
+            key_to_index = self._key_to_index()
+            hdr = self.table.horizontalHeader()
+            for key, w in widths.items():
+                if key in key_to_index:
+                    try:
+                        hdr.resizeSection(int(key_to_index[key]), int(w))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def _persist_column_width(self, index: int, width: int) -> None:
+        try:
+            if index == 0:
+                return  # keep icon column fixed and not persisted
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            data = s.get(self._settings_key_widths(), {}) or {}
+            index_to_key = self._index_to_key()
+            key = index_to_key.get(index)
+            if key is None:
+                return
+            data[str(key)] = int(max(24, width))
+            s.set(self._settings_key_widths(), data)
+        except Exception:
+            pass
+
+    def _on_section_resized(self, index: int, old: int, new: int) -> None:
+        try:
+            self._persist_column_width(index, new)
+        except Exception:
+            pass
+
+    def _auto_fit_columns(self) -> None:
+        try:
+            self.table.resizeColumnsToContents()
+            try:
+                self.table.horizontalHeader().resizeSection(0, 56)
+            except Exception:
+                pass
+            # Persist current sizes
+            hdr = self.table.horizontalHeader()
+            for idx in range(1, self.table.columnCount()):
+                try:
+                    self._persist_column_width(idx, hdr.sectionSize(idx))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _reset_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set(self._settings_key_widths(), {})
+            try:
+                hdr = self.table.horizontalHeader()
+                hdr.resizeSection(0, 56)
+            except Exception:
+                pass
+        except Exception:
+            pass
+# -------------------------- Column visibility -------------------------- #
     def _toggle_column(self, index: int) -> None:
         try:
             if index == 0:
@@ -1264,3 +1366,22 @@ class TeamStatusPanel(QWidget):
                 self._match_all = bool(filt.get("matchAll", True))
         except Exception:
             pass
+
+    def _edit_location(self, row: int) -> None:
+        try:
+            team_id, _ = self._get_row_ids(row)
+            if not team_id:
+                return
+            from modules.operations.teams.windows import open_team_detail_window
+            window = open_team_detail_window(int(team_id))
+            try:
+                fld = getattr(window, "_location_field", None)
+                if fld is not None:
+                    fld.setFocus()
+                    fld.selectAll()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+

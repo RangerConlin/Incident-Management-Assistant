@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import os
 import sqlite3
@@ -44,6 +44,9 @@ def _ensure_team_columns(con: sqlite3.Connection) -> None:
         to_add.append(("primary_task", "TEXT"))
     if "assignment" not in cols:
         to_add.append(("assignment", "TEXT"))
+    # Position / free-text location displayed on boards
+    if "location" not in cols:
+        to_add.append(("location", "TEXT"))
     # Attention flag
     if "needs_attention" not in cols:
         to_add.append(("needs_attention", "BOOLEAN"))
@@ -157,3 +160,4 @@ def find_team_ids_by_label(label: str) -> list[int]:
             (term, term),
         ).fetchall()
     return [int(r["id"]) for r in rows]
+

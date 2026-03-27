@@ -9,6 +9,7 @@ from typing import Optional, Callable
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
+
     QMenu,
     QLabel,
     QWidget,
@@ -686,6 +687,7 @@ class MainWindow(QMainWindow):
         # ----- Toolkits -----
         m_tool = mb.addMenu("Toolkits")
         sar_menu = m_tool.addMenu("SAR Toolkit")
+        self._add_action(m_tool, "Projection Dashboard", None, "toolkit.projection_dashboard")
         self._add_action(sar_menu, "Missing Person Toolkit", None, "toolkit.sar.missing_person")
         self._add_action(sar_menu, "POD Calculator", None, "toolkit.sar.pod")
 
@@ -989,6 +991,7 @@ class MainWindow(QMainWindow):
             "toolkit.disaster.urban_interview": self.open_toolkit_disaster_urban_interview,
             "toolkit.disaster.photos": self.open_toolkit_disaster_photos,
             "planned.promotions": self.open_planned_promotions,
+            "toolkit.projection_dashboard": self.open_toolkit_projection_dashboard,
             "planned.vendors": self.open_planned_vendors,
             "planned.safety": self.open_planned_safety,
             "planned.tasking": self.open_planned_tasking,
@@ -2443,6 +2446,12 @@ class MainWindow(QMainWindow):
         panel = disaster.get_photos_panel(incident_id)
         self._open_dock_widget(panel, title="Damage Photos")
 
+
+    def open_toolkit_projection_dashboard(self) -> None:
+        from modules import projection_dashboard
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = projection_dashboard.get_projection_dashboard_panel(incident_id)
+        self._open_dock_widget(panel, title="Projection Dashboard")
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)

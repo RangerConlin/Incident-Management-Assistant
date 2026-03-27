@@ -1,0 +1,12 @@
+{
+  "incident_id": 3,
+  "incident_number": "2025-FAIR",
+  "name": "County Fair",
+  "status": "Active",
+  "type": "Planned Event",
+  "created_at": "2025-08-01 03:35:36",
+  "updated_at": "2025-08-01 03:35:36",
+  "incident_db_path": "incident.db",
+  "spatial_db_path": "spatial.db",
+  "folder_version": 1
+}
