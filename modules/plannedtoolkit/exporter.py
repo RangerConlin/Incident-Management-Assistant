@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
+
+from utils import incident_storage
 from zipfile import ZipFile
 
 from reportlab.pdfgen import canvas
@@ -12,7 +14,10 @@ from .repository import with_event_session
 
 
 def export_iap(event_id: str, request: schemas.IapBuildRequest) -> models.ExportArtifact:
-    exports_dir = Path("data/incidents") / event_id / "exports"
+    paths = incident_storage.resolve_incident_paths_by_identifier(event_id)
+    if paths is None:
+        raise RuntimeError(f"Unknown incident: {event_id}")
+    exports_dir = paths.exports
     exports_dir.mkdir(parents=True, exist_ok=True)
     ts = int(dt.datetime.utcnow().timestamp())
     pdf_path = exports_dir / f"iap_{ts}.pdf"

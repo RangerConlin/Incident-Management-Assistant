@@ -6,11 +6,13 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
+
+from utils import incident_storage
 from typing import Iterable, Iterator, Set
 
 
 def _data_dir() -> Path:
-    return Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
+    return incident_storage.data_root()
 
 
 def _coerce_incident_id(value: str | int) -> str:
@@ -24,9 +26,12 @@ def incident_db_path(incident_id: str | int) -> Path:
     """Return the filesystem path for an incident's SQLite database."""
 
     safe_id = _coerce_incident_id(incident_id).replace("/", "-")
-    base = _data_dir() / "incidents"
-    base.mkdir(parents=True, exist_ok=True)
-    return base / f"{safe_id}.db"
+    paths = incident_storage.resolve_incident_paths_by_identifier(safe_id)
+    if paths is None:
+        meta = incident_storage.infer_incident_metadata(safe_id)
+        paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or safe_id, incident_name=meta.get("name") or safe_id, incident_id=meta.get("incident_id") or safe_id)
+        incident_storage.ensure_incident_structure(paths, meta)
+    return paths.incident_db
 
 
 def get_incident_connection(incident_id: str | int) -> sqlite3.Connection:

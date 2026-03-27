@@ -1,7 +1,11 @@
+from pathlib import Path
+
+from utils import incident_storage
+
 import sqlite3
 from contextlib import contextmanager
 
-DB_PATH = 'data/master.db'
+DB_PATH = str(incident_storage.master_db_path())
 
 
 def get_connection():

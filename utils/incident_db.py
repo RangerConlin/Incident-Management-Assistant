@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-import os
 import shutil
 import sqlite3
 from pathlib import Path
 from typing import Optional
 
 from modules.gis.services.schema_bootstrap import ensure_spatial_schema
+<<<<<<< ours
+from . import incident_storage
+=======
+>>>>>>> theirs
 
 _active_incident_id: Optional[str] = None
 
@@ -32,37 +35,45 @@ _REQUIRED_INCIDENT_TABLES = {
 }
 
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
-
-
-def _incidents_dir() -> Path:
-    base = _data_dir() / "incidents"
-    base.mkdir(parents=True, exist_ok=True)
-    return base
-
-
 def _sanitize_incident_number(incident_number: str) -> str:
-    return str(incident_number).strip().replace("/", "-")
+    return incident_storage.sanitize_incident_name(incident_number, fallback="incident")
 
 
 def get_incident_database_path(incident_number: str) -> Path:
     safe_number = _sanitize_incident_number(incident_number)
     if not safe_number:
         raise ValueError("Incident number is required to create an incident database.")
-    return _incidents_dir() / f"{safe_number}.db"
+    resolved = incident_storage.resolve_incident_paths_by_identifier(safe_number)
+    if resolved is not None:
+        return resolved.incident_db
+    metadata = incident_storage.infer_incident_metadata(safe_number)
+    paths = incident_storage.get_incident_paths(
+        incident_number=metadata.get("incident_number") or safe_number,
+        incident_name=metadata.get("name") or safe_number,
+        incident_id=metadata.get("incident_id") or safe_number,
+    )
+    return paths.incident_db
+
+
+def get_spatial_database_path(incident_number: str) -> Path:
+    safe_number = _sanitize_incident_number(incident_number)
+    resolved = incident_storage.resolve_incident_paths_by_identifier(safe_number)
+    if resolved is not None:
+        return resolved.spatial_db
+    metadata = incident_storage.infer_incident_metadata(safe_number)
+    paths = incident_storage.get_incident_paths(
+        incident_number=metadata.get("incident_number") or safe_number,
+        incident_name=metadata.get("name") or safe_number,
+        incident_id=metadata.get("incident_id") or safe_number,
+    )
+    return paths.spatial_db
 
 
 def get_template_database_path() -> Path:
     candidates: list[Path] = []
 
-    explicit = os.environ.get("INCIDENT_TEMPLATE_DB")
-    if explicit:
-        candidates.append(Path(explicit))
-
-    data_template = _incidents_dir() / "template.db"
-    candidates.append(data_template)
-
+    explicit = incident_storage.data_root() / "incidents" / "template.db"
+    candidates.append(explicit)
     repo_template = Path(__file__).resolve().parents[1] / "data" / "incidents" / "template.db"
     if repo_template not in candidates:
         candidates.append(repo_template)
@@ -74,7 +85,7 @@ def get_template_database_path() -> Path:
     searched = "\n - ".join(str(path) for path in candidates)
     raise FileNotFoundError(
         "Incident database template was not found. "
-        "Place template.db in the incident data directory or set INCIDENT_TEMPLATE_DB."
+        "Place template.db in the incident data directory."
         f"\nSearched:\n - {searched}"
     )
 
@@ -162,7 +173,6 @@ def _ensure_schema_compatibility(conn: sqlite3.Connection) -> None:
         for column, decl in task_columns.items():
             _ensure_column(conn, "tasks", column, decl)
 
-    # Incident meta (single-row) for cross-module state such as ICP location
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS incident_meta (
@@ -174,7 +184,6 @@ def _ensure_schema_compatibility(conn: sqlite3.Connection) -> None:
         )
         """
     )
-    # Ensure a single row exists to update
     cur = conn.execute("SELECT COUNT(*) FROM incident_meta")
     count = int(cur.fetchone()[0])
     if count == 0:
@@ -190,6 +199,12 @@ def _validate_initialized_schema(conn: sqlite3.Connection) -> None:
             "Incident database initialization failed because required tables are missing: "
             + ", ".join(missing)
         )
+
+
+def _bootstrap_spatial_database(spatial_path: Path) -> None:
+    with sqlite3.connect(spatial_path) as spatial_conn:
+        ensure_spatial_schema(spatial_conn)
+        spatial_conn.commit()
 
 
 def initialize_incident_database(
@@ -210,9 +225,7 @@ def initialize_incident_database(
 
     template = Path(template_path) if template_path is not None else get_template_database_path()
     if not template.is_file():
-        raise FileNotFoundError(
-            f"Incident database template was not found: {template}"
-        )
+        raise FileNotFoundError(f"Incident database template was not found: {template}")
 
     shutil.copy2(template, path)
 
@@ -235,32 +248,34 @@ def initialize_incident_database(
 
 
 def ensure_incident_database(incident_number: str) -> Path:
-    db_path = get_incident_database_path(incident_number)
-    if not db_path.exists() or db_path.stat().st_size == 0:
-        return initialize_incident_database(
-            db_path,
+    incident_storage.ensure_layout_initialized()
+    metadata = incident_storage.infer_incident_metadata(incident_number)
+    paths = incident_storage.resolve_incident_paths_by_identifier(incident_number)
+    if paths is None:
+        paths = incident_storage.get_incident_paths(
+            incident_number=metadata.get("incident_number") or incident_number,
+            incident_name=metadata.get("name") or incident_number,
+            incident_id=metadata.get("incident_id") or incident_number,
+        )
+    incident_storage.ensure_incident_structure(paths, metadata)
+
+    if not paths.incident_db.exists() or paths.incident_db.stat().st_size == 0:
+        initialize_incident_database(
+            paths.incident_db,
             incident_number=incident_number,
             exist_ok=True,
         )
 
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(paths.incident_db) as conn:
         _ensure_schema_compatibility(conn)
         _validate_initialized_schema(conn)
-    return db_path
+
+    _bootstrap_spatial_database(paths.spatial_db)
+    incident_storage.write_incident_manifest(paths, metadata)
+    return paths.incident_db
 
 
 def set_active_incident_id(value: object | None) -> None:
-    """Persist the active incident identifier for SQLite-backed modules.
-
-    Parameters
-    ----------
-    value:
-        Any incident identifier understood by the wider application.  ``None``
-        clears the active incident.  Non-``None`` values are coerced to
-        ``str`` so callers can pass integers from legacy dialogs without
-        performing their own conversion.
-    """
-
     global _active_incident_id
     _active_incident_id = None if value is None else str(value)
 
@@ -269,12 +284,22 @@ def get_active_incident_id() -> Optional[str]:
     return _active_incident_id
 
 
-def create_incident_database(incident_number: str) -> Path:
-    """Create a fully initialized incident database named after the incident number.
+def create_incident_database(incident_number: str, *, incident_name: str | None = None) -> Path:
+    """Create a fully initialized incident folder and operational database."""
+    incident_storage.ensure_layout_initialized()
+    metadata = incident_storage.infer_incident_metadata(incident_number)
+    if incident_name:
+        metadata["name"] = incident_name
+    paths = incident_storage.get_incident_paths(
+        incident_number=metadata.get("incident_number") or incident_number,
+        incident_name=metadata.get("name") or incident_number,
+        incident_id=metadata.get("incident_id") or incident_number,
+    )
+    if paths.incident_db.exists():
+        raise FileExistsError(f"Incident database already exists: {paths.incident_db}")
 
-    The file is created at ``data/incidents/<incident_number>.db``. The schema is
-    initialized by copying the incident template database and applying small
-    compatibility adjustments required by the current application code.
-    """
-    db_path = get_incident_database_path(incident_number)
-    return initialize_incident_database(db_path, incident_number=incident_number)
+    incident_storage.ensure_incident_structure(paths, metadata)
+    initialize_incident_database(paths.incident_db, incident_number=incident_number)
+    _bootstrap_spatial_database(paths.spatial_db)
+    incident_storage.write_incident_manifest(paths, metadata)
+    return paths.incident_db

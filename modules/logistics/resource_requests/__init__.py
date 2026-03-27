@@ -73,5 +73,11 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
         incident_db.set_active_incident_id(resolved_id)
         _sync_contexts(resolved_id)
 
-    db_path = Path("data") / "incidents" / f"{resolved_id}.db"
+    from utils import incident_storage
+    paths = incident_storage.resolve_incident_paths_by_identifier(resolved_id)
+    if paths is None:
+        meta = incident_storage.infer_incident_metadata(resolved_id)
+        paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or resolved_id, incident_name=meta.get("name") or resolved_id, incident_id=meta.get("incident_id") or resolved_id)
+        incident_storage.ensure_incident_structure(paths, meta)
+    db_path = paths.incident_db
     return ResourceRequestService(incident_id=resolved_id, db_path=db_path)

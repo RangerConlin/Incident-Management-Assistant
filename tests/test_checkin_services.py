@@ -24,14 +24,14 @@ def temp_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(data_dir))
-    db_module._DATA_DIR = data_dir
-    incident_context._DATA_DIR = data_dir
+
     incident_context.set_active_incident("UNITTEST-001")
     return data_dir
 
 
 def _incident_row(data_dir: Path, table: str, identifier: int | str) -> Dict:
-    incident_path = data_dir / "incidents" / "UNITTEST-001.db"
+    from utils import incident_storage
+    incident_path = incident_storage.get_incident_paths(incident_number="UNITTEST-001", incident_name="UNITTEST-001", incident_id="UNITTEST-001").incident_db
     conn = sqlite3.connect(incident_path)
     conn.row_factory = sqlite3.Row
     try:

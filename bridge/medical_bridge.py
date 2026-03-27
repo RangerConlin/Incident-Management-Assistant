@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, List, Sequence
 from PySide6.QtCore import QObject, Signal
 
 from utils.state import AppState
+from utils import incident_storage
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -70,7 +71,7 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
     ],
 }
 
-MASTER_DB = Path("data/master.db")
+MASTER_DB = incident_storage.master_db_path()
 
 # ---------------------------------------------------------------------------
 
@@ -86,9 +87,12 @@ class MedicalBridge(QObject):
         inc = AppState.get_active_incident()
         if not inc:
             raise RuntimeError("No active incident selected")
-        p = Path("data") / "incidents" / f"{inc}.db"
-        p.parent.mkdir(parents=True, exist_ok=True)
-        return p
+        paths = incident_storage.resolve_incident_paths_by_identifier(str(inc))
+        if paths is None:
+            meta = incident_storage.infer_incident_metadata(str(inc))
+            paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or inc, incident_name=meta.get("name") or inc, incident_id=meta.get("incident_id") or inc)
+            incident_storage.ensure_incident_structure(paths, meta)
+        return paths.incident_db
 
     def _op_period(self) -> int:
         op = AppState.get_active_op_period()

@@ -16,10 +16,10 @@ import os
 import sqlite3
 from typing import Iterator
 
-from utils import incident_context
+from utils import incident_context, incident_storage
 
 
-MASTER_DB_PATH = Path("data") / "master.db"
+MASTER_DB_PATH = incident_storage.master_db_path()
 
 
 def _conn(path: Path) -> sqlite3.Connection:
@@ -47,9 +47,12 @@ def get_incident_conn(incident_number: str | int | None = None) -> sqlite3.Conne
         if incident is None:
             raise RuntimeError("Active incident not set")
         incident_number = incident
-    base = Path(os.environ.get("CHECKIN_DATA_DIR", "data")) / "incidents"
-    base.mkdir(parents=True, exist_ok=True)
-    path = base / f"{incident_number}.db"
+    paths = incident_storage.resolve_incident_paths_by_identifier(str(incident_number))
+    if paths is None:
+        meta = incident_storage.infer_incident_metadata(str(incident_number))
+        paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or incident_number, incident_name=meta.get("name") or incident_number, incident_id=meta.get("incident_id") or incident_number)
+        incident_storage.ensure_incident_structure(paths, meta)
+    path = paths.incident_db
     return _conn(path)
 
 

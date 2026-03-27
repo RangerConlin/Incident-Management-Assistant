@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from utils import incident_context
+    from utils import incident_context, incident_storage
 except Exception:  # pragma: no cover - defensive
     incident_context = None  # type: ignore[assignment]
 
@@ -22,15 +22,23 @@ def _now_utc_iso() -> str:
 def _attachments_dir(task_id: int) -> Path:
     """Return the task attachments directory, creating it if needed.
 
-    Structure: data/incidents/<incident_id>/tasks/<task_id>/attachments
-    Falls back to data/incidents/unknown if no active incident is set.
+    Structure: <data_root>/incidents/<incident_folder>/files/attachments/tasks/<task_id>.
     """
     try:
         incident_id = incident_context.get_active_incident_id() if incident_context else None
     except Exception:
         incident_id = None
     incident_id = incident_id or "unknown"
-    base = Path("data") / "incidents" / str(incident_id) / "tasks" / str(int(task_id)) / "attachments"
+    paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+    if paths is None:
+        metadata = incident_storage.infer_incident_metadata(incident_id)
+        paths = incident_storage.get_incident_paths(
+            incident_number=metadata.get("incident_number") or incident_id,
+            incident_name=metadata.get("name") or incident_id,
+            incident_id=metadata.get("incident_id") or incident_id,
+        )
+        incident_storage.ensure_incident_structure(paths, metadata)
+    base = paths.files_attachments / "tasks" / str(int(task_id))
     base.mkdir(parents=True, exist_ok=True)
     return base
 
