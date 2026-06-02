@@ -23,6 +23,9 @@ env/
 *.sln
 *.sw?
 *.pyc
+.clairvoyance/
+.claude/
+.vscode/
 
 # OS junk
 .DS_Store
