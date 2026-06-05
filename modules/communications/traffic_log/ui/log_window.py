@@ -30,6 +30,9 @@ from ..models import (
 from ..services import CommsLogService
 from notifications.models.notification import Notification
 from notifications.services import get_notifier
+from shared.lan_runtime import lan_runtime
+from shared import lan_events
+from utils.app_signals import app_signals
 from .log_detail import LogDetailDrawer
 from .log_filters import LogFilterPanel
 from .log_table import CommsLogTableView
@@ -175,6 +178,10 @@ class CommunicationsLogWindow(QMainWindow):
 
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self._focus_filters)
         QShortcut(QKeySequence("Ctrl+M"), self, activated=self._toggle_status_update_shortcut)
+        try:
+            app_signals.lanEventReceived.connect(self._on_lan_event)
+        except Exception:
+            pass
 
         self._set_detail_visible(False)
         self._update_detail_button_state()
@@ -316,7 +323,23 @@ class CommunicationsLogWindow(QMainWindow):
 
     def _on_quick_entry_submitted(self, payload: dict) -> None:
         try:
+            if lan_runtime.is_client_mode():
+                if not lan_runtime.writes_allowed():
+                    raise RuntimeError("Disconnected from host. Reconnect before editing shared data.")
+                ok, res = lan_runtime.client.create_comms(payload)
+                if not ok:
+                    raise RuntimeError(str(res))
+                entry_id = int(((res if isinstance(res, dict) else {}).get("entry") or {}).get("id") or 0)
+                self.statusBar().showMessage("Entry sent to host", 2000)
+                self._refresh_entries(select_id=entry_id if entry_id > 0 else None)
+                return
             entry = self.service.create_entry(payload)
+            if lan_runtime.is_host_mode():
+                try:
+                    from server import lan_host_service
+                    lan_host_service.broadcast_event(lan_events.COMMS_CREATED, {"entry": entry.to_record()})
+                except Exception:
+                    pass
         except Exception as exc:
             QMessageBox.warning(self, "Entry Error", str(exc))
             return
@@ -429,6 +452,12 @@ class CommunicationsLogWindow(QMainWindow):
 
         menu.exec(self.table_view.viewport().mapToGlobal(pos))
 
+
+    def _on_lan_event(self, event: dict) -> None:
+        event_type = str(event.get("type") or "")
+        if event_type in {lan_events.COMMS_CREATED, lan_events.ALERT_CREATED, lan_events.INCIDENT_SNAPSHOT}:
+            self._refresh_entries()
+
     def _send_notification(self, entry_id: int, severity: str) -> None:
         try:
             entry = self.service.get_entry(entry_id)
@@ -452,6 +481,27 @@ class CommunicationsLogWindow(QMainWindow):
         if entry.message:
             parts.append(entry.message)
         msg = " — ".join([p for p in parts if p]) or "Log entry notification"
+
+        if lan_runtime.is_client_mode():
+            if not lan_runtime.writes_allowed():
+                QMessageBox.warning(self, "Notification", "Disconnected from host. Reconnect first.")
+                return
+            ok, res = lan_runtime.client.create_alert(
+                {
+                    "title": title,
+                    "message": msg,
+                    "severity": "warning" if severity != "error" else "error",
+                    "source": "Communications Log",
+                    "entity_type": "comms_entry",
+                    "entity_id": str(entry_id),
+                }
+            )
+            if not ok:
+                QMessageBox.warning(self, "Notification", str(res))
+                return
+            self.statusBar().showMessage("Alert sent to host", 2000)
+            return
+
         notifier = get_notifier()
         notifier.notify(
             Notification(
@@ -463,6 +513,17 @@ class CommunicationsLogWindow(QMainWindow):
                 entity_id=str(entry_id),
             )
         )
+        if lan_runtime.is_host_mode():
+            try:
+                from server import lan_host_service
+
+                alerts = notifier.recent(limit=1)
+                lan_host_service.broadcast_event(
+                    lan_events.ALERT_CREATED,
+                    {"alert": alerts[0] if alerts else {"title": title, "message": msg}},
+                )
+            except Exception:
+                pass
         self.statusBar().showMessage("Notification sent", 2000)
 
     def _on_entry_message_focus_changed(self, focused: bool) -> None:

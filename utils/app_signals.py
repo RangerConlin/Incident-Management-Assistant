@@ -24,6 +24,8 @@ class AppSignals(QObject):
     taskHeaderChanged = Signal(int, dict)
     # Emitted when ICP location (address/lat/lon) changes for active incident
     icpLocationChanged = Signal(dict)
+    lanEventReceived = Signal(dict)
+    lanSnapshotReceived = Signal(dict)
 
 
 # Global singleton instance

@@ -7,6 +7,7 @@ dependencies = [
     "reportlab",
     "PySide6-QtAds",
     "httpx",
+    "uvicorn",
     "sqlalchemy",
     "sqlmodel>=0.0.8",
     "pypdf",

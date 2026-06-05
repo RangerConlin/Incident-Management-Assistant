@@ -27,6 +27,9 @@ import logging
 import re
 from pathlib import Path
 
+from shared.lan_runtime import lan_runtime
+from shared import lan_events
+
 from .team_alerts import (
     AlertKind,
     TeamAlertState,
@@ -872,9 +875,23 @@ class TeamStatusPanel(QWidget):
                 from modules.operations.data.repository import set_team_status  # local import to avoid cycles
             except Exception:
                 set_team_status = None  # type: ignore[assignment]
-            if not set_team_status:
-                raise RuntimeError("DB repository not available")
-            set_team_status(team_id, str(new_status))
+            if lan_runtime.is_client_mode():
+                if not lan_runtime.writes_allowed():
+                    raise RuntimeError("Disconnected from host. Reconnect before editing shared data.")
+                ok, msg = lan_runtime.client.update_team(team_id=team_id, status=str(new_status))
+                if not ok:
+                    raise RuntimeError(msg)
+            else:
+                if not set_team_status:
+                    raise RuntimeError("DB repository not available")
+                set_team_status(team_id, str(new_status))
+                if lan_runtime.is_host_mode():
+                    lan_events_payload = {"team_id": team_id, "status": str(new_status)}
+                    try:
+                        from server import lan_host_service
+                        lan_host_service.broadcast_event(lan_events.TEAM_STATUS_CHANGED, lan_events_payload)
+                    except Exception:
+                        pass
             # Update UI
             display = str(new_status).title()
             # Status column index is 6 after adding Needs + Sortie + Name + Type + Leader + Contact

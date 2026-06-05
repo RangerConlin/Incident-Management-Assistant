@@ -18,6 +18,8 @@ from utils.styles import task_status_colors, subscribe_theme, get_palette
 from utils.itemview_delegates import RowOutlineSelectionDelegate
 from utils.audit import write_audit
 from utils.app_signals import app_signals
+from shared.lan_runtime import lan_runtime
+from shared import lan_events
 
 # Require incident DB repository (no sample fallback)
 try:
@@ -299,11 +301,24 @@ class TaskStatusPanel(QWidget):
             task_id = int(item_id.data(Qt.UserRole)) if item_id and item_id.data(Qt.UserRole) is not None else None
             if not task_id:
                 raise RuntimeError("No task id associated with row")
-            if not set_task_status:
-                raise RuntimeError("DB repository not available")
             item_status = self.table.item(row, 3)
             old_status = (item_status.text() if item_status else "").strip().lower()
-            set_task_status(task_id, str(new_status))
+            if lan_runtime.is_client_mode():
+                if not lan_runtime.writes_allowed():
+                    raise RuntimeError("Disconnected from host. Reconnect before editing shared data.")
+                ok, msg = lan_runtime.client.update_task(task_id=task_id, status=str(new_status))
+                if not ok:
+                    raise RuntimeError(msg)
+            else:
+                if not set_task_status:
+                    raise RuntimeError("DB repository not available")
+                set_task_status(task_id, str(new_status))
+                if lan_runtime.is_host_mode():
+                    try:
+                        from server import lan_host_service
+                        lan_host_service.broadcast_event(lan_events.TASK_STATUS_CHANGED, {"task_id": task_id, "status": str(new_status)})
+                    except Exception:
+                        pass
             # Update UI
             display = str(new_status).title()
             self.table.item(row, 3).setText(display)

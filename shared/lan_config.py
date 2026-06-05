@@ -1,0 +1,8 @@
+from __future__ import annotations
+
+DEFAULT_LAN_PORT = 8000
+DEFAULT_LAN_HOST = "0.0.0.0"
+DEFAULT_LAN_CLIENT_TIMEOUT_S = 8.0
+SETTINGS_GROUP = "lan"
+SETTINGS_HOST_KEY = "host"
+SETTINGS_PORT_KEY = "port"

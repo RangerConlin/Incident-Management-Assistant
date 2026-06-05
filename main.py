@@ -356,6 +356,7 @@ class MainWindow(QMainWindow):
             pass
 
         self._init_notifications()
+        self._init_lan_sync()
 
     # ----- Part 2.A: Physical Menu Builder ----------------------------------
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
@@ -631,6 +632,10 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
 
+        # ----- LAN Sync -----
+        m_lan = mb.addMenu("LAN")
+        self._add_action(m_lan, "Client Connection", None, "lan.client")
+        self._add_action(m_lan, "Host Status", None, "lan.host")
 
         # ----- Intel -----
         m_intel = mb.addMenu("Intel")
@@ -940,6 +945,10 @@ class MainWindow(QMainWindow):
             "comms.chat": self.open_comms_chat,
             "comms.213": self.open_comms_213,
             "comms.205": self.open_comms_205,
+
+            # ----- LAN -----
+            "lan.client": self.open_lan_client_connection,
+            "lan.host": self.open_lan_host_status,
 
             # ----- Intel -----
             "intel.unit_log": self.open_intel_unit_log,
@@ -1978,6 +1987,27 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = create_quick_entry_window(self, incident_id=incident_id)
         self._open_dock_widget(panel, title="New Communications Entry")
+
+    def open_lan_client_connection(self) -> None:
+        from panels.lan import LanClientConnectionPanel
+
+        panel = LanClientConnectionPanel(self)
+        self._open_dock_widget(panel, title="LAN Client")
+
+    def open_lan_host_status(self) -> None:
+        from panels.lan import LanHostStatusPanel
+
+        panel = LanHostStatusPanel(self)
+        self._open_dock_widget(panel, title="LAN Host")
+
+    def _init_lan_sync(self) -> None:
+        try:
+            from shared.lan_runtime import lan_runtime
+
+            lan_runtime.client.bootstrapReceived.connect(lan_runtime.apply_bootstrap_to_signals)
+            lan_runtime.client.eventReceived.connect(lan_runtime.apply_event_to_signals)
+        except Exception:
+            pass
 
     def _register_child_window(self, window):
         if window is None:
