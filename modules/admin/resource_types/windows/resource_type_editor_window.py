@@ -71,7 +71,7 @@ class ComponentEditorDialog(QDialog):
         form.addRow("Required", self.required_check)
         form.addRow("Notes", self.notes_edit)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Add | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self._validate_then_accept)
         buttons.rejected.connect(self.reject)
 
