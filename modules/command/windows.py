@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from .panels.incident_dashboard_panel import IncidentDashboardPanel
 from .panels.incident_objectives_panel import IncidentObjectivesPanel
-from .ics203 import get_ics203_panel
+from .incident_organization import get_incident_organization_panel
 
 __all__ = [
     "get_incident_dashboard_panel",
@@ -10,6 +10,7 @@ __all__ = [
     "get_iap_builder_panel",
     "get_objectives_panel",
     "get_staff_org_panel",
+    "get_incident_organization_management_panel",
     "get_sitrep_panel",
 ]
 
@@ -54,9 +55,24 @@ def get_objectives_panel(incident_id: object | None = None) -> QWidget:
     return IncidentObjectivesPanel()
 
 
+def get_incident_organization_management_panel(
+    incident_id: object | None = None,
+) -> QWidget:
+    """Return the Incident Organization Management panel.
+
+    The organization module owns the structured incident organization; ICS 203
+    and ICS 207 are generated outputs from that structure.
+    """
+
+    return get_incident_organization_panel(
+        str(incident_id) if incident_id is not None else None
+    )
+
+
 def get_staff_org_panel(incident_id: object | None = None) -> QWidget:
-    """Return the QtWidgets-based ICS-203 panel."""
-    return get_ics203_panel(str(incident_id) if incident_id is not None else None)
+    """Return the Incident Organization Management panel for staff organization."""
+
+    return get_incident_organization_management_panel(incident_id)
 
 
 def get_sitrep_panel(incident_id: object | None = None) -> QWidget:
