@@ -68,6 +68,11 @@ _MASTER_SCHEMAS: Dict[str, str] = {
             type TEXT,
             serial_number TEXT,
             condition TEXT,
+            condition_status TEXT,
+            resource_type_id INTEGER,
+            parent_equipment_id INTEGER,
+            kit_instance_id INTEGER,
+            contents_verified INTEGER NOT NULL DEFAULT 0,
             notes TEXT
         )
     """,
@@ -82,6 +87,7 @@ _MASTER_SCHEMAS: Dict[str, str] = {
             capacity INTEGER,
             type_id TEXT,
             status_id TEXT NOT NULL DEFAULT 'Available',
+            resource_type_id INTEGER,
             tags TEXT,
             organization TEXT
         )
@@ -143,12 +149,14 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
             ("id", "ID"),
             ("make", "Make"),
             ("model", "Model"),
+            ("resource_type_id", "Resource Type"),
             ("status_id", "Status"),
         ),
         form_fields=(
             FieldSpec("make", "Make"),
             FieldSpec("model", "Model"),
             FieldSpec("license_plate", "License Plate"),
+            FieldSpec("resource_type_id", "Resource Type"),
             FieldSpec("status_id", "Status"),
         ),
         id_field=FieldSpec("id", "Vehicle ID", required=True),
@@ -165,12 +173,14 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
             ("id", "ID"),
             ("name", "Name"),
             ("type", "Type"),
+            ("resource_type_id", "Resource Type"),
             ("condition", "Condition"),
         ),
         form_fields=(
             FieldSpec("name", "Name", required=True),
             FieldSpec("type", "Type"),
             FieldSpec("serial_number", "Serial Number"),
+            FieldSpec("resource_type_id", "Resource Type"),
             FieldSpec("condition", "Condition"),
         ),
         autoincrement=True,

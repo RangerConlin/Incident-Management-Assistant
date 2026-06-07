@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.admin.resource_types.data import ResourceAssignmentRepository
+from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 from ..services import CheckInService, EntityConfig, iter_entity_configs
 
 
@@ -35,8 +37,9 @@ class NewRecordDialog(QDialog):
         self._service = service
         self._config = config
         self._id_input: Optional[QLineEdit] = None
-        self._inputs: Dict[str, QLineEdit] = {}
+        self._inputs: Dict[str, QWidget] = {}
         self.created_record: Optional[Dict[str, Any]] = None
+        self._resource_assignments = ResourceAssignmentRepository()
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -54,12 +57,9 @@ class NewRecordDialog(QDialog):
             form.addRow("Identifier", note)
 
         for field in config.form_fields:
-            edit = QLineEdit(self)
-            edit.setObjectName(f"Input{field.name.title()}")
-            if field.placeholder:
-                edit.setPlaceholderText(field.placeholder)
-            form.addRow(field.label, edit)
-            self._inputs[field.name] = edit
+            widget = self._build_input_widget(field.name, field.placeholder)
+            form.addRow(field.label, widget)
+            self._inputs[field.name] = widget
 
         layout.addLayout(form)
 
@@ -73,8 +73,26 @@ class NewRecordDialog(QDialog):
         if self._id_input is not None:
             payload[self._config.id_column] = self._id_input.text().strip()
         for name, widget in self._inputs.items():
-            payload[name] = widget.text().strip()
+            payload[name] = self._widget_value(name, widget)
         return payload
+
+    def _build_input_widget(self, field_name: str, placeholder: Optional[str]) -> QWidget:
+        if field_name == "resource_type_id":
+            widget = ResourceTypeSearchBox(parent=self)
+            widget.line_edit.setPlaceholderText(placeholder or "Search or enter resource type...")
+            return widget
+        edit = QLineEdit(self)
+        edit.setObjectName(f"Input{field_name.title()}")
+        if placeholder:
+            edit.setPlaceholderText(placeholder)
+        return edit
+
+    def _widget_value(self, field_name: str, widget: QWidget) -> str | int | None:
+        if field_name == "resource_type_id" and isinstance(widget, ResourceTypeSearchBox):
+            return widget.resource_type_id
+        if isinstance(widget, QLineEdit):
+            return widget.text().strip()
+        return None
 
     def accept(self) -> None:  # pragma: no cover - exercised via UI events
         try:
@@ -100,6 +118,7 @@ class EntityTab(QWidget):
         self._field_placeholders: Dict[str, Optional[str]] = {
             field.name: field.placeholder for field in config.form_fields if field.placeholder
         }
+        self._resource_assignments = ResourceAssignmentRepository()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -151,16 +170,11 @@ class EntityTab(QWidget):
         self.preview_form_widget = QWidget(preview_group)
         self.preview_form = QFormLayout(self.preview_form_widget)
         self.preview_form.setContentsMargins(0, 0, 0, 0)
-        self.preview_fields: Dict[str, QLineEdit] = {}
+        self.preview_fields: Dict[str, QWidget] = {}
         for column_name, label, editable in self._preview_columns():
-            edit = QLineEdit(self.preview_form_widget)
-            edit.setObjectName(f"Preview{column_name.title()}Value")
-            edit.setReadOnly(not editable)
-            placeholder = self._field_placeholders.get(column_name)
-            if placeholder:
-                edit.setPlaceholderText(placeholder)
-            self.preview_form.addRow(label, edit)
-            self.preview_fields[column_name] = edit
+            widget = self._build_preview_widget(column_name, editable)
+            self.preview_form.addRow(label, widget)
+            self.preview_fields[column_name] = widget
         preview_layout.addWidget(self.preview_form_widget)
         self.preview_form_widget.hide()
 
@@ -283,13 +297,16 @@ class EntityTab(QWidget):
         self.preview_form_widget.show()
         for name, widget in self.preview_fields.items():
             value = record.get(name)
-            widget.setText("" if value in (None, "") else str(value))
+            self._set_widget_value(name, widget, value)
 
     def _clear_preview(self) -> None:
         self.preview_form_widget.hide()
         self.preview_placeholder.show()
         for widget in self.preview_fields.values():
-            widget.clear()
+            if isinstance(widget, QLineEdit):
+                widget.clear()
+            elif isinstance(widget, ResourceTypeSearchBox):
+                widget.clear()
         self._current_record = None
 
     def _collect_overrides(self) -> Dict[str, Any]:
@@ -299,14 +316,42 @@ class EntityTab(QWidget):
         for name, widget in self.preview_fields.items():
             if name == self.config.id_column:
                 continue
-            new_text = widget.text()
-            new_value: Any = None if new_text == "" else new_text
+            new_value = self._get_preview_value(name, widget)
+            new_text = "" if new_value in (None, "") else str(new_value)
             original_value = self._current_record.get(name)
             original_text = "" if original_value in (None, "") else str(original_value)
             if new_text == original_text:
                 continue
             overrides[name] = new_value
         return overrides
+
+    def _build_preview_widget(self, column_name: str, editable: bool) -> QWidget:
+        if column_name == "resource_type_id":
+            widget = ResourceTypeSearchBox(parent=self.preview_form_widget)
+            widget.setEnabled(editable)
+            return widget
+        edit = QLineEdit(self.preview_form_widget)
+        edit.setObjectName(f"Preview{column_name.title()}Value")
+        edit.setReadOnly(not editable)
+        placeholder = self._field_placeholders.get(column_name)
+        if placeholder:
+            edit.setPlaceholderText(placeholder)
+        return edit
+
+    def _set_widget_value(self, column_name: str, widget: QWidget, value: Any) -> None:
+        if column_name == "resource_type_id" and isinstance(widget, ResourceTypeSearchBox):
+            widget.set_value(value, self._resource_assignments.get_resource_type_name(value))
+            return
+        if isinstance(widget, QLineEdit):
+            widget.setText("" if value in (None, "") else str(value))
+
+    def _get_preview_value(self, column_name: str, widget: QWidget) -> Any:
+        if column_name == "resource_type_id" and isinstance(widget, ResourceTypeSearchBox):
+            return widget.resource_type_id
+        if isinstance(widget, QLineEdit):
+            text = widget.text()
+            return None if text == "" else text
+        return None
 
     def _describe_record(self, record: Dict[str, Any]) -> str:
         for column_name, _ in self.config.display_columns:

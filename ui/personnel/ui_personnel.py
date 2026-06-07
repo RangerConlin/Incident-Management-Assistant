@@ -24,9 +24,12 @@ import csv
 import os
 import sqlite3
 from dataclasses import dataclass, asdict
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from PySide6 import QtCore, QtWidgets
+
+from modules.admin.resource_types.data import ResourceAssignmentRepository, ResourceTypeRepository
+from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
 # ----------------------------- Configuration ---------------------------------
 MASTER_DB_PATH = os.path.join("data", "master.db")
@@ -90,6 +93,7 @@ class Certification:
 class MasterDAL:
     def __init__(self, path: str = MASTER_DB_PATH):
         self.path = path
+        self.resource_assignments = ResourceAssignmentRepository(master_db_path=path)
         self._id_is_integer = False
         self._has_unit_column = False
         self._has_contact_column = False
@@ -507,6 +511,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self._build_tab_emergency()
         self._build_tab_contact()
         self._build_tab_certifications()
+        self._build_tab_resource_types()
 
         self.btn_save = QtWidgets.QPushButton("Save")
         self.btn_cancel = QtWidgets.QPushButton("Cancel")
@@ -699,6 +704,53 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
 
         self.tabs.addTab(widget, "Certifications")
 
+    def _build_tab_resource_types(self) -> None:
+        widget = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(widget)
+
+        intro = QtWidgets.QLabel(
+            "Link this person to one or more resource types so planning and availability tools can match people to typed roles."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        add_row = QtWidgets.QHBoxLayout()
+        self.resource_type_search = ResourceTypeSearchBox(
+            repository=ResourceTypeRepository(self.dal.path),
+            parent=self,
+        )
+        self.btn_add_resource_type = QtWidgets.QPushButton("Add Resource Type")
+        add_row.addWidget(self.resource_type_search, 1)
+        add_row.addWidget(self.btn_add_resource_type)
+        layout.addLayout(add_row)
+
+        self.tbl_resource_types = QtWidgets.QTableWidget(0, 4)
+        self.tbl_resource_types.setHorizontalHeaderLabels(["Primary", "Resource Type", "Capabilities", "Notes"])
+        self.tbl_resource_types.horizontalHeader().setStretchLastSection(True)
+        self.tbl_resource_types.setSelectionBehavior(QtWidgets.QTableWidget.SelectRows)
+        self.tbl_resource_types.setSelectionMode(QtWidgets.QTableWidget.SingleSelection)
+        layout.addWidget(self.tbl_resource_types)
+
+        button_row = QtWidgets.QHBoxLayout()
+        self.btn_mark_primary = QtWidgets.QPushButton("Mark Primary")
+        self.btn_remove_resource_type = QtWidgets.QPushButton("Remove")
+        button_row.addWidget(self.btn_mark_primary)
+        button_row.addWidget(self.btn_remove_resource_type)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        self.capability_label = QtWidgets.QLabel("Capabilities: none linked")
+        self.capability_label.setWordWrap(True)
+        layout.addWidget(self.capability_label)
+
+        self._resource_type_rows: list[dict[str, Any]] = []
+        self.btn_add_resource_type.clicked.connect(self._on_add_resource_type)
+        self.btn_mark_primary.clicked.connect(self._on_mark_primary_resource_type)
+        self.btn_remove_resource_type.clicked.connect(self._on_remove_resource_type)
+        self.tbl_resource_types.itemSelectionChanged.connect(self._update_selected_resource_type_capabilities)
+
+        self.tabs.addTab(widget, "Resource Types")
+
     # ----------------- Load/Save -----------------
     def _load_all(self) -> None:
         person = self.dal.get_personnel(self.personnel_id)
@@ -739,6 +791,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.c_notes.setPlainText(contact.notes)
 
         self._refresh_certs()
+        self._refresh_resource_types()
 
     def _collect_personnel(self) -> Personnel:
         pid = self.txt_id.text().strip() or self.personnel_id
@@ -802,6 +855,107 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             header_item = QtWidgets.QTableWidgetItem(str(cert.id)) if cert.id is not None else QtWidgets.QTableWidgetItem("")
             self.tbl_certs.setVerticalHeaderItem(row, header_item)
 
+    def _refresh_resource_types(self) -> None:
+        pid = self.txt_id.text().strip() or self.personnel_id
+        self.tbl_resource_types.setRowCount(0)
+        self.capability_label.setText("Capabilities: none linked")
+        if pid:
+            self._resource_type_rows = self.dal.resource_assignments.get_personnel_resource_types(pid)
+        for entry in self._resource_type_rows:
+            row = self.tbl_resource_types.rowCount()
+            self.tbl_resource_types.insertRow(row)
+            primary_text = "Yes" if entry.get("is_primary") else ""
+            self.tbl_resource_types.setItem(row, 0, QtWidgets.QTableWidgetItem(primary_text))
+            name = entry.get("planning_display_name") or entry.get("resource_type_name") or ""
+            self.tbl_resource_types.setItem(row, 1, QtWidgets.QTableWidgetItem(str(name)))
+            self.tbl_resource_types.setItem(row, 2, QtWidgets.QTableWidgetItem(self._capabilities_for_resource_type(entry.get("resource_type_id"))))
+            self.tbl_resource_types.setItem(row, 3, QtWidgets.QTableWidgetItem(str(entry.get("notes") or "")))
+        self.tbl_resource_types.resizeColumnsToContents()
+
+    def _capabilities_for_resource_type(self, resource_type_id: Any) -> str:
+        if resource_type_id in (None, ""):
+            return ""
+        try:
+            resource_type = self.resource_type_search.repository.get_resource_type(int(resource_type_id))
+        except Exception:
+            resource_type = None
+        if not resource_type or not resource_type.capability_ids:
+            return ""
+        labels: list[str] = []
+        for capability_id in resource_type.capability_ids:
+            capability = self.resource_type_search.repository.get_capability(capability_id)
+            if capability and capability.get("name"):
+                labels.append(str(capability["name"]))
+        return ", ".join(labels)
+
+    def _selected_resource_type_row(self) -> Optional[int]:
+        row = self.tbl_resource_types.currentRow()
+        if 0 <= row < len(self._resource_type_rows):
+            return row
+        return None
+
+    def _update_selected_resource_type_capabilities(self) -> None:
+        row = self._selected_resource_type_row()
+        if row is None:
+            self.capability_label.setText("Capabilities: none linked")
+            return
+        capabilities = self._capabilities_for_resource_type(self._resource_type_rows[row].get("resource_type_id"))
+        self.capability_label.setText(f"Capabilities: {capabilities or 'none linked'}")
+
+    def _persist_resource_types(self, normalized_id: str) -> None:
+        resource_type_ids: list[int] = []
+        primary_id: Optional[int] = None
+        for index, entry in enumerate(self._resource_type_rows):
+            resource_type_id = entry.get("resource_type_id")
+            if resource_type_id in (None, ""):
+                continue
+            resource_type_ids.append(int(resource_type_id))
+            if entry.get("is_primary") or primary_id is None or index == 0:
+                primary_id = int(resource_type_id)
+        self.dal.resource_assignments.set_personnel_resource_types(
+            normalized_id,
+            resource_type_ids,
+            primary_resource_type_id=primary_id,
+        )
+
+    def _on_add_resource_type(self) -> None:
+        resource_type_id = self.resource_type_search.resource_type_id
+        resource_type_text = self.resource_type_search.resource_type_text
+        if resource_type_id in (None, "") or not resource_type_text:
+            QtWidgets.QMessageBox.information(self, "Select Resource Type", "Choose a resource type from the library before adding it.")
+            return
+        if any(int(row.get("resource_type_id")) == int(resource_type_id) for row in self._resource_type_rows if row.get("resource_type_id") not in (None, "")):
+            return
+        self._resource_type_rows.append(
+            {
+                "resource_type_id": int(resource_type_id),
+                "planning_display_name": resource_type_text,
+                "resource_type_name": resource_type_text,
+                "is_primary": 1 if not self._resource_type_rows else 0,
+                "notes": "",
+            }
+        )
+        self.resource_type_search.clear()
+        self._refresh_resource_types()
+
+    def _on_mark_primary_resource_type(self) -> None:
+        row = self._selected_resource_type_row()
+        if row is None:
+            return
+        for index, entry in enumerate(self._resource_type_rows):
+            entry["is_primary"] = 1 if index == row else 0
+        self._refresh_resource_types()
+        self.tbl_resource_types.selectRow(row)
+
+    def _on_remove_resource_type(self) -> None:
+        row = self._selected_resource_type_row()
+        if row is None:
+            return
+        self._resource_type_rows.pop(row)
+        if self._resource_type_rows and not any(entry.get("is_primary") for entry in self._resource_type_rows):
+            self._resource_type_rows[0]["is_primary"] = 1
+        self._refresh_resource_types()
+
     # ----------------- Actions -----------------
     def _on_save(self) -> None:
         # TODO: add field validation (e.g., required Name/ID, email format, etc.)
@@ -822,6 +976,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         contact.personnel_id = normalized_id
         self.dal.upsert_emergency(emergency)
         self.dal.upsert_contact(contact)
+        self._persist_resource_types(normalized_id)
         self.accept()
 
     def _choose_photo(self) -> None:

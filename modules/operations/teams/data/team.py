@@ -37,6 +37,8 @@ class Team:
     aircraft: List[str] = field(default_factory=list)
     comms_preset_id: Optional[int] = None
     team_type: str = "GT"  # e.g., GT, UDF, AIR
+    resource_type_id: Optional[int] = None
+    readiness_status: str = "Unknown"
     radio_ids: Optional[str] = None  # free-form text for now
     route: Optional[str] = None
     # Attention flag (aka "needs assistance")
@@ -74,6 +76,8 @@ class Team:
             "aircraft_json": json.dumps(list(self.aircraft or [])),
             "comms_preset_id": self.comms_preset_id,
             "team_type": self.team_type,
+            "resource_type_id": self.resource_type_id,
+            "readiness_status": self.readiness_status or "Unknown",
             "radio_ids": self.radio_ids,
             "route": self.route,
             "needs_attention": 1 if bool(self.needs_attention) else 0,
@@ -148,6 +152,8 @@ class Team:
                 "ground": "GT",
                 "aircraft": "AIR",
             }.get(str(_get("team_type") or "GT").lower(), str(_get("team_type") or "GT")),
+            resource_type_id=(int(_get("resource_type_id")) if _get("resource_type_id") not in (None, "") else None),
+            readiness_status=str(_get("readiness_status") or "Unknown"),
             radio_ids=_get("radio_ids"),
             route=_get("route"),
             needs_attention=(
@@ -183,6 +189,8 @@ class Team:
             "aircraft": list(self.aircraft or []),
             "comms_preset_id": self.comms_preset_id,
             "team_type": self.team_type,
+            "resource_type_id": self.resource_type_id,
+            "readiness_status": self.readiness_status,
             "radio_ids": self.radio_ids,
             "route": self.route,
             "needs_attention": bool(self.needs_attention),
