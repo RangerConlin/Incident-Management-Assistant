@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 import uuid
@@ -39,6 +39,11 @@ def export_form_unified(
       based renderer (for forms present in data/templates/registry.json),
       ignoring ``values`` (legacy path takes full JSON via mapping).
     """
+
+    ctx = dict(context or {})
+    if str(form_or_uid).isdigit() and ctx.get("incident_id"):
+        rendered = RendererService().export_instance(str(ctx["incident_id"]), int(form_or_uid), "pdf", out_path)
+        return ExportResult(path=Path(rendered["path"]), engine="unified", template_uid=None)
 
     pid = profile_id or (profile_manager.get_active_profile_id() or "")
 
@@ -97,3 +102,145 @@ def export_form_unified(
 
 
 __all__ = ["export_form_unified", "ExportResult"]
+
+from fastapi import APIRouter, HTTPException, Query
+
+from .schemas.api_models import (
+    ExportRequest, FamilyCreate, InstanceAction, InstanceCreate, RefreshRequest, TemplateCreate,
+    TemplateVersionCreate, UploadRequest, ValidateRequest, ValuesPatch,
+)
+from .services import BindingService, InstanceService, RendererService, TemplateService, UploadService, ValidationService
+
+router = APIRouter(prefix="/api/forms", tags=["forms"])
+
+
+def _template_service() -> TemplateService:
+    return TemplateService()
+
+
+def _instance_service() -> InstanceService:
+    return InstanceService()
+
+
+@router.get("/families")
+def list_families(code: str | None = None, category: str | None = None, active: bool | None = None) -> list[dict[str, Any]]:
+    return _template_service().list_families(code=code, category=category, active=active)
+
+
+@router.post("/families")
+def create_family(payload: FamilyCreate) -> dict[str, Any]:
+    family = _template_service().create_family(**payload.model_dump())
+    return asdict(family)
+
+
+@router.get("/templates")
+def list_templates(family_code: str | None = None, agency: str | None = None, system: str | None = None, status: str | None = None, active_only: bool = False) -> list[dict[str, Any]]:
+    return _template_service().list_templates(family_code=family_code, agency=agency, system=system, status=status, active_only=active_only)
+
+
+@router.post("/templates")
+def create_template(payload: TemplateCreate) -> dict[str, Any]:
+    return _template_service().create_template(**payload.model_dump())
+
+
+@router.get("/templates/{template_id}")
+def get_template(template_id: int) -> dict[str, Any]:
+    template = _template_service().get_template(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="template not found")
+    return template
+
+
+@router.get("/templates/{template_id}/versions")
+def list_versions(template_id: int) -> list[dict[str, Any]]:
+    return _template_service().list_versions(template_id)
+
+
+@router.get("/templates/{template_id}/versions/{version_id}")
+def get_version(template_id: int, version_id: int) -> dict[str, Any]:
+    version = _template_service().get_version(template_id, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="template version not found")
+    return version
+
+
+@router.post("/templates/{template_id}/versions")
+def create_version(template_id: int, payload: TemplateVersionCreate) -> dict[str, Any]:
+    return _template_service().create_version(template_id, **payload.model_dump())
+
+
+@router.post("/templates/{template_id}/retire")
+def retire_template(template_id: int, user_id: str | None = None) -> dict[str, bool]:
+    _template_service().retire_template(template_id, user_id)
+    return {"ok": True}
+
+
+@router.get("/instances")
+def list_instances(
+    incident_id: str = Query(...), family_code: str | None = None, agency: str | None = None, status: str | None = None,
+    operational_period_id: str | None = None, linked_module: str | None = None, linked_record_id: str | None = None,
+) -> list[dict[str, Any]]:
+    return _instance_service().list_instances(incident_id, family_code=family_code, agency=agency, status=status, operational_period_id=operational_period_id, linked_module=linked_module, linked_record_id=linked_record_id)
+
+
+@router.post("/instances")
+def create_instance(payload: InstanceCreate) -> dict[str, Any]:
+    return _instance_service().create_instance(**payload.model_dump())
+
+
+@router.get("/instances/{instance_id}")
+def get_instance(instance_id: int, incident_id: str = Query(...)) -> dict[str, Any]:
+    instance = _instance_service().get_instance(incident_id, instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="instance not found")
+    return instance
+
+
+@router.patch("/instances/{instance_id}/values")
+def update_values(instance_id: int, payload: ValuesPatch) -> dict[str, Any]:
+    return _instance_service().update_values(payload.incident_id, instance_id, payload.values, payload.user_id)
+
+
+@router.post("/instances/{instance_id}/refresh")
+def refresh_instance(instance_id: int, payload: RefreshRequest) -> dict[str, Any]:
+    return _instance_service().refresh(payload.incident_id, instance_id, payload.context, payload.user_id)
+
+
+@router.post("/instances/{instance_id}/finalize")
+def finalize_instance(instance_id: int, payload: InstanceAction) -> dict[str, Any]:
+    return _instance_service().finalize(payload.incident_id, instance_id, payload.user_id)
+
+
+@router.post("/instances/{instance_id}/reopen")
+def reopen_instance(instance_id: int, payload: InstanceAction) -> dict[str, Any]:
+    return _instance_service().reopen(payload.incident_id, instance_id, payload.user_id, payload.reason)
+
+
+@router.get("/instances/{instance_id}/revisions")
+def list_instance_revisions(instance_id: int, incident_id: str = Query(...)) -> list[dict[str, Any]]:
+    return _instance_service().list_revisions(incident_id, instance_id)
+
+
+@router.get("/instances/{instance_id}/audit")
+def list_instance_audit(instance_id: int, incident_id: str = Query(...)) -> list[dict[str, Any]]:
+    return _instance_service().list_audit(incident_id, instance_id)
+
+
+@router.post("/instances/{instance_id}/export")
+def export_instance(instance_id: int, payload: ExportRequest) -> dict[str, Any]:
+    return RendererService().export_instance(payload.incident_id, instance_id, payload.export_type, payload.output_path, payload.user_id)
+
+
+@router.post("/upload")
+def upload_form(payload: UploadRequest) -> dict[str, Any]:
+    return UploadService().register_source_asset(**payload.model_dump())
+
+
+@router.get("/bindings")
+def list_bindings() -> list[dict[str, Any]]:
+    return BindingService().describe_available_bindings()
+
+
+@router.post("/validate")
+def validate(payload: ValidateRequest) -> list[dict[str, Any]]:
+    return [r.__dict__ for r in ValidationService().validate_fields(payload.fields, payload.values, status=payload.status)]
