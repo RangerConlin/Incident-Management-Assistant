@@ -28,6 +28,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.admin.resource_types.data import ResourceAssignmentRepository, ResourceTypeRepository
+from modules.admin.resource_types.widgets import ResourceTypeSearchBox
+
 # Local project import: master DB connector (must return sqlite3.Connection)
 try:  # optional import for portability
     from utils.db import get_master_conn  # type: ignore
@@ -57,6 +60,8 @@ class VehicleRepository:
     def __init__(self, db_path: Optional[str | Path] = None) -> None:
         self._db_path: Optional[Path] = Path(db_path) if db_path else None
         self._vehicle_columns_cache: Optional[set[str]] = None
+        self._assignment_repo = ResourceAssignmentRepository(master_db_path=self._db_path)
+        self._ensure_schema()
 
     # ------------------------------------------------------------------
     # Connection helpers
@@ -72,6 +77,37 @@ class VehicleRepository:
             conn = get_master_conn()
         conn.row_factory = sqlite3.Row
         return conn
+
+    def _ensure_schema(self) -> None:
+        """Ensure the vehicles table has the additive columns this editor expects."""
+
+        conn = self._connect()
+        try:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS vehicles (
+                    id TEXT PRIMARY KEY,
+                    vin TEXT,
+                    license_plate TEXT,
+                    year INTEGER,
+                    make TEXT,
+                    model TEXT,
+                    capacity INTEGER,
+                    type_id TEXT,
+                    status_id TEXT NOT NULL DEFAULT 'Available',
+                    tags TEXT,
+                    organization TEXT,
+                    resource_type_id INTEGER
+                )
+                """
+            )
+            columns = self._get_vehicle_columns(conn)
+            if "resource_type_id" not in columns:
+                conn.execute("ALTER TABLE vehicles ADD COLUMN resource_type_id INTEGER")
+            conn.commit()
+            self._vehicle_columns_cache = None
+        finally:
+            conn.close()
 
     def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
         query = "SELECT 1 FROM sqlite_master WHERE type='table' AND lower(name)=? LIMIT 1"
@@ -115,7 +151,7 @@ class VehicleRepository:
             base_query = (
                 """
                 SELECT id, vin, license_plate, year, make, model, capacity,
-                       type_id, status_id, tags, organization
+                       type_id, status_id, tags, organization, resource_type_id
                 FROM vehicles
                 """
             )
@@ -310,7 +346,7 @@ class VehicleRepository:
             row = conn.execute(
                 """
                 SELECT id, vin, license_plate, year, make, model, capacity,
-                       type_id, status_id, tags, organization
+                       type_id, status_id, tags, organization, resource_type_id
                 FROM vehicles
                 WHERE id = ?
                 """,
@@ -333,8 +369,8 @@ class VehicleRepository:
                 """
                 INSERT INTO vehicles (
                     id, vin, license_plate, year, make, model,
-                    capacity, type_id, status_id, tags, organization
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    capacity, type_id, status_id, tags, organization, resource_type_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 tuple(params),
             )
@@ -364,7 +400,8 @@ class VehicleRepository:
                     type_id = ?,
                     status_id = ?,
                     tags = ?,
-                    organization = ?
+                    organization = ?,
+                    resource_type_id = ?
                 WHERE id = ?
                 """,
                 tuple(params),
@@ -416,6 +453,7 @@ class VehicleRepository:
             self._normalize_reference(payload.get("status_id")),
             tags_value,
             organization_value,
+            payload.get("resource_type_id"),
         ]
         return params
 
@@ -444,6 +482,7 @@ class VehicleRepository:
             "status_id",
             "tags",
             "organization",
+            "resource_type_id",
         ):
             if column in available:
                 ordered.append(column)
@@ -527,6 +566,7 @@ class VehicleEditDialog(QDialog):
         self.capacity_spin: QSpinBox
         self.type_combo: QComboBox
         self.status_combo: QComboBox
+        self.resource_type_search: ResourceTypeSearchBox
         self.tags_edit: QLineEdit
         self.save_button: QPushButton
         self.cancel_button: QPushButton
@@ -615,6 +655,15 @@ class VehicleEditDialog(QDialog):
         status_label.setBuddy(self.status_combo)
         form_layout.addRow(status_label, self.status_combo)
 
+        # Resource typing stays optional for backward compatibility. The smart
+        # search box lets operators pick a library record when one exists.
+        self.resource_type_search = ResourceTypeSearchBox(
+            repository=ResourceTypeRepository(str(self._repository._db_path) if self._repository._db_path else None),
+            parent=self,
+        )
+        self.resource_type_search.setAccessibleName("Vehicle resource type")
+        form_layout.addRow(QLabel("Resource Type:"), self.resource_type_search)
+
         self.tags_edit = QLineEdit()
         self.tags_edit.setAccessibleName("Vehicle tags")
         self.tags_edit.setPlaceholderText("tag1, tag2")
@@ -644,7 +693,8 @@ class VehicleEditDialog(QDialog):
         self.setTabOrder(self.model_edit, self.capacity_spin)
         self.setTabOrder(self.capacity_spin, self.type_combo)
         self.setTabOrder(self.type_combo, self.status_combo)
-        self.setTabOrder(self.status_combo, self.tags_edit)
+        self.setTabOrder(self.status_combo, self.resource_type_search.line_edit)
+        self.setTabOrder(self.resource_type_search.line_edit, self.tags_edit)
         self.setTabOrder(self.tags_edit, self.save_button)
         self.setTabOrder(self.save_button, self.cancel_button)
 
@@ -766,6 +816,10 @@ class VehicleEditDialog(QDialog):
 
         self._select_combo_value(self.type_combo, record.get("type_id"))
         self._select_combo_value(self.status_combo, record.get("status_id"))
+        self.resource_type_search.set_value(
+            record.get("resource_type_id"),
+            self._repository._assignment_repo.get_resource_type_name(record.get("resource_type_id")),
+        )
 
         tags = record.get("tags")
         if isinstance(tags, list):
@@ -807,6 +861,7 @@ class VehicleEditDialog(QDialog):
             self.type_combo.setCurrentIndex(0)
         if self.status_combo.count():
             self.status_combo.setCurrentIndex(0)
+        self.resource_type_search.clear()
         self.tags_edit.clear()
         self._current_record = None
 
@@ -871,6 +926,7 @@ class VehicleEditDialog(QDialog):
             "capacity": self.capacity_spin.value(),
             "type_id": self.type_combo.currentData(),
             "status_id": self.status_combo.currentData(),
+            "resource_type_id": self.resource_type_search.resource_type_id,
             "tags": tags,
             "organization": (
                 self._current_record.get("organization")

@@ -7,6 +7,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from modules.admin.resource_types.data import ResourceAssignmentRepository, ResourceTypeRepository
+from modules.admin.resource_types.widgets import ResourceTypeSearchBox
+
 
 # Database config
 DEFAULT_DB_PATH = os.path.join("data", "master.db")
@@ -41,6 +44,12 @@ CSV_HEADERS: Tuple[str, ...] = (
     "id_number",
     "serial_number",
     "condition",
+    "condition_status",
+    "resource_type_id",
+    "resource_type_name",
+    "parent_equipment_id",
+    "kit_instance_id",
+    "contents_verified",
     "notes",
     "radio_alias",
 )
@@ -55,6 +64,7 @@ def _ensure_data_dir(path: str) -> None:
 def ensure_schema(db_path: str = DEFAULT_DB_PATH) -> None:
     """Ensure the equipment table exists with the required schema."""
     _ensure_data_dir(db_path)
+    assignment_repo = ResourceAssignmentRepository(master_db_path=db_path)
     con = sqlite3.connect(db_path)
     try:
         con.execute(
@@ -66,11 +76,29 @@ CREATE TABLE IF NOT EXISTS "{TABLE_NAME}" (
   "id_number"     TEXT,
   "serial_number" TEXT,
   "condition"     TEXT NOT NULL,
+  "condition_status" TEXT,
+  "resource_type_id" INTEGER,
+  "parent_equipment_id" INTEGER,
+  "kit_instance_id" INTEGER,
+  "contents_verified" INTEGER NOT NULL DEFAULT 0,
   "notes"         TEXT,
   "radio_alias"   TEXT
 );
 """
         )
+        assignment_repo._ensure_columns(
+            con,
+            TABLE_NAME,
+            {
+                "condition_status": "TEXT",
+                "resource_type_id": "INTEGER",
+                "parent_equipment_id": "INTEGER",
+                "kit_instance_id": "INTEGER",
+                "contents_verified": "INTEGER NOT NULL DEFAULT 0",
+                "team_id": "INTEGER",
+            },
+        )
+        assignment_repo._backfill_equipment_condition_status(con)
         con.commit()
     finally:
         con.close()
@@ -107,10 +135,16 @@ class MultiColumnFilterProxy(QtCore.QSortFilterProxyModel):
 
 
 class EquipmentDetailDialog(QtWidgets.QDialog):
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(
+        self,
+        parent: Optional[QtWidgets.QWidget] = None,
+        assignment_repo: Optional[ResourceAssignmentRepository] = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Equipment Details")
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(620)
+        self._assignment_repo = assignment_repo or ResourceAssignmentRepository()
+        self._resource_type_id: Optional[int] = None
 
         layout = QtWidgets.QVBoxLayout(self)
         formw = QtWidgets.QWidget(self)
@@ -122,14 +156,33 @@ class EquipmentDetailDialog(QtWidgets.QDialog):
         self.e_id_number = QtWidgets.QLineEdit()
         self.e_serial_number = QtWidgets.QLineEdit()
         self.e_condition = QtWidgets.QComboBox(); self.e_condition.setEditable(False); self.e_condition.addItems(CONDITION_OPTIONS)
+        self.e_condition_status = QtWidgets.QComboBox(); self.e_condition_status.setEditable(False); self.e_condition_status.addItems(CONDITION_OPTIONS)
+        self.e_resource_type = ResourceTypeSearchBox(
+            repository=ResourceTypeRepository(self._assignment_repo.master_db_path),
+            parent=self,
+        )
+        self.e_parent_equipment_id = QtWidgets.QLineEdit()
+        self.e_parent_equipment_id.setPlaceholderText("Optional parent equipment ID")
+        self.e_kit_instance_id = QtWidgets.QLineEdit()
+        self.e_kit_instance_id.setPlaceholderText("Optional kit instance ID")
+        self.e_contents_verified = QtWidgets.QCheckBox("Contents verified")
         self.e_notes = QtWidgets.QPlainTextEdit()
         self.e_radio_alias = QtWidgets.QLineEdit()
+        self.kit_contents = QtWidgets.QPlainTextEdit()
+        self.kit_contents.setReadOnly(True)
+        self.kit_contents.setPlaceholderText("Expected kit contents will appear here when the selected resource type is a kit/cache.")
 
         form.addRow("Name", self.e_name)
         form.addRow("Type", self.e_type)
         form.addRow("ID Number", self.e_id_number)
         form.addRow("Serial Number", self.e_serial_number)
         form.addRow("Condition", self.e_condition)
+        form.addRow("Condition Status", self.e_condition_status)
+        form.addRow("Resource Type", self.e_resource_type)
+        form.addRow("Parent Equipment / Kit", self.e_parent_equipment_id)
+        form.addRow("Kit Instance", self.e_kit_instance_id)
+        form.addRow("", self.e_contents_verified)
+        form.addRow("Expected Kit Contents", self.kit_contents)
         form.addRow("Notes", self.e_notes)
         form.addRow("Radio Alias", self.e_radio_alias)
 
@@ -140,6 +193,7 @@ class EquipmentDetailDialog(QtWidgets.QDialog):
         layout.addWidget(btns)
 
         self._row_id: Optional[int] = None
+        self.e_resource_type.resourceTypeSelected.connect(self._refresh_expected_contents)
 
     def set_values(self, values: Dict[str, Any]) -> None:
         self._row_id = values.get("id") if values else None
@@ -152,8 +206,21 @@ class EquipmentDetailDialog(QtWidgets.QDialog):
         c = str(values.get("condition") or "")
         ci = self.e_condition.findText(c)
         self.e_condition.setCurrentIndex(ci if ci >= 0 else -1)
+        condition_status = str(values.get("condition_status") or values.get("condition") or "")
+        csi = self.e_condition_status.findText(condition_status)
+        self.e_condition_status.setCurrentIndex(csi if csi >= 0 else -1)
+        resource_type_id = values.get("resource_type_id")
+        resource_type_name = str(values.get("resource_type_name") or "")
+        if not resource_type_name and resource_type_id not in (None, ""):
+            resource_type_name = self._assignment_repo.get_resource_type_name(int(resource_type_id))
+        self.e_resource_type.set_value(resource_type_id, resource_type_name)
+        self.e_parent_equipment_id.setText(str(values.get("parent_equipment_id") or ""))
+        self.e_kit_instance_id.setText(str(values.get("kit_instance_id") or ""))
+        verified_value = values.get("contents_verified")
+        self.e_contents_verified.setChecked(str(verified_value).strip().lower() in {"1", "true", "yes", "y"})
         self.e_notes.setPlainText(str(values.get("notes") or ""))
         self.e_radio_alias.setText(str(values.get("radio_alias") or ""))
+        self._refresh_expected_contents()
 
     def get_values(self) -> Optional[Dict[str, Any]]:
         name = self.e_name.text().strip()
@@ -168,6 +235,15 @@ class EquipmentDetailDialog(QtWidgets.QDialog):
         if not cond_val:
             QtWidgets.QMessageBox.warning(self, "Validation", "Condition is required.")
             return None
+        condition_status = self.e_condition_status.currentText().strip() or cond_val
+        parent_equipment_id = self._optional_int(self.e_parent_equipment_id.text())
+        if parent_equipment_id is False:
+            QtWidgets.QMessageBox.warning(self, "Validation", "Parent equipment ID must be a number when provided.")
+            return None
+        kit_instance_id = self._optional_int(self.e_kit_instance_id.text())
+        if kit_instance_id is False:
+            QtWidgets.QMessageBox.warning(self, "Validation", "Kit instance ID must be a number when provided.")
+            return None
         return {
             "id": self._row_id,
             "name": name,
@@ -175,9 +251,37 @@ class EquipmentDetailDialog(QtWidgets.QDialog):
             "id_number": self.e_id_number.text().strip() or None,
             "serial_number": self.e_serial_number.text().strip() or None,
             "condition": cond_val,
+            "condition_status": condition_status,
+            "resource_type_id": self.e_resource_type.resource_type_id,
+            "parent_equipment_id": parent_equipment_id,
+            "kit_instance_id": kit_instance_id,
+            "contents_verified": 1 if self.e_contents_verified.isChecked() else 0,
             "notes": self.e_notes.toPlainText().strip() or None,
             "radio_alias": self.e_radio_alias.text().strip() or None,
         }
+
+    def _refresh_expected_contents(self, *_args: Any) -> None:
+        resource_type_id = self.e_resource_type.resource_type_id
+        rows = self._assignment_repo.get_expected_kit_contents(resource_type_id)
+        if not rows:
+            self.kit_contents.clear()
+            return
+        lines: list[str] = []
+        for row in rows:
+            qty = row.get("quantity") or 0
+            unit = row.get("unit") or "each"
+            name = row.get("component_name") or "Component"
+            lines.append(f"- {qty:g} {unit} {name}")
+        self.kit_contents.setPlainText("\n".join(lines))
+
+    @staticmethod
+    def _optional_int(text: str) -> int | None | bool:
+        cleaned = str(text or "").strip()
+        if not cleaned:
+            return None
+        if cleaned.isdigit():
+            return int(cleaned)
+        return False
 
 
 class EquipmentEditPanel(QtWidgets.QWidget):
@@ -191,6 +295,7 @@ class EquipmentEditPanel(QtWidgets.QWidget):
     def __init__(self, db_path: str = DEFAULT_DB_PATH, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self._db_path = db_path
+        self._assignment_repo = ResourceAssignmentRepository(master_db_path=db_path)
         ensure_schema(self._db_path)
 
         self.setWindowTitle("Equipment")
@@ -229,6 +334,12 @@ class EquipmentEditPanel(QtWidgets.QWidget):
             "ID Number",
             "Serial #",
             "Condition",
+            "Condition Status",
+            "Resource Type ID",
+            "Resource Type",
+            "Parent Equipment",
+            "Kit Instance",
+            "Contents Verified",
             "Notes",
             "Radio Alias",
         ])
@@ -274,9 +385,17 @@ class EquipmentEditPanel(QtWidgets.QWidget):
             con = self._connect()
             cur = con.cursor()
             cur.execute(
-                f"SELECT id, name, type, id_number, serial_number, condition, notes, radio_alias FROM {TABLE_NAME} ORDER BY name ASC"
+                f"""
+                SELECT id, name, type, id_number, serial_number, condition, condition_status,
+                       resource_type_id, parent_equipment_id, kit_instance_id, contents_verified,
+                       notes, radio_alias
+                FROM {TABLE_NAME}
+                ORDER BY name ASC
+                """
             )
             rows = [_dict_from_row(r) for r in cur.fetchall()]
+            for row in rows:
+                row["resource_type_name"] = self._assignment_repo.get_resource_type_name(row.get("resource_type_id"))
         except Exception as e:
             print("[EquipmentEditPanel] reload error:", e)
             rows = []
@@ -297,6 +416,12 @@ class EquipmentEditPanel(QtWidgets.QWidget):
                     QtGui.QStandardItem(str(r.get("id_number") or "")),
                     QtGui.QStandardItem(str(r.get("serial_number") or "")),
                     QtGui.QStandardItem(str(r.get("condition") or "")),
+                    QtGui.QStandardItem(str(r.get("condition_status") or "")),
+                    QtGui.QStandardItem(str(r.get("resource_type_id") or "")),
+                    QtGui.QStandardItem(str(r.get("resource_type_name") or "")),
+                    QtGui.QStandardItem(str(r.get("parent_equipment_id") or "")),
+                    QtGui.QStandardItem(str(r.get("kit_instance_id") or "")),
+                    QtGui.QStandardItem("Yes" if r.get("contents_verified") else "No"),
                     QtGui.QStandardItem(str(r.get("notes") or "")),
                     QtGui.QStandardItem(str(r.get("radio_alias") or "")),
                 ]
@@ -339,7 +464,7 @@ class EquipmentEditPanel(QtWidgets.QWidget):
 
     # --- CRUD actions ---
     def new_item(self) -> None:
-        dlg = EquipmentDetailDialog(self)
+        dlg = EquipmentDetailDialog(self, assignment_repo=self._assignment_repo)
         if dlg.exec() == QtWidgets.QDialog.Accepted:
             values = dlg.get_values()
             if not values:
@@ -349,8 +474,11 @@ class EquipmentEditPanel(QtWidgets.QWidget):
                 cur = con.cursor()
                 cur.execute(
                     f"""
-INSERT INTO {TABLE_NAME} (name, type, id_number, serial_number, condition, notes, radio_alias)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO {TABLE_NAME} (
+    name, type, id_number, serial_number, condition, condition_status,
+    resource_type_id, parent_equipment_id, kit_instance_id, contents_verified, notes, radio_alias
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """,
                     (
                         values.get("name"),
@@ -358,6 +486,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
                         values.get("id_number"),
                         values.get("serial_number"),
                         values.get("condition"),
+                        values.get("condition_status"),
+                        values.get("resource_type_id"),
+                        values.get("parent_equipment_id"),
+                        values.get("kit_instance_id"),
+                        values.get("contents_verified"),
                         values.get("notes"),
                         values.get("radio_alias"),
                     ),
@@ -379,7 +512,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
         values = self._row_values(src_row)
         if values.get("id") is None:
             return
-        dlg = EquipmentDetailDialog(self)
+        dlg = EquipmentDetailDialog(self, assignment_repo=self._assignment_repo)
         dlg.set_values(values)
         if dlg.exec() == QtWidgets.QDialog.Accepted:
             new_vals = dlg.get_values()
@@ -391,7 +524,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
                 cur.execute(
                     f"""
 UPDATE {TABLE_NAME}
-SET name=?, type=?, id_number=?, serial_number=?, condition=?, notes=?, radio_alias=?
+SET name=?, type=?, id_number=?, serial_number=?, condition=?, condition_status=?,
+    resource_type_id=?, parent_equipment_id=?, kit_instance_id=?, contents_verified=?,
+    notes=?, radio_alias=?
 WHERE id=?
 """,
                     (
@@ -400,6 +535,11 @@ WHERE id=?
                         new_vals.get("id_number"),
                         new_vals.get("serial_number"),
                         new_vals.get("condition"),
+                        new_vals.get("condition_status"),
+                        new_vals.get("resource_type_id"),
+                        new_vals.get("parent_equipment_id"),
+                        new_vals.get("kit_instance_id"),
+                        new_vals.get("contents_verified"),
                         new_vals.get("notes"),
                         new_vals.get("radio_alias"),
                         values.get("id"),
@@ -453,13 +593,21 @@ WHERE id=?
             con = self._connect()
             cur = con.cursor()
             cur.execute(
-                f"SELECT id, name, type, id_number, serial_number, condition, notes, radio_alias FROM {TABLE_NAME} ORDER BY id ASC"
+                f"""
+                SELECT id, name, type, id_number, serial_number, condition, condition_status,
+                       resource_type_id, parent_equipment_id, kit_instance_id, contents_verified,
+                       notes, radio_alias
+                FROM {TABLE_NAME}
+                ORDER BY id ASC
+                """
             )
             with open(path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(CSV_HEADERS)
                 for row in cur.fetchall():
-                    writer.writerow(list(row))
+                    payload = _dict_from_row(row)
+                    payload["resource_type_name"] = self._assignment_repo.get_resource_type_name(payload.get("resource_type_id"))
+                    writer.writerow([payload.get(header, "") for header in CSV_HEADERS])
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Export Error", str(e))
         finally:
@@ -498,8 +646,18 @@ WHERE id=?
                 cond_val = (r.get("condition") or "").strip()
                 if cond_val not in CONDITION_OPTIONS:
                     cond_val = cond_val if cond_val else "Unknown"
+                condition_status = (r.get("condition_status") or "").strip()
+                if condition_status not in CONDITION_OPTIONS:
+                    condition_status = condition_status if condition_status else cond_val
                 id_number = (r.get("id_number") or "").strip() or None
                 serial_number = (r.get("serial_number") or "").strip() or None
+                resource_type_id_txt = (r.get("resource_type_id") or "").strip()
+                resource_type_id = int(resource_type_id_txt) if resource_type_id_txt.isdigit() else None
+                parent_equipment_id_txt = (r.get("parent_equipment_id") or "").strip()
+                parent_equipment_id = int(parent_equipment_id_txt) if parent_equipment_id_txt.isdigit() else None
+                kit_instance_id_txt = (r.get("kit_instance_id") or "").strip()
+                kit_instance_id = int(kit_instance_id_txt) if kit_instance_id_txt.isdigit() else None
+                contents_verified = 1 if str(r.get("contents_verified") or "").strip().lower() in {"1", "true", "yes", "y"} else 0
                 notes = (r.get("notes") or "").strip() or None
                 radio_alias = (r.get("radio_alias") or "").strip() or None
 
@@ -509,18 +667,48 @@ WHERE id=?
                 if row_id is not None:
                     # Attempt update; if 0 rows affected, try insert
                     cur.execute(
-                        f"UPDATE {TABLE_NAME} SET name=?, type=?, id_number=?, serial_number=?, condition=?, notes=?, radio_alias=? WHERE id=?",
-                        (name, type_val, id_number, serial_number, cond_val, notes, radio_alias, row_id),
+                        f"""
+                        UPDATE {TABLE_NAME}
+                        SET name=?, type=?, id_number=?, serial_number=?, condition=?, condition_status=?,
+                            resource_type_id=?, parent_equipment_id=?, kit_instance_id=?, contents_verified=?,
+                            notes=?, radio_alias=?
+                        WHERE id=?
+                        """,
+                        (
+                            name, type_val, id_number, serial_number, cond_val, condition_status,
+                            resource_type_id, parent_equipment_id, kit_instance_id, contents_verified,
+                            notes, radio_alias, row_id,
+                        ),
                     )
                     if cur.rowcount == 0:
                         cur.execute(
-                            f"INSERT INTO {TABLE_NAME} (id, name, type, id_number, serial_number, condition, notes, radio_alias) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                            (row_id, name, type_val, id_number, serial_number, cond_val, notes, radio_alias),
+                            f"""
+                            INSERT INTO {TABLE_NAME}
+                                (id, name, type, id_number, serial_number, condition, condition_status,
+                                 resource_type_id, parent_equipment_id, kit_instance_id, contents_verified,
+                                 notes, radio_alias)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                row_id, name, type_val, id_number, serial_number, cond_val, condition_status,
+                                resource_type_id, parent_equipment_id, kit_instance_id, contents_verified,
+                                notes, radio_alias,
+                            ),
                         )
                 else:
                     cur.execute(
-                        f"INSERT INTO {TABLE_NAME} (name, type, id_number, serial_number, condition, notes, radio_alias) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (name, type_val, id_number, serial_number, cond_val, notes, radio_alias),
+                        f"""
+                        INSERT INTO {TABLE_NAME}
+                            (name, type, id_number, serial_number, condition, condition_status,
+                             resource_type_id, parent_equipment_id, kit_instance_id, contents_verified,
+                             notes, radio_alias)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            name, type_val, id_number, serial_number, cond_val, condition_status,
+                            resource_type_id, parent_equipment_id, kit_instance_id, contents_verified,
+                            notes, radio_alias,
+                        ),
                     )
             con.commit()
         except Exception as e:

@@ -1,0 +1,2175 @@
+[
+  {
+    "id": "4-508-1273",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Aerial Apparatus – Fire is a specialized fire apparatus equipped with an aerial ladder or elevated platform Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Aerial Apparatus – Fire",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1273"
+  },
+  {
+    "id": "3-508-1194",
+    "kind": "",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Air Ambulance Fixed-Wing (Critical Care Transport)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1194"
+  },
+  {
+    "id": "3-508-1026",
+    "kind": "",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type II",
+      "Type I",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Air Ambulance Fixed-Wing (Non-Critical Care Transport)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1026"
+  },
+  {
+    "id": "3-508-1195",
+    "kind": "",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Air Ambulance Rotary-Wing (Critical Care Transport)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1195"
+  },
+  {
+    "id": "3-508-1027",
+    "kind": "",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Air Ambulance Rotary-Wing (Non-Critical Care)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1027"
+  },
+  {
+    "id": "8-508-1007",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Air Search Team (Fixed-Wing)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1007"
+  },
+  {
+    "id": "2-508-1038",
+    "kind": "Aircraft",
+    "discipline": "Incident Management",
+    "primary_core_capability": "Operational Communications",
+    "description": "Resource Category Incident Management Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Airborne Communications Relay (Fixed-Wing) (CAP)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/2-508-1038"
+  },
+  {
+    "id": "2-508-1037",
+    "kind": "Aircraft",
+    "discipline": "Incident Management",
+    "primary_core_capability": "Operational Communications",
+    "description": "Resource Category Incident Management Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Airborne Communications Relay Team (Fixed-Wing)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/2-508-1037"
+  },
+  {
+    "id": "8-508-1008",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Airborne Reconnaissance (Fixed Wing)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1008"
+  },
+  {
+    "id": "3-508-1292",
+    "kind": "Team",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Ambulance Ground Team – Advanced Life Support (ALS) provides Emergency Medical Services (EMS) at a Paramedic level and deploys with",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Ambulance Ground Team - Advanced Life Support (ALS)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1292"
+  },
+  {
+    "id": "3-508-1293",
+    "kind": "Team",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Ambulance Ground Team – Basic Life Support (BLS) provides Emergency Medical Services (EMS) at an Emergency Medical Technician (EMT) level and deploys with",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Ambulance Ground Team - Basic Life Support (BLS)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1293"
+  },
+  {
+    "id": "3-508-1294",
+    "kind": "Team",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Ambulance Strike Team - Advanced Life Support (ALS)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1294"
+  },
+  {
+    "id": "3-508-1295",
+    "kind": "Team",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Ambulance Strike Team - Basic Life Support (BLS)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1295"
+  },
+  {
+    "id": "3-508-1030",
+    "kind": "",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "Resource Category Emergency Medical Services Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Ambulance Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1030"
+  },
+  {
+    "id": "1-508-1221",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Situational Assessment",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Animal and Agriculture Damage Assessment Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1221"
+  },
+  {
+    "id": "1-508-1222",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Environmental Response/Health and Safety",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Animal Depopulation Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1222"
+  },
+  {
+    "id": "1-508-1223",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Critical Transportation",
+    "description": "The Animal Evacuation, Transport, and Re-Entry Team evacuates animals from disaster areas to non-impacted areas by receiving animals from search and rescue teams, animal control",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Animal Evacuation, Transport, and Re-Entry Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1223"
+  },
+  {
+    "id": "1-508-1224",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Animal Search and Rescue Team locates, stabilizes, extricates and evacuates animals in a disaster environment Resource Category Animal Emergency Response Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Animal Search and Rescue Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1224"
+  },
+  {
+    "id": "1-508-1226",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Animal Sheltering Team - Animal-Only Shelter",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1226"
+  },
+  {
+    "id": "1-508-1227",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Animal Sheltering Team - Cohabitated Shelter",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1227"
+  },
+  {
+    "id": "1-508-1228",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Animal Sheltering Team - Collocated Shelter",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1228"
+  },
+  {
+    "id": "4-508-1274",
+    "kind": "Team",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Area Command Team – Firefighting supports the area command, which may be activated to manage a very large incident with multiple Incident Management Teams Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Area Command Team – Firefighting",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1274"
+  },
+  {
+    "id": "12-508-1186",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Behavioral Health Community Services Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1186"
+  },
+  {
+    "id": "6-508-1176",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "Interdiction and Disruption",
+    "description": "A team of Bomb Technicians that investigates suspicious items and renders safe hazardous devices Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Bomb Response Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1176"
+  },
+  {
+    "id": "6-508-1290",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "The Explosives Detection Canine Team (EDCT) conducts screening and searches to detect the presence of explosives and explosives-related substances. A team is comprised of both a Canine Handler - Explosives and an Explosives Detection Canine (EDC) Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Canine Detection Team - Explosives",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1290"
+  },
+  {
+    "id": "8-508-1164",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "A Canine Search Team – Disaster/Structural Collapse Human Remains searches for and detects the scent of human remains in failed structures and debris fields. Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Canine Search Team - Disaster/Structural Collapse Human Remains",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1164"
+  },
+  {
+    "id": "8-508-1165",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Canine Search Team – Disaster/Structural Collapse Live searches for and detects live human scent in failed structures and debris fields Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Canine Search Team - Disaster/Structural Collapse Live",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1165"
+  },
+  {
+    "id": "8-508-1166",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "A Canine Search Team – Land Human Remains searches for human remains outside the urban collapsed structure environment, in debris fields and in areas of varied terrain with limited structures Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Canine Search Team – Land Human Remains",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1166"
+  },
+  {
+    "id": "8-508-1167",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "A Canine Search Team – Land Live searches for and detects live subjects outside of the urban collapsed structure environment, in debris field and in areas of varied terrain with limited structures. Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Canine Search Team - Land Live",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1167"
+  },
+  {
+    "id": "8-508-1168",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Canine Search Team – Water Human Remains searches for and detects human remains in and along bodies of water and debris fields Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Canine Search Team - Water Human Remains",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1168"
+  },
+  {
+    "id": "8-508-1015",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "A Cave Search and Rescue (SAR) Team conducts search, rescue and recovery in naturally formed caves Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Cave Search and Rescue (SAR) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1015"
+  },
+  {
+    "id": "1-508-1229",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Environmental Response/Health and Safety",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Companion Animal Decontamination Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1229"
+  },
+  {
+    "id": "4-508-1275",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Crew Transport (Firefighting Crew) is a vehicle that transports firefighting crews Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Crew Transport (Firefighting Crew)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1275"
+  },
+  {
+    "id": "6-508-1231",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "The Crisis Negotiation Team consists of individuals who negotiate with a person or group of people actively involved in a criminal, domestic or mental health incident Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Crisis Negotiation Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1231"
+  },
+  {
+    "id": "2-508-1041",
+    "kind": "Team",
+    "discipline": "Incident Management",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Critical Incident Stress Management (CISM) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/2-508-1041"
+  },
+  {
+    "id": "13-508-1212",
+    "kind": "Team",
+    "discipline": "Cybersecurity",
+    "primary_core_capability": "Cybersecurity",
+    "description": "The Cyber Incident Response Team responds to crises or urgent situations within the pertinent cyber domain to address, manage and mitigate immediate and potential threats Resource Category Cybersecurity Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Cyber Incident Response Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/13-508-1212"
+  },
+  {
+    "id": "7-508-1232",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Damage Assessment Team – Public Works assesses the magnitude of damage an incident has caused to public infrastructure such as facilities, roadways, piping systems and bridges. Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Damage Assessment Team – Public Works",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1232"
+  },
+  {
+    "id": "7-508-1233",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Debris Assessment Team conducts an assessment of the amount and types of debris in a given geographic area in the aftermath of an incident. Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Debris Assessment Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1233"
+  },
+  {
+    "id": "7-508-1234",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Debris Monitoring Team oversees debris removal operations in the aftermath of an incident, according to the debris management plan. Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Debris Monitoring Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1234"
+  },
+  {
+    "id": "10-508-1200",
+    "kind": "Team",
+    "discipline": "Emergency Management",
+    "primary_core_capability": "Economic Recovery",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Disaster Cost Recovery Management Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/10-508-1200"
+  },
+  {
+    "id": "9-508-1185",
+    "kind": "Task Force",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Distribution of Emergency Supplies (DES) Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1185"
+  },
+  {
+    "id": "11-508-1251",
+    "kind": "Team",
+    "discipline": "Logistics and Transportation",
+    "primary_core_capability": "Logistics and Supply Chain Management",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type III"
+    ],
+    "name": "Distribution Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/11-508-1251"
+  },
+  {
+    "id": "9-508-1190",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "The Donated Goods Warehouse Management Team manages donated goods in a warehouse and coordinates with the Donations Coordination Task Force Resource Category Mass Care Services Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Donated Goods Warehouse Management Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1190"
+  },
+  {
+    "id": "9-508-1191",
+    "kind": "Task Force",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Donations Coordination Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1191"
+  },
+  {
+    "id": "9-508-1187",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Drive-Through Point of Distribution Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1187"
+  },
+  {
+    "id": "3-508-1031",
+    "kind": "Task Force",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Emergency Care Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1031"
+  },
+  {
+    "id": "3-508-1236",
+    "kind": "Task Force",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Emergency Medical Services (EMS) Task Force is an operational grouping of EMS resources for a medical mission with common communications and a leader that interfaces with the supported healthcare resources Resource Category Emergency Medical Services Primary",
+    "type_levels": [
+      "Type III",
+      "Type II",
+      "Type I"
+    ],
+    "name": "Emergency Medical Services Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1236"
+  },
+  {
+    "id": "23-508-1289",
+    "kind": "Team",
+    "discipline": "",
+    "primary_core_capability": "Operational Communications",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Emergency Operations Center Management Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/23-508-1289"
+  },
+  {
+    "id": "4-508-1276",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Engine – Fire (Pumper) combats structural and associated fires Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Engine – Fire (Pumper)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1276"
+  },
+  {
+    "id": "12-508-1135",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Environmental Response/Health and Safety",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Environmental Health Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1135"
+  },
+  {
+    "id": "12-508-1133",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Epidemiological Response Team identifies, monitors, and investigates disease outbreaks, injuries or other conditions of public health importance following an incident or declared disaster Resource Category Medical and Public Health Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Epidemiological Response Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1133"
+  },
+  {
+    "id": "2-508-1048",
+    "kind": "Team",
+    "discipline": "Incident Management",
+    "primary_core_capability": "Critical Transportation",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Evacuation Coordination Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/2-508-1048"
+  },
+  {
+    "id": "9-508-1192",
+    "kind": "Facility",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Evacuation Shelter",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1192"
+  },
+  {
+    "id": "12-508-1217",
+    "kind": "Unit",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Fatality Management Services",
+    "description": "The Fatality Management (FM) Disaster Portable Morgue Unit (DPMU) is a mobile facility consisting of",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Fatality Management Disaster Portable Morgue Unit",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1217"
+  },
+  {
+    "id": "12-508-1218",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Fatality Management Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Fatality Management Human Remains Recovery Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1218"
+  },
+  {
+    "id": "12-508-1219",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Fatality Management Services",
+    "description": "The Fatality Management (FM) Morgue Forensic Team processes and assists in the identification of human remains in a temporary site during a mass fatality event, under the medico-legal authority of the Medical Examiner or Coroner Resource Category Medical and Public Health Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Fatality Management Morgue Forensic Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1219"
+  },
+  {
+    "id": "12-508-1220",
+    "kind": "Unit",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Fatality Management Services",
+    "description": "The Fatality Management (FM) Morgue Processing Unit (MPU) provides",
+    "type_levels": [
+      "Type I",
+      "Type III",
+      "Type II",
+      "Type IV"
+    ],
+    "name": "Fatality Management Morgue Processing Unit",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1220"
+  },
+  {
+    "id": "12-508-1249",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Fatality Management Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Fatality Management Victim Information Center Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1249"
+  },
+  {
+    "id": "9-508-1000",
+    "kind": "Unit",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "The Field Kitchen Unit deploys as an operational feeding unit pulled by a truck or trailer and set up at a fixed central location, with",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Field Kitchen Unit",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1000"
+  },
+  {
+    "id": "4-508-1277",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "A Fire Boat is a vessel equipped with master stream appliances, pumps, and other firefighting equipment to combat fires on vessels and in waterfront areas Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Fire Boat",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1277"
+  },
+  {
+    "id": "4-508-1278",
+    "kind": "Team",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Fire Engine Strike Team – Structural",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1278"
+  },
+  {
+    "id": "8-508-1265",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Fixed Wing Search Team / Disaster Reconnaissance conducts fixed wing search and disaster reconnaissance missions and provides law enforcement support. Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Fixed Wing Search Team / Disaster Reconnaissance",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1265"
+  },
+  {
+    "id": "4-508-1279",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Foam Tender – Firefighting acts as a mobile foam source and suppresses fires that are resistant to traditional water-based operations Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Foam Tender – Firefighting",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1279"
+  },
+  {
+    "id": "9-508-1272",
+    "kind": "Unit",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "The Food Service Delivery Unit deploys as an operational vehicle with",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Food Service Delivery Unit",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1272"
+  },
+  {
+    "id": "4-508-1280",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Fuel Tender, also known as a gas tanker, carries fuel, such as gasoline, diesel, or avgas Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Fuel Tender",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1280"
+  },
+  {
+    "id": "14-508-1210",
+    "kind": "Team",
+    "discipline": "Geographic Info Systems and Info Technology",
+    "primary_core_capability": "Planning",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Geographic Information Systems (GIS) Field Data Collection Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/14-508-1210"
+  },
+  {
+    "id": "14-508-1211",
+    "kind": "Team",
+    "discipline": "Geographic Info Systems and Info Technology",
+    "primary_core_capability": "Planning",
+    "description": "The Geographic Information Systems (GIS) Map Support Team is responsible for the production of GIS-based computer maps used for decision making, navigation, incident assessment and threat and hazard identification Resource Category Geographic Info Systems and Info Technology Primary",
+    "type_levels": [
+      "Type II",
+      "Type I",
+      "Type III"
+    ],
+    "name": "Geographic Information Systems (GIS) Map Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/14-508-1211"
+  },
+  {
+    "id": "21-508-1263",
+    "kind": "Team",
+    "discipline": "Damage Assessment",
+    "primary_core_capability": "Risk Management for Protection Programs and Activities",
+    "description": "The Geology Field Reconnaissance Team collects field data for geo-hazard related emergencies Resource Category Damage Assessment Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Geology Field Reconnaissance Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/21-508-1263"
+  },
+  {
+    "id": "4-508-1281",
+    "kind": "Crew",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Hand Crew conducts wildland fire operations in the wildland fire environment consisting of topography, fuel, and air mass Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type II",
+      "Type III",
+      "Type I",
+      "Type IV"
+    ],
+    "name": "Hand Crew",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1281"
+  },
+  {
+    "id": "15-508-1175",
+    "kind": "Team",
+    "discipline": "Hazard Mitigation",
+    "primary_core_capability": "Operational Coordination",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Hazard Mitigation Operations Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/15-508-1175"
+  },
+  {
+    "id": "15-508-1174",
+    "kind": "Team",
+    "discipline": "Hazard Mitigation",
+    "primary_core_capability": "Operational Coordination",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Hazard Mitigation Planning Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/15-508-1174"
+  },
+  {
+    "id": "4-508-1248",
+    "kind": "Team",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Environmental Response/Health and Safety",
+    "description": "A Hazardous Materials Response Team is an organized group of hazardous materials (HAZMAT) technicians who respond to HAZMAT incidents, including those involving Weapons of Mass Destruction (WMD). Additional",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Hazardous Materials Response Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1248"
+  },
+  {
+    "id": "12-508-1238",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Healthcare Resource Coordination and Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1238"
+  },
+  {
+    "id": "4-508-1282",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "A Helicopter – Firefighting and Rescue is a helicopter and aircrew used primarily during firefighting operations and other emergency operations for suppression/containment, transporting",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Helicopter – Firefighting and Rescue",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1282"
+  },
+  {
+    "id": "8-508-1162",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Helicopter/Rotary Wing Search and Rescue (SAR) Team is equipped to conduct helicopter-based search, rescue and recovery operations Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Helicopter/Rotary Wing Search and Rescue (SAR) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1162"
+  },
+  {
+    "id": "10-508-1254",
+    "kind": "Task Force",
+    "discipline": "Emergency Management",
+    "primary_core_capability": "Housing",
+    "description": "The Housing Task Force develops and coordinates strategies for both short-term and innovative, resilient long-term recovery housing for disaster survivors Resource Category Emergency Management Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Housing Task Force (NQS)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/10-508-1254"
+  },
+  {
+    "id": "10-508-1214",
+    "kind": "Team",
+    "discipline": "Emergency Management",
+    "primary_core_capability": "Economic Recovery",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Human Services Disaster Assessment Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/10-508-1214"
+  },
+  {
+    "id": "10-508-1213",
+    "kind": "Team",
+    "discipline": "Emergency Management",
+    "primary_core_capability": "Economic Recovery",
+    "description": "The Human Services Recovery Support Team assists in providing services to disaster survivors, using identified needs from the Human Services Disaster Assessment Team’s initial assessment Resource Category Emergency Management Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Human Services Recovery Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/10-508-1213"
+  },
+  {
+    "id": "0-508-1179",
+    "kind": "Equipment",
+    "discipline": "Prevention",
+    "primary_core_capability": "Screening, Search, and Detection",
+    "description": "This Human-Portable Radiation Detector comprises several radiation detection components placed inside a backpack or similar enclosure, along with an optional external control device Resource Category Prevention Primary",
+    "type_levels": [
+      "Type II",
+      "Type I",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Human-Portable Radiation Detector",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/0-508-1179"
+  },
+  {
+    "id": "2-508-1050",
+    "kind": "Team",
+    "discipline": "Incident Management",
+    "primary_core_capability": "Operational Coordination",
+    "description": "",
+    "type_levels": [
+      "Type II",
+      "Type I",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Incident Management Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/2-508-1050"
+  },
+  {
+    "id": "4-508-1283",
+    "kind": "Team",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Incident Management Team – Firefighting",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1283"
+  },
+  {
+    "id": "4-508-1284",
+    "kind": "Team",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Interagency Buying Team – Firefighting supports incident acquisition through coordination with the incident agency administrative staff by procuring services and supplies or renting land and equipment Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Interagency Buying Team – Firefighting",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1284"
+  },
+  {
+    "id": "12-508-1134",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Isolation and Quarantine Team helps support local disease control activities during a communicable disease outbreak or other conditions of public health importance Resource Category Medical and Public Health Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Isolation and Quarantine Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1134"
+  },
+  {
+    "id": "12-508-1241",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Laboratory Team provides hospitals, outpatient facilities, and mobile units with a wide range of clinical laboratory (patient diagnostic) services, which may include basic chemistry, hematology, coagulation, urine, and microbiology testing Resource Category Medical and Public Health Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Laboratory Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1241"
+  },
+  {
+    "id": "5-508-1247",
+    "kind": "Team",
+    "discipline": "Communications",
+    "primary_core_capability": "Operational Communications",
+    "description": "The Land Mobile Radio Support Team deploys to support disaster emergency communications by providing and maintaining operable and interoperable radio communications in an incident area Resource Category Communications Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Land Mobile Radio Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/5-508-1247"
+  },
+  {
+    "id": "8-508-1173",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "A Land Search and Rescue (SAR) Team conducts search, rescue and recovery in one or more of the environments of land or wilderness, in response to natural and human-caused events Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Land Search and Rescue (SAR) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1173"
+  },
+  {
+    "id": "6-508-1002",
+    "kind": "Aircraft",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Law Enforcement Aviation - Helicopters - Patrol & Surveillance",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1002"
+  },
+  {
+    "id": "6-508-1003",
+    "kind": "Aircraft",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Law Enforcement Observation Aircraft (Fixed-Wing)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1003"
+  },
+  {
+    "id": "7-508-1255",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Locating Team – Water Sector Infrastructure is responsible for locating water and sewer mains, manholes and valves Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Locating Team – Water Sector Infrastructure",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1255"
+  },
+  {
+    "id": "11-508-1252",
+    "kind": "Unit",
+    "discipline": "Logistics and Transportation",
+    "primary_core_capability": "Logistics and Supply Chain Management",
+    "description": "The Logistics Staging Unit supports response and recovery operations by receiving, warehousing and distributing emergency supplies and equipment, and by providing a staging area (LSA) for response and recovery",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Logistics Staging Unit",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/11-508-1252"
+  },
+  {
+    "id": "11-508-1253",
+    "kind": "Team",
+    "discipline": "Logistics and Transportation",
+    "primary_core_capability": "Logistics and Supply Chain Management",
+    "description": "The Logistics Support Team is a group of qualified",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Logistics Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/11-508-1253"
+  },
+  {
+    "id": "9-508-1193",
+    "kind": "Facility",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Long-Term Shelter",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1193"
+  },
+  {
+    "id": "0-508-1177",
+    "kind": "",
+    "discipline": "Prevention",
+    "primary_core_capability": "Screening, Search, and Detection",
+    "description": "A team composed of maritime public safety",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Maritime Preventive Radiological Nuclear Detection Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/0-508-1177"
+  },
+  {
+    "id": "9-508-1199",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "The Mass Evacuee Support Task Force provides technical and functional expertise for the registration, tracking, movement and needs of disaster survivors at a mass evacuee support site Resource Category Mass Care Services Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Mass Evacuee Support Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1199"
+  },
+  {
+    "id": "9-508-1198",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "The Mass Evacuee Support Team provides coordination and functional support for mass care and emergency assistance-related activities at individual mass evacuee support sites Resource Category Mass Care Services Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Mass Evacuee Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1198"
+  },
+  {
+    "id": "3-508-1296",
+    "kind": "Vehicle",
+    "discipline": "Emergency Medical Services",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "Multi-patient medical transportation vehicle for the provision of medical care to patients before and during transport to medical receiving facilities Resource Category Emergency Medical Services Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Medical Ambulance Bus (MAB)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/3-508-1296"
+  },
+  {
+    "id": "12-508-1239",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Medical Countermeasure (MCM) Point of Dispensing (POD) Management Team oversees and provides direction, coordination and consultation to local",
+    "type_levels": [
+      "Type I",
+      "Type III"
+    ],
+    "name": "Medical Countermeasure (MCM) Point of Dispensing (POD) Management Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1239"
+  },
+  {
+    "id": "8-508-1169",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "A Mine Search and Rescue (SAR) Team conducts search, rescue and recovery in underground mine environments, including active, inactive and abandoned mines Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Mine Search and Rescue (SAR) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1169"
+  },
+  {
+    "id": "2-508-1053",
+    "kind": "Vehicle",
+    "discipline": "Incident Management",
+    "primary_core_capability": "Operational Communications",
+    "description": "Resource Category Incident Management Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Mobile Communications Center (Also referred to as \"Mobile EOC\")",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/2-508-1053"
+  },
+  {
+    "id": "4-508-1128",
+    "kind": "Vehicle",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Operational Communications",
+    "description": "Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Mobile Communications Unit (Law/Fire)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1128"
+  },
+  {
+    "id": "9-508-1188",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Mobile Distribution Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1188"
+  },
+  {
+    "id": "6-508-1240",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "The Mobile Field Force (MFF) is a mobile team capable of providing a fast and effective platoon- or squad-size tactical force for a wide variety of policing functions and missions Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Mobile Field Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1240"
+  },
+  {
+    "id": "9-508-1271",
+    "kind": "Unit",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "The Mobile Kitchen Unit deploys as an operational feeding unit on wheels, designed for meal preparation and direct food service, with accompanying",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Mobile Kitchen Unit",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1271"
+  },
+  {
+    "id": "8-508-1171",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "A Mountain Search and Rescue (SAR) Team conducts search, rescue and recovery in one or more of the environments of low mountain, mountain and alpine, in response to natural and human-caused events Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Mountain Search and Rescue (SAR) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1171"
+  },
+  {
+    "id": "7-508-1202",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Operations Team – Wastewater Treatment Facility operates wastewater facilities Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Operations Team – Wastewater Treatment Facility",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1202"
+  },
+  {
+    "id": "7-508-1256",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Operations Team – Water Treatment Facility operates water production facilities Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Operations Team – Water Treatment Facility",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1256"
+  },
+  {
+    "id": "12-508-1142",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Palliative Care Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1142"
+  },
+  {
+    "id": "6-508-1034",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "The Patrol Team provides patrol functions to promote public safety and security Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Patrol Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1034"
+  },
+  {
+    "id": "9-508-1189",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Pedestrian Point of Distribution Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1189"
+  },
+  {
+    "id": "0-508-1180",
+    "kind": "Equipment",
+    "discipline": "Prevention",
+    "primary_core_capability": "Screening, Search, and Detection",
+    "description": "An alarming Personal Radiation Detector (PRD) worn on the body to detect photons and, in some cases, neutrons Resource Category Prevention Primary",
+    "type_levels": [
+      "Type II",
+      "Type I"
+    ],
+    "name": "Personal Radiation Detector",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/0-508-1180"
+  },
+  {
+    "id": "12-508-1242",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Pharmacy Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1242"
+  },
+  {
+    "id": "7-508-1257",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Plant Utility Control Systems Team – Water Sector Infrastructure restores and repairs supervisory control and data acquisition (SCADA) and radio telemetry systems Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Plant Utility Control Systems Team – Water Sector Infrastructure",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1257"
+  },
+  {
+    "id": "4-508-1285",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Portable Pump is available in several volume and pressure ratings, which can be taken to a water source and used for fire suppression, rescue, de-watering, or other specialized functions Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Portable Pump",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1285"
+  },
+  {
+    "id": "10-508-1261",
+    "kind": "Team",
+    "discipline": "Emergency Management",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Post-Disaster Building Safety Evaluation Team (Evaluation Team) conducts evaluations of damaged or potentially damaged buildings to evaluate safety and habitability for continued use and to assess the need for restricted or prohibited entry Resource Category Emergency Management Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Post-Disaster Building Safety Evaluation Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/10-508-1261"
+  },
+  {
+    "id": "0-508-1178",
+    "kind": "Team",
+    "discipline": "Prevention",
+    "primary_core_capability": "Screening, Search, and Detection",
+    "description": "A Preventive Radiological Nuclear Detection Team is comprised of public safety",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Preventive Radiological Nuclear Detection Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/0-508-1178"
+  },
+  {
+    "id": "12-508-1144",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type III"
+    ],
+    "name": "Public Health and Medical Systems Assessment Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1144"
+  },
+  {
+    "id": "12-508-1143",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "Provides public health preventive services and medical support to shelter occupants Resource Category Medical and Public Health Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Public Health and Medical Team in a Shelter",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1143"
+  },
+  {
+    "id": "6-508-1005",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "The Public Safety Dive Team is a group of divers who perform underwater functions, including search and recovery for evidence and remains Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Public Safety Dive Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1005"
+  },
+  {
+    "id": "7-508-1244",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Public Works Support Team supplements local public works management during incident response and recovery operations. Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Public Works Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1244"
+  },
+  {
+    "id": "4-508-1286",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Quint Fire Apparatus is a specialized fire apparatus with permanently mounted fire pump, a water tank, a hose storage area, an aerial ladder or elevating platform with a permanently mounted waterway, and a complement of ground ladders Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type III",
+      "Type II"
+    ],
+    "name": "Quint Fire Apparatus",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1286"
+  },
+  {
+    "id": "8-508-1019",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Radio Direction Finding Team conducts electronic direction-finding operations in support of search and rescue (SAR) efforts Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Radio Direction Finding Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1019"
+  },
+  {
+    "id": "0-508-1181",
+    "kind": "Equipment",
+    "discipline": "Prevention",
+    "primary_core_capability": "Screening, Search, and Detection",
+    "description": "The Radio-Isotope Identification Device is a portable radiation detector, also known as a radionuclide identifier, with gamma spectroscopic capabilities and neutron indication Resource Category Prevention Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Radio-Isotope Identification Device",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/0-508-1181"
+  },
+  {
+    "id": "12-508-1243",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Radiological Services Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1243"
+  },
+  {
+    "id": "21-508-1260",
+    "kind": "Team",
+    "discipline": "Damage Assessment",
+    "primary_core_capability": "Situational Assessment",
+    "description": "The Rapid Needs Assessment (RNA) Team conducts rapid assessment on life safety issues, critical infrastructure status and human needs Resource Category Damage Assessment Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Rapid Needs Assessment Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/21-508-1260"
+  },
+  {
+    "id": "12-508-1137",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Receiving, Staging, and Storage Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1137"
+  },
+  {
+    "id": "7-508-1258",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Repair and Start-Up Team – Wastewater Treatment Facility repairs all types of wastewater treatment facilities, making them operational Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Repair and Start-Up Team – Wastewater Treatment Facility",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1258"
+  },
+  {
+    "id": "7-508-1154",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Repair and Start-Up Team – Water Treatment Facility repairs all types of water treatment facilities Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Repair and Start-Up Team – Water Treatment Facility",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1154"
+  },
+  {
+    "id": "7-508-1059",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Repair and Start-Up Team Lift and Pump Stations – Wastewater Facility repairs wastewater lift and pump stations Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Repair and Start-Up Team Lift and Pump Stations – Wastewater Facility",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1059"
+  },
+  {
+    "id": "7-508-1145",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Repair and Start-Up Team Water Pump Facilities – Water Production repairs water pump facilities Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Repair and Start-Up Team Water Pump Facilities – Water Production",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1145"
+  },
+  {
+    "id": "7-508-1201",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Repair Team – Water Distribution System repairs system mains, valves, hydrants and other parts of the water distribution infrastructure Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Repair Team – Water Distribution System",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1201"
+  },
+  {
+    "id": "7-508-1146",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Repair Team Sewer Mains – Wastewater repairs all types of wastewater mains and some related assets Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Repair Team Sewer Mains – Wastewater",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1146"
+  },
+  {
+    "id": "7-508-1208",
+    "kind": "Equipment",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "Sewer System Cleaning – Wastewater is equipment for cleaning wastewater sewer system infrastructure Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Sewer System Cleaning – Wastewater",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1208"
+  },
+  {
+    "id": "7-508-1207",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Sewer System Closed Circuit Television (CCTV) Team – Wastewater provides nondestructive CCTV services to facilitate sewer system inspections Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Sewer System Closed Circuit Television Team – Wastewater",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1207"
+  },
+  {
+    "id": "9-508-1196",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Shelter Facility Selection Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1196"
+  },
+  {
+    "id": "9-508-1155",
+    "kind": "Team",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "The Shelter Management Team coordinates and manages resources in a congregate care facility, to provide a safe, accessible, and secure shelter environment for disaster survivors Resource Category Mass Care Services Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Shelter Management Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1155"
+  },
+  {
+    "id": "9-508-1197",
+    "kind": "Facility",
+    "discipline": "Mass Care Services",
+    "primary_core_capability": "Mass Care Services",
+    "description": "A Short-Term Shelter is in an existing facility (or facilities), such as a school, community center, convention center or church temporarily converted to provide safe, accessible and secure short- term housing for disaster survivors Resource Category Mass Care Services Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Short-Term Shelter",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/9-508-1197"
+  },
+  {
+    "id": "2-508-1246",
+    "kind": "Team",
+    "discipline": "Incident Management",
+    "primary_core_capability": "Situational Assessment",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Small Unmanned Aircraft System (sUAS) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/2-508-1246"
+  },
+  {
+    "id": "6-508-1245",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "The Special Weapons and Tactics (SWAT) Team provides increased law enforcement capabilities using specially trained and equipped tactical officers to prevent or respond to high-risk emergency incidents Resource Category Law Enforcement Operations Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Special Weapons and Tactics Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1245"
+  },
+  {
+    "id": "12-508-1141",
+    "kind": "Team",
+    "discipline": "Medical and Public Health",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "Resource Category Medical and Public Health Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Specialty Services Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/12-508-1141"
+  },
+  {
+    "id": "8-508-1264",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Stillwater/Flood Search and Rescue (SAR) Team conducts search, rescue and recovery operations for humans and animals in stillwater and stillwater/flood environments. Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Stillwater/Flood Search and Rescue Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1264"
+  },
+  {
+    "id": "8-508-1159",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Structural Collapse Rescue Team conducts rescue operations in collapsed structures and debris fields resulting from natural or human causes. Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Structural Collapse Rescue Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1159"
+  },
+  {
+    "id": "8-508-1158",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Structural Collapse Search Team conducts search operations in collapsed structures and debris fields resulting from natural or human causes. Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Structural Collapse Search Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1158"
+  },
+  {
+    "id": "4-508-1287",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Support Water Tender – Firefighting (Tanker) is a vehicle capable of transporting specified quantities of water to support firefighting or other emergency operations Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Support Water Tender – Firefighting (Tanker)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1287"
+  },
+  {
+    "id": "8-508-1020",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Swiftwater/Flood Search and Rescue (SAR) Team conducts search, rescue and recovery operations for humans and animals in swiftwater and swiftwater/flood environments. Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Swiftwater/Flood Search and Rescue Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1020"
+  },
+  {
+    "id": "7-508-1205",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The System Flushing and Flow Testing Team – Water Distribution conducts a flushing cleanout of water distribution pipes, tests the water supply throughout the distribution network and conducts basic water quality field testing Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "System Flushing and Flow Testing Team – Water Distribution",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1205"
+  },
+  {
+    "id": "4-508-1288",
+    "kind": "Equipment",
+    "discipline": "Fire/Hazardous Materials",
+    "primary_core_capability": "Fire Management and Suppression",
+    "description": "The Tactical Water Tender – Firefighting (Tanker) is a vehicle capable of transporting specified quantities of water to tactical firefighting or other emergency operations Resource Category Fire/Hazardous Materials Primary",
+    "type_levels": [
+      "Type I",
+      "Type II"
+    ],
+    "name": "Tactical Water Tender – Firefighting (Tanker)",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/4-508-1288"
+  },
+  {
+    "id": "8-508-1266",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Urban Search and Rescue Incident Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1266"
+  },
+  {
+    "id": "8-508-1262",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "for FEMA US&R Search Manager within the National US&R Response System. 3. NIMS",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Urban Search and Rescue Task Force",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1262"
+  },
+  {
+    "id": "8-508-1021",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "US&R Incident Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1021"
+  },
+  {
+    "id": "0-508-1182",
+    "kind": "Equipment",
+    "discipline": "Prevention",
+    "primary_core_capability": "Screening, Search, and Detection",
+    "description": "A Vehicle-Mounted Radiological Nuclear Detection System is vehicular platform-transported (such as by truck, boat or aircraft) instrument that detects radiological and nuclear material Resource Category Prevention Primary",
+    "type_levels": [
+      "Type II",
+      "Type I",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Vehicle-Mounted Radiological Nuclear Detection System",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/0-508-1182"
+  },
+  {
+    "id": "1-508-1230",
+    "kind": "Team",
+    "discipline": "Animal Emergency Response",
+    "primary_core_capability": "Public Health, Healthcare, and Emergency Medical Services",
+    "description": "The Veterinary Medical Team provides care to animals in a field setting or an existing veterinary medical facility, such as a veterinary hospital, animal shelter, mobile medical unit or portable temporary hospital setting Resource Category Animal Emergency Response Primary",
+    "type_levels": [
+      "Type II",
+      "Type III",
+      "Type IV",
+      "Type I"
+    ],
+    "name": "Veterinary Medical Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/1-508-1230"
+  },
+  {
+    "id": "5-508-1250",
+    "kind": "Team",
+    "discipline": "Communications",
+    "primary_core_capability": "Operational Communications",
+    "description": "The Virtual Operations Support Team (VOST) completes web-based missions to monitor, amplify, filter and develop web-based communication platforms for Incident Command and coordination organizations responding to crisis situations Resource Category Communications Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Virtual Operations Support Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/5-508-1250"
+  },
+  {
+    "id": "7-508-1206",
+    "kind": "Team",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Water Main Leak Locating Team – Water Distribution locates and documents water main leaks needing repair Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I"
+    ],
+    "name": "Water Main Leak Locating Team – Water Distribution",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1206"
+  },
+  {
+    "id": "7-508-1100",
+    "kind": "Equipment",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Water Pump, Dewatering is equipment that lowers the water level of contained water sources or removes water from a limited area Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Water Pump, Dewatering",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1100"
+  },
+  {
+    "id": "7-508-1101",
+    "kind": "Equipment",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Water Pump, Drinking Water Supply – Untreated Source is equipment that pumps untreated water to a water treatment plant Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Water Pump, Drinking Water Supply – Untreated Source",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1101"
+  },
+  {
+    "id": "7-508-1103",
+    "kind": "Equipment",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Water Pump, Wastewater is equipment that lifts and moves wastewater through a pressure piping system Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Water Pump, Wastewater",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1103"
+  },
+  {
+    "id": "7-508-1102",
+    "kind": "Equipment",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Water Pump, Water Distribution is equipment that pumps potable water to a pressurized/elevated water system Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Water Pump, Water Distribution",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1102"
+  },
+  {
+    "id": "7-508-1259",
+    "kind": "Equipment",
+    "discipline": "Public Works",
+    "primary_core_capability": "Infrastructure Systems",
+    "description": "The Water Valve Maintenance (Truck/Trailer) – Water Distribution is truck-mounted or trailer-mounted equipment for exercising water distribution valves and for valve box cleaning Resource Category Public Works Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III"
+    ],
+    "name": "Water Valve Maintenance (Truck/Trailer) – Water Distribution",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/7-508-1259"
+  },
+  {
+    "id": "6-508-1216",
+    "kind": "Team",
+    "discipline": "Law Enforcement Operations",
+    "primary_core_capability": "",
+    "description": "",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Waterborne Response Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/6-508-1216"
+  },
+  {
+    "id": "8-508-1215",
+    "kind": "Team",
+    "discipline": "Search and Rescue",
+    "primary_core_capability": "Mass Search and Rescue Operations",
+    "description": "The Waterborne Search and Rescue (SAR) Team provides SAR capabilities in various inland and coastal waterways Resource Category Search and Rescue Primary",
+    "type_levels": [
+      "Type I",
+      "Type II",
+      "Type III",
+      "Type IV"
+    ],
+    "name": "Waterborne Search and Rescue (SAR) Team",
+    "reference_url": "https://rtlt.preptoolkit.fema.gov/Public/Resource/View/8-508-1215"
+  }
+]

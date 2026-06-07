@@ -29,6 +29,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
 )
 
+from modules.admin.resource_types.data import READINESS_STATUSES, ResourceAssignmentRepository
+from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 from utils.styles import team_status_colors, TEAM_TYPE_COLORS, subscribe_theme
 from models.database import get_incident_by_number
 from utils import incident_context
@@ -83,6 +85,7 @@ class TeamDetailBridge(QObject):
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._team: Team = Team()
+        self._resource_assignments = ResourceAssignmentRepository()
         # Cached lists for QML list views
         self._personnel: list[dict[str, Any]] = []
         self._vehicles: list[dict[str, Any]] = []
@@ -284,6 +287,16 @@ class TeamDetailBridge(QObject):
                 team_repo.set_team_status(int(self._team.team_id), self._team.status)
             self.statusChanged.emit(self._team.status)
             self._emit_incident_refresh()
+        self.teamChanged.emit()
+
+    @Slot('QVariant')
+    def setResourceType(self, resource_type_id: Any) -> None:
+        self._team.resource_type_id = int(resource_type_id) if resource_type_id not in (None, "") else None
+        self.teamChanged.emit()
+
+    @Slot(str)
+    def setReadinessStatus(self, readiness_status: str) -> None:
+        self._team.readiness_status = str(readiness_status or "Unknown")
         self.teamChanged.emit()
 
     # ---- Asset list providers (QML binds to these) ----
@@ -777,6 +790,12 @@ class TeamDetailBridge(QObject):
             if "team_type" in payload:
                 value = payload.get("team_type")
                 self._team.team_type = str(value) if value not in (None, "") else None
+            if "resource_type_id" in payload:
+                value = payload.get("resource_type_id")
+                self._team.resource_type_id = int(value) if value not in (None, "") else None
+            if "readiness_status" in payload:
+                value = payload.get("readiness_status")
+                self._team.readiness_status = str(value) if value not in (None, "") else "Unknown"
             if "primary_task" in payload:
                 value = payload.get("primary_task")
                 self._team.primary_task = str(value) if value not in (None, "") else None
@@ -1045,6 +1064,10 @@ class TeamDetailWindow(QMainWindow):
         self._team_type_combo = QComboBox()
         left_form.addRow(self._team_type_label, self._team_type_combo)
 
+        self._resource_type_label = QLabel("Team Resource Type")
+        self._resource_type_search = ResourceTypeSearchBox(parent=self)
+        left_form.addRow(self._resource_type_label, self._resource_type_search)
+
         self._name_label = QLabel("Team Name")
         self._name_field = QLineEdit()
         left_form.addRow(self._name_label, self._name_field)
@@ -1070,6 +1093,11 @@ class TeamDetailWindow(QMainWindow):
         self._status_label = QLabel("Status")
         self._status_combo = QComboBox()
         left_form.addRow(self._status_label, self._status_combo)
+
+        self._readiness_label = QLabel("Readiness Status")
+        self._readiness_combo = QComboBox()
+        self._readiness_combo.addItems(list(READINESS_STATUSES))
+        left_form.addRow(self._readiness_label, self._readiness_combo)
 
         grid.addWidget(left_widget, 0, 0)
 
@@ -1225,6 +1253,10 @@ class TeamDetailWindow(QMainWindow):
         # Connections for form controls
         self._team_type_combo.currentIndexChanged.connect(self._handle_team_type_changed)
         self._status_combo.currentIndexChanged.connect(self._handle_status_changed)
+        self._resource_type_search.resourceTypeSelected.connect(
+            lambda resource_type_id, _text: self._handle_resource_type_changed(resource_type_id)
+        )
+        self._readiness_combo.currentTextChanged.connect(self._handle_readiness_changed)
         self._name_field.editingFinished.connect(self._handle_name_edited)
         self._assignment_field.editingFinished.connect(self._handle_assignment_edited)
         self._notes_edit.textChanged.connect(self._on_notes_changed)
@@ -1488,7 +1520,9 @@ class TeamDetailWindow(QMainWindow):
         self._update_background()
         self._update_title(team)
         self._populate_team_type_selection(team)
+        self._populate_resource_type_selection(team)
         self._populate_status_selection(team)
+        self._populate_readiness_selection(team)
         self._update_leader_fields(team)
         self._update_name_assignment_fields(team)
         self._update_last_contact(team)
@@ -1580,6 +1614,20 @@ class TeamDetailWindow(QMainWindow):
         if index >= 0:
             self._team_type_combo.setCurrentIndex(index)
         self._team_type_combo.blockSignals(False)
+
+    def _populate_resource_type_selection(self, team: Dict[str, Any]) -> None:
+        resource_type_id = team.get("resource_type_id")
+        self._resource_type_search.set_value(
+            resource_type_id,
+            self._resource_assignments.get_resource_type_name(resource_type_id),
+        )
+
+    def _populate_readiness_selection(self, team: Dict[str, Any]) -> None:
+        readiness = str(team.get("readiness_status") or "Unknown")
+        self._readiness_combo.blockSignals(True)
+        index = self._readiness_combo.findText(readiness)
+        self._readiness_combo.setCurrentIndex(index if index >= 0 else self._readiness_combo.findText("Unknown"))
+        self._readiness_combo.blockSignals(False)
 
     def _populate_status_selection(self, team: Dict[str, Any]) -> None:
         status = str(team.get("status", "")).strip().lower()
@@ -2096,6 +2144,22 @@ class TeamDetailWindow(QMainWindow):
             return
         try:
             self._bridge.setStatus(str(key))
+        except Exception:
+            pass
+
+    def _handle_resource_type_changed(self, resource_type_id: Any) -> None:
+        if self._updating:
+            return
+        try:
+            self._bridge.setResourceType(resource_type_id)
+        except Exception:
+            pass
+
+    def _handle_readiness_changed(self, value: str) -> None:
+        if self._updating:
+            return
+        try:
+            self._bridge.setReadinessStatus(value)
         except Exception:
             pass
 
