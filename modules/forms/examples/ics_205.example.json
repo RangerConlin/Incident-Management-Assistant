@@ -4,5 +4,8 @@
   },
   "operational_period": {
     "label": "OP1"
+  },
+  "communications": {
+    "channels": []
   }
 }
