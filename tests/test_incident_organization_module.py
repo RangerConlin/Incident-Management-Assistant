@@ -8,7 +8,11 @@ import pytest
 import utils.db as utils_db
 
 from modules.command.incident_organization.controller import IncidentOrganizationController
-from modules.command.incident_organization.repository import IncidentOrganizationRepository
+from modules.command.incident_organization.models import OrganizationTemplate
+from modules.command.incident_organization.repository import (
+    DEFAULT_FEMA_NIMS_TEMPLATE_NAME,
+    IncidentOrganizationRepository,
+)
 from utils.state import AppState
 
 
@@ -89,6 +93,69 @@ def test_assignment_history_is_preserved(data_dir: Path) -> None:
     history = controller.list_assignment_history(position_id)
     assert [entry.action for entry in history] == ["assigned", "removed"]
     assert history[-1].notes == "Shift ended"
+
+
+def test_default_fema_nims_template_is_available_and_loadable(data_dir: Path) -> None:
+    controller = IncidentOrganizationController("org-default-template")
+
+    templates = controller.list_templates()
+    assert DEFAULT_FEMA_NIMS_TEMPLATE_NAME in {template.name for template in templates}
+
+    applied_ids = controller.apply_template(DEFAULT_FEMA_NIMS_TEMPLATE_NAME)
+    positions = controller.list_positions()
+    by_title = {position.title: position for position in positions}
+
+    assert len(applied_ids) == len(
+        next(
+            template.payload
+            for template in templates
+            if template.name == DEFAULT_FEMA_NIMS_TEMPLATE_NAME
+        )
+    )
+    assert {"Incident Command", "Incident Commander", "Operations Section"}.issubset(
+        by_title
+    )
+    assert "Finance/Admin Section Chief" in by_title
+    assert by_title["Incident Commander"].parent_position_id == by_title["Incident Command"].id
+    assert by_title["Operations Section"].parent_position_id == by_title["Incident Command"].id
+    assert by_title["Safety Officer"].is_critical is True
+
+    controller.apply_template(DEFAULT_FEMA_NIMS_TEMPLATE_NAME)
+    assert len(controller.list_positions()) == len(positions)
+
+
+def test_incident_specific_template_can_be_saved_and_loaded(data_dir: Path) -> None:
+    repo = IncidentOrganizationRepository("org-custom-template")
+    repo.save_template(
+        OrganizationTemplate(
+            id=None,
+            incident_id="org-custom-template",
+            name="Local EOC Command",
+            description="Local emergency operations center structure.",
+            payload=[
+                {
+                    "key": "eoc_command",
+                    "title": "EOC Command",
+                    "classification": "command",
+                },
+                {
+                    "key": "eoc_manager",
+                    "parent_key": "eoc_command",
+                    "title": "EOC Manager",
+                    "classification": "position",
+                    "is_critical": True,
+                },
+            ],
+        )
+    )
+    controller = IncidentOrganizationController("org-custom-template")
+
+    assert "Local EOC Command" in {template.name for template in controller.list_templates()}
+
+    controller.apply_template("Local EOC Command")
+    by_title = {position.title: position for position in controller.list_positions()}
+    assert by_title["EOC Manager"].parent_position_id == by_title["EOC Command"].id
+    assert by_title["EOC Manager"].is_critical is True
 
 
 def test_staffing_and_span_warnings_are_calculated(data_dir: Path) -> None:
@@ -178,6 +245,8 @@ def test_panel_loads_with_windows_entrypoint(qt_app, data_dir: Path) -> None:
     try:
         assert isinstance(panel, IncidentOrganizationPanel)
         assert panel.incident_id == "org-ui"
+        assert panel.btn_templates.text() == "Templates…"
+        assert panel.btn_templates.isEnabled()
         assert panel.btn_ics203.text() == "Prepare ICS 203"
         assert panel.btn_ics207.text() == "Prepare ICS 207"
     finally:

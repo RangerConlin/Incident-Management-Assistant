@@ -33,6 +33,17 @@ class OrganizationPosition:
 
 
 @dataclass(slots=True)
+class OrganizationTemplate:
+    """Reusable organization structure that can be loaded into an incident."""
+
+    id: Optional[int]
+    incident_id: Optional[str]
+    name: str
+    description: Optional[str]
+    payload: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class PositionAssignment:
     """Personnel assignment to an organization position."""
 

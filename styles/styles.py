@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import weakref
 from typing import Callable, Dict, Literal, cast
 
 try:  # pragma: no cover - allow running without Qt libraries
     from PySide6.QtCore import QObject, Signal
     from PySide6.QtGui import QColor, QPalette, QBrush
     from PySide6.QtWidgets import QApplication, QWidget
+    import shiboken6
 except ImportError:  # pragma: no cover
+    shiboken6 = None  # type: ignore[assignment]
+
     class Signal:  # lightweight signal emulation for tests
         def __init__(self, *_, **__):
             self._subs: list[Callable] = []
@@ -195,23 +199,69 @@ def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TASK_STATUS_LIGHT if THEME_NAME == "light" else _TASK_STATUS_DARK
 
 
+def _qobject_is_valid(obj: object | None) -> bool:
+    if obj is None:
+        return False
+    if shiboken6 is not None:
+        try:
+            return bool(shiboken6.isValid(obj))
+        except Exception:
+            return True
+    return True
+
+
 def subscribe_theme(widget: QWidget, callback: Callable[[str], None]) -> None:
     """Subscribe to theme changes and auto-disconnect on widget destruction."""
-    style_bus.THEME_CHANGED.connect(callback)
-    def _disconnect() -> None:
-        """Safely disconnect the callback when the widget is destroyed."""
+    try:
+        widget_ref = weakref.ref(widget)
+    except TypeError:
+        widget_ref = lambda: widget  # type: ignore[assignment]
+
+    try:
+        callback_ref = weakref.WeakMethod(callback)  # type: ignore[arg-type]
+        strong_callback: Callable[[str], None] | None = None
+    except TypeError:
+        callback_ref = None
+        strong_callback = callback
+
+    def _current_callback() -> Callable[[str], None] | None:
+        if callback_ref is not None:
+            return callback_ref()
+        return strong_callback
+
+    def _disconnect(*_: object) -> None:
+        """Safely disconnect the wrapper when the widget is destroyed."""
         try:
-            style_bus.THEME_CHANGED.disconnect(callback)
-        except (RuntimeError, TypeError):
-            # The signal source may already be deleted during application shutdown
+            style_bus.THEME_CHANGED.disconnect(_on_theme_changed)
+        except Exception:
+            # Qt shutdown and deleted receivers can surface as RuntimeError,
+            # SystemError, or TypeError depending on the PySide state.
             pass
 
+    def _on_theme_changed(name: str) -> None:
+        target = widget_ref()
+        if not _qobject_is_valid(target):
+            _disconnect()
+            return
+        active_callback = _current_callback()
+        if active_callback is None:
+            _disconnect()
+            return
+        try:
+            active_callback(name)
+        except (RuntimeError, SystemError):
+            if not _qobject_is_valid(target):
+                _disconnect()
+                return
+            raise
+
+    style_bus.THEME_CHANGED.connect(_on_theme_changed)
     try:
         widget.destroyed.connect(_disconnect)
     except Exception:
         # In case the widget does not support the destroyed signal
         pass
-    callback(THEME_NAME)
+    _on_theme_changed(THEME_NAME)
 
 
 __all__ = [

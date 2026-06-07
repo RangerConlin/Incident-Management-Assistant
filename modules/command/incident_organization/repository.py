@@ -14,7 +14,9 @@ from .models import (
     AssignmentHistoryEntry,
     GeneratedFormSnapshot,
     OrganizationPosition,
+    OrganizationTemplate,
     PositionAssignment,
+    POSITION_STATUSES,
 )
 
 
@@ -58,6 +60,321 @@ def _qualification_list(value: str | None) -> list[str]:
     except json.JSONDecodeError:
         return [part.strip() for part in value.split(",") if part.strip()]
     return [str(item) for item in parsed if str(item).strip()]
+
+
+DEFAULT_FEMA_NIMS_TEMPLATE_NAME = "FEMA/NIMS Basic ICS Structure"
+
+
+def _default_organization_templates() -> list[OrganizationTemplate]:
+    """Return built-in organization templates available to every incident."""
+
+    payload: list[dict[str, object]] = [
+        {
+            "key": "incident_command",
+            "title": "Incident Command",
+            "classification": "command",
+            "sort_order": 0,
+            "notes": "Top-level NIMS incident command organization.",
+        },
+        {
+            "key": "incident_commander",
+            "parent_key": "incident_command",
+            "title": "Incident Commander",
+            "classification": "position",
+            "is_critical": True,
+            "sort_order": 0,
+            "required_qualifications": ["Incident Commander per AHJ/NIMS"],
+        },
+        {
+            "key": "deputy_incident_commander",
+            "parent_key": "incident_command",
+            "title": "Deputy Incident Commander",
+            "classification": "position",
+            "sort_order": 1,
+        },
+        {
+            "key": "command_staff",
+            "parent_key": "incident_command",
+            "title": "Command Staff",
+            "classification": "unit",
+            "sort_order": 2,
+        },
+        {
+            "key": "safety_officer",
+            "parent_key": "command_staff",
+            "title": "Safety Officer",
+            "classification": "position",
+            "is_critical": True,
+            "sort_order": 0,
+            "required_qualifications": ["Safety Officer per AHJ/NIMS"],
+        },
+        {
+            "key": "public_information_officer",
+            "parent_key": "command_staff",
+            "title": "Public Information Officer",
+            "classification": "position",
+            "sort_order": 1,
+        },
+        {
+            "key": "liaison_officer",
+            "parent_key": "command_staff",
+            "title": "Liaison Officer",
+            "classification": "position",
+            "sort_order": 2,
+        },
+        {
+            "key": "agency_representative",
+            "parent_key": "command_staff",
+            "title": "Agency Representative",
+            "classification": "position",
+            "sort_order": 3,
+        },
+        {
+            "key": "operations_section",
+            "parent_key": "incident_command",
+            "title": "Operations Section",
+            "classification": "section",
+            "sort_order": 3,
+        },
+        {
+            "key": "operations_section_chief",
+            "parent_key": "operations_section",
+            "title": "Operations Section Chief",
+            "classification": "position",
+            "is_critical": True,
+            "sort_order": 0,
+            "required_qualifications": ["Operations Section Chief per AHJ/NIMS"],
+        },
+        {
+            "key": "branch_director",
+            "parent_key": "operations_section",
+            "title": "Branch Director",
+            "classification": "position",
+            "sort_order": 1,
+        },
+        {
+            "key": "division_group_supervisor",
+            "parent_key": "operations_section",
+            "title": "Division/Group Supervisor",
+            "classification": "position",
+            "sort_order": 2,
+        },
+        {
+            "key": "staging_area_manager",
+            "parent_key": "operations_section",
+            "title": "Staging Area Manager",
+            "classification": "position",
+            "sort_order": 3,
+        },
+        {
+            "key": "planning_section",
+            "parent_key": "incident_command",
+            "title": "Planning Section",
+            "classification": "section",
+            "sort_order": 4,
+        },
+        {
+            "key": "planning_section_chief",
+            "parent_key": "planning_section",
+            "title": "Planning Section Chief",
+            "classification": "position",
+            "is_critical": True,
+            "sort_order": 0,
+            "required_qualifications": ["Planning Section Chief per AHJ/NIMS"],
+        },
+        {
+            "key": "resources_unit_leader",
+            "parent_key": "planning_section",
+            "title": "Resources Unit Leader",
+            "classification": "position",
+            "sort_order": 1,
+        },
+        {
+            "key": "situation_unit_leader",
+            "parent_key": "planning_section",
+            "title": "Situation Unit Leader",
+            "classification": "position",
+            "sort_order": 2,
+        },
+        {
+            "key": "documentation_unit_leader",
+            "parent_key": "planning_section",
+            "title": "Documentation Unit Leader",
+            "classification": "position",
+            "sort_order": 3,
+        },
+        {
+            "key": "demobilization_unit_leader",
+            "parent_key": "planning_section",
+            "title": "Demobilization Unit Leader",
+            "classification": "position",
+            "sort_order": 4,
+        },
+        {
+            "key": "technical_specialist",
+            "parent_key": "planning_section",
+            "title": "Technical Specialist",
+            "classification": "position",
+            "sort_order": 5,
+        },
+        {
+            "key": "logistics_section",
+            "parent_key": "incident_command",
+            "title": "Logistics Section",
+            "classification": "section",
+            "sort_order": 5,
+        },
+        {
+            "key": "logistics_section_chief",
+            "parent_key": "logistics_section",
+            "title": "Logistics Section Chief",
+            "classification": "position",
+            "is_critical": True,
+            "sort_order": 0,
+            "required_qualifications": ["Logistics Section Chief per AHJ/NIMS"],
+        },
+        {
+            "key": "service_branch",
+            "parent_key": "logistics_section",
+            "title": "Service Branch",
+            "classification": "branch",
+            "sort_order": 1,
+        },
+        {
+            "key": "service_branch_director",
+            "parent_key": "service_branch",
+            "title": "Service Branch Director",
+            "classification": "position",
+            "sort_order": 0,
+        },
+        {
+            "key": "communications_unit_leader",
+            "parent_key": "service_branch",
+            "title": "Communications Unit Leader",
+            "classification": "position",
+            "sort_order": 1,
+        },
+        {
+            "key": "medical_unit_leader",
+            "parent_key": "service_branch",
+            "title": "Medical Unit Leader",
+            "classification": "position",
+            "sort_order": 2,
+        },
+        {
+            "key": "food_unit_leader",
+            "parent_key": "service_branch",
+            "title": "Food Unit Leader",
+            "classification": "position",
+            "sort_order": 3,
+        },
+        {
+            "key": "support_branch",
+            "parent_key": "logistics_section",
+            "title": "Support Branch",
+            "classification": "branch",
+            "sort_order": 2,
+        },
+        {
+            "key": "support_branch_director",
+            "parent_key": "support_branch",
+            "title": "Support Branch Director",
+            "classification": "position",
+            "sort_order": 0,
+        },
+        {
+            "key": "supply_unit_leader",
+            "parent_key": "support_branch",
+            "title": "Supply Unit Leader",
+            "classification": "position",
+            "sort_order": 1,
+        },
+        {
+            "key": "facilities_unit_leader",
+            "parent_key": "support_branch",
+            "title": "Facilities Unit Leader",
+            "classification": "position",
+            "sort_order": 2,
+        },
+        {
+            "key": "ground_support_unit_leader",
+            "parent_key": "support_branch",
+            "title": "Ground Support Unit Leader",
+            "classification": "position",
+            "sort_order": 3,
+        },
+        {
+            "key": "finance_admin_section",
+            "parent_key": "incident_command",
+            "title": "Finance/Admin Section",
+            "classification": "section",
+            "sort_order": 6,
+        },
+        {
+            "key": "finance_admin_section_chief",
+            "parent_key": "finance_admin_section",
+            "title": "Finance/Admin Section Chief",
+            "classification": "position",
+            "is_critical": True,
+            "sort_order": 0,
+            "required_qualifications": ["Finance/Admin Section Chief per AHJ/NIMS"],
+        },
+        {
+            "key": "time_unit_leader",
+            "parent_key": "finance_admin_section",
+            "title": "Time Unit Leader",
+            "classification": "position",
+            "sort_order": 1,
+        },
+        {
+            "key": "procurement_unit_leader",
+            "parent_key": "finance_admin_section",
+            "title": "Procurement Unit Leader",
+            "classification": "position",
+            "sort_order": 2,
+        },
+        {
+            "key": "compensation_claims_unit_leader",
+            "parent_key": "finance_admin_section",
+            "title": "Compensation/Claims Unit Leader",
+            "classification": "position",
+            "sort_order": 3,
+        },
+        {
+            "key": "cost_unit_leader",
+            "parent_key": "finance_admin_section",
+            "title": "Cost Unit Leader",
+            "classification": "position",
+            "sort_order": 4,
+        },
+    ]
+    return [
+        OrganizationTemplate(
+            id=None,
+            incident_id=None,
+            name=DEFAULT_FEMA_NIMS_TEMPLATE_NAME,
+            description=(
+                "A starter FEMA/NIMS ICS organization with command staff, "
+                "general staff sections, logistics branches, and common unit leaders."
+            ),
+            payload=payload,
+        )
+    ]
+
+
+def _template_text(value: object) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _template_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value in (None, ""):
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 class IncidentOrganizationRepository:
@@ -180,6 +497,7 @@ class IncidentOrganizationRepository:
                 )
                 """
             )
+            self._ensure_default_templates(conn)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS generated_form_snapshots (
@@ -290,6 +608,116 @@ class IncidentOrganizationRepository:
                 """,
                 (_utc_now(), position_id, self.incident_id),
             )
+
+    # ------------------------------------------------------------------
+    def list_templates(self) -> list[OrganizationTemplate]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM organization_templates
+                WHERE incident_id IS NULL OR incident_id=?
+                ORDER BY LOWER(name), incident_id IS NOT NULL, id
+                """,
+                (self.incident_id,),
+            ).fetchall()
+        return [self._row_to_template(row) for row in rows]
+
+    def get_template_by_name(self, name: str) -> OrganizationTemplate | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM organization_templates
+                WHERE name=? AND (incident_id=? OR incident_id IS NULL)
+                ORDER BY CASE WHEN incident_id=? THEN 0 ELSE 1 END, id
+                LIMIT 1
+                """,
+                (name, self.incident_id, self.incident_id),
+            ).fetchone()
+        return self._row_to_template(row) if row else None
+
+    def save_template(self, template: OrganizationTemplate) -> int:
+        payload = json.dumps(template.payload)
+        with self._connect() as conn:
+            if template.id is None:
+                cur = conn.execute(
+                    """
+                    INSERT INTO organization_templates (
+                        incident_id, name, description, payload
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        template.incident_id or self.incident_id,
+                        template.name,
+                        template.description,
+                        payload,
+                    ),
+                )
+                return int(cur.lastrowid)
+            conn.execute(
+                """
+                UPDATE organization_templates
+                SET name=?, description=?, payload=?
+                WHERE id=? AND (incident_id=? OR incident_id IS NULL)
+                """,
+                (
+                    template.name,
+                    template.description,
+                    payload,
+                    template.id,
+                    self.incident_id,
+                ),
+            )
+            return int(template.id)
+
+    def apply_template_payload(self, payload: Sequence[dict[str, object]]) -> list[int]:
+        """Create missing positions from a template payload and return their IDs."""
+
+        key_to_id: dict[str, int] = {}
+        applied_ids: list[int] = []
+        now = _utc_now()
+        with self._connect() as conn:
+            for index, raw in enumerate(payload):
+                if not isinstance(raw, dict):
+                    raise ValueError("Template payload entries must be objects")
+                key = str(raw.get("key") or f"item_{index}").strip()
+                if not key:
+                    key = f"item_{index}"
+                if key in key_to_id:
+                    raise ValueError(f"Template payload has duplicate key: {key}")
+                parent_key = _template_text(raw.get("parent_key"))
+                parent_id: int | None = None
+                if parent_key:
+                    parent_id = key_to_id.get(parent_key)
+                    if parent_id is None:
+                        raise ValueError(
+                            f"Template entry '{key}' references unknown parent '{parent_key}'"
+                        )
+                title = str(raw.get("title", "")).strip()
+                if not title:
+                    raise ValueError("Template position title is required")
+                classification = str(raw.get("classification", "position")).strip() or "position"
+                status = str(raw.get("status", "active") or "active").strip().lower()
+                if status not in POSITION_STATUSES:
+                    status = "active"
+                position_id = self._get_or_insert_template_position(
+                    conn,
+                    title=title,
+                    classification=classification,
+                    parent_position_id=parent_id,
+                    operational_period=_template_text(raw.get("operational_period")),
+                    required_qualifications=_qualification_text(
+                        raw.get("required_qualifications")
+                    ),
+                    is_critical=_template_bool(raw.get("is_critical")),
+                    is_custom=_template_bool(raw.get("is_custom")),
+                    status=status,
+                    sort_order=int(raw.get("sort_order", 0) or 0),
+                    notes=_template_text(raw.get("notes")),
+                    now=now,
+                )
+                key_to_id[key] = position_id
+                applied_ids.append(position_id)
+        return applied_ids
 
     # ------------------------------------------------------------------
     def add_assignment(self, assignment: PositionAssignment) -> int:
@@ -458,6 +886,95 @@ class IncidentOrganizationRepository:
             return int(cur.lastrowid)
 
     # ------------------------------------------------------------------
+    def _ensure_default_templates(self, conn: sqlite3.Connection) -> None:
+        for template in _default_organization_templates():
+            payload = json.dumps(template.payload)
+            row = conn.execute(
+                """
+                SELECT id FROM organization_templates
+                WHERE incident_id IS NULL AND name=?
+                """,
+                (template.name,),
+            ).fetchone()
+            if row:
+                conn.execute(
+                    """
+                    UPDATE organization_templates
+                    SET description=?, payload=?
+                    WHERE id=?
+                    """,
+                    (template.description, payload, int(row["id"])),
+                )
+                continue
+            conn.execute(
+                """
+                INSERT INTO organization_templates (
+                    incident_id, name, description, payload
+                ) VALUES (NULL, ?, ?, ?)
+                """,
+                (template.name, template.description, payload),
+            )
+
+    def _get_or_insert_template_position(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        title: str,
+        classification: str,
+        parent_position_id: int | None,
+        operational_period: str | None,
+        required_qualifications: str,
+        is_critical: bool,
+        is_custom: bool,
+        status: str,
+        sort_order: int,
+        notes: str | None,
+        now: str,
+    ) -> int:
+        row = conn.execute(
+            """
+            SELECT id FROM organization_positions
+            WHERE incident_id=? AND title=? AND classification=? AND status='active'
+              AND ((parent_position_id IS NULL AND ? IS NULL) OR parent_position_id=?)
+            ORDER BY id
+            LIMIT 1
+            """,
+            (
+                self.incident_id,
+                title,
+                classification,
+                parent_position_id,
+                parent_position_id,
+            ),
+        ).fetchone()
+        if row:
+            return int(row["id"])
+        cur = conn.execute(
+            """
+            INSERT INTO organization_positions (
+                incident_id, title, classification, parent_position_id,
+                operational_period, required_qualifications, is_critical,
+                is_custom, status, sort_order, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self.incident_id,
+                title,
+                classification,
+                parent_position_id,
+                operational_period,
+                required_qualifications,
+                int(is_critical),
+                int(is_custom),
+                status,
+                sort_order,
+                notes,
+                now,
+                now,
+            ),
+        )
+        return int(cur.lastrowid)
+
     def _insert_history(self, conn: sqlite3.Connection, entry: AssignmentHistoryEntry) -> None:
         conn.execute(
             """
@@ -480,6 +997,25 @@ class IncidentOrganizationRepository:
                 entry.changed_by,
                 entry.notes,
             ),
+        )
+
+    @staticmethod
+    def _row_to_template(row: sqlite3.Row) -> OrganizationTemplate:
+        payload: list[dict[str, object]]
+        try:
+            parsed = json.loads(row["payload"])
+        except (TypeError, json.JSONDecodeError):
+            parsed = []
+        if isinstance(parsed, list):
+            payload = [item for item in parsed if isinstance(item, dict)]
+        else:
+            payload = []
+        return OrganizationTemplate(
+            id=int(row["id"]),
+            incident_id=row["incident_id"],
+            name=row["name"],
+            description=row["description"],
+            payload=payload,
         )
 
     @staticmethod

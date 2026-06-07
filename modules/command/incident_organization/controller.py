@@ -10,6 +10,7 @@ from .personnel_repo import PersonnelPoolRepository
 from .models import (
     GeneratedFormSnapshot,
     OrganizationPosition,
+    OrganizationTemplate,
     OrganizationWarning,
     PositionAssignment,
     PositionStatusSummary,
@@ -91,6 +92,16 @@ class IncidentOrganizationController:
 
     def get_position(self, position_id: int) -> OrganizationPosition | None:
         return self.repo.get_position(position_id)
+
+    # ------------------------------------------------------------------
+    def list_templates(self) -> list[OrganizationTemplate]:
+        return self.repo.list_templates()
+
+    def apply_template(self, template_name: str) -> list[int]:
+        template = self.repo.get_template_by_name(template_name)
+        if template is None:
+            raise ValueError(f"Organization template was not found: {template_name}")
+        return self.repo.apply_template_payload(template.payload)
 
     # ------------------------------------------------------------------
     def assign_person(self, position_id: int, values: dict[str, object]) -> tuple[int, list[OrganizationWarning]]:

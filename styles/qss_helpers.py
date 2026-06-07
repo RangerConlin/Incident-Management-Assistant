@@ -74,7 +74,7 @@ def global_qss(tokens: dict) -> str:
         QPushButton:focus,
         QToolButton:focus,
         QCommandLinkButton:focus {{
-            baqckground: {tokens['btn_focus']};
+            background: {tokens['btn_focus']};
             border: 1px solid {tokens['ctrl_focus']};
         }}
         QPushButton:disabled,

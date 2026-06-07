@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -33,7 +35,7 @@ from utils.app_signals import app_signals
 from utils.state import AppState
 
 from ..controller import IncidentOrganizationController
-from ..models import OrganizationPosition, PositionAssignment
+from ..models import OrganizationPosition, OrganizationTemplate, PositionAssignment
 
 
 class PositionDialog(QDialog):
@@ -137,6 +139,83 @@ class AssignmentDialog(QDialog):
         }
 
 
+class TemplatesDialog(QDialog):
+    """Dialog for previewing and loading organization templates."""
+
+    def __init__(
+        self, templates: list[OrganizationTemplate], parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Organization Templates")
+        self._templates_by_name = {template.name: template for template in templates}
+        self._selected_name: str | None = None
+
+        layout = QVBoxLayout(self)
+        self.lst_templates = QListWidget(self)
+        for template in sorted(templates, key=lambda item: item.name.lower()):
+            item = QListWidgetItem(template.name)
+            item.setData(Qt.UserRole, template.name)
+            if template.description:
+                item.setToolTip(template.description)
+            self.lst_templates.addItem(item)
+        self.lst_templates.currentItemChanged.connect(self._update_preview)
+        layout.addWidget(self.lst_templates)
+
+        self.preview = QTextEdit(self)
+        self.preview.setReadOnly(True)
+        self.preview.setPlaceholderText(
+            "Select a template to preview the positions that will be created."
+        )
+        layout.addWidget(self.preview, stretch=1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Cancel | QDialogButtonBox.Ok, self)
+        buttons.button(QDialogButtonBox.Ok).setText("Load")
+        buttons.accepted.connect(self._handle_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        if self.lst_templates.count():
+            self.lst_templates.setCurrentRow(0)
+
+    def _update_preview(
+        self,
+        current: QListWidgetItem | None,
+        _previous: QListWidgetItem | None = None,
+    ) -> None:
+        if current is None:
+            self.preview.clear()
+            return
+        template = self._templates_by_name.get(str(current.data(Qt.UserRole)))
+        if template is None:
+            self.preview.clear()
+            return
+        lines: list[str] = []
+        if template.description:
+            lines.extend([template.description, ""])
+        depths: dict[str, int] = {}
+        for index, raw in enumerate(template.payload):
+            key = str(raw.get("key") or f"item_{index}")
+            parent_key = str(raw.get("parent_key") or "")
+            depth = depths.get(parent_key, -1) + 1 if parent_key else 0
+            depths[key] = depth
+            title = str(raw.get("title") or "").strip() or "(Untitled)"
+            classification = str(raw.get("classification") or "position")
+            critical = " [critical]" if bool(raw.get("is_critical")) else ""
+            lines.append(f"{'  ' * depth}{title} ({classification}){critical}")
+        self.preview.setPlainText("\n".join(lines) if lines else "Template is empty.")
+
+    def _handle_accept(self) -> None:
+        item = self.lst_templates.currentItem()
+        if item is None:
+            self.reject()
+            return
+        self._selected_name = str(item.data(Qt.UserRole))
+        self.accept()
+
+    def selected_template_name(self) -> str | None:
+        return self._selected_name
+
+
 class IncidentOrganizationPanel(QWidget):
     """Tree, detail, staffing, and generator support for incident organization."""
 
@@ -161,6 +240,9 @@ class IncidentOrganizationPanel(QWidget):
         self.btn_deactivate_position = QPushButton("Deactivate", self)
         self.btn_deactivate_position.clicked.connect(self._deactivate_position)
         toolbar.addWidget(self.btn_deactivate_position)
+        self.btn_templates = QPushButton("Templates…", self)
+        self.btn_templates.clicked.connect(self._apply_template)
+        toolbar.addWidget(self.btn_templates)
         toolbar.addStretch(1)
         self.btn_ics203 = QPushButton("Prepare ICS 203", self)
         self.btn_ics203.clicked.connect(lambda: self._prepare_form("ICS_203"))
@@ -280,6 +362,7 @@ class IncidentOrganizationPanel(QWidget):
             self.btn_add_position,
             self.btn_edit_position,
             self.btn_deactivate_position,
+            self.btn_templates,
             self.btn_ics203,
             self.btn_ics207,
             self.btn_assign_selected,
@@ -411,6 +494,45 @@ class IncidentOrganizationPanel(QWidget):
             return
         self._ensure_controller().deactivate_position(position_id)
         self._refresh()
+
+    def _apply_template(self) -> None:
+        if not self.incident_id:
+            active = self._active_incident_from_state()
+            if active:
+                self.load(active)
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Incident Required",
+                    "Load an incident before managing organization.",
+                )
+                return
+        controller = self._ensure_controller()
+        templates = controller.list_templates()
+        if not templates:
+            QMessageBox.information(
+                self,
+                "Organization Templates",
+                "No organization templates are available.",
+            )
+            return
+        dialog = TemplatesDialog(templates, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        template_name = dialog.selected_template_name()
+        if not template_name:
+            return
+        try:
+            applied_ids = controller.apply_template(template_name)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Organization Template", str(exc))
+            return
+        self._refresh()
+        QMessageBox.information(
+            self,
+            "Template Loaded",
+            f"Loaded {len(applied_ids)} organization positions from {template_name}.",
+        )
 
     def _search_personnel(self) -> None:
         if self.controller is None:
