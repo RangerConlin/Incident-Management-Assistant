@@ -71,6 +71,10 @@ def _ensure_team_columns(con: sqlite3.Connection) -> None:
     # Type
     if "team_type" not in cols:
         to_add.append(("team_type", "TEXT"))
+    if "resource_type_id" not in cols:
+        to_add.append(("resource_type_id", "INTEGER"))
+    if "readiness_status" not in cols:
+        to_add.append(("readiness_status", "TEXT"))
     if "last_comm_ping" not in cols:
         to_add.append(("last_comm_ping", "TEXT"))
 

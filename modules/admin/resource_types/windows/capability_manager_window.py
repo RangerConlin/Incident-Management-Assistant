@@ -8,12 +8,14 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -21,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..data.resource_type_io import export_capabilities_csv, import_capabilities_csv
 from ..data.resource_type_repository import ResourceTypeRepository
 from ..models.resource_type_models import ResourceCapability
 
@@ -100,17 +103,26 @@ class CapabilityManagerWindow(QDialog):
         self.table.setHorizontalHeaderLabels(self.headers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(True)
+        header.setMinimumSectionSize(60)
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(0, Qt.AscendingOrder)
         self.table.doubleClicked.connect(self._edit_selected)
 
         new_button = QPushButton("New")
         edit_button = QPushButton("Edit")
         self.toggle_active_button = QPushButton("Deactivate")
+        import_button = QPushButton("Import CSV…")
+        export_button = QPushButton("Export CSV…")
         close_button = QPushButton("Close")
 
         new_button.clicked.connect(self._new_capability)
         edit_button.clicked.connect(self._edit_selected)
         self.toggle_active_button.clicked.connect(self._toggle_selected_active)
+        import_button.clicked.connect(self._import_csv)
+        export_button.clicked.connect(self._export_csv)
         close_button.clicked.connect(self.accept)
         self.search_edit.textChanged.connect(self.refresh)
         self.include_inactive_check.toggled.connect(self.refresh)
@@ -124,6 +136,8 @@ class CapabilityManagerWindow(QDialog):
         actions.addWidget(new_button)
         actions.addWidget(edit_button)
         actions.addWidget(self.toggle_active_button)
+        actions.addWidget(import_button)
+        actions.addWidget(export_button)
         actions.addStretch()
         actions.addWidget(close_button)
 
@@ -198,9 +212,65 @@ class CapabilityManagerWindow(QDialog):
             self.repository.activate_capability(capability_id)
         self.refresh()
 
+    def _import_csv(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Capabilities", "", "CSV Files (*.csv);;All Files (*)"
+        )
+        if not path:
+            return
+        try:
+            result = import_capabilities_csv(self.repository, path)
+            self.refresh()
+            _show_import_result(self, "Import Capabilities", result)
+        except Exception as exc:
+            QMessageBox.critical(self, "Import Capabilities", f"Import failed:\n{exc}")
+
+    def _export_csv(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Capabilities", "resource_capabilities.csv", "CSV Files (*.csv);;All Files (*)"
+        )
+        if not path:
+            return
+        try:
+            count = export_capabilities_csv(self.repository, path)
+            QMessageBox.information(
+                self, "Export Capabilities", f"Exported {count} capability record(s) to:\n{path}"
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Export Capabilities", f"Export failed:\n{exc}")
+
     def _update_toggle_button(self) -> None:
         capability = self._selected_capability()
         if capability and not capability.get("is_active"):
             self.toggle_active_button.setText("Reactivate")
         else:
             self.toggle_active_button.setText("Deactivate")
+
+
+def _show_import_result(parent: QWidget, title: str, result: dict[str, Any]) -> None:
+    """Show a summary of an import operation. Errors are scrollable."""
+
+    inserted = result.get("inserted", 0)
+    updated = result.get("updated", 0)
+    errors = result.get("errors", [])
+    summary = f"Inserted: {inserted}   Updated: {updated}   Warnings/errors: {len(errors)}"
+    if not errors:
+        QMessageBox.information(parent, title, summary)
+        return
+
+    dialog = QWidget(parent, Qt.Window)
+    dialog.setWindowTitle(title)
+    dialog.resize(640, 420)
+    body = QTextEdit()
+    body.setReadOnly(True)
+    body.setPlainText(summary + "\n\n" + "\n".join(errors))
+    scroll = QScrollArea()
+    scroll.setWidget(body)
+    scroll.setWidgetResizable(True)
+    close_button = QPushButton("Close")
+    close_button.clicked.connect(dialog.close)
+
+    layout = QVBoxLayout(dialog)
+    layout.addWidget(scroll)
+    layout.addWidget(close_button)
+    dialog.show()

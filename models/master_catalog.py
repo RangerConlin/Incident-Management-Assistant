@@ -113,7 +113,7 @@ ENTITY_CONFIGS: Dict[str, Dict[str, Any]] = {
         "searchFields": ["identifier", "id", "make", "model", "license_plate"],
         "columns": [
             "id", "vin", "license_plate", "year", "make", "model",
-            "capacity", "type_id", "status_id", "tags", "organization"
+            "capacity", "type_id", "status_id", "resource_type_id", "tags", "organization"
         ],
         "defaultSort": {"key": "make", "order": "asc"},
     },
@@ -142,7 +142,10 @@ ENTITY_CONFIGS: Dict[str, Dict[str, Any]] = {
         "table": "equipment",
         "pk": "id",
         "searchFields": ["name", "id", "serial_number"],
-        "columns": ["id", "name", "type", "serial_number", "condition", "notes"],
+        "columns": [
+            "id", "name", "type", "serial_number", "condition",
+            "condition_status", "resource_type_id", "contents_verified", "notes"
+        ],
         "defaultSort": {"key": "name", "order": "asc"},
     },
     "comms_resources": {

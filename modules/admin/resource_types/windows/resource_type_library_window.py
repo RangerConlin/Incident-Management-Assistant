@@ -3,20 +3,24 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableView,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from ..data.resource_type_io import export_resource_types_csv, import_resource_types_csv
 from ..data.resource_type_repository import ResourceTypeRepository
 from ..models.resource_type_models import RESOURCE_CATEGORIES, RESOURCE_SOURCES
 from .capability_manager_window import CapabilityManagerWindow
@@ -101,7 +105,7 @@ class ResourceTypeLibraryWindow(QWidget):
         repository: Optional[ResourceTypeRepository] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, Qt.Window)
         self.repository = repository or ResourceTypeRepository()
         self.setWindowTitle("Resource Type Library")
         self.resize(1120, 680)
@@ -120,11 +124,18 @@ class ResourceTypeLibraryWindow(QWidget):
         self.active_filter.addItems(("Active", "Inactive", "All"))
 
         self.table_model = ResourceTypeTableModel(self)
+        self.proxy_model = QSortFilterProxyModel(self)
+        self.proxy_model.setSourceModel(self.table_model)
         self.table = QTableView()
-        self.table.setModel(self.table_model)
+        self.table.setModel(self.proxy_model)
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.setSelectionMode(QTableView.SingleSelection)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(0, Qt.AscendingOrder)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(True)
+        header.setMinimumSectionSize(60)
         self.table.doubleClicked.connect(self._edit_selected)
 
         new_button = QPushButton("New")
@@ -132,6 +143,8 @@ class ResourceTypeLibraryWindow(QWidget):
         clone_button = QPushButton("Clone")
         self.toggle_active_button = QPushButton("Deactivate")
         refresh_button = QPushButton("Refresh")
+        import_button = QPushButton("Import CSV…")
+        export_button = QPushButton("Export CSV…")
         capability_button = QPushButton("Capability Manager")
         close_button = QPushButton("Close")
 
@@ -140,6 +153,8 @@ class ResourceTypeLibraryWindow(QWidget):
         clone_button.clicked.connect(self._clone_selected)
         self.toggle_active_button.clicked.connect(self._toggle_selected_active)
         refresh_button.clicked.connect(self.refresh)
+        import_button.clicked.connect(self._import_csv)
+        export_button.clicked.connect(self._export_csv)
         capability_button.clicked.connect(self._open_capability_manager)
         close_button.clicked.connect(self.close)
 
@@ -165,6 +180,8 @@ class ResourceTypeLibraryWindow(QWidget):
         actions.addWidget(clone_button)
         actions.addWidget(self.toggle_active_button)
         actions.addWidget(refresh_button)
+        actions.addWidget(import_button)
+        actions.addWidget(export_button)
         actions.addStretch()
         actions.addWidget(capability_button)
         actions.addWidget(close_button)
@@ -192,7 +209,8 @@ class ResourceTypeLibraryWindow(QWidget):
         current = self.table.currentIndex()
         if not current.isValid():
             return None
-        return self.table_model.record_at(current.row())
+        source_index = self.proxy_model.mapToSource(current)
+        return self.table_model.record_at(source_index.row())
 
     def _new_resource_type(self) -> None:
         dialog = ResourceTypeEditorWindow(self.repository, parent=self)
@@ -250,6 +268,33 @@ class ResourceTypeLibraryWindow(QWidget):
             self.repository.activate_resource_type(int(record["id"]))
         self.refresh()
 
+    def _import_csv(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Resource Types", "", "CSV Files (*.csv);;All Files (*)"
+        )
+        if not path:
+            return
+        try:
+            result = import_resource_types_csv(self.repository, path)
+            self.refresh()
+            _show_import_result(self, "Import Resource Types", result)
+        except Exception as exc:
+            QMessageBox.critical(self, "Import Resource Types", f"Import failed:\n{exc}")
+
+    def _export_csv(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Resource Types", "resource_types.csv", "CSV Files (*.csv);;All Files (*)"
+        )
+        if not path:
+            return
+        try:
+            count = export_resource_types_csv(self.repository, path)
+            QMessageBox.information(
+                self, "Export Resource Types", f"Exported {count} resource type(s) to:\n{path}"
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Export Resource Types", f"Export failed:\n{exc}")
+
     def _open_capability_manager(self) -> None:
         CapabilityManagerWindow(self.repository, self).exec()
         self.refresh()
@@ -262,13 +307,46 @@ class ResourceTypeLibraryWindow(QWidget):
             self.toggle_active_button.setText("Deactivate")
 
 
+def _show_import_result(parent: QWidget, title: str, result: dict) -> None:
+    """Show a summary of an import operation.  Errors are scrollable."""
+    inserted = result.get("inserted", 0)
+    updated = result.get("updated", 0)
+    errors = result.get("errors", [])
+    summary = f"Inserted: {inserted}   Updated: {updated}   Warnings/errors: {len(errors)}"
+    if not errors:
+        QMessageBox.information(parent, title, summary)
+        return
+    dlg = QWidget(parent, Qt.Window)
+    dlg.setWindowTitle(title)
+    dlg.resize(640, 420)
+    body = QTextEdit()
+    body.setReadOnly(True)
+    body.setPlainText(summary + "\n\n" + "\n".join(errors))
+    scroll = QScrollArea()
+    scroll.setWidget(body)
+    scroll.setWidgetResizable(True)
+    close_btn = QPushButton("Close")
+    close_btn.clicked.connect(dlg.close)
+    layout = QVBoxLayout(dlg)
+    layout.addWidget(scroll)
+    layout.addWidget(close_btn)
+    dlg.show()
+
+
 def open_resource_type_library(parent: Optional[QWidget] = None) -> ResourceTypeLibraryWindow:
     """Open a modeless Resource Type Library window and keep it referenced.
 
     Main-menu code can call this helper later without duplicating construction
     and lifetime-management details.  When a parent is provided, the window is
     stored on the parent to prevent Python garbage collection from closing it.
+    Subsequent calls raise the existing window instead of opening a duplicate.
     """
+
+    existing = getattr(parent, "_resource_type_library_window", None) if parent is not None else None
+    if isinstance(existing, ResourceTypeLibraryWindow) and existing.isVisible():
+        existing.raise_()
+        existing.activateWindow()
+        return existing
 
     window = ResourceTypeLibraryWindow(parent=parent)
     if parent is not None:

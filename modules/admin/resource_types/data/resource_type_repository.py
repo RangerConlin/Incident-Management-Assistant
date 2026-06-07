@@ -264,6 +264,13 @@ class ResourceTypeRepository:
             ).fetchone()
             return self._resource_type_from_row(conn, row) if row else None
 
+    def get_resource_type_by_name(self, name: str) -> Optional[ResourceType]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM resource_types WHERE lower(name) = lower(?)", (name,)
+            ).fetchone()
+            return self._resource_type_from_row(conn, row) if row else None
+
     def save_resource_type(self, resource_type: ResourceType) -> int:
         """Create or update a resource type and its simple child records."""
 
@@ -404,6 +411,13 @@ class ResourceTypeRepository:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM resource_capabilities WHERE id = ?", (capability_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_capability_by_name(self, name: str) -> Optional[dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM resource_capabilities WHERE lower(name) = lower(?)", (name,)
             ).fetchone()
             return dict(row) if row else None
 

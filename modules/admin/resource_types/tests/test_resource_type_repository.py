@@ -4,6 +4,11 @@ import sqlite3
 
 import pytest
 
+from modules.admin.resource_types.data.resource_type_io import (
+    export_capabilities_csv,
+    import_capabilities_csv,
+)
+from modules.admin.resource_types.data.resource_assignment_repository import ResourceAssignmentRepository
 from modules.admin.resource_types.data.resource_type_repository import ResourceTypeRepository
 from modules.admin.resource_types.models.resource_type_models import (
     FemaNimsMapping,
@@ -151,3 +156,148 @@ def test_clone_copies_children_and_schema_migrates_existing_tables(tmp_path):
     assert clone.name == "Radio Cache Copy"
     assert clone.aliases == ["radio kit"]
     assert clone.components[0].component_resource_type_id == radio_id
+
+
+def test_capability_csv_round_trip_updates_existing_rows(tmp_path):
+    repo = ResourceTypeRepository(tmp_path / "master.db")
+    repo.save_capability(
+        ResourceCapability(
+            name="Portable communications",
+            category="Communications",
+            description="Initial description",
+            aliases=["radio comms"],
+            notes="Seed note",
+        )
+    )
+    repo.save_capability(
+        ResourceCapability(
+            name="Shelter support",
+            category="Logistics",
+            description="Inactive seed",
+            is_active=False,
+        )
+    )
+
+    export_path = tmp_path / "capabilities.csv"
+    exported = export_capabilities_csv(repo, export_path)
+
+    assert exported == 2
+    text = export_path.read_text(encoding="utf-8")
+    assert "Portable communications" in text
+    assert "Shelter support" in text
+
+    export_path.write_text(
+        "\n".join(
+            [
+                "name,category,description,aliases,is_active,notes",
+                "Portable communications,Communications,Updated description,radio comms; vhf,0,Updated note",
+                "Medical support,Medical,Field care,ems; first aid,1,New capability",
+                ",Operations,Missing name,ops,1,Should be skipped",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = import_capabilities_csv(repo, export_path)
+
+    assert result["inserted"] == 1
+    assert result["updated"] == 1
+    assert len(result["errors"]) == 1
+    updated = repo.get_capability_by_name("Portable communications")
+    inserted = repo.get_capability_by_name("Medical support")
+    assert updated is not None
+    assert updated["description"] == "Updated description"
+    assert updated["aliases"] == "radio comms; vhf"
+    assert updated["is_active"] == 0
+    assert updated["notes"] == "Updated note"
+    assert inserted is not None
+
+
+def test_resource_assignments_and_availability_queries(tmp_path):
+    master_db = tmp_path / "master.db"
+    incident_db = tmp_path / "incident.db"
+
+    resource_repo = ResourceTypeRepository(master_db)
+    assignment_repo = ResourceAssignmentRepository(master_db, incident_db)
+
+    with sqlite3.connect(master_db) as conn:
+        conn.execute("CREATE TABLE personnel (id TEXT PRIMARY KEY, name TEXT)")
+        conn.execute("CREATE TABLE vehicles (id TEXT PRIMARY KEY, vin TEXT, license_plate TEXT, make TEXT, model TEXT, status_id TEXT)")
+        conn.execute("CREATE TABLE equipment (id INTEGER PRIMARY KEY, name TEXT, type TEXT, condition TEXT)")
+        conn.commit()
+    assignment_repo.ensure_schema()
+
+    gtm_id = resource_repo.save_resource_type(ResourceType(name="Ground Team Member", category="Personnel"))
+    truck_id = resource_repo.save_resource_type(ResourceType(name="4x4 Truck", category="Vehicle"))
+    cache_id = resource_repo.save_resource_type(ResourceType(name="Radio Cache", category="Equipment Kit / Cache", is_kit_cache=True))
+    team_type_id = resource_repo.save_resource_type(ResourceType(name="Ground SAR Team", category="Team"))
+
+    with sqlite3.connect(master_db) as conn:
+        conn.execute("INSERT INTO personnel (id, name) VALUES (?, ?)", ("1", "Alex"))
+        conn.execute(
+            """
+            INSERT INTO vehicles (id, vin, license_plate, make, model, status_id, resource_type_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("10", "VIN10", "ABC123", "Ford", "F150", "Available", truck_id),
+        )
+        conn.execute(
+            """
+            INSERT INTO equipment (id, name, type, condition, condition_status, resource_type_id, contents_verified)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (20, "Radio Cache #2", "Communications", "Serviceable", "Serviceable", cache_id, 1),
+        )
+        conn.commit()
+
+    with sqlite3.connect(incident_db) as conn:
+        conn.execute("CREATE TABLE personnel (id TEXT PRIMARY KEY, name TEXT, team_id INTEGER)")
+        conn.execute("CREATE TABLE vehicles (id TEXT PRIMARY KEY, vin TEXT, license_plate TEXT, make TEXT, model TEXT, status_id TEXT, team_id INTEGER)")
+        conn.execute("CREATE TABLE equipment (id INTEGER PRIMARY KEY, name TEXT, type TEXT, condition TEXT, team_id INTEGER)")
+        conn.execute("CREATE TABLE teams (id INTEGER PRIMARY KEY, name TEXT, status TEXT, current_task_id INTEGER)")
+        conn.execute("CREATE TABLE checkins (person_id TEXT, ci_status TEXT, personnel_status TEXT)")
+        assignment_repo.ensure_incident_schema(conn)
+        conn.execute("INSERT INTO personnel (id, name, team_id) VALUES (?, ?, ?)", ("1", "Alex", None))
+        conn.execute(
+            """
+            INSERT INTO checkins (person_id, ci_status, personnel_status)
+            VALUES (?, ?, ?)
+            """,
+            ("1", "Checked In", "Available"),
+        )
+        conn.execute(
+            """
+            INSERT INTO vehicles (id, vin, license_plate, make, model, status_id, resource_type_id, team_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("10", "VIN10", "ABC123", "Ford", "F150", "Available", truck_id, None),
+        )
+        conn.execute(
+            """
+            INSERT INTO equipment (id, name, type, condition, condition_status, resource_type_id, contents_verified, team_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (20, "Radio Cache #2", "Communications", "Serviceable", "Serviceable", cache_id, 1, None),
+        )
+        conn.execute(
+            """
+            INSERT INTO teams (id, name, status, current_task_id, resource_type_id, readiness_status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (30, "Team Alpha", "available", None, team_type_id, "Ready"),
+        )
+        conn.commit()
+
+    assignment_repo.set_personnel_resource_types("1", [gtm_id], primary_resource_type_id=gtm_id)
+
+    personnel_links = assignment_repo.get_personnel_resource_types("1")
+    available_personnel = assignment_repo.get_available_personnel_by_resource_type(gtm_id)
+    available_vehicles = assignment_repo.get_available_vehicles_by_resource_type(truck_id)
+    available_equipment = assignment_repo.get_available_equipment_by_resource_type(cache_id)
+    available_teams = assignment_repo.get_available_teams_by_resource_type(team_type_id)
+
+    assert personnel_links[0]["resource_type_id"] == gtm_id
+    assert available_personnel[0]["name"] == "Alex"
+    assert available_vehicles[0]["license_plate"] == "ABC123"
+    assert available_equipment[0]["name"] == "Radio Cache #2"
+    assert available_teams[0]["name"] == "Team Alpha"

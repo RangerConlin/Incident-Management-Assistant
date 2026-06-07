@@ -510,6 +510,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
         self._add_action(m_edit, "Equipment", None, "edit.equipment")
         self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
+        self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
         self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
 
@@ -862,6 +863,7 @@ class MainWindow(QMainWindow):
             "edit.aircraft": self.open_edit_aircraft,
             "edit.equipment": self.open_edit_equipment,
             "edit.resource_types": self.open_edit_resource_types,
+            "edit.hazard_types": self.open_edit_hazard_types,
             "communications.217": self.open_edit_comms_resources,
             "edit.safety_templates": self.open_edit_safety_templates,
 
@@ -1203,6 +1205,20 @@ class MainWindow(QMainWindow):
             )
             return
         open_resource_type_library(parent=self)
+
+    def open_edit_hazard_types(self) -> None:
+        """Open the Hazard Type Library from the Edit menu."""
+
+        try:
+            from modules.admin.hazard_types.windows import open_hazard_type_library
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Hazard Type Library",
+                f"Unable to load Hazard Type Library.\n{exc}",
+            )
+            return
+        open_hazard_type_library(parent=self)
 
     def open_edit_comms_resources(self) -> None:
         # Open new QWidget-based Comms Resource Editor (dock-friendly)
