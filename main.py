@@ -298,35 +298,49 @@ class MainWindow(QMainWindow):
         # Re-applying our full stylesheet now ensures our ads-- rules come last and win.
         # We also set the stylesheet directly on the dock_manager as a belt-and-suspenders
         # measure (widget-level CSS beats application-level CSS in Qt's cascade).
-        def _flatten_tab_palettes(tokens: dict) -> None:
-            try:
-                from PySide6.QtGui import QPalette, QColor
-                from PySide6QtAds import CDockWidgetTab
-                flat = QColor(tokens.get("bg_panel", "#151821"))
-                active_flat = QColor(tokens.get("bg_raised", "#1B1F2A"))
-                text = QColor(tokens.get("fg_primary", "#ECEFF4"))
-                _gradient_roles = (
-                    QPalette.ColorRole.Button,
-                    QPalette.ColorRole.Light,
-                    QPalette.ColorRole.Midlight,
-                    QPalette.ColorRole.Mid,
-                    QPalette.ColorRole.Dark,
-                    QPalette.ColorRole.Shadow,
-                    QPalette.ColorRole.Window,
-                    QPalette.ColorRole.Base,
-                )
-                for tab in self.dock_manager.findChildren(CDockWidgetTab):
-                    p = tab.palette()
-                    bg = active_flat if tab.isActiveTab() else flat
-                    for role in _gradient_roles:
-                        p.setColor(role, bg)
+        from PySide6.QtCore import QEvent
+        from PySide6.QtGui import QPalette, QColor
+        from PySide6QtAds import CDockWidgetTab
+
+        _GRADIENT_ROLES = (
+            QPalette.ColorRole.Button,
+            QPalette.ColorRole.Light,
+            QPalette.ColorRole.Midlight,
+            QPalette.ColorRole.Mid,
+            QPalette.ColorRole.Dark,
+            QPalette.ColorRole.Shadow,
+            QPalette.ColorRole.Window,
+            QPalette.ColorRole.Base,
+        )
+
+        class _TabPaletteFilter(QObject):
+            """App-level event filter that flattens the ADS tab gradient palette
+            on every Polish event, which fires whenever Qt finalizes a widget's style."""
+            def __init__(self, tokens: dict, parent=None):
+                super().__init__(parent)
+                self._tokens = tokens
+
+            def update_tokens(self, tokens: dict) -> None:
+                self._tokens = tokens
+
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.Type.Polish and isinstance(obj, CDockWidgetTab):
+                    flat = QColor(self._tokens.get("bg_panel", "#151821"))
+                    text = QColor(self._tokens.get("fg_primary", "#ECEFF4"))
+                    p = obj.palette()
+                    for role in _GRADIENT_ROLES:
+                        p.setColor(role, flat)
                     p.setColor(QPalette.ColorRole.ButtonText, text)
                     p.setColor(QPalette.ColorRole.WindowText, text)
                     p.setColor(QPalette.ColorRole.Text, text)
-                    tab.setPalette(p)
-                    tab.update()
-            except Exception:
-                pass
+                    obj.setPalette(p)
+                return False
+
+        _tab_filter = _TabPaletteFilter(
+            self.theme_manager.tokens() if getattr(self, "theme_manager", None) else {},
+            parent=self,
+        )
+        QApplication.instance().installEventFilter(_tab_filter)
 
         def _apply_full_theme(tokens: dict) -> None:
             app = QApplication.instance()
@@ -336,10 +350,11 @@ class MainWindow(QMainWindow):
                 self.dock_manager.setStyleSheet(ads_qss(tokens))
             except Exception:
                 pass
-            # Palette fix is deferred so it runs after dock widgets are created.
-            # QTimer.singleShot(0) fires on the next event-loop tick, after __init__
-            # completes and all CDockWidgetTab children exist.
-            QTimer.singleShot(0, lambda: _flatten_tab_palettes(tokens))
+            _tab_filter.update_tokens(tokens)
+            # Re-polish all existing tabs so the filter fires immediately for them.
+            for tab in self.dock_manager.findChildren(CDockWidgetTab):
+                tab.style().unpolish(tab)
+                tab.style().polish(tab)
 
         try:
             if getattr(self, "theme_manager", None):
@@ -523,7 +538,7 @@ class MainWindow(QMainWindow):
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
 
-        dlg.resize(800, 600)
+        dlg.adjustSize()
         dlg.exec()
 
     def init_module_menus(self):
@@ -3136,7 +3151,7 @@ class MainWindow(QMainWindow):
         btn_close.clicked.connect(dlg.accept)
 
         dlg.setModal(True)
-        dlg.resize(420, 300)
+        dlg.adjustSize()
         dlg.exec()
 
     def set_current_layout_as_default(self) -> None:

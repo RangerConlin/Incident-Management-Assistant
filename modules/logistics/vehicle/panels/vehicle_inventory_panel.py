@@ -2087,13 +2087,13 @@ class VehicleInventoryDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Vehicle Inventory")
-        self.resize(1300, 760)
 
         self._panel = VehicleInventoryPanel(parent=self, repository=repository)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._panel)
+        self.adjustSize()
 
     @property
     def panel(self) -> VehicleInventoryPanel:

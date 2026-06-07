@@ -323,7 +323,7 @@ class ProfileManagerPanel(QWidget):
 
         btn_save.clicked.connect(_save)
         btn_cancel.clicked.connect(dlg.reject)
-        dlg.resize(560, 420)
+        dlg.adjustSize()
         dlg.exec()
 
     # ------------------------- upload form -----------------------------

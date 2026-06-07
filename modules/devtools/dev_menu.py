@@ -38,7 +38,7 @@ def attach_dev_menu(main_window):
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
 
-        dlg.resize(900, 700)                           # sane default size
+        dlg.adjustSize()
         dlg.exec()                                     # blocks until closed
 
     act_tpl.triggered.connect(_open_tpl)
@@ -60,7 +60,7 @@ def attach_dev_menu(main_window):
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
 
-        dlg.resize(800, 600)
+        dlg.adjustSize()
         dlg.exec()
 
     act_prof.triggered.connect(_open_prof)
@@ -78,7 +78,7 @@ def attach_dev_menu(main_window):
         v = QVBoxLayout(dlg)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
-        dlg.resize(1100, 720)
+        dlg.adjustSize()
         dlg.exec()
 
     act_forms.triggered.connect(_open_forms)
@@ -101,7 +101,7 @@ def attach_dev_menu(main_window):
         v = QVBoxLayout(dlg)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
-        dlg.resize(1000, 700)
+        dlg.adjustSize()
         dlg.exec()
 
     act_cert_editor.triggered.connect(_open_cert_editor)

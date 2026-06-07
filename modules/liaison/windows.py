@@ -373,11 +373,11 @@ class AgencyDetailDialog(QDialog):
         self.agency_id = agency_id
         self.incident_id = incident_id
         self.setWindowTitle("Liaison Agency Details")
-        self.resize(980, 680)
         self.tabs = QTabWidget(self)
         layout = QVBoxLayout(self)
         layout.addWidget(self.tabs)
         self._load()
+        self.adjustSize()
 
     def _load(self) -> None:
         detail = fetch_agency_detail(self.agency_id, self.incident_id)

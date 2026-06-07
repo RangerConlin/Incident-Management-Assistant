@@ -206,7 +206,6 @@ class CannedCommEntriesWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Canned Communication Entries")
-        self.resize(960, 620)
 
         self._bridge = catalog_bridge or CatalogBridge()
         self._entries: list[dict] = []
@@ -277,6 +276,7 @@ class CannedCommEntriesWindow(QMainWindow):
 
         self._update_button_states()
         self.refresh_entries()
+        self.adjustSize()
 
     def current_entry(self) -> Optional[dict]:
         rows = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []

@@ -124,7 +124,6 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Form Creator")
-        self.resize(1280, 720)
         self.form_service = form_service or FormService()
         self.current_template: dict[str, Any] | None = None
         self.background_item = None
@@ -152,6 +151,7 @@ class MainWindow(QMainWindow):
 
         if profile_context is not None:
             self.apply_profile_context(profile_context)
+        self.adjustSize()
 
     # ------------------------------------------------------------------
     def _build_menu(self) -> None:

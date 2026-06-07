@@ -57,8 +57,6 @@ class SettingsWindow(QDialog):
         self.bridge = settings_bridge
         self.setWindowTitle("Settings")
         self.setModal(False)
-        self.resize(980, 620)
-
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(12)
@@ -82,6 +80,7 @@ class SettingsWindow(QDialog):
 
         self.section_list.setCurrentRow(0)
         self.section_list.setFocus()
+        self.adjustSize()
 
     # ------------------------------------------------------------------
     def _build_header(self) -> QHBoxLayout:

@@ -658,7 +658,7 @@ class NewLogDialog(QDialog):
         self._load_defaults(header)
         if self.category_list.currentRow() < 0 and self.category_list.count():
             self.category_list.setCurrentRow(0)
-        self.resize(700, 520)
+        self.adjustSize()
 
     @property
     def result(self) -> dict[str, Any] | None:

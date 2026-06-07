@@ -911,6 +911,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app = QApplication(sys.argv)
     widget = ICOverviewWidget()
-    widget.resize(900, 600)
+    widget.adjustSize()
     widget.show()
     sys.exit(app.exec())

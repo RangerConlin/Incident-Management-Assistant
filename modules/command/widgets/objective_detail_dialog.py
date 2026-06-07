@@ -65,7 +65,7 @@ class ObjectiveDetailDialog(QDialog):
         self._build_narrative_tab()
         self._build_log_tab()
 
-        self.resize(960, 640)
+        self.adjustSize()
 
     # ------------------------------------------------------------------
     def load_objective(self, objective_id: int) -> None:

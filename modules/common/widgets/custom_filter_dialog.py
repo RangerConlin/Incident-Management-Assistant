@@ -156,6 +156,7 @@ class CustomFilterDialog(QtWidgets.QDialog):
             default_loaded = self._load_last_filters_into_rows()
             if not default_loaded:
                 self._add_rule_row()
+        self.adjustSize()
 
     # ------------------------------------------------------------------ API
     def rules(self) -> List[dict]:

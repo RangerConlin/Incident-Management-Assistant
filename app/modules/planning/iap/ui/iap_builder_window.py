@@ -43,9 +43,8 @@ class IAPBuilderWindow(QtWidgets.QWidget):
         self._form_editors: Dict[str, IAPFormEditor] = {}
         self._packet_viewers: list[IAPPacketViewer] = []
         self.setWindowTitle("IAP Builder")
-        self.resize(1024, 720)
-
         self._build_ui()
+        self.adjustSize()
 
         if not resolved_incident:
             self._show_missing_repository_state("Select or create an incident to open the IAP Builder.")

@@ -744,6 +744,7 @@ class NewAircraftDialog(QDialog):
         self.setWindowTitle("New Aircraft")
         self.setModal(True)
         self._build_ui()
+        self.adjustSize()
 
     def _build_ui(self) -> None:
         self.resize(660, 360)
@@ -1057,6 +1058,7 @@ class ImportAircraftDialog(QDialog):
         self._headers: List[str] = []
         self._mapping: Dict[str, QComboBox] = {}
         self._build_ui()
+        self.adjustSize()
 
     def _build_ui(self) -> None:
         self.resize(720, 540)
@@ -1250,7 +1252,6 @@ class AircraftInventoryWindow(QDialog):
     def __init__(self, repository: Optional[AircraftRepository] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Aircraft Inventory")
-        self.resize(1300, 760)
         self.repository = repository or AircraftRepository()
         self.filter_state = AircraftFilterState()
         self.records: List[Dict[str, Any]] = []
@@ -1285,6 +1286,7 @@ class AircraftInventoryWindow(QDialog):
         self._build_ui()
         self._setup_shortcuts()
         self._load_records()
+        self.adjustSize()
 
     # ------------------------------------------------------------------
     # UI construction

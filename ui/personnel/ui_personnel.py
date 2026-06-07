@@ -1043,7 +1043,6 @@ class PersonnelInventoryWindow(QtWidgets.QDialog):
         super().__init__(parent)
         self.dal = dal or MasterDAL()
         self.setWindowTitle("Personnel Inventory")
-        self.resize(1100, 650)
 
         self.search = QtWidgets.QLineEdit()
         self.search.setPlaceholderText("Search by name, ID, callsign, phone, or email…")
@@ -1111,6 +1110,7 @@ class PersonnelInventoryWindow(QtWidgets.QDialog):
         self.btn_refresh.clicked.connect(self.refresh)
 
         self.refresh()
+        self.adjustSize()
 
     # ----------------------------- Helpers ---------------------------------
     def refresh(self) -> None:

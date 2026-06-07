@@ -557,6 +557,6 @@ if __name__ == "__main__":
     w.set_context("3", "14:40", "Logistics Chief")
     w.setAutoRefresh(15000)
 
-    w.resize(QSize(1000, 720))
+    w.adjustSize()
     w.show()
     sys.exit(app.exec())

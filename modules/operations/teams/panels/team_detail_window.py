@@ -953,8 +953,6 @@ class TeamDetailWindow(QMainWindow):
         self._assist_timer.timeout.connect(self._toggle_assist_strip)
 
         self.setWindowTitle("Team Detail")
-        self.resize(980, 700)
-
         self._build_ui()
         self._populate_team_type_options()
         self._populate_status_options()
@@ -970,6 +968,7 @@ class TeamDetailWindow(QMainWindow):
                 self._on_team_changed()
         else:
             self._on_team_changed()
+        self.adjustSize()
 
     # ---- UI construction ----
     def _build_ui(self) -> None:
