@@ -2010,7 +2010,7 @@ class MainWindow(QMainWindow):
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_dashboard(self) -> None:
-        from modules import public_info
+        from modules import public_information
         from utils.state import AppState
         incident_id = getattr(self, "current_incident_id", None)
         if not incident_id:
@@ -2027,7 +2027,7 @@ class MainWindow(QMainWindow):
         except Exception:
             role = None
         current_user = {"id": uid, "roles": ([] if not role else [role])}
-        panel = public_info.get_public_info_panel(incident_id, current_user)
+        panel = public_information.get_public_info_panel(incident_id, current_user)
         self._open_dock_widget(panel, title="Public Information")
 
     def open_public_unit_log(self) -> None:
@@ -2037,15 +2037,15 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_public_media_releases(self) -> None:
-        from modules import public_info
+        from modules import public_information
         incident_id = getattr(self, "current_incident_id", None)
-        panel = public_info.get_media_releases_panel(incident_id)
+        panel = public_information.get_media_releases_panel(incident_id)
         self._open_dock_widget(panel, title="Media Releases")
 
     def open_public_inquiries(self) -> None:
-        from modules import public_info
+        from modules import public_information
         incident_id = getattr(self, "current_incident_id", None)
-        panel = public_info.get_inquiries_panel(incident_id)
+        panel = public_information.get_inquiries_panel(incident_id)
         self._open_dock_widget(panel, title="Public Inquiries")
 
     def open_public_affairs_dashboard(self) -> None:
