@@ -638,7 +638,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_lia, "Liaison Unit Log ICS-214", None, "liaison.unit_log")
         m_lia.addSeparator()
         self._add_action(m_lia, "Agency Directory", None, "liaison.agencies")
-        self._add_action(m_lia, "Customer Requests", None, "liaison.requests")
+        self._add_action(m_lia, "External Coordination", None, "liaison.requests")
 
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
@@ -2006,7 +2006,7 @@ class MainWindow(QMainWindow):
         from modules import liaison
         incident_id = getattr(self, "current_incident_id", None)
         panel = liaison.get_requests_panel(incident_id)
-        self._open_dock_widget(panel, title="Customer Requests")
+        self._open_dock_widget(panel, title="External Coordination")
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_dashboard(self) -> None:
