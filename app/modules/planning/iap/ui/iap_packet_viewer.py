@@ -25,9 +25,9 @@ class IAPPacketViewer(QtWidgets.QWidget):
         self.package = package
         self.service = service or IAPService()
         self.setWindowTitle(f"Packet Viewer – OP {package.op_number}")
-        self.resize(720, 520)
         self._build_ui()
         self._populate_forms()
+        self.adjustSize()
 
     def _build_ui(self) -> None:
         layout = QtWidgets.QVBoxLayout(self)

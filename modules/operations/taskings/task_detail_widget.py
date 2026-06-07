@@ -118,8 +118,6 @@ class TaskDetailWindow(QWidget):
         self._task_id = int(task_id)
         # Title is updated after header load; keep minimal placeholder
         self.setWindowTitle("Task Detail")
-        # Default width adjusted (+40% from 600 -> 840)
-        self.resize(840, 720)
 
         root = QVBoxLayout(self)
         try:
@@ -1251,6 +1249,7 @@ class TaskDetailWindow(QWidget):
             app_signals.teamAssetsChanged.connect(self._on_team_updates)
         except Exception:
             pass
+        self.adjustSize()
 
     def _status_background_color(self, status: str | None) -> str:
         key = str(status or "").strip().lower()
@@ -3473,7 +3472,7 @@ class TaskDetailWindow(QWidget):
         dlg = QDialog(self)
         try:
             dlg.setWindowTitle(f"Debrief Editor — ID {debrief_id}")
-            dlg.resize(900, 700)
+            dlg.adjustSize()
         except Exception:
             pass
         dlgl = QVBoxLayout(dlg)

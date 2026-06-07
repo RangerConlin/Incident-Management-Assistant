@@ -579,7 +579,7 @@ if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
     w = PlanningGlanceWidget()
-    w.resize(1000, 700)
+    w.adjustSize()
     w.set_context("OP 3", "14:32", "Plans Section Chief")
     w.update_kpis(
         {

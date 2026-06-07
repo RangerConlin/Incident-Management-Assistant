@@ -310,6 +310,6 @@ class EditorPanel(QWidget):
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         v.addWidget(bb)
-        dlg.resize(700, 500)
+        dlg.adjustSize()
         dlg.exec()
 

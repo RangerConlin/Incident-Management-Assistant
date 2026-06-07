@@ -37,7 +37,6 @@ class IAPCreationWizard(QtWidgets.QDialog):
         self.result_container = WizardResult()
 
         self.setWindowTitle("New IAP Wizard")
-        self.resize(720, 480)
 
         if not resolved_incident:
             self._show_no_incident_state("Select or create an incident to start a new IAP.")
@@ -71,6 +70,7 @@ class IAPCreationWizard(QtWidgets.QDialog):
         self.cancel_button.clicked.connect(self.reject)
 
         self._update_buttons()
+        self.adjustSize()
 
     # ------------------------------------------------------------------ steps
     def _build_step_one(self) -> None:

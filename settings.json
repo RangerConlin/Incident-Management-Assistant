@@ -24,7 +24,7 @@
     "basemapSource": 0,
     "uiTemplateIndex": 3,
     "colorProfileIndex": 0,
-    "themeIndex": 2,
+    "themeIndex": 1,
     "startupBehaviorIndex": 0,
     "unitIndex": 0,
     "dateFormatIndex": 0,
@@ -62,7 +62,7 @@
         ]
     },
     "uiDebugTools": true,
-    "themeName": "light",
+    "themeName": "dark",
     "active_profile_id": "ics_base",
     "statusboard.team.presets": {
         "Ground Teams": {

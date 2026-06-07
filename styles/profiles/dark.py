@@ -31,11 +31,11 @@ PALETTE: Dict[str, str] = {
     # Semantic window surfaces used by the legacy styling helpers.
     "bg_window":    "#0F1115",
     "bg_panel":     "#151821",
-    "menu_bar_bg":  "#1313AB",
+    "menu_bar_bg":  "#1C2130",
     "bg_raised":    "#1B1F2A",
     "fg_primary":   "#ECEFF4",
     "fg_muted":     "#A4ADBA",
-    "dock_tab_bg":  "#AF0909",
+    "dock_tab_bg":  "#1A1E2B",
 
     # Secondary accent and message tones for reports and charts.
     "accent_alt":   "#4CC38A",
@@ -50,11 +50,11 @@ PALETTE: Dict[str, str] = {
     "divider":      "#242A36",
 
     # Buttons
-    "btn_bg":       "#E9E9E9",
-    "btn_border":   "#D5D8DE",
-    "btn_hover":    "#858585",
+    "btn_bg":       "#2A3042",
+    "btn_border":   "#3A4358",
+    "btn_hover":    "#353D55",
     "btn_focus":    "#2F80ED",
-    "btn_disabled": "#000000",
+    "btn_disabled": "#1B1F2A",
     "btn_checked":  "#2F80ED",
 }
 

@@ -22,6 +22,9 @@ def global_qss(tokens: dict) -> str:
             background: {tokens['bg_raised']};
             color: {tokens['fg_primary']};
         }}
+        QWidget#MenuBarCorner {{
+            background: {menu_bar_bg};
+        }}
         QMenu {{
             background: {tokens['bg_panel']};
             color: {tokens['fg_primary']};
@@ -63,7 +66,7 @@ def global_qss(tokens: dict) -> str:
         QPushButton:pressed,
         QToolButton:pressed,
         QCommandLinkButton:pressed {{
-            background: {tokens['btn_pressed']};
+            background: {tokens.get('btn_pressed', tokens['btn_hover'])};
         }}
         QPushButton:checked,
         QToolButton:checked,
@@ -74,7 +77,7 @@ def global_qss(tokens: dict) -> str:
         QPushButton:focus,
         QToolButton:focus,
         QCommandLinkButton:focus {{
-            baqckground: {tokens['btn_focus']};
+            background: {tokens['btn_focus']};
             border: 1px solid {tokens['ctrl_focus']};
         }}
         QPushButton:disabled,
@@ -100,15 +103,11 @@ def global_qss(tokens: dict) -> str:
         QTabBar::tab:selected {{
             background: {tokens['bg_raised']};
             color: {tokens['fg_primary']};
-            margin-top: 0px;
+            border-bottom: 2px solid {tokens['ctrl_focus']};
         }}
         QTabBar::tab:hover {{
             background: {tokens['ctrl_hover']};
         }}
-        QTabBar::tab:!selected {{
-            margin-top: 2px;
-        }}
-
         QToolTip {{
             background: {tokens['bg_raised']};
             color: {tokens['fg_primary']};
@@ -149,5 +148,90 @@ def global_qss(tokens: dict) -> str:
             min-height: 25px;
             border-radius: 4px;
         }}
+
+        /* Qt Advanced Docking System — ads:: namespace -> ads-- prefix in QSS */
+        ads--CDockAreaTitleBar {{
+            background: {tokens['dock_tab_bg']};
+            background-image: none;
+            padding: 0px;
+            border-bottom: 1px solid {tokens['divider']};
+        }}
+        ads--CDockAreaTabBar {{
+            background: transparent;
+            background-image: none;
+        }}
+        ads--CDockWidgetTab {{
+            background: {tokens['bg_panel']};
+            background-image: none;
+            color: {tokens['fg_primary']};
+            border: 1px solid {tokens['divider']};
+            border-bottom: none;
+            border-radius: 2px 2px 0px 0px;
+            padding: 4px 10px;
+            margin-right: 2px;
+        }}
+        ads--CDockWidgetTab:hover {{
+            background: {tokens['ctrl_hover']};
+            background-image: none;
+        }}
+        ads--CDockWidgetTab[activeTab="true"] {{
+            background: {tokens['bg_raised']};
+            background-image: none;
+            color: {tokens['fg_primary']};
+            border-color: {tokens['ctrl_border']};
+        }}
+        ads--CDockAreaWidget {{
+            background: {tokens['bg_panel']};
+            background-image: none;
+        }}
+        ads--CFloatingDockContainer {{
+            background: {tokens['bg_window']};
+            background-image: none;
+            border: 1px solid {tokens['ctrl_border']};
+        }}
     """)
 
+
+def ads_qss(tokens: dict) -> str:
+    """ADS-only rules applied directly on the CDockManager widget."""
+    return dedent(f"""
+        ads--CDockAreaTitleBar {{
+            background: {tokens['dock_tab_bg']};
+            background-image: none;
+            padding: 0px;
+            border-bottom: 1px solid {tokens['divider']};
+        }}
+        ads--CDockAreaTabBar {{
+            background: transparent;
+            background-image: none;
+        }}
+        ads--CDockWidgetTab {{
+            background: {tokens['bg_panel']};
+            background-image: none;
+            color: {tokens['fg_primary']};
+            border: 1px solid {tokens['divider']};
+            border-bottom: none;
+            border-radius: 2px 2px 0px 0px;
+            padding: 4px 10px;
+            margin-right: 2px;
+        }}
+        ads--CDockWidgetTab:hover {{
+            background: {tokens['ctrl_hover']};
+            background-image: none;
+        }}
+        ads--CDockWidgetTab[activeTab="true"] {{
+            background: {tokens['bg_raised']};
+            background-image: none;
+            color: {tokens['fg_primary']};
+            border-color: {tokens['ctrl_border']};
+        }}
+        ads--CDockAreaWidget {{
+            background: {tokens['bg_panel']};
+            background-image: none;
+        }}
+        ads--CFloatingDockContainer {{
+            background: {tokens['bg_window']};
+            background-image: none;
+            border: 1px solid {tokens['ctrl_border']};
+        }}
+    """)

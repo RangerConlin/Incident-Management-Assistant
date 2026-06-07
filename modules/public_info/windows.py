@@ -46,7 +46,7 @@ def open_editor_window(
     except Exception:
         pass
     _open_windows.append(win)
-    win.resize(900, 650)
+    win.adjustSize()
     win.show()
     return win
 

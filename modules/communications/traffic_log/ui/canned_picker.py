@@ -31,7 +31,6 @@ class CannedCommPickerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Insert Canned Communication")
         self.setModal(True)
-        self.resize(800, 520)
 
         self._bridge = catalog_bridge or CatalogBridge()
         self._entries: list[dict] = []
@@ -79,6 +78,7 @@ class CannedCommPickerDialog(QDialog):
 
         self._refresh()
         self._update_buttons()
+        self.adjustSize()
 
     # ------------------------------------------------------------------
     def selected_entry(self) -> Optional[dict]:

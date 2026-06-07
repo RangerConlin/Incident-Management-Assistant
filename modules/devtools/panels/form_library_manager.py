@@ -597,7 +597,6 @@ class BindingWizard(QWizard):
         self.setWizardStyle(QWizard.ModernStyle)
         self.setOption(QWizard.NoBackButtonOnStartPage, True)
         self.setMinimumSize(820, 640)
-        self.resize(1040, 760)
         self._active_profile = active_profile
         self._result: Optional[BindingOption] = None
         self._updating_helper = False
@@ -933,6 +932,7 @@ class BindingWizard(QWizard):
         )
         self._update_helper_suggestion(self.label_edit.text())
         self._update_summary()
+        self.adjustSize()
 
     def _on_label_changed(self, text: str) -> None:
         if not self.description_edit.text().strip():
@@ -1278,7 +1278,6 @@ class ImportPdfWizard(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Import Fillable PDF")
-        self.resize(560, 520)
 
         self._forms = {fid.lower(): form for fid, form in forms.items()}
         self._profiles = list(profiles)
@@ -1372,6 +1371,7 @@ class ImportPdfWizard(QDialog):
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        self.adjustSize()
 
     # ------------------------------------------------------------------
     # Helpers
@@ -1639,7 +1639,6 @@ class BindingLibraryEditorDialog(QDialog):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Binding Library")
-        self.resize(840, 520)
 
         self._options: List[BindingOption] = []
         self._filtered: List[BindingOption] = []
@@ -1726,6 +1725,7 @@ class BindingLibraryEditorDialog(QDialog):
 
         self._reload()
         self._update_buttons()
+        self.adjustSize()
 
     def _on_filter_changed(self, _text: str) -> None:
         self._populate_table()

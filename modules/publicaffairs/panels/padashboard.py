@@ -512,7 +512,7 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     w = PublicAffairsDashboardWidget()
-    w.resize(1100, 800)
+    w.adjustSize()
 
     # Demo data
     kpis = {

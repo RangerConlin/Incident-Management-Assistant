@@ -283,7 +283,7 @@ class HospitalManagerDialog(QDialog):
 
         self._restore_state()
         self._refresh()
-        self.resize(960, 600)
+        self.adjustSize()
 
     # ----- helpers -----------------------------------------------------
     def _column_available(self, key: str) -> bool:

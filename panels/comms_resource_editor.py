@@ -975,7 +975,7 @@ if __name__ == "__main__":
     app.setOrganizationName(APP_ORG)
     app.setApplicationName(APP_NAME)
     editor = CommsResourceEditor(DEFAULT_DB_PATH)
-    editor.resize(1100, 700)
+    editor.adjustSize()
     editor.show()
     sys.exit(app.exec())
 

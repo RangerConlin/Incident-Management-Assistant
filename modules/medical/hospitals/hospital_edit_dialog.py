@@ -123,7 +123,7 @@ class HospitalEditDialog(QDialog):
         if isinstance(name_widget, QLineEdit):
             name_widget.setFocus()
 
-        self.resize(520, 640)
+        self.adjustSize()
 
     # ----- UI helpers --------------------------------------------------
     def _create_widget(self, spec: _FieldSpec) -> QWidget:

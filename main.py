@@ -24,8 +24,8 @@ from PySide6.QtWidgets import (
     QFileDialog,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence
-from PySide6.QtCore import Qt, QUrl, QSettings, QTimer
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QPalette, QColor
+from PySide6.QtCore import Qt, QUrl, QSettings, QTimer, QObject, QEvent
 from PySide6.QtQuick import QQuickView
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtQuick import QQuickWindow
@@ -59,7 +59,7 @@ import sqlite3
 # 'os' imported earlier for env setup
 from utils.theme_manager import ThemeManager
 from bridge.theme_bridge import ThemeBridge
-from styles.qss_helpers import global_qss
+from styles.qss_helpers import global_qss, ads_qss
 from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
 from utils.constants import TEAM_STATUSES
@@ -203,8 +203,11 @@ class MainWindow(QMainWindow):
         # Initialize theme manager/bridge using persisted setting
         try:
             app = QApplication.instance()
-            saved_theme = str(self.settings_bridge.getSetting('themeName') or 'light').lower()
-            if saved_theme not in {"light", "dark"}:
+            saved_theme = str(self.settings_bridge.getSetting('themeName') or 'system').lower()
+            if saved_theme == 'system':
+                from styles.profiles import get_profile_name
+                saved_theme = get_profile_name()
+            elif saved_theme not in {"light", "dark"}:
                 saved_theme = "light"
             self.theme_manager = ThemeManager(app, initial_theme=saved_theme)
             self.theme_bridge = ThemeBridge(self.theme_manager.tokens())
@@ -218,9 +221,15 @@ class MainWindow(QMainWindow):
             )
             # React to settings changes (persisted toggle) to drive ThemeManager
             try:
-                self.settings_bridge.settingChanged.connect(
-                    lambda key, value: self.theme_manager.setTheme(str(value)) if key == 'themeName' else None
-                )
+                def _on_window_theme_changed(key, value, _tm=self.theme_manager):
+                    if key != 'themeName':
+                        return
+                    theme = str(value).lower()
+                    if theme == 'system':
+                        from styles.profiles import get_profile_name
+                        theme = get_profile_name()
+                    _tm.setTheme(theme)
+                self.settings_bridge.settingChanged.connect(_on_window_theme_changed)
             except Exception:
                 pass
         except Exception:
@@ -282,6 +291,76 @@ class MainWindow(QMainWindow):
         # If CDockManager is a QWidget, add to container layout to fill area
         try:
             cont_layout.addWidget(self.dock_manager)  # type: ignore[name-defined]
+        except Exception:
+            pass
+
+        # ADS appends its own rules to QApplication.styleSheet() during construction.
+        # Re-applying our full stylesheet now ensures our ads-- rules come last and win.
+        # We also set the stylesheet directly on the dock_manager as a belt-and-suspenders
+        # measure (widget-level CSS beats application-level CSS in Qt's cascade).
+        from PySide6QtAds import CDockWidgetTab
+
+        _GRADIENT_ROLES = (
+            QPalette.ColorRole.Button,
+            QPalette.ColorRole.Light,
+            QPalette.ColorRole.Midlight,
+            QPalette.ColorRole.Mid,
+            QPalette.ColorRole.Dark,
+            QPalette.ColorRole.Shadow,
+            QPalette.ColorRole.Window,
+            QPalette.ColorRole.Base,
+        )
+
+        class _TabPaletteFilter(QObject):
+            """App-level event filter that flattens the ADS tab gradient palette
+            on every Polish event, which fires whenever Qt finalizes a widget's style."""
+            def __init__(self, tokens: dict, parent=None):
+                super().__init__(parent)
+                self._tokens = tokens
+
+            def update_tokens(self, tokens: dict) -> None:
+                self._tokens = tokens
+
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.Type.Polish and isinstance(obj, CDockWidgetTab):
+                    flat = QColor(self._tokens.get("bg_panel", "#151821"))
+                    text = QColor(self._tokens.get("fg_primary", "#ECEFF4"))
+                    p = obj.palette()
+                    for role in _GRADIENT_ROLES:
+                        p.setColor(role, flat)
+                    p.setColor(QPalette.ColorRole.ButtonText, text)
+                    p.setColor(QPalette.ColorRole.WindowText, text)
+                    p.setColor(QPalette.ColorRole.Text, text)
+                    obj.setPalette(p)
+                return False
+
+        _tab_filter = _TabPaletteFilter(
+            self.theme_manager.tokens() if getattr(self, "theme_manager", None) else {},
+            parent=self,
+        )
+        QApplication.instance().installEventFilter(_tab_filter)
+
+        def _apply_full_theme(tokens: dict) -> None:
+            app = QApplication.instance()
+            if app is not None:
+                app.setStyleSheet(global_qss(tokens))
+            try:
+                self.dock_manager.setStyleSheet(ads_qss(tokens))
+            except Exception:
+                pass
+            _tab_filter.update_tokens(tokens)
+            # Re-polish all existing tabs so the filter fires immediately for them.
+            for tab in self.dock_manager.findChildren(CDockWidgetTab):
+                tab.style().unpolish(tab)
+                tab.style().polish(tab)
+
+        try:
+            if getattr(self, "theme_manager", None):
+                _tokens = self.theme_manager.tokens()
+                _apply_full_theme(_tokens)
+                self.theme_manager.themeChanged.connect(
+                    lambda _: _apply_full_theme(self.theme_manager.tokens())
+                )
         except Exception:
             pass
 
@@ -350,6 +429,19 @@ class MainWindow(QMainWindow):
 
         # Build the physical menu bar (visible UI)
         self.init_module_menus()
+
+        # Fill the empty right portion of the menu bar so it paints the same
+        # background color as the rest of the bar (Windows 11 leaves it white).
+        _mb_corner = QWidget()
+        _mb_corner.setObjectName("MenuBarCorner")
+        _mb_corner.setAutoFillBackground(True)
+        try:
+            _mb_color = (self.theme_manager.tokens().get("menu_bar_bg", "#1313AB")
+                         if getattr(self, "theme_manager", None) else "#1313AB")
+            _mb_corner.setStyleSheet(f"background: {_mb_color};")
+        except Exception:
+            _mb_corner.setStyleSheet("background: #1313AB;")
+        self.menuBar().setCornerWidget(_mb_corner, Qt.TopRightCorner)
 
         # If no saved layout was opened, create some default docks to play with
         # Seed defaults if not forced and no perspective opened or nothing is docked
@@ -444,7 +536,7 @@ class MainWindow(QMainWindow):
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
 
-        dlg.resize(800, 600)
+        dlg.adjustSize()
         dlg.exec()
 
     def init_module_menus(self):
@@ -640,7 +732,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_lia, "Liaison Unit Log ICS-214", None, "liaison.unit_log")
         m_lia.addSeparator()
         self._add_action(m_lia, "Agency Directory", None, "liaison.agencies")
-        self._add_action(m_lia, "Customer Requests", None, "liaison.requests")
+        self._add_action(m_lia, "External Coordination", None, "liaison.requests")
 
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
@@ -2043,11 +2135,11 @@ class MainWindow(QMainWindow):
         from modules import liaison
         incident_id = getattr(self, "current_incident_id", None)
         panel = liaison.get_requests_panel(incident_id)
-        self._open_dock_widget(panel, title="Customer Requests")
+        self._open_dock_widget(panel, title="External Coordination")
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_dashboard(self) -> None:
-        from modules import public_info
+        from modules import public_information
         from utils.state import AppState
         incident_id = getattr(self, "current_incident_id", None)
         if not incident_id:
@@ -2064,7 +2156,7 @@ class MainWindow(QMainWindow):
         except Exception:
             role = None
         current_user = {"id": uid, "roles": ([] if not role else [role])}
-        panel = public_info.get_public_info_panel(incident_id, current_user)
+        panel = public_information.get_public_info_panel(incident_id, current_user)
         self._open_dock_widget(panel, title="Public Information")
 
     def open_public_unit_log(self) -> None:
@@ -2074,15 +2166,15 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="ICS-214 Activity Log")
 
     def open_public_media_releases(self) -> None:
-        from modules import public_info
+        from modules import public_information
         incident_id = getattr(self, "current_incident_id", None)
-        panel = public_info.get_media_releases_panel(incident_id)
+        panel = public_information.get_media_releases_panel(incident_id)
         self._open_dock_widget(panel, title="Media Releases")
 
     def open_public_inquiries(self) -> None:
-        from modules import public_info
+        from modules import public_information
         incident_id = getattr(self, "current_incident_id", None)
-        panel = public_info.get_inquiries_panel(incident_id)
+        panel = public_information.get_inquiries_panel(incident_id)
         self._open_dock_widget(panel, title="Public Inquiries")
 
     def open_public_affairs_dashboard(self) -> None:
@@ -3094,7 +3186,7 @@ class MainWindow(QMainWindow):
         btn_close.clicked.connect(dlg.accept)
 
         dlg.setModal(True)
-        dlg.resize(420, 300)
+        dlg.adjustSize()
         dlg.exec()
 
     def set_current_layout_as_default(self) -> None:
@@ -3553,6 +3645,7 @@ class MetricWidget(QWidget):
 if __name__ == "__main__":
     import argparse
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
 
     def _on_quit():
         try:
@@ -3600,9 +3693,12 @@ if __name__ == "__main__":
 
     # Initialize theme manager/bridge at app level as well
     try:
-        saved = settings_bridge.getSetting('themeName') or 'light'
+        saved = settings_bridge.getSetting('themeName') or 'system'
         saved = str(saved).lower()
-        if saved not in {"light", "dark"}:
+        if saved == 'system':
+            from styles.profiles import get_profile_name
+            saved = get_profile_name()
+        elif saved not in {"light", "dark"}:
             saved = "light"
         _theme_manager = ThemeManager(app, initial_theme=saved)
         _theme_bridge = ThemeBridge(_theme_manager.tokens())
@@ -3615,9 +3711,15 @@ if __name__ == "__main__":
         )
         # React to settings bridge updates
         try:
-            settings_bridge.settingChanged.connect(
-                lambda key, value: _theme_manager.setTheme(str(value)) if key == 'themeName' else None
-            )
+            def _on_theme_setting_changed(key, value):
+                if key != 'themeName':
+                    return
+                theme = str(value).lower()
+                if theme == 'system':
+                    from styles.profiles import get_profile_name
+                    theme = get_profile_name()
+                _theme_manager.setTheme(theme)
+            settings_bridge.settingChanged.connect(_on_theme_setting_changed)
         except Exception:
             pass
     except Exception:

@@ -132,5 +132,5 @@ class HistoryPanel(QWidget):
         btns.rejected.connect(dlg.reject)
         btns.accepted.connect(dlg.accept)
         v.addWidget(btns)
-        dlg.resize(600, 400)
+        dlg.adjustSize()
         dlg.exec()

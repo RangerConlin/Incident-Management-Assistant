@@ -93,7 +93,7 @@ class ThemePage(QWidget):
         theme_name = (theme_name or "").lower()
         if theme_name.startswith("custom:"):
             return self._find_combo_data("custom")
-        if theme_name in {"light", "dark"}:
+        if theme_name in {"light", "dark", "system"}:
             return self._find_combo_data(theme_name)
         return -1
 
@@ -129,9 +129,8 @@ class ThemePage(QWidget):
             if not (isinstance(current, str) and current.startswith("custom:")):
                 # Fall back to light if no custom theme is registered
                 _set_setting(self._bridge, "themeName", "light")
-        else:  # "system" or unknown
-            # Default to light until an OS-aware theme is implemented
-            _set_setting(self._bridge, "themeName", "light")
+        else:  # "system"
+            _set_setting(self._bridge, "themeName", "system")
 
     def _on_setting_changed(self, key, value) -> None:
         if key == "themeName":

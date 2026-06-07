@@ -39,8 +39,6 @@ class TemplateDebugPanel(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setWindowTitle("Template Debug Panel")
-        self.resize(1400, 820)
-
         self.registry = TemplateRegistry(REGISTRY_PATH)
 
         self.pdf_path: Optional[Path] = None
@@ -51,6 +49,7 @@ class TemplateDebugPanel(QWidget):
         self.mapping_path: Optional[Path] = None
 
         self._build_ui()
+        self.adjustSize()
 
     # ---------------------------- UI BUILD -----------------------------
     def _build_ui(self):

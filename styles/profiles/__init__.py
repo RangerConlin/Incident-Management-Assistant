@@ -3,11 +3,29 @@ from __future__ import annotations
 
 import importlib
 import os
+import sys
 from functools import lru_cache
 from types import ModuleType
 from typing import Dict
 
 DEFAULT_PROFILE = "light"
+
+
+def _is_system_dark_mode() -> bool:
+    """Return True if the OS is configured to use a dark color scheme."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        )
+        value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        winreg.CloseKey(key)
+        return value == 0
+    except Exception:
+        return False
 
 _PROFILE_REGISTRY: Dict[str, str] = {
     "light": "styles.profiles.light",
@@ -18,11 +36,13 @@ _PROFILE_REGISTRY: Dict[str, str] = {
 def get_profile_name() -> str:
     """Return the active color profile name.
 
-    The profile can be overridden by setting the ``IMA_COLOR_PROFILE``
-    environment variable. When not provided, the light profile is used.
+    Checks ``IMA_COLOR_PROFILE`` env var first, then falls back to OS dark
+    mode detection. Returns "light" or "dark".
     """
-
-    return os.getenv("IMA_COLOR_PROFILE", DEFAULT_PROFILE).lower()
+    env = os.getenv("IMA_COLOR_PROFILE", "").lower()
+    if env in ("light", "dark"):
+        return env
+    return "dark" if _is_system_dark_mode() else "light"
 
 
 @lru_cache(maxsize=None)
