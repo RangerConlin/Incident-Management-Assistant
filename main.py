@@ -24,8 +24,8 @@ from PySide6.QtWidgets import (
     QFileDialog,
 )
 from PySide6.QtQuickWidgets import QQuickWidget
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence
-from PySide6.QtCore import Qt, QUrl, QSettings, QTimer
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QPalette, QColor
+from PySide6.QtCore import Qt, QUrl, QSettings, QTimer, QObject, QEvent
 from PySide6.QtQuick import QQuickView
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtQuick import QQuickWindow
@@ -298,8 +298,6 @@ class MainWindow(QMainWindow):
         # Re-applying our full stylesheet now ensures our ads-- rules come last and win.
         # We also set the stylesheet directly on the dock_manager as a belt-and-suspenders
         # measure (widget-level CSS beats application-level CSS in Qt's cascade).
-        from PySide6.QtCore import QEvent
-        from PySide6.QtGui import QPalette, QColor
         from PySide6QtAds import CDockWidgetTab
 
         _GRADIENT_ROLES = (
