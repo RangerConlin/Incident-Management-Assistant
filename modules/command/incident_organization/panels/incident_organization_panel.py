@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Optional
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -42,6 +44,7 @@ class PositionDialog(QDialog):
     """Small editor for custom AHJ-defined organization positions."""
 
     CLASSIFICATIONS = ["command", "section", "branch", "division", "group", "unit", "position"]
+    _TOP_LEVEL_SENTINEL = -1
 
     def __init__(
         self,
@@ -49,6 +52,8 @@ class PositionDialog(QDialog):
         *,
         position: OrganizationPosition | None = None,
         parent_position_id: int | None = None,
+        existing_positions: list[OrganizationPosition] | None = None,
+        exclude_id: int | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Position")
@@ -60,10 +65,13 @@ class PositionDialog(QDialog):
         selected = position.classification if position else "position"
         self.classification_combo.setCurrentText(selected if selected in self.CLASSIFICATIONS else "position")
         layout.addRow("Classification", self.classification_combo)
-        self.parent_edit = QLineEdit(
-            str(position.parent_position_id if position else parent_position_id or ""), self
-        )
-        layout.addRow("Parent position ID", self.parent_edit)
+
+        self.parent_combo = QComboBox(self)
+        self.parent_combo.addItem("— Top Level (no parent) —", self._TOP_LEVEL_SENTINEL)
+        preselect_id = (position.parent_position_id if position else parent_position_id) or self._TOP_LEVEL_SENTINEL
+        self._populate_parent_combo(existing_positions or [], exclude_id, preselect_id)
+        layout.addRow("Parent position", self.parent_combo)
+
         self.period_edit = QLineEdit(position.operational_period if position else "", self)
         layout.addRow("Operational period", self.period_edit)
         quals = ", ".join(position.required_qualifications) if position else ""
@@ -83,12 +91,37 @@ class PositionDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
 
+    def _populate_parent_combo(
+        self,
+        positions: list[OrganizationPosition],
+        exclude_id: int | None,
+        preselect_id: int,
+    ) -> None:
+        """Add positions to the parent combo with depth-indented labels."""
+        from collections import defaultdict
+
+        by_parent: dict[int | None, list[OrganizationPosition]] = defaultdict(list)
+        for pos in positions:
+            if pos.id != exclude_id:
+                by_parent[pos.parent_position_id].append(pos)
+
+        def add_children(parent_id: int | None, depth: int) -> None:
+            for pos in by_parent.get(parent_id, []):
+                label = "    " * depth + pos.title + f"  ({pos.classification})"
+                self.parent_combo.addItem(label, pos.id)
+                if pos.id == preselect_id:
+                    self.parent_combo.setCurrentIndex(self.parent_combo.count() - 1)
+                add_children(pos.id, depth + 1)
+
+        add_children(None, 0)
+
     def values(self) -> dict[str, object]:
-        parent_text = self.parent_edit.text().strip()
+        raw_id = self.parent_combo.currentData()
+        parent_id = None if raw_id == self._TOP_LEVEL_SENTINEL else raw_id
         return {
             "title": self.title_edit.text().strip(),
             "classification": self.classification_combo.currentText(),
-            "parent_position_id": int(parent_text) if parent_text else None,
+            "parent_position_id": parent_id,
             "operational_period": self.period_edit.text().strip(),
             "required_qualifications": self.qualifications_edit.text().strip(),
             "is_critical": self.critical_check.isChecked(),
@@ -216,6 +249,47 @@ class TemplatesDialog(QDialog):
         return self._selected_name
 
 
+class _MoveUnderDialog(QDialog):
+    """Prompt for choosing a new parent position (or top level) for a position."""
+
+    _TOP_LEVEL_SENTINEL = -1
+
+    def __init__(
+        self,
+        position_title: str,
+        candidates: list[OrganizationPosition],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Move Position Under…")
+        layout = QFormLayout(self)
+        layout.addRow(QLabel(f'Move "{position_title}" under:', self))
+        self.combo = QComboBox(self)
+        self.combo.addItem("— Top Level (no parent) —", self._TOP_LEVEL_SENTINEL)
+        from collections import defaultdict
+
+        by_parent: dict[int | None, list[OrganizationPosition]] = defaultdict(list)
+        for pos in candidates:
+            by_parent[pos.parent_position_id].append(pos)
+
+        def add_children(parent_id: int | None, depth: int) -> None:
+            for pos in by_parent.get(parent_id, []):
+                label = "    " * depth + pos.title + f"  ({pos.classification})"
+                self.combo.addItem(label, pos.id)
+                add_children(pos.id, depth + 1)
+
+        add_children(None, 0)
+        layout.addRow("New parent", self.combo)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def selected_parent_id(self) -> int | None:
+        raw = self.combo.currentData()
+        return None if raw == self._TOP_LEVEL_SENTINEL else raw
+
+
 class IncidentOrganizationPanel(QWidget):
     """Tree, detail, staffing, and generator support for incident organization."""
 
@@ -258,6 +332,8 @@ class IncidentOrganizationPanel(QWidget):
         self.tree = QTreeWidget(self)
         self.tree.setHeaderLabels(["Organization", "Status"])
         self.tree.itemSelectionChanged.connect(self._handle_tree_selection)
+        self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._show_tree_context_menu)
         splitter.addWidget(self.tree)
 
         center = QWidget(self)
@@ -426,8 +502,11 @@ class IncidentOrganizationPanel(QWidget):
         assignments = self.controller.list_assignments(position_id)
         summary = self.controller.staffing_summary().get(position_id)
         self.detail_title.setText(position.title)
+        parent_label = "top level"
+        if position.parent_position_id and position.parent_position_id in self._positions_by_id:
+            parent_label = self._positions_by_id[position.parent_position_id].title
         self.detail_meta.setText(
-            f"{position.classification} | Parent: {position.parent_position_id or 'top level'} | "
+            f"{position.classification} | Parent: {parent_label} | "
             f"Operational period: {position.operational_period or 'any'}"
         )
         critical = "Critical" if position.is_critical else "Standard"
@@ -455,7 +534,41 @@ class IncidentOrganizationPanel(QWidget):
                 self.assignments_table.setItem(row, col, item)
 
     # ------------------------------------------------------------------
+    def _show_tree_context_menu(self, point) -> None:
+        if not self.incident_id:
+            return
+        menu = QMenu(self)
+        action_add_child = QAction("Add Child Position…", self)
+        action_add_child.triggered.connect(self._add_child_position)
+        menu.addAction(action_add_child)
+        action_add_sibling = QAction("Add Sibling Position…", self)
+        action_add_sibling.triggered.connect(self._add_sibling_position)
+        menu.addAction(action_add_sibling)
+        action_add_top = QAction("Add Top-Level Position…", self)
+        action_add_top.triggered.connect(self._add_position)
+        menu.addAction(action_add_top)
+        menu.addSeparator()
+        position_id = self._selected_position_id()
+        action_move = QAction("Move Under…", self)
+        action_move.triggered.connect(self._move_position)
+        action_move.setEnabled(bool(position_id))
+        menu.addAction(action_move)
+        menu.exec(self.tree.mapToGlobal(point))
+
     def _add_position(self) -> None:
+        self._open_add_dialog(preset_parent_id=None)
+
+    def _add_child_position(self) -> None:
+        self._open_add_dialog(preset_parent_id=self._selected_position_id())
+
+    def _add_sibling_position(self) -> None:
+        position_id = self._selected_position_id()
+        sibling_parent: int | None = None
+        if position_id and position_id in self._positions_by_id:
+            sibling_parent = self._positions_by_id[position_id].parent_position_id
+        self._open_add_dialog(preset_parent_id=sibling_parent)
+
+    def _open_add_dialog(self, *, preset_parent_id: int | None) -> None:
         if not self.incident_id:
             QMessageBox.warning(
                 self,
@@ -463,7 +576,12 @@ class IncidentOrganizationPanel(QWidget):
                 "Load an incident before managing organization.",
             )
             return
-        dialog = PositionDialog(self, parent_position_id=self._selected_position_id())
+        positions = list(self._positions_by_id.values())
+        dialog = PositionDialog(
+            self,
+            parent_position_id=preset_parent_id,
+            existing_positions=positions,
+        )
         if dialog.exec() == QDialog.Accepted:
             try:
                 self._ensure_controller().add_position(dialog.values())
@@ -479,13 +597,33 @@ class IncidentOrganizationPanel(QWidget):
         position = self._ensure_controller().get_position(position_id)
         if position is None:
             return
-        dialog = PositionDialog(self, position=position)
+        positions = list(self._positions_by_id.values())
+        dialog = PositionDialog(
+            self,
+            position=position,
+            existing_positions=positions,
+            exclude_id=position_id,
+        )
         if dialog.exec() == QDialog.Accepted:
             try:
                 self._ensure_controller().update_position(position_id, dialog.values())
             except ValueError as exc:
                 QMessageBox.warning(self, "Position", str(exc))
                 return
+            self._refresh()
+
+    def _move_position(self) -> None:
+        position_id = self._selected_position_id()
+        if not position_id or not self.incident_id:
+            return
+        position = self._positions_by_id.get(position_id)
+        if position is None:
+            return
+        positions = [p for p in self._positions_by_id.values() if p.id != position_id]
+        dialog = _MoveUnderDialog(position.title, positions, self)
+        if dialog.exec() == QDialog.Accepted:
+            new_parent = dialog.selected_parent_id()
+            self._ensure_controller().move_position(position_id, new_parent)
             self._refresh()
 
     def _deactivate_position(self) -> None:

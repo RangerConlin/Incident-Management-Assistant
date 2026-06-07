@@ -59,7 +59,7 @@ import sqlite3
 # 'os' imported earlier for env setup
 from utils.theme_manager import ThemeManager
 from bridge.theme_bridge import ThemeBridge
-from styles.qss_helpers import global_qss
+from styles.qss_helpers import global_qss, ads_qss
 from utils.audit import fetch_last_audit_rows, write_audit
 from utils.session import end_session
 from utils.constants import TEAM_STATUSES
@@ -203,8 +203,11 @@ class MainWindow(QMainWindow):
         # Initialize theme manager/bridge using persisted setting
         try:
             app = QApplication.instance()
-            saved_theme = str(self.settings_bridge.getSetting('themeName') or 'light').lower()
-            if saved_theme not in {"light", "dark"}:
+            saved_theme = str(self.settings_bridge.getSetting('themeName') or 'system').lower()
+            if saved_theme == 'system':
+                from styles.profiles import get_profile_name
+                saved_theme = get_profile_name()
+            elif saved_theme not in {"light", "dark"}:
                 saved_theme = "light"
             self.theme_manager = ThemeManager(app, initial_theme=saved_theme)
             self.theme_bridge = ThemeBridge(self.theme_manager.tokens())
@@ -218,9 +221,15 @@ class MainWindow(QMainWindow):
             )
             # React to settings changes (persisted toggle) to drive ThemeManager
             try:
-                self.settings_bridge.settingChanged.connect(
-                    lambda key, value: self.theme_manager.setTheme(str(value)) if key == 'themeName' else None
-                )
+                def _on_window_theme_changed(key, value, _tm=self.theme_manager):
+                    if key != 'themeName':
+                        return
+                    theme = str(value).lower()
+                    if theme == 'system':
+                        from styles.profiles import get_profile_name
+                        theme = get_profile_name()
+                    _tm.setTheme(theme)
+                self.settings_bridge.settingChanged.connect(_on_window_theme_changed)
             except Exception:
                 pass
         except Exception:
@@ -282,6 +291,63 @@ class MainWindow(QMainWindow):
         # If CDockManager is a QWidget, add to container layout to fill area
         try:
             cont_layout.addWidget(self.dock_manager)  # type: ignore[name-defined]
+        except Exception:
+            pass
+
+        # ADS appends its own rules to QApplication.styleSheet() during construction.
+        # Re-applying our full stylesheet now ensures our ads-- rules come last and win.
+        # We also set the stylesheet directly on the dock_manager as a belt-and-suspenders
+        # measure (widget-level CSS beats application-level CSS in Qt's cascade).
+        def _flatten_tab_palettes(tokens: dict) -> None:
+            try:
+                from PySide6.QtGui import QPalette, QColor
+                from PySide6QtAds import CDockWidgetTab
+                flat = QColor(tokens.get("bg_panel", "#151821"))
+                active_flat = QColor(tokens.get("bg_raised", "#1B1F2A"))
+                text = QColor(tokens.get("fg_primary", "#ECEFF4"))
+                _gradient_roles = (
+                    QPalette.ColorRole.Button,
+                    QPalette.ColorRole.Light,
+                    QPalette.ColorRole.Midlight,
+                    QPalette.ColorRole.Mid,
+                    QPalette.ColorRole.Dark,
+                    QPalette.ColorRole.Shadow,
+                    QPalette.ColorRole.Window,
+                    QPalette.ColorRole.Base,
+                )
+                for tab in self.dock_manager.findChildren(CDockWidgetTab):
+                    p = tab.palette()
+                    bg = active_flat if tab.isActiveTab() else flat
+                    for role in _gradient_roles:
+                        p.setColor(role, bg)
+                    p.setColor(QPalette.ColorRole.ButtonText, text)
+                    p.setColor(QPalette.ColorRole.WindowText, text)
+                    p.setColor(QPalette.ColorRole.Text, text)
+                    tab.setPalette(p)
+                    tab.update()
+            except Exception:
+                pass
+
+        def _apply_full_theme(tokens: dict) -> None:
+            app = QApplication.instance()
+            if app is not None:
+                app.setStyleSheet(global_qss(tokens))
+            try:
+                self.dock_manager.setStyleSheet(ads_qss(tokens))
+            except Exception:
+                pass
+            # Palette fix is deferred so it runs after dock widgets are created.
+            # QTimer.singleShot(0) fires on the next event-loop tick, after __init__
+            # completes and all CDockWidgetTab children exist.
+            QTimer.singleShot(0, lambda: _flatten_tab_palettes(tokens))
+
+        try:
+            if getattr(self, "theme_manager", None):
+                _tokens = self.theme_manager.tokens()
+                _apply_full_theme(_tokens)
+                self.theme_manager.themeChanged.connect(
+                    lambda _: _apply_full_theme(self.theme_manager.tokens())
+                )
         except Exception:
             pass
 
@@ -350,6 +416,19 @@ class MainWindow(QMainWindow):
 
         # Build the physical menu bar (visible UI)
         self.init_module_menus()
+
+        # Fill the empty right portion of the menu bar so it paints the same
+        # background color as the rest of the bar (Windows 11 leaves it white).
+        _mb_corner = QWidget()
+        _mb_corner.setObjectName("MenuBarCorner")
+        _mb_corner.setAutoFillBackground(True)
+        try:
+            _mb_color = (self.theme_manager.tokens().get("menu_bar_bg", "#1313AB")
+                         if getattr(self, "theme_manager", None) else "#1313AB")
+            _mb_corner.setStyleSheet(f"background: {_mb_color};")
+        except Exception:
+            _mb_corner.setStyleSheet("background: #1313AB;")
+        self.menuBar().setCornerWidget(_mb_corner, Qt.TopRightCorner)
 
         # If no saved layout was opened, create some default docks to play with
         # Seed defaults if not forced and no perspective opened or nothing is docked
@@ -3516,6 +3595,7 @@ class MetricWidget(QWidget):
 if __name__ == "__main__":
     import argparse
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
 
     def _on_quit():
         try:
@@ -3563,9 +3643,12 @@ if __name__ == "__main__":
 
     # Initialize theme manager/bridge at app level as well
     try:
-        saved = settings_bridge.getSetting('themeName') or 'light'
+        saved = settings_bridge.getSetting('themeName') or 'system'
         saved = str(saved).lower()
-        if saved not in {"light", "dark"}:
+        if saved == 'system':
+            from styles.profiles import get_profile_name
+            saved = get_profile_name()
+        elif saved not in {"light", "dark"}:
             saved = "light"
         _theme_manager = ThemeManager(app, initial_theme=saved)
         _theme_bridge = ThemeBridge(_theme_manager.tokens())
@@ -3578,9 +3661,15 @@ if __name__ == "__main__":
         )
         # React to settings bridge updates
         try:
-            settings_bridge.settingChanged.connect(
-                lambda key, value: _theme_manager.setTheme(str(value)) if key == 'themeName' else None
-            )
+            def _on_theme_setting_changed(key, value):
+                if key != 'themeName':
+                    return
+                theme = str(value).lower()
+                if theme == 'system':
+                    from styles.profiles import get_profile_name
+                    theme = get_profile_name()
+                _theme_manager.setTheme(theme)
+            settings_bridge.settingChanged.connect(_on_theme_setting_changed)
         except Exception:
             pass
     except Exception:
