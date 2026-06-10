@@ -122,4 +122,3 @@ class NewChannelDialog(QDialog):
             "include_on_205": self.cb_include.isChecked(),
             "remarks": self.ed_remarks.toPlainText().strip() or None,
         }
-

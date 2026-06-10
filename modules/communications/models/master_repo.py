@@ -90,4 +90,3 @@ class MasterRepository:
 
 
 __all__ = ["MasterRepository"]
-

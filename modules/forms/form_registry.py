@@ -123,4 +123,3 @@ class FormRegistry:
 
 
 __all__ = ["FormRegistry", "TemplateMeta"]
-

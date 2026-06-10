@@ -469,4 +469,3 @@ class HospitalManagerDialog(QDialog):
 
 
 __all__ = ["HospitalManagerDialog"]
-

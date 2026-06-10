@@ -23,6 +23,14 @@ class AppState:
         )
         cls._active_incident_number = incident_number
         normalized_incident_id = None if incident_number is None else str(incident_number)
+        # Persist the last selected incident for startup behavior features
+        try:
+            if normalized_incident_id is not None:
+                # Lazy import to avoid any heavy deps on import time
+                from utils.settingsmanager import SettingsManager  # type: ignore
+                SettingsManager().set("""lastIncidentNumber""", normalized_incident_id)
+        except Exception as e:
+            logger.warning("""[state] failed to persist lastIncidentNumber: %s""", e)
         # Keep incident_context (DB path provider) in sync
         try:
             from utils import incident_context

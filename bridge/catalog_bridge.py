@@ -269,4 +269,3 @@ class CatalogBridge(QObject):
     @Slot(int, result=bool)
     def deleteSafetyTemplate(self, id_value: int) -> bool:
         return self._svc("safety_templates").delete(id_value)
-

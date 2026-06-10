@@ -21,6 +21,7 @@ try:  # pragma: no cover - executed only when Qt is available
         get_213rr_panel,
         get_personnel_panel,
         get_vehicles_panel,
+        get_resource_status_board_panel,
     )
 except Exception as exc:  # pragma: no cover - Qt not available
     def _missing(*_: object, __exc: Exception = exc, **__: object) -> None:
@@ -30,6 +31,7 @@ except Exception as exc:  # pragma: no cover - Qt not available
 
     get_logistics_panel = get_checkin_panel = get_equipment_panel = _missing
     get_213rr_panel = get_personnel_panel = get_vehicles_panel = _missing
+    get_resource_status_board_panel = _missing
 
 __all__ = [
     "get_logistics_panel",
@@ -38,4 +40,5 @@ __all__ = [
     "get_213rr_panel",
     "get_personnel_panel",
     "get_vehicles_panel",
+    "get_resource_status_board_panel",
 ]

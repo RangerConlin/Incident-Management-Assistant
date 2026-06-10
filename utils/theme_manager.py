@@ -94,4 +94,3 @@ class ThemeManager(QObject):
     def remove_custom_theme(self, theme_id: str) -> None:
         theme_id = (theme_id or "").strip().lower()
         self._custom_tokens.pop(theme_id, None)
-

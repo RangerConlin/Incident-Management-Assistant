@@ -116,4 +116,3 @@ def add_safety_plan(event_id: str, data: schemas.SafetyPlanCreate) -> models.Saf
         session.add(obj)
         session.flush()
         return obj
-

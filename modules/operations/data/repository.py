@@ -103,6 +103,18 @@ def _ensure_teams_name_column(con: sqlite3.Connection) -> None:
         pass
 
 
+def _ensure_teams_location_column(con: sqlite3.Connection) -> None:
+    """Add teams.location if missing (best-effort)."""
+    try:
+        cur = con.execute("PRAGMA table_info(teams)")
+        cols = {row[1] for row in cur.fetchall()}
+        if "location" not in cols:
+            con.execute("ALTER TABLE teams ADD COLUMN location TEXT")
+            con.commit()
+    except Exception:
+        pass
+
+
 def _ensure_teams_attention_column(con: sqlite3.Connection) -> None:
     """Add teams.needs_attention if missing (best-effort)."""
     try:
@@ -148,7 +160,7 @@ def _iso_timestamp(value: datetime | None) -> str:
         dt = dt.replace(tzinfo=timezone.utc)
     else:
         dt = dt.astimezone(timezone.utc)
-    return dt.isoformat()
+    return dt.isoformat(timespec="seconds")
 
 def _derive_team_status(row: sqlite3.Row) -> str:
     """Derive a coarse team status from task_teams timestamp columns.
@@ -191,6 +203,9 @@ def _derive_team_status(row: sqlite3.Row) -> str:
     return "assigned"
 
 
+
+
+
 def fetch_task_rows() -> List[Dict[str, Any]]:
     """Return task rows for the Task Status board from the incident DB.
 
@@ -198,10 +213,13 @@ def fetch_task_rows() -> List[Dict[str, Any]]:
     priority, location.
     """
     with _connect() as con:
+        # Base task headers
         tasks = con.execute(
             "SELECT id, task_id, title, status, priority, location FROM tasks ORDER BY id"
         ).fetchall()
-        # Preload assignments grouped by task_id
+        # Ensure teams.current_task_id exists for filtering
+        _ensure_teams_current_task_column(con)
+        # Preload active assignments grouped by task_id, per policy: active iff team's current_task_id == task.id
         tt_rows = con.execute(
             """
             SELECT tt.task_id,
@@ -210,6 +228,7 @@ def fetch_task_rows() -> List[Dict[str, Any]]:
                    tm.name AS team_name
               FROM task_teams tt
          LEFT JOIN teams tm ON tt.teamid = tm.id
+             WHERE tm.current_task_id = tt.task_id
              ORDER BY tt.id
             """
         ).fetchall()
@@ -243,21 +262,24 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
     """Return team rows for the Team Status board based on teams as the source.
 
     Each dict contains: team_id, sortie, name(label), leader, contact, status,
-    assignment (task title if currently assigned), location (task location),
-    task_id (current).
+    assignment (task title if currently assigned), location, task_id (current).
     """
     with _connect() as con:
         _ensure_teams_status_columns(con)
         _ensure_teams_current_task_column(con)
         _ensure_teams_name_column(con)
+        _ensure_teams_location_column(con)
         _ensure_teams_attention_column(con)
         _ensure_team_alert_columns(con)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(teams)").fetchall()}
+        has_team_loc = ("location" in cols)
         has_msg = _has_table(con, "message_log_entry")
         last_msg_select = (
             "(SELECT MAX(timestamp) FROM message_log_entry me WHERE me.sender = COALESCE(tm.callsign, tm.name) OR me.recipient = COALESCE(tm.callsign, tm.name))"
             if has_msg
             else "NULL"
         )
+        loc_select = "tm.location AS team_location," if has_team_loc else "NULL AS team_location,"
         sql = f"""
             SELECT tm.id AS team_id,
                    tm.current_task_id AS task_id,
@@ -269,6 +291,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                      ORDER BY tt2.id DESC
                      LIMIT 1) AS sortie_id,
                    tm.name AS team_name,
+                   {loc_select}
                    t.title AS assignment,
                    t.location AS task_location,
                    tm.status AS team_status,
@@ -290,7 +313,6 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for r in rows:
         team_id = int(r["team_id"]) if r["team_id"] is not None else None
-        # Prefer explicit team name; else use sortie, else synthetic label
         team_label = r["team_name"] or r["sortie_id"] or (f"Team {team_id}" if team_id is not None else "Team")
         team_type = (r["team_type"] if "team_type" in r.keys() else None) or ""
         try:
@@ -304,7 +326,6 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             "on scene": "arrival",
             "rtb": "returning",
         }.get(status, status)
-        # Compute derived last update as max of team status_updated and latest comms log
         try:
             ts1 = (r["team_status_updated"] or "").strip() if "team_status_updated" in r.keys() else ""
         except Exception:
@@ -313,12 +334,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             ts2 = (r["last_msg_ts"] or "").strip() if "last_msg_ts" in r.keys() else ""
         except Exception:
             ts2 = ""
-        # Choose lexicographically max ISO timestamp if both exist, else whichever is non-empty
-        derived_last_updated = None
-        if ts1 and ts2:
-            derived_last_updated = ts1 if ts1 >= ts2 else ts2
-        else:
-            derived_last_updated = ts1 or ts2 or None
+        derived_last_updated = ts1 if (ts1 and (not ts2 or ts1 >= ts2)) else (ts2 or None)
         needs_attention = r["needs_attention"] if "needs_attention" in r.keys() else 0
         try:
             needs_attention = int(needs_attention)
@@ -330,26 +346,20 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
         except Exception:
             emergency_flag = str(raw_emergency).strip().lower() in {"true", "yes", "1"}
         last_checkin_at = r["last_checkin_at"] if "last_checkin_at" in r.keys() else None
-        checkin_reference_at = (
-            r["checkin_reference_at"] if "checkin_reference_at" in r.keys() else None
-        )
+        checkin_reference_at = r["checkin_reference_at"] if "checkin_reference_at" in r.keys() else None
         last_checkin_at = str(last_checkin_at).strip() if last_checkin_at else None
-        checkin_reference_at = (
-            str(checkin_reference_at).strip() if checkin_reference_at else None
-        )
-        last_updated = (
-            last_checkin_at
-            or checkin_reference_at
-            or derived_last_updated
-        )
-        # Only show a sortie number if the team is currently assigned to a task
-        # and that task assignment has a sortie id.
+        checkin_reference_at = str(checkin_reference_at).strip() if checkin_reference_at else None
+        last_updated = last_checkin_at or checkin_reference_at or derived_last_updated
         try:
             current_task_id = int(r["task_id"]) if r["task_id"] is not None else None
         except Exception:
             current_task_id = None
         raw_sortie = r["sortie_id"] if "sortie_id" in r.keys() else None
         sortie_display = str(raw_sortie) if (current_task_id is not None and raw_sortie) else ""
+        # Location selection: team location preferred over task location
+        team_loc = r["team_location"] if ("team_location" in r.keys() and r["team_location"]) else None
+        task_loc = r["task_location"] if ("task_location" in r.keys() and r["task_location"]) else ""
+        location = team_loc or task_loc or ""
 
         out.append(
             {
@@ -363,7 +373,7 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
                 "contact": r["leader_contact"] or "",
                 "status": status,
                 "assignment": r["assignment"] or "",
-                "location": r["task_location"] or "",
+                "location": location,
                 "needs_attention": bool(needs_attention),
                 "needs_assistance_flag": bool(needs_attention),
                 "emergency_flag": emergency_flag,
@@ -374,8 +384,6 @@ def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
             }
         )
     return out
-
-
 def touch_team_checkin(
     team_id: int,
     *,
@@ -439,7 +447,7 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
     }
     col = col_map.get(key)
     from datetime import datetime
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     with _connect() as con:
         # Update task_teams timeline (first instance only if already stamped)
         if col:
@@ -478,6 +486,15 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
             if 'team_id' in locals() and team_id is not None:
                 from utils.app_signals import app_signals
                 app_signals.teamStatusChanged.emit(int(team_id))
+        except Exception:
+            pass
+        # Also notify task board to refresh assignments if task id known
+        try:
+            if 'task_id_for_214' in locals() and task_id_for_214 is not None:
+                from utils.app_signals import app_signals as _sig2
+                _sig2.taskHeaderChanged.emit(int(task_id_for_214), {'assigned_teams': True})
+        except Exception:
+            pass
         except Exception:
             pass
     # Also append ICS-214 entries for both the team and associated task streams
@@ -532,7 +549,7 @@ def set_team_status(team_id: int, status_key: str) -> None:
     """
     key = str(status_key).strip().lower()
     from datetime import datetime
-    now = datetime.utcnow().isoformat()
+    now = datetime.utcnow().isoformat(timespec="seconds")
     display = {
         "enroute": "En Route",
         "on scene": "On Scene",
@@ -563,6 +580,23 @@ def set_team_status(team_id: int, status_key: str) -> None:
             (int(team_id),),
         ).fetchone()
         task_id = int(row[0]) if row and row[0] is not None else None
+        # Clear current task when setting team Available
+        if key in {"available", "avail", "free", "unassigned"}:
+            if task_id is not None:
+                try:
+                    # Stamp cleared time on latest task_teams row for this team/task
+                    tt = con.execute(
+                        "SELECT id, time_cleared FROM task_teams WHERE task_id=? AND teamid=? ORDER BY id DESC LIMIT 1",
+                        (task_id, int(team_id)),
+                    ).fetchone()
+                    if tt and (tt[1] is None or str(tt[1]).strip() == ""):
+                        con.execute("UPDATE task_teams SET time_cleared=? WHERE id=?", (now, int(tt[0])))
+                except Exception:
+                    pass
+                try:
+                    con.execute("UPDATE teams SET current_task_id=NULL WHERE id=?", (int(team_id),))
+                except Exception:
+                    pass
         if task_id and key in col_map:
             tt = con.execute(
                 "SELECT id FROM task_teams WHERE task_id=? AND teamid=? ORDER BY id DESC LIMIT 1",
@@ -579,10 +613,26 @@ def set_team_status(team_id: int, status_key: str) -> None:
             col = col_map[key]
             con.execute(f"UPDATE task_teams SET {col}=? WHERE id=?", (now, tt_id))
         con.commit()
+        # Notify boards that assignment list may have changed
+        try:
+            if 'task_id' in locals() and task_id is not None:
+                from utils.app_signals import app_signals as _sig2
+                _sig2.taskHeaderChanged.emit(int(task_id), {'assigned_teams': True})
+        except Exception:
+            pass
         # Emit teamStatusChanged for UI timers
         try:
             from utils.app_signals import app_signals
             app_signals.teamStatusChanged.emit(int(team_id))
+        except Exception:
+            pass
+        # Also notify task board to refresh assignments if task id known
+        try:
+            if 'task_id_for_214' in locals() and task_id_for_214 is not None:
+                from utils.app_signals import app_signals as _sig2
+                _sig2.taskHeaderChanged.emit(int(task_id_for_214), {'assigned_teams': True})
+        except Exception:
+            pass
         except Exception:
             pass
     # Also append ICS-214 entries for both the team and associated task streams
@@ -625,3 +675,40 @@ def set_team_status(team_id: int, status_key: str) -> None:
                 _ics.add_entry(str(inc), getattr(task_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
     except Exception:
         pass
+
+
+
+
+
+
+
+
+def list_tasks_for_assignment() -> List[Dict[str, Any]]:
+    """Return a lightweight list of tasks for assignment pickers.
+
+    Each row: id, task_id (display number), title, status, location.
+    Safe across schema variants and ordered by id.
+    """
+    with _connect() as con:
+        try:
+            rows = con.execute(
+                "SELECT id, task_id, title, status, priority, location FROM tasks ORDER BY id"
+            ).fetchall()
+        except Exception:
+            rows = []
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        try:
+            out.append(
+                {
+                    "id": int(r["id"]) if r["id"] is not None else 0,
+                    "task_id": r["task_id"],
+                    "title": r["title"],
+                    "status": _task_status_label(r["status"]) if "status" in r.keys() else "",
+                    "priority": _priority_label(r["priority"]) if "priority" in r.keys() else "",
+                    "location": r["location"] if "location" in r.keys() else "",
+                }
+            )
+        except Exception:
+            pass
+    return out

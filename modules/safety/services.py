@@ -27,7 +27,7 @@ def _notify_flagged(report: schemas.SafetyReportRead):
 
 def _audit(action: str, model: str, data: dict):
     _audit_log.append({
-        "ts": datetime.utcnow().isoformat(),
+        "ts": datetime.utcnow().isoformat(timespec="seconds"),
         "action": action,
         "model": model,
         "data": data,
@@ -156,7 +156,11 @@ def create_cap_orm(incident_id: str, data: schemas.CapOrmCreate) -> schemas.CapO
 def build_ics206(incident_id: str, payload: schemas.ICS206Create) -> schemas.ICS206Read:
     data = payload.dict()
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    forms_dir = os.path.join("data", "incidents", incident_id, "forms")
+    from utils import incident_storage
+    paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+    if paths is None:
+        raise RuntimeError(f"Unknown incident: {incident_id}")
+    forms_dir = str(paths.forms_exports)
     os.makedirs(forms_dir, exist_ok=True)
 
     json_path = os.path.join(forms_dir, f"ICS206-{timestamp}.json")

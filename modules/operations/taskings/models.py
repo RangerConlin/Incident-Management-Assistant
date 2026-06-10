@@ -57,4 +57,3 @@ class TaskDetail:
     narrative: List[NarrativeEntry] = field(default_factory=list)
     teams: List[TaskTeam] = field(default_factory=list)
     # Personnel, Vehicles, Assignment, Comms, Debrief, Log, Attachments, Planning can be added as needed
-

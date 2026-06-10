@@ -740,4 +740,3 @@ __all__ = [
     "EquipmentDetailDialog",
     "ensure_schema",
 ]
-

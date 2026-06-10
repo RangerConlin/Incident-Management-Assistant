@@ -84,7 +84,7 @@ def list_subject_options(incident_id: str) -> Dict[str, List[Dict[str, Any]]]:
                     {
                         "ref": f"team:{row['id']}",
                         "label": row["label"],
-                        "description": " — ".join(description_parts),
+                        "description": " â€” ".join(description_parts),
                     }
                 )
         except Exception as exc:  # pragma: no cover - optional data
@@ -117,7 +117,7 @@ def list_subject_options(incident_id: str) -> Dict[str, List[Dict[str, Any]]]:
                     {
                         "ref": f"individual:{row['id']}",
                         "label": row["label"],
-                        "description": " — ".join(description_parts),
+                        "description": " â€” ".join(description_parts),
                     }
                 )
         except Exception as exc:  # pragma: no cover - optional data
@@ -188,7 +188,7 @@ def list_subject_options(incident_id: str) -> Dict[str, List[Dict[str, Any]]]:
                     {
                         "ref": f"facility:aid_station:{row['id']}",
                         "label": row["label"],
-                        "description": " — ".join(description_parts),
+                        "description": " â€” ".join(description_parts),
                     }
                 )
         except Exception as exc:  # pragma: no cover - optional data
@@ -214,7 +214,7 @@ def _entry_to_dict(entry: ICS214Entry) -> Dict[str, Any]:
     return {
         "id": entry.id,
         "stream_id": entry.stream_id,
-        "timestamp_utc": entry.timestamp_utc.isoformat(),
+        "timestamp_utc": entry.timestamp_utc.isoformat(timespec="seconds"),
         "text": entry.text,
         "source": entry.source,
         "actor_user_id": entry.actor_user_id,

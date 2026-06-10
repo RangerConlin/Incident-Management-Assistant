@@ -305,7 +305,7 @@ class TaskDetailWindow(QWidget):
             pass
         self._nar_entry_top = QTextEdit(self)
         try:
-            self._nar_entry_top.setPlaceholderText("Type narrative… (Enter to add)")
+            self._nar_entry_top.setPlaceholderText("Type narrativeâ€¦ (Enter to add; Shift+Enter = newline)")
         except Exception:
             pass
         # Make it ~3 lines tall
@@ -314,10 +314,23 @@ class TaskDetailWindow(QWidget):
             self._nar_entry_top.setFixedHeight(max(56, int(fm.lineSpacing() * 3 + 12)))
         except Exception:
             self._nar_entry_top.setFixedHeight(72)
-        # Submit on Ctrl+Enter as QTextEdit is multi-line
+        # Submit on Enter; Shift+Enter inserts newline
         try:
             from PySide6.QtGui import QKeySequence
-            self._nar_entry_top.keyPressEvent = (lambda orig: (lambda e: (self.add_narrative() if (e.modifiers() & Qt.ControlModifier and e.key() in (Qt.Key_Return, Qt.Key_Enter)) else orig(e))))(self._nar_entry_top.keyPressEvent)
+            orig = self._nar_entry_top.keyPressEvent
+            def _kpe(e):
+                try:
+                    if e.key() in (Qt.Key_Return, Qt.Key_Enter):
+                        if e.modifiers() & Qt.ShiftModifier:
+                            return orig(e)  # newline
+                        else:
+                            self.add_narrative()
+                            e.accept()
+                            return  # consume
+                    return orig(e)
+                except Exception:
+                    return orig(e)
+            self._nar_entry_top.keyPressEvent = _kpe
         except Exception:
             pass
         self._nar_crit_top = QCheckBox("Critical", self)
@@ -333,7 +346,8 @@ class TaskDetailWindow(QWidget):
         root.addWidget(tabs, 1)
 
         # Narrative tab
-        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical", "214+"]
+        # Add a small dropdown cue on Critical to make editability obvious
+        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical â–¼", "214+"]
         self._nar_model = QStandardItemModel(0, len(self._nar_headers_base), self)
         self._nar_model.setHorizontalHeaderLabels(self._nar_headers_base)
         nar_content = QWidget(self)
@@ -352,7 +366,7 @@ class TaskDetailWindow(QWidget):
             self._nar_entry.setVisible(False)
         except Exception:
             pass
-        self._nar_entry.setPlaceholderText("Type narrative… (Enter to add)")
+        self._nar_entry.setPlaceholderText("Type narrativeâ€¦ (Enter to add; Shift+Enter = newline)")
         self._nar_entry.returnPressed.connect(self.add_narrative)
         self._nar_crit = QComboBox(nar_content)
         try:
@@ -540,14 +554,19 @@ class TaskDetailWindow(QWidget):
             "Complete",
         ]
         self._teams_model = QStandardItemModel(0, len(self._teams_headers_base), self)
-        self._teams_model.setHorizontalHeaderLabels(list(self._teams_headers_base)) 
+        self._teams_model.setHorizontalHeaderLabels(list(self._teams_headers_base))
         self._teams_table = QTableView(self)
         self._teams_table.setModel(self._teams_model)
         self._teams_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._teams_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._teams_table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
         self._teams_table.setAlternatingRowColors(True)
         self._teams_table.setSortingEnabled(True)
         self._teams_table.setColumnHidden(0, True)
+        try:
+            # Persist edits in the Sortie column
+            self._teams_model.itemChanged.connect(self._on_team_item_changed)
+        except Exception:
+            pass
         th: QHeaderView = self._teams_table.horizontalHeader()
         try:
             th.setStretchLastSection(False)
@@ -592,7 +611,7 @@ class TaskDetailWindow(QWidget):
             pass
         self._pers_headers_base = ["Active", "Name", "ID", "Rank", "Role", "Organization", "Phone", "Team"]
         self._pers_model = QStandardItemModel(0, len(self._pers_headers_base), self)
-        self._pers_model.setHorizontalHeaderLabels(list(self._pers_headers_base)) 
+        self._pers_model.setHorizontalHeaderLabels(list(self._pers_headers_base))
         self._pers_table = QTableView(self)
         self._pers_table.setModel(self._pers_model)
         self._pers_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -640,8 +659,8 @@ class TaskDetailWindow(QWidget):
         tabs.addTab(pers_scroll, "Personnel")
 
         # Other tabs (placeholders, kept minimal to avoid scope growth)
-        tabs.addTab(QLabel("Teams — coming soon"), "Teams")
-        tabs.addTab(QLabel("Personnel — coming soon"), "Personnel")
+        tabs.addTab(QLabel("Teams - coming soon"), "Teams")
+        tabs.addTab(QLabel("Personnel - coming soon"), "Personnel")
         # Vehicles tab
         veh_content = QWidget(self)
         veh_layout = QVBoxLayout(veh_content)
@@ -883,7 +902,7 @@ class TaskDetailWindow(QWidget):
                 try:
                     cb.addItems(list(_RADIO_TASK_FUNCTIONS))
                 except Exception:
-                    cb.addItems(["PRIMARY", "SECONDARY", "COMMAND", "TACTICAL"]) 
+                    cb.addItems(["PRIMARY", "SECONDARY", "COMMAND", "TACTICAL"])
                 return cb
 
             def setEditorData(self, editor, index):  # type: ignore[override]
@@ -1042,7 +1061,7 @@ class TaskDetailWindow(QWidget):
         deb_v.addWidget(self._deb_editor, 3)
 
         tabs.addTab(deb_content, "Debriefing")
-        tabs.addTab(QLabel("Log — coming soon"), "Log")
+        tabs.addTab(QLabel("Log - coming soon"), "Log")
         # Attachments/Forms tab
         att_content = QWidget(self)
         att_v = QVBoxLayout(att_content)
@@ -1106,12 +1125,21 @@ class TaskDetailWindow(QWidget):
             self._model_214 = QStandardItemModel(0, 3, self)
             self._model_214.setHorizontalHeaderLabels(["Timestamp", "Entry", "Entered By"])
             self._tbl_214.setModel(self._model_214); self._tbl_214.setSortingEnabled(True)
+            # Resize behavior: Timestamp autosize to contents; Entry stretches
+            try:
+                hh214 = self._tbl_214.horizontalHeader()
+                hh214.setStretchLastSection(False)
+                hh214.setSectionResizeMode(QHeaderView.Interactive)
+                hh214.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+                hh214.setSectionResizeMode(1, QHeaderView.Stretch)
+            except Exception:
+                pass
             ics_layout.addWidget(self._tbl_214)
             self._log_tabs.addTab(ics214, "ICS-214")
             # Task Log
             tlog = QWidget(self); tlog_layout = QVBoxLayout(tlog); tlog_bar = QHBoxLayout()
-            self._tlog_search = QLineEdit(); self._tlog_search.setPlaceholderText("Search keyword…")
-            self._tlog_field = QLineEdit(); self._tlog_field.setPlaceholderText("Field filter…")
+            self._tlog_search = QLineEdit(); self._tlog_search.setPlaceholderText("Search keyword...")
+            self._tlog_field = QLineEdit(); self._tlog_field.setPlaceholderText("Field filter...")
             self._tlog_from = QLineEdit(); self._tlog_from.setPlaceholderText("From (YYYY-MM-DD)")
             self._tlog_to = QLineEdit(); self._tlog_to.setPlaceholderText("To (YYYY-MM-DD)")
             self._btn_tlog_refresh = QPushButton("Refresh"); self._btn_tlog_export = QPushButton("Export CSV")
@@ -1121,6 +1149,13 @@ class TaskDetailWindow(QWidget):
             self._model_tlog = QStandardItemModel(0, 5, self)
             self._model_tlog.setHorizontalHeaderLabels(["Timestamp", "Field Changed", "Old Value", "New Value", "Changed By"])
             self._tbl_tlog.setModel(self._model_tlog); self._tbl_tlog.setSortingEnabled(True)
+            try:
+                hht = self._tbl_tlog.horizontalHeader()
+                hht.setStretchLastSection(False)
+                hht.setSectionResizeMode(QHeaderView.Interactive)
+                hht.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            except Exception:
+                pass
             tlog_layout.addWidget(self._tbl_tlog)
             self._log_tabs.addTab(tlog, "Task Log")
             # Team Log
@@ -1129,6 +1164,13 @@ class TaskDetailWindow(QWidget):
             self._model_teamlog = QStandardItemModel(0, 3, self)
             self._model_teamlog.setHorizontalHeaderLabels(["Timestamp", "Team", "Status Changed To"])
             self._tbl_teamlog.setModel(self._model_teamlog); self._tbl_teamlog.setSortingEnabled(True)
+            try:
+                hhm = self._tbl_teamlog.horizontalHeader()
+                hhm.setStretchLastSection(False)
+                hhm.setSectionResizeMode(QHeaderView.Interactive)
+                hhm.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            except Exception:
+                pass
             teamlog_layout.addWidget(self._tbl_teamlog)
             self._log_tabs.addTab(teamlog, "Team Log")
             # Default to ICS-214 sub-tab
@@ -1866,7 +1908,7 @@ class TaskDetailWindow(QWidget):
             return
         payload = {
             "taskid": self._task_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "narrative": text,
             "entered_by": "",
             "team_num": "",
@@ -2124,7 +2166,7 @@ class TaskDetailWindow(QWidget):
             if not inc or not entry_id:
                 return
             from PySide6.QtWidgets import QMessageBox
-            if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 return
             from modules.ics214 import services
             services.delete_entry(inc, entry_id)
@@ -2360,6 +2402,14 @@ class TaskDetailWindow(QWidget):
 
     # --- Teams Ops ---
     def load_teams(self) -> None:
+        # Temporarily disconnect itemChanged to avoid save-trigger during populate
+        _reconnect_item_changed = False
+        try:
+            self._teams_model.itemChanged.disconnect(self._on_team_item_changed)
+            _reconnect_item_changed = True
+        except Exception:
+            # Either not connected yet or disconnect failed; continue
+            pass
         try:
             from modules.operations.taskings.repository import list_task_teams
             rows = list_task_teams(int(self._task_id)) or []
@@ -2404,14 +2454,27 @@ class TaskDetailWindow(QWidget):
             row[0].setData(rid, Qt.EditRole)
             for idx in range(7, 13):
                 row[idx].setData(int(Qt.AlignHCenter | Qt.AlignVCenter), Qt.TextAlignmentRole)
+                        # Only allow editing Sortie column; others read-only
+            try:
+                for _c, _it in enumerate(row):
+                    _it.setEditable(True if _c == 2 else False)
+            except Exception:
+                pass
             self._teams_model.appendRow(row)
+
+                # Reconnect itemChanged handler if we disconnected it
+        try:
+            if _reconnect_item_changed:
+                self._teams_model.itemChanged.connect(self._on_team_item_changed)
+        except Exception:
+            pass
+
         try:
             vh = self._teams_table.verticalHeader()
             for r in range(self._teams_model.rowCount()):
                 vh.resizeSection(r, 44)
         except Exception:
             pass
-
     def _selected_team_row(self) -> int:
         try:
             idxs = self._teams_table.selectionModel().selectedRows()
@@ -2427,7 +2490,7 @@ class TaskDetailWindow(QWidget):
             dlg = QDialog(self); dlg.setWindowTitle('Add Team to Task')
             lay = QVLay(dlg); lw = QListWidget(dlg)
             for t in teams:
-                lw.addItem(f"{t.get('team_id')} — {t.get('team_name')}  •  {t.get('team_leader')}")
+                lw.addItem(f"{t.get('team_id')} - {t.get('team_name')}  -  {t.get('team_leader')}")
             lay.addWidget(lw)
             btns = QHLay(); ok = PB('Add'); cancel = PB('Cancel')
             btns.addStretch(1); btns.addWidget(ok); btns.addWidget(cancel); lay.addLayout(btns)
@@ -2553,7 +2616,7 @@ class TaskDetailWindow(QWidget):
                 self._plan_obj_cb.blockSignals(True)
                 self._plan_obj_cb.clear()
                 for o in objectives:
-                    self._plan_obj_cb.addItem(f"{o.code} — {o.text}", o.id)
+                    self._plan_obj_cb.addItem(f"{o.code} - {o.text}", o.id)
                 self._plan_obj_cb.blockSignals(False)
                 # Build strategies for selected objective
                 self._on_plan_obj_changed(repo)
@@ -2567,7 +2630,7 @@ class TaskDetailWindow(QWidget):
             pass
         for link in links:
             it_id = QStandardItem(str(link.link_id))
-            it_obj = QStandardItem(f"{link.objective_code} — {link.objective_text}")
+            it_obj = QStandardItem(f"{link.objective_code} - {link.objective_text}")
             it_strat = QStandardItem(str(link.strategy_text))
             it_rm = QStandardItem("Remove")
             try:
@@ -2809,7 +2872,7 @@ class TaskDetailWindow(QWidget):
         row_sp3.addWidget(QLabel("Turbulence")); row_sp3.addWidget(a_sp_turb)
         al.addLayout(row_sp3)
         row_sp4 = QHBoxLayout();
-        a_sp_pod = QLineEdit(a_content); a_sp_pod.setPlaceholderText("Probability of Detection (0–100)"); self._assign_w['a_sp_pod'] = a_sp_pod
+        a_sp_pod = QLineEdit(a_content); a_sp_pod.setPlaceholderText("Probability of Detection (0-100)"); self._assign_w['a_sp_pod'] = a_sp_pod
         a_sp_tts = QLineEdit(a_content); a_sp_tts.setPlaceholderText("Time to Search Area (hrs)"); self._assign_w['a_sp_tts'] = a_sp_tts
         a_sp_ts = QLineEdit(a_content); a_sp_ts.setPlaceholderText("Time Started Search (HH:MM[:SS])"); self._assign_w['a_sp_ts'] = a_sp_ts
         row_sp4.addWidget(a_sp_pod); row_sp4.addWidget(a_sp_tts); row_sp4.addWidget(a_sp_ts); al.addLayout(row_sp4)
@@ -2826,7 +2889,7 @@ class TaskDetailWindow(QWidget):
 
         # Validators and tooltips
         try:
-            time_re = QRegularExpression(r"^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$")
+            time_re = QRegularExpression(r"^(:[01]\d|2[0-3]):[0-5]\d(::[0-5]\d)$")
             tval = QRegularExpressionValidator(time_re)
             for key in ('a_etd','a_ete','a_sp_ts','a_sp_te'):
                 w = self._assign_w.get(key)
@@ -2848,7 +2911,7 @@ class TaskDetailWindow(QWidget):
             wpod = self._assign_w.get('a_sp_pod')
             if isinstance(wpod, QLineEdit):
                 wpod.setValidator(_dv(0.0, 100.0, 2))
-                wpod.setToolTip('Probability of detection: 0–100')
+                wpod.setToolTip('Probability of detection: 0-100')
         except Exception:
             pass
 
@@ -3268,9 +3331,9 @@ class TaskDetailWindow(QWidget):
         try:
             count = self._deb_model.rowCount()
             if err_msg:
-                self._deb_info.setText(f"Task {int(self._task_id)} — Debriefs: {count} (load error: {err_msg})")
+                self._deb_info.setText(f"Task {int(self._task_id)} - Debriefs: {count} (load error: {err_msg})")
             else:
-                self._deb_info.setText(f"Task {int(self._task_id)} — Debriefs: {count}")
+                self._deb_info.setText(f"Task {int(self._task_id)} - Debriefs: {count}")
         except Exception:
             pass
 
@@ -3471,7 +3534,7 @@ class TaskDetailWindow(QWidget):
             return
         dlg = QDialog(self)
         try:
-            dlg.setWindowTitle(f"Debrief Editor — ID {debrief_id}")
+            dlg.setWindowTitle(f"Debrief Editor - ID {debrief_id}")
             dlg.adjustSize()
         except Exception:
             pass
@@ -3511,7 +3574,7 @@ class TaskDetailWindow(QWidget):
             resp = QMessageBox.warning(
                 self,
                 "Confirm Delete Team",
-                f"This will permanently delete team ID {team_id} ({team_name}) and remove all its task assignments.\nThis action cannot be undone.\n\nContinue?",
+                f"This will permanently delete team ID {team_id} ({team_name}) and remove all its task assignments.\nThis action cannot be undone.\n\nContinue",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -3563,7 +3626,7 @@ class TaskDetailWindow(QWidget):
         def _time_edit(parent: QWidget) -> QLineEdit:
             e = QLineEdit(parent)
             try:
-                re = QRegularExpression(r"^(?:[01]?[0-9]|2[0-3]):[0-5][0-9]$")
+                re = QRegularExpression(r"^(:[01][0-9]|2[0-3]):[0-5][0-9]$")
                 e.setValidator(QRegularExpressionValidator(re, e))
                 e.setPlaceholderText("HH:MM")
             except Exception:
@@ -3845,7 +3908,7 @@ class TaskDetailWindow(QWidget):
         def _time_edit(parent: QWidget) -> QLineEdit:
             e = QLineEdit(parent)
             try:
-                re = QRegularExpression(r"^(?:[01]?[0-9]|2[0-3]):[0-5][0-9]$")
+                re = QRegularExpression(r"^(:[01][0-9]|2[0-3]):[0-5][0-9]$")
                 e.setValidator(QRegularExpressionValidator(re, e))
                 e.setPlaceholderText("HH:MM")
             except Exception:
@@ -4152,7 +4215,7 @@ class TaskDetailWindow(QWidget):
         if not did:
             return
         try:
-            resp = QMessageBox.question(self, "Delete", "Delete selected debrief?")
+            resp = QMessageBox.question(self, "Delete", "Delete selected debrief")
             if resp != QMessageBox.Yes:
                 return
         except Exception:
@@ -4163,3 +4226,27 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         self.load_debriefs()
+
+    def _on_team_item_changed(self, item) -> None:
+        try:
+            # Only handle Sortie column edits
+            idx = item.index()
+            if idx.column() != 2:
+                return
+            row = idx.row()
+            # task_teams id stored in hidden column 0
+            try:
+                tt_id = int(self._teams_model.item(row, 0).text())
+            except Exception:
+                return
+            new_val = item.text().strip()
+            from modules.operations.taskings.repository import update_sortie_id
+            update_sortie_id(int(tt_id), str(new_val) if new_val else None)
+        except Exception:
+            pass
+        finally:
+            try:
+                # Refresh to reflect any formatting or repo-driven changes
+                self.load_teams()
+            except Exception:
+                pass

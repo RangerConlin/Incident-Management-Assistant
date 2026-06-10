@@ -10,12 +10,13 @@ from modules.logistics.models import (
     RequestAssignmentCreate,
     EquipmentItemCreate,
 )
+from utils import incident_storage
 
 TEST_INCIDENT = "test_incident"
 
 
 def setup_module(module):
-    db_path = Path("data") / "incidents" / f"{TEST_INCIDENT}.db"
+    db_path = incident_storage.get_incident_paths(incident_number=TEST_INCIDENT, incident_name=TEST_INCIDENT, incident_id=TEST_INCIDENT).incident_db
     if db_path.exists():
         db_path.unlink()
 
@@ -54,4 +55,4 @@ def test_equipment_checkout_in():
 
 def test_incident_db_path():
     engine = services.get_incident_engine("xyz")
-    assert str(engine.url).endswith("xyz.db")
+    assert str(engine.url).endswith("incident.db")

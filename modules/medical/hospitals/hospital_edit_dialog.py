@@ -256,4 +256,3 @@ class HospitalEditDialog(QDialog):
 
 
 __all__ = ["HospitalEditDialog"]
-

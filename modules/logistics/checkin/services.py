@@ -128,14 +128,20 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
             ("id", "ID"),
             ("name", "Name"),
             ("role", "Role"),
+            ("rank", "Rank"),
             ("callsign", "Callsign"),
         ),
         form_fields=(
             FieldSpec("name", "Name", required=True),
+            FieldSpec("rank", "Rank"),
             FieldSpec("role", "Role"),
             FieldSpec("callsign", "Callsign"),
             FieldSpec("phone", "Phone"),
         ),
+        # Require the user to supply an explicit Personnel ID (numeric).
+        # The underlying schema remains INTEGER PRIMARY KEY AUTOINCREMENT so
+        # leaving it blank in other entry points will still auto-assign.
+        id_field=FieldSpec("id", "Personnel ID", required=True, placeholder="e.g., 10001"),
         autoincrement=True,
     ),
     "vehicle": EntityConfig(
@@ -361,10 +367,18 @@ class CheckInService:
             supplied_str = supplied.strip() if isinstance(supplied, str) else supplied
             if config.id_field.required and not supplied_str:
                 raise ValueError(f"{config.id_field.label} is required")
-            if supplied_str:
-                supplied_id = supplied_str
+            if supplied_str is not None and supplied_str != "":
+                if config.autoincrement:
+                    try:
+                        supplied_id = int(supplied_str)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            f"Invalid identifier for {config.title}. Use a numeric ID."
+                        ) from exc
+                else:
+                    supplied_id = str(supplied_str)
                 columns.append(config.id_column)
-                values.append(supplied_str)
+                values.append(supplied_id)
 
         for field in config.form_fields:
             raw_value = data.get(field.name)
@@ -442,6 +456,48 @@ class CheckInService:
             incident_conn.execute(sql, values)
             incident_conn.commit()
         record["_checked_in"] = True
+        # Ensure personnel check-ins create/update a row in incident checkins for roster views
+        if entity_type == "personnel":
+            try:
+                from . import repository as ci_repo
+                from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
+                from datetime import datetime
+                now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
+                pid = str(record.get("id", ""))
+                if pid:
+                    existing = None
+                    try:
+                        existing = ci_repo.fetch_checkin(pid)
+                    except Exception:
+                        pass
+                    if existing is None:
+                        rec = CheckInRecord(
+                            person_id=pid,
+                            ci_status=CIStatus.CHECKED_IN,
+                            personnel_status=PersonnelStatus.AVAILABLE,
+                            arrival_time=now_iso,
+                            location=Location.ICP,
+                            incident_callsign=record.get("callsign"),
+                            incident_phone=record.get("phone"),
+                            team_id=None,
+                            role_on_team=record.get("role"),
+                        )
+                    else:
+                        rec = existing
+                        try:
+                            rec.ci_status = CIStatus.CHECKED_IN
+                        except Exception:
+                            pass
+                        try:
+                            rec.updated_at = now_iso
+                        except Exception:
+                            pass
+                    try:
+                        ci_repo.save_checkin(rec)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         return record
 
     def _incident_id_set(self, config: EntityConfig) -> set[str]:

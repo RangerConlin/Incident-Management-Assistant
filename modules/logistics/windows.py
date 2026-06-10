@@ -6,10 +6,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QSplitter,
     QMessageBox,
+    QTabWidget,
 )
 from utils import incident_context
 
 from modules.logistics.vehicle.panels.vehicle_inventory_panel import VehicleInventoryPanel
+from modules.logistics.panels.resource_status_board import ResourceStatusBoard
 
 __all__ = [
     "get_logistics_panel",
@@ -19,6 +21,7 @@ __all__ = [
     "get_213rr_panel",
     "get_personnel_panel",
     "get_vehicles_panel",
+    "get_resource_status_board_panel",
 ]
 
 
@@ -47,10 +50,15 @@ def _get_home_panel():
 
 
 def get_logistics_panel(incident_id: object | None = None) -> QWidget:
-    """Return the main Logistics dashboard panel (Qt Widgets)."""
+    """Return the main Logistics workspace with dashboard and status board tabs."""
+    if incident_id is not None:
+        incident_context.set_active_incident(str(incident_id))
+
     HomePanel = _get_home_panel()
-    # New dashboard does not require incident_id on init; controllers handle context
-    return HomePanel()
+    container = QTabWidget()
+    container.addTab(HomePanel(), "Dashboard")
+    container.addTab(ResourceStatusBoard(), "Checked-In Resources")
+    return container
 
 
 def get_checkin_panel(incident_id: object | None = None) -> QWidget:
@@ -138,5 +146,9 @@ def get_vehicles_panel(incident_id: object | None = None) -> QWidget:
     return VehicleInventoryPanel()
 
 
-    return VehicleInventoryWidget()
+def get_resource_status_board_panel(incident_id: object | None = None) -> QWidget:
+    """Return the Logistics resource status board panel."""
 
+    if incident_id is not None:
+        incident_context.set_active_incident(str(incident_id))
+    return ResourceStatusBoard()

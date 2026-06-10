@@ -21,4 +21,3 @@ def __getattr__(name: str) -> Any:
 
 if TYPE_CHECKING:  # pragma: no cover - typing aid only
     from .panels.CheckInPanel import CheckInPanel as CheckInPanel
-

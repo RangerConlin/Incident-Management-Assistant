@@ -4,13 +4,12 @@ import os
 import sys
 import logging
 from functools import lru_cache
-from typing import Callable, Optional
-
-DEV_MODE = True
+from typing import Optional, Callable
 
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
+
     QMenu,
     QLabel,
     QWidget,
@@ -23,12 +22,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QFileDialog,
 )
-from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QPalette, QColor
 from PySide6.QtCore import Qt, QUrl, QSettings, QTimer, QObject, QEvent
-from PySide6.QtQuick import QQuickView
-from PySide6.QtQuickControls2 import QQuickStyle
-from PySide6.QtQuick import QQuickWindow
 from PySide6QtAds import (
     CDockManager,
     CDockWidget,
@@ -38,7 +33,6 @@ from PySide6QtAds import (
     BottomDockWidgetArea,
     CenterDockWidgetArea,
 )
-QQuickStyle.setStyle("Fusion")
 
 
 # Respect saved dock layouts (ADS perspectives) across sessions
@@ -46,11 +40,9 @@ QQuickStyle.setStyle("Fusion")
 FORCE_DEFAULT_LAYOUT = False
 
 
-# (QML utilities kept, though handlers now follow panel-factory pattern)
-from models.qmlwindow import QmlWindow, new_incident_form, open_incident_list
 from utils.state import AppState
 from models.database import get_incident_by_number, get_all_incident_types
-from bridge.settings_bridge import QmlSettingsBridge
+from bridge.settings_bridge import SettingsBridge
 from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
 from bridge.incident_bridge import IncidentBridge
@@ -66,6 +58,7 @@ from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
 from ui.settings import SettingsWindow
 from utils.profile_manager import profile_manager, ProfileMeta
+from ui.qml_placeholder import show_qml_placeholder
 
 try:
     from modules.ui_customization import (
@@ -82,11 +75,16 @@ except Exception:  # pragma: no cover - customization optional at runtime
     get_dashboard_designer_panel = None  # type: ignore[assignment]
     get_theme_editor_panel = None  # type: ignore[assignment]
 
-logger = logging.getLogger(__name__)
+# Configure basic logging early
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
+logger = logging.getLogger(__name__)
+
+# Development mode toggle (prevents NameError later);
+# enable with env var IMA_DEV_MODE=true/1/on
+DEV_MODE = str(os.getenv("IMA_DEV_MODE", "")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 
@@ -180,7 +178,7 @@ class MainWindow(QMainWindow):
     Placeholders are fine if a real module/factory doesn't exist yet.
     """
     def __init__(self, settings_manager: SettingsManager | None = None,
-                 settings_bridge: QmlSettingsBridge | None = None):
+                 settings_bridge: SettingsBridge | None = None):
         super().__init__()
         self._ems_window = None
         self._settings_window = None
@@ -189,7 +187,7 @@ class MainWindow(QMainWindow):
         if settings_manager is None:
             settings_manager = SettingsManager()
         if settings_bridge is None:
-            settings_bridge = QmlSettingsBridge(settings_manager)
+            settings_bridge = SettingsBridge(settings_manager)
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
 
@@ -214,7 +212,7 @@ class MainWindow(QMainWindow):
             # Apply initial QSS derived from tokens
             if app is not None:
                 app.setStyleSheet(global_qss(self.theme_manager.tokens()))
-            # Keep QSS and QML bridge in sync with theme changes
+            # Keep QSS and legacy UI bridge in sync with theme changes
             self.theme_manager.themeChanged.connect(lambda _:
                 (self.theme_bridge.updateTokens(self.theme_manager.tokens()),
                  app.setStyleSheet(global_qss(self.theme_manager.tokens())) if app is not None else None)
@@ -499,6 +497,24 @@ class MainWindow(QMainWindow):
         act_manage.triggered.connect(self.open_manage_profiles)
         profiles_menu.addAction(act_manage)
 
+    def _add_weather_menu_items(self, parent_menu: QMenu, prefix: str) -> None:
+        """Add Weather submenu entries under the given parent menu.
+
+        The `prefix` determines routing keys, e.g. "planning.weather" or
+        "safety.weather" to match handlers in `open_module`.
+        """
+        weather_menu = parent_menu.addMenu("Weather")
+        self._add_action(weather_menu, "Current & Forecast", None, f"{prefix}.current")
+        self._add_action(weather_menu, "Safety Summary", None, f"{prefix}.summary")
+        self._add_action(weather_menu, "Timeline", None, f"{prefix}.timeline")
+        self._add_action(weather_menu, "Aviation", None, f"{prefix}.aviation")
+        self._add_action(weather_menu, "Advisories & Lightning", None, f"{prefix}.advisories")
+        self._add_action(weather_menu, "Hazard Outlook (HWO)", None, f"{prefix}.hwo")
+        self._add_action(weather_menu, "Sun & Moon Times", None, f"{prefix}.sun_times")
+        weather_menu.addSeparator()
+        self._add_action(weather_menu, "Settings", None, f"{prefix}.settings")
+        self._add_action(weather_menu, "Export Briefing", None, f"{prefix}.export")
+
     def _on_profile_selected(self, meta: ProfileMeta) -> None:
         """Attempt to switch to the chosen profile and show result to user."""
         prev = profile_manager.get_active_profile_id()
@@ -605,6 +621,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
         self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
+        self._add_action(m_edit, "Units and Organizations", None, "edit.units_organizations")
 
         # ----- View (moved under Menu) -----
         m_view = m_menu.addMenu("View")
@@ -662,6 +679,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_cmd, "Incident Objectives (ICS-202)", None, "command.objectives")
         self._add_action(m_cmd, "Command Staff Organization (ICS-203)", None, "command.staff_org")
         self._add_action(m_cmd, "Situation Report (ICS-209)", None, "command.sitrep")
+        m_cmd.addSeparator()
+        self._add_action(m_cmd, "Set ICP Location", None, "command.icp_location")
 
         # ----- Planning -----
         m_plan = mb.addMenu("Planning")
@@ -674,6 +693,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_plan, "Task Metrics Dashboard", None, "planning.taskmetrics")
         self._add_action(m_plan, "Strategic Objective Tracker", None, "planning.strategic_objectives")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
+        self._add_weather_menu_items(m_plan, prefix="planning.weather")
 
         # ----- Operations -----
         m_ops = mb.addMenu("Operations")
@@ -683,7 +703,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
-        self._add_action(m_ops, "Narrative", None, "operations.narrative")
 
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
@@ -691,6 +710,7 @@ class MainWindow(QMainWindow):
         m_log.addSeparator()
         self._add_action(m_log, "Logistics Dashboard", "Ctrl+L", "logistics.dashboard")
         self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
+        self._add_action(m_log, "Resource Status Board", None, "logistics.resource_status")
         self._add_action(m_log, "Equipment Inventory", None, "logistics.equipment")
         self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
 
@@ -704,7 +724,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "Communications Quick Entry", None, "comms.quick_entry")
         self._add_action(m_comms, "Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
-        
+
 
         # ----- Intel -----
         m_intel = mb.addMenu("Intel")
@@ -727,6 +747,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
         self._add_action(m_med, "CAP ORM", None, "safety.caporm")
         m_med.addSeparator()
+        self._add_weather_menu_items(m_med, prefix="safety.weather")
         # ----- Liaison -----
         m_lia = mb.addMenu("Liaison")
         self._add_action(m_lia, "Liaison Unit Log ICS-214", None, "liaison.unit_log")
@@ -760,6 +781,7 @@ class MainWindow(QMainWindow):
         # ----- Toolkits -----
         m_tool = mb.addMenu("Toolkits")
         sar_menu = m_tool.addMenu("SAR Toolkit")
+        self._add_action(m_tool, "Projection Dashboard", None, "toolkit.projection_dashboard")
         self._add_action(sar_menu, "Missing Person Toolkit", None, "toolkit.sar.missing_person")
         self._add_action(sar_menu, "POD Calculator", None, "toolkit.sar.pod")
 
@@ -851,7 +873,7 @@ class MainWindow(QMainWindow):
         act_reset.triggered.connect(self._reset_layout)
         self.menuDebug.addAction(act_reset)
 
-        # QML debug openers removed to allow running without QML assets
+        # legacy UI debug openers removed to allow running without legacy UI assets
 
         act_audit = QAction("Audit Console", self)
         def _show_audit():
@@ -958,6 +980,7 @@ class MainWindow(QMainWindow):
             "edit.hazard_types": self.open_edit_hazard_types,
             "communications.217": self.open_edit_comms_resources,
             "edit.safety_templates": self.open_edit_safety_templates,
+            "edit.units_organizations": self.open_edit_units_organizations,
 
             # ----- Command -----
             "command.unit_log": self.open_command_unit_log,
@@ -967,6 +990,7 @@ class MainWindow(QMainWindow):
             "command.objectives": self.open_command_objectives,
             "command.staff_org": self.open_command_staff_org,
             "command.sitrep": self.open_command_sitrep,
+            "command.icp_location": self.open_command_icp_location,
 
             # ----- Planning -----
             "planning.unit_log": self.open_planning_unit_log,
@@ -978,6 +1002,15 @@ class MainWindow(QMainWindow):
             "planning.strategic_objectives": self.open_planning_strategic_objectives,
             "planning.sitrep": self.open_planning_sitrep,
 
+            "planning.weather.summary": self.open_weather_safety_summary,
+            "planning.weather.current": self.open_weather_current_forecast,
+            "planning.weather.timeline": self.open_weather_timeline,
+            "planning.weather.aviation": self.open_weather_aviation,
+            "planning.weather.advisories": self.open_weather_advisories,
+            "planning.weather.hwo": self.open_weather_hwo,
+            "planning.weather.sun_times": self.open_weather_sun_times,
+            "planning.weather.settings": self.open_weather_settings,
+            "planning.weather.export": self.open_weather_export,
             # ----- Operations -----
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
@@ -990,6 +1023,7 @@ class MainWindow(QMainWindow):
             "logistics.unit_log": self.open_logistics_unit_log,
             "logistics.dashboard": self.open_logistics_dashboard,
             "logistics.211": self.open_logistics_211,
+            "logistics.resource_status": self.open_logistics_resource_status,
             "logistics.requests": self.open_logistics_requests,
             "logistics.equipment": self.open_logistics_equipment,
             "logistics.213rr": self.open_logistics_213rr,
@@ -1017,7 +1051,16 @@ class MainWindow(QMainWindow):
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
             "safety.caporm": self.open_safety_caporm,
-            
+
+            "safety.weather.summary": self.open_weather_safety_summary,
+            "safety.weather.current": self.open_weather_current_forecast,
+            "safety.weather.timeline": self.open_weather_timeline,
+            "safety.weather.aviation": self.open_weather_aviation,
+            "safety.weather.advisories": self.open_weather_advisories,
+            "safety.weather.hwo": self.open_weather_hwo,
+            "safety.weather.sun_times": self.open_weather_sun_times,
+            "safety.weather.settings": self.open_weather_settings,
+            "safety.weather.export": self.open_weather_export,
             # ----- Liaison -----
             "liaison.unit_log": self.open_liaison_unit_log,
             "liaison.agencies": self.open_liaison_agencies,
@@ -1044,6 +1087,7 @@ class MainWindow(QMainWindow):
             "toolkit.disaster.urban_interview": self.open_toolkit_disaster_urban_interview,
             "toolkit.disaster.photos": self.open_toolkit_disaster_photos,
             "planned.promotions": self.open_planned_promotions,
+            "toolkit.projection_dashboard": self.open_toolkit_projection_dashboard,
             "planned.vendors": self.open_planned_vendors,
             "planned.safety": self.open_planned_safety,
             "planned.tasking": self.open_planned_tasking,
@@ -1324,7 +1368,24 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
 
     def open_edit_safety_templates(self) -> None:
-        self._open_qml_modal("qml/SafetyTemplatesWindow.qml", title="Incident Safety Analysis (ICS-215A)")
+        show_qml_placeholder(title="Incident Safety Analysis (ICS-215A)", parent=self)
+
+    def open_edit_units_organizations(self) -> None:
+        """Open the master-data Units and Organizations editor panel."""
+        try:
+            from modules.personnel_role_management.units_organizations import (
+                UnitsOrganizationsPanel,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Units and Organizations",
+                f"Unable to load Units and Organizations panel:\n{exc}",
+            )
+            return
+
+        panel = UnitsOrganizationsPanel(parent=self)
+        self._open_dock_widget(panel, title="Units and Organizations")
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
@@ -1445,6 +1506,64 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Situation Report")
 
 # --- 4.5 Operations ------------------------------------------------------
+    def open_weather_safety_summary(self) -> None:
+        """Open the dockable Weather Safety summary page."""
+        from modules.intel.weather.pages.weather_summary_page import WeatherSummaryPage
+        panel = WeatherSummaryPage(self)
+        self._open_dock_widget(panel, title="Weather Safety")
+
+    def open_weather_timeline(self) -> None:
+        """Open the standalone Weather Timeline window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_weather_timeline()
+
+    def open_weather_aviation(self) -> None:
+        """Open the standalone Aviation Weather window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_aviation_window()
+
+    def open_weather_advisories(self) -> None:
+        """Open the standalone Advisories & Lightning window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_advisories_window()
+
+    def open_weather_hwo(self) -> None:
+        """Open the standalone HWO viewer window."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_hwo_viewer()
+
+    def open_weather_sun_times(self) -> None:
+        """Open the standalone sunrise and sunset panel."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_sun_times_panel(self)
+
+    def open_weather_settings(self) -> None:
+        """Open the Weather Safety settings dialog."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_settings_dialog(self)
+
+    def open_weather_export(self) -> None:
+        """Open the Weather Safety briefing export dialog."""
+        from modules.intel.weather.infra import ui_factories
+        ui_factories.open_export_dialog(self)
+
+    def open_weather_current_forecast(self) -> None:
+        """Open the Current & Forecast weather window."""
+        try:
+            from modules.intel.weather.infra import ui_factories
+            ui_factories.open_current_forecast_window()
+        except Exception as e:
+            QMessageBox.critical(self, "Weather", f"Failed to open Current & Forecast window:\n{e}")
+    def open_command_icp_location(self) -> None:
+        """Open the ICP Location window for the active incident."""
+        try:
+            from modules.command.windows.icp_location_window import IcpLocationWindow
+        except Exception as e:
+            QMessageBox.critical(self, "ICP Location", f"Failed to load ICP Location window:\n{e}")
+            return
+        window = IcpLocationWindow(self)
+        window.show()
+        window.raise_()
     def open_operations_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
@@ -1758,7 +1877,7 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Team Assignments")
 
     def open_operations_team_status(self) -> None:
-        # Prefer the QWidget panel version to avoid QQuickWidget rendering issues
+
         try:
             from modules.operations.panels.team_status_panel import TeamStatusPanel
             panel = TeamStatusPanel(self)
@@ -1771,7 +1890,7 @@ class MainWindow(QMainWindow):
                 print(f"[warn] Team Status panel could not be loaded: {e}")
 
     def open_operations_task_board(self) -> None:
-        # Prefer the QWidget panel version to avoid QQuickWidget rendering issues
+
         try:
             from modules.operations.panels.task_status_panel import TaskStatusPanel
             panel = TaskStatusPanel(self)
@@ -1790,7 +1909,7 @@ class MainWindow(QMainWindow):
         except Exception:
             print("[info] Narrative is managed within each Task's detail window.")
 
-    # QML debug helpers removed to allow running without QML assets
+    # legacy UI debug helpers removed to allow running without legacy UI assets
 
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
@@ -1920,6 +2039,12 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = logistics.get_equipment_panel(incident_id)
         self._open_dock_widget(panel, title="Equipment Inventory")
+
+    def open_logistics_resource_status(self) -> None:
+        from modules import logistics
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = logistics.get_resource_status_board_panel(incident_id)
+        self._open_dock_widget(panel, title="Resource Status Board")
 
     def open_logistics_213rr(self) -> None:
         from modules import logistics
@@ -2099,7 +2224,7 @@ class MainWindow(QMainWindow):
 
     def open_medical_206(self) -> None:
         from modules import medical
-        medical.open_206_window(self)
+        medical.open_206_window()
 
     def open_safety_208(self) -> None:
         from modules import safety
@@ -2450,6 +2575,12 @@ class MainWindow(QMainWindow):
         panel = disaster.get_photos_panel(incident_id)
         self._open_dock_widget(panel, title="Damage Photos")
 
+
+    def open_toolkit_projection_dashboard(self) -> None:
+        from modules import projection_dashboard
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = projection_dashboard.get_projection_dashboard_panel(incident_id)
+        self._open_dock_widget(panel, title="Projection Dashboard")
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
         incident_id = getattr(self, "current_incident_id", None)
@@ -2590,210 +2721,8 @@ class MainWindow(QMainWindow):
         self.dock_manager.addDockWidget(area, dock)
         dock.show()
 
-    def _open_dock_from_qml_view(self, qml_rel_path: str, title: str, float_on_open: bool | None = True, context: dict | None = None) -> None:
-        """Open QML using QQuickView + QWidget::createWindowContainer to avoid QQuickWidget text issues."""
-        try:
-            view = QQuickView()
-        except Exception:
-            # Fallback to original path if QQuickView unavailable
-            self._open_dock_from_qml(qml_rel_path, title, float_on_open=float_on_open, context=context)
-            return
-        try:
-            view.setResizeMode(QQuickView.SizeRootObjectToView)
-        except Exception:
-            pass
-        try:
-            ctx = view.rootContext()
-            # Always expose shared bridges
-            try:
-                if hasattr(self, 'settings_bridge') and self.settings_bridge:
-                    ctx.setContextProperty("settingsBridge", self.settings_bridge)
-            except Exception:
-                pass
-            try:
-                if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                    ctx.setContextProperty("themeBridge", self.theme_bridge)
-            except Exception:
-                pass
-            if context:
-                for k, v in context.items():
-                    ctx.setContextProperty(k, v)
-        except Exception:
-            pass
-        view.setSource(QUrl.fromLocalFile(os.path.abspath(qml_rel_path)))
-        container = QWidget.createWindowContainer(view)
-        try:
-            container.setMinimumSize(200, 120)
-            container.setFocusPolicy(Qt.StrongFocus)
-        except Exception:
-            pass
-        dock = CDockWidget(self.dock_manager, title)
-        dock.setWidget(container)
-        if float_on_open:
-            try:
-                self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
-                dock.show()
-                return
-            except Exception:
-                pass
-        area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
-        self.dock_manager.addDockWidget(area, dock)
-        dock.show()
 
-    def _open_dock_from_qml(self, qml_rel_path: str, title: str, float_on_open: bool | None = True, context: dict | None = None) -> None:
-        widget = QQuickWidget()
-        widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
-        try:
-            # Use QQuickWidget.rootContext() so properties are visible to this component
-            ctx = widget.rootContext()
-            try:
-                if hasattr(self, 'settings_bridge') and self.settings_bridge:
-                    ctx.setContextProperty("settingsBridge", self.settings_bridge)
-            except Exception:
-                pass
-            try:
-                if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                    ctx.setContextProperty("themeBridge", self.theme_bridge)
-            except Exception:
-                pass
-            if context:
-                for k, v in context.items():
-                    ctx.setContextProperty(k, v)
-        except Exception:
-            pass
-        widget.setSource(QUrl.fromLocalFile(os.path.abspath(qml_rel_path)))
-        dock = CDockWidget(self.dock_manager, title)
-        dock.setWidget(widget)
-        if float_on_open:
-            # Preferred: add as floating
-            try:
-                self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
-                dock.show()
-                return
-            except Exception:
-                pass
-            # Alternate: floating container
-            try:
-                container = self.dock_manager.createFloatingDockContainer(dock)  # type: ignore[attr-defined]
-                try:
-                    from PySide6.QtGui import QCursor
-                    container.move(QCursor.pos())  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                try:
-                    container.show()  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                return
-            except Exception:
-                area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
-                self.dock_manager.addDockWidget(area, dock)
-                try:
-                    dock.setFloating(True)
-                except Exception:
-                    pass
-                dock.show()
-                return
-        area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
-        self.dock_manager.addDockWidget(area, dock)
-        dock.show()
 
-    def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
-        """Open a QML Window (as a modal dialog) and inject the catalog bridge.
-
-        This is used by Edit > Master Catalog windows (EMS, Hospitals, etc.).
-        """
-        view = QQuickView()
-        view.setTitle(title)
-        try:
-            view.setResizeMode(QQuickView.SizeRootObjectToView)
-        except Exception:
-            pass
-
-        # Create/reuse a shared CatalogBridge for master catalog windows
-        if not hasattr(self, "_catalog_bridge"):
-            self._catalog_bridge = CatalogBridge(db_path="data/master.db")
-
-        # Expose bridges and models to QML
-        ctx = view.rootContext()
-        # Shared bridges
-        try:
-            if hasattr(self, 'settings_bridge') and self.settings_bridge:
-                ctx.setContextProperty("settingsBridge", self.settings_bridge)
-        except Exception:
-            pass
-        try:
-            if hasattr(self, 'theme_bridge') and self.theme_bridge:
-                ctx.setContextProperty("themeBridge", self.theme_bridge)
-        except Exception:
-            pass
-        ctx.setContextProperty("catalogBridge", self._catalog_bridge)
-        # Provide team status options to all master catalog windows (used by multiple QML files)
-        try:
-            ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-        except Exception:
-            pass
-
-        # Incident bridge (incident-scoped CRUD)
-        try:
-            if not hasattr(self, "_incident_bridge"):
-                self._incident_bridge = IncidentBridge()
-            ctx.setContextProperty("incidentBridge", self._incident_bridge)
-        except Exception as e:
-            print("[main] IncidentBridge init failed:", e)
-
-        # Inject a per-window SqliteTableModel when we can map the window to a table
-        try:
-            # Strip the full suffix "Window.qml" (10 chars) to get the base name
-            name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
-            table = self._resolve_master_table(name)
-            print(f"[main._open_qml_modal] qml='{qml_rel_path}', base='{base}', name='{name}', resolved_table='{table}'")
-            if table:
-                model_name = f"{name}Model"
-                model = SqliteTableModel("data/master.db")
-                sql = f"SELECT * FROM {table}"
-                print(f"[main._open_qml_modal] injecting model '{model_name}' with sql: {sql}")
-                model.load_query(sql)
-                ctx.setContextProperty(model_name, model)
-                try:
-                    print(f"[main._open_qml_modal] model '{model_name}' rowCount={model.rowCount()}")
-                except Exception:
-                    pass
-            elif name == "Narrative":
-                # Inject incident-scoped model for narrative
-                try:
-                    from utils import incident_context
-                    db_path = str(incident_context.get_active_incident_db_path())
-                    model_name = "NarrativeModel"
-                    model = SqliteTableModel(db_path)
-                    sql = "SELECT id, taskid, timestamp, narrative, entered_by, team_num, critical FROM narrative_entries ORDER BY timestamp DESC"
-                    print(f"[main._open_qml_modal] injecting INCIDENT model '{model_name}' with sql: {sql}")
-                    model.load_query(sql)
-                    ctx.setContextProperty(model_name, model)
-                except Exception as e:
-                    print("[main._open_qml_modal] failed to inject NarrativeModel:", e)
-            else:
-                # Log available tables to aid debugging
-                try:
-                    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-                    con = sqlite3.connect(db_path)
-                    cur = con.cursor()
-                    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                    tbls = [r[0] for r in cur.fetchall()]
-                    con.close()
-                    print(f"[main._open_qml_modal] no table for '{name}'. sqlite tables: {tbls}")
-                except Exception as e:
-                    print(f"[main._open_qml_modal] failed to enumerate tables: {e}")
-        except Exception as e:
-            print(f"[main] model injection error for {qml_rel_path}: {e}")
-
-        from pathlib import Path
-        qml_file = Path(__file__).resolve().parent / qml_rel_path
-        view.setSource(QUrl.fromLocalFile(str(qml_file)))
-        view.show()
-        if not hasattr(self, "_open_qml_views"):
-            self._open_qml_views = []
-        self._open_qml_views.append(view)
 
     def _resolve_master_table(self, base_name: str) -> str | None:
         """Resolve a master.db table name for a given Window base name.
@@ -2884,7 +2813,7 @@ class MainWindow(QMainWindow):
         self.dock_manager.addDockWidget(CenterDockWidgetArea, status_dock)
         status_dock.show()
 
-        # Optional sample boards: prefer QWidget panels; fallback to QML
+        # Optional sample boards: prefer QWidget panels; fallback to legacy UI
         if TeamStatusPanel:
             try:
                 team_panel = TeamStatusPanel(self)
@@ -2895,13 +2824,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            try:
-                from data.sample_data import TEAM_ROWS, TEAM_HEADERS
-                qml_team = os.path.join("modules", "operations", "qml", "TeamStatus.qml")
-                team_ctx = {"teamRows": TEAM_ROWS, "teamHeaders": TEAM_HEADERS, "statusColumn": 4}
-                self._open_dock_from_qml_view(qml_team, "Team Status", float_on_open=False, context=team_ctx)
-            except Exception:
-                pass
+            show_qml_placeholder(title="Team Status", parent=self)
 
         if TaskStatusPanel:
             try:
@@ -2913,17 +2836,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            try:
-                from data.sample_data import TASK_ROWS, TASK_HEADERS
-                qml_task = os.path.join("modules", "operations", "qml", "TaskStatus.qml")
-                try:
-                    status_idx = TASK_HEADERS.index("Status")
-                except ValueError:
-                    status_idx = 2
-                task_ctx = {"taskRows": TASK_ROWS, "taskHeaders": TASK_HEADERS, "statusColumn": status_idx}
-                self._open_dock_from_qml_view(qml_task, "Task Status", float_on_open=False, context=task_ctx)
-            except Exception:
-                pass
+            show_qml_placeholder(title="Task Status", parent=self)
 
     def open_new_workspace_window(self) -> None:
         """Create a blank floating dock window you can move to another monitor.
@@ -3327,46 +3240,36 @@ class MainWindow(QMainWindow):
             pass
 
     def _init_notifications(self) -> None:
-        """Prepare toast container and hook up notifier signals."""
-        self._toast_widget = QQuickWidget(self)
-        self._toast_widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
-        qml_path = os.path.abspath(os.path.join("notifications", "qml", "ToastContainer.qml"))
-        self._toast_widget.setSource(QUrl.fromLocalFile(os.path.abspath(qml_path)))
+        self._toast_widget = None
         try:
-            self._toast_widget.setAttribute(Qt.WA_TranslucentBackground, True)
-            self._toast_widget.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        except Exception:
-            pass
-        self._toast_widget.setGeometry(self.width() - 360, 0, 360, self.height())
-        self._toast_widget.lower()
-        notifier = get_notifier()
-        notifier.showToast.connect(self._forward_toast)
-
-    def _forward_toast(self, payload: dict) -> None:
-        root = self._toast_widget.rootObject()
-        if root is not None:
+            notifier = get_notifier()
             try:
-                root.pushToast(payload)
+                notifier.showToast.disconnect(self._forward_toast)
             except Exception:
                 pass
+        except Exception:
+            pass
+
+    def _forward_toast(self, payload: dict) -> None:
+        return
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
-        if hasattr(self, "_toast_widget"):
-            self._toast_widget.setGeometry(
-                self.width() - self._toast_widget.width(),
-                0,
-                self._toast_widget.width(),
-                self.height(),
-            )
-            root = self._toast_widget.rootObject()
+        tw = getattr(self, "_toast_widget", None)
+        if not tw or not hasattr(tw, "setGeometry"):
+            return
+        try:
+            tw.setGeometry(self.width() - tw.width(), 0, tw.width(), self.height())
+            root = getattr(tw, "rootObject", lambda: None)()
             if root is not None:
                 try:
-                    root.setProperty("height", self._toast_widget.height())
+                    root.setProperty("width", tw.width())
+                    root.setProperty("height", tw.height())
                 except Exception:
                     pass
+        except Exception:
+            pass
 
-    # --- Metric Widgets (simple counters) ---------------------------------
     def open_home_dashboard(self) -> None:
         from ui.dashboard.home_dashboard import HomeDashboard
         panel = HomeDashboard(self.settings_manager, customization_repo=self.customization_repo)
@@ -3439,66 +3342,7 @@ class MetricWidget(QWidget):
         lay = QVBoxLayout(self)
         lay.addWidget(lab)
 
-    def _open_qml_modal(self, qml_rel_path: str, title: str) -> None:
-        """Open a QML Window (as a modal dialog) and inject the catalog bridge."""
-        view = QQuickView()
-        view.setTitle(title)
-        try:
-            view.setResizeMode(QQuickView.SizeRootObjectToView)
-        except Exception:
-            pass
 
-        if not hasattr(self, "_catalog_bridge"):
-            self._catalog_bridge = CatalogBridge(db_path="data/master.db")
-
-        ctx = view.rootContext()
-        ctx.setContextProperty("catalogBridge", self._catalog_bridge)
-        ctx.setContextProperty("teamStatuses", TEAM_STATUSES)
-
-        # Inject per-window SQLite models for master catalog windows
-        try:
-            # Strip the full suffix "Window.qml" (10 chars) to get the base name
-            name = base[:-10] if base.endswith("Window.qml") else os.path.splitext(base)[0]
-            # Map window base name -> table name (validate against sqlite_master)
-            table = self._resolve_master_table(name)
-            print(f"[main._open_qml_modal:MetricWidget] qml='{qml_rel_path}', base='{base}', name='{name}', resolved_table='{table}'")
-            if table:
-                model_name = f"{name}Model"
-                model = SqliteTableModel("data/master.db")
-                sql = f"SELECT * FROM {table}"
-                print(f"[main._open_qml_modal:MetricWidget] injecting model '{model_name}' with sql: {sql}")
-                model.load_query(sql)
-                ctx.setContextProperty(model_name, model)
-                try:
-                    print(f"[main._open_qml_modal:MetricWidget] model '{model_name}' rowCount={model.rowCount()}")
-                except Exception:
-                    pass
-            else:
-                try:
-                    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-                    con = sqlite3.connect(db_path)
-                    cur = con.cursor()
-                    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                    tbls = [r[0] for r in cur.fetchall()]
-                    con.close()
-                    print(f"[main._open_qml_modal:MetricWidget] no table for '{name}'. sqlite tables: {tbls}")
-                except Exception as e:
-                    print(f"[main._open_qml_modal:MetricWidget] failed to enumerate tables: {e}")
-        except Exception as e:
-            print(f"[main] model injection error for {qml_rel_path}: {e}")
-
-        from pathlib import Path
-        qml_file = Path(__file__).resolve().parent / qml_rel_path
-        view.setSource(QUrl.fromLocalFile(str(qml_file)))
-        view.show()
-        if not hasattr(self, "_open_qml_views"):
-            self._open_qml_views = []
-        self._open_qml_views.append(view)
-
-    def _open_qml_placeholder(self, title: str, body: str, float_on_open: bool = True) -> None:
-        qml_file = os.path.join("ui", "qml", "PlaceholderPanel.qml")
-        ctx = {"panelTitle": title, "panelBody": body}
-        self._open_dock_from_qml(qml_file, title, float_on_open=float_on_open, context=ctx)
 
     # (Deprecated widget openers removed in favor of Home Dashboard)
 
@@ -3658,7 +3502,7 @@ if __name__ == "__main__":
     app.aboutToQuit.connect(_on_quit)
 
     # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-    DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+    DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
     DEBUG_INCIDENT_ID = "2025-FAIR"
     DEBUG_USER_ID = "405021"
     DEBUG_ROLE = "Incident Commander"
@@ -3683,13 +3527,20 @@ if __name__ == "__main__":
         print("[debug] Login bypass enabled: loaded test credentials.")
     else:
         from modules.login_dialog import LoginDialog
-        login = LoginDialog(demo_mode=bool(getattr(args, "demo", False)))
+        # Read startup behavior + last incident before showing login
+        _early_settings = SettingsManager()
+        try:
+            _startup_mode = int(_early_settings.get('startupBehaviorIndex', 0) or 0)
+        except Exception:
+            _startup_mode = 0
+        _default_incident = _early_settings.get('lastIncidentNumber') if _startup_mode == 1 else None
+        login = LoginDialog(demo_mode=bool(getattr(args, 'demo', False)), default_incident_number=_default_incident)
         if login.exec() != QDialog.Accepted:
             sys.exit(0)
 
     # Build main window after session is established
-    settings_manager = SettingsManager()
-    settings_bridge = QmlSettingsBridge(settings_manager)
+    settings_manager = _early_settings
+    settings_bridge = SettingsBridge(settings_manager)
 
     # Initialize theme manager/bridge at app level as well
     try:
@@ -3735,7 +3586,7 @@ if __name__ == "__main__":
         print(f"[catalog] Seeder failed: {e}")
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
-    # Share the app-level theme objects with the window (used to inject into QML contexts)
+    # Share the app-level theme objects with the window (used to inject into legacy UI contexts)
     try:
         if _theme_manager:
             win.theme_manager = _theme_manager
@@ -3748,8 +3599,3 @@ if __name__ == "__main__":
         attach_dev_menu(win)
     win.show()
     sys.exit(app.exec())
-
-
-
-
-

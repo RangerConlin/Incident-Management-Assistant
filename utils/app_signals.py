@@ -22,6 +22,8 @@ class AppSignals(QObject):
     teamLeaderChanged = Signal(int)
     # Emitted when a task header field changes; provides task id and changed fields
     taskHeaderChanged = Signal(int, dict)
+    # Emitted when ICP location (address/lat/lon) changes for active incident
+    icpLocationChanged = Signal(dict)
 
 
 # Global singleton instance

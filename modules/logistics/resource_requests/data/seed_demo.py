@@ -84,7 +84,7 @@ def seed_incident(incident_id: str) -> None:
         header = {
             "title": f"Demo Request {index}",
             "requesting_section": "Logistics",
-            "needed_by_utc": (base + timedelta(hours=index)).isoformat() + "Z",
+            "needed_by_utc": (base + timedelta(hours=index)).isoformat(timespec="seconds") + "Z",
             "priority": priorities[index % len(priorities)].value,
             "status": RequestStatus.DRAFT.value,
             "created_by_id": "demo",
@@ -111,7 +111,7 @@ def seed_incident(incident_id: str) -> None:
             supplier_id="S1",
             team_id="T1",
             vehicle_id="V1",
-            eta_utc=datetime.utcnow().isoformat() + "Z",
+            eta_utc=datetime.utcnow().isoformat(timespec="seconds") + "Z",
             note="Seed assignment",
         )
 

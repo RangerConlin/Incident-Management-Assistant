@@ -23,6 +23,7 @@ class Team:
     current_task_id: Optional[int] = None
     primary_task: Optional[str] = None
     assignment: Optional[str] = None
+    location: Optional[str] = None
     team_leader_id: Optional[int] = None  # FK to personnel.id
     team_leader_phone: Optional[str] = None
     phone: Optional[str] = None
@@ -62,12 +63,13 @@ class Team:
             "current_task_id": self.current_task_id,
             "primary_task": self.primary_task,
             "assignment": self.assignment,
+            "location": self.location,
             "team_leader": self.team_leader_id,
             "leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
-            "status_updated": (self.last_update_ts or datetime.utcnow()).isoformat(),
-            "last_comm_ping": (self.last_comm_ts.isoformat() if self.last_comm_ts else None),
+            "status_updated": (self.last_update_ts or datetime.utcnow()).isoformat(timespec="seconds"),
+            "last_comm_ping": (self.last_comm_ts.isoformat(timespec="seconds") if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
             "members_json": json.dumps(list(self.members or [])),
@@ -135,6 +137,7 @@ class Team:
             current_task_id=(int(_get("current_task_id")) if _get("current_task_id") is not None else None),
             primary_task=_get("primary_task"),
             assignment=_get("assignment"),
+            location=_get("location"),
             team_leader_id=(int(_get("team_leader")) if _get("team_leader") is not None else None),
             team_leader_phone=_get("leader_phone"),
             phone=_get("phone"),
@@ -175,12 +178,13 @@ class Team:
             "current_task_id": self.current_task_id,
             "primary_task": self.primary_task,
             "assignment": self.assignment,
+            "location": self.location,
             "team_leader_id": self.team_leader_id,
             "team_leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
-            "last_update_ts": (self.last_update_ts or datetime.utcnow()).isoformat(),
-            "last_comm_ts": (self.last_comm_ts.isoformat() if self.last_comm_ts else None),
+            "last_update_ts": (self.last_update_ts or datetime.utcnow()).isoformat(timespec="seconds"),
+            "last_comm_ts": (self.last_comm_ts.isoformat(timespec="seconds") if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
             "members": list(self.members or []),
@@ -200,4 +204,3 @@ class Team:
         data["primary_task_id"] = data["current_task_id"]
         data["needs_assist"] = data["needs_attention"]
         return data
-

@@ -894,7 +894,7 @@ Features: Live status indicator; Inventory filter.
 ### Assignment Details
 Goal: Support CAPF 109, SAR 104, and ICS 204 by capturing form-specific details not located elsewhere in the tab.
 Contains two subtabs:
-o	Ground Information (default) 
+o	Ground Information (default)
 	Previous and Present Search Efforts in Area
 	Time Allocated
 	Size of Assignment
@@ -953,7 +953,7 @@ o	Mode (A/D/M)
 o	Remarks
 ### Debriefing
 Post-task review interface capturing debrief notes, lessons learned, and personnel feedback. Initial screen contains a log of completed debriefs.  Button at the top labeled “Add Debrief”.  This opens a window asking for the sortie number, Debriefer (Enter ID to reference name) and a checklist of different debrief types.  Types include Ground (SAR), Area Search Supplement, Tracking Team Supplement, Hasty Search Supplement, Air (General), Air (SAR Worksheet).  Ground (SAR) must be selected in order for area search, tracking team, or hasty search to be selected.  Air (General) must be selected in order for Air (SAR Worksheet) to be selected.  This check list selects which forms will be displayed.  After entering sortie number, debriefer ID, and selecting forms, the user clicks create which opens up the appropriate forms.  After saving the form, debriefs may be edited.  Information is sent to the planning debrief module and flagged for review.
-o	Ground (SAR) 
+o	Ground (SAR)
 	Assignment Summary (Free Text)
 	Describe Search Efforts in Assignment (Free Text)
 	Describe Portions Unable to Search (Free Text)
@@ -1104,27 +1104,27 @@ Close/Minimize Controls: Standard window chrome for hiding or closing the window
 ### Tasks
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings	List tasks (filtering, paging, sorting)	Query params: status, priority, assigned_to, date_from, date_to, page, page_size, sort_by	{ tasks: Task[], total: number, page, page_size }
-POST	/api/operations/taskings	Create a new task	{ title, description, category_id, task_type_id, priority, assigned_to, due_time?, task_id? }	{ id: UUID, ...full Task }
+POST	/api/operations/taskings	Create a new task	{ title, description, category_id, task_type_id, priority, assigned_to, due_time", task_id" }	{ id: UUID, ...full Task }
 GET	/api/operations/taskings/{taskId}	Retrieve a single task (with nested sub-resources)	—	{ ...full Task, narrative:[], teams:[], ... }
-PUT	/api/operations/taskings/{taskId}	Update all metadata on a task	{ title?, description?, category_id?, task_type_id?, priority?, assigned_to?, due_time?, task_id?, ics_form_link? }	{ ...updated Task }
+PUT	/api/operations/taskings/{taskId}	Update all metadata on a task	{ title", description", category_id", task_type_id", priority", assigned_to", due_time", task_id", ics_form_link" }	{ ...updated Task }
 PATCH	/api/operations/taskings/{taskId}/status	Update only the task’s status	`{ status: Draft	Planned
 DELETE	/api/operations/taskings/{taskId}	Archive/delete a task	—	204 No Content
 ```
 ### Narrative Entries
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/narrative	List narrative log entries	Query params: sort_by, order, page, page_size	{ entries: NarrativeEntry[], total }
-POST	/api/operations/taskings/{taskId}/narrative	Append a new narrative entry	{ entry_text, entered_by, team_number?, critical_flag? }	{ id: number, timestamp, ... }
+POST	/api/operations/taskings/{taskId}/narrative	Append a new narrative entry	{ entry_text, entered_by, team_number", critical_flag" }	{ id: number, timestamp, ... }
 PATCH	/api/operations/taskings/{taskId}/narrative/{entryId}	Update critical flag (any user)	{ critical_flag: boolean }	{ id, critical_flag, timestamp }
 ### Team Assignments
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/teams	List teams on a task	—	{ teams: TaskTeam[] }
-POST	/api/operations/taskings/{taskId}/teams	Assign a new team	{ team_id, sortie_number? }	{ id: number, assigned_ts }
+POST	/api/operations/taskings/{taskId}/teams	Assign a new team	{ team_id, sortie_number" }	{ id: number, assigned_ts }
 PATCH	/api/operations/taskings/{taskId}/teams/{ttId}	Change team status (auto-stamp)	{ status: string }	{ id, status, updated_ts }
 DELETE	/api/operations/taskings/{taskId}/teams/{ttId}	Remove a team assignment	—	204 No Content
 ### Personnel
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/personnel	List personnel on a task	—	{ personnel: TaskPersonnel[] }
-POST	/api/operations/taskings/{taskId}/personnel	Add a person	{ personnel_id, role, organization, time_assigned? }	{ id, time_assigned }
+POST	/api/operations/taskings/{taskId}/personnel	Add a person	{ personnel_id, role, organization, time_assigned" }	{ id, time_assigned }
 PATCH	/api/operations/taskings/{taskId}/personnel/{pId}	Update time assigned	{ time_assigned: ISODateTime }	{ id, time_assigned }
 DELETE	/api/operations/taskings/{taskId}/personnel/{pId}	Remove from task	—	204 No Content
 ### Vehicles
@@ -1152,11 +1152,11 @@ PUT	/api/operations/taskings/{taskId}/debriefs/{dId}	Update an existing debrief	
 DELETE	/api/operations/taskings/{taskId}/debriefs/{dId}	Delete a debrief record	—	204 No Content
 ### Audit Logs
 Method	Path	Description	Request Body	Response
-GET	/api/operations/taskings/{taskId}/logs	Fetch the change history	Query params: field?, date_from?, date_to?	{ logs: AuditLog[] }
+GET	/api/operations/taskings/{taskId}/logs	Fetch the change history	Query params: field", date_from", date_to"	{ logs: AuditLog[] }
 ### Attachments/Forms
 Method	Path	Description	Request Body	Response
 GET	/api/operations/taskings/{taskId}/attachments	List all attachments and forms	—	{ attachments: Attachment[] }
-POST	/api/operations/taskings/{taskId}/attachments	Upload a file or form template	multipart/form-data: file, type, generate_forms?	{ id, filename, url }
+POST	/api/operations/taskings/{taskId}/attachments	Upload a file or form template	multipart/form-data: file, type, generate_forms"	{ id, filename, url }
 DELETE	/api/operations/taskings/{taskId}/attachments/{aId}	Remove an attachment	—	204 No Content
 ### Planning Links
 Method	Path	Description	Request Body	Response
@@ -1270,7 +1270,7 @@ The Logistics Module manages all resource, supply, and equipment operations for 
   - Audit Trail: Full change history on all records.
   - Role-Based Access Control: Restricts critical actions to authorized users.
   - Integration with Mobile App: Supports mobile subincidents and updates.
-## Module 4-1: Resource Request 
+## Module 4-1: Resource Request
 Resource Request Module Design Document
 1. Module Name & Description
 **Logistics Resource Request** is the submodule within the Logistics section that enables personnel to create, track, manage, and fulfill requests for resources (personnel, equipment, supplies) during an incident. It streamlines the request-to-delivery workflow, ensuring timely provisioning and transparent status updates.
@@ -1377,7 +1377,7 @@ Resource Request Module Design Document
   - Column Views & Persistence:** Saved board views persist per-user and across sessions.
 
  
-## Module 5: Communications 
+## Module 5: Communications
 
 1. Module Name & Description
 The Communications Module manages all inbound, outbound, and internal messaging across the incident. It includes informal chat, structured message logging (ICS 213), and broadcast tools for alerts and status changes. It links directly with the Communications Unit Leader’s responsibilities and supports message traceability.
@@ -1439,7 +1439,7 @@ The Communications Module manages all inbound, outbound, and internal messaging 
   - - Channels can be filtered by group, location, or operational period
   - - Supports optional encryption for sensitive messages
  
-## Module 6: Medical and Safety 
+## Module 6: Medical and Safety
 1. Module Name & Description
 This module consolidates all health, injury, responder safety, and medical support tracking. It enables on-site triage tracking, responder health logs, safety briefings, and medical plan management. It serves both Medical Unit Leaders and Safety Officers.
 2. Primary Functions
@@ -1707,8 +1707,8 @@ All endpoints use the active mission DB connection and write audit logs.
 ```
 Below are the key fields; actual DDL created via Alembic migrations.
 7.1 Core
-  - intel_clues: id, mission_id, type, score, at_time, geom(WKT), location_text, entered_by, team_text, description, attachments_json, linked_subject_id?, linked_task_id?, created_at, updated_at.
-  - intel_reports: id, mission_id, title, body_md, audience, linked_subject_id?, linked_task_id?, created_at.
+  - intel_clues: id, mission_id, type, score, at_time, geom(WKT), location_text, entered_by, team_text, description, attachments_json, linked_subject_id", linked_task_id", created_at, updated_at.
+  - intel_reports: id, mission_id, title, body_md, audience, linked_subject_id", linked_task_id", created_at.
   - intel_env_data: id, mission_id, op_period, weather_json, hazards_json, terrain_json, notes.
 7.2 Subject Set (tabbed editor support)
   - intel_subjects: identity & LPB fields (name parts, sex, dob, race, height_cm, weight_kg, eyes, hair, build, lpb_category_code, lpb_notes, photo_url).
@@ -1721,7 +1721,7 @@ Below are the key fields; actual DDL created via Alembic migrations.
   - intel_subject_contacts: subject_id, name, relationship, phone, notes, notify_on_found.
 7.3 Form Aligned Storage
 SAR 134
-  - intel_form_sar134 (parent), intel_form_sar134_entry (rows: clue_number, time_local, resource_text, location_text, utm_text, clue_disposition_text, linked_clue_id?).
+  - intel_form_sar134 (parent), intel_form_sar134_entry (rows: clue_number, time_local, resource_text, location_text, utm_text, clue_disposition_text, linked_clue_id").
 SAR 135
   - intel_form_sar135: fields for clue details, urgency, probabilities; child intel_form_sar135_segment_prob (tier, segment_code).
 SAR 301
@@ -2329,7 +2329,7 @@ A specialized suite of planning tools designed to support Search and Rescue (SAR
 
  
 ## Module 19: Planned Event Toolkit
-1. Module Name & Description	
+1. Module Name & Description
   Planned Events Toolkit: A suite of standalone modules, activated only for planned incidents (e.g., festivals, parades, marathons). Provides event-specific planning, public safety, and streamlined tasking—independent of core ICS features.
 2. Primary Functions
   - Loads dynamically when incident type is planned
@@ -2446,7 +2446,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
   - Role based perincidents via planned_event_roles
   - Offline support with automatic sync on reconnect
 
- 
+
 ## Module 19-1: Event Promotions and Communications
 1. Module Name & Description
 2. Primary Functions
@@ -2592,3 +2592,34 @@ This forward-looking module explores integration of artificial intelligence to e
   - - Designed for opt-in usage with explicit controls
   - - Intended to support, not replace, human decision-making
  
+
+## Text Encoding (UTF-8 Everywhere)
+- Use UTF-8 for all text: source, JSON, YAML, CSV, Markdown, INI, and templates. Avoid ANSI/Windows-1252.
+- Always specify the encoding explicitly when doing text I/O:
+  - Python builtins: `open(path, 'r', encoding='utf-8')`, `open(path, 'w', encoding='utf-8')`.
+  - Pathlib: `Path(path).read_text(encoding='utf-8')`, `Path(path).write_text(text, encoding='utf-8')`.
+- JSON: `json.load(f)` with files opened as UTF-8; `json.dump(obj, f, ensure_ascii=False)` so real Unicode is preserved.
+- CSV: open with `newline=''` and `encoding='utf-8'`. For legacy Excel targets, prefer `encoding='utf-8-sig'`.
+- SQLite: store/read text as Python `str`. Do not set `text_factory=bytes`; do not manually `.encode()`/`.decode()` DB strings.
+- Qt Widgets: always pass Python `str` to `.setText()`/model data; never pass raw `bytes`.
+- Network/text payloads: decode as UTF-8 unless the server explicitly declares a different charset.
+
+### Rationale
+- Prevents mojibake on Windows where the locale default is cp1252 (e.g., stray `"""`, `"""`, `"` in UI).
+- Keeps exports/imports consistent across platforms and tools.
+
+### Definition of Done (encoding)
+- All new/changed file I/O includes `encoding='utf-8'` for text.
+- No `Path.read_text()`/`write_text()` without an explicit `encoding`.
+- JSON dumps use `ensure_ascii=False` when human-readable output is intended.
+- If generating CSVs primarily consumed by Excel users, document whether `utf-8-sig` is required.
+
+### Dev check (optional)
+Run a quick grep before submitting:
+```
+rg -n "read_text\(|write_text\(|open\(.*['"]r['"]|open\(.*['"]w['"]" -S | rg -v "encoding=|open\([^)]*[arb]b""
+```
+This flags text I/O that may be missing an explicit `encoding`.
+
+### Migration note
+The `SettingsManager` transparently migrates legacy cp1252 settings files to UTF-8 on next load.

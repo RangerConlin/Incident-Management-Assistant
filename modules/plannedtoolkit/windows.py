@@ -66,4 +66,3 @@ def get_planned_toolkit_panel(incident_id: object | None = None) -> QWidget:
         "Planned Event Toolkit",
         f"Toolkit — incident: {incident_id}",
     )
-

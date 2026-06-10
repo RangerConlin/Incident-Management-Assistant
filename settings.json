@@ -19,13 +19,13 @@
     "commsLogVerbosity": 1,
     "localSyncBackup": true,
     "autoBackupInterval": 5,
-    "aiRecommendations": true,
+    "aiRecommendations": false,
     "lanCollaboration": true,
     "basemapSource": 0,
     "uiTemplateIndex": 3,
     "colorProfileIndex": 0,
     "themeIndex": 1,
-    "startupBehaviorIndex": 0,
+    "startupBehaviorIndex": 1,
     "unitIndex": 0,
     "dateFormatIndex": 0,
     "languageIndex": 0,
@@ -120,5 +120,19 @@
     "statusboard.team.textSize": "small",
     "statusboard.team.columns.hidden": [
         "team_type"
-    ]
+    ],
+    "lastIncidentNumber": "26-T-4301",
+    "statusboard.task.textSize": "large",
+    "statusboard.team.refreshMs": 15000,
+    "statusboard.team.columns.widths": {
+        "team_type": 24,
+        "sortie": 53,
+        "name": 98,
+        "leader": 114,
+        "contact": 82,
+        "status": 84,
+        "assignment": 257,
+        "location": 338,
+        "last_updated": 75
+    }
 }

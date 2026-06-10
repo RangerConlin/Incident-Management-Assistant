@@ -38,4 +38,3 @@ def get_profile(code: str) -> QualProfile | None:
 
 
 __all__ = ["PROFILES_VERSION", "QualProfile", "PROFILES", "get_profile"]
-

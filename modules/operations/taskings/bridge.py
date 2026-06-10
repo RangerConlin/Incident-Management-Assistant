@@ -261,7 +261,7 @@ class TaskingsBridge(QObject):
             uid = AppState.get_active_user_id()
         except Exception:
             uid = None
-        now = datetime.utcnow().isoformat()
+        now = datetime.utcnow().isoformat(timespec="seconds")
         update_debrief_header(int(debrief_id), {"status": "Submitted", "flagged_for_review": 1, "submitted_by": str(uid) if uid is not None else None, "submitted_at": now})
         # Audit hook for planning review
         try:
@@ -281,7 +281,7 @@ class TaskingsBridge(QObject):
             uid = AppState.get_active_user_id()
         except Exception:
             uid = None
-        now = datetime.utcnow().isoformat()
+        now = datetime.utcnow().isoformat(timespec="seconds")
         update_debrief_header(int(debrief_id), {"status": "Reviewed", "flagged_for_review": 0, "reviewed_by": str(uid) if uid is not None else None, "reviewed_at": now})
         try:
             from utils.audit import write_audit

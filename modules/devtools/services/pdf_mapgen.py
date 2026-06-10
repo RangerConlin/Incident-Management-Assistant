@@ -151,4 +151,3 @@ def generate_map(
 
 def list_fields(pdf_path: Path) -> List[PdfField]:
     return extract_acroform_fields(pdf_path)
-

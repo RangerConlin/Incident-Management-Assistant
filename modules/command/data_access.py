@@ -10,10 +10,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 from utils.state import AppState
-from utils import timefmt
+from utils import timefmt, incident_storage
 
 _ROOT_DIR = Path(__file__).resolve().parents[2]
-_DATA_DIR = Path(os.environ.get("CHECKIN_DATA_DIR", str(_ROOT_DIR / "data")))
+_DATA_DIR = incident_storage.data_root()
 
 try:  # pragma: no cover - optional dependency available in runtime
     from utils.db import get_master_conn, get_incident_conn
@@ -27,7 +27,10 @@ except Exception:  # pragma: no cover
         incident_number = AppState.get_active_incident()
         if not incident_number:
             raise RuntimeError("Active incident not set")
-        path = _DATA_DIR / "incidents" / f"{incident_number}.db"
+        resolved = incident_storage.resolve_incident_paths_by_identifier(incident_number)
+        if resolved is None:
+            raise RuntimeError(f"Unable to resolve incident path for {incident_number}")
+        path = resolved.incident_db
         conn = sqlite3.connect(path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -195,12 +198,10 @@ def _incident_conn() -> Optional[sqlite3.Connection]:
         number = _resolve_incident_number()
         if not number:
             return None
-        root = _DATA_DIR
-        path = root / "incidents" / f"{number}.db"
-        if not path.exists():
-            # fall back to a sample database if present
-            demo_path = root / "incidents" / "demo-incident.db"
-            path = demo_path if demo_path.exists() else path
+        resolved = incident_storage.resolve_incident_paths_by_identifier(number)
+        if resolved is None:
+            return None
+        path = resolved.incident_db
         try:
             conn = sqlite3.connect(path)
             conn.row_factory = sqlite3.Row

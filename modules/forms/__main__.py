@@ -16,7 +16,7 @@ def main() -> None:
     parser.add_argument("--no-flatten", dest="flatten", action="store_false", help="Do not flatten form fields")
     args = parser.parse_args()
 
-    data = json.loads(Path(args.in_file).read_text())
+    data = json.loads(Path(args.in_file).read_text(encoding="utf-8"))
     pdf_bytes = render_form(args.form, args.version, data, options={"flatten": args.flatten})
     out_path = Path(args.out_file)
     out_path.parent.mkdir(parents=True, exist_ok=True)

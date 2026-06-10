@@ -1,0 +1,32 @@
+{
+  "_comment": "Starter mapping only; PDF field IDs must match the actual form template exactly.",
+  "description": "ICS 214 Activity Log starter mapping.",
+  "fields": [
+    {"pdf_field": "IncidentName", "source": "incident.name"},
+    {"pdf_field": "OperationalPeriodStart", "source": {"key": "period.start", "transform": "date_short"}},
+    {"pdf_field": "OperationalPeriodEnd", "source": {"key": "period.end", "transform": "date_short"}},
+    {"pdf_field": "UnitName", "source": {"key": "team.name", "default": "Operations"}},
+    {"pdf_field": "UnitLeader", "source": {"join": ["team.leader.first_name", "team.leader.last_name"], "separator": " ", "default": "Unknown"}},
+    {"pdf_field": "PreparedBy", "source": {"join": ["preparer.first_name", "preparer.last_name"], "separator": " "}},
+    {"pdf_field": "Entry1Time", "source": {"key": "tasks.0.time", "default": ""}},
+    {"pdf_field": "Entry1Activity", "source": {"key": "tasks.0.description", "default": ""}},
+    {"pdf_field": "Entry2Time", "source": {"key": "tasks.1.time", "default": ""}},
+    {"pdf_field": "Entry2Activity", "source": {"key": "tasks.1.description", "default": ""}},
+    {"pdf_field": "Entry3Time", "source": {"key": "tasks.2.time", "default": ""}},
+    {"pdf_field": "Entry3Activity", "source": {"key": "tasks.2.description", "default": ""}},
+    {"pdf_field": "Entry4Time", "source": {"key": "tasks.3.time", "default": ""}},
+    {"pdf_field": "Entry4Activity", "source": {"key": "tasks.3.description", "default": ""}},
+    {"pdf_field": "Entry5Time", "source": {"key": "tasks.4.time", "default": ""}},
+    {"pdf_field": "Entry5Activity", "source": {"key": "tasks.4.description", "default": ""}},
+    {"pdf_field": "Entry6Time", "source": {"key": "tasks.5.time", "default": ""}},
+    {"pdf_field": "Entry6Activity", "source": {"key": "tasks.5.description", "default": ""}},
+    {"pdf_field": "Entry7Time", "source": {"key": "tasks.6.time", "default": ""}},
+    {"pdf_field": "Entry7Activity", "source": {"key": "tasks.6.description", "default": ""}},
+    {"pdf_field": "Entry8Time", "source": {"key": "tasks.7.time", "default": ""}},
+    {"pdf_field": "Entry8Activity", "source": {"key": "tasks.7.description", "default": ""}},
+    {"pdf_field": "Entry9Time", "source": {"key": "tasks.8.time", "default": ""}},
+    {"pdf_field": "Entry9Activity", "source": {"key": "tasks.8.description", "default": ""}},
+    {"pdf_field": "Entry10Time", "source": {"key": "tasks.9.time", "default": ""}},
+    {"pdf_field": "Entry10Activity", "source": {"key": "tasks.9.description", "default": ""}}
+  ]
+}

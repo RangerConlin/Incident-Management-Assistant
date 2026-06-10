@@ -73,4 +73,3 @@ __all__ = [
     "label_to_level",
     "render_badge",
 ]
-

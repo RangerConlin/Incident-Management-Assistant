@@ -165,4 +165,3 @@ Backend wiring + optional LLM setup
 16–17
 
 Final polish and QA
-

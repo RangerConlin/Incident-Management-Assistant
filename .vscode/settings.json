@@ -2,7 +2,7 @@
     "python-envs.pythonProjects": [
         {
             "path": "main.py",
-            "envManager": "ms-python.python:venv",
+            "envManager": "ms-python.python:system",
             "packageManager": "ms-python.python:pip"
         }
     ],
@@ -13,5 +13,6 @@
     "code-runner.runInTerminal": true,
     "code-runner.executorMap": {
         "python": "\"${workspaceFolder}\\.venv\\Scripts\\python.exe\" -u"
-    }
+    },
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }

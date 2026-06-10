@@ -288,5 +288,3 @@ def ensure_column(db_path: str, table: str, column: str, coltype: str) -> None:
         # Non-fatal; the UI will continue, and operations that rely on this
         # column will simply omit it if unavailable.
         pass
-
-

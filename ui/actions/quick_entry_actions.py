@@ -88,4 +88,3 @@ def _tokenize(s: str) -> list[str]:
     if cur:
         out.append("".join(cur))
     return out
-

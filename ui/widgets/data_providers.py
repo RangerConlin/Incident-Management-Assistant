@@ -40,8 +40,8 @@ def auth_getCurrentUser() -> Dict[str, Any]:
     return {
         "name": "j.doe",
         "role": "Planning Chief",
-        "login": datetime.now(timezone.utc).isoformat(),
-        "check_in": datetime.now(timezone.utc).isoformat(),
+        "login": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "check_in": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
 
@@ -140,4 +140,3 @@ def pio_getMediaLog(limit: int = 25) -> List[str]:
 
 def pio_getPendingApprovals() -> List[str]:
     return ["Press release #3", "Community notice #2"]
-

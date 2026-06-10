@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -456,4 +456,3 @@ class PermissionOut(BaseModel):
     can_edit: bool = True
     can_finalize: bool = False
     can_export: bool = False
-

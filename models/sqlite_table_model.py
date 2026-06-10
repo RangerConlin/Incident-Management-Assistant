@@ -135,4 +135,3 @@ class SqliteTableModel(QAbstractTableModel):
             self.load_query(sql)
         except Exception:
             pass
-

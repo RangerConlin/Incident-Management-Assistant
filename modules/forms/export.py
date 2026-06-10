@@ -130,4 +130,3 @@ __all__ = [
     "sha256_of_file",
     "assert_fingerprint",
 ]
-

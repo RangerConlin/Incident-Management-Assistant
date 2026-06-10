@@ -13,8 +13,9 @@ from PySide6.QtWidgets import (
     QDialog,
 )
 from PySide6.QtGui import QFont, QFontMetrics
-from PySide6.QtCore import Qt
-from utils.styles import task_status_colors, subscribe_theme
+from PySide6.QtCore import Qt, QTimer
+from utils.styles import task_status_colors, subscribe_theme, get_palette
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 from utils.audit import write_audit
 from utils.app_signals import app_signals
 
@@ -65,6 +66,8 @@ class TaskStatusPanel(QWidget):
         try:
             self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            # Outline-only selection; delegate will render the border
+            self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
         except Exception:
             pass
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -75,6 +78,15 @@ class TaskStatusPanel(QWidget):
             pass
         layout.addWidget(header_bar)
         layout.addWidget(self.table)
+
+        # Install outline-only selection delegate for entire table
+        try:
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            self._outline_delegate = RowOutlineSelectionDelegate(self.table, color)
+            self.table.setItemDelegate(self._outline_delegate)
+        except Exception:
+            self._outline_delegate = None
 
         # Set column headers
         self.table.setColumnCount(6)
@@ -95,6 +107,19 @@ class TaskStatusPanel(QWidget):
             hdr = self.table.horizontalHeader()
             hdr.setSectionsMovable(True)
             hdr.setStretchLastSection(False)
+            try:
+                for idx in range(self.table.columnCount()):
+                    hdr.setSectionResizeMode(idx, QHeaderView.Interactive)
+            except Exception:
+                pass
+            try:
+                self._apply_saved_column_widths()
+            except Exception:
+                pass
+            try:
+                hdr.sectionResized.connect(self._on_section_resized)
+            except Exception:
+                pass
         except Exception:
             pass
         # Apply any saved column visibility
@@ -110,6 +135,14 @@ class TaskStatusPanel(QWidget):
         self._load_filters()
         # Initial load
         self.reload()
+        # Auto-refresh timer (configurable)
+        try:
+            self._auto_refresh_timer = QTimer(self)
+            self._auto_refresh_timer.setSingleShot(False)
+            self._auto_refresh_timer.timeout.connect(self.reload)
+            self._apply_refresh_interval(self._load_refresh_ms())
+        except Exception:
+            pass
         # React to incident changes
         try:
             app_signals.incidentChanged.connect(lambda *_: self.reload())
@@ -120,7 +153,20 @@ class TaskStatusPanel(QWidget):
         except Exception:
             pass
         try:
-            subscribe_theme(self, lambda *_: self._recolor_all())
+            subscribe_theme(self, lambda *_: (self._update_outline_color(), self._recolor_all()))
+        except Exception:
+            pass
+
+    def _update_outline_color(self) -> None:
+        try:
+            if getattr(self, "_outline_delegate", None) is not None:
+                pal = get_palette()
+                color = pal.get("ctrl_focus", pal.get("accent"))
+                self._outline_delegate.setColor(color)
+                try:
+                    self.table.viewport().update()
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -409,6 +455,26 @@ class TaskStatusPanel(QWidget):
                 act.setChecked(True)
             self._col_actions[idx] = act
         menu.addMenu(cols_menu)
+        widths_menu = QMenu("Column Widths", menu)
+        widths_menu.addAction("Auto-fit Now", self._auto_fit_columns)
+        widths_menu.addAction("Reset Saved Widths", self._reset_saved_column_widths)
+        menu.addMenu(widths_menu)
+        # Auto-refresh submenu
+        refresh_menu = QMenu("Auto-Refresh", menu)
+        self._refresh_actions = {}
+        options = [
+            (0, "Off"),
+            (15000, "15 sec"),
+            (30000, "30 sec"),
+            (60000, "1 min"),
+            (120000, "2 min"),
+            (300000, "5 min"),
+        ]
+        for ms, label in options:
+            act = refresh_menu.addAction(label, lambda v=ms: self._set_refresh_ms(v))
+            act.setCheckable(True)
+            self._refresh_actions[ms] = act
+        menu.addMenu(refresh_menu)
         # Text size submenu
         size_menu = QMenu("Text Size", menu)
         self._size_actions = {}
@@ -419,12 +485,21 @@ class TaskStatusPanel(QWidget):
         menu.addMenu(size_menu)
         self._settings_btn.setMenu(menu)
         self._update_text_size_checks()
+        self._update_refresh_checks()
         self._update_column_checks()
 
     def _update_text_size_checks(self) -> None:
         try:
             for k, a in getattr(self, "_size_actions", {}).items():
                 a.setChecked(k == self._text_size)
+        except Exception:
+            pass
+
+    def _update_refresh_checks(self) -> None:
+        try:
+            ms = getattr(self, "_refresh_ms", 0)
+            for val, act in getattr(self, "_refresh_actions", {}).items():
+                act.setChecked(int(val) == int(ms))
         except Exception:
             pass
 
@@ -472,7 +547,78 @@ class TaskStatusPanel(QWidget):
         except Exception:
             pass
 
-    # -------------------------- Column visibility -------------------------- #
+
+    # -------------------------- Column widths ---------------------------- #
+    def _settings_key_widths(self) -> str:
+        return "statusboard.task.columns.widths"
+
+    def _key_to_index(self) -> dict[str, int]:
+        try:
+            return {key: idx for idx, key, _ in self._columns}
+        except Exception:
+            return {}
+
+    def _index_to_key(self) -> dict[int, str]:
+        try:
+            return {idx: key for idx, key, _ in self._columns}
+        except Exception:
+            return {}
+
+    def _apply_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            widths = SettingsManager().get(self._settings_key_widths(), {}) or {}
+            key_to_index = self._key_to_index()
+            hdr = self.table.horizontalHeader()
+            for key, w in widths.items():
+                if key in key_to_index:
+                    try:
+                        hdr.resizeSection(int(key_to_index[key]), int(w))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def _persist_column_width(self, index: int, width: int) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            data = s.get(self._settings_key_widths(), {}) or {}
+            index_to_key = self._index_to_key()
+            key = index_to_key.get(index)
+            if key is None:
+                return
+            data[str(key)] = int(max(24, width))
+            s.set(self._settings_key_widths(), data)
+        except Exception:
+            pass
+
+    def _on_section_resized(self, index: int, old: int, new: int) -> None:
+        try:
+            self._persist_column_width(index, new)
+        except Exception:
+            pass
+
+    def _auto_fit_columns(self) -> None:
+        try:
+            self.table.resizeColumnsToContents()
+            # Persist current sizes
+            hdr = self.table.horizontalHeader()
+            for idx in range(self.table.columnCount()):
+                try:
+                    self._persist_column_width(idx, hdr.sectionSize(idx))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _reset_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set(self._settings_key_widths(), {})
+        except Exception:
+            pass
+# -------------------------- Column visibility -------------------------- #
     def _toggle_column(self, index: int) -> None:
         try:
             hidden = self.table.isColumnHidden(index)
@@ -515,4 +661,38 @@ class TaskStatusPanel(QWidget):
         except Exception:
             pass
 
+    # ------------------------------ Auto-refresh --------------------------- #
+    def _persist_refresh_ms(self, ms: int) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set("statusboard.task.refreshMs", int(max(0, ms)))
+        except Exception:
+            pass
 
+    def _load_refresh_ms(self) -> int:
+        try:
+            from utils.settingsmanager import SettingsManager
+            val = SettingsManager().get("statusboard.task.refreshMs", 30000)
+            return int(val or 0)
+        except Exception:
+            return 30000
+
+    def _apply_refresh_interval(self, ms: int) -> None:
+        try:
+            self._refresh_ms = int(max(0, ms))
+            t = getattr(self, "_auto_refresh_timer", None)
+            if t is None:
+                return
+            if self._refresh_ms <= 0:
+                t.stop()
+            else:
+                t.setInterval(self._refresh_ms)
+                if not t.isActive():
+                    t.start()
+            self._update_refresh_checks()
+        except Exception:
+            pass
+
+    def _set_refresh_ms(self, ms: int) -> None:
+        self._apply_refresh_interval(ms)
+        self._persist_refresh_ms(ms)

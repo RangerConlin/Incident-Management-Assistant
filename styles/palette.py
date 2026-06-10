@@ -16,4 +16,3 @@ TEAM_STATUS = dict(getattr(_LIGHT_PROFILE, "TEAM_STATUS_REFERENCE", {}))
 TASK_STATUS = dict(getattr(_LIGHT_PROFILE, "TASK_STATUS_REFERENCE", {}))
 
 THEMES = {"light": LIGHT, "dark": DARK}
-

@@ -96,4 +96,3 @@ TEAM_STATUS_BY_CATEGORY = {
 
 def team_statuses_for_category(category: str) -> list[str]:
     return TEAM_STATUS_BY_CATEGORY.get(category, TEAM_STATUS_BY_CATEGORY["Other"])
-

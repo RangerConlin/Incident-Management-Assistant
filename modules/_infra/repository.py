@@ -2,6 +2,8 @@
 
 from contextlib import contextmanager
 from pathlib import Path
+
+from utils import incident_storage
 from typing import Dict, Any
 
 from sqlalchemy import create_engine
@@ -19,7 +21,10 @@ _engine_cache: Dict[str, Any] = {}
 
 def get_incident_engine(incident_id: str):
     """Return an engine bound to incident-specific database."""
-    db_path = Path("data") / "incidents" / f"{incident_id}.db"
+    paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+    if paths is None:
+        raise RuntimeError(f"Unknown incident: {incident_id}")
+    db_path = paths.incident_db
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = _engine_cache.get(incident_id)
     if engine is None:

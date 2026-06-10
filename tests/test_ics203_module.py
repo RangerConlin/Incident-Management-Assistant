@@ -28,7 +28,6 @@ from utils.state import AppState
 def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     base = tmp_path / "data"
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(base))
-    monkeypatch.setattr(utils_db, "_DATA_DIR", base)
     return base
 
 
@@ -52,7 +51,10 @@ def reset_app_state() -> None:
 
 def test_ensure_incident_schema_creates_tables(data_dir: Path) -> None:
     ensure_incident_schema("test-incident")
-    db_path = data_dir / "incidents" / "test-incident.db"
+    from utils import incident_storage
+    paths = incident_storage.resolve_incident_paths_by_identifier("test-incident")
+    assert paths is not None
+    db_path = paths.incident_db
     assert db_path.exists()
     with sqlite3.connect(db_path) as conn:
         tables = {

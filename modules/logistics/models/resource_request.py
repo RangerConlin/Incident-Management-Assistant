@@ -61,4 +61,3 @@ class LogisticsResourceItem(Base):
     unit = Column(String, nullable=False)
     available_quantity = Column(Integer, default=0)
     location = Column(String)
-

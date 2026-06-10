@@ -144,4 +144,3 @@ class HomeDashboard(QWidget):
             {"widgetId": "incidentinfo","x": 0, "y": 1, "w": 6, "h": 1},
             {"widgetId": "teamstatusboard","x": 6, "y": 1, "w": 6, "h": 1},
         ]
-

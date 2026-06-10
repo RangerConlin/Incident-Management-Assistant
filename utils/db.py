@@ -7,16 +7,10 @@ this module.
 """
 from __future__ import annotations
 
-import os
 import sqlite3
 from pathlib import Path
 
-from . import incident_context
-
-# Base directory for data storage.  Defaults to ``data`` in the
-# repository root but can be overridden for tests by the environment
-# variable above.
-_DATA_DIR = Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
+from . import incident_context, incident_storage
 
 
 def _connect(path: Path) -> sqlite3.Connection:
@@ -29,7 +23,8 @@ def _connect(path: Path) -> sqlite3.Connection:
 
 def get_master_conn() -> sqlite3.Connection:
     """Return a connection to the persistent master database."""
-    return _connect(_DATA_DIR / "master.db")
+    incident_storage.ensure_layout_initialized()
+    return _connect(incident_storage.master_db_path())
 
 
 def get_incident_conn() -> sqlite3.Connection:

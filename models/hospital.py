@@ -52,4 +52,3 @@ class Hospital:
 
 
 __all__ = ["Hospital"]
-

@@ -1,7 +1,11 @@
+from pathlib import Path
+
+from utils import incident_storage
+
 import sqlite3
 from contextlib import contextmanager
 
-DB_PATH = 'data/master.db'
+DB_PATH = str(incident_storage.master_db_path())
 
 
 def get_connection():
@@ -158,4 +162,3 @@ def get_incident_by_number(incident_number):
         keys = [desc[0] for desc in description]
         return dict(zip(keys, row))
     return None
-

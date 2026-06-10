@@ -155,8 +155,8 @@ class CheckInRecord:
     team_id: Optional[str] = None
     role_on_team: Optional[str] = None
     operational_period: Optional[str] = None
-    created_at: str = field(default_factory=lambda: datetime.now().astimezone().isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now().astimezone().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now().astimezone().isoformat(timespec="seconds"))
+    updated_at: str = field(default_factory=lambda: datetime.now().astimezone().isoformat(timespec="seconds"))
     ui_flags: UIFlags = field(default_factory=UIFlags)
     pending: bool = False
 
@@ -276,10 +276,10 @@ class CheckInUpsert:
     def to_record(self, base: Optional[CheckInRecord] = None) -> CheckInRecord:
         """Merge the upsert payload into an existing record."""
         if base is None:
-            created_at = datetime.now().astimezone().isoformat()
+            created_at = datetime.now().astimezone().isoformat(timespec="seconds")
         else:
             created_at = base.created_at
-        updated_at = datetime.now().astimezone().isoformat()
+        updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
         personnel_status = (
             self.override_personnel_status or (base.personnel_status if base else PersonnelStatus.PENDING)
         )
@@ -384,7 +384,7 @@ class RosterFilters:
             self.q = self.q.strip()
         if self.role == "All":
             self.role = None
-        if self.team in {"All", "—", ""}:
+        if self.team in {"All", "â€”", ""}:
             self.team = None
 
     @classmethod

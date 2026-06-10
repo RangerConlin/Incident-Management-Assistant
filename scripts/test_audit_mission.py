@@ -8,4 +8,3 @@ AppState.set_active_incident('demo-incident')
 write_audit('team.status.change', {'panel':'team','id':123,'old':'Available','new':'Assigned'})
 row = fetch_last_audit_rows(1)[0]
 print(dict(row))
-

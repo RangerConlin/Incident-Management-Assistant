@@ -24,14 +24,14 @@ def temp_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(data_dir))
-    db_module._DATA_DIR = data_dir
-    incident_context._DATA_DIR = data_dir
+
     incident_context.set_active_incident("UNITTEST-001")
     return data_dir
 
 
 def _incident_row(data_dir: Path, table: str, identifier: int | str) -> Dict:
-    incident_path = data_dir / "incidents" / "UNITTEST-001.db"
+    from utils import incident_storage
+    incident_path = incident_storage.get_incident_paths(incident_number="UNITTEST-001", incident_name="UNITTEST-001", incident_id="UNITTEST-001").incident_db
     conn = sqlite3.connect(incident_path)
     conn.row_factory = sqlite3.Row
     try:
@@ -54,7 +54,7 @@ def test_create_and_check_in_personnel(temp_data_dir: Path) -> None:
     service = services.CheckInService()
     created = service.create_master_record(
         "personnel",
-        {"name": "Alice Example", "role": "Medic", "callsign": "ECHO1"},
+        {"id": 1001, "name": "Alice Example", "role": "Medic", "callsign": "ECHO1"},
     )
     assert created["name"] == "Alice Example"
     assert not created["_checked_in"]
@@ -74,11 +74,11 @@ def test_search_master_records_filters_and_marks(temp_data_dir: Path) -> None:
     service = services.CheckInService()
     first = service.create_master_record(
         "personnel",
-        {"name": "Charlie Search", "role": "Ground", "callsign": "ALPHA"},
+        {"id": 2001, "name": "Charlie Search", "role": "Ground", "callsign": "ALPHA"},
     )
     service.create_master_record(
         "personnel",
-        {"name": "Donna Support", "role": "Logistics", "callsign": "BRAVO"},
+        {"id": 2002, "name": "Donna Support", "role": "Logistics", "callsign": "BRAVO"},
     )
 
     results = service.search_master_records("personnel", "Charlie")
@@ -95,7 +95,7 @@ def test_check_in_with_overrides_updates_incident_only(temp_data_dir: Path) -> N
     service = services.CheckInService()
     created = service.create_master_record(
         "personnel",
-        {"name": "Evan Override", "role": "Pilot", "callsign": "RAVEN"},
+        {"id": 3001, "name": "Evan Override", "role": "Pilot", "callsign": "RAVEN"},
     )
     identifier = str(created["id"])
 

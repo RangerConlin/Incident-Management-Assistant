@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import csv
 import os
@@ -978,10 +978,3 @@ if __name__ == "__main__":
     editor.adjustSize()
     editor.show()
     sys.exit(app.exec())
-
-
-
-
-
-
-

@@ -25,13 +25,18 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-_DATA_DIR = Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
+from utils import incident_storage
+
+_DATA_DIR = incident_storage.data_root()
 
 
 def _incident_db_path(incident_id: str) -> Path:
-    base = _DATA_DIR / "incidents"
-    base.mkdir(parents=True, exist_ok=True)
-    return base / f"{incident_id}.db"
+    paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
+    if paths is None:
+        meta = incident_storage.infer_incident_metadata(incident_id)
+        paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or incident_id, incident_name=meta.get("name") or incident_id, incident_id=meta.get("incident_id") or incident_id)
+        incident_storage.ensure_incident_structure(paths, meta)
+    return paths.incident_db
 
 
 def _connect(path: Path) -> sqlite3.Connection:

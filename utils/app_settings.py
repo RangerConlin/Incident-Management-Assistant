@@ -37,4 +37,3 @@ DEV_MODE: bool = (
 
 
 __all__ = ["DEV_MODE"]
-

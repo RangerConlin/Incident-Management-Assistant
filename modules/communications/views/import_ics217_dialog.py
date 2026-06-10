@@ -126,4 +126,3 @@ class ImportICS217Dialog(QDialog):
 class QLineEdit2(QLineEdit):
     def __init__(self, text: str = "", parent=None):
         super().__init__(text, parent)
-

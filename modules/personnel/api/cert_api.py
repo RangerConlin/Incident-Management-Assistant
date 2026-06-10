@@ -209,4 +209,3 @@ __all__ = [
     "person_meets_profile",
     "ensure_catalog_write_allowed",
 ]
-

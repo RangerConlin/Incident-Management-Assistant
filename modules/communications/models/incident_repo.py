@@ -229,4 +229,3 @@ class IncidentRepository:
 
 
 __all__ = ["IncidentRepository", "infer_band"]
-

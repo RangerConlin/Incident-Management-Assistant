@@ -18,6 +18,7 @@ from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage, QFont, QFon
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
 from utils.styles import team_status_colors, subscribe_theme, get_palette
+from utils.itemview_delegates import RowOutlineSelectionDelegate, IconWithOutlineDelegate
 from utils.audit import write_audit
 from datetime import datetime, timezone
 from typing import Callable, Any, Optional
@@ -293,6 +294,8 @@ class TeamStatusPanel(QWidget):
         try:
             self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            # Outline-only selection; delegate will render the border
+            self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
         except Exception:
             pass
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -313,9 +316,20 @@ class TeamStatusPanel(QWidget):
             thresholds=self._thresholds,
         )
         try:
-            self.table.setItemDelegateForColumn(0, self._icon_delegate)
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            self._icon_outline_delegate = IconWithOutlineDelegate(self._icon_delegate, self.table, color)
+            self.table.setItemDelegateForColumn(0, self._icon_outline_delegate)
         except Exception:
-            pass
+            self._icon_outline_delegate = None
+        # Row outline selection delegate (installed for whole table)
+        try:
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            self._outline_delegate = RowOutlineSelectionDelegate(self.table, color)
+            self.table.setItemDelegate(self._outline_delegate)
+        except Exception:
+            self._outline_delegate = None
 
         # Set column headers: Needs Assistance at far left; Last Update at far right
         self.table.setColumnCount(10)
@@ -342,6 +356,19 @@ class TeamStatusPanel(QWidget):
             hdr.setStretchLastSection(False)
             hdr.setSectionResizeMode(0, QHeaderView.Fixed)
             hdr.resizeSection(0, 56)
+            try:
+                for idx in range(1, self.table.columnCount()):
+                    hdr.setSectionResizeMode(idx, QHeaderView.Interactive)
+            except Exception:
+                pass
+            try:
+                self._apply_saved_column_widths()
+            except Exception:
+                pass
+            try:
+                hdr.sectionResized.connect(self._on_section_resized)
+            except Exception:
+                pass
         except Exception:
             pass
         try:
@@ -365,6 +392,14 @@ class TeamStatusPanel(QWidget):
         self._load_filters()
         # Initial load
         self.reload()
+        # Auto-refresh timer (configurable)
+        try:
+            self._auto_refresh_timer = QTimer(self)
+            self._auto_refresh_timer.setSingleShot(False)
+            self._auto_refresh_timer.timeout.connect(self.reload)
+            self._apply_refresh_interval(self._load_refresh_ms())
+        except Exception:
+            pass
         # Start a 1s timer to refresh the Last Update column
         try:
             self._last_update_timer = QTimer(self)
@@ -398,6 +433,22 @@ class TeamStatusPanel(QWidget):
         try:
             if hasattr(self, "_icon_delegate") and self._icon_delegate is not None:
                 self._icon_delegate.on_theme_changed()
+        except Exception:
+            pass
+        try:
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            if getattr(self, "_outline_delegate", None) is not None:
+                self._outline_delegate.setColor(color)
+            if getattr(self, "_icon_outline_delegate", None) is not None:
+                self._icon_outline_delegate.setColor(color)
+        except Exception:
+            pass
+        try:
+            if getattr(self, "_outline_delegate", None) is not None:
+                pal = get_palette()
+                color = pal.get("ctrl_focus", pal.get("accent"))
+                self._outline_delegate.setColor(color)
         except Exception:
             pass
         self._recolor_all()
@@ -449,7 +500,7 @@ class TeamStatusPanel(QWidget):
             dt = value
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
-            return dt.isoformat()
+            return dt.isoformat(timespec="seconds")
         return str(value)
 
     def _format_elapsed(self, iso_ts: str | None) -> str:
@@ -632,8 +683,12 @@ class TeamStatusPanel(QWidget):
                     break
         except Exception:
             pass
+        try:
+            self.reload()
+        except Exception:
+            pass
 
-    def set_row_color_by_status(self, row, status):  # ✅ Now correctly placed
+    def set_row_color_by_status(self, row, status):  # Now correctly placed
         status_key = str(status or "").lower()
         style = team_status_colors().get(status_key)
         palette_colors = get_palette()
@@ -672,6 +727,47 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
+
+    def _status_requires_task(self, status_key: str) -> bool:
+        s = (status_key or '').strip().lower()
+        return s not in {"available", "out of service", "oos", "break", "report writing", "returning", "rtb", "complete", "completed"}
+
+    def _get_row_ids(self, row: int) -> tuple[int | None, int | None]:
+        try:
+            item0 = self.table.item(row, 0)
+            task_id = int(item0.data(Qt.UserRole + 1)) if item0 and item0.data(Qt.UserRole + 1) is not None else None
+            team_id = int(item0.data(Qt.UserRole + 2)) if item0 and item0.data(Qt.UserRole + 2) is not None else None
+            return team_id, task_id
+        except Exception:
+            return None, None
+
+    def _assign_and_set_status(self, row: int, task_id: int, status_key: str) -> None:
+        try:
+            team_id, current_task = self._get_row_ids(row)
+            if not team_id:
+                raise RuntimeError("No team id for row")
+            # Create/ensure assignment and set current_task_id using taskings repo
+            try:
+                from modules.operations.taskings.repository import add_task_team  # type: ignore
+            except Exception:
+                add_task_team = None  # type: ignore
+            if not add_task_team:
+                raise RuntimeError("Assignment repository not available")
+            add_task_team(int(task_id), int(team_id))
+            # Now set the desired status (may be 'assigned' or later states)
+            try:
+                from modules.operations.data.repository import set_team_status  # type: ignore
+            except Exception:
+                set_team_status = None  # type: ignore
+            if not set_team_status:
+                raise RuntimeError("DB repository not available")
+            set_team_status(int(team_id), str(status_key))
+            # Reload board
+            self.reload()
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Assign & Set Status", f"Failed to assign team and set status:\n{e}")
+
     def show_context_menu(self, position):
         row = self.table.indexAt(position).row()
         if row < 0:
@@ -683,14 +779,57 @@ class TeamStatusPanel(QWidget):
         menu.addAction("View Team Detail", lambda: self.view_team_detail(row))
         menu.addAction("View Task Detail (Widget)", lambda: self.view_task_detail(row))
 
+        menu.addAction("Edit Location…", lambda: self._edit_location(row))
         # Add separator
         menu.addSeparator()
 
-        # Flat list of status options
-        for status in team_status_colors():
-            menu.addAction(status.title(), lambda s=status: self.change_status(row, s))
+        menu.addSeparator()
 
-        # Timer utilities
+                # Grouped status actions
+        try:
+            _, current_task_id = self._get_row_ids(row)
+        except Exception:
+            current_task_id = None
+        def _display_label(key: str) -> str:
+            k = (key or '').strip().lower()
+            if k == 'aol':
+                return 'At Other Location'
+            if k == 'tol':
+                return 'To Other Location'
+            return str(key).title()
+        no_task: list[str] = []
+        needs_task: list[str] = []
+        for status in team_status_colors():
+            (needs_task if self._status_requires_task(status) else no_task).append(status)
+        # First: statuses that do not require a task
+        for status in no_task:
+            menu.addAction(_display_label(status), lambda s=status: self.change_status(row, s))
+        # Separator between groups
+        if needs_task:
+            menu.addSeparator()
+        # Then: statuses that require a task
+        for status in needs_task:
+            if current_task_id is None:
+                sub = QMenu(_display_label(status), self)
+                try:
+                    from modules.operations.data.repository import list_tasks_for_assignment  # type: ignore
+                except Exception:
+                    list_tasks_for_assignment = None  # type: ignore
+                tasks = []
+                if list_tasks_for_assignment:
+                    try:
+                        tasks = list_tasks_for_assignment()
+                    except Exception:
+                        tasks = []
+                if not tasks:
+                    act = sub.addAction('(no tasks)'); act.setEnabled(False)
+                else:
+                    for t in tasks:
+                        label = ((t.get('task_id') or ('T-' + str(t.get('id')))) + ' - ' + (t.get('title') or '')).strip()
+                        sub.addAction(label, lambda tid=int(t.get('id')), s=status: self._assign_and_set_status(row, tid, s))
+                menu.addMenu(sub)
+            else:
+                menu.addAction(_display_label(status), lambda s=status: self.change_status(row, s))# Timer utilities
         menu.addSeparator()
         menu.addAction("Reset Timer", lambda: self._reset_last_update_row(row))
 
@@ -754,8 +893,8 @@ class TeamStatusPanel(QWidget):
         try:
             from datetime import datetime, timezone
             now = datetime.now(timezone.utc)
-            now_iso = now.isoformat()
-            item_last = self.table.item(row, 8)
+            now_iso = now.isoformat(timespec="seconds")
+            item_last = self.table.item(row, 9)
             if item_last:
                 item_last.setData(Qt.UserRole, now_iso)
                 item_last.setText(self._format_elapsed(now_iso))
@@ -958,7 +1097,7 @@ class TeamStatusPanel(QWidget):
     # ------------------------------ Settings menu --------------------------- #
     def _build_settings_menu(self) -> None:
         menu = QMenu(self)
-        menu.addAction("Filters…", self._open_filters_dialog)
+        menu.addAction("Filters...", self._open_filters_dialog)
         menu.addSeparator()
         # Columns submenu (exclude col 0 - alert icon)
         cols_menu = QMenu("Columns", menu)
@@ -972,6 +1111,26 @@ class TeamStatusPanel(QWidget):
                 act.setChecked(True)
             self._col_actions[idx] = act
         menu.addMenu(cols_menu)
+        widths_menu = QMenu("Column Widths", menu)
+        widths_menu.addAction("Auto-fit Now", self._auto_fit_columns)
+        widths_menu.addAction("Reset Saved Widths", self._reset_saved_column_widths)
+        menu.addMenu(widths_menu)
+        # Auto-refresh submenu
+        refresh_menu = QMenu("Auto-Refresh", menu)
+        self._refresh_actions = {}
+        options = [
+            (0, "Off"),
+            (15000, "15 sec"),
+            (30000, "30 sec"),
+            (60000, "1 min"),
+            (120000, "2 min"),
+            (300000, "5 min"),
+        ]
+        for ms, label in options:
+            act = refresh_menu.addAction(label, lambda v=ms: self._set_refresh_ms(v))
+            act.setCheckable(True)
+            self._refresh_actions[ms] = act
+        menu.addMenu(refresh_menu)
         size_menu = QMenu("Text Size", menu)
         self._size_actions = {}
         for label in ("small", "medium", "large"):
@@ -985,6 +1144,7 @@ class TeamStatusPanel(QWidget):
             self._update_column_checks()
         except Exception:
             pass
+        self._update_refresh_checks()
 
     def _update_text_size_checks(self) -> None:
         try:
@@ -992,6 +1152,50 @@ class TeamStatusPanel(QWidget):
                 a.setChecked(k == self._text_size)
         except Exception:
             pass
+
+    def _update_refresh_checks(self) -> None:
+        try:
+            ms = getattr(self, "_refresh_ms", 0)
+            for val, act in getattr(self, "_refresh_actions", {}).items():
+                act.setChecked(int(val) == int(ms))
+        except Exception:
+            pass
+
+    # ------------------------------ Auto-refresh --------------------------- #
+    def _persist_refresh_ms(self, ms: int) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set("statusboard.team.refreshMs", int(max(0, ms)))
+        except Exception:
+            pass
+
+    def _load_refresh_ms(self) -> int:
+        try:
+            from utils.settingsmanager import SettingsManager
+            val = SettingsManager().get("statusboard.team.refreshMs", 30000)
+            return int(val or 0)
+        except Exception:
+            return 30000
+
+    def _apply_refresh_interval(self, ms: int) -> None:
+        try:
+            self._refresh_ms = int(max(0, ms))
+            t = getattr(self, "_auto_refresh_timer", None)
+            if t is None:
+                return
+            if self._refresh_ms <= 0:
+                t.stop()
+            else:
+                t.setInterval(self._refresh_ms)
+                if not t.isActive():
+                    t.start()
+            self._update_refresh_checks()
+        except Exception:
+            pass
+
+    def _set_refresh_ms(self, ms: int) -> None:
+        self._apply_refresh_interval(ms)
+        self._persist_refresh_ms(ms)
 
     def _set_text_size(self, label: str) -> None:
         self._text_size = label if label in ("small", "medium", "large") else "medium"
@@ -1036,7 +1240,89 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
-    # -------------------------- Column visibility -------------------------- #
+
+    # -------------------------- Column widths ---------------------------- #
+    def _settings_key_widths(self) -> str:
+        return "statusboard.team.columns.widths"
+
+    def _key_to_index(self) -> dict[str, int]:
+        try:
+            return {key: idx for idx, key, _ in getattr(self, "_columns", [])}
+        except Exception:
+            return {}
+
+    def _index_to_key(self) -> dict[int, str]:
+        try:
+            return {idx: key for idx, key, _ in getattr(self, "_columns", [])}
+        except Exception:
+            return {}
+
+    def _apply_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            widths = SettingsManager().get(self._settings_key_widths(), {}) or {}
+            key_to_index = self._key_to_index()
+            hdr = self.table.horizontalHeader()
+            for key, w in widths.items():
+                if key in key_to_index:
+                    try:
+                        hdr.resizeSection(int(key_to_index[key]), int(w))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def _persist_column_width(self, index: int, width: int) -> None:
+        try:
+            if index == 0:
+                return  # keep icon column fixed and not persisted
+            from utils.settingsmanager import SettingsManager
+            s = SettingsManager()
+            data = s.get(self._settings_key_widths(), {}) or {}
+            index_to_key = self._index_to_key()
+            key = index_to_key.get(index)
+            if key is None:
+                return
+            data[str(key)] = int(max(24, width))
+            s.set(self._settings_key_widths(), data)
+        except Exception:
+            pass
+
+    def _on_section_resized(self, index: int, old: int, new: int) -> None:
+        try:
+            self._persist_column_width(index, new)
+        except Exception:
+            pass
+
+    def _auto_fit_columns(self) -> None:
+        try:
+            self.table.resizeColumnsToContents()
+            try:
+                self.table.horizontalHeader().resizeSection(0, 56)
+            except Exception:
+                pass
+            # Persist current sizes
+            hdr = self.table.horizontalHeader()
+            for idx in range(1, self.table.columnCount()):
+                try:
+                    self._persist_column_width(idx, hdr.sectionSize(idx))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _reset_saved_column_widths(self) -> None:
+        try:
+            from utils.settingsmanager import SettingsManager
+            SettingsManager().set(self._settings_key_widths(), {})
+            try:
+                hdr = self.table.horizontalHeader()
+                hdr.resizeSection(0, 56)
+            except Exception:
+                pass
+        except Exception:
+            pass
+# -------------------------- Column visibility -------------------------- #
     def _toggle_column(self, index: int) -> None:
         try:
             if index == 0:
@@ -1081,5 +1367,19 @@ class TeamStatusPanel(QWidget):
         except Exception:
             pass
 
-
-
+    def _edit_location(self, row: int) -> None:
+        try:
+            team_id, _ = self._get_row_ids(row)
+            if not team_id:
+                return
+            from modules.operations.teams.windows import open_team_detail_window
+            window = open_team_detail_window(int(team_id))
+            try:
+                fld = getattr(window, "_location_field", None)
+                if fld is not None:
+                    fld.setFocus()
+                    fld.selectAll()
+            except Exception:
+                pass
+        except Exception:
+            pass

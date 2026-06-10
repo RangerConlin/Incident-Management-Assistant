@@ -302,4 +302,3 @@ REGISTRY: Dict[str, WidgetSpec] = {
         data_hooks={"settings.getTimezone": lambda: None},
     ),
 }
-

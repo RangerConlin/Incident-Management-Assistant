@@ -18,4 +18,3 @@ if cnt == 0:
 else:
     print(f"Already has {cnt} objectives; nothing to seed")
 con.close()
-

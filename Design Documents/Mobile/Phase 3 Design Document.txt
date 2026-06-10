@@ -173,4 +173,3 @@ Final polish, failover testing, QA
 16–17
 
 Package and release
-

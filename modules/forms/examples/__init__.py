@@ -4,6 +4,6 @@ import json
 from pathlib import Path
 
 _205_path = Path(__file__).with_name("ics_205.example.json")
-ics_205_example = json.loads(_205_path.read_text())
+ics_205_example = json.loads(_205_path.read_text(encoding="utf-8"))
 
 __all__ = ["ics_205_example"]

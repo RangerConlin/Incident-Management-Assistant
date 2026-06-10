@@ -177,4 +177,3 @@ Task
 11–12 Testing, polish, bug fixes
 
 13–14 Package new version for distribution
-

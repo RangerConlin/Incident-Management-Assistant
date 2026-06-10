@@ -1,0 +1,21 @@
+{
+  "form": "ICS_204",
+  "task_id": 1,
+  "assignment": {},
+  "team": {
+    "id": 1,
+    "team_id": 1,
+    "team_name": "GT Alpha",
+    "team_leader": "Weeter, Danielle",
+    "team_leader_phone": "231.342.2819",
+    "status": "Assigned",
+    "sortie_number": "G-58",
+    "assigned_ts": "2026-03-22T03:57:46.251011",
+    "briefed_ts": null,
+    "enroute_ts": null,
+    "arrival_ts": null,
+    "discovery_ts": null,
+    "complete_ts": null,
+    "primary": true
+  }
+}

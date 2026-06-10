@@ -14,6 +14,8 @@ from modules.logistics.models import (
     EquipmentItemRead,
 )
 from .print_ics_213_rr import generate_pdf
+from modules.logistics.resource_status.service import get_service as get_resource_status_service
+from utils import incident_context
 
 router = APIRouter(tags=["logistics"])
 
@@ -76,3 +78,27 @@ def checkin_equipment_endpoint(incident_id: str, equipment_id: int, actor_id: in
 def print_request(incident_id: str, request_id: int):
     path, _bytes = generate_pdf(incident_id, request_id)
     return {"path": path}
+
+
+@router.get("/resource-status")
+def list_resource_status_board(incident_id: str | None = None):
+    if incident_id:
+        incident_context.set_active_incident(incident_id)
+    service = get_resource_status_service()
+    return [item.to_row() for item in service.list_resources()]
+
+
+@router.post("/resource-status")
+def create_resource_status_board_item(data: dict, incident_id: str | None = None):
+    if incident_id:
+        incident_context.set_active_incident(incident_id)
+    service = get_resource_status_service()
+    return service.create_resource(data).to_row()
+
+
+@router.patch("/resource-status/{resource_status_id}")
+def update_resource_status_board_item(resource_status_id: str, data: dict, incident_id: str | None = None):
+    if incident_id:
+        incident_context.set_active_incident(incident_id)
+    service = get_resource_status_service()
+    return service.update_resource(resource_status_id, data).to_row()

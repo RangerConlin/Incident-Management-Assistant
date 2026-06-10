@@ -114,9 +114,12 @@ class NewIncidentDialog(QDialog):
 
         # Create incident DB named after the incident number; prevent overwrite
         try:
-            db_path = create_incident_database(meta.number)
+            db_path = create_incident_database(meta.number, incident_name=meta.name)
         except FileExistsError as e:
             QMessageBox.warning(self, "Already Exists", str(e))
+            return
+        except Exception as e:
+            QMessageBox.critical(self, "Incident Database Error", str(e))
             return
 
         self.created.emit(meta, str(db_path))
@@ -128,4 +131,3 @@ class NewIncidentDialog(QDialog):
 
 
 __all__ = ["IncidentMeta", "NewIncidentDialog"]
-

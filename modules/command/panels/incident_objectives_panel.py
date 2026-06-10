@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Iterable, List, Optional
 
-from PySide6.QtCore import (  
+from PySide6.QtCore import (
     QAbstractTableModel,
     QModelIndex,
     QPoint,
@@ -467,4 +467,3 @@ class IncidentObjectivesPanel(QWidget):
                 repository.reorder_objectives(ordered_ids)
         except Exception as exc:  # pragma: no cover
             QMessageBox.warning(self, "Reorder", f"Failed to persist order:\n{exc}")
-

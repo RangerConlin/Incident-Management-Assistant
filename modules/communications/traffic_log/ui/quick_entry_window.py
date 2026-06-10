@@ -32,11 +32,12 @@ class QuickEntryPanel(QWidget):
         finally:
             self._status_bar.showMessage("Entry added", 2000)
 
-__all__ = ["QuickEntryPanel"]
-
     # Preferred initial size similar to previous standalone window
     def sizeHint(self) -> QSize:  # type: ignore[override]
         return QSize(700, 300)
 
     def minimumSizeHint(self) -> QSize:  # type: ignore[override]
         return QSize(520, 240)
+
+
+__all__ = ["QuickEntryPanel"]
