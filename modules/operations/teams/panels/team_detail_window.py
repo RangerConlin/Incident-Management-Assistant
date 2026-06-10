@@ -29,6 +29,9 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QDialog,
     QDialogButtonBox,
+    QScrollArea,
+    QSizePolicy,
+    QSplitter,
 )
 
 from modules.admin.resource_types.data import READINESS_STATUSES, ResourceAssignmentRepository
@@ -493,6 +496,10 @@ class TeamDetailBridge(QObject):
         ]
         try:
             subscribe_theme(self, lambda *_: self.statusChanged.emit(self._team.status))
+        except Exception:
+            pass
+        try:
+            subscribe_theme(self, self._apply_overview_theme)
         except Exception:
             pass
         # Refresh assets when signaled elsewhere in the app
@@ -1586,6 +1593,7 @@ class TeamDetailWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self._bridge = bridge or TeamDetailBridge(self)
+        self._resource_assignments = ResourceAssignmentRepository()
         self._team_id: Optional[int] = team_id
         self._is_air: bool = False
         self._updating: bool = False
@@ -1623,7 +1631,7 @@ class TeamDetailWindow(QMainWindow):
                 self._on_team_changed()
         else:
             self._on_team_changed()
-        self.adjustSize()
+        self.resize(900, 700)
 
     # ---- UI construction ----
     def _build_ui(self) -> None:
@@ -1672,15 +1680,10 @@ class TeamDetailWindow(QMainWindow):
         banner_layout.addLayout(banner_row)
         main_layout.addWidget(self._assist_banner)
 
-        overview_frame = QFrame()
-        overview_frame.setObjectName("overviewFrame")
-        overview_frame.setStyleSheet(
-            "#overviewFrame {"
-            " background-color: rgba(255, 255, 255, 0.92);"
-            " border: 1px solid #d0d0d0;"
-            " border-radius: 6px;"
-            "}"
-        )
+        self._overview_frame = QFrame()
+        self._overview_frame.setObjectName("overviewFrame")
+        self._apply_overview_theme()
+        overview_frame = self._overview_frame
         overview_layout = QVBoxLayout(overview_frame)
         overview_layout.setContentsMargins(10, 10, 10, 10)
         overview_layout.setSpacing(8)
@@ -1699,10 +1702,6 @@ class TeamDetailWindow(QMainWindow):
         self._team_type_label = QLabel("Team Type")
         self._team_type_combo = QComboBox()
         left_form.addRow(self._team_type_label, self._team_type_combo)
-
-        self._resource_type_label = QLabel("Team Resource Type")
-        self._resource_type_search = ResourceTypeSearchBox(parent=self)
-        left_form.addRow(self._resource_type_label, self._resource_type_search)
 
         self._name_label = QLabel("Team Name")
         self._name_field = QLineEdit()
@@ -1729,11 +1728,6 @@ class TeamDetailWindow(QMainWindow):
         self._status_label = QLabel("Status")
         self._status_combo = QComboBox()
         left_form.addRow(self._status_label, self._status_combo)
-
-        self._readiness_label = QLabel("Readiness Status")
-        self._readiness_combo = QComboBox()
-        self._readiness_combo.addItems(list(READINESS_STATUSES))
-        left_form.addRow(self._readiness_label, self._readiness_combo)
 
         grid.addWidget(left_widget, 0, 0)
 
@@ -1766,16 +1760,26 @@ class TeamDetailWindow(QMainWindow):
 
         self._location_field = QLineEdit()
         right_form.addRow(QLabel("Location"), self._location_field)
+
+        self._resource_type_label = QLabel("Resource Type")
+        self._resource_type_search = ResourceTypeSearchBox(parent=self)
+        right_form.addRow(self._resource_type_label, self._resource_type_search)
+
         grid.addWidget(right_widget, 0, 1)
 
         notes_label = QLabel("Notes")
         self._notes_edit = QTextEdit()
         self._notes_edit.setWordWrapMode(QTextOption.WordWrap)
-        self._notes_edit.setFixedHeight(90)
+        self._notes_edit.setMinimumHeight(1)
         overview_layout.addWidget(notes_label)
         overview_layout.addWidget(self._notes_edit)
 
-        main_layout.addWidget(overview_frame)
+        # Top half of splitter: overview + action buttons
+        _top_widget = QWidget()
+        _top_layout = QVBoxLayout(_top_widget)
+        _top_layout.setContentsMargins(0, 0, 0, 0)
+        _top_layout.setSpacing(8)
+        _top_layout.addWidget(overview_frame)
 
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(8)
@@ -1788,12 +1792,32 @@ class TeamDetailWindow(QMainWindow):
         self._view_task_button = QPushButton("View Task")
         actions_layout.addWidget(self._view_task_button)
         actions_layout.addStretch()
-        main_layout.addLayout(actions_layout)
+        _top_layout.addLayout(actions_layout)
 
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
         self._tabs.setTabPosition(QTabWidget.North)
-        main_layout.addWidget(self._tabs, 1)
+
+        _top_scroll = QScrollArea()
+        _top_scroll.setWidgetResizable(True)
+        _top_scroll.setFrameShape(QFrame.NoFrame)
+        _top_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        _top_scroll.setWidget(_top_widget)
+        _top_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        self._splitter = QSplitter(Qt.Vertical)
+        self._splitter.setHandleWidth(6)
+        self._splitter.setStyleSheet(
+            "QSplitter::handle { background-color: #3A4358; border-radius: 2px; }"
+            "QSplitter::handle:hover { background-color: #5CA3FF; }"
+        )
+        self._splitter.addWidget(_top_scroll)
+        self._splitter.addWidget(self._tabs)
+        self._splitter.setStretchFactor(0, 0)
+        self._splitter.setStretchFactor(1, 1)
+        self._splitter.setCollapsible(0, True)
+        self._splitter.setCollapsible(1, False)
+        main_layout.addWidget(self._splitter, 1)
 
         self._personnel_tab = QWidget()
         self._assets_tab = QWidget()
@@ -1874,7 +1898,8 @@ class TeamDetailWindow(QMainWindow):
         self._btn_214_export = QPushButton("Export 214")
         self._btn_214_edit = QPushButton("Edit")
         self._btn_214_delete = QPushButton("Delete")
-        for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete):
+        self._btn_214_open_full = QPushButton("Open Full Log")
+        for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete, self._btn_214_open_full):
             bar.addWidget(b)
         bar.addStretch(1)
         logs_layout.addLayout(bar)
@@ -1894,7 +1919,6 @@ class TeamDetailWindow(QMainWindow):
         self._resource_type_search.resourceTypeSelected.connect(
             lambda resource_type_id, _text: self._handle_resource_type_changed(resource_type_id)
         )
-        self._readiness_combo.currentTextChanged.connect(self._handle_readiness_changed)
         self._name_field.editingFinished.connect(self._handle_name_edited)
         self._assignment_field.editingFinished.connect(self._handle_assignment_edited)
         self._notes_edit.textChanged.connect(self._on_notes_changed)
@@ -1917,6 +1941,7 @@ class TeamDetailWindow(QMainWindow):
         self._btn_214_export.clicked.connect(self._export_team_ics214)
         self._btn_214_delete.clicked.connect(self._delete_team_ics214_entry)
         self._btn_214_edit.clicked.connect(self._edit_team_ics214_entry)
+        self._btn_214_open_full.clicked.connect(self._open_full_ics214)
 
     # ---- Team ICS-214 helpers ----
     def _get_team_ics214_stream(self) -> tuple[str | None, str | None]:
@@ -2037,6 +2062,33 @@ class TeamDetailWindow(QMainWindow):
         except Exception:
             pass
 
+    def _open_full_ics214(self) -> None:
+        try:
+            from modules.ics214 import get_ics214_panel
+            inc = incident_context.get_active_incident_id()
+            team_id = int(self._team_id) if self._team_id is not None else None
+            name = self._name_field.text().strip() if hasattr(self, '_name_field') else ""
+            log_name = name or (f"Team {team_id}" if team_id else "Team Log")
+            ref = f"team:{team_id}" if team_id else None
+            panel = get_ics214_panel(
+                str(inc) if inc else None,
+                launch_context={
+                    "default_log_for_type": "team",
+                    "default_log_for_ref": ref,
+                    "default_log_name": log_name,
+                } if ref else {"default_log_for_type": "team", "default_log_name": log_name},
+            )
+            panel.setWindowTitle(f"ICS-214 Activity Log — {log_name}")
+            panel.setAttribute(Qt.WA_DeleteOnClose, True)
+            if not hasattr(self, '_ics214_windows'):
+                self._ics214_windows: list = []
+            self._ics214_windows.append(panel)
+            panel.destroyed.connect(lambda *_: self._ics214_windows.remove(panel) if panel in self._ics214_windows else None)
+            panel.show()
+            panel.raise_()
+        except Exception:
+            pass
+
     @staticmethod
     def _fmt_ts(ts: str | None) -> str:
         if not ts:
@@ -2069,14 +2121,20 @@ class TeamDetailWindow(QMainWindow):
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(23)
         header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        from utils.styles import THEME_NAME as _tn
+        if _tn == "dark":
+            _hdr_bg, _hdr_border = "#1B1F2A", "#3A4358"
+        else:
+            _hdr_bg, _hdr_border = "#f5f5f5", "#c5c5c5"
         header.setStyleSheet(
-            "QHeaderView::section {"
-            " background-color: #f5f5f5;"
-            " border-right: 1px solid #c5c5c5;"
-            " border-bottom: 1px solid #c5c5c5;"
-            " padding: 6px 8px;"
-            "}"
-            "QHeaderView::section:last { border-right: 0; }"
+            f"QHeaderView::section {{"
+            f" background-color: {_hdr_bg};"
+            f" color: {'#ECEFF4' if _tn == 'dark' else '#0F0F0F'};"
+            f" border-right: 1px solid {_hdr_border};"
+            f" border-bottom: 1px solid {_hdr_border};"
+            f" padding: 6px 8px;"
+            f"}}"
+            f"QHeaderView::section:last {{ border-right: 0; }}"
         )
 
     def _make_checkbox_cell(self, checked: bool) -> tuple[QWidget, QCheckBox]:
@@ -2161,7 +2219,7 @@ class TeamDetailWindow(QMainWindow):
         self._populate_team_type_selection(team)
         self._populate_resource_type_selection(team)
         self._populate_status_selection(team)
-        self._populate_readiness_selection(team)
+
         self._update_leader_fields(team)
         self._update_name_assignment_fields(team)
         self._update_last_contact(team)
@@ -2260,13 +2318,6 @@ class TeamDetailWindow(QMainWindow):
             resource_type_id,
             self._resource_assignments.get_resource_type_name(resource_type_id),
         )
-
-    def _populate_readiness_selection(self, team: Dict[str, Any]) -> None:
-        readiness = str(team.get("readiness_status") or "Unknown")
-        self._readiness_combo.blockSignals(True)
-        index = self._readiness_combo.findText(readiness)
-        self._readiness_combo.setCurrentIndex(index if index >= 0 else self._readiness_combo.findText("Unknown"))
-        self._readiness_combo.blockSignals(False)
 
     def _populate_status_selection(self, team: Dict[str, Any]) -> None:
         status = str(team.get("status", "")).strip().lower()
@@ -2757,6 +2808,30 @@ class TeamDetailWindow(QMainWindow):
             self._needs_assist_button.setStyleSheet("")
             self._needs_assist_button.setToolTip("Mark this team as needing assistance")
 
+    def _apply_overview_theme(self, theme_name: str = "") -> None:
+        from utils.styles import THEME_NAME
+        name = theme_name or THEME_NAME
+        if name == "dark":
+            style = (
+                "#overviewFrame {"
+                " background-color: rgba(55, 68, 90, 0.92);"
+                " border: 2px solid #5a7090;"
+                " border-radius: 6px;"
+                "}"
+            )
+        else:
+            style = (
+                "#overviewFrame {"
+                " background-color: rgba(255, 255, 255, 0.92);"
+                " border: 1px solid #d0d0d0;"
+                " border-radius: 6px;"
+                "}"
+            )
+        try:
+            self._overview_frame.setStyleSheet(style)
+        except Exception:
+            pass
+
     def _apply_status_palette(self) -> None:
         try:
             colors = self._bridge.teamStatusColor
@@ -2811,14 +2886,6 @@ class TeamDetailWindow(QMainWindow):
             return
         try:
             self._bridge.setResourceType(resource_type_id)
-        except Exception:
-            pass
-
-    def _handle_readiness_changed(self, value: str) -> None:
-        if self._updating:
-            return
-        try:
-            self._bridge.setReadinessStatus(value)
         except Exception:
             pass
 

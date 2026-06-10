@@ -1,4 +1,4 @@
-"""Development launcher for the form creator workspace."""
+"""Development launcher for the Forms Creator hub."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from .ui.MainWindow import MainWindow
+from .ui.HubWindow import HubWindow
 
 
 def main() -> int:
     app = QApplication(sys.argv)
-    window = MainWindow()
+    window = HubWindow()
     window.show()
     return app.exec()
 

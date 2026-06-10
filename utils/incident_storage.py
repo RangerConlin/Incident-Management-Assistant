@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 FOLDER_VERSION = 1
 _RESERVED_FILES = {"template.db", "incident_template.db"}
+_INITIALIZED_ROOTS: set[Path] = set()
 
 
 @dataclass(frozen=True)
@@ -268,7 +269,7 @@ def list_incident_folders() -> list[IncidentPaths]:
 def migrate_legacy_incident_databases() -> list[tuple[Path, Path]]:
     migrated: list[tuple[Path, Path]] = []
     root = incidents_root()
-    logger.info("incident-storage migration scan root=%s", root)
+    logger.debug("incident-storage migration scan root=%s", root)
     for candidate in root.glob("*.db"):
         if candidate.name.lower() in _RESERVED_FILES:
             continue
@@ -284,7 +285,7 @@ def migrate_legacy_incident_databases() -> list[tuple[Path, Path]]:
         while final_folder.exists() and (final_folder / "incident.db").exists():
             existing_manifest = read_incident_manifest(final_folder / "incident.json") or {}
             if str(existing_manifest.get("incident_number") or "") == str(metadata.get("incident_number") or incident_number):
-                logger.info("incident-storage skip already migrated db=%s folder=%s", candidate, final_folder)
+                logger.debug("incident-storage skip already migrated db=%s folder=%s", candidate, final_folder)
                 break
             final_folder = Path(f"{target.incident_folder}_{suffix:02d}")
             suffix += 1
@@ -308,7 +309,11 @@ def migrate_legacy_incident_databases() -> list[tuple[Path, Path]]:
 
 def ensure_layout_initialized() -> None:
     root = data_root()
+    root_key = root.resolve()
+    if root_key in _INITIALIZED_ROOTS:
+        return
     root.mkdir(parents=True, exist_ok=True)
     incidents_root()
-    logger.info("incident-storage initialized root=%s", root)
+    logger.debug("incident-storage initialized root=%s", root)
     migrate_legacy_incident_databases()
+    _INITIALIZED_ROOTS.add(root_key)

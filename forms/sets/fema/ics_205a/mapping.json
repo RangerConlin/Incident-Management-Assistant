@@ -1,0 +1,396 @@
+{
+  "description": "ICS 205A Communications List — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow1",
+      "source": {
+        "key": "agency_contacts.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow1",
+      "source": {
+        "key": "agency_contacts.0.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow1",
+      "source": {
+        "key": "agency_contacts.0.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow1",
+      "source": {
+        "key": "agency_contacts.0.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow1",
+      "source": {
+        "key": "agency_contacts.0.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow1",
+      "source": {
+        "key": "agency_contacts.0.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow2",
+      "source": {
+        "key": "agency_contacts.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow2",
+      "source": {
+        "key": "agency_contacts.1.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow2",
+      "source": {
+        "key": "agency_contacts.1.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow2",
+      "source": {
+        "key": "agency_contacts.1.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow2",
+      "source": {
+        "key": "agency_contacts.1.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow2",
+      "source": {
+        "key": "agency_contacts.1.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow3",
+      "source": {
+        "key": "agency_contacts.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow3",
+      "source": {
+        "key": "agency_contacts.2.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow3",
+      "source": {
+        "key": "agency_contacts.2.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow3",
+      "source": {
+        "key": "agency_contacts.2.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow3",
+      "source": {
+        "key": "agency_contacts.2.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow3",
+      "source": {
+        "key": "agency_contacts.2.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow4",
+      "source": {
+        "key": "agency_contacts.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow4",
+      "source": {
+        "key": "agency_contacts.3.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow4",
+      "source": {
+        "key": "agency_contacts.3.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow4",
+      "source": {
+        "key": "agency_contacts.3.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow4",
+      "source": {
+        "key": "agency_contacts.3.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow4",
+      "source": {
+        "key": "agency_contacts.3.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow5",
+      "source": {
+        "key": "agency_contacts.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow5",
+      "source": {
+        "key": "agency_contacts.4.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow5",
+      "source": {
+        "key": "agency_contacts.4.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow5",
+      "source": {
+        "key": "agency_contacts.4.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow5",
+      "source": {
+        "key": "agency_contacts.4.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow5",
+      "source": {
+        "key": "agency_contacts.4.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow6",
+      "source": {
+        "key": "agency_contacts.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow6",
+      "source": {
+        "key": "agency_contacts.5.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow6",
+      "source": {
+        "key": "agency_contacts.5.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow6",
+      "source": {
+        "key": "agency_contacts.5.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow6",
+      "source": {
+        "key": "agency_contacts.5.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow6",
+      "source": {
+        "key": "agency_contacts.5.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow7",
+      "source": {
+        "key": "agency_contacts.6.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow7",
+      "source": {
+        "key": "agency_contacts.6.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow7",
+      "source": {
+        "key": "agency_contacts.6.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow7",
+      "source": {
+        "key": "agency_contacts.6.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow7",
+      "source": {
+        "key": "agency_contacts.6.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow7",
+      "source": {
+        "key": "agency_contacts.6.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow8",
+      "source": {
+        "key": "agency_contacts.7.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICSPositionRow8",
+      "source": {
+        "key": "agency_contacts.7.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "HomeAgencyRow8",
+      "source": {
+        "key": "agency_contacts.7.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OfficeRow8",
+      "source": {
+        "key": "agency_contacts.7.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CellRow8",
+      "source": {
+        "key": "agency_contacts.7.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OtherRow8",
+      "source": {
+        "key": "agency_contacts.7.email",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

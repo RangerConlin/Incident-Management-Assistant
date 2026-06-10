@@ -172,13 +172,13 @@ class CanvasView(QGraphicsView):
 
     # ------------------------------------------------------------------
     def keyPressEvent(self, event):  # noqa: N802
-        if event.key() == Qt.Key.Space:
+        if event.key() == Qt.Key.Key_Space:
             if not self._space_pressed:
                 self._space_pressed = True
                 self._update_idle_cursor()
             event.accept()
             return
-        if event.key() == Qt.Key.Escape and self._draw_enabled:
+        if event.key() == Qt.Key.Key_Escape and self._draw_enabled:
             self.cancel_field_creation()
             self.fieldCreationAborted.emit()
             event.accept()
@@ -186,7 +186,7 @@ class CanvasView(QGraphicsView):
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):  # noqa: N802
-        if event.key() == Qt.Key.Space:
+        if event.key() == Qt.Key.Key_Space:
             self._space_pressed = False
             self._update_idle_cursor()
             event.accept()

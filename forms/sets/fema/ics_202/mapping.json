@@ -1,0 +1,237 @@
+{
+  "_comment": "Replace source values with real incident data paths; PDF field IDs must match the template exactly.",
+  "description": "Starter mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name_5",
+      "source": "incident.name",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "3 Objectives",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "4 Operational Period Command Emphasis",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "5 Site Safety Plan Required Yes No Approved Site Safety Plans Located at",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "7 Prepared by Name",
+      "source": "prepared_by.name",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "8 Approved by Incident Commander Name",
+      "source": "organization.incident_commander.name",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Check 1",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Check 2",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Check 3",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Check 4",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Date From",
+      "source": "op_period.start_date",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Date To",
+      "source": "op_period.end_date",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "DateTime_5",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "General Situational Awareness",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "IAP Page",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "ICS 203",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "ICS 204",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "ICS 205",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "ICS 205A",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "ICS 206",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "ICS 207",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "ICS 208",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Map/Chart",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "No",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Other Attachments 1",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Other Attachments 2",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Other Attachments 3",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Other Attachments 4",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "PositionTitle_5",
+      "source": "prepared_by.position",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Signature_5",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "unknown"
+    },
+    {
+      "pdf_field": "Signature_6",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "unknown"
+    },
+    {
+      "pdf_field": "Time From",
+      "source": "op_period.start_time",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Time To",
+      "source": "op_period.end_time",
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Weather Forecast/Tides/Current",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Yes",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    }
+  ]
+}

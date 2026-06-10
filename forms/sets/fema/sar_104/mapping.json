@@ -1,0 +1,172 @@
+{
+  "description": "SAR 104 Search Assignment — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TaskID",
+      "source": {
+        "key": "tasks.0.task_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignmentArea",
+      "source": {
+        "key": "tasks.0.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Assignment",
+      "source": {
+        "key": "tasks.0.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TeamName",
+      "source": {
+        "key": "teams.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TeamLeader",
+      "source": {
+        "key": "tasks.0.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TeamPhone",
+      "source": {
+        "key": "tasks.0.team_phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioPrimary",
+      "source": {
+        "key": "tasks.0.radio_primary",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioAlternate",
+      "source": {
+        "key": "tasks.0.radio_alternate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioEmergency",
+      "source": {
+        "key": "tasks.0.radio_emergency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DueTime",
+      "source": {
+        "key": "tasks.0.due_time",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SubjectName",
+      "source": {
+        "key": "subject.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SubjectSex",
+      "source": {
+        "key": "subject.sex",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SubjectDOB",
+      "source": {
+        "key": "subject.dob",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SubjectLKPPlace",
+      "source": {
+        "key": "subject.lkp_place",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SubjectLKPTime",
+      "source": {
+        "key": "subject.lkp_time",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OperationsChief",
+      "source": {
+        "key": "organization.operations_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

@@ -67,7 +67,8 @@ DEFAULT_SECTION_SUBJECTS: list[dict[str, str]] = [
     {"ref": "section:intel", "label": "Intelligence"},
     {"ref": "section:liaison", "label": "Liaison"},
     {"ref": "section:public_information", "label": "Public Information"},
-    {"ref": "section:medical_safety", "label": "Medical & Safety"},
+    {"ref": "section:medical", "label": "Medical"},
+    {"ref": "section:safety", "label": "Safety"},
     {"ref": "section:communications", "label": "Communications"},
 ]
 
@@ -1017,7 +1018,7 @@ class Ics214ActivityLogPanel(QWidget):
             self.apply_launch_context(self.launch_context)
 
     def sizeHint(self) -> QSize:  # type: ignore[override]
-        return QSize(1280, 840)
+        return QSize(950, 600)
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -1085,18 +1086,22 @@ class Ics214ActivityLogPanel(QWidget):
         self.entries_table.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Expanding
         )
-        self.entries_table.setColumnCount(6)
+        self.entries_table.setColumnCount(7)
         self.entries_table.setHorizontalHeaderLabels(
-            ["#", "Time (Local)", "Activity", "Source", "Links", "⋯"]
+            ["#", "Time (Local)", "Activity", "Source", "Links", "!", "⋯"]
         )
         header = self.entries_table.horizontalHeader()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.Interactive)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.Interactive)
+        header.setSectionResizeMode(4, QHeaderView.Interactive)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        header.sectionDoubleClicked.connect(
+            lambda col: self.entries_table.resizeColumnToContents(col)
+        )
         self.entries_table.verticalHeader().setVisible(False)
         self.entries_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.entries_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -1300,11 +1305,11 @@ class Ics214ActivityLogPanel(QWidget):
             self._set_empty_state()
 
     def _load_operational_period_options(self) -> None:
-        self.operational_period_labels = {0: "Unassigned"}
-        self.operational_period_choices = [(0, "Unassigned")]
+        self.operational_period_labels = {0: "Unassigned OP"}
+        self.operational_period_choices = [(0, "Unassigned OP")]
         self.op_combo.blockSignals(True)
         self.op_combo.clear()
-        self.op_combo.addItem("Unassigned", 0)
+        self.op_combo.addItem("Unassigned OP", 0)
         rows: list[sqlite3.Row] = []
         if self.incident_id:
             from utils import incident_storage
@@ -1364,7 +1369,7 @@ class Ics214ActivityLogPanel(QWidget):
         if op_number in self.operational_period_labels:
             return self.operational_period_labels[op_number]
         if not op_number:
-            return "Unassigned"
+            return "Unassigned OP"
         return f"OP {op_number}"
 
     def _assign_operational_period(self, header: LogHeader) -> None:
@@ -1451,9 +1456,10 @@ class Ics214ActivityLogPanel(QWidget):
             if preferred_name and preferred_name not in candidates:
                 continue
             return stream.id
-        # Fallbacks: try matching by type only or ref only so context can still
-        # bias the selection even if the other attribute is missing.
-        if preferred_type:
+        # Fallbacks: try matching by ref only or (if no ref was given) by type.
+        # Do NOT fall back to type-only when a ref was specified — all sections
+        # share kind="section", so a type-only match would grab the wrong one.
+        if preferred_type and not preferred_ref:
             for stream in streams:
                 kind = (getattr(stream, "kind", "") or "").lower()
                 if kind == preferred_type:
@@ -1496,6 +1502,38 @@ class Ics214ActivityLogPanel(QWidget):
                     return stream.id
         return None
 
+    def _auto_create_context_stream(self) -> str | None:
+        """Create a stream from launch_context if enough info is present. Returns the new stream id or None."""
+        if not self.incident_id or not self.launch_context:
+            return None
+        kind = (self.default_log_type or "").strip().lower()
+        name = (self.default_log_name or "").strip()
+        ref = (str(self.default_log_ref) if self.default_log_ref else "").strip()
+        if not kind or not name:
+            return None
+        if not ref:
+            ref = f"{kind}:{name.lower().replace(' ', '_').replace('/', '_')}"
+        label = name
+        section = json.dumps({"category": kind, "ref": ref, "label": label}, ensure_ascii=False)
+        try:
+            stream = self.services.create_stream(
+                StreamCreate(
+                    incident_id=self.incident_id,
+                    name=name,
+                    op_number=self.selected_op_number or 0,
+                    kind=kind,
+                    section=section,
+                )
+            )
+            logger.info(
+                "Auto-created ICS-214 stream '%s' (kind=%s, ref=%s) for incident %s",
+                name, kind, ref, self.incident_id,
+            )
+            return str(stream.id)
+        except Exception as exc:
+            logger.exception("Failed to auto-create ICS-214 stream '%s': %s", name, exc)
+            return None
+
     def _reload_streams(self) -> None:
         previous_id = self.header.stream_id or self._current_log_id
         preferred_id = self._preferred_stream_id
@@ -1529,6 +1567,10 @@ class Ics214ActivityLogPanel(QWidget):
         self.log_combo.blockSignals(False)
         if not filtered:
             self._preferred_stream_id = None
+            auto_id = self._auto_create_context_stream()
+            if auto_id:
+                self._reload_streams()
+                return
             self._set_empty_state()
             return
 
@@ -1542,6 +1584,16 @@ class Ics214ActivityLogPanel(QWidget):
         if target_id is None and not self._context_match_consumed:
             target_id = self._match_context_stream(filtered)
             self._context_match_consumed = True
+            if target_id is None:
+                auto_id = self._auto_create_context_stream()
+                if auto_id:
+                    self._preferred_stream_id = auto_id
+                    self.log_combo.blockSignals(True)
+                    self.log_combo.clear()
+                    self.known_logs.clear()
+                    self.log_combo.blockSignals(False)
+                    self._reload_streams()
+                    return
         if target_id is None:
             target_id = filtered[0].id
 
@@ -1637,14 +1689,16 @@ class Ics214ActivityLogPanel(QWidget):
         activity_item = QTableWidgetItem("\n".join(activity_lines))
         source_item = QTableWidgetItem(data.source)
         links_item = QTableWidgetItem(", ".join(data.links) if data.links else "—")
+        critical_item = QTableWidgetItem("✓" if data.critical else "")
+        critical_item.setTextAlignment(Qt.AlignCenter)
         gear_item = QTableWidgetItem("⋯")
         gear_item.setTextAlignment(Qt.AlignCenter)
         for col, item in enumerate(
-            [num_item, time_item, activity_item, source_item, links_item, gear_item]
+            [num_item, time_item, activity_item, source_item, links_item, critical_item, gear_item]
         ):
             item.setFlags(item.flags() ^ Qt.ItemIsEditable)
             if data.critical:
-                item.setBackground(QColor("#ffe5e5"))
+                item.setBackground(QColor("#5c1a1a"))
             self.entries_table.setItem(row, col, item)
 
     def _update_header_card(self) -> None:

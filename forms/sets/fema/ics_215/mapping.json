@@ -1,0 +1,354 @@
+{
+  "description": "ICS 215 Operational Planning Worksheet — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OperationsChief",
+      "source": {
+        "key": "organization.operations_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PlanningChief",
+      "source": {
+        "key": "organization.planning_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup1",
+      "source": {
+        "key": "tasks.0.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment1",
+      "source": {
+        "key": "tasks.0.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType1",
+      "source": {
+        "key": "tasks.0.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation1",
+      "source": {
+        "key": "tasks.0.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition1",
+      "source": {
+        "key": "tasks.0.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup2",
+      "source": {
+        "key": "tasks.1.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment2",
+      "source": {
+        "key": "tasks.1.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType2",
+      "source": {
+        "key": "tasks.1.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation2",
+      "source": {
+        "key": "tasks.1.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition2",
+      "source": {
+        "key": "tasks.1.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup3",
+      "source": {
+        "key": "tasks.2.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment3",
+      "source": {
+        "key": "tasks.2.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType3",
+      "source": {
+        "key": "tasks.2.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation3",
+      "source": {
+        "key": "tasks.2.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition3",
+      "source": {
+        "key": "tasks.2.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup4",
+      "source": {
+        "key": "tasks.3.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment4",
+      "source": {
+        "key": "tasks.3.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType4",
+      "source": {
+        "key": "tasks.3.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation4",
+      "source": {
+        "key": "tasks.3.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition4",
+      "source": {
+        "key": "tasks.3.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup5",
+      "source": {
+        "key": "tasks.4.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment5",
+      "source": {
+        "key": "tasks.4.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType5",
+      "source": {
+        "key": "tasks.4.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation5",
+      "source": {
+        "key": "tasks.4.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition5",
+      "source": {
+        "key": "tasks.4.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup6",
+      "source": {
+        "key": "tasks.5.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment6",
+      "source": {
+        "key": "tasks.5.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType6",
+      "source": {
+        "key": "tasks.5.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation6",
+      "source": {
+        "key": "tasks.5.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition6",
+      "source": {
+        "key": "tasks.5.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup7",
+      "source": {
+        "key": "tasks.6.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment7",
+      "source": {
+        "key": "tasks.6.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType7",
+      "source": {
+        "key": "tasks.6.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation7",
+      "source": {
+        "key": "tasks.6.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition7",
+      "source": {
+        "key": "tasks.6.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup8",
+      "source": {
+        "key": "tasks.7.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment8",
+      "source": {
+        "key": "tasks.7.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType8",
+      "source": {
+        "key": "tasks.7.category",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReportingLocation8",
+      "source": {
+        "key": "tasks.7.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OverheadPosition8",
+      "source": {
+        "key": "tasks.7.team_leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

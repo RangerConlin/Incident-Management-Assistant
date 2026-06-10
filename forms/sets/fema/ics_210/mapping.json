@@ -1,0 +1,396 @@
+{
+  "description": "ICS 210 Resource Status Change — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName1",
+      "source": {
+        "key": "teams.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType1",
+      "source": {
+        "key": "teams.0.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus1",
+      "source": {
+        "key": "teams.0.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader1",
+      "source": {
+        "key": "teams.0.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName2",
+      "source": {
+        "key": "teams.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType2",
+      "source": {
+        "key": "teams.1.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus2",
+      "source": {
+        "key": "teams.1.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader2",
+      "source": {
+        "key": "teams.1.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName3",
+      "source": {
+        "key": "teams.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType3",
+      "source": {
+        "key": "teams.2.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus3",
+      "source": {
+        "key": "teams.2.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader3",
+      "source": {
+        "key": "teams.2.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName4",
+      "source": {
+        "key": "teams.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType4",
+      "source": {
+        "key": "teams.3.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus4",
+      "source": {
+        "key": "teams.3.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader4",
+      "source": {
+        "key": "teams.3.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName5",
+      "source": {
+        "key": "teams.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType5",
+      "source": {
+        "key": "teams.4.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus5",
+      "source": {
+        "key": "teams.4.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader5",
+      "source": {
+        "key": "teams.4.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName6",
+      "source": {
+        "key": "teams.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType6",
+      "source": {
+        "key": "teams.5.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus6",
+      "source": {
+        "key": "teams.5.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader6",
+      "source": {
+        "key": "teams.5.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName7",
+      "source": {
+        "key": "teams.6.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType7",
+      "source": {
+        "key": "teams.6.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus7",
+      "source": {
+        "key": "teams.6.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader7",
+      "source": {
+        "key": "teams.6.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName8",
+      "source": {
+        "key": "teams.7.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType8",
+      "source": {
+        "key": "teams.7.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus8",
+      "source": {
+        "key": "teams.7.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader8",
+      "source": {
+        "key": "teams.7.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName9",
+      "source": {
+        "key": "teams.8.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType9",
+      "source": {
+        "key": "teams.8.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus9",
+      "source": {
+        "key": "teams.8.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader9",
+      "source": {
+        "key": "teams.8.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName10",
+      "source": {
+        "key": "teams.9.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType10",
+      "source": {
+        "key": "teams.9.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus10",
+      "source": {
+        "key": "teams.9.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader10",
+      "source": {
+        "key": "teams.9.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName11",
+      "source": {
+        "key": "teams.10.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType11",
+      "source": {
+        "key": "teams.10.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus11",
+      "source": {
+        "key": "teams.10.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader11",
+      "source": {
+        "key": "teams.10.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName12",
+      "source": {
+        "key": "teams.11.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceType12",
+      "source": {
+        "key": "teams.11.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus12",
+      "source": {
+        "key": "teams.11.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader12",
+      "source": {
+        "key": "teams.11.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

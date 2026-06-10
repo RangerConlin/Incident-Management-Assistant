@@ -1,0 +1,227 @@
+{
+  "description": "ICS 209 Incident Status Summary — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "IncidentType",
+      "source": {
+        "key": "incident.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICPLocation",
+      "source": {
+        "key": "incident.icp_location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "IncidentStartDate",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "IncidentStartTime",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "IncidentDescription",
+      "source": {
+        "key": "incident.description",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "IncidentCommander",
+      "source": {
+        "key": "organization.incident_commander.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OperationsChief",
+      "source": {
+        "key": "organization.operations_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName1",
+      "source": {
+        "key": "teams.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName2",
+      "source": {
+        "key": "teams.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName3",
+      "source": {
+        "key": "teams.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName4",
+      "source": {
+        "key": "teams.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName5",
+      "source": {
+        "key": "teams.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName6",
+      "source": {
+        "key": "teams.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName7",
+      "source": {
+        "key": "teams.6.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName8",
+      "source": {
+        "key": "teams.7.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus1",
+      "source": {
+        "key": "teams.0.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus2",
+      "source": {
+        "key": "teams.1.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus3",
+      "source": {
+        "key": "teams.2.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus4",
+      "source": {
+        "key": "teams.3.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus5",
+      "source": {
+        "key": "teams.4.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus6",
+      "source": {
+        "key": "teams.5.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus7",
+      "source": {
+        "key": "teams.6.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus8",
+      "source": {
+        "key": "teams.7.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedByName",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedByPosition",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

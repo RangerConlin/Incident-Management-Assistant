@@ -145,16 +145,26 @@ class TaskDetailWindow(QWidget):
             "types_by_cat": dict(TASK_TYPES_BY_CATEGORY),
         }
 
-        # Slightly more saturated backgrounds per status
-        self._status_bg_colors = {
-            "draft": "#e9ecef",        # light gray -> a touch deeper
-            "planned": "#ce93d8",      # match task status purple
-            "assigned": "#bfe1ff",     # very light blue -> medium-light blue
-            "in progress": "#a8e0ea",  # light cyan -> more saturated teal/cyan
-            "complete": "#bfe6c3",     # pale green -> richer green
+        _status_bg_light = {
+            "draft": "#e9ecef",
+            "planned": "#ce93d8",
+            "assigned": "#bfe1ff",
+            "in progress": "#a8e0ea",
+            "complete": "#bfe6c3",
             "completed": "#bfe6c3",
-            "cancelled": "#f5b7b1",    # light red -> warmer red
+            "cancelled": "#f5b7b1",
         }
+        _status_bg_dark = {
+            "draft": "#2e3340",
+            "planned": "#4a2d5a",
+            "assigned": "#1e3d5c",
+            "in progress": "#1a4a52",
+            "complete": "#1a3d28",
+            "completed": "#1a3d28",
+            "cancelled": "#4a1e1e",
+        }
+        from utils.styles import THEME_NAME as _tn
+        self._status_bg_colors = _status_bg_dark if _tn == "dark" else _status_bg_light
 
         self._loading_header = False
         self._header_field_cache: Dict[str, str] = {}
@@ -1019,7 +1029,9 @@ class TaskDetailWindow(QWidget):
         # Info label to show current task and count
         self._deb_info = QLabel("", self)
         try:
-            self._deb_info.setStyleSheet("color: #666; font-size: 12px;")
+            from utils.styles import THEME_NAME as _tn
+            _muted = "#A4ADBA" if _tn == "dark" else "#666"
+            self._deb_info.setStyleSheet(f"color: {_muted}; font-size: 12px;")
         except Exception:
             pass
         deb_v.addWidget(self._deb_info)
@@ -1119,7 +1131,8 @@ class TaskDetailWindow(QWidget):
             self._btn_214_export = QPushButton("Export 214")
             self._btn_214_edit = QPushButton("Edit")
             self._btn_214_delete = QPushButton("Delete")
-            for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete): ics_bar.addWidget(b)
+            self._btn_214_open_full = QPushButton("Open Full Log")
+            for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete, self._btn_214_open_full): ics_bar.addWidget(b)
             ics_bar.addStretch(1); ics_layout.addLayout(ics_bar)
             self._tbl_214 = QTableView(self)
             self._model_214 = QStandardItemModel(0, 3, self)
@@ -1189,6 +1202,7 @@ class TaskDetailWindow(QWidget):
             self._btn_214_export.clicked.connect(self._export_ics214)
             self._btn_214_delete.clicked.connect(self._delete_ics214_entry)
             self._btn_214_edit.clicked.connect(self._edit_ics214_entry)
+            self._btn_214_open_full.clicked.connect(self._open_full_ics214)
             tabs.addTab(log_container, "Log")
             # Remove any prior placeholder Log tab
             try:
@@ -2080,6 +2094,33 @@ class TaskDetailWindow(QWidget):
             pass
         for r in rows:
             self._model_teamlog.appendRow([QStandardItem(_fmt_ts(str(r.get("timestamp") or ""))), QStandardItem(str(r.get("team") or "")), QStandardItem(str(r.get("status") or ""))])
+
+    def _open_full_ics214(self) -> None:
+        try:
+            from modules.ics214 import get_ics214_panel
+            from utils import incident_context
+            inc = incident_context.get_active_incident_id()
+            task_id = int(self._task_id)
+            title = self._title_edit.text().strip() if hasattr(self, '_title_edit') else ""
+            log_name = title or f"Task {task_id}"
+            panel = get_ics214_panel(
+                str(inc) if inc else None,
+                launch_context={
+                    "default_log_for_type": "task",
+                    "default_log_for_ref": f"task:{task_id}",
+                    "default_log_name": log_name,
+                },
+            )
+            panel.setWindowTitle(f"ICS-214 Activity Log — {log_name}")
+            panel.setAttribute(Qt.WA_DeleteOnClose, True)
+            if not hasattr(self, '_ics214_windows'):
+                self._ics214_windows: list = []
+            self._ics214_windows.append(panel)
+            panel.destroyed.connect(lambda *_: self._ics214_windows.remove(panel) if panel in self._ics214_windows else None)
+            panel.show()
+            panel.raise_()
+        except Exception:
+            pass
 
     def _get_ops_214_stream(self):
         try:

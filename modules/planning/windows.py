@@ -6,6 +6,7 @@ __all__ = [
     "get_forecast_panel",
     "get_iap_builder_panel",
     "get_op_manager_panel",
+    "get_meetings_panel",
     "get_taskmetrics_panel",
     "get_strategic_objectives_panel",
     "get_sitrep_panel",
@@ -47,6 +48,14 @@ def get_op_manager_panel(incident_id: object | None = None) -> QWidget:
         "Operational Period Manager",
         f"OP builder — incident: {incident_id}",
     )
+
+
+def get_meetings_panel(incident_id: object | None = None) -> QWidget:
+    """Return the Planning Meetings submodule panel."""
+    from modules.planning.meetings.panel import make_meetings_panel
+
+    incident_key = str(incident_id) if incident_id is not None else None
+    return make_meetings_panel(incident_id=incident_key)
 
 
 def get_iap_builder_panel(incident_id: object | None = None) -> QWidget:

@@ -1,0 +1,122 @@
+{
+  "description": "CAPF 104 Mission Flight Plan — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "MissionNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "MissionDate",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TailNumber",
+      "source": {
+        "key": "aircraft.0.tail_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Callsign",
+      "source": {
+        "key": "aircraft.0.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AircraftType",
+      "source": {
+        "key": "aircraft.0.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AircraftMakeModel",
+      "source": {
+        "join": [
+          {
+            "key": "aircraft.0.make",
+            "default": ""
+          },
+          {
+            "key": "aircraft.0.model",
+            "default": ""
+          }
+        ],
+        "separator": " "
+      }
+    },
+    {
+      "pdf_field": "Base",
+      "source": {
+        "key": "aircraft.0.base",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FuelType",
+      "source": {
+        "key": "aircraft.0.fuel_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SearchAssignment",
+      "source": {
+        "key": "tasks.0.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SearchArea",
+      "source": {
+        "key": "tasks.0.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PIC",
+      "source": {
+        "key": "personnel.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "MissionCoordinator",
+      "source": {
+        "key": "organization.air_operations_branch_director.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICName",
+      "source": {
+        "key": "organization.incident_commander.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "_comment": "Replace source values with real incident data paths; PDF field IDs must match the template exactly.",
+  "description": "Starter mapping scaffold for template.pdf",
+  "fields": []
+}

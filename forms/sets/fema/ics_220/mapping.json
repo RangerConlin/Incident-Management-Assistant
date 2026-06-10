@@ -1,0 +1,319 @@
+{
+  "description": "ICS 220 Air Operations Summary — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirOpsBranchDirector",
+      "source": {
+        "key": "organization.air_operations_branch_director.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirTacticalSupervisor",
+      "source": {
+        "key": "organization.air_operations_branch_director.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TailNumber1",
+      "source": {
+        "key": "aircraft.0.tail_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Callsign1",
+      "source": {
+        "key": "aircraft.0.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AircraftType1",
+      "source": {
+        "key": "aircraft.0.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization1",
+      "source": {
+        "key": "aircraft.0.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedBase1",
+      "source": {
+        "key": "aircraft.0.base",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedMission1",
+      "source": {
+        "key": "aircraft.0.assigned_team_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FuelType1",
+      "source": {
+        "key": "aircraft.0.fuel_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TailNumber2",
+      "source": {
+        "key": "aircraft.1.tail_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Callsign2",
+      "source": {
+        "key": "aircraft.1.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AircraftType2",
+      "source": {
+        "key": "aircraft.1.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization2",
+      "source": {
+        "key": "aircraft.1.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedBase2",
+      "source": {
+        "key": "aircraft.1.base",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedMission2",
+      "source": {
+        "key": "aircraft.1.assigned_team_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FuelType2",
+      "source": {
+        "key": "aircraft.1.fuel_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TailNumber3",
+      "source": {
+        "key": "aircraft.2.tail_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Callsign3",
+      "source": {
+        "key": "aircraft.2.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AircraftType3",
+      "source": {
+        "key": "aircraft.2.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization3",
+      "source": {
+        "key": "aircraft.2.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedBase3",
+      "source": {
+        "key": "aircraft.2.base",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedMission3",
+      "source": {
+        "key": "aircraft.2.assigned_team_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FuelType3",
+      "source": {
+        "key": "aircraft.2.fuel_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TailNumber4",
+      "source": {
+        "key": "aircraft.3.tail_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Callsign4",
+      "source": {
+        "key": "aircraft.3.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AircraftType4",
+      "source": {
+        "key": "aircraft.3.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization4",
+      "source": {
+        "key": "aircraft.3.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedBase4",
+      "source": {
+        "key": "aircraft.3.base",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedMission4",
+      "source": {
+        "key": "aircraft.3.assigned_team_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FuelType4",
+      "source": {
+        "key": "aircraft.3.fuel_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TailNumber5",
+      "source": {
+        "key": "aircraft.4.tail_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Callsign5",
+      "source": {
+        "key": "aircraft.4.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AircraftType5",
+      "source": {
+        "key": "aircraft.4.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization5",
+      "source": {
+        "key": "aircraft.4.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedBase5",
+      "source": {
+        "key": "aircraft.4.base",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AssignedMission5",
+      "source": {
+        "key": "aircraft.4.assigned_team_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FuelType5",
+      "source": {
+        "key": "aircraft.4.fuel_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

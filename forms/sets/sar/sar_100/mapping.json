@@ -1,0 +1,89 @@
+{
+  "description": "SAR 100 — Incident Briefing — SAR 1",
+  "fields": [
+    {
+      "pdf_field": "GENERAL BRIEFING 1 INCIDENT NAME",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "2 OPERATIONAL PERIOD",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "3 INCIDENT NUMBER",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "4 INCIDENT SUMMARYRow1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "FREQUENCYCOMMAND TEAM BASE",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "CHANNEL DESCRIPTIONCOMMAND TEAM BASE",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "CHANNELCOMMAND TEAM BASE",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "FREQUENCYTACTICAL TEAM TEAM",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "CHANNEL DESCRIPTIONTACTICAL TEAM TEAM",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "CHANNELTACTICAL TEAM TEAM",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "6 ACTION PLAN SUMMARYRow1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "7 PREPARED BY",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "8 DATE PREPARED",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "9 TIME PREPARED",
+      "source": {
+        "literal": ""
+      }
+    }
+  ]
+}

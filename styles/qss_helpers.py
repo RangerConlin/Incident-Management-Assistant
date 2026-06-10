@@ -139,6 +139,57 @@ def global_qss(tokens: dict) -> str:
             border-right: 1px solid {tokens['divider']};
             border-bottom: 1px solid {tokens['divider']};
         }}
+        QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox {{
+            background: {tokens['ctrl_bg']};
+            color: {tokens['fg_primary']};
+            border: 1px solid {tokens['ctrl_border']};
+            border-radius: 3px;
+            padding: 2px 4px;
+        }}
+        QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QAbstractSpinBox:focus {{
+            border: 1px solid {tokens['ctrl_focus']};
+        }}
+        QLineEdit:read-only {{
+            background: {tokens['bg_raised']};
+            color: {tokens['fg_muted']};
+        }}
+        QComboBox {{
+            background: {tokens['ctrl_bg']};
+            color: {tokens['fg_primary']};
+            border: 1px solid {tokens['ctrl_border']};
+            border-radius: 3px;
+            padding: 2px 4px;
+        }}
+        QComboBox:focus {{
+            border: 1px solid {tokens['ctrl_focus']};
+        }}
+        QComboBox::drop-down {{
+            border: none;
+        }}
+        QComboBox QAbstractItemView {{
+            background: {tokens['bg_panel']};
+            color: {tokens['fg_primary']};
+            selection-background-color: {tokens['bg_raised']};
+            selection-color: {tokens['fg_primary']};
+        }}
+        QLabel {{
+            color: {tokens['fg_primary']};
+            background: transparent;
+        }}
+        QGroupBox {{
+            color: {tokens['fg_primary']};
+        }}
+        QCheckBox, QRadioButton {{
+            color: {tokens['fg_primary']};
+            background: transparent;
+        }}
+        QAbstractItemView {{
+            background: {tokens['bg_panel']};
+            color: {tokens['fg_primary']};
+            alternate-background-color: {tokens['bg_raised']};
+            selection-background-color: {tokens['ctrl_hover']};
+            selection-color: {tokens['fg_primary']};
+        }}
         QScrollBar:vertical {{
             background: {tokens['bg_panel']};
             width: 10px;

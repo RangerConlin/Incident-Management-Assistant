@@ -6,7 +6,6 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QMessageBox
 
 from .panels.template_debug_panel import TemplateDebugPanel
 from .panels.profile_manager_panel import ProfileManagerPanel
-from .panels.form_library_manager import FormLibraryManager
 from .panels.dev_cert_catalog_editor import DevCertCatalogEditor
 from modules.personnel.services import cert_seeder
 
@@ -66,20 +65,19 @@ def attach_dev_menu(main_window):
     act_prof.triggered.connect(_open_prof)
     dev_menu.addAction(act_prof)
 
-    # Form Library Manager
-    act_forms = QAction("Manage Forms…", main_window)
+
+    # Form Creator (hub window)
+    act_forms = QAction("Form Creator…", main_window)
 
     def _open_forms():
-        panel = FormLibraryManager(parent=main_window)
-        dlg = QDialog(main_window)
-        dlg.setWindowTitle("Manage Forms")
-        dlg.setWindowModality(Qt.ApplicationModal)
-        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
-        v = QVBoxLayout(dlg)
-        v.setContentsMargins(0, 0, 0, 0)
-        v.addWidget(panel)
-        dlg.adjustSize()
-        dlg.exec()
+        try:
+            from modules.forms_creator.ui.HubWindow import HubWindow
+        except Exception as e:
+            QMessageBox.critical(main_window, "Form Creator", str(e))
+            return
+        w = HubWindow(parent=main_window)
+        w.setAttribute(Qt.WA_DeleteOnClose, True)
+        w.show()
 
     act_forms.triggered.connect(_open_forms)
     dev_menu.addAction(act_forms)

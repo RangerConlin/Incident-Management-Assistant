@@ -1,6 +1,7 @@
 # ===== Part 1: Imports & Logging ============================================
 import json
 import os
+import re
 import sys
 import logging
 from functools import lru_cache
@@ -38,6 +39,13 @@ from PySide6QtAds import (
 # Respect saved dock layouts (ADS perspectives) across sessions
 # Set to True only for one-off debugging to reset layout on startup.
 FORCE_DEFAULT_LAYOUT = False
+
+# ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
+DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+DEBUG_INCIDENT_ID = "2025-FAIR"
+DEBUG_USER_ID = "405021"
+DEBUG_ROLE = "Incident Commander"
+# =========================================================
 
 
 from utils.state import AppState
@@ -86,6 +94,49 @@ logger = logging.getLogger(__name__)
 # enable with env var IMA_DEV_MODE=true/1/on
 DEV_MODE = str(os.getenv("IMA_DEV_MODE", "")).strip().lower() in {"1", "true", "yes", "on"}
 
+
+_SIZE_RE = re.compile(r"\s+\d+×\d+$")
+_orig_set_window_title = QWidget.setWindowTitle
+
+
+def _set_window_title_with_size(widget: QWidget, title: str) -> None:
+    """Store clean base title and render it with current window dimensions."""
+    base = _SIZE_RE.sub("", title)
+    widget.__dict__["_title_base"] = base
+    w, h = widget.width(), widget.height()
+    _orig_set_window_title(widget, f"{base}  {w}×{h}" if w and h else base)
+
+
+def _patch_set_window_title() -> None:
+    """Override setWindowTitle on QWidget so the base title is always stored."""
+    def setWindowTitle(self, title: str) -> None:  # noqa: N802
+        _set_window_title_with_size(self, title)
+
+    QWidget.setWindowTitle = setWindowTitle
+
+
+_patch_set_window_title()
+
+
+class _WindowSizeTitleFilter(QObject):
+    """Application-level event filter: updates title bar size on every top-level resize."""
+
+    def eventFilter(self, obj, event) -> bool:
+        if (
+            event.type() == QEvent.Type.Resize
+            and isinstance(obj, QWidget)
+            and obj.isWindow()
+        ):
+            base = obj.__dict__.get("_title_base")
+            if not base:
+                # Title was set by C++ (e.g. ADS floating container) — read and store it now
+                raw = obj.windowTitle()
+                if raw:
+                    base = _SIZE_RE.sub("", raw)
+                    obj.__dict__["_title_base"] = base
+            if base:
+                _orig_set_window_title(obj, f"{base}  {obj.width()}×{obj.height()}")
+        return False
 
 
 @lru_cache(maxsize=1)
@@ -677,7 +728,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_cmd, "Incident Overview", None, "command.incident_overview")
         self._add_action(m_cmd, "Incident Action Plan Builder", None, "command.iap")
         self._add_action(m_cmd, "Incident Objectives (ICS-202)", None, "command.objectives")
-        self._add_action(m_cmd, "Command Staff Organization (ICS-203)", None, "command.staff_org")
+        self._add_action(m_cmd, "Incident Organization", None, "command.staff_org")
         self._add_action(m_cmd, "Situation Report (ICS-209)", None, "command.sitrep")
         m_cmd.addSeparator()
         self._add_action(m_cmd, "Set ICP Location", None, "command.icp_location")
@@ -690,6 +741,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_plan, "Pending Approvals", None, "planning.approvals")
         self._add_action(m_plan, "Planning Forecast", None, "planning.forecast")
         self._add_action(m_plan, "Operational Period Manager", None, "planning.op_manager")
+        self._add_action(m_plan, "Meetings", None, "planning.meetings")
         self._add_action(m_plan, "Task Metrics Dashboard", None, "planning.taskmetrics")
         self._add_action(m_plan, "Strategic Objective Tracker", None, "planning.strategic_objectives")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
@@ -804,10 +856,6 @@ class MainWindow(QMainWindow):
         # ----- Reference Library & Forms -----
         m_reference = self.menuBar().addMenu("Reference Library")
         self._add_action(m_reference, "Browse Library", None, "library")
-
-        forms_menu = m_reference.addMenu("Forms")
-        self._add_action(forms_menu, "Template Library", None, "forms.template_library")
-        self._add_action(forms_menu, "Form Creator", None, "forms.creator")
 
         m_reference.addSeparator()
         self._add_action(m_reference, "User Guide", None, "help.user_guide")
@@ -998,6 +1046,7 @@ class MainWindow(QMainWindow):
             "planning.approvals": self.open_planning_approvals,
             "planning.forecast": self.open_planning_forecast,
             "planning.op_manager": self.open_planning_op_manager,
+            "planning.meetings": self.open_planning_meetings,
             "planning.taskmetrics": self.open_planning_taskmetrics,
             "planning.strategic_objectives": self.open_planning_strategic_objectives,
             "planning.sitrep": self.open_planning_sitrep,
@@ -1097,7 +1146,6 @@ class MainWindow(QMainWindow):
 
             # ----- Reference Library & Forms -----
             "library": self.open_reference_library,
-            "forms.template_library": self.open_forms_template_library,
             "forms.creator": self.open_forms_creator,
             "help.user_guide": self.open_help_user_guide,
 
@@ -1391,8 +1439,13 @@ class MainWindow(QMainWindow):
     def open_command_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:command",
+            "default_log_name": "Command",
+            "default_prepared_by_position": "Incident Commander",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Command", preferred_size=(950, 600))
 
     def open_command_incident_dashboard(self) -> None:
         from modules import command
@@ -1432,7 +1485,7 @@ class MainWindow(QMainWindow):
         from modules import command
         incident_id = getattr(self, "current_incident_id", None)
         panel = command.get_staff_org_panel(incident_id)
-        self._open_dock_widget(panel, title="Command Staff Organization (ICS 203)")
+        self._open_dock_widget(panel, title="Incident Organization")
 
     def open_command_sitrep(self) -> None:
         from modules import command
@@ -1444,8 +1497,13 @@ class MainWindow(QMainWindow):
     def open_planning_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:planning",
+            "default_log_name": "Planning",
+            "default_prepared_by_position": "Planning Section Chief",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Planning", preferred_size=(950, 600))
 
     def open_planning_glance(self) -> None:
         """Open the Planning — At-a-Glance widget (compact, modeless/dock)."""
@@ -1486,6 +1544,12 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_op_manager_panel(incident_id)
         self._open_dock_widget(panel, title="Operational Period Manager")
+
+    def open_planning_meetings(self) -> None:
+        from modules import planning
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = planning.get_meetings_panel(incident_id)
+        self._open_dock_widget(panel, title="Planning - Meetings")
 
     def open_planning_taskmetrics(self) -> None:
         from modules import planning
@@ -1567,8 +1631,13 @@ class MainWindow(QMainWindow):
     def open_operations_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:operations",
+            "default_log_name": "Operations",
+            "default_prepared_by_position": "Operations Section Chief",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Operations", preferred_size=(950, 600))
 
     def open_operations_dashboard(self) -> None:
         """Open the Operations Dashboard (compact) and wire live data."""
@@ -1915,8 +1984,13 @@ class MainWindow(QMainWindow):
     def open_logistics_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:logistics",
+            "default_log_name": "Logistics",
+            "default_prepared_by_position": "Logistics Section Chief",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Logistics", preferred_size=(950, 600))
 
     def open_logistics_dashboard(self) -> None:
         """Open the Logistics Dashboard (modeless) and enable auto-refresh."""
@@ -2056,8 +2130,13 @@ class MainWindow(QMainWindow):
     def open_comms_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:communications",
+            "default_log_name": "Communications",
+            "default_prepared_by_position": "Communications Unit Leader",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Communications", preferred_size=(950, 600))
 
     def open_comms_traffic_log(self) -> None:
         from modules.communications.panels import MessageLogPanel
@@ -2131,8 +2210,13 @@ class MainWindow(QMainWindow):
     def open_intel_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:intel",
+            "default_log_name": "Intelligence",
+            "default_prepared_by_position": "Intelligence Section Chief",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Intelligence", preferred_size=(950, 600))
 
     def open_intel_dashboard(self) -> None:
         """Open the Intel — Dashboard (modeless) using the new QWidget."""
@@ -2213,14 +2297,24 @@ class MainWindow(QMainWindow):
     def open_medical_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:medical",
+            "default_log_name": "Medical",
+            "default_prepared_by_position": "Medical Unit Leader",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Medical", preferred_size=(950, 600))
 
     def open_safety_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:safety",
+            "default_log_name": "Safety",
+            "default_prepared_by_position": "Safety Officer",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Safety", preferred_size=(950, 600))
 
     def open_medical_206(self) -> None:
         from modules import medical
@@ -2247,8 +2341,13 @@ class MainWindow(QMainWindow):
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:liaison",
+            "default_log_name": "Liaison",
+            "default_prepared_by_position": "Liaison Officer",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Liaison", preferred_size=(950, 600))
 
     def open_liaison_agencies(self) -> None:
         from modules import liaison
@@ -2287,8 +2386,13 @@ class MainWindow(QMainWindow):
     def open_public_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:public_information",
+            "default_log_name": "Public Information",
+            "default_prepared_by_position": "Public Information Officer",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Public Information", preferred_size=(950, 600))
 
     def open_public_media_releases(self) -> None:
         from modules import public_information
@@ -2523,8 +2627,13 @@ class MainWindow(QMainWindow):
     def open_finance_unit_log(self) -> None:
         from modules import ics214
         incident_id = getattr(self, "current_incident_id", None)
-        panel = ics214.get_ics214_panel(incident_id)
-        self._open_dock_widget(panel, title="ICS-214 Activity Log")
+        panel = ics214.get_ics214_panel(incident_id, launch_context={
+            "default_log_for_type": "section",
+            "default_log_for_ref": "section:finance_admin",
+            "default_log_name": "Finance / Admin",
+            "default_prepared_by_position": "Finance/Admin Section Chief",
+        })
+        self._open_dock_widget(panel, title="ICS-214 Activity Log — Finance/Admin", preferred_size=(950, 600))
 
     def open_finance_time(self) -> None:
         from modules import finance
@@ -2624,12 +2733,6 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Reflex Taskings")
 
 # --- 4.14 Reference Library (Forms) -----------------------------------
-    def open_forms_template_library(self) -> None:
-        from modules import referencelibrary
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = referencelibrary.get_form_library_panel(incident_id)
-        self._open_dock_widget(panel, title="Template Library")
-
     def open_reference_library(self) -> None:
         from modules import referencelibrary
         incident_id = getattr(self, "current_incident_id", None)
@@ -2638,7 +2741,7 @@ class MainWindow(QMainWindow):
 
     def open_forms_creator(self) -> None:
         try:
-            from modules.forms_creator.ui.MainWindow import MainWindow as FormsCreatorWindow
+            from modules.forms_creator.ui.HubWindow import HubWindow as FormsCreatorWindow
         except Exception as exc:
             logger.exception("Failed to open Form Creator: %s", exc)
             QMessageBox.critical(
@@ -2679,7 +2782,7 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
-    def _open_dock_widget(self, widget: QWidget, title: str, float_on_open: bool | None = True) -> None:
+    def _open_dock_widget(self, widget: QWidget, title: str, float_on_open: bool | None = True, preferred_size: tuple[int, int] | None = None) -> None:
         """Embed widget in an ADS dock panel.
         By default, menu-launched panels open floating (undocked). Use float_on_open=False to dock.
         """
@@ -2690,6 +2793,11 @@ class MainWindow(QMainWindow):
             try:
                 self.dock_manager.addDockWidgetFloating(dock)  # type: ignore[attr-defined]
                 dock.show()
+                if preferred_size:
+                    try:
+                        dock.floatingDockContainer().resize(preferred_size[0], preferred_size[1])  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 return
             except Exception:
                 pass
@@ -2701,6 +2809,8 @@ class MainWindow(QMainWindow):
                     container.move(QCursor.pos())  # type: ignore[attr-defined]
                 except Exception:
                     pass
+                if preferred_size:
+                    container.resize(preferred_size[0], preferred_size[1])
                 try:
                     container.show()  # type: ignore[attr-defined]
                 except Exception:
@@ -3241,17 +3351,6 @@ class MainWindow(QMainWindow):
 
     def _init_notifications(self) -> None:
         self._toast_widget = None
-        try:
-            notifier = get_notifier()
-            try:
-                notifier.showToast.disconnect(self._forward_toast)
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-    def _forward_toast(self, payload: dict) -> None:
-        return
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
@@ -3490,6 +3589,8 @@ if __name__ == "__main__":
     import argparse
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+    _size_title_filter = _WindowSizeTitleFilter()
+    app.installEventFilter(_size_title_filter)
 
     def _on_quit():
         try:
@@ -3501,13 +3602,6 @@ if __name__ == "__main__":
             pass
     app.aboutToQuit.connect(_on_quit)
 
-    # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-    DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
-    DEBUG_INCIDENT_ID = "2025-FAIR"
-    DEBUG_USER_ID = "405021"
-    DEBUG_ROLE = "Incident Commander"
-    # =========================================================
-
     # Optional demo mode: relax validation on the login dialog
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--demo", action="store_true", help="Start in demo mode (relaxed login validation)")
@@ -3516,6 +3610,10 @@ if __name__ == "__main__":
     except SystemExit:
         class _Args: demo = False
         args = _Args()
+
+    # Read startup behavior + last incident before showing login.
+    # Kept outside the branch so debug bypass startup still has settings_manager.
+    _early_settings = SettingsManager()
 
     if DEBUG_BYPASS_LOGIN:
         # Insert your session management or state setup here
@@ -3527,8 +3625,6 @@ if __name__ == "__main__":
         print("[debug] Login bypass enabled: loaded test credentials.")
     else:
         from modules.login_dialog import LoginDialog
-        # Read startup behavior + last incident before showing login
-        _early_settings = SettingsManager()
         try:
             _startup_mode = int(_early_settings.get('startupBehaviorIndex', 0) or 0)
         except Exception:
@@ -3594,8 +3690,7 @@ if __name__ == "__main__":
             win.theme_bridge = _theme_bridge
     except Exception:
         pass
-    if DEV_MODE:
-        from modules.devtools.dev_menu import attach_dev_menu
-        attach_dev_menu(win)
+    from modules.devtools.dev_menu import attach_dev_menu
+    attach_dev_menu(win)
     win.show()
     sys.exit(app.exec())

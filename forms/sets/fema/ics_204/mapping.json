@@ -1,0 +1,515 @@
+{
+  "description": "ICS 204 — Assignment List — FEMA ICS Forms 2023",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name_7",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "Date From",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Date To",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Time From",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "Time To",
+      "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": "3 Branch",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Division",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Group",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Staging Area",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operations Section Chief_3",
+      "source": "organization.operations_section_chief.name"
+    },
+    {
+      "pdf_field": "Branch Director_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "DivisionGroup Supervisor",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number of Persons, Row 10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Work Assignments",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Special Instructions",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name/Function1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact  indicate cell pager or radio frequencysystemchannel 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name/Function2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact  indicate cell pager or radio frequencysystemchannel 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name/Function3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact  indicate cell pager or radio frequencysystemchannel 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name/Function4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact  indicate cell pager or radio frequencysystemchannel 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "9 Prepared by Name_2",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PositionTitle_7",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "IAP Page_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_7",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "Signature_8",
+      "source": ""
+    },
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "BranchDivGroup",
+      "source": {
+        "key": "tasks.0.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "StagingArea",
+      "source": {
+        "key": "tasks.0.location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OperationsChief",
+      "source": {
+        "key": "organization.operations_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName1",
+      "source": {
+        "key": "teams.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName2",
+      "source": {
+        "key": "teams.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName3",
+      "source": {
+        "key": "teams.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName4",
+      "source": {
+        "key": "teams.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName5",
+      "source": {
+        "key": "teams.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Leader1",
+      "source": {
+        "key": "teams.0.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Leader2",
+      "source": {
+        "key": "teams.1.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Leader3",
+      "source": {
+        "key": "teams.2.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Leader4",
+      "source": {
+        "key": "teams.3.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Leader5",
+      "source": {
+        "key": "teams.4.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ContactInfo1",
+      "source": {
+        "key": "teams.0.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ContactInfo2",
+      "source": {
+        "key": "teams.1.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ContactInfo3",
+      "source": {
+        "key": "teams.2.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ContactInfo4",
+      "source": {
+        "key": "teams.3.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ContactInfo5",
+      "source": {
+        "key": "teams.4.resource_type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WorkAssignment",
+      "source": {
+        "key": "tasks.0.assignment",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SpecialInstructions",
+      "source": {
+        "key": "tasks.0.title",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Communications",
+      "source": {
+        "key": "tasks.0.radio_primary",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

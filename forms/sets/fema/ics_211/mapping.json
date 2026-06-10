@@ -1,0 +1,463 @@
+{
+  "description": "ICS 211 Incident Check-In List — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CheckInDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CheckInLocation",
+      "source": {
+        "key": "incident.icp_location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name1",
+      "source": {
+        "key": "personnel.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency1",
+      "source": {
+        "key": "personnel.0.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID1",
+      "source": {
+        "key": "personnel.0.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name2",
+      "source": {
+        "key": "personnel.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency2",
+      "source": {
+        "key": "personnel.1.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID2",
+      "source": {
+        "key": "personnel.1.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name3",
+      "source": {
+        "key": "personnel.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency3",
+      "source": {
+        "key": "personnel.2.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID3",
+      "source": {
+        "key": "personnel.2.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name4",
+      "source": {
+        "key": "personnel.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency4",
+      "source": {
+        "key": "personnel.3.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID4",
+      "source": {
+        "key": "personnel.3.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name5",
+      "source": {
+        "key": "personnel.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency5",
+      "source": {
+        "key": "personnel.4.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID5",
+      "source": {
+        "key": "personnel.4.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name6",
+      "source": {
+        "key": "personnel.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency6",
+      "source": {
+        "key": "personnel.5.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID6",
+      "source": {
+        "key": "personnel.5.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name7",
+      "source": {
+        "key": "personnel.6.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency7",
+      "source": {
+        "key": "personnel.6.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID7",
+      "source": {
+        "key": "personnel.6.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name8",
+      "source": {
+        "key": "personnel.7.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency8",
+      "source": {
+        "key": "personnel.7.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID8",
+      "source": {
+        "key": "personnel.7.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name9",
+      "source": {
+        "key": "personnel.8.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency9",
+      "source": {
+        "key": "personnel.8.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID9",
+      "source": {
+        "key": "personnel.8.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name10",
+      "source": {
+        "key": "personnel.9.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency10",
+      "source": {
+        "key": "personnel.9.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID10",
+      "source": {
+        "key": "personnel.9.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name11",
+      "source": {
+        "key": "personnel.10.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency11",
+      "source": {
+        "key": "personnel.10.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID11",
+      "source": {
+        "key": "personnel.10.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name12",
+      "source": {
+        "key": "personnel.11.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency12",
+      "source": {
+        "key": "personnel.11.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID12",
+      "source": {
+        "key": "personnel.11.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name13",
+      "source": {
+        "key": "personnel.12.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency13",
+      "source": {
+        "key": "personnel.12.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID13",
+      "source": {
+        "key": "personnel.12.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name14",
+      "source": {
+        "key": "personnel.13.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency14",
+      "source": {
+        "key": "personnel.13.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID14",
+      "source": {
+        "key": "personnel.13.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name15",
+      "source": {
+        "key": "personnel.14.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency15",
+      "source": {
+        "key": "personnel.14.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID15",
+      "source": {
+        "key": "personnel.14.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name16",
+      "source": {
+        "key": "personnel.15.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency16",
+      "source": {
+        "key": "personnel.15.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID16",
+      "source": {
+        "key": "personnel.15.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name17",
+      "source": {
+        "key": "personnel.16.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency17",
+      "source": {
+        "key": "personnel.16.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID17",
+      "source": {
+        "key": "personnel.16.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name18",
+      "source": {
+        "key": "personnel.17.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency18",
+      "source": {
+        "key": "personnel.17.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID18",
+      "source": {
+        "key": "personnel.17.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name19",
+      "source": {
+        "key": "personnel.18.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency19",
+      "source": {
+        "key": "personnel.18.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID19",
+      "source": {
+        "key": "personnel.18.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name20",
+      "source": {
+        "key": "personnel.19.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Agency20",
+      "source": {
+        "key": "personnel.19.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RadioID20",
+      "source": {
+        "key": "personnel.19.radio_id",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

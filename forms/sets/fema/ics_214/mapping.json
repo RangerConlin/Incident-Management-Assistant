@@ -1,0 +1,16 @@
+{
+  "description": "ICS 214 Activity Log — FEMA",
+  "fields": [
+    { "pdf_field": "IncidentName",    "source": "incident.name" },
+    { "pdf_field": "IncidentNumber",  "source": { "key": "incident.number", "default": "" } },
+    { "pdf_field": "OpPeriodFrom",    "source": { "key": "op_period.start", "transform": "date_short" } },
+    { "pdf_field": "OpPeriodTo",      "source": { "key": "op_period.end",   "transform": "date_short" } },
+    { "pdf_field": "OpPeriodFromTime","source": { "key": "op_period.start", "transform": "time_short" } },
+    { "pdf_field": "OpPeriodToTime",  "source": { "key": "op_period.end",   "transform": "time_short" } },
+    { "pdf_field": "Name",            "source": "prepared_by.name" },
+    { "pdf_field": "ICSPosition",     "source": "prepared_by.position" },
+    { "pdf_field": "HomeAgency",      "source": "prepared_by.agency" },
+    { "pdf_field": "PreparedBy",      "source": "prepared_by.name" },
+    { "pdf_field": "PreparedDateTime","source": { "key": "prepared_by.date_time", "transform": "datetime_short" } }
+  ]
+}

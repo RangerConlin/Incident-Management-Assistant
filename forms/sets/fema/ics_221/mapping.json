@@ -1,0 +1,70 @@
+{
+  "description": "ICS 221 Demobilization Check-Out — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DemobGroupName",
+      "source": {
+        "key": "teams.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName",
+      "source": {
+        "key": "teams.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader",
+      "source": {
+        "key": "teams.0.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DemobUnitLeader",
+      "source": {
+        "key": "organization.demobilization_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LogisticsChief",
+      "source": {
+        "key": "organization.logistics_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FinanceChief",
+      "source": {
+        "key": "organization.finance_admin_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

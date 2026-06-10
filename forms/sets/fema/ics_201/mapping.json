@@ -1,0 +1,1073 @@
+{
+  "description": "ICS 201 — Incident Briefing — FEMA ICS Forms 2023",
+  "fields": [
+    {
+      "pdf_field": "227458562",
+      "source": "incident"
+    },
+    {
+      "pdf_field": "227458563",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458564",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458565",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 MapSketch include sketch showing the total area of operations the incident sitearea impacted and threatened areas overflight results trajectories impacted shorelines or other graphics depicting situational status and resource assignment",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Situation Summary and Health and Safety Briefing for briefings or transfer of command Recognize potential incident Health and Safety Hazards and develop necessary measures remove hazard provide personal protective equipment warn people of the hazard to ",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Prepared by Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458562",
+      "source": "incident"
+    },
+    {
+      "pdf_field": "227458563",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458564",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458565",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Current and Planned Objectives",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "ActionsRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Prepared by Name_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458562",
+      "source": "incident"
+    },
+    {
+      "pdf_field": "227458563",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458564",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458565",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Commanders",
+      "source": ""
+    },
+    {
+      "pdf_field": "Liaison Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "Safety Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "Public Information Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section Chief_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operations Section Chief_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "FinanceAdministration Section Chief",
+      "source": ""
+    },
+    {
+      "pdf_field": "Logistics Section Chief",
+      "source": ""
+    },
+    {
+      "pdf_field": "9 Current Organization fill in additional organization as appropriate Incident Commanders Operations Section Chief Planning Section Chief Logistics Section Chief FinanceAdministration Section Chief Safety Officer Public Information Officer Liaison Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Prepared by Name_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458562",
+      "source": "incident"
+    },
+    {
+      "pdf_field": "227458563",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458564",
+      "source": ""
+    },
+    {
+      "pdf_field": "227458565",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus_7",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime OrderedRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatusRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Prepared by Name_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DateTimePrepared",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "MapReference",
+      "source": {
+        "key": "incident.icp_location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ICPLocation",
+      "source": {
+        "key": "incident.icp_location",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SituationSummary",
+      "source": {
+        "key": "incident.description",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective1",
+      "source": {
+        "key": "objectives.0.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective2",
+      "source": {
+        "key": "objectives.1.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective3",
+      "source": {
+        "key": "objectives.2.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective4",
+      "source": {
+        "key": "objectives.3.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective5",
+      "source": {
+        "key": "objectives.4.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective6",
+      "source": {
+        "key": "objectives.5.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective7",
+      "source": {
+        "key": "objectives.6.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Objective8",
+      "source": {
+        "key": "objectives.7.text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "IncidentCommander",
+      "source": {
+        "key": "organization.incident_commander.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OperationsChief",
+      "source": {
+        "key": "organization.operations_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PlanningChief",
+      "source": {
+        "key": "organization.planning_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LogisticsChief",
+      "source": {
+        "key": "organization.logistics_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName1",
+      "source": {
+        "key": "teams.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName2",
+      "source": {
+        "key": "teams.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName3",
+      "source": {
+        "key": "teams.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName4",
+      "source": {
+        "key": "teams.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName5",
+      "source": {
+        "key": "teams.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName6",
+      "source": {
+        "key": "teams.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName7",
+      "source": {
+        "key": "teams.6.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceName8",
+      "source": {
+        "key": "teams.7.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus1",
+      "source": {
+        "key": "teams.0.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus2",
+      "source": {
+        "key": "teams.1.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus3",
+      "source": {
+        "key": "teams.2.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus4",
+      "source": {
+        "key": "teams.3.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus5",
+      "source": {
+        "key": "teams.4.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus6",
+      "source": {
+        "key": "teams.5.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus7",
+      "source": {
+        "key": "teams.6.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceStatus8",
+      "source": {
+        "key": "teams.7.status",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader1",
+      "source": {
+        "key": "teams.0.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader2",
+      "source": {
+        "key": "teams.1.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader3",
+      "source": {
+        "key": "teams.2.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader4",
+      "source": {
+        "key": "teams.3.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader5",
+      "source": {
+        "key": "teams.4.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader6",
+      "source": {
+        "key": "teams.5.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader7",
+      "source": {
+        "key": "teams.6.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourceLeader8",
+      "source": {
+        "key": "teams.7.leader_name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedByName",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedByPosition",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

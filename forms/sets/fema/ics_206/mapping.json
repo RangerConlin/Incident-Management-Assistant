@@ -1,0 +1,371 @@
+{
+  "description": "ICS 206 Medical Plan — FEMA",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name_10",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "Date From",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Date To",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Time From",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Time To",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow1",
+      "source": {
+        "key": "ems_agencies.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow2",
+      "source": {
+        "key": "ems_agencies.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow3",
+      "source": {
+        "key": "ems_agencies.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow4",
+      "source": {
+        "key": "ems_agencies.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "NameRow5",
+      "source": {
+        "key": "ems_agencies.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LocationRow1",
+      "source": {
+        "key": "ems_agencies.0.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LocationRow2",
+      "source": {
+        "key": "ems_agencies.1.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LocationRow3",
+      "source": {
+        "key": "ems_agencies.2.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LocationRow4",
+      "source": {
+        "key": "ems_agencies.3.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LocationRow5",
+      "source": {
+        "key": "ems_agencies.4.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow1",
+      "source": {
+        "key": "ems_agencies.0.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow2",
+      "source": {
+        "key": "ems_agencies.1.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow3",
+      "source": {
+        "key": "ems_agencies.2.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow4",
+      "source": {
+        "key": "ems_agencies.3.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow5",
+      "source": {
+        "key": "ems_agencies.4.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow1",
+      "source": {
+        "key": "ems_agencies.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow2",
+      "source": {
+        "key": "ems_agencies.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow3",
+      "source": {
+        "key": "ems_agencies.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow4",
+      "source": {
+        "key": "ems_agencies.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow1",
+      "source": {
+        "key": "ems_agencies.0.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow2",
+      "source": {
+        "key": "ems_agencies.1.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow3",
+      "source": {
+        "key": "ems_agencies.2.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow4",
+      "source": {
+        "key": "ems_agencies.3.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow1",
+      "source": {
+        "key": "hospitals.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow2",
+      "source": {
+        "key": "hospitals.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow3",
+      "source": {
+        "key": "hospitals.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow4",
+      "source": {
+        "key": "hospitals.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow5",
+      "source": {
+        "key": "hospitals.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow1",
+      "source": {
+        "key": "hospitals.0.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow2",
+      "source": {
+        "key": "hospitals.1.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow3",
+      "source": {
+        "key": "hospitals.2.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow4",
+      "source": {
+        "key": "hospitals.3.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow5",
+      "source": {
+        "key": "hospitals.4.address",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirRow1",
+      "source": {
+        "key": "hospitals.0.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirRow2",
+      "source": {
+        "key": "hospitals.1.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirRow3",
+      "source": {
+        "key": "hospitals.2.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirRow4",
+      "source": {
+        "key": "hospitals.3.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirRow5",
+      "source": {
+        "key": "hospitals.4.phone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "GroundRow1",
+      "source": {
+        "key": "hospitals.0.fax",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "GroundRow2",
+      "source": {
+        "key": "hospitals.1.fax",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "GroundRow3",
+      "source": {
+        "key": "hospitals.2.fax",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "GroundRow4",
+      "source": {
+        "key": "hospitals.3.fax",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "GroundRow5",
+      "source": {
+        "key": "hospitals.4.fax",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "7 Prepared by Medical Unit Leader Name",
+      "source": {
+        "key": "organization.medical_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "8 Approved by Safety Officer Name",
+      "source": {
+        "key": "organization.safety_officer.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DateTime_10",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Special Medical Emergency Procedures",
+      "source": {
+        "key": "incident.description",
+        "default": ""
+      }
+    }
+  ]
+}

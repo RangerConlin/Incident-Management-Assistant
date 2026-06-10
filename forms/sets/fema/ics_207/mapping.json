@@ -1,0 +1,207 @@
+{
+  "description": "ICS 207 Incident Organization Chart — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "IncidentCommander",
+      "source": {
+        "key": "organization.incident_commander.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DeputyIC1",
+      "source": {
+        "key": "organization.deputy_incident_commander.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SafetyOfficer",
+      "source": {
+        "key": "organization.safety_officer.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LiaisonOfficer",
+      "source": {
+        "key": "organization.liaison_officer.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PublicInfoOfficer",
+      "source": {
+        "key": "organization.public_information_officer.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OperationsChief",
+      "source": {
+        "key": "organization.operations_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PlanningChief",
+      "source": {
+        "key": "organization.planning_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LogisticsChief",
+      "source": {
+        "key": "organization.logistics_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FinanceChief",
+      "source": {
+        "key": "organization.finance_admin_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SituationUnitLeader",
+      "source": {
+        "key": "organization.situation_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResourcesUnitLeader",
+      "source": {
+        "key": "organization.resources_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DocumentationUnitLeader",
+      "source": {
+        "key": "organization.documentation_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DemobUnitLeader",
+      "source": {
+        "key": "organization.demobilization_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CommsUnitLeader",
+      "source": {
+        "key": "organization.communications_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "MedicalUnitLeader",
+      "source": {
+        "key": "organization.medical_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "GroundSupportUnitLeader",
+      "source": {
+        "key": "organization.ground_support_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FacilitiesUnitLeader",
+      "source": {
+        "key": "organization.facilities_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "SupplyUnitLeader",
+      "source": {
+        "key": "organization.supply_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FoodUnitLeader",
+      "source": {
+        "key": "organization.food_unit_leader.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirOpsBranchDirector",
+      "source": {
+        "key": "organization.air_operations_branch_director.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "StagingAreaManager",
+      "source": {
+        "key": "organization.staging_area_manager.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

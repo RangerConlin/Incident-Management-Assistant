@@ -1,0 +1,396 @@
+{
+  "description": "ICS 218 Support Vehicle / Equipment Inventory — FEMA",
+  "fields": [
+    {
+      "pdf_field": "IncidentName",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "IncidentNumber",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeFrom",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodDateTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "OpPeriodTimeTo",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType1",
+      "source": {
+        "key": "master_vehicles.0.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel1",
+      "source": {
+        "key": "master_vehicles.0.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate1",
+      "source": {
+        "key": "master_vehicles.0.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization1",
+      "source": {
+        "key": "master_vehicles.0.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType2",
+      "source": {
+        "key": "master_vehicles.1.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel2",
+      "source": {
+        "key": "master_vehicles.1.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate2",
+      "source": {
+        "key": "master_vehicles.1.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization2",
+      "source": {
+        "key": "master_vehicles.1.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType3",
+      "source": {
+        "key": "master_vehicles.2.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel3",
+      "source": {
+        "key": "master_vehicles.2.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate3",
+      "source": {
+        "key": "master_vehicles.2.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization3",
+      "source": {
+        "key": "master_vehicles.2.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType4",
+      "source": {
+        "key": "master_vehicles.3.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel4",
+      "source": {
+        "key": "master_vehicles.3.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate4",
+      "source": {
+        "key": "master_vehicles.3.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization4",
+      "source": {
+        "key": "master_vehicles.3.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType5",
+      "source": {
+        "key": "master_vehicles.4.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel5",
+      "source": {
+        "key": "master_vehicles.4.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate5",
+      "source": {
+        "key": "master_vehicles.4.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization5",
+      "source": {
+        "key": "master_vehicles.4.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType6",
+      "source": {
+        "key": "master_vehicles.5.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel6",
+      "source": {
+        "key": "master_vehicles.5.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate6",
+      "source": {
+        "key": "master_vehicles.5.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization6",
+      "source": {
+        "key": "master_vehicles.5.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType7",
+      "source": {
+        "key": "master_vehicles.6.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel7",
+      "source": {
+        "key": "master_vehicles.6.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate7",
+      "source": {
+        "key": "master_vehicles.6.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization7",
+      "source": {
+        "key": "master_vehicles.6.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType8",
+      "source": {
+        "key": "master_vehicles.7.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel8",
+      "source": {
+        "key": "master_vehicles.7.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate8",
+      "source": {
+        "key": "master_vehicles.7.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization8",
+      "source": {
+        "key": "master_vehicles.7.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType9",
+      "source": {
+        "key": "master_vehicles.8.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel9",
+      "source": {
+        "key": "master_vehicles.8.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate9",
+      "source": {
+        "key": "master_vehicles.8.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization9",
+      "source": {
+        "key": "master_vehicles.8.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType10",
+      "source": {
+        "key": "master_vehicles.9.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel10",
+      "source": {
+        "key": "master_vehicles.9.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate10",
+      "source": {
+        "key": "master_vehicles.9.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization10",
+      "source": {
+        "key": "master_vehicles.9.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType11",
+      "source": {
+        "key": "master_vehicles.10.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel11",
+      "source": {
+        "key": "master_vehicles.10.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate11",
+      "source": {
+        "key": "master_vehicles.10.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization11",
+      "source": {
+        "key": "master_vehicles.10.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleType12",
+      "source": {
+        "key": "master_vehicles.11.make",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "VehicleModel12",
+      "source": {
+        "key": "master_vehicles.11.model",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "LicensePlate12",
+      "source": {
+        "key": "master_vehicles.11.license_plate",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Organization12",
+      "source": {
+        "key": "master_vehicles.11.organization",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PreparedBy",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PreparedDateTime",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "datetime_short",
+        "default": ""
+      }
+    }
+  ]
+}

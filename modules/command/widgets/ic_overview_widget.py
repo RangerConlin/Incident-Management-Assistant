@@ -42,12 +42,12 @@ _ALERT_META: Dict[str, AlertPresentation] = {
     "CHECKIN_WARNING": AlertPresentation(
         label="Check-in warning",
         icon=QIcon(),
-        tooltip="Check-in warning (â‰¥ 50 minutes since last check-in).",
+        tooltip="Check-in warning (>= 50 minutes since last check-in).",
     ),
     "CHECKIN_OVERDUE": AlertPresentation(
         label="Check-in overdue",
         icon=QIcon(),
-        tooltip="Check-in overdue (â‰¥ 60 minutes since last check-in).",
+        tooltip="Check-in overdue (>= 60 minutes since last check-in).",
     ),
     "NEEDS_ASSISTANCE": AlertPresentation(
         label="Needs assistance",
@@ -60,6 +60,16 @@ _ALERT_META: Dict[str, AlertPresentation] = {
         tooltip="Team reported an emergency condition.",
     ),
 }
+
+
+def _get_alert_icon(alert_type: str) -> QIcon:
+    if alert_type == "CHECKIN_WARNING":
+        return app_icons.icon_clock_warning()
+    if alert_type == "CHECKIN_OVERDUE":
+        return app_icons.icon_clock_overdue()
+    if alert_type == "EMERGENCY":
+        return app_icons.icon_beacon_emergency()
+    return app_icons.icon_triangle_warning()
 
 
 def _team_status_colors(status: str) -> tuple[str, str]:
@@ -198,7 +208,8 @@ class AlertsCard(OverviewCard):
             self._list_layout.removeItem(item)
 
         for alert in list(alerts)[:4]:
-            meta = _ALERT_META.get(alert["type"])
+            alert_type = str(alert.get("type") or "")
+            meta = _ALERT_META.get(alert_type)
             if not meta:
                 continue
             row_widget = QWidget(self)
