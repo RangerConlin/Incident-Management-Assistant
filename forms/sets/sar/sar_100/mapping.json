@@ -3,21 +3,15 @@
   "fields": [
     {
       "pdf_field": "GENERAL BRIEFING 1 INCIDENT NAME",
-      "source": {
-        "literal": ""
-      }
+      "source": "incident"
     },
     {
       "pdf_field": "2 OPERATIONAL PERIOD",
-      "source": {
-        "literal": ""
-      }
+      "source": "op_period.number"
     },
     {
       "pdf_field": "3 INCIDENT NUMBER",
-      "source": {
-        "literal": ""
-      }
+      "source": "incident.name"
     },
     {
       "pdf_field": "4 INCIDENT SUMMARYRow1",
@@ -27,39 +21,27 @@
     },
     {
       "pdf_field": "FREQUENCYCOMMAND TEAM BASE",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.0.name"
     },
     {
       "pdf_field": "CHANNEL DESCRIPTIONCOMMAND TEAM BASE",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.0.assignment"
     },
     {
       "pdf_field": "CHANNELCOMMAND TEAM BASE",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.0.name"
     },
     {
       "pdf_field": "FREQUENCYTACTICAL TEAM TEAM",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.1.rx_freq"
     },
     {
       "pdf_field": "CHANNEL DESCRIPTIONTACTICAL TEAM TEAM",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.1.assignment"
     },
     {
       "pdf_field": "CHANNELTACTICAL TEAM TEAM",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.1.name"
     },
     {
       "pdf_field": "6 ACTION PLAN SUMMARYRow1",
@@ -69,20 +51,20 @@
     },
     {
       "pdf_field": "7 PREPARED BY",
-      "source": {
-        "literal": ""
-      }
+      "source": "prepared_by.name"
     },
     {
       "pdf_field": "8 DATE PREPARED",
       "source": {
-        "literal": ""
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
       }
     },
     {
       "pdf_field": "9 TIME PREPARED",
       "source": {
-        "literal": ""
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
       }
     }
   ]

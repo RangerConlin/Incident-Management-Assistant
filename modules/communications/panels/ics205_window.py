@@ -1,180 +1,264 @@
 from __future__ import annotations
 
-"""Standalone ICS-205 window (PySide6 Widgets only)."""
+"""ICS-205 Communications Plan editor window."""
 
 from typing import List
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QGuiApplication
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QColor, QFont, QGuiApplication
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QSplitter,
-    QListView,
-    QLineEdit,
-    QLabel,
-    QTableView,
-    QToolBar,
-    QStatusBar,
-    QGroupBox,
-    QVBoxLayout as QVBoxLayoutWidget,
-    QMenu,
     QAbstractScrollArea,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListView,
+    QMenu,
+    QPushButton,
     QSizePolicy,
+    QSplitter,
+    QStatusBar,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+    QFrame,
+    QStyledItemDelegate,
 )
+from PySide6.QtCore import QModelIndex
+
+from PySide6.QtWidgets import QComboBox
 
 from utils.state import AppState
-from ..controller import ICS205Controller
-
+from ..controller import ICS205Controller, PLAN_COLUMNS, COMBO_COLUMN_OPTIONS
 from ..views.preview_dialog import PreviewDialog
 from ..views.new_channel_dialog import NewChannelDialog
 from ..views.import_ics217_dialog import ImportICS217Dialog
 from ..views.edit_channel_dialog import EditChannelDialog
+
+_NON_EDITABLE_KEYS = {"function", "mode", "priority", "encryption"}
+
+# Map column index → (options, editable)
+_COMBO_COL_INDEX: dict[int, tuple[list[str], bool]] = {
+    i: (COMBO_COLUMN_OPTIONS[key], key not in _NON_EDITABLE_KEYS)
+    for i, (key, _) in enumerate(PLAN_COLUMNS)
+    if key in COMBO_COLUMN_OPTIONS
+}
+
+
+class _PlanDelegate(QStyledItemDelegate):
+    """Provides inline combo boxes for fixed-option columns."""
+
+    def createEditor(self, parent, option, index):
+        entry = _COMBO_COL_INDEX.get(index.column())
+        if entry is not None:
+            options, editable = entry
+            cb = QComboBox(parent)
+            cb.addItems(options)
+            cb.setEditable(editable)
+            cb.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+            cb.setMinimumContentsLength(max(len(o) for o in options))
+            cb.view().setMinimumWidth(
+                cb.fontMetrics().horizontalAdvance(max(options, key=len)) + 32
+            )
+            return cb
+        return super().createEditor(parent, option, index)
+
+    def setEditorData(self, editor, index):
+        if isinstance(editor, QComboBox):
+            val = index.data(Qt.DisplayRole) or ""
+            i = editor.findText(str(val), Qt.MatchFixedString)
+            if i >= 0:
+                editor.setCurrentIndex(i)
+            else:
+                editor.setCurrentText(str(val))
+        else:
+            super().setEditorData(editor, index)
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QComboBox):
+            model.setData(index, editor.currentText(), Qt.EditRole)
+        else:
+            super().setModelData(editor, model, index)
+
+
+def _btn(label: str, tooltip: str = "") -> QPushButton:
+    b = QPushButton(label)
+    b.setFixedHeight(28)
+    if tooltip:
+        b.setToolTip(tooltip)
+    return b
+
+
+def _separator() -> QFrame:
+    f = QFrame()
+    f.setFrameShape(QFrame.VLine)
+    f.setFrameShadow(QFrame.Sunken)
+    f.setFixedWidth(10)
+    return f
 
 
 class ICS205Window(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlag(Qt.Window, True)
-        self.setWindowTitle("Communications Plan (ICS-205)")
+        self.setWindowTitle("Communications Plan — ICS-205")
 
-        layout = QVBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setSpacing(6)
 
         incident = AppState.get_active_incident()
         if incident is None:
-            msg = QLabel("Select or create an incident to edit ICS-205.")
-            layout.addWidget(msg, alignment=Qt.AlignCenter)
+            root.addWidget(
+                QLabel("Select or create an incident to edit the ICS-205."),
+                alignment=Qt.AlignCenter,
+            )
             self.setEnabled(False)
             return
 
-        self.controller = None  # type: ignore[assignment]
+        self.controller: ICS205Controller = None  # type: ignore[assignment]
 
-        # Toolbar -----------------------------------------------------------
-        toolbar = QToolBar()
-        act_new = QAction("New Channel", self)
-        self._act_edit = QAction("Edit", self)
-        act_import = QAction("Import from ICS-217", self)
-        act_dup = QAction("Duplicate", self)
-        act_del = QAction("Delete", self)
-        act_up = QAction("Move Up", self)
-        act_down = QAction("Move Down", self)
-        act_validate = QAction("Validate Plan", self)
-        act_generate = QAction("Generate ICS-205", self)
-        act_save = QAction("Save", self)
-        act_close = QAction("Close", self)
+        # ── Action bar ────────────────────────────────────────────────────────
+        bar = QHBoxLayout()
+        bar.setSpacing(4)
 
-        for a in (
-            act_new,
-            self._act_edit,
-            act_import,
-            act_dup,
-            act_del,
-            act_up,
-            act_down,
-            act_validate,
-            act_generate,
-            act_save,
-            act_close,
+        self.btn_new = _btn("+ New Channel", "Create a new channel")
+        self.btn_edit = _btn("Edit", "Edit the selected channel  [Double-click]")
+        self.btn_dup = _btn("Duplicate", "Duplicate the selected row")
+        self.btn_del = _btn("Delete", "Remove the selected row")
+
+        self.btn_up = _btn("▲", "Move up")
+        self.btn_up.setFixedWidth(32)
+        self.btn_down = _btn("▼", "Move down")
+        self.btn_down.setFixedWidth(32)
+
+        self.btn_import = _btn("Import ICS-217", "Import channels from an ICS-217 master")
+        self.btn_validate = _btn("Validate", "Check the plan for conflicts and warnings")
+        self.btn_generate = _btn("Generate ICS-205 ▸", "Preview and generate the PDF form")
+
+        # Column visibility menu attached to a small button
+        self.col_menu = QMenu("Columns", self)
+        self.btn_cols = QPushButton("Columns ▾")
+        self.btn_cols.setFixedHeight(28)
+        self.btn_cols.setMenu(self.col_menu)
+
+        for w in (
+            self.btn_new, self.btn_edit, self.btn_dup, self.btn_del,
+            _separator(),
+            self.btn_up, self.btn_down,
+            _separator(),
+            self.btn_import,
+            _separator(),
+            self.btn_validate, self.btn_generate,
+            _separator(),
+            self.btn_cols,
         ):
-            toolbar.addAction(a)
-            if a in (act_del, act_down, act_generate):
-                toolbar.addSeparator()
-        layout.addWidget(toolbar)
+            if isinstance(w, QFrame):
+                bar.addWidget(w)
+            else:
+                bar.addWidget(w)
 
-        # Splitter: left master / right plan --------------------------------
+        bar.addStretch()
+        root.addLayout(bar)
+
+        # ── Splitter: library (left) / plan table (right) ─────────────────────
         self.split = QSplitter(Qt.Horizontal)
 
-        # Left panel (master list)
-        self.left_box = QGroupBox("Master Catalog")
-        left_v = QVBoxLayoutWidget(self.left_box)
-        self.search = QLineEdit()
-        self.search.setPlaceholderText("Search master catalog…")
-        self.master_list = QListView()
-        left_v.addWidget(self.search)
-        left_v.addWidget(self.master_list)
+        # Left — Channel Library
+        lib_box = QGroupBox("Channel Library")
+        lib_v = QVBoxLayout(lib_box)
+        lib_v.setSpacing(4)
 
-        # Right panel (plan grid + column menu)
-        self.right_box = QGroupBox("Active Communications Plan")
-        right_v = QVBoxLayoutWidget(self.right_box)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search library…")
+        self.search.setClearButtonEnabled(True)
+
+        self.master_list = QListView()
+        self.master_list.setToolTip("Double-click a channel to add it to the plan")
+
+        hint = QLabel("Double-click to add to plan")
+        hint.setAlignment(Qt.AlignCenter)
+        hint.setStyleSheet("color: gray; font-size: 11px;")
+
+        lib_v.addWidget(self.search)
+        lib_v.addWidget(self.master_list, 1)
+        lib_v.addWidget(hint)
+
+        # Right — Active Plan
+        plan_box = QGroupBox("Active Communications Plan")
+        plan_v = QVBoxLayout(plan_box)
+        plan_v.setSpacing(0)
+
         self.table = QTableView()
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.setSelectionMode(QTableView.SingleSelection)
-        # Use a modal dialog for edits instead of inline editing
-        self.table.setEditTriggers(QTableView.NoEditTriggers)
+        self.table.setEditTriggers(
+            QTableView.DoubleClicked | QTableView.SelectedClicked
+        )
         self.table.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
         self.table.setHorizontalScrollMode(QTableView.ScrollPerPixel)
         self.table.setVerticalScrollMode(QTableView.ScrollPerPixel)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setStretchLastSection(True)
-        right_v.addWidget(self.table)
+        self.table.setAlternatingRowColors(True)
+        self.table.setItemDelegate(_PlanDelegate(self.table))
 
-        # Column visibility menu
-        self.col_menu = QMenu("Columns", self)
-        self.col_actions: List[QAction] = []
-        toolbar.addAction(self.col_menu.menuAction())
+        plan_v.addWidget(self.table)
 
-        self.split.addWidget(self.left_box)
-        self.split.addWidget(self.right_box)
+        self.split.addWidget(lib_box)
+        self.split.addWidget(plan_box)
         self.split.setStretchFactor(0, 0)
         self.split.setStretchFactor(1, 1)
-        layout.addWidget(self.split)
+        root.addWidget(self.split, 1)
 
-        # Status bar --------------------------------------------------------
+        # ── Status bar ────────────────────────────────────────────────────────
         self.status = QStatusBar()
-        self.status.showMessage("")
-        layout.addWidget(self.status)
+        root.addWidget(self.status)
 
-        # Wire signals ------------------------------------------------------
-        act_new.triggered.connect(self._open_new_channel)
-        act_import.triggered.connect(self._open_import_dialog)
-        self._act_edit.triggered.connect(self._open_edit_dialog)
-        act_dup.triggered.connect(self._duplicate_selected)
-        act_del.triggered.connect(self._delete_selected)
-        act_up.triggered.connect(lambda: self._move_selected("up"))
-        act_down.triggered.connect(lambda: self._move_selected("down"))
-        act_validate.triggered.connect(self._validate)
-        act_generate.triggered.connect(self._preview)
-        act_save.triggered.connect(self._save)
-        act_close.triggered.connect(self.close)
+        # ── Wire signals ──────────────────────────────────────────────────────
+        self.btn_new.clicked.connect(self._open_new_channel)
+        self.btn_edit.clicked.connect(self._open_edit_dialog)
+        self.btn_dup.clicked.connect(self._duplicate_selected)
+        self.btn_del.clicked.connect(self._delete_selected)
+        self.btn_up.clicked.connect(lambda: self._move_selected("up"))
+        self.btn_down.clicked.connect(lambda: self._move_selected("down"))
+        self.btn_import.clicked.connect(self._open_import_dialog)
+        self.btn_validate.clicked.connect(self._validate)
+        self.btn_generate.clicked.connect(self._preview)
 
-        # Defer model wiring to the next event loop turn
-        from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self._late_init)
 
+    # ── Late init ─────────────────────────────────────────────────────────────
+
     def _late_init(self):
-        # Instantiate controller and attach models
         self.controller = ICS205Controller(self)
         self.master_list.setModel(self.controller.masterModel)
         self.table.setModel(self.controller.planModel)
 
-        # Populate column visibility menu now that we have a model
+        # Column visibility menu
         self.col_menu.clear()
-        self.col_actions.clear()
+        self._col_actions: List[QAction] = []
         for i in range(self.controller.planModel.columnCount()):
             title = self.controller.planModel.headerData(i, Qt.Horizontal, Qt.DisplayRole) or f"Col {i}"
             act = QAction(str(title), self, checkable=True)
             act.setChecked(True)
             act.toggled.connect(lambda checked, col=i: self.table.setColumnHidden(col, not checked))
-            self.col_actions.append(act)
+            self._col_actions.append(act)
             self.col_menu.addAction(act)
 
-        # Now that controller exists, wire dynamic signals
         self.search.textChanged.connect(lambda t: self.controller.setFilter("search", t))
         self.master_list.doubleClicked.connect(self._add_selected_master)
-        # Open editor on double-click
-        self.table.doubleClicked.connect(lambda _idx: self._open_edit_dialog())
+        # Double-click triggers inline cell editor (via delegate); Edit button opens full dialog.
         try:
-            self.table.selectionModel().selectionChanged.connect(lambda *_: self._update_action_states())
+            self.table.selectionModel().selectionChanged.connect(lambda *_: self._update_button_states())
         except Exception:
             pass
 
-        # Initial state -----------------------------------------------------
         self._refresh_table()
-        self._update_action_states()
-        # Fit content after model attaches
+        self._update_button_states()
         self._fit_to_content()
 
-    # Helpers ---------------------------------------------------------------
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
     def _current_row_index(self) -> int:
         idx = self.table.currentIndex()
         return idx.row() if idx.isValid() else -1
@@ -182,47 +266,27 @@ class ICS205Window(QWidget):
     def _refresh_table(self):
         self.controller.refreshPlan()
         self.table.resizeColumnsToContents()
-        # Adjust outer window to content to avoid large blank areas
         self._fit_to_content()
 
     def _fit_to_content(self):
+        """Resize to the 1500×600 default, clamped to available screen."""
         try:
-            header = self.table.horizontalHeader()
-            cols = self.controller.planModel.columnCount() if self.controller else 0
-            total_cols = 0
-            for c in range(cols):
-                if not self.table.isColumnHidden(c):
-                    total_cols += header.sectionSize(c)
-            # Slightly widen beyond strict content
-            right_w = max(total_cols + 140, 560)
-            left_w = max(self.left_box.sizeHint().width(), 280)
-            handle_w = self.split.handleWidth() if hasattr(self, 'split') else 6
-            desired_w = left_w + handle_w + right_w + 32
-
-            rows = self.controller.planModel.rowCount() if self.controller else 0
-            row_h = self.table.sizeHintForRow(0) if rows else self.table.fontMetrics().height() + 10
-            header_h = header.height()
-            frame = int(self.table.frameWidth()) * 2
-            table_h = header_h + row_h * max(rows, 1) + frame
-            vertical_chrome = 120
-            desired_h = table_h + vertical_chrome
-
             screen = self.windowHandle().screen() if self.windowHandle() else QGuiApplication.primaryScreen()
             if screen is not None:
                 geo = screen.availableGeometry()
-                max_w = int(geo.width() * 0.95)
-                max_h = int(geo.height() * 0.8)
-                w = min(desired_w, max_w)
-                h = min(desired_h, max_h)
+                w = min(1500, int(geo.width() * 0.98))
+                h = min(600, int(geo.height() * 0.95))
                 self.resize(w, h)
         except Exception:
             pass
 
-    def _update_action_states(self):
+    def _update_button_states(self):
         has_sel = self._current_row_index() >= 0
-        self._act_edit.setEnabled(has_sel)
+        for btn in (self.btn_edit, self.btn_dup, self.btn_del, self.btn_up, self.btn_down):
+            btn.setEnabled(has_sel)
 
-    # Actions ---------------------------------------------------------------
+    # ── Actions ───────────────────────────────────────────────────────────────
+
     def _add_selected_master(self):
         idx = self.master_list.currentIndex()
         if not idx.isValid():
@@ -230,12 +294,12 @@ class ICS205Window(QWidget):
         master_row = self.controller.masterModel.get(idx.row())
         self.controller.incident_repo.add_from_master(master_row, {})
         self._refresh_table()
+        self.status.showMessage("Channel added from library.", 2000)
 
     def _open_new_channel(self):
         dlg = NewChannelDialog(self.controller.incident_repo, self)
         if dlg.exec():
             data = dlg.get_channel_data()
-            # Treat as master-like row for add_from_master
             master_like = {
                 "id": None,
                 "name": data.get("channel"),
@@ -253,8 +317,7 @@ class ICS205Window(QWidget):
             defaults = {
                 "assignment_division": data.get("assignment_division"),
                 "assignment_team": data.get("assignment_team"),
-                "priority": data.get("priority", "Normal"),
-                "include_on_205": 1 if data.get("include_on_205") else 0,
+                "priority": data.get("priority", "Primary"),
                 "encryption": data.get("encryption", "None"),
                 "remarks": data.get("remarks"),
             }
@@ -271,10 +334,9 @@ class ICS205Window(QWidget):
         if dlg.exec():
             patch = dlg.get_patch()
             if patch:
-                row_id = int(r.get("id"))
-                self.controller.incident_repo.update_row(row_id, patch)
+                self.controller.incident_repo.update_row(int(r.get("id")), patch)
                 self._refresh_table()
-                self.status.showMessage("Saved", 2000)
+                self.status.showMessage("Saved.", 2000)
 
     def _open_import_dialog(self):
         dlg = ImportICS217Dialog(self.controller.master_repo, self)
@@ -288,33 +350,33 @@ class ICS205Window(QWidget):
     def _duplicate_selected(self):
         i = self._current_row_index()
         rows = self.controller.planModel._rows
-        if 0 <= i < len(rows):
-            r = rows[i]
-            master_like = {
-                "id": r.get("master_id"),
-                "name": r.get("channel"),
-                "function": r.get("function"),
-                "rx_freq": r.get("rx_freq"),
-                "tx_freq": r.get("tx_freq"),
-                "rx_tone": r.get("rx_tone"),
-                "tx_tone": r.get("tx_tone"),
-                "system": r.get("system"),
-                "mode": r.get("mode"),
-                "notes": r.get("remarks"),
-                "line_a": r.get("line_a", 0),
-                "line_c": r.get("line_c", 0),
-            }
-            defaults = {
-                "assignment_division": r.get("assignment_division"),
-                "assignment_team": r.get("assignment_team"),
-                "priority": r.get("priority", "Normal"),
-                "include_on_205": r.get("include_on_205", 1),
-                "encryption": r.get("encryption", "None"),
-                "remarks": r.get("remarks"),
-                "sort_index": int(r.get("sort_index", 1000)) + 1,
-            }
-            self.controller.incident_repo.add_from_master(master_like, defaults)
-            self._refresh_table()
+        if not (0 <= i < len(rows)):
+            return
+        r = rows[i]
+        master_like = {
+            "id": r.get("master_id"),
+            "name": r.get("channel"),
+            "function": r.get("function"),
+            "rx_freq": r.get("rx_freq"),
+            "tx_freq": r.get("tx_freq"),
+            "rx_tone": r.get("rx_tone"),
+            "tx_tone": r.get("tx_tone"),
+            "system": r.get("system"),
+            "mode": r.get("mode"),
+            "notes": r.get("remarks"),
+            "line_a": r.get("line_a", 0),
+            "line_c": r.get("line_c", 0),
+        }
+        defaults = {
+            "assignment_division": r.get("assignment_division"),
+            "assignment_team": r.get("assignment_team"),
+            "priority": r.get("priority", "Primary"),
+            "encryption": r.get("encryption", "None"),
+            "remarks": r.get("remarks"),
+            "sort_index": int(r.get("sort_index", 1000)) + 1,
+        }
+        self.controller.incident_repo.add_from_master(master_like, defaults)
+        self._refresh_table()
 
     def _delete_selected(self):
         i = self._current_row_index()
@@ -323,6 +385,7 @@ class ICS205Window(QWidget):
         row_id = self.controller.planModel._rows[i]["id"]
         self.controller.incident_repo.delete_row(int(row_id))
         self._refresh_table()
+        self.status.showMessage("Row deleted.", 2000)
 
     def _move_selected(self, direction: str):
         i = self._current_row_index()
@@ -331,26 +394,27 @@ class ICS205Window(QWidget):
         row_id = self.controller.planModel._rows[i]["id"]
         self.controller.incident_repo.reorder(int(row_id), direction)
         self._refresh_table()
+        # Reselect moved row
+        new_i = max(0, i - 1) if direction == "up" else min(
+            self.controller.planModel.rowCount() - 1, i + 1
+        )
+        self.table.selectRow(new_i)
 
     def _validate(self):
         self.controller.runValidation()
-        self.status.showMessage(self.controller.statusLine)
+        self.status.showMessage(self.controller.statusLine, 5000)
 
     def _preview(self):
         rows = self.controller.getPreviewRows()
         dlg = PreviewDialog(rows, self)
         dlg.exec()
 
-    def _save(self):
-        # No inline editor; nothing to do here beyond a status ping
-        self.status.showMessage("Up to date", 1500)
+    # ── Show / center ─────────────────────────────────────────────────────────
 
-    # Center the window on first show to avoid off-screen placement
     def showEvent(self, event):
         super().showEvent(event)
         if not hasattr(self, "_centered_once"):
             self._centered_once = True
-            # Compute compact size and center
             screen = self.windowHandle().screen() if self.windowHandle() else QGuiApplication.primaryScreen()
             if screen is not None:
                 geo = screen.availableGeometry()

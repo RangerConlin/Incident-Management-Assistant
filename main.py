@@ -752,6 +752,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Operations Unit Log ICS-214", None, "operations.unit_log")
         m_ops.addSeparator()
         self._add_action(m_ops, "Operations Dashboard", "Ctrl+1", "operations.dashboard")
+        self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
         self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
@@ -1063,6 +1064,7 @@ class MainWindow(QMainWindow):
             # ----- Operations -----
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
+            "operations.section_org": self.open_operations_section_org,
             "operations.team_assignments": self.open_operations_team_assignments,
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
@@ -1938,6 +1940,23 @@ class MainWindow(QMainWindow):
             w.setAutoRefresh(60000)
         except Exception:
             pass
+
+    def open_operations_section_org(self) -> None:
+        incident_id = getattr(self, "current_incident_id", None)
+        if not incident_id:
+            QMessageBox.warning(self, "Operations Section Organization", "No active incident.")
+            return
+        try:
+            from modules.command.incident_organization.windows.ops_section_window import (
+                OperationsSectionWindow,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Operations Section Organization", f"Could not load window.\n{exc}")
+            return
+        win = OperationsSectionWindow(str(incident_id), self)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_operations_team_assignments(self) -> None:
         from modules import operations

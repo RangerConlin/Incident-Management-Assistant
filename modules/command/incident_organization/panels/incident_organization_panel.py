@@ -38,6 +38,7 @@ from utils.state import AppState
 
 from ..controller import IncidentOrganizationController
 from ..models import OrganizationPosition, OrganizationTemplate, PositionAssignment
+from ..windows.ops_section_window import OperationsSectionWindow
 
 
 class PositionDialog(QDialog):
@@ -305,6 +306,9 @@ class IncidentOrganizationPanel(QWidget):
         root_layout.setContentsMargins(6, 6, 6, 6)
 
         toolbar = QHBoxLayout()
+        self.btn_ops_section = QPushButton("Operations Section…", self)
+        self.btn_ops_section.clicked.connect(self._open_ops_section_window)
+        toolbar.addWidget(self.btn_ops_section)
         self.btn_add_position = QPushButton("Add Position…", self)
         self.btn_add_position.clicked.connect(self._add_position)
         toolbar.addWidget(self.btn_add_position)
@@ -401,6 +405,7 @@ class IncidentOrganizationPanel(QWidget):
         splitter.setStretchFactor(1, 3)
         splitter.setStretchFactor(2, 2)
 
+        self._ops_section_window: Optional[OperationsSectionWindow] = None
         self._set_enabled(False)
         self._init_incident_tracking()
 
@@ -433,8 +438,20 @@ class IncidentOrganizationPanel(QWidget):
         if incident_id:
             self.load(str(incident_id))
 
+    def _open_ops_section_window(self) -> None:
+        if not self.incident_id:
+            QMessageBox.warning(self, "Incident Required", "Load an incident first.")
+            return
+        if self._ops_section_window is None or not self._ops_section_window.isVisible():
+            self._ops_section_window = OperationsSectionWindow(self.incident_id, self)
+            self._ops_section_window.structure_changed.connect(self._refresh)
+        self._ops_section_window.show()
+        self._ops_section_window.raise_()
+        self._ops_section_window.activateWindow()
+
     def _set_enabled(self, enabled: bool) -> None:
         for button in (
+            self.btn_ops_section,
             self.btn_add_position,
             self.btn_edit_position,
             self.btn_deactivate_position,

@@ -93,6 +93,90 @@ class IncidentOrganizationController:
     def get_position(self, position_id: int) -> OrganizationPosition | None:
         return self.repo.get_position(position_id)
 
+    def list_operational_units(
+        self, classifications: set[str] | None = None
+    ) -> list[OrganizationPosition]:
+        return self.repo.list_operational_units(classifications)
+
+    def get_ops_section_id(self) -> int | None:
+        """Return the position id of the Operations Section, or None if not found."""
+        for pos in self.repo.list_positions():
+            if pos.classification == "section" and "operations" in pos.title.lower():
+                return pos.id
+        return None
+
+    def add_branch(
+        self,
+        name: str,
+        parent_id: int | None,
+        *,
+        director_name: str | None = None,
+        notes: str | None = None,
+    ) -> int:
+        """Create a branch node and optionally assign a director under it."""
+        name = name.strip()
+        if not name:
+            raise ValueError("Branch name is required")
+        branch_id = self.add_position({
+            "title": name,
+            "classification": "branch",
+            "parent_position_id": parent_id,
+            "is_custom": True,
+            "notes": notes,
+        })
+        if director_name and director_name.strip():
+            director_pos_id = self.add_position({
+                "title": "Branch Director",
+                "classification": "position",
+                "parent_position_id": branch_id,
+                "is_custom": True,
+                "sort_order": 0,
+            })
+            self.assign_person(director_pos_id, {
+                "display_name": director_name.strip(),
+                "assignment_type": "primary",
+            })
+        return branch_id
+
+    def add_division_group(
+        self,
+        name: str,
+        classification: str,
+        parent_id: int | None,
+        *,
+        supervisor_name: str | None = None,
+        notes: str | None = None,
+    ) -> int:
+        """Create a division or group node and optionally assign a supervisor under it."""
+        name = name.strip()
+        if not name:
+            raise ValueError("Division/Group name is required")
+        if classification not in {"division", "group"}:
+            raise ValueError("Classification must be 'division' or 'group'")
+        unit_id = self.add_position({
+            "title": name,
+            "classification": classification,
+            "parent_position_id": parent_id,
+            "is_custom": True,
+            "notes": notes,
+        })
+        if supervisor_name and supervisor_name.strip():
+            supervisor_title = (
+                "Division Supervisor" if classification == "division" else "Group Supervisor"
+            )
+            sup_pos_id = self.add_position({
+                "title": supervisor_title,
+                "classification": "position",
+                "parent_position_id": unit_id,
+                "is_custom": True,
+                "sort_order": 0,
+            })
+            self.assign_person(sup_pos_id, {
+                "display_name": supervisor_name.strip(),
+                "assignment_type": "primary",
+            })
+        return unit_id
+
     # ------------------------------------------------------------------
     def list_templates(self) -> list[OrganizationTemplate]:
         return self.repo.list_templates()

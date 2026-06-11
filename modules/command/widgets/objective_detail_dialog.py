@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Modeless editor dialog for incident objectives."""
 
-from typing import Optional
+from typing import Callable, Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent
@@ -42,13 +42,14 @@ from utils import incident_context
 class ObjectiveDetailDialog(QDialog):
     """Qt Widgets dialog that keeps focus on strategic outcomes."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None, on_saved: Optional[Callable[[], None]] = None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setModal(False)
         self.setWindowTitle("Objective Detail")
         self._objective_id: Optional[int] = None
         self._detail: Optional[ObjectiveDetail] = None
+        self._on_saved = on_saved
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -276,6 +277,7 @@ class ObjectiveDetailDialog(QDialog):
             "status": self._status_combo.currentText().lower(),
             "owner_section": self._owner_edit.text().strip() or None,
             "tags": [tag.strip() for tag in self._tags_edit.text().split(",") if tag.strip()],
+            "narrative": self._narrative_edit.toPlainText().strip() or None,
         }
         try:
             with with_incident_session(str(incident_id)) as session:
@@ -291,6 +293,8 @@ class ObjectiveDetailDialog(QDialog):
         self._detail = detail
         QMessageBox.information(self, "Save", "Objective saved.")
         self._refresh()
+        if self._on_saved:
+            self._on_saved()
 
     def _create_task(self) -> None:
         QMessageBox.information(
@@ -303,16 +307,26 @@ class ObjectiveDetailDialog(QDialog):
         self._tab_widget.setCurrentIndex(3)
 
     def _show_snippet(self) -> None:
-        incident_id = incident_context.get_active_incident_id()
-        if not incident_id or self._objective_id is None:
+        if not self._detail:
+            QMessageBox.warning(self, "ICS-202", "Save the objective first to generate a snippet.")
             return
-        try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                payload = repository.export_ics202()
-        except Exception as exc:  # pragma: no cover
-            QMessageBox.critical(self, "ICS-202", f"Failed to prepare snippet:\n{exc}")
-            return
+        summary = self._detail.summary
+        payload = {
+            "code": summary.code,
+            "text": summary.text,
+            "priority": summary.priority,
+            "status": summary.status,
+            "strategies": [
+                {
+                    "text": s.text,
+                    "status": s.status,
+                    "progress_pct": s.progress_pct,
+                    "open_tasks": s.open_tasks,
+                    "total_tasks": s.total_tasks,
+                }
+                for s in self._detail.strategies
+            ],
+        }
         QMessageBox.information(self, "ICS-202", "Snippet prepared. Copy from console output.")
         print(payload)  # noqa: T201
 
@@ -339,7 +353,9 @@ class ObjectiveDetailDialog(QDialog):
         current = self._current_strategy_id()
         if current is None:
             return
-        text, ok = QInputDialog.getText(self, "Edit Strategy", "Strategy description")
+        row = self._strategies_table.currentRow()
+        existing_text = self._strategies_table.item(row, 0).text() if row >= 0 else ""
+        text, ok = QInputDialog.getText(self, "Edit Strategy", "Strategy description", text=existing_text)
         if not ok:
             return
         incident_id = incident_context.get_active_incident_id()

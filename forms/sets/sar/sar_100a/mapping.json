@@ -7,26 +7,21 @@
     },
     {
       "pdf_field": "2 OPERATIONAL PERIOD",
-      "source": {
-        "literal": ""
-      }
+      "source": "op_period.number"
     },
     {
       "pdf_field": "3 INCIDENT NUMBER",
-      "source": {
-        "literal": ""
-      }
+      "source": "incident.number"
     },
     {
       "pdf_field": "4 INCIDENT SUMMARYRow1",
-      "source": {
-        "literal": ""
-      }
+      "source": "incident.description"
     },
     {
       "pdf_field": "FREQUENCYCOMMAND TEAM BASE",
       "source": {
-        "literal": ""
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
       }
     },
     {
@@ -61,15 +56,11 @@
     },
     {
       "pdf_field": "6 NAME",
-      "source": {
-        "literal": ""
-      }
+      "source": "subject.name"
     },
     {
       "pdf_field": "Sex",
-      "source": {
-        "literal": ""
-      }
+      "source": "subject.sex"
     },
     {
       "pdf_field": "8 AGE",
@@ -97,9 +88,7 @@
     },
     {
       "pdf_field": "Height",
-      "source": {
-        "literal": ""
-      }
+      "source": "subject.sex"
     },
     {
       "pdf_field": "Weight",
@@ -157,20 +146,20 @@
     },
     {
       "pdf_field": "16 PREPARED BY",
-      "source": {
-        "literal": ""
-      }
+      "source": "prepared_by.name"
     },
     {
       "pdf_field": "17 DATE PREPARED",
       "source": {
-        "literal": ""
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
       }
     },
     {
       "pdf_field": "18 TIME PREPARED",
       "source": {
-        "literal": ""
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
       }
     }
   ]

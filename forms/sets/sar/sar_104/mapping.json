@@ -1,594 +1,703 @@
 {
-  "_comment": "Replace source values with real incident data paths; PDF field IDs must match the template exactly.",
-  "description": "Starter mapping scaffold for template.pdf",
+  "description": "SAR 104 — Search Assignment — SAR 1",
   "fields": [
     {
-      "pdf_field": "POD",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "name",
+      "source": "incident"
     },
     {
-      "pdf_field": "POD.h",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "period",
+      "source": "op_period.number"
     },
     {
-      "pdf_field": "POD.h.clues",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "number",
+      "source": "tasks.0.task_id"
     },
     {
-      "pdf_field": "POD.h.responsive",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "resource_type",
+      "source": "teams.0.resource_type"
     },
     {
-      "pdf_field": "POD.h.unresponsive",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "1",
+      "source": "teams.0.leader_name"
     },
     {
-      "pdf_field": "POD.l",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "1",
+      "source": "teams.0.leader_name"
     },
     {
-      "pdf_field": "POD.l.clues",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "1",
+      "source": "teams.0.leader_name"
     },
     {
-      "pdf_field": "POD.l.responsive",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "2",
+      "source": ""
     },
     {
-      "pdf_field": "POD.l.unresponsive",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "2",
+      "source": ""
     },
     {
-      "pdf_field": "POD.m",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "2",
+      "source": ""
     },
     {
-      "pdf_field": "POD.m.clues",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "3",
+      "source": ""
     },
     {
-      "pdf_field": "POD.m.responsive",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "3",
+      "source": ""
     },
     {
-      "pdf_field": "POD.m.unresponsive",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "3",
+      "source": ""
     },
     {
-      "pdf_field": "additional.names",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "4",
+      "source": ""
     },
     {
-      "pdf_field": "assignment.number",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "4",
+      "source": ""
     },
     {
-      "pdf_field": "chan.command",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "4",
+      "source": ""
     },
     {
-      "pdf_field": "chan.other",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "5",
+      "source": ""
     },
     {
-      "pdf_field": "chan.tactical",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "5",
+      "source": ""
     },
     {
-      "pdf_field": "chan_desc.command",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "5",
+      "source": ""
     },
     {
-      "pdf_field": "chan_desc.other",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "6",
+      "source": ""
     },
     {
-      "pdf_field": "chan_desc.tactical",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "6",
+      "source": ""
     },
     {
-      "pdf_field": "freq.command",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "6",
+      "source": ""
     },
     {
-      "pdf_field": "freq.other",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "7",
+      "source": ""
     },
     {
-      "pdf_field": "freq.tactical",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "7",
+      "source": ""
     },
     {
-      "pdf_field": "incident",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "7",
+      "source": ""
     },
     {
-      "pdf_field": "incident.name",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "8",
+      "source": ""
     },
     {
-      "pdf_field": "operational",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "8",
+      "source": ""
     },
     {
-      "pdf_field": "operational.period",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "8",
+      "source": ""
     },
     {
-      "pdf_field": "personnel",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "9",
+      "source": ""
     },
     {
-      "pdf_field": "personnel.agency",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "9",
+      "source": ""
     },
     {
-      "pdf_field": "personnel.agency.1",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "9",
+      "source": ""
     },
     {
-      "pdf_field": "personnel.agency.2",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.agency.3",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.agency.4",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.agency.5",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.agency.6",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.agency.7",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.agency.8",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.agency.9",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
-    },
-    {
-      "pdf_field": "personnel.function.1",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.2",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.3",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.4",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.5",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.6",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.7",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.8",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.function.9",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
-    },
-    {
-      "pdf_field": "personnel.name.1",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.2",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.3",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.4",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.5",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.6",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.7",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.8",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "personnel.name.9",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "time",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
-    },
-    {
-      "pdf_field": "time.allocated",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "additional",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "pdf_field": "names",
+      "source": ""
     },
     {
       "pdf_field": "asgn_description",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "assignment",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
-    },
-    {
-      "pdf_field": "briefer",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "chan",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
-    },
-    {
-      "pdf_field": "chan_desc",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
-    },
-    {
-      "pdf_field": "date_prepared",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "debrief_attached",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "equipment_issued",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "freq",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "unknown"
+      "source": "tasks.0.assignment"
     },
     {
       "pdf_field": "maps_attached",
       "source": {
         "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "notes",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "other_radio_chan",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
-    },
-    {
-      "pdf_field": "prepared_by",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      }
     },
     {
       "pdf_field": "previous_search_effort",
       "source": {
         "literal": ""
-      },
-      "field_type": "text"
+      }
     },
     {
-      "pdf_field": "radio_call",
+      "pdf_field": "debrief_attached",
       "source": {
         "literal": ""
-      },
-      "field_type": "text"
+      }
     },
     {
-      "pdf_field": "resource_type",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "allocated",
+      "source": ""
     },
     {
       "pdf_field": "size_of_assignment",
       "source": {
         "literal": ""
-      },
-      "field_type": "text"
+      }
     },
     {
-      "pdf_field": "time_briefed",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "responsive",
+      "source": ""
     },
     {
-      "pdf_field": "time_in",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "responsive",
+      "source": ""
     },
     {
-      "pdf_field": "time_out",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "responsive",
+      "source": ""
     },
     {
-      "pdf_field": "time_prepared",
-      "source": {
-        "literal": ""
-      },
-      "field_type": "text"
+      "pdf_field": "unresponsive",
+      "source": ""
+    },
+    {
+      "pdf_field": "unresponsive",
+      "source": ""
+    },
+    {
+      "pdf_field": "unresponsive",
+      "source": ""
+    },
+    {
+      "pdf_field": "clues",
+      "source": ""
+    },
+    {
+      "pdf_field": "clues",
+      "source": ""
+    },
+    {
+      "pdf_field": "clues",
+      "source": ""
     },
     {
       "pdf_field": "transport_instructions",
       "source": {
         "literal": ""
-      },
-      "field_type": "text"
+      }
+    },
+    {
+      "pdf_field": "radio_call",
+      "source": "teams.0.name"
+    },
+    {
+      "pdf_field": "command",
+      "source": ""
+    },
+    {
+      "pdf_field": "command",
+      "source": ""
+    },
+    {
+      "pdf_field": "command",
+      "source": ""
+    },
+    {
+      "pdf_field": "tactical",
+      "source": ""
+    },
+    {
+      "pdf_field": "tactical",
+      "source": ""
+    },
+    {
+      "pdf_field": "tactical",
+      "source": ""
+    },
+    {
+      "pdf_field": "other_radio_chan",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "other",
+      "source": ""
+    },
+    {
+      "pdf_field": "other",
+      "source": ""
+    },
+    {
+      "pdf_field": "other",
+      "source": ""
+    },
+    {
+      "pdf_field": "prepared_by",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "date_prepared",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "time_prepared",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "equipment_issued",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "briefer",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "time_briefed",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "time_out",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "time_in",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "notes",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.h",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.h.clues",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.h.responsive",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.h.unresponsive",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.l",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.l.clues",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.l.responsive",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.l.unresponsive",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.m",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.m.clues",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.m.responsive",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "POD.m.unresponsive",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "additional.names",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "assignment.number",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan.command",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan.other",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan.tactical",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan_desc.command",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan_desc.other",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan_desc.tactical",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "freq.command",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "freq.other",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "freq.tactical",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "incident",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "incident.name",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "operational",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "operational.period",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.4",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.6",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.7",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.8",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.agency.9",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.4",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.6",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.7",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.8",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.function.9",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.4",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.6",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.7",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.8",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "personnel.name.9",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "time",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "time.allocated",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "additional",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "assignment",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "chan_desc",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "freq",
+      "source": {
+        "literal": ""
+      }
     }
   ]
 }

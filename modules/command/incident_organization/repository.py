@@ -598,6 +598,22 @@ class IncidentOrganizationRepository:
                 (parent_position_id, _utc_now(), position_id, self.incident_id),
             )
 
+    def list_operational_units(
+        self, classifications: set[str] | None = None
+    ) -> list[OrganizationPosition]:
+        """Return active positions whose classification marks them as tactical units."""
+        if classifications is None:
+            classifications = {"branch", "division", "group", "staging_area"}
+        placeholders = ",".join("?" * len(classifications))
+        sql = (
+            f"SELECT * FROM organization_positions "
+            f"WHERE incident_id=? AND status='active' AND classification IN ({placeholders}) "
+            f"ORDER BY sort_order, title"
+        )
+        with self._connect() as conn:
+            rows = conn.execute(sql, [self.incident_id, *classifications]).fetchall()
+        return [self._row_to_position(row) for row in rows]
+
     def deactivate_position(self, position_id: int) -> None:
         with self._connect() as conn:
             conn.execute(

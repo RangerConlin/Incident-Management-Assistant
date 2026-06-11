@@ -61,17 +61,33 @@ class MasterListModel(QAbstractListModel):
 
 
 PLAN_COLUMNS = [
-    ("channel", "Channel"),
-    ("function", "Function"),
+    ("channel",             "Channel"),
+    ("function",            "Function"),
+    ("system",              "System"),
+    ("mode",                "Mode"),
+    ("band",                "Band"),
+    ("rx_freq",             "RX Freq"),
+    ("rx_tone",             "RX Tone"),
+    ("tx_freq",             "TX Freq"),
+    ("tx_tone",             "TX Tone"),
+    ("encryption",          "Encryption"),
     ("assignment_division", "Division"),
-    ("assignment_team", "Team"),
-    ("rx_freq", "RX"),
-    ("tx_freq", "TX"),
-    ("mode", "Mode"),
-    ("band", "Band"),
-    ("priority", "Priority"),
-    ("remarks", "Remarks"),
+    ("assignment_team",     "Team"),
+    ("priority",            "Priority"),
+    ("remarks",             "Remarks"),
 ]
+
+# Columns that use a fixed option list for inline combo editing.
+COMBO_COLUMN_OPTIONS: dict[str, list[str]] = {
+    "function":   ["Command", "Tactical", "Dispatch", "Emergency", "Ground-to-Air",
+                   "Air-to-Air", "Medical", "Logistics", "Operations", "Safety",
+                   "Public Info", "Other"],
+    "system":     ["NIFOG", "Conventional", "Trunked", "P25", "DMR", "NXDN", "Other"],
+    "mode":       ["FMN", "FMN/D", "AM", "DMR", "P25", "NXDN", "dPMR", "Tetra", "Other"],
+    "band":       ["HF", "VHF-LOW", "VHF", "Air", "Marine", "UHF", "700/800", "Other"],
+    "encryption": ["No", "Yes"],
+    "priority":   ["Primary", "Alternate", "Emergency"],
+}
 
 
 class PlanModel(QAbstractTableModel):
@@ -105,7 +121,13 @@ class PlanModel(QAbstractTableModel):
                 return row.get(key)
         if role == Qt.DisplayRole:
             key = PLAN_COLUMNS[index.column()][0]
-            return row.get(key)
+            val = row.get(key)
+            if key in ("rx_freq", "tx_freq") and val is not None:
+                try:
+                    return f"{float(val):.4f}"
+                except Exception:
+                    pass
+            return val
         return None
 
     def setData(self, index, value, role=Qt.EditRole):  # type: ignore[override]

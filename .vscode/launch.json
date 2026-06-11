@@ -6,6 +6,7 @@
       "name": "Python: Run Current File",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "program": "${file}",
       "console": "integratedTerminal",
       "justMyCode": true
@@ -14,6 +15,7 @@
       "name": "Python: Run main.py",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "program": "${workspaceFolder}/main.py",
       "console": "integratedTerminal",
       "justMyCode": true

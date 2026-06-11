@@ -118,7 +118,7 @@ class ObjectivesTableModel(QAbstractTableModel):
         objective = self._objectives[row]
         if role == Qt.DisplayRole:
             if col == 0:
-                return objective.display_order
+                return objective.code
             if col == 1:
                 return objective.text
             if col == 2:
@@ -352,7 +352,7 @@ class IncidentObjectivesPanel(QWidget):
 
     # ------------------------------------------------------------------
     def _create_objective(self) -> None:
-        dialog = ObjectiveDetailDialog(self)
+        dialog = ObjectiveDetailDialog(self, on_saved=self.reload)
         dialog.setWindowTitle("New Objective")
         dialog.show()
         self._detail_windows.append(dialog)

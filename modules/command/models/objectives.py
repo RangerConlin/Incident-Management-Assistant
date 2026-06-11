@@ -54,6 +54,7 @@ class IncidentObjective(Base):
     status: Mapped[str] = mapped_column(String, default="draft")
     owner_section: Mapped[str | None] = mapped_column(String, nullable=True)
     tags_json: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    narrative: Mapped[str | None] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -299,6 +300,8 @@ class ObjectiveRepository:
                 open_tasks=open_tasks,
                 total_tasks=task_totals.get(obj.id, 0),
             )
+            if filters.has_strategies is not None and bool(summary.strategies) != filters.has_strategies:
+                continue
             if filters.has_open_tasks is None or bool(summary.open_tasks) == filters.has_open_tasks:
                 summaries.append(summary)
         return summaries
@@ -362,6 +365,10 @@ class ObjectiveRepository:
             if new_op != objective.op_period_id:
                 changed_fields.append(("op_period_id", str(objective.op_period_id), str(new_op)))
                 objective.op_period_id = new_op
+        if "narrative" in payload:
+            new_narrative = payload.get("narrative") or None
+            if new_narrative != objective.narrative:
+                objective.narrative = new_narrative
 
         objective.updated_by = user_id
         objective.updated_at = datetime.utcnow()
@@ -664,7 +671,7 @@ class ObjectiveRepository:
         summary.strategies = len(strategies)
         summary.total_tasks = len(tasks)
         summary.open_tasks = sum(1 for t in tasks if t.is_open)
-        return ObjectiveDetail(summary=summary, strategies=strategies, tasks=tasks)
+        return ObjectiveDetail(summary=summary, strategies=strategies, tasks=tasks, narrative=objective.narrative)
 
     def export_ics202(
         self,

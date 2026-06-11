@@ -7,15 +7,21 @@
     },
     {
       "pdf_field": "227458563",
-      "source": ""
+      "source": "incident.number"
     },
     {
       "pdf_field": "227458564",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
     },
     {
       "pdf_field": "227458565",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
     },
     {
       "pdf_field": "4 MapSketch include sketch showing the total area of operations the incident sitearea impacted and threatened areas overflight results trajectories impacted shorelines or other graphics depicting situational status and resource assignment",
@@ -27,15 +33,15 @@
     },
     {
       "pdf_field": "6 Prepared by Name",
-      "source": ""
+      "source": "prepared_by.name"
     },
     {
       "pdf_field": "PositionTitle",
-      "source": ""
+      "source": "prepared_by.position"
     },
     {
       "pdf_field": "DateTime",
-      "source": ""
+      "source": "prepared_by.date_time"
     },
     {
       "pdf_field": "Signature",
@@ -47,15 +53,21 @@
     },
     {
       "pdf_field": "227458563",
-      "source": ""
+      "source": "incident.number"
     },
     {
       "pdf_field": "227458564",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
     },
     {
       "pdf_field": "227458565",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
     },
     {
       "pdf_field": "7 Current and Planned Objectives",
@@ -259,47 +271,53 @@
     },
     {
       "pdf_field": "227458563",
-      "source": ""
+      "source": "incident.number"
     },
     {
       "pdf_field": "227458564",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
     },
     {
       "pdf_field": "227458565",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
     },
     {
       "pdf_field": "Incident Commanders",
-      "source": ""
+      "source": "organization.incident_commander.name"
     },
     {
       "pdf_field": "Liaison Officer",
-      "source": ""
+      "source": "organization.liaison_officer.name"
     },
     {
       "pdf_field": "Safety Officer",
-      "source": ""
+      "source": "organization.safety_officer.name"
     },
     {
       "pdf_field": "Public Information Officer",
-      "source": ""
+      "source": "organization.public_information_officer.name"
     },
     {
       "pdf_field": "Planning Section Chief_2",
-      "source": ""
+      "source": "organization.planning_section_chief.name"
     },
     {
       "pdf_field": "Operations Section Chief_2",
-      "source": ""
+      "source": "organization.operations_section_chief.name"
     },
     {
       "pdf_field": "FinanceAdministration Section Chief",
-      "source": ""
+      "source": "organization.finance_admin_section_chief.name"
     },
     {
       "pdf_field": "Logistics Section Chief",
-      "source": ""
+      "source": "organization.logistics_section_chief.name"
     },
     {
       "pdf_field": "9 Current Organization fill in additional organization as appropriate Incident Commanders Operations Section Chief Planning Section Chief Logistics Section Chief FinanceAdministration Section Chief Safety Officer Public Information Officer Liaison Officer",
@@ -307,15 +325,15 @@
     },
     {
       "pdf_field": "6 Prepared by Name_3",
-      "source": ""
+      "source": "prepared_by.name"
     },
     {
       "pdf_field": "PositionTitle_3",
-      "source": ""
+      "source": "prepared_by.position"
     },
     {
       "pdf_field": "DateTime_3",
-      "source": ""
+      "source": "prepared_by.date_time"
     },
     {
       "pdf_field": "Signature_3",
@@ -327,15 +345,21 @@
     },
     {
       "pdf_field": "227458563",
-      "source": ""
+      "source": "incident.number"
     },
     {
       "pdf_field": "227458564",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
     },
     {
       "pdf_field": "227458565",
-      "source": ""
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
     },
     {
       "pdf_field": "ResourceRow1",
@@ -747,15 +771,15 @@
     },
     {
       "pdf_field": "6 Prepared by Name_4",
-      "source": ""
+      "source": "prepared_by.name"
     },
     {
       "pdf_field": "PositionTitle_4",
-      "source": ""
+      "source": "prepared_by.position"
     },
     {
       "pdf_field": "DateTime_4",
-      "source": ""
+      "source": "prepared_by.date_time"
     },
     {
       "pdf_field": "Signature_4",

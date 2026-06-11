@@ -1,0 +1,748 @@
+{
+  "description": "CAPF 109 — Operational Sortie Report — Civil Air Patrol 2023",
+  "fields": [
+    {
+      "pdf_field": "Mission Number",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "Mission Base",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "Ground Team Leader's Name (Last, First)",
+      "source": "teams.0.leader_name"
+    },
+    {
+      "pdf_field": "Sortie Date",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Team Leader Radio Call-sign",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Destination",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Sortie Number",
+      "source": "tasks.0.task_id"
+    },
+    {
+      "pdf_field": "Vehicle Make",
+      "source": "vehicles.0.make"
+    },
+    {
+      "pdf_field": "Vehicle Type",
+      "source": "vehicles.0.model"
+    },
+    {
+      "pdf_field": "License Plate Number",
+      "source": "vehicles.0.license_plate"
+    },
+    {
+      "pdf_field": "Vehicle Call-Sign",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Starting Mileage",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Ending Mileage",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Frequencies Available (VHF, HF/ALE, AM)",
+      "source": "tasks.0.radio_primary"
+    },
+    {
+      "pdf_field": "Wing Assigned Veh ID No",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Equipment",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 4",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 4",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 4",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 6",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 6",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 6",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 7",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 7",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 7",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 8",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 8",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 8",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 9",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 9",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 9",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 10",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 10",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 10",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 11",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 11",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 11",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 12",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 12",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 12",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Last Name, First Initial - Row 13",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ES Qualifications - Row 13",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Personal Equipment - Row 13",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Time Team Reached Area",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 4",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 6",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 7",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 8",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 9",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 10",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Primary Assignment Detailed Description - Line 11",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Time Reached Redirected Area",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "In Field Reassignment Instructions Time Team - Line 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "In Field Reassignment Instructions Time Team - Line 2",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "In Field Reassignment Instructions Time Team - Line 3",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Grid NumbersArea",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Base Radio Capability VHF",
+      "source": "tasks.0.radio_primary"
+    },
+    {
+      "pdf_field": "UHF Freq",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Base Call Sign",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Base Phone Numbers(s)",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Restricted Areas",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Search Aircraft/Grid",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Radio Call Sign",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Target Sighting Actions",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Other Agencies",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Weather Current",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Weather Expected 24 hrs",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Other",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Code words",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ETD",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ATD",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ETA",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "ATA",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Signature of Briefing Officer",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Signature of Team Leader",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Debrief Page Notes",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Cloud Clear",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Clouds Scattered",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Clouds Broken",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Clouds Overcase",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Precipitation None",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Precipitation Rain",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Precipitation Scattered",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Precipitation Snow",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Light Conditions Bright",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Light Conditions Dull",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Light Conditions Near Dark",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Light Conditions Night",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Visibility Greater Than 10",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Visibility Greater Than 5",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Visibility Greater Than 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Visibility Less Than 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Terrain Flat",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Terrain Rolling Hills",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Terrain Rugged Hills",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Terrain Mountains",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Ground Cover Open",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Ground Cover Moderate",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Ground Cover Heavy",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Ground Cover Other",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Wind Calm",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Wind Less Than 10",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Wind Less Than 20",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Wind Less Than 30",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Debrief Checklist Notes",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Probability that Target was in Area",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Probability Notes 1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Time",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "REMARKS AND SKETCH OF AREA COVERED Show location of significant findings",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Debriefing Officer",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Team Leader",
+      "source": {
+        "literal": ""
+      }
+    }
+  ]
+}
