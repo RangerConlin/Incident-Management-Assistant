@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QGridLayout,
     QFormLayout,
+    QFrame,
     QLabel,
     QLineEdit,
     QTextEdit,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTabWidget,
     QScrollArea,
+    QSplitter,
     QTableView,
     QHeaderView,
     QAbstractItemView,
@@ -120,10 +122,18 @@ class TaskDetailWindow(QWidget):
         self.setWindowTitle("Task Detail")
 
         root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
         try:
             self.setAutoFillBackground(True)
         except Exception:
             pass
+
+        # Container for the collapsible top half of the splitter
+        _top_widget = QWidget(self)
+        _top_layout = QVBoxLayout(_top_widget)
+        _top_layout.setContentsMargins(6, 6, 6, 4)
+        _top_layout.setSpacing(4)
 
         # --- Lookups and Top Controls ---
         try:
@@ -224,7 +234,7 @@ class TaskDetailWindow(QWidget):
                     w.setMinimumHeight(28)
             except Exception:
                 pass
-        root.addWidget(top_container)
+        _top_layout.addWidget(top_container)
         try:
             self._update_category_type_display()
         except Exception:
@@ -272,7 +282,7 @@ class TaskDetailWindow(QWidget):
         grid.addWidget(self._primary_team_leader_lbl, 1, 0)
         grid.addWidget(self._primary_team_phone_lbl, 1, 1)
         primary_v.addLayout(grid)
-        root.addWidget(primary_container)
+        _top_layout.addWidget(primary_container)
 
         # Title/Location/Assignment stacked vertically + Save/Cancel
         stack = QVBoxLayout()
@@ -296,14 +306,7 @@ class TaskDetailWindow(QWidget):
             row.addWidget(_lbl)
             row.addWidget(w)
             stack.addLayout(row)
-        btn_row = QHBoxLayout()
-        self._save_btn = QPushButton("Save"); self._save_btn.clicked.connect(self._save_header)
-        self._cancel_btn = QPushButton("Cancel"); self._cancel_btn.clicked.connect(self._load_header)
-        btn_row.addStretch(1)
-        btn_row.addWidget(self._save_btn)
-        btn_row.addWidget(self._cancel_btn)
-        stack.addLayout(btn_row)
-        root.addLayout(stack)
+        _top_layout.addLayout(stack)
 
         # Header summary removed per request
 
@@ -349,11 +352,32 @@ class TaskDetailWindow(QWidget):
         nar_quick_top.addWidget(self._nar_entry_top, 1)
         nar_quick_top.addWidget(self._nar_crit_top)
         nar_quick_top.addWidget(add_btn_top)
-        root.addLayout(nar_quick_top)
+        _top_layout.addLayout(nar_quick_top)
 
-        # Tabs
+        # Tabs (bottom half of splitter)
         tabs = QTabWidget(self)
-        root.addWidget(tabs, 1)
+
+        # Build splitter: scrollable top half + tabs
+        _top_scroll = QScrollArea(self)
+        _top_scroll.setWidgetResizable(True)
+        _top_scroll.setFrameShape(QFrame.NoFrame)
+        _top_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        _top_scroll.setWidget(_top_widget)
+        _top_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        self._splitter = QSplitter(Qt.Vertical, self)
+        self._splitter.setHandleWidth(6)
+        self._splitter.setStyleSheet(
+            "QSplitter::handle { background-color: #3A4358; border-radius: 2px; }"
+            "QSplitter::handle:hover { background-color: #5CA3FF; }"
+        )
+        self._splitter.addWidget(_top_scroll)
+        self._splitter.addWidget(tabs)
+        self._splitter.setStretchFactor(0, 0)
+        self._splitter.setStretchFactor(1, 1)
+        self._splitter.setCollapsible(0, True)
+        self._splitter.setCollapsible(1, False)
+        root.addWidget(self._splitter, 1)
 
         # Narrative tab
         # Add a small dropdown cue on Critical to make editability obvious
@@ -472,7 +496,7 @@ class TaskDetailWindow(QWidget):
         plan_row.addWidget(self._plan_strat_cb, 2)
         plan_row.addWidget(self._plan_refresh_btn)
         plan_row.addWidget(self._plan_link_btn)
-        plan_layout.addLayout(plan_row)
+        # objectives row intentionally not added to layout
 
         self._plan_headers = ["LinkId", "Objective", "Strategy", "Remove"]
         self._plan_links_model = QStandardItemModel(0, len(self._plan_headers), self)
@@ -499,7 +523,7 @@ class TaskDetailWindow(QWidget):
             self._plan_btn_delegate.clicked.connect(self._on_plan_remove_clicked)
         except Exception:
             pass
-        plan_layout.addWidget(self._plan_links_table, 1)
+        # plan_links_table intentionally not added to layout (objectives section removed)
         # Defer adding the Planning tab until the very end so it appears on the far right
         self._planning_content = plan_content
         # Load data when the window is constructed
@@ -997,9 +1021,12 @@ class TaskDetailWindow(QWidget):
                     pass
             self.load_comms()
 
+        # Keep strong references so PySide6 doesn't GC the closures
+        self._comms_add_fn = _add_comm_row
+        self._comms_del_fn = _del_comm_row
         try:
-            self._comms_add_btn.clicked.connect(_add_comm_row)
-            self._comms_del_btn.clicked.connect(_del_comm_row)
+            self._comms_add_btn.clicked.connect(self._comms_add_fn)
+            self._comms_del_btn.clicked.connect(self._comms_del_fn)
         except Exception:
             pass
 
@@ -2256,7 +2283,7 @@ class TaskDetailWindow(QWidget):
     def _apply_row_critical_highlight(self, row: int) -> None:
         try:
             is_crit = self._is_row_critical(row)
-            color = QColor(Qt.red).lighter(160) if is_crit else None
+            color = QColor("#5c1a1a") if is_crit else None
             # Block signals to avoid recursive dataChanged emissions
             try:
                 self._nar_model.blockSignals(True)

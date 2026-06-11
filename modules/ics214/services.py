@@ -326,9 +326,14 @@ def export_stream(incident_id: str, stream_id: str, options: ExportRequest) -> I
     base_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{stream_id}_{int(datetime.utcnow().timestamp())}.pdf"
     file_path = base_dir / filename
-    from .export_pdf import render_pdf
+    from modules.forms.api import export_form_unified
 
-    render_pdf(entries, str(file_path))
+    export_form_unified(
+        "ics_214",
+        file_path,
+        values={"entries": entries},
+        context={"incident_id": incident_id},
+    )
 
     with with_incident_session(incident_id) as session:
         exp = ICS214Export(id=str(uuid.uuid4()), stream_id=stream_id, file_path=str(file_path))

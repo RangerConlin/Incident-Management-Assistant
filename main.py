@@ -745,11 +745,15 @@ class MainWindow(QMainWindow):
         self._add_action(m_plan, "Task Metrics Dashboard", None, "planning.taskmetrics")
         self._add_action(m_plan, "Strategic Objective Tracker", None, "planning.strategic_objectives")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
+        m_plan.addSeparator()
+        self._add_action(m_plan, "Tactics and Resources Planner", None, "planning.tactics_planner")
         self._add_weather_menu_items(m_plan, prefix="planning.weather")
 
         # ----- Operations -----
         m_ops = mb.addMenu("Operations")
         self._add_action(m_ops, "Operations Unit Log ICS-214", None, "operations.unit_log")
+        m_ops.addSeparator()
+        self._add_action(m_ops, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_ops.addSeparator()
         self._add_action(m_ops, "Operations Dashboard", "Ctrl+1", "operations.dashboard")
         self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
@@ -760,6 +764,8 @@ class MainWindow(QMainWindow):
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
         self._add_action(m_log, "Logistics Unit Log ICS-214", None, "logistics.unit_log")
+        m_log.addSeparator()
+        self._add_action(m_log, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_log.addSeparator()
         self._add_action(m_log, "Logistics Dashboard", "Ctrl+L", "logistics.dashboard")
         self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
@@ -1051,6 +1057,7 @@ class MainWindow(QMainWindow):
             "planning.taskmetrics": self.open_planning_taskmetrics,
             "planning.strategic_objectives": self.open_planning_strategic_objectives,
             "planning.sitrep": self.open_planning_sitrep,
+            "planning.tactics_planner": self.open_tactics_resources_planner,
 
             "planning.weather.summary": self.open_weather_safety_summary,
             "planning.weather.current": self.open_weather_current_forecast,
@@ -1570,6 +1577,14 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_sitrep_panel(incident_id)
         self._open_dock_widget(panel, title="Situation Report")
+
+    def open_tactics_resources_planner(self) -> None:
+        try:
+            from modules.planning.tactics_resources import open_tactics_resources_planner
+            open_tactics_resources_planner(parent=self)
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Tactics and Resources Planner", f"Could not open planner:\n{exc}")
 
 # --- 4.5 Operations ------------------------------------------------------
     def open_weather_safety_summary(self) -> None:

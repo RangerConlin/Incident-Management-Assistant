@@ -390,12 +390,23 @@ class IncidentObjectivesPanel(QWidget):
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Export", f"Failed to build ICS-202 export:\n{exc}")
             return
-        QMessageBox.information(
-            self,
-            "Export",
-            "ICS-202 payload prepared. Hand-off to Forms module pending integration.",
-        )
-        print(payload)  # noqa: T201
+        try:
+            from pathlib import Path
+            from utils import incident_storage
+            from modules.forms.api import export_form_unified
+
+            paths = incident_storage.resolve_incident_paths_by_identifier(str(incident_id))
+            out_dir = paths.forms_exports if paths else Path("data") / "exports" / str(incident_id)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            result = export_form_unified(
+                "ics_202",
+                out_dir / "ICS202.pdf",
+                values=payload if isinstance(payload, dict) else {},
+                context={"incident_id": str(incident_id)},
+            )
+            QMessageBox.information(self, "Export", f"ICS-202 exported to:\n{result.path}")
+        except Exception as exc:  # pragma: no cover
+            QMessageBox.critical(self, "Export", f"Export failed:\n{exc}")
 
     def _show_print_preview(self) -> None:
         QMessageBox.information(

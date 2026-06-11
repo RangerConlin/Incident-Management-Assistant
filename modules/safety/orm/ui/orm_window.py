@@ -475,7 +475,6 @@ class ORMWindow(QWidget):
             return
         form = service.ensure_form(self._incident_id, self._current_op)
         hazards = service.list_hazards(self._incident_id, self._current_op)
-        pdf_bytes = pdf_export.build_pdf(form=form, hazards=hazards)
         filename = f"ORM_OP{self._current_op}.pdf"
         path, _ = QFileDialog.getSaveFileName(
             self,
@@ -485,8 +484,22 @@ class ORMWindow(QWidget):
         )
         if path:
             try:
-                with open(path, "wb") as fh:
-                    fh.write(pdf_bytes)
+                from dataclasses import asdict as _asdict
+                values = {
+                    "form": _asdict(form) if hasattr(form, "__dataclass_fields__") else vars(form),
+                    "hazards": [
+                        _asdict(h) if hasattr(h, "__dataclass_fields__") else vars(h)
+                        for h in hazards
+                    ],
+                    "operational_period": self._current_op,
+                }
+                from modules.forms.api import export_form_unified
+                export_form_unified(
+                    "ics_208",
+                    Path(path),
+                    values=values,
+                    context={"incident_id": self._incident_id},
+                )
                 QMessageBox.information(self, "Exported", f"Saved to {path}")
-            except OSError as exc:
+            except Exception as exc:
                 QMessageBox.critical(self, "Export Failed", str(exc))

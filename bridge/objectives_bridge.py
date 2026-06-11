@@ -115,6 +115,7 @@ class ObjectiveBridge(QObject):
                         owner_section TEXT,
                         tags_json TEXT,
                         display_order INTEGER DEFAULT 0,
+                        narrative TEXT,
                         created_at TEXT,
                         updated_at TEXT,
                         created_by TEXT,
@@ -139,6 +140,8 @@ class ObjectiveBridge(QObject):
                     ("owner_section", "TEXT"),
                     ("tags_json", "TEXT"),
                     ("display_order", "INTEGER DEFAULT 0"),
+                    ("narrative", "TEXT"),
+                    ("created_by", "TEXT"),
                     ("updated_at", "TEXT"),
                     ("updated_by", "TEXT"),
                 ]
