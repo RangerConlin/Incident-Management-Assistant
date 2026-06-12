@@ -17,7 +17,6 @@ __all__ = [
     "get_logistics_panel",
     "get_checkin_panel",
     "get_requests_panel",
-    "get_equipment_panel",
     "get_213rr_panel",
     "get_personnel_panel",
     "get_vehicles_panel",
@@ -66,14 +65,6 @@ def get_checkin_panel(incident_id: object | None = None) -> QWidget:
         incident_context.set_active_incident(str(incident_id))
     CheckInPanel = _get_checkin_panel()
     return CheckInPanel()
-
-
-def get_equipment_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Equipment Management."""
-    return _make_panel(
-        "Equipment Management",
-        f"Manage equipment — incident: {incident_id}",
-    )
 
 
 def get_213rr_panel(incident_id: object | None = None) -> QWidget:

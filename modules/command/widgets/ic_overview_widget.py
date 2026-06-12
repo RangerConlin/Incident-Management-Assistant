@@ -551,10 +551,28 @@ class ICOverviewWidget(QWidget):
         self._clock_timer = QTimer(self)
         self._clock_timer.setInterval(1_000)
         self._clock_timer.timeout.connect(self._update_clock)
-        self._clock_timer.start()
 
         self._build_ui()
         style_palette.subscribe_theme(self, self._apply_theme)
+
+        # Capture timer references in the closure so they remain accessible
+        # even while this widget's C++ side is being torn down.
+        _rt = self._refresh_timer
+        _ct = self._clock_timer
+
+        def _stop_timers() -> None:
+            try:
+                _rt.stop()
+            except RuntimeError:
+                pass
+            try:
+                _ct.stop()
+            except RuntimeError:
+                pass
+
+        self.destroyed.connect(_stop_timers)
+
+        self._clock_timer.start()
         self._refresh_timer.start()
         self.refresh()
 
@@ -822,21 +840,28 @@ class ICOverviewWidget(QWidget):
             comms = data_access.list_comms_channels(self._current_op)
             logistics = data_access.list_logistics_requests(self._current_op)
             alerts = data_access.compute_alerts(self._current_op, now=datetime.now())
-        except Exception as exc:
-            _LOGGER.exception("Failed to refresh IC overview")
-            self.statusMessage.emit("Unable to refresh incident overview", 5000)
-            return
 
-        self._update_header(header)
-        self._update_op_picker()
-        self._alerts_card.update_alerts(alerts)
-        alert_map: Dict[Any, List[str]] = {}
-        for alert in alerts:
-            alert_map.setdefault(alert.get("team_id"), []).append(alert["type"])
-        self._teams_card.update_summary(teams, alert_map)
-        self._tasks_card.update_summary(tasks)
-        self._comms_card.update_channels(comms)
-        self._logistics_card.update_counts(logistics)
+            self._update_header(header)
+            self._update_op_picker()
+            self._alerts_card.update_alerts(alerts)
+            alert_map: Dict[Any, List[str]] = {}
+            for alert in alerts:
+                alert_map.setdefault(alert.get("team_id"), []).append(alert["type"])
+            self._teams_card.update_summary(teams, alert_map)
+            self._tasks_card.update_summary(tasks)
+            self._comms_card.update_channels(comms)
+            self._logistics_card.update_counts(logistics)
+        except RuntimeError:
+            # C++ widget deleted while timer was still pending — stop timers and bail.
+            self._refresh_timer.stop()
+            self._clock_timer.stop()
+        except Exception:
+            _LOGGER.exception("Failed to refresh IC overview")
+            try:
+                self.statusMessage.emit("Unable to refresh incident overview", 5000)
+            except RuntimeError:
+                self._refresh_timer.stop()
+                self._clock_timer.stop()
 
     def _update_header(self, header: dict[str, Any]) -> None:
         self._incident_name_label.setText(header.get("incident_name") or "â€”")
@@ -853,7 +878,10 @@ class ICOverviewWidget(QWidget):
         self._op_next_button.setEnabled(has_next)
 
     def _update_clock(self) -> None:
-        self._clock_label.setText(datetime.now().strftime("%H:%M:%S"))
+        try:
+            self._clock_label.setText(datetime.now().strftime("%H:%M:%S"))
+        except RuntimeError:
+            self._clock_timer.stop()
 
     def _toggle_refresh(self) -> None:
         if self._pause_button.isChecked():
@@ -901,6 +929,7 @@ class ICOverviewWidget(QWidget):
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         self._reflow_cards()
+
 
     def _emit_request(self, module: str, payload: dict[str, Any]) -> None:
         self.requestOpenModule.emit(module, payload)

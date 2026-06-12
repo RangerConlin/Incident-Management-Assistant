@@ -1,13 +1,14 @@
-from pathlib import Path
+from __future__ import annotations
 
-from PySide6.QtCore import QObject
-from PySide6.QtQml import QQmlComponent, QQmlApplicationEngine
-
-QML_PATH = Path(__file__).resolve().parent.parent / "qml" / "SafetyReportEditor.qml"
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
-class SafetyReportDialog(QObject):
+class SafetyReportDialog(QWidget):
     def __init__(self, incident_id: str):
         super().__init__()
         self.incident_id = incident_id
-        self.engine = QQmlApplicationEngine(str(QML_PATH))
+        layout = QVBoxLayout(self)
+        title = QLabel("Safety Report")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        layout.addWidget(title)
+        layout.addWidget(QLabel("Legacy QML safety-report dialog has been removed."))

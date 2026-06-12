@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-import os
-from PySide6.QtWidgets import QWidget, QVBoxLayout
-from PySide6.QtQuickWidgets import QQuickWidget
-from PySide6.QtCore import QUrl
+from pathlib import Path
+
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
-def _load_qml(widget: QWidget, qml_name: str) -> QQuickWidget:
-    layout = QVBoxLayout(widget)
-    qml_widget = QQuickWidget()
-    qml_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "qml", qml_name))
-    qml_widget.setSource(QUrl.fromLocalFile(qml_path))
-    qml_widget.setResizeMode(QQuickWidget.SizeRootObjectToView)
-    layout.addWidget(qml_widget)
-    return qml_widget
+def _load_placeholder_panel(widget: QWidget, panel_name: str) -> QWidget:
+    """Compatibility helper for old panel classes after panel-asset removal."""
+
+    layout = widget.layout()
+    if layout is None:
+        layout = QVBoxLayout(widget)
+
+    title = QLabel(Path(panel_name).stem)
+    title.setStyleSheet("font-size: 18px; font-weight: 600;")
+    layout.addWidget(title)
+    layout.addWidget(QLabel(f"Legacy panel '{panel_name}' has been removed."))
+    return widget

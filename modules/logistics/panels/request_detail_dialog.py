@@ -1,11 +1,6 @@
-# AUTO-GENERATED: Logistics module for Incident Management Assistant
-# NOTE: Module code lives under /modules/logistics (not /backend).
-"""Modeless dialog controller for resource request detail."""
+from __future__ import annotations
 
-from pathlib import Path
-
-from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
 
 class RequestDetailDialog(QDialog):
@@ -14,6 +9,13 @@ class RequestDetailDialog(QDialog):
         self.incident_id = incident_id
         self.request_id = request_id
         self.setWindowTitle("Request Detail")
-        engine = QQmlApplicationEngine()
-        qml_path = Path(__file__).resolve().parents[1] / "qml" / "RequestDetail.qml"
-        engine.load(str(qml_path))
+        layout = QVBoxLayout(self)
+        title = QLabel("Request Detail")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        layout.addWidget(title)
+        layout.addWidget(
+            QLabel(
+                "Legacy QML request-detail dialog has been removed. "
+                f"Request id: {request_id}"
+            )
+        )

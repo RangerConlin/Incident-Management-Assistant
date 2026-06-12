@@ -1,12 +1,15 @@
-# AUTO-GENERATED: Logistics module for Incident Management Assistant
-# NOTE: Module code lives under /modules/logistics (not /backend).
+from __future__ import annotations
 
-"""Resource request status board panel."""
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from pathlib import Path
-
-from PySide6.QtWidgets import QPushButton, QTableWidget, QVBoxLayout, QWidget, QHBoxLayout
-from PySide6.QtQml import QQmlApplicationEngine
+from modules.logistics.panels.request_detail_dialog import RequestDetailDialog
 
 
 class RequestsPanel(QWidget):
@@ -18,29 +21,21 @@ class RequestsPanel(QWidget):
         self.setWindowTitle("Resource Requests")
 
         layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Legacy QML resource-request board has been removed."))
         self.table = QTableWidget()
         layout.addWidget(self.table)
 
-        # Compact header row for actions
         bar = QWidget(self)
         hb = QHBoxLayout(bar)
-        try:
-            hb.setContentsMargins(0, 0, 0, 0)
-            hb.setSpacing(6)
-        except Exception:
-            pass
+        hb.setContentsMargins(0, 0, 0, 0)
+        hb.setSpacing(6)
         self.new_btn = QPushButton("New Request")
-        try:
-            self.new_btn.setFixedSize(120, 28)
-        except Exception:
-            pass
+        self.new_btn.setFixedSize(120, 28)
         self.new_btn.clicked.connect(self.open_detail)
         hb.addWidget(self.new_btn)
         hb.addStretch(1)
         layout.addWidget(bar)
 
     def open_detail(self) -> None:
-        """Open the detail dialog using QML."""
-        engine = QQmlApplicationEngine()
-        qml_path = Path(__file__).resolve().parents[1] / "qml" / "RequestDetail.qml"
-        engine.load(str(qml_path))
+        dialog = RequestDetailDialog(self.incident_id, request_id=-1)
+        dialog.show()

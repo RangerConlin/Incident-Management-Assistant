@@ -1,15 +1,16 @@
-from pathlib import Path
+from __future__ import annotations
 
-from PySide6.QtCore import QObject
-from PySide6.QtQml import QQmlApplicationEngine
-
-QML_PATH = Path(__file__).resolve().parent.parent / "qml" / "SafetyDashboard.qml"
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
-class SafetyDashboard(QObject):
+class SafetyDashboard(QWidget):
     """Main dashboard combining safety reports and medical incidents."""
 
     def __init__(self, incident_id: str):
         super().__init__()
         self.incident_id = incident_id
-        self.engine = QQmlApplicationEngine(str(QML_PATH))
+        layout = QVBoxLayout(self)
+        title = QLabel("Safety Dashboard")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        layout.addWidget(title)
+        layout.addWidget(QLabel("Legacy QML safety dashboard has been removed."))

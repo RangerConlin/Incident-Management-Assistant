@@ -1,11 +1,6 @@
-# AUTO-GENERATED: Logistics module for Incident Management Assistant
-# NOTE: Module code lives under /modules/logistics (not /backend).
-"""Assignment dashboard panel."""
+from __future__ import annotations
 
-from pathlib import Path
-
-from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
 class AssignmentDashboard(QWidget):
@@ -13,6 +8,8 @@ class AssignmentDashboard(QWidget):
         super().__init__()
         self.incident_id = incident_id
         self.setWindowTitle("Assignments")
-        engine = QQmlApplicationEngine()
-        qml_path = Path(__file__).resolve().parents[1] / "qml" / "AssignmentDashboard.qml"
-        engine.load(str(qml_path))
+        layout = QVBoxLayout(self)
+        title = QLabel("Assignments")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        layout.addWidget(title)
+        layout.addWidget(QLabel("Legacy QML assignment dashboard has been removed."))

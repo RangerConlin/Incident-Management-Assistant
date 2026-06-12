@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import QWidget
-from . import _load_qml
+from . import _load_placeholder_panel
 
 
 class MedicalPlanBuilder(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        _load_qml(self, "MedicalPlanBuilder.qml")
+        _load_placeholder_panel(self, "MedicalPlanBuilder")

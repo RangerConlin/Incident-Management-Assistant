@@ -31,15 +31,13 @@ from .components import (
     BriefingQueueWidget,
     QuickEntryWidget,
     ClockDualWidget,
+    # New widgets
+    WeatherWidget,
+    OpPeriodWidget,
+    ResourceRequestWidget,
+    ActivityLogWidget,
+    SubjectProfileWidget,
 )
-
-
-def _wrap_list_widget(title: str, items: list[str]):
-    # helper factory to avoid lambdas in registry construction
-    class W(TeamStatusBoardWidget):
-        def __init__(self, *a, **k):
-            super().__init__(title=title, items=items)
-    return W
 
 
 def _team_status_items():
@@ -61,6 +59,22 @@ REGISTRY: Dict[str, WidgetSpec] = {
         min_size=Size(3, 1),
         component=lambda: IncidentInfoWidget(dp.incident_getSummary, dp.auth_getCurrentUser),  # type: ignore
         data_hooks={"incident.getSummary": dp.incident_getSummary, "auth.getCurrentUser": dp.auth_getCurrentUser},
+    ),
+    "subjectprofile": WidgetSpec(
+        id="subjectprofile",
+        title="Subject Profile",
+        default_size=Size(4, 2),
+        min_size=Size(3, 1),
+        component=SubjectProfileWidget,  # type: ignore
+        data_hooks={"intel.getSubjects": dp.subject_getProfiles},
+    ),
+    "opperiod": WidgetSpec(
+        id="opperiod",
+        title="Operational Period",
+        default_size=Size(4, 1),
+        min_size=Size(3, 1),
+        component=OpPeriodWidget,  # type: ignore
+        data_hooks={"planning.getActivePeriod": dp.opperiod_getActive},
     ),
 
     # Status & Operations
@@ -123,6 +137,14 @@ REGISTRY: Dict[str, WidgetSpec] = {
         component=lambda: OpsDashboardFeedWidget(title="Ops Events", items=dp.ops_getRecentEvents(20)),  # type: ignore
         data_hooks={"ops.getRecentEvents": dp.ops_getRecentEvents},
     ),
+    "resourcerequests": WidgetSpec(
+        id="resourcerequests",
+        title="Resource Requests",
+        default_size=Size(6, 1),
+        min_size=Size(4, 1),
+        component=ResourceRequestWidget,  # type: ignore
+        data_hooks={"logistics.getRequestSummary": dp.requests_getSummary},
+    ),
 
     # Communications
     "recentmessages": WidgetSpec(
@@ -166,6 +188,14 @@ REGISTRY: Dict[str, WidgetSpec] = {
         min_size=Size(4, 1),
         component=lambda: ObjectivesTrackerWidget(title="Incident Objectives", items=dp.planning_getObjectives()),  # type: ignore
         data_hooks={"planning.getObjectives": dp.planning_getObjectives},
+    ),
+    "activitylog": WidgetSpec(
+        id="activitylog",
+        title="Activity Log (ICS-214)",
+        default_size=Size(6, 1),
+        min_size=Size(4, 1),
+        component=ActivityLogWidget,  # type: ignore
+        data_hooks={"ics214.getRecentEntries": dp.ics214_getRecentEntries},
     ),
     "formsinprogress": WidgetSpec(
         id="formsinprogress",
@@ -248,6 +278,16 @@ REGISTRY: Dict[str, WidgetSpec] = {
         min_size=Size(6, 1),
         component=lambda: MapSnapshotWidget(title="Map Snapshot", items=[str(dp.gis_getSnapshot())]),  # type: ignore
         data_hooks={"gis.getSnapshot": dp.gis_getSnapshot},
+    ),
+
+    # Weather
+    "weather": WidgetSpec(
+        id="weather",
+        title="Weather",
+        default_size=Size(6, 2),
+        min_size=Size(4, 1),
+        component=WeatherWidget,  # type: ignore
+        data_hooks={"weather.getSnapshot": dp.weather_getSnapshot},
     ),
 
     # Public Information

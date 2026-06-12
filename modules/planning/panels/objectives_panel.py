@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-from PySide6.QtWidgets import QPushButton, QTableWidget, QVBoxLayout, QWidget
-from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QMessageBox, QPushButton, QTableWidget, QVBoxLayout, QWidget
 
 
 class ObjectivesPanel(QWidget):
@@ -23,7 +20,8 @@ class ObjectivesPanel(QWidget):
         self.new_btn.clicked.connect(self.open_detail)
 
     def open_detail(self) -> None:
-        """Open the detail dialog defined in QML."""
-        engine = QQmlApplicationEngine()
-        qml_path = Path(__file__).resolve().parents[1] / "qml" / "ObjectiveDetail.qml"
-        engine.load(str(qml_path))
+        QMessageBox.information(
+            self,
+            "Objectives",
+            "The legacy QML objective detail dialog has been removed.",
+        )

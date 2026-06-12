@@ -432,7 +432,10 @@ class OperationalPeriodRepository:
                 ).fetchone()
                 summary["forms"] = int(row["c"]) if row else 0
             if self._has_table(conn, "incident_objectives"):
-                row = conn.execute("SELECT COUNT(*) AS c FROM incident_objectives").fetchone()
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM incident_objectives WHERE op_period_id=?",
+                    (int(period_id),),
+                ).fetchone()
                 summary["objectives"] = int(row["c"]) if row else 0
         if period.status == "Active":
             AppState.set_active_op_period(period.number)

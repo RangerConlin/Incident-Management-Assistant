@@ -66,7 +66,6 @@ from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
 from ui.settings import SettingsWindow
 from utils.profile_manager import profile_manager, ProfileMeta
-from ui.qml_placeholder import show_qml_placeholder
 
 try:
     from modules.ui_customization import (
@@ -722,9 +721,9 @@ class MainWindow(QMainWindow):
 
         # ----- Command -----
         m_cmd = mb.addMenu("Command")
+        self._add_action(m_cmd, "Incident Command Dashboard", None, "command.incident_dashboard")
         self._add_action(m_cmd, "Command Unit Log ICS-214", None, "command.unit_log")
         m_cmd.addSeparator()
-        self._add_action(m_cmd, "Incident Dashboard — Command", None, "command.incident_dashboard")
         self._add_action(m_cmd, "Incident Overview", None, "command.incident_overview")
         self._add_action(m_cmd, "Incident Action Plan Builder", None, "command.iap")
         self._add_action(m_cmd, "Incident Objectives (ICS-202)", None, "command.objectives")
@@ -735,15 +734,12 @@ class MainWindow(QMainWindow):
 
         # ----- Planning -----
         m_plan = mb.addMenu("Planning")
+        self._add_action(m_plan, "Planning Dashboard", "Ctrl+Alt+D", "planning.glance")
         self._add_action(m_plan, "Planning Unit Log ICS-214", None, "planning.unit_log")
         m_plan.addSeparator()
-        self._add_action(m_plan, "Planning Dashboard", "Ctrl+Alt+D", "planning.glance")
         self._add_action(m_plan, "Pending Approvals", None, "planning.approvals")
-        self._add_action(m_plan, "Planning Forecast", None, "planning.forecast")
         self._add_action(m_plan, "Operational Period Manager", None, "planning.op_manager")
-        self._add_action(m_plan, "Meetings", None, "planning.meetings")
-        self._add_action(m_plan, "Task Metrics Dashboard", None, "planning.taskmetrics")
-        self._add_action(m_plan, "Strategic Objective Tracker", None, "planning.strategic_objectives")
+        self._add_action(m_plan, "Meeting Planner", None, "planning.meetings")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
         m_plan.addSeparator()
         self._add_action(m_plan, "Tactics and Resources Planner", None, "planning.tactics_planner")
@@ -751,11 +747,11 @@ class MainWindow(QMainWindow):
 
         # ----- Operations -----
         m_ops = mb.addMenu("Operations")
+        self._add_action(m_ops, "Operations Dashboard", "Ctrl+1", "operations.dashboard")
         self._add_action(m_ops, "Operations Unit Log ICS-214", None, "operations.unit_log")
         m_ops.addSeparator()
         self._add_action(m_ops, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_ops.addSeparator()
-        self._add_action(m_ops, "Operations Dashboard", "Ctrl+1", "operations.dashboard")
         self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
         self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
@@ -763,21 +759,20 @@ class MainWindow(QMainWindow):
 
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
+        self._add_action(m_log, "Logistics Dashboard", "Ctrl+L", "logistics.dashboard")
         self._add_action(m_log, "Logistics Unit Log ICS-214", None, "logistics.unit_log")
         m_log.addSeparator()
         self._add_action(m_log, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_log.addSeparator()
-        self._add_action(m_log, "Logistics Dashboard", "Ctrl+L", "logistics.dashboard")
         self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
         self._add_action(m_log, "Resource Status Board", None, "logistics.resource_status")
-        self._add_action(m_log, "Equipment Inventory", None, "logistics.equipment")
         self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
 
         # ----- Communications -----
         m_comms = mb.addMenu("Communications")
+        self._add_action(m_comms, "Communications Dashboard", None, "comms.traffic_log")
         self._add_action(m_comms, "Communications Unit Log ICS-214", None, "comms.unit_log")
         m_comms.addSeparator()
-        self._add_action(m_comms, "Communications Dashboard", None,"comms.traffic_log",)
         self._add_action(m_comms, "Communications Plan (ICS-205)", None, "comms.205")
         self._add_action(m_comms, "Communications Log (ICS-309)", None, "comms.log_board")
         self._add_action(m_comms, "Communications Quick Entry", None, "comms.quick_entry")
@@ -787,10 +782,9 @@ class MainWindow(QMainWindow):
 
         # ----- Intel -----
         m_intel = mb.addMenu("Intel")
+        self._add_action(m_intel, "Intel — Dashboard", None, "intel.dashboard")
         self._add_action(m_intel, "Intel Unit Log ICS-214", None, "intel.unit_log")
         m_intel.addSeparator()
-        # New primary dashboard
-        self._add_action(m_intel, "Intel — Dashboard", None, "intel.dashboard")
         # Expose the data-centric Intel window under a clear non-dashboard label
         self._add_action(m_intel, "Intel — Data Manager", None, "intel.data_manager")
         self._add_action(m_intel, "Clue Log", None, "intel.clue_log")
@@ -820,7 +814,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_pub, "Public Information", None, "public.dashboard")
         # Public Affairs — Dashboard entry
         self._add_action(m_pub, "Public Affairs Dashboard", None, "public.affairs_dashboard")
-        m_pub.addSeparator()
         self._add_action(m_pub, "Public Information Unit Log ICS-214", None, "public.unit_log")
         m_pub.addSeparator()
         self._add_action(m_pub, "Media Releases", None, "public.media_releases")
@@ -830,7 +823,6 @@ class MainWindow(QMainWindow):
         m_fin = mb.addMenu("Finance/Admin")
         # Primary dashboard entry
         self._add_action(m_fin, "Finance/Admin Dashboard", None, "finance.dashboard")
-        m_fin.addSeparator()
         self._add_action(m_fin, "Finance Unit Log ICS-214", None, "finance.unit_log")
         m_fin.addSeparator()
         self._add_action(m_fin, "Time Tracking", None, "finance.time")
@@ -875,6 +867,14 @@ class MainWindow(QMainWindow):
         # ----- Window -----
         m_window = self.menuBar().addMenu("Window")
         self._add_action(m_window, "Home Dashboard", "Ctrl+H", "window.home_dashboard")
+
+        # Templates submenu — presets + user-saved templates
+        m_layouts = m_window.addMenu("Templates")
+        m_layouts.aboutToShow.connect(lambda: self._rebuild_layouts_menu(m_layouts))
+        # Seed the menu so it isn't empty before first hover
+        self._rebuild_layouts_menu(m_layouts)
+
+        m_window.addSeparator()
 
         # Widgets submenu: list all registry widgets for ad-hoc placement
         try:
@@ -1051,11 +1051,8 @@ class MainWindow(QMainWindow):
             "planning.unit_log": self.open_planning_unit_log,
             "planning.glance": self.open_planning_glance,
             "planning.approvals": self.open_planning_approvals,
-            "planning.forecast": self.open_planning_forecast,
             "planning.op_manager": self.open_planning_op_manager,
             "planning.meetings": self.open_planning_meetings,
-            "planning.taskmetrics": self.open_planning_taskmetrics,
-            "planning.strategic_objectives": self.open_planning_strategic_objectives,
             "planning.sitrep": self.open_planning_sitrep,
             "planning.tactics_planner": self.open_tactics_resources_planner,
 
@@ -1083,7 +1080,6 @@ class MainWindow(QMainWindow):
             "logistics.211": self.open_logistics_211,
             "logistics.resource_status": self.open_logistics_resource_status,
             "logistics.requests": self.open_logistics_requests,
-            "logistics.equipment": self.open_logistics_equipment,
             "logistics.213rr": self.open_logistics_213rr,
 
             # ----- Communications -----
@@ -1425,7 +1421,11 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
 
     def open_edit_safety_templates(self) -> None:
-        show_qml_placeholder(title="Incident Safety Analysis (ICS-215A)", parent=self)
+        from modules import safety
+
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = safety.get_215A_panel(incident_id)
+        self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
 
     def open_edit_units_organizations(self) -> None:
         """Open the master-data Units and Organizations editor panel."""
@@ -1460,7 +1460,7 @@ class MainWindow(QMainWindow):
         from modules import command
         incident_id = getattr(self, "current_incident_id", None)
         panel = command.get_incident_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Dashboard — Command")
+        self._open_dock_widget(panel, title="Incident Command Dashboard", preferred_size=(900, 700))
 
     def open_command_incident_overview(self) -> None:
         # Replace placeholder with real Incident Overview panel (widgets only)
@@ -1542,12 +1542,6 @@ class MainWindow(QMainWindow):
         panel = planning.get_approvals_panel(incident_id)
         self._open_dock_widget(panel, title="Pending Approvals")
 
-    def open_planning_forecast(self) -> None:
-        from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = planning.get_forecast_panel(incident_id)
-        self._open_dock_widget(panel, title="Planning Forecast")
-
     def open_planning_op_manager(self) -> None:
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
@@ -1558,19 +1552,7 @@ class MainWindow(QMainWindow):
         from modules import planning
         incident_id = getattr(self, "current_incident_id", None)
         panel = planning.get_meetings_panel(incident_id)
-        self._open_dock_widget(panel, title="Planning - Meetings")
-
-    def open_planning_taskmetrics(self) -> None:
-        from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = planning.get_taskmetrics_panel(incident_id)
-        self._open_dock_widget(panel, title="Task Metrics Dashboard")
-
-    def open_planning_strategic_objectives(self) -> None:
-        from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = planning.get_strategic_objectives_panel(incident_id)
-        self._open_dock_widget(panel, title="Strategic Objective Tracker")
+        self._open_dock_widget(panel, title="Meeting Planner")
 
     def open_planning_sitrep(self) -> None:
         from modules import planning
@@ -2142,12 +2124,6 @@ class MainWindow(QMainWindow):
         panel = logistics.get_requests_panel(incident_id)
         self._open_dock_widget(panel, title="Resource Requests")
 
-    def open_logistics_equipment(self) -> None:
-        from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = logistics.get_equipment_panel(incident_id)
-        self._open_dock_widget(panel, title="Equipment Inventory")
-
     def open_logistics_resource_status(self) -> None:
         from modules import logistics
         incident_id = getattr(self, "current_incident_id", None)
@@ -2352,7 +2328,9 @@ class MainWindow(QMainWindow):
 
     def open_medical_206(self) -> None:
         from modules import medical
-        medical.open_206_window()
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = medical.get_206_panel(incident_id)
+        self._open_dock_widget(panel, title="Medical Plan (ICS-206)")
 
     def open_safety_208(self) -> None:
         from modules import safety
@@ -2968,7 +2946,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            show_qml_placeholder(title="Team Status", parent=self)
+            QMessageBox.warning(self, "Team Status", "Team Status is unavailable in this build.")
 
         if TaskStatusPanel:
             try:
@@ -2980,7 +2958,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            show_qml_placeholder(title="Task Status", parent=self)
+            QMessageBox.warning(self, "Task Status", "Task Status is unavailable in this build.")
 
     def open_new_workspace_window(self) -> None:
         """Create a blank floating dock window you can move to another monitor.
@@ -3034,6 +3012,86 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         self._create_default_docks()
+
+    def _clear_all_docks(self) -> None:
+        """Close and delete every open CDockWidget without rebuilding defaults."""
+        for dw in list(self.findChildren(CDockWidget)):
+            try:
+                dw.close()
+                dw.deleteLater()
+            except Exception:
+                pass
+
+    def _open_widget_in_area(self, widget_id: str, area) -> None:
+        """Instantiate a registered widget and dock it in the given ADS area."""
+        from ui.widgets import registry as W
+        spec = W.REGISTRY.get(widget_id)
+        if not spec or not spec.component:
+            return
+        try:
+            comp = spec.component() if callable(spec.component) else spec.component
+            if comp is None:
+                return
+        except Exception:
+            return
+        dock = CDockWidget(self.dock_manager, spec.title)
+        dock.setWidget(comp)
+        self.dock_manager.addDockWidget(area, dock)
+        dock.show()
+
+    def _apply_section_layout(self, section_id: str) -> None:
+        """Clear all docks and open the preset layout for section_id."""
+        from ui.widgets.section_layouts import SECTION_LAYOUTS
+        _AREA_MAP = {
+            "center": CenterDockWidgetArea,
+            "left":   LeftDockWidgetArea,
+            "right":  RightDockWidgetArea,
+            "bottom": BottomDockWidgetArea,
+            "top":    TopDockWidgetArea,
+        }
+        entry = SECTION_LAYOUTS.get(section_id)
+        if not entry:
+            return
+        self._clear_all_docks()
+        for widget_id, area_key in entry["widgets"]:
+            self._open_widget_in_area(widget_id, _AREA_MAP.get(area_key, CenterDockWidgetArea))
+
+    def _rebuild_layouts_menu(self, menu: QMenu) -> None:
+        """Rebuild the Section Layouts submenu (built-ins + user-saved templates)."""
+        from ui.widgets.section_layouts import SECTION_LAYOUTS
+        menu.clear()
+        for section_id, entry in SECTION_LAYOUTS.items():
+            act = QAction(entry["label"], self)
+            act.triggered.connect(lambda checked=False, s=section_id: self._apply_section_layout(s))
+            menu.addAction(act)
+        menu.addSeparator()
+        act_save = QAction("Save Current as Template…", self)
+        act_save.triggered.connect(self._save_current_as_template)
+        menu.addAction(act_save)
+        try:
+            saved = [n for n in self.dock_manager.perspectiveNames() if n != "default"]
+        except Exception:
+            saved = []
+        if saved:
+            menu.addSeparator()
+            for name in saved:
+                act = QAction(name, self)
+                act.triggered.connect(lambda checked=False, n=name: self.dock_manager.openPerspective(n))
+                menu.addAction(act)
+
+    def _save_current_as_template(self) -> None:
+        """Prompt for a name, save current dock layout as an ADS perspective."""
+        name, ok = QInputDialog.getText(self, "Save Template", "Template name:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        try:
+            self.dock_manager.removePerspective(name)
+        except Exception:
+            pass
+        self.dock_manager.addPerspective(name)
+        settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
+        self.dock_manager.savePerspectives(settings_obj)
 
     def open_customization_layout_manager(self) -> None:
         if get_layout_manager_panel is None:
@@ -3726,5 +3784,5 @@ if __name__ == "__main__":
         pass
     from modules.devtools.dev_menu import attach_dev_menu
     attach_dev_menu(win)
-    win.show()
+    win.showMaximized()
     sys.exit(app.exec())

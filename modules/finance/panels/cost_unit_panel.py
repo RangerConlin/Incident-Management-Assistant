@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
-from PySide6.QtCore import QUrl
-from PySide6.QtQuickWidgets import QQuickWidget
-from PySide6.QtWidgets import QWidget, QVBoxLayout
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
 class CostUnitPanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        self.view = QQuickWidget()
-        qml_file = Path(__file__).resolve().parent.parent / "qml" / "CostUnit.qml"
-        self.view.setSource(QUrl.fromLocalFile(str(qml_file)))
-        self.view.setResizeMode(QQuickWidget.SizeRootObjectToView)
-        layout.addWidget(self.view)
+        title = QLabel("Cost Unit")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        layout.addWidget(title)
+        layout.addWidget(QLabel("Legacy QML cost-unit screen has been removed."))

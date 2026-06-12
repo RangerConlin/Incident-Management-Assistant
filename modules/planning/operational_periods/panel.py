@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
+    QApplication,
     QAbstractItemView,
     QComboBox,
     QDateTimeEdit,
@@ -27,13 +28,33 @@ from PySide6.QtWidgets import (
 
 from .repository import OperationalPeriodRecord, OperationalPeriodRepository
 
-# Status -> (row background, badge background, badge text)
-_STATUS_COLORS: dict[str, tuple[str, str, str]] = {
+# Status -> (row background, badge background, badge text) — light and dark variants
+_STATUS_COLORS_LIGHT: dict[str, tuple[str, str, str]] = {
     "Active":   ("#d4edda", "#28a745", "#ffffff"),
     "Planned":  ("#ffffff", "#e8eef5", "#333333"),
-    "Complete": ("#f5f5f5", "#6c757d", "#ffffff"),
+    "Complete": ("#f0f0f0", "#6c757d", "#ffffff"),
     "Canceled": ("#fff3f3", "#dc3545", "#ffffff"),
 }
+_STATUS_COLORS_DARK: dict[str, tuple[str, str, str]] = {
+    "Active":   ("#1a3a28", "#4caf50", "#ffffff"),
+    "Planned":  ("#1B1F2A", "#5CA3FF", "#ECEFF4"),
+    "Complete": ("#1a1c22", "#888888", "#ffffff"),
+    "Canceled": ("#3a1a1a", "#ef5350", "#ffffff"),
+}
+# Active row text colors per mode
+_ACTIVE_ROW_FG_LIGHT = "#155724"
+_ACTIVE_ROW_FG_DARK  = "#a5d6a7"
+_COMPLETE_ROW_FG_LIGHT = "#6c757d"
+_COMPLETE_ROW_FG_DARK  = "#888888"
+
+
+def _is_dark_mode() -> bool:
+    palette = QApplication.palette()
+    return palette.color(QPalette.Window).lightness() < 128
+
+
+def _status_colors() -> dict[str, tuple[str, str, str]]:
+    return _STATUS_COLORS_DARK if _is_dark_mode() else _STATUS_COLORS_LIGHT
 
 
 def _parse_storage_dt(value: str) -> datetime:
@@ -93,6 +114,7 @@ class OperationalPeriodManagerPanel(QWidget):
         self._dirty = False
         self.setObjectName("OperationalPeriodManagerPanel")
         self.setWindowTitle("Planning - Operational Period Manager")
+        self.resize(1000, 600)
         self._build_ui()
         self.refresh_all()
 
@@ -125,10 +147,7 @@ class OperationalPeriodManagerPanel(QWidget):
             header.addWidget(btn)
         root.addLayout(header)
 
-        body = QHBoxLayout()
-        root.addLayout(body, 1)
-
-        # Left: period list
+        # Top: period list
         self.periods_table = QTableWidget(0, 5)
         self.periods_table.setHorizontalHeaderLabels(
             ["Period", "Status", "Start", "End", "Duration"]
@@ -137,12 +156,17 @@ class OperationalPeriodManagerPanel(QWidget):
         self.periods_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.periods_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.periods_table.setAlternatingRowColors(False)  # we paint rows manually
+        self.periods_table.setFixedHeight(180)
         self.periods_table.itemSelectionChanged.connect(self._on_selection_changed)
-        body.addWidget(self.periods_table, 1)
+        root.addWidget(self.periods_table)
 
-        # Right: editor
-        right = QVBoxLayout()
-        body.addLayout(right, 2)
+        # Bottom: editor laid out in two columns
+        editor_row = QHBoxLayout()
+        root.addLayout(editor_row, 1)
+
+        # Left column: period details + linked records
+        left_col = QVBoxLayout()
+        editor_row.addLayout(left_col, 1)
 
         basics_group = QGroupBox("Period Details")
         basics_form = QFormLayout(basics_group)
@@ -170,24 +194,21 @@ class OperationalPeriodManagerPanel(QWidget):
         self.end_edit.setDisplayFormat("MM/dd/yyyy  HH:mm")
         self.end_edit.dateTimeChanged.connect(self._mark_dirty)
 
-        self.briefing_edit = QDateTimeEdit()
-        self.briefing_edit.setCalendarPopup(True)
-        self.briefing_edit.setDisplayFormat("MM/dd/yyyy  HH:mm")
-        self.briefing_edit.dateTimeChanged.connect(self._mark_dirty)
-
-        self.debrief_edit = QDateTimeEdit()
-        self.debrief_edit.setCalendarPopup(True)
-        self.debrief_edit.setDisplayFormat("MM/dd/yyyy  HH:mm")
-        self.debrief_edit.dateTimeChanged.connect(self._mark_dirty)
+        duration_row = QHBoxLayout()
+        duration_row.setSpacing(4)
+        for hours in (12, 24, 48, 72):
+            btn = QPushButton(f"{hours}h")
+            btn.setToolTip(f"Set end time to {hours} hours after start")
+            btn.clicked.connect(lambda _, h=hours: self._apply_duration(h))
+            duration_row.addWidget(btn, 1)
 
         basics_form.addRow("Period Number", self.number_spin)
         basics_form.addRow("Label", self.name_edit)
         basics_form.addRow("Status", self.status_combo)
         basics_form.addRow("Start", self.start_edit)
         basics_form.addRow("End", self.end_edit)
-        basics_form.addRow("Planning Meeting", self.briefing_edit)
-        basics_form.addRow("Debrief", self.debrief_edit)
-        right.addWidget(basics_group)
+        basics_form.addRow("", duration_row)
+        left_col.addWidget(basics_group)
 
         summary_group = QGroupBox("Linked Records")
         summary_layout = QGridLayout(summary_group)
@@ -195,11 +216,16 @@ class OperationalPeriodManagerPanel(QWidget):
         for idx, key in enumerate(("meetings", "assignments", "forms", "objectives")):
             label = QLabel("0")
             label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet("font-size: 20px; font-weight: 600; padding: 10px; background: #f3f5f7;")
+            label.setStyleSheet("font-size: 20px; font-weight: 600; padding: 10px; background: palette(base);")
             self.summary_labels[key] = label
             summary_layout.addWidget(QLabel(key.replace("_", " ").title()), 0, idx)
             summary_layout.addWidget(label, 1, idx)
-        right.addWidget(summary_group)
+        left_col.addWidget(summary_group)
+        left_col.addStretch()
+
+        # Right column: notes + actions
+        right_col = QVBoxLayout()
+        editor_row.addLayout(right_col, 1)
 
         notes_group = QGroupBox("Operational Notes")
         notes_layout = QFormLayout(notes_group)
@@ -224,7 +250,7 @@ class OperationalPeriodManagerPanel(QWidget):
         notes_layout.addRow("Objectives", self.objectives_edit)
         notes_layout.addRow("Weather", self.weather_edit)
         notes_layout.addRow("Safety", self.safety_edit)
-        right.addWidget(notes_group, 1)
+        right_col.addWidget(notes_group, 1)
 
         actions = QHBoxLayout()
         actions.addStretch()
@@ -235,7 +261,7 @@ class OperationalPeriodManagerPanel(QWidget):
         self._save_btn.clicked.connect(self._save_selected)
         actions.addWidget(self._set_active_btn)
         actions.addWidget(self._save_btn)
-        right.addLayout(actions)
+        right_col.addLayout(actions)
 
     # ------------------------------------------------------------------
     # Dirty tracking
@@ -245,6 +271,10 @@ class OperationalPeriodManagerPanel(QWidget):
         if not self._dirty:
             self._dirty = True
             self._save_btn.setText("Save Period  ●")
+
+    def _apply_duration(self, hours: int) -> None:
+        new_end = self.start_edit.dateTime().addSecs(hours * 3600)
+        self.end_edit.setDateTime(new_end)
 
     def _clear_dirty(self) -> None:
         self._dirty = False
@@ -282,8 +312,9 @@ class OperationalPeriodManagerPanel(QWidget):
             self._load_editor(None)
 
     def _update_active_badge(self, active: OperationalPeriodRecord | None) -> None:
+        colors = _status_colors()
         if active is not None:
-            _, bg, fg = _STATUS_COLORS["Active"]
+            _, bg, fg = colors["Active"]
             self._active_badge.setText(f"Active: OP {active.number}")
             self._active_badge.setStyleSheet(
                 f"padding: 4px 10px; border-radius: 4px; font-weight: 600;"
@@ -291,16 +322,19 @@ class OperationalPeriodManagerPanel(QWidget):
             )
         else:
             self._active_badge.setText("No active period")
+            dark = _is_dark_mode()
             self._active_badge.setStyleSheet(
                 "padding: 4px 10px; border-radius: 4px; font-weight: 600;"
-                "background: #fff3cd; color: #856404;"
+                + ("background: #3a2e00; color: #ffb300;" if dark else "background: #fff3cd; color: #856404;")
             )
 
     def _load_periods_table(self) -> None:
+        colors = _status_colors()
+        dark = _is_dark_mode()
         self.periods_table.setRowCount(len(self._periods))
         for row_idx, period in enumerate(self._periods):
             status = period.status or "Planned"
-            row_bg, _, _ = _STATUS_COLORS.get(status, _STATUS_COLORS["Planned"])
+            row_bg, _, _ = colors.get(status, colors["Planned"])
 
             op_text = f"OP {period.number}"
             if status == "Active":
@@ -318,9 +352,9 @@ class OperationalPeriodManagerPanel(QWidget):
                 item.setData(Qt.UserRole, period.id)
                 item.setBackground(QColor(row_bg))
                 if status == "Active":
-                    item.setForeground(QColor("#155724"))
+                    item.setForeground(QColor(_ACTIVE_ROW_FG_DARK if dark else _ACTIVE_ROW_FG_LIGHT))
                 elif status == "Complete":
-                    item.setForeground(QColor("#6c757d"))
+                    item.setForeground(QColor(_COMPLETE_ROW_FG_DARK if dark else _COMPLETE_ROW_FG_LIGHT))
                 self.periods_table.setItem(row_idx, col_idx, item)
 
     def _on_selection_changed(self) -> None:
@@ -361,8 +395,6 @@ class OperationalPeriodManagerPanel(QWidget):
             self.status_combo.setCurrentText("Planned")
             self.start_edit.setDateTime(now)
             self.end_edit.setDateTime(now + timedelta(hours=12))
-            self.briefing_edit.setDateTime(now)
-            self.debrief_edit.setDateTime(now + timedelta(hours=12))
             self.objectives_edit.clear()
             self.weather_edit.clear()
             self.safety_edit.clear()
@@ -377,8 +409,6 @@ class OperationalPeriodManagerPanel(QWidget):
         self.status_combo.setCurrentText(period.status)
         self.start_edit.setDateTime(_parse_storage_dt(period.start_time))
         self.end_edit.setDateTime(_parse_storage_dt(period.end_time))
-        self.briefing_edit.setDateTime(_parse_storage_dt(period.briefing_time or period.start_time))
-        self.debrief_edit.setDateTime(_parse_storage_dt(period.debrief_time or period.end_time))
         self.objectives_edit.setPlainText(period.objectives)
         self.weather_edit.setPlainText(period.weather_summary)
         self.safety_edit.setPlainText(period.safety_message)
@@ -399,8 +429,6 @@ class OperationalPeriodManagerPanel(QWidget):
             "status": self.status_combo.currentText(),
             "start_time": _storage_dt(self.start_edit),
             "end_time": _storage_dt(self.end_edit),
-            "briefing_time": _storage_dt(self.briefing_edit),
-            "debrief_time": _storage_dt(self.debrief_edit),
             "objectives": self.objectives_edit.toPlainText().strip(),
             "weather_summary": self.weather_edit.toPlainText().strip(),
             "safety_message": self.safety_edit.toPlainText().strip(),

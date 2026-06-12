@@ -3,7 +3,7 @@
   "fields": [
     {
       "pdf_field": "227458562",
-      "source": "incident"
+      "source": "incident.name"
     },
     {
       "pdf_field": "227458563",
@@ -49,7 +49,7 @@
     },
     {
       "pdf_field": "227458562",
-      "source": "incident"
+      "source": "incident.name"
     },
     {
       "pdf_field": "227458563",
@@ -267,7 +267,7 @@
     },
     {
       "pdf_field": "227458562",
-      "source": "incident"
+      "source": "incident.name"
     },
     {
       "pdf_field": "227458563",
@@ -341,7 +341,7 @@
     },
     {
       "pdf_field": "227458562",
-      "source": "incident"
+      "source": "incident.name"
     },
     {
       "pdf_field": "227458563",

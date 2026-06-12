@@ -199,6 +199,38 @@ class TeamBoard(QFrame):
         except Exception:
             pass
 
+    def _settings_group(self) -> str:
+        return f"projection_dashboard/{self.objectName()}/column_widths"
+
+    def _apply_saved_widths(self) -> None:
+        if self._widths_applied:
+            return
+        self._widths_applied = True
+        try:
+            widths = QSettings().value(self._settings_group(), [])
+            if isinstance(widths, str):
+                widths = [part for part in widths.split(",") if part]
+            if not isinstance(widths, list):
+                return
+            for index, width in enumerate(widths):
+                if index >= self.table.columnCount() - 1:
+                    break
+                size = int(width)
+                if size > 0:
+                    self.table.setColumnWidth(index, size)
+        except Exception:
+            pass
+
+    def _on_section_resized(self, _logical_index: int, _old_size: int, _new_size: int) -> None:
+        try:
+            widths = [
+                self.table.columnWidth(index)
+                for index in range(self.table.columnCount() - 1)
+            ]
+            QSettings().setValue(self._settings_group(), widths)
+        except Exception:
+            pass
+
     def _recolor_all(self) -> None:
         styles = team_status_colors()
         fg_default = get_palette()["fg"]

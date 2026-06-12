@@ -1,6 +1,6 @@
 # Incident Management Assistant
 
-Incident Management Assistant ("SARApp") is a desktop-first toolkit for emergency operations centers. The application combines a PySide6/Qt Quick user interface with an offline-friendly SQLite data layer so that planning, logistics, communications and public information teams can coordinate even when connectivity is limited.
+Incident Management Assistant ("SARApp") is a desktop-first toolkit for emergency operations centers. The application combines a PySide6 widget-based interface with an offline-friendly SQLite data layer so that planning, logistics, communications and public information teams can coordinate even when connectivity is limited.
 
 ## Key capabilities
 
@@ -17,12 +17,11 @@ Incident Management Assistant ("SARApp") is a desktop-first toolkit for emergenc
 | Path | Purpose |
 | --- | --- |
 | `main.py` | Application entry point, menu wiring and dock manager bootstrap. |
-| `main.qml` | Legacy Qt Quick prototype window kept for design reference. |
 | `modules/` | Feature modules covering ICS sections (operations, logistics, communications, public info, safety, medical, etc.). |
-| `notifications/` | Toast, banner and scheduled alert services plus QML panels. |
+| `notifications/` | Toast, banner and scheduled alert services. |
 | `profiles/` | Deployable configuration profiles with manifests, templates and assets. |
 | `data/` | SQLite master/incident databases, templates, catalog exports and sample content. |
-| `settings/` | QML settings panels and persisted docking perspectives (`ads_perspectives.ini`). |
+| `settings/` | Persisted settings and docking perspectives (`ads_perspectives.ini`). |
 | `tests/` | Pytest suite for repositories, APIs, state helpers and accessibility checks. |
 | `scripts/` | Utility scripts for inspecting/seedings databases and debugging audits. |
 
@@ -87,6 +86,6 @@ Targeted tests include check-in workflows, catalog repositories, AppState signal
 
 - **Module READMEs.** Many feature areas include their own README (e.g., `modules/logistics/checkin/README.md`, `modules/public_info/README.md`) that describe domain-specific workflows and APIs.
 - **Design documents.** The `Design Documents/` directory contains the original scoping decks, wireframes and data dictionaries that informed the module layout.
-- **Notifications UI.** QML panels in `notifications/qml` surface toast history, rules management and scheduler controls powered by the notifier service.
+- **Notifications UI.** Notification services expose toast history, rules management and scheduler controls for the widget-based desktop app.
 
 Contributions are welcome—please open an issue describing proposed changes so the project maintainers can align implementation details with the broader incident management roadmap.
