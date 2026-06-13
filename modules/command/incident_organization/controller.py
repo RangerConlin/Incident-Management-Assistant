@@ -15,7 +15,7 @@ from .models import (
     PositionAssignment,
     PositionStatusSummary,
 )
-from .repository import IncidentOrganizationRepository
+from .repository import ApiIncidentOrganizationRepository, IncidentOrganizationRepository
 
 
 DEFAULT_SPAN_OF_CONTROL_LIMIT = 7
@@ -27,7 +27,7 @@ class IncidentOrganizationController:
 
     def __init__(self, incident_id: str):
         self.incident_id = str(incident_id)
-        self.repo = IncidentOrganizationRepository(self.incident_id)
+        self.repo = ApiIncidentOrganizationRepository(self.incident_id)
         self.personnel_repo = PersonnelPoolRepository()
 
     # ------------------------------------------------------------------

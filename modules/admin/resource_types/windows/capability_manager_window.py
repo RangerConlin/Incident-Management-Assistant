@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..data.resource_type_io import export_capabilities_csv, import_capabilities_csv
-from ..data.resource_type_repository import ResourceTypeRepository
+from ..data.resource_type_repository import ApiResourceTypeRepository, ResourceTypeRepository
 from ..models.resource_type_models import ResourceCapability
 
 
@@ -91,7 +91,7 @@ class CapabilityManagerWindow(QDialog):
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.repository = repository or ResourceTypeRepository()
+        self.repository = repository or ApiResourceTypeRepository()
         self.setWindowTitle("Capability Manager")
         self.resize(760, 480)
 

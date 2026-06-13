@@ -299,6 +299,10 @@ class MainWindow(QMainWindow):
         self.active_incident_label = QLabel()
         self.update_active_incident_label()
 
+        # Connection status line — sits below the incident label in Mission Status dock
+        self.connection_status_label = QLabel()
+        self._wire_connection_status_label()
+
         # Title includes active incident (if any)
         active_number = AppState.get_active_incident()
         user_id = AppState.get_active_user_id()
@@ -2929,6 +2933,7 @@ class MainWindow(QMainWindow):
         status_layout = QVBoxLayout(status_container)
         status_layout.setContentsMargins(8, 8, 8, 8)
         status_layout.addWidget(self.active_incident_label)
+        status_layout.addWidget(self.connection_status_label)
         # Make Mission Status the central area so other docks can dock around the window
         status_dock = CDockWidget(self.dock_manager, "Mission Status")
         status_dock.setWidget(status_container)
@@ -3441,6 +3446,43 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    def _wire_connection_status_label(self) -> None:
+        """Register as a ConnectionManager listener and set the initial label text."""
+        try:
+            app = QApplication.instance()
+            manager = app.property("sarapp_connection_manager") if app else None
+            if manager is not None:
+                manager.add_listener(self._on_connection_snapshot)
+                self._on_connection_snapshot(manager.snapshot)
+            else:
+                self.connection_status_label.setText("Connection: —")
+        except Exception:
+            self.connection_status_label.setText("Connection: —")
+
+    def _on_connection_snapshot(self, snapshot) -> None:
+        """Update the connection status label from a ConnectionSnapshot (any thread)."""
+        try:
+            from core.networking.server_info import ConnectionState
+            _STATE_LABELS = {
+                ConnectionState.DISCONNECTED: "Disconnected",
+                ConnectionState.DISCOVERING: "Discovering…",
+                ConnectionState.CONNECTING: "Connecting…",
+                ConnectionState.CONNECTED_LAN: "Connected (LAN)",
+                ConnectionState.CONNECTED_CLOUD: "Connected (Cloud)",
+                ConnectionState.OFFLINE: "Offline Mode",
+            }
+            state_text = _STATE_LABELS.get(snapshot.state, snapshot.state.value.replace("_", " ").title())
+            server = snapshot.server
+            if server and snapshot.state in {ConnectionState.CONNECTED_LAN, ConnectionState.CONNECTED_CLOUD}:
+                detail = f" — {server.server_name} ({server.host}:{server.port})"
+            else:
+                detail = f" — {snapshot.message}" if snapshot.message else ""
+            text = f"Connection: {state_text}{detail}"
+            # Qt widgets must be updated on the main thread.
+            QTimer.singleShot(0, lambda: self.connection_status_label.setText(text))
+        except Exception:
+            pass
+
     def _init_notifications(self) -> None:
         self._toast_widget = None
 
@@ -3750,8 +3792,6 @@ if __name__ == "__main__":
     _early_settings = SettingsManager()
 
     if DEBUG_BYPASS_LOGIN:
-        # Insert your session management or state setup here
-        # For example:
         from utils import state
         AppState.set_active_incident(DEBUG_INCIDENT_ID)
         AppState.set_active_user_id(DEBUG_USER_ID)
@@ -3775,7 +3815,27 @@ if __name__ == "__main__":
     # Connectivity starts before the main workspace so clients automatically
     # prefer a LAN incident server, fall back to cloud when configured, and only
     # prompt for Offline Mode after both network options fail.
-    _connection_manager = _initialize_connectivity(app)
+    # Skipped in debug bypass mode — always offline during dev testing.
+    _connection_manager = None if DEBUG_BYPASS_LOGIN else _initialize_connectivity(app)
+
+    # Wire api_client to connection state so all modules talk to the right server.
+    from utils.api_client import api_client as _api_client
+    if DEBUG_BYPASS_LOGIN:
+        # Debug mode always runs offline against the built-in local server.
+        from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
+        _api_client.configure(f"http://localhost:{_DEFAULT_SERVER_PORT}")
+    elif _connection_manager is not None:
+        from core.networking import ConnectionState as _ConnectionState
+        from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
+
+        def _on_connection_changed(snapshot) -> None:
+            if snapshot.state in {_ConnectionState.CONNECTED_LAN, _ConnectionState.CONNECTED_CLOUD}:
+                _api_client.configure(snapshot.server.base_url)
+            elif snapshot.state == _ConnectionState.OFFLINE:
+                _api_client.configure(f"http://localhost:{_DEFAULT_SERVER_PORT}")
+
+        _connection_manager.add_listener(_on_connection_changed)
+        _on_connection_changed(_connection_manager.snapshot)
 
     # Initialize theme manager/bridge at app level as well
     try:

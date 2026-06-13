@@ -1,6 +1,9 @@
 @echo off
 setlocal
 
+rem Always run from the lan_server directory so PyInstaller finds all modules.
+cd /d "%~dp0"
+
 set APP_NAME=SARAppServerConsole
 set SPEC_FILE=packaging\SARAppServerConsole.spec
 set EXE_PATH=dist\%APP_NAME%\%APP_NAME%.exe
@@ -24,7 +27,7 @@ if exist "build\%APP_NAME%" rmdir /s /q "build\%APP_NAME%"
 if exist "dist\%APP_NAME%" rmdir /s /q "dist\%APP_NAME%"
 
 echo Running PyInstaller...
-pyinstaller --noconfirm --clean "%SPEC_FILE%"
+python -m PyInstaller --noconfirm --clean "%SPEC_FILE%"
 if errorlevel 1 goto :fail
 
 if not exist "%EXE_PATH%" (

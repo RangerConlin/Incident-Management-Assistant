@@ -28,12 +28,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from modules._infra.repository import with_incident_session
 from modules.command.models.objectives import (
+    ApiObjectiveRepository,
     PRIORITY_VALUES,
     STATUS_VALUES,
     ObjectiveDetail,
-    ObjectiveRepository,
     ObjectiveStrategyView,
 )
 from utils import incident_context
@@ -47,7 +46,7 @@ class ObjectiveDetailDialog(QDialog):
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setModal(False)
         self.setWindowTitle("Objective Detail")
-        self._objective_id: Optional[int] = None
+        self._objective_id: Optional[str] = None
         self._detail: Optional[ObjectiveDetail] = None
         self._on_saved = on_saved
 
@@ -69,7 +68,7 @@ class ObjectiveDetailDialog(QDialog):
         self.adjustSize()
 
     # ------------------------------------------------------------------
-    def load_objective(self, objective_id: int) -> None:
+    def load_objective(self, objective_id: str) -> None:
         self._objective_id = objective_id
         self._refresh()
 
@@ -205,10 +204,9 @@ class ObjectiveDetailDialog(QDialog):
         if not incident_id or self._objective_id is None:
             return
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                detail = repository.get_objective_detail(self._objective_id)
-                history = repository.list_history(self._objective_id)
+            repository = ApiObjectiveRepository(str(incident_id))
+            detail = repository.get_objective_detail(self._objective_id)
+            history = repository.list_history(self._objective_id)
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Objective Detail", f"Failed to load objective:\n{exc}")
             return
@@ -280,12 +278,11 @@ class ObjectiveDetailDialog(QDialog):
             "narrative": self._narrative_edit.toPlainText().strip() or None,
         }
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                if self._objective_id is None:
-                    detail = repository.create_objective(payload)
-                else:
-                    detail = repository.update_objective(self._objective_id, payload)
+            repository = ApiObjectiveRepository(str(incident_id))
+            if self._objective_id is None:
+                detail = repository.create_objective(payload)
+            else:
+                detail = repository.update_objective(self._objective_id, payload)
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Save", f"Failed to save objective:\n{exc}")
             return
@@ -341,9 +338,7 @@ class ObjectiveDetailDialog(QDialog):
         if not incident_id:
             return
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                repository.add_strategy(self._objective_id, {"text": text.strip()})
+            ApiObjectiveRepository(str(incident_id)).add_strategy(self._objective_id, {"text": text.strip()})
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Strategy", f"Failed to add strategy:\n{exc}")
             return
@@ -362,9 +357,7 @@ class ObjectiveDetailDialog(QDialog):
         if not incident_id:
             return
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                repository.update_strategy(self._objective_id, current, {"text": text.strip()})
+            ApiObjectiveRepository(str(incident_id)).update_strategy(self._objective_id, current, {"text": text.strip()})
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Strategy", f"Failed to update strategy:\n{exc}")
             return
@@ -384,22 +377,21 @@ class ObjectiveDetailDialog(QDialog):
         ) != QMessageBox.Yes:
             return
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                repository.delete_strategy(self._objective_id, current)
+            ApiObjectiveRepository(str(incident_id)).delete_strategy(self._objective_id, current)
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Strategy", f"Failed to delete strategy:\n{exc}")
             return
         self._refresh()
 
-    def _current_strategy_id(self) -> Optional[int]:
+    def _current_strategy_id(self) -> Optional[str]:
         row = self._strategies_table.currentRow()
         if row < 0:
             return None
         item = self._strategies_table.item(row, 0)
         if not item:
             return None
-        return int(item.data(Qt.UserRole))
+        data = item.data(Qt.UserRole)
+        return str(data) if data is not None else None
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         super().closeEvent(event)

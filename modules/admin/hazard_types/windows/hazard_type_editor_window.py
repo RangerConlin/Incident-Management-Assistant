@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..data.hazard_type_repository import HazardTypeRepository
+from ..data.hazard_type_repository import ApiHazardTypeRepository, HazardTypeRepository
 from ..models.hazard_type_models import (
     HAZARD_CATEGORIES,
     HAZARD_LIKELIHOODS,

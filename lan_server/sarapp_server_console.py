@@ -6,7 +6,7 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from server.server_console.console_window import ServerConsoleWindow
+from server_console.console_window import ServerConsoleWindow
 
 
 def main() -> int:

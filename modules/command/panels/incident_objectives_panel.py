@@ -28,10 +28,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from modules._infra.repository import with_incident_session
 from modules.command.models.objectives import (
+    ApiObjectiveRepository,
     ObjectiveFilters,
-    ObjectiveRepository,
     ObjectiveSummary,
 )
 from modules.command.widgets.objective_detail_dialog import ObjectiveDetailDialog
@@ -340,9 +339,7 @@ class IncidentObjectivesPanel(QWidget):
             self._model.set_objectives([])
             return
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                objectives = repository.list_objectives(ObjectiveFilters())
+            objectives = ApiObjectiveRepository(str(incident_id)).list_objectives(ObjectiveFilters())
         except Exception as exc:  # pragma: no cover - UI fallback
             QMessageBox.critical(self, "Incident Objectives", f"Failed to load objectives:\n{exc}")
             objectives = []
@@ -384,9 +381,7 @@ class IncidentObjectivesPanel(QWidget):
             QMessageBox.warning(self, "Export", "Select an incident to export ICS-202 data.")
             return
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                payload = repository.export_ics202()
+            payload = ApiObjectiveRepository(str(incident_id)).export_ics202()
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Export", f"Failed to build ICS-202 export:\n{exc}")
             return
@@ -453,9 +448,7 @@ class IncidentObjectivesPanel(QWidget):
             return
         next_status = target or ("active" if objective.status != "active" else "completed")
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                repository.set_status(objective.id, next_status)
+            ApiObjectiveRepository(str(incident_id)).set_status(objective.id, next_status)
         except Exception as exc:  # pragma: no cover
             QMessageBox.critical(self, "Quick Status", f"Failed to update status:\n{exc}")
             return
@@ -468,13 +461,11 @@ class IncidentObjectivesPanel(QWidget):
             "Objective duplication is not yet available.",
         )
 
-    def _persist_reorder(self, ordered_ids: List[int]) -> None:
+    def _persist_reorder(self, ordered_ids: List[str]) -> None:
         incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             return
         try:
-            with with_incident_session(str(incident_id)) as session:
-                repository = ObjectiveRepository(session, str(incident_id))
-                repository.reorder_objectives(ordered_ids)
+            ApiObjectiveRepository(str(incident_id)).reorder_objectives(ordered_ids)
         except Exception as exc:  # pragma: no cover
             QMessageBox.warning(self, "Reorder", f"Failed to persist order:\n{exc}")

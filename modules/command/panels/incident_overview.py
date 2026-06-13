@@ -10,7 +10,6 @@ and training flag.  Read-only by default; click Edit to modify.
 
 from typing import Any, Optional
 import logging
-import sqlite3
 
 from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
@@ -34,7 +33,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QDateTime
 
 from utils.state import AppState
-from utils import incident_storage
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,12 +48,13 @@ _STATUS_COLORS = {
 
 def _get_incident_types() -> list[str]:
     try:
+        import sqlite3
         from utils.db import get_master_conn
         conn = get_master_conn()
     except Exception:
         try:
+            import sqlite3
             from utils import incident_storage as _is
-            import pathlib
             db_path = _is.data_root() / "master.db"
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
@@ -72,77 +71,21 @@ def _get_incident_types() -> list[str]:
 
 def _load_incident(incident_number: str) -> Optional[dict]:
     try:
-        from utils.db import get_master_conn
-        conn = get_master_conn()
+        from utils.api_client import api_client
+        return api_client.get(f"/api/incidents/{incident_number}/profile")
     except Exception:
-        try:
-            from utils import incident_storage as _is
-            import pathlib
-            db_path = _is.data_root() / "master.db"
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-        except Exception:
-            return None
-    try:
-        row = conn.execute(
-            "SELECT id, name, number, type, status, description, "
-            "start_time, end_time, icp_location, is_training "
-            "FROM incidents WHERE number=?",
-            (incident_number,),
-        ).fetchone()
-        if row:
-            return dict(row)
-        # Fallback: most recent active
-        row = conn.execute(
-            "SELECT id, name, number, type, status, description, "
-            "start_time, end_time, icp_location, is_training "
-            "FROM incidents WHERE status='Active' ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-        return dict(row) if row else None
-    except Exception:
-        _LOGGER.exception("Failed to load incident record")
+        _LOGGER.exception("Failed to load incident profile via API")
         return None
-    finally:
-        conn.close()
 
 
-def _save_incident(incident_id: int, data: dict) -> bool:
+def _save_incident(incident_id: Any, data: dict) -> bool:
     try:
-        from utils.db import get_master_conn
-        conn = get_master_conn()
-    except Exception:
-        try:
-            from utils import incident_storage as _is
-            db_path = _is.data_root() / "master.db"
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-        except Exception:
-            return False
-    try:
-        conn.execute(
-            "UPDATE incidents SET name=?, number=?, type=?, status=?, "
-            "description=?, start_time=?, end_time=?, icp_location=?, is_training=? "
-            "WHERE id=?",
-            (
-                data["name"],
-                data["number"],
-                data["type"],
-                data["status"],
-                data["description"],
-                data["start_time"],
-                data["end_time"],
-                data["icp_location"],
-                1 if data["is_training"] else 0,
-                incident_id,
-            ),
-        )
-        conn.commit()
+        from utils.api_client import api_client
+        api_client.patch(f"/api/incidents/{incident_id}/profile", json=data)
         return True
     except Exception:
-        _LOGGER.exception("Failed to save incident record")
+        _LOGGER.exception("Failed to save incident profile via API")
         return False
-    finally:
-        conn.close()
 
 
 def _parse_dt(value: Optional[str]) -> QDateTime:

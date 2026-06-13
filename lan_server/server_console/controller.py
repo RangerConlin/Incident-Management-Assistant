@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from server.server_manager import SARAppServerManager
+from server_manager import SARAppServerManager
 
 from .settings import ServerConsoleSettings
 

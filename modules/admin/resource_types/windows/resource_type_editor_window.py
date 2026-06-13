@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..data.resource_type_repository import ResourceTypeRepository
+from ..data.resource_type_repository import ApiResourceTypeRepository, ResourceTypeRepository
 from ..models.resource_type_models import (
     FemaNimsMapping,
     RESOURCE_CATEGORIES,
