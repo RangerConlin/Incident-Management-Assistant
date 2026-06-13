@@ -603,7 +603,7 @@ class HazardTypeRepository:
                          WHERE hazard_type_id = ? AND resource_type_id = ?),
                         NULL
                     ),
-                    ?, ?, ?, 
+                    ?, ?, ?,
                     COALESCE(
                         (SELECT created_at FROM hazard_type_resource_defaults
                          WHERE hazard_type_id = ? AND resource_type_id = ?),
