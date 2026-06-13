@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import sys
+
 import pytest
 
-from server.server_console.settings import ServerConsoleSettings, ServerConsoleSettingsStore, validate_port
+from server.server_console.settings import (
+    ServerConsoleSettings,
+    ServerConsoleSettingsStore,
+    _default_config_path,
+    validate_port,
+)
 
 
 def test_server_console_settings_load_defaults_when_no_config_exists(tmp_path) -> None:
@@ -31,6 +38,14 @@ def test_server_console_settings_save_and_reload(tmp_path) -> None:
     loaded = store.load()
 
     assert loaded == expected
+
+
+def test_server_console_frozen_default_settings_live_next_to_exe(monkeypatch, tmp_path) -> None:
+    exe_path = tmp_path / "SARAppServerConsole.exe"
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(exe_path))
+
+    assert _default_config_path() == tmp_path / "settings" / "server_console.json"
 
 
 @pytest.mark.parametrize("value", [0, 65536, "not-a-port"])

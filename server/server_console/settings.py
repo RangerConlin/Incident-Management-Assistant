@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,15 @@ from typing import Any
 from core.networking.server_info import DEFAULT_DISCOVERY_PORT, DEFAULT_SERVER_PORT
 
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "settings" / "server_console.json"
+def _default_config_path() -> Path:
+    """Return a writable settings path for source and PyInstaller launches."""
+
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "settings" / "server_console.json"
+    return Path(__file__).resolve().parents[2] / "settings" / "server_console.json"
+
+
+DEFAULT_CONFIG_PATH = _default_config_path()
 
 
 @dataclass(slots=True)
