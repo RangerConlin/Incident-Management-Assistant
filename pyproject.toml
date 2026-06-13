@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "PySide QtQuick Project"
 dependencies = [
     "PySide6",

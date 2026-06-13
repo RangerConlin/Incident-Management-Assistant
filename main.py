@@ -3676,6 +3676,48 @@ class MetricWidget(QWidget):
             self.active_incident_label.setText(text)
 
 
+def _initialize_connectivity(app: QApplication) -> object | None:
+    """Run SARApp's launch connectivity workflow before showing the main window.
+
+    Connectivity is intentionally centralized in ``ConnectionManager`` so UI,
+    incident modules, and future sync code can read one state object without
+    knowing whether the app reached a LAN server, cloud endpoint, or Offline Mode.
+    """
+    if str(os.getenv("SARAPP_CONNECTIVITY_DISABLED", "")).strip().lower() in {"1", "true", "yes", "on"}:
+        logger.info("SARApp connectivity startup workflow disabled by environment")
+        return None
+
+    try:
+        from core.networking import ConnectionManager, ConnectionState
+    except Exception as exc:
+        logger.warning("Connectivity framework unavailable: %s", exc)
+        return None
+
+    cloud_url = os.getenv("SARAPP_CLOUD_URL") or None
+    manager = ConnectionManager(cloud_url=cloud_url)
+    # Keep launch delay short: one broadcast interval is enough to catch an
+    # already-running server, and manual connection remains a fallback later.
+    snapshot = manager.startup_connect(discovery_timeout_seconds=2.5)
+    if snapshot.state == ConnectionState.DISCONNECTED:
+        result = QMessageBox.question(
+            None,
+            "SARApp Connectivity",
+            "No local SARApp Server was discovered and cloud connection is unavailable.\n\n"
+            "Enter Offline Mode for single-computer operation?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        if result == QMessageBox.Yes:
+            manager.enter_offline_mode()
+        else:
+            # Offline Mode is valid, but the user can still cancel launch if they
+            # prefer to start a LAN server first instead of working locally.
+            sys.exit(0)
+    app.setProperty("sarapp_connection_manager", manager)
+    logger.info("SARApp connectivity startup state: %s", manager.snapshot.state.value)
+    return manager
+
+
 # ===== Part 6: Application Entrypoint =======================================
 if __name__ == "__main__":
     import argparse
@@ -3729,6 +3771,11 @@ if __name__ == "__main__":
     # Build main window after session is established
     settings_manager = _early_settings
     settings_bridge = SettingsBridge(settings_manager)
+
+    # Connectivity starts before the main workspace so clients automatically
+    # prefer a LAN incident server, fall back to cloud when configured, and only
+    # prompt for Offline Mode after both network options fail.
+    _connection_manager = _initialize_connectivity(app)
 
     # Initialize theme manager/bridge at app level as well
     try:
