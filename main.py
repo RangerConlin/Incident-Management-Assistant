@@ -67,14 +67,6 @@ from notifications.services import get_notifier
 from ui.settings import SettingsWindow
 from utils.profile_manager import profile_manager, ProfileMeta
 
-from core.networking import (
-    ConnectionManager,
-    DEFAULT_SERVER_PORT,
-    LocalServerController,
-    LocalServerError,
-    PortUnavailableError,
-)
-
 try:
     from modules.ui_customization import (
         UICustomizationRepository,
@@ -223,140 +215,6 @@ def _classify_incident_category(incident: Optional[dict]) -> Optional[str]:
         return "sar"
     return "disaster"
 
-
-
-def _show_connection_fallback_dialog(parent=None) -> str:
-    """Ask the user how SARApp should continue when no server is reachable."""
-    dialog = QMessageBox(parent)
-    dialog.setIcon(QMessageBox.Warning)
-    dialog.setWindowTitle("SARApp Connection")
-    dialog.setText(
-        "No SARApp server was found on the local network, and the cloud server "
-        "is unavailable.\n\nWhat would you like to do?"
-    )
-    start_button = dialog.addButton("Start Local Incident Server", QMessageBox.AcceptRole)
-    offline_button = dialog.addButton("Work Offline", QMessageBox.DestructiveRole)
-    retry_button = dialog.addButton("Retry Connection", QMessageBox.ActionRole)
-    manual_button = dialog.addButton("Manual Server Address", QMessageBox.ActionRole)
-    exit_button = dialog.addButton("Exit", QMessageBox.RejectRole)
-    dialog.setDefaultButton(start_button)
-    dialog.exec()
-    clicked = dialog.clickedButton()
-    if clicked == start_button:
-        return "start_local"
-    if clicked == offline_button:
-        return "offline"
-    if clicked == retry_button:
-        return "retry"
-    if clicked == manual_button:
-        return "manual"
-    if clicked == exit_button:
-        return "exit"
-    return "exit"
-
-
-def _parse_manual_server_address(raw: str) -> tuple[str, int]:
-    """Parse a fallback dialog address as host, host:port, or URL."""
-    from urllib.parse import urlparse
-
-    value = raw.strip()
-    if not value:
-        raise ValueError("Enter a server host or address.")
-    parsed = urlparse(value if "://" in value else f"//{value}")
-    host = parsed.hostname or value
-    port = parsed.port or DEFAULT_SERVER_PORT
-    if not host.strip():
-        raise ValueError("Enter a server host or address.")
-    return host.strip(), int(port)
-
-
-def _prompt_manual_connection(connection_manager: ConnectionManager) -> bool:
-    """Prompt for a server address and connect through ConnectionManager."""
-    text, accepted = QInputDialog.getText(
-        None,
-        "Manual Server Address",
-        f"Enter SARApp server host or host:port (default port {DEFAULT_SERVER_PORT}):",
-    )
-    if not accepted:
-        return False
-    try:
-        host, port = _parse_manual_server_address(text)
-    except ValueError as exc:
-        QMessageBox.warning(None, "Invalid Server Address", str(exc))
-        return False
-    if connection_manager.connect_manual(host, port):
-        return True
-    QMessageBox.warning(
-        None,
-        "Connection Failed",
-        f"SARApp could not verify a compatible server at {host}:{port}.",
-    )
-    return False
-
-
-def _start_local_server_from_fallback(
-    connection_manager: ConnectionManager,
-    local_server_controller: LocalServerController,
-) -> bool:
-    """Start or reuse the local server, then connect the desktop client to it."""
-    try:
-        local_server_controller.start()
-    except PortUnavailableError as exc:
-        QMessageBox.critical(None, "Local Server Port Unavailable", str(exc))
-        return False
-    except LocalServerError as exc:
-        QMessageBox.critical(None, "Local Server Failed", str(exc))
-        return False
-
-    if not local_server_controller.wait_until_ready(timeout_seconds=10.0):
-        QMessageBox.critical(
-            None,
-            "Local Server Not Ready",
-            "SARApp started the local server process, but /health did not become "
-            "available before the startup timeout.",
-        )
-        return False
-
-    if connection_manager.connect_manual(local_server_controller.host, local_server_controller.port):
-        return True
-    QMessageBox.critical(
-        None,
-        "Local Connection Failed",
-        "The local server is running, but SARApp could not connect to it.",
-    )
-    return False
-
-
-def _resolve_startup_connection(
-    connection_manager: ConnectionManager,
-    local_server_controller: LocalServerController,
-) -> bool:
-    """Run startup discovery/cloud checks and show the expanded fallback loop."""
-    if connection_manager.connect_startup():
-        return True
-
-    while True:
-        choice = _show_connection_fallback_dialog()
-        if choice == "start_local":
-            if _start_local_server_from_fallback(connection_manager, local_server_controller):
-                return True
-        elif choice == "offline":
-            connection_manager.work_offline()
-            return True
-        elif choice == "retry":
-            # Retry deliberately reuses ConnectionManager so LAN/cloud/offline state stays centralized.
-            if connection_manager.connect_startup():
-                return True
-            QMessageBox.information(
-                None,
-                "No Server Found",
-                "SARApp still could not find a LAN server or reach the configured cloud server.",
-            )
-        elif choice == "manual":
-            if _prompt_manual_connection(connection_manager):
-                return True
-        else:
-            return False
 
 # ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
 class MainWindow(QMainWindow):
@@ -3907,22 +3765,6 @@ if __name__ == "__main__":
         _theme_manager = None  # type: ignore[assignment]
         _theme_bridge = None   # type: ignore[assignment]
 
-    # Resolve SARApp server connectivity before opening the main window. The local
-    # controller only owns processes it starts here, so it will not kill an
-    # already-running server during app shutdown.
-    connection_manager = ConnectionManager()
-    local_server_controller = LocalServerController()
-    if not _resolve_startup_connection(connection_manager, local_server_controller):
-        sys.exit(0)
-
-    def _stop_owned_local_server():
-        try:
-            local_server_controller.stop()
-        except Exception:
-            logger.exception("Failed to stop owned local SARApp server")
-
-    app.aboutToQuit.connect(_stop_owned_local_server)
-
     # Seed the certification catalog mirror on app start (idempotent)
     try:
         from modules.personnel.services.cert_seeder import sync as _cert_sync
@@ -3932,8 +3774,6 @@ if __name__ == "__main__":
         print(f"[catalog] Seeder failed: {e}")
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
-    win.connection_manager = connection_manager
-    win.local_server_controller = local_server_controller
     # Share the app-level theme objects with the window (used to inject into legacy UI contexts)
     try:
         if _theme_manager:
