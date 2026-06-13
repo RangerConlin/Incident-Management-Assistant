@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "PySide QtQuick Project"
 dependencies = [
     "PySide6",
@@ -16,7 +16,3 @@ dependencies = [
 
 
 [tool.pyside6-project]
-
-
-
-
