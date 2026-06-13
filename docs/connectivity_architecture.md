@@ -43,6 +43,14 @@ A server can be started with:
 python sarapp_server.py --host 0.0.0.0 --port 8765 --name "Incident Command Server"
 ```
 
+Dedicated server machines can also launch the PySide6 Qt Widgets Server Console:
+
+```bash
+python sarapp_server_console.py
+```
+
+The Server Console is a control panel for starting, stopping, monitoring, and configuring the same `SARAppServerManager` runtime. It is not a second desktop client and does not load incident workspace modules.
+
 ## Heartbeat Mechanism
 
 The same UDP announcement acts as a heartbeat. Clients record the latest heartbeat in `HeartbeatTracker` and derive connection health from heartbeat freshness:

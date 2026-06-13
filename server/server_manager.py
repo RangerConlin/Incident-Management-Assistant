@@ -17,7 +17,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from core.networking.discovery import DiscoveryBroadcaster
-from core.networking.server_info import DEFAULT_SERVER_PORT, SARAPP_VERSION, ServerInfo, ServerStatus, utc_now
+from core.networking.server_info import (
+    DEFAULT_DISCOVERY_PORT,
+    DEFAULT_SERVER_PORT,
+    SARAPP_VERSION,
+    ServerInfo,
+    ServerStatus,
+    utc_now,
+)
 
 
 def _default_server_id() -> str:
@@ -37,9 +44,12 @@ class SARAppServerManager:
         server_id: str | None = None,
         server_name: str | None = None,
         version: str = SARAPP_VERSION,
+        discovery_enabled: bool = True,
+        discovery_port: int = DEFAULT_DISCOVERY_PORT,
     ) -> None:
         self.host = host
         self.port = port
+        self.discovery_enabled = discovery_enabled
         self.server_info = ServerInfo(
             server_id=server_id or _default_server_id(),
             server_name=server_name or f"SARApp Server on {socket.gethostname()}",
@@ -50,7 +60,7 @@ class SARAppServerManager:
         )
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
-        self._broadcaster = DiscoveryBroadcaster(self.server_info)
+        self._broadcaster = DiscoveryBroadcaster(self.server_info, port=discovery_port)
 
     def start(self) -> None:
         """Start HTTP health endpoints and LAN heartbeat advertisements."""
@@ -70,13 +80,19 @@ class SARAppServerManager:
         self.server_info.last_heartbeat = utc_now()
         self._thread = threading.Thread(target=self._httpd.serve_forever, name="sarapp-server", daemon=True)
         self._thread.start()
-        self._broadcaster.server_info = self.server_info
-        self._broadcaster.start()
+        # Discovery is optional for the Server Console settings, but remains
+        # enabled by default so the existing command-line entry point continues
+        # to advertise exactly as before.
+        if self.discovery_enabled:
+            self._broadcaster.server_info = self.server_info
+            self._broadcaster.start()
 
     def stop(self) -> None:
         """Stop discovery first, then the health server."""
 
         self.server_info.status = ServerStatus.STOPPING
+        # Stop UDP discovery before HTTP shutdown so clients stop seeing this
+        # server as soon as the process begins leaving service.
         self._broadcaster.stop()
         if self._httpd is not None:
             self._httpd.shutdown()
