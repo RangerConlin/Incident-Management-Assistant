@@ -1,14 +1,12 @@
-"""Business rules for CAP ORM processing."""
+"""Business rules for CAP ORM processing — delegates to MongoDB API."""
 
 from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Iterable, Sequence
 
-from utils.audit import now_utc_iso
-
+from utils.api_client import api_client
 from .models import ORMForm, ORMHazard
-from . import repository
 
 RISK_LEVELS: Sequence[str] = ("L", "M", "H", "EH")
 RISK_ORDER = {level: index for index, level in enumerate(RISK_LEVELS)}
@@ -53,135 +51,123 @@ def risk_from(severity: str, likelihood: str) -> str:
         raise ValueError(f"Invalid severity/likelihood combination: {key}")
 
 
+def _form_from_doc(doc: dict) -> ORMForm:
+    return ORMForm(
+        id=int(doc.get("id", 0)),
+        incident_id=doc.get("incident_id", 0),
+        op_period=int(doc.get("op_period", 0)),
+        activity=doc.get("activity"),
+        prepared_by_id=doc.get("prepared_by_id"),
+        date_iso=doc.get("date_iso"),
+        highest_residual_risk=doc.get("highest_residual_risk", "L"),
+        status=doc.get("status", "draft"),
+        approval_blocked=bool(doc.get("approval_blocked", False)),
+    )
+
+
+def _hazard_from_doc(doc: dict) -> ORMHazard:
+    return ORMHazard(
+        id=int(doc.get("id", 0)),
+        form_id=int(doc.get("form_id", 0)),
+        sub_activity=doc.get("sub_activity", ""),
+        hazard_outcome=doc.get("hazard_outcome", ""),
+        initial_risk=doc.get("initial_risk", "L"),
+        control_text=doc.get("control_text", ""),
+        residual_risk=doc.get("residual_risk", "L"),
+        implement_how=doc.get("implement_how"),
+        implement_who=doc.get("implement_who"),
+    )
+
+
 def ensure_form(incident_id: int, op_period: int) -> ORMForm:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            form = repository.insert_form(conn, incident_id, op_period)
-        return form
+    doc = api_client.get(
+        f"/api/incidents/{incident_id}/safety/orm/form",
+        params={"op": op_period},
+    )
+    return _form_from_doc(doc)
 
 
 def get_form(incident_id: int, op_period: int) -> ORMForm:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            raise KeyError("Form not found")
-        return form
+    return ensure_form(incident_id, op_period)
 
 
 def update_form_header(incident_id: int, op_period: int, payload: dict) -> ORMForm:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            form = repository.insert_form(conn, incident_id, op_period)
-        updates = {}
-        for key in ("activity", "prepared_by_id", "date_iso"):
-            if key in payload:
-                updates[key] = payload[key]
-        return repository.update_form_fields(conn, form.id, updates)
+    body = {"op_period": op_period}
+    for key in ("activity", "prepared_by_id", "date_iso"):
+        if key in payload:
+            body[key] = payload[key]
+    doc = api_client.put(
+        f"/api/incidents/{incident_id}/safety/orm/form",
+        json=body,
+    )
+    return _form_from_doc(doc)
 
 
 def list_hazards(incident_id: int, op_period: int) -> list[ORMHazard]:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            form = repository.insert_form(conn, incident_id, op_period)
-        return repository.list_hazards(conn, form.id)
+    docs = api_client.get(
+        f"/api/incidents/{incident_id}/safety/orm/hazards",
+        params={"op": op_period},
+    ) or []
+    return [_hazard_from_doc(d) for d in docs]
 
 
 def compute_highest_residual(hazards: Iterable[ORMHazard]) -> str:
     highest_index = 0
     for hazard in hazards:
-        level = hazard.residual_risk
-        idx = RISK_ORDER.get(level, 0)
+        idx = RISK_ORDER.get(hazard.residual_risk, 0)
         if idx > highest_index:
             highest_index = idx
     return RISK_LEVELS[highest_index]
 
 
-def _recompute_state(conn, form: ORMForm) -> ORMForm:
-    hazards = repository.list_hazards(conn, form.id)
-    highest = compute_highest_residual(hazards)
-    blocked = highest in {"H", "EH"}
-    if blocked:
-        status = "pending_mitigation"
-    else:
-        status = form.status
-        if status == "pending_mitigation":
-            status = "draft"
-    return repository.update_form_state(
-        conn,
-        form_id=form.id,
-        highest_residual_risk=highest,
-        status=status,
-        approval_blocked=blocked,
-    )
-
-
 def add_hazard(incident_id: int, op_period: int, payload: dict) -> ORMHazard:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            form = repository.insert_form(conn, incident_id, op_period)
-        payload = dict(payload)
-        payload["incident_id"] = incident_id
-        hazard = repository.insert_hazard(conn, form.id, payload)
-        _recompute_state(conn, form)
-        return hazard
+    body = {
+        "op_period": op_period,
+        "sub_activity": payload.get("sub_activity", ""),
+        "hazard_outcome": payload.get("hazard_outcome", ""),
+        "initial_risk": payload.get("initial_risk", "L"),
+        "control_text": payload.get("control_text", ""),
+        "residual_risk": payload.get("residual_risk", "L"),
+        "implement_how": payload.get("implement_how"),
+        "implement_who": payload.get("implement_who"),
+    }
+    doc = api_client.post(
+        f"/api/incidents/{incident_id}/safety/orm/hazards",
+        json=body,
+    )
+    return _hazard_from_doc(doc)
 
 
 def edit_hazard(incident_id: int, op_period: int, hazard_id: int, payload: dict) -> ORMHazard:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            raise KeyError("form not found")
-        updated = repository.update_hazard(conn, hazard_id, payload)
-        form = repository.fetch_form_by_id(conn, form.id)
-        assert form is not None
-        _recompute_state(conn, form)
-        return updated
+    body = {k: v for k, v in payload.items() if k not in ("id", "form_id", "incident_id")}
+    doc = api_client.put(
+        f"/api/incidents/{incident_id}/safety/orm/hazards/{hazard_id}",
+        json=body,
+        params={"op": op_period},
+    )
+    return _hazard_from_doc(doc)
 
 
 def remove_hazard(incident_id: int, op_period: int, hazard_id: int) -> None:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            raise KeyError("form not found")
-        repository.delete_hazard(conn, hazard_id)
-        form = repository.fetch_form_by_id(conn, form.id)
-        assert form is not None
-        _recompute_state(conn, form)
+    api_client.delete(
+        f"/api/incidents/{incident_id}/safety/orm/hazards/{hazard_id}",
+        params={"op": op_period},
+    )
 
 
 def attempt_approval(incident_id: int, op_period: int) -> ORMForm:
-    with repository.incident_connection(incident_id) as conn:
-        form = repository.fetch_form(conn, incident_id, op_period)
-        if form is None:
-            form = repository.insert_form(conn, incident_id, op_period)
-        form = _recompute_state(conn, form)
-        if form.approval_blocked:
-            repository.log_audit(
-                conn,
-                incident_id=incident_id,
-                entity="orm_form",
-                entity_id=form.id,
-                action="approval_attempt_blocked",
-                field="highest_residual_risk",
-                old_value=form.highest_residual_risk,
-                new_value=form.highest_residual_risk,
-            )
-            raise ApprovalBlockedError(form.highest_residual_risk)
-        updates = {"status": "approved"}
-        if not form.date_iso:
-            updates["date_iso"] = now_utc_iso()
-        updated = repository.update_form_fields(conn, form.id, updates)
-        return repository.update_form_state(
-            conn,
-            form_id=updated.id,
-            highest_residual_risk=updated.highest_residual_risk,
-            status=updated.status,
-            approval_blocked=False,
+    try:
+        doc = api_client.post(
+            f"/api/incidents/{incident_id}/safety/orm/approve",
+            json={"op_period": op_period},
         )
+        return _form_from_doc(doc)
+    except Exception as e:
+        msg = str(e)
+        if "approval_blocked" in msg or "422" in msg:
+            form = ensure_form(incident_id, op_period)
+            raise ApprovalBlockedError(form.highest_residual_risk)
+        raise
 
 
 def clone_hazards(
@@ -191,26 +177,17 @@ def clone_hazards(
     *,
     clear_residual: bool = True,
 ) -> list[ORMHazard]:
-    with repository.incident_connection(incident_id) as conn:
-        src_form = repository.fetch_form(conn, incident_id, from_op)
-        if src_form is None:
-            return []
-        dst_form = repository.fetch_form(conn, incident_id, to_op)
-        if dst_form is None:
-            dst_form = repository.insert_form(conn, incident_id, to_op)
-        hazards = repository.list_hazards(conn, src_form.id)
-        cloned: list[ORMHazard] = []
-        for hazard in hazards:
-            payload = asdict(hazard)
-            payload.pop("id")
-            payload.pop("form_id")
-            if clear_residual:
-                payload["residual_risk"] = payload["initial_risk"]
-            repository_payload = dict(payload)
-            repository_payload["incident_id"] = incident_id
-            cloned.append(repository.insert_hazard(conn, dst_form.id, repository_payload))
-        _recompute_state(conn, dst_form)
-        return cloned
+    src_hazards = list_hazards(incident_id, from_op)
+    cloned: list[ORMHazard] = []
+    for hazard in src_hazards:
+        payload = asdict(hazard)
+        if clear_residual:
+            payload["residual_risk"] = payload["initial_risk"]
+        try:
+            cloned.append(add_hazard(incident_id, to_op, payload))
+        except Exception:
+            pass
+    return cloned
 
 
 def hazard_counts(hazards: Sequence[ORMHazard]) -> dict[str, int]:
