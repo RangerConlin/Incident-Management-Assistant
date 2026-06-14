@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from modules.forms.repositories import IncidentFormsRepository
+from modules.forms.repositories.incident_forms_repository import ApiIncidentFormsRepository
 
 
 class AuditService:
-    def __init__(self, incident_repository: IncidentFormsRepository) -> None:
+    def __init__(self, incident_repository: ApiIncidentFormsRepository) -> None:
         self.incident_repository = incident_repository
 
     def list_instance_audit(self, instance_id: int) -> list[dict]:

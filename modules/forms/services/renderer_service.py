@@ -5,17 +5,18 @@ from pathlib import Path
 from typing import Any
 
 from modules.forms.renderers import HtmlRenderer, PdfRenderer, SummaryRenderer
-from modules.forms.repositories import IncidentFormsRepository, MasterFormsRepository
+from modules.forms.repositories.incident_forms_repository import ApiIncidentFormsRepository
+from modules.forms.repositories.master_forms_repository import ApiMasterFormsRepository
 
 
 class RendererService:
-    def __init__(self, master_repository: MasterFormsRepository | None = None, output_dir: Path | str = Path("data") / "forms" / "exports", incident_base_dir=None) -> None:
-        self.master_repository = master_repository or MasterFormsRepository()
+    def __init__(self, master_repository=None, output_dir: Path | str = Path("data") / "forms" / "exports", incident_base_dir=None) -> None:
+        self.master_repository = master_repository or ApiMasterFormsRepository()
         self.output_dir = Path(output_dir)
         self.incident_base_dir = incident_base_dir
 
-    def _load(self, incident_id: str, instance_id: int) -> tuple[IncidentFormsRepository, dict[str, Any], dict[str, Any]]:
-        repo = IncidentFormsRepository(incident_id, base_dir=self.incident_base_dir) if self.incident_base_dir is not None else IncidentFormsRepository(incident_id)
+    def _load(self, incident_id: str, instance_id: int) -> tuple[ApiIncidentFormsRepository, dict[str, Any], dict[str, Any]]:
+        repo = ApiIncidentFormsRepository(incident_id)
         instance = repo.get_instance(instance_id)
         if not instance:
             raise ValueError("instance not found")
