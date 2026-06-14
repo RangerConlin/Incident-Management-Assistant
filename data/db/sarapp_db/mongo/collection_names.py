@@ -20,6 +20,7 @@ class SystemCollections:
     SYNC_STATE = "sync_state"
     ACTIVE_INCIDENT = "active_incident"
     AUDIT_GLOBAL = "audit_global"
+    INCIDENTS = "incidents"
 
 
 class MasterCollections:

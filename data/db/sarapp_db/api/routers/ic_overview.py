@@ -1,15 +1,16 @@
 """FastAPI router — IC overview endpoints for the active incident."""
 from __future__ import annotations
 
+import uuid
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from sarapp_db.mongo.database_manager import get_incident_db
-from sarapp_db.mongo.collection_names import IncidentCollections
+from sarapp_db.mongo.database_manager import get_incident_db, get_system_db
+from sarapp_db.mongo.collection_names import IncidentCollections, SystemCollections
 
 router = APIRouter()
 
@@ -17,6 +18,80 @@ router = APIRouter()
 def _db(incident_id: str):
     return get_incident_db(incident_id)
 
+
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+# ---------------------------------------------------------------------------
+# Incident registry — list and create
+# ---------------------------------------------------------------------------
+
+@router.get("")
+def list_incidents(status: str = "") -> list[dict[str, Any]]:
+    col = get_system_db()[SystemCollections.INCIDENTS]
+    query: dict[str, Any] = {}
+    if status:
+        query["status"] = {"$regex": status, "$options": "i"}
+    docs = list(col.find(query).sort("created_at", -1))
+    result = []
+    for doc in docs:
+        doc.pop("_id", None)
+        result.append(doc)
+    return result
+
+
+class CreateIncidentRequest(BaseModel):
+    number: str
+    name: str
+    type: str = ""
+    description: str = ""
+    icp_location: str = ""
+    is_training: bool = False
+
+
+@router.post("", status_code=201)
+def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
+    sys_col = get_system_db()[SystemCollections.INCIDENTS]
+    if sys_col.find_one({"number": body.number}):
+        raise HTTPException(409, f"Incident with number '{body.number}' already exists")
+    incident_id = str(uuid.uuid4())
+    now = _utcnow()
+    registry_doc = {
+        "incident_id": incident_id,
+        "number": body.number,
+        "name": body.name,
+        "type": body.type,
+        "description": body.description,
+        "icp_location": body.icp_location,
+        "is_training": body.is_training,
+        "status": "active",
+        "created_at": now,
+        "updated_at": now,
+    }
+    sys_col.insert_one(registry_doc)
+    profile_doc = {
+        "incident_id": incident_id,
+        "incident_number": body.number,
+        "name": body.name,
+        "incident_type": body.type,
+        "description": body.description,
+        "icp_address": body.icp_location,
+        "is_training": body.is_training,
+        "status": "active",
+        "start_time": now,
+        "created_at": now,
+        "updated_at": now,
+    }
+    get_incident_db(incident_id)[IncidentCollections.INCIDENT_PROFILE].insert_one(profile_doc)
+    registry_doc.pop("_id", None)
+    registry_doc["id"] = incident_id
+    return registry_doc
+
+
+# ---------------------------------------------------------------------------
+# Incident profile
+# ---------------------------------------------------------------------------
 
 def _parse_dt(value: Any) -> Optional[datetime]:
     if value is None:
@@ -29,10 +104,6 @@ def _parse_dt(value: Any) -> Optional[datetime]:
     except Exception:
         return None
 
-
-# ---------------------------------------------------------------------------
-# Incident profile
-# ---------------------------------------------------------------------------
 
 @router.get("/{incident_id}/profile")
 def get_profile(incident_id: str) -> dict[str, Any]:

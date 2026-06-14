@@ -413,7 +413,6 @@ class AddTeamMemberDialog(QDialog):
             pass
 
 from utils.styles import team_status_colors, TEAM_TYPE_COLORS, subscribe_theme
-from models.database import get_incident_by_number
 from utils import incident_context
 from utils.state import AppState
 from modules.operations.teams.data.team import Team
