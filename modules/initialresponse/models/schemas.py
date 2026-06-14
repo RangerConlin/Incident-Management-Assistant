@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Any, Optional
+from pydantic import Field
 
 
 class HastyTaskCreate(BaseModel):
@@ -38,3 +39,35 @@ class ReflexActionRead(BaseModel):
     created_at: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InitialOverviewRead(BaseModel):
+    incident_id: str
+    incident_mode: str = "Missing Person"
+    behavior_category: str = ""
+    source_info: dict[str, Any] = Field(default_factory=dict)
+    subject_info: dict[str, Any] = Field(default_factory=dict)
+    aircraft_info: dict[str, Any] = Field(default_factory=dict)
+    timeline_info: dict[str, Any] = Field(default_factory=dict)
+    primary_anchor: dict[str, Any] = Field(default_factory=dict)
+    related_locations: list[dict[str, Any]] = Field(default_factory=list)
+    clues_environment: dict[str, Any] = Field(default_factory=dict)
+    operations_summary: dict[str, Any] = Field(default_factory=dict)
+    narrative: str = ""
+    updated_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InitialOverviewUpdate(BaseModel):
+    incident_mode: str = "Missing Person"
+    behavior_category: str = ""
+    source_info: dict[str, Any] = Field(default_factory=dict)
+    subject_info: dict[str, Any] = Field(default_factory=dict)
+    aircraft_info: dict[str, Any] = Field(default_factory=dict)
+    timeline_info: dict[str, Any] = Field(default_factory=dict)
+    primary_anchor: dict[str, Any] = Field(default_factory=dict)
+    related_locations: list[dict[str, Any]] = Field(default_factory=list)
+    clues_environment: dict[str, Any] = Field(default_factory=dict)
+    operations_summary: dict[str, Any] = Field(default_factory=dict)
+    narrative: str = ""

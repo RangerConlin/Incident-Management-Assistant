@@ -49,7 +49,6 @@ DEBUG_ROLE = "Incident Commander"
 
 
 from utils.state import AppState
-from models.database import get_incident_by_number, get_all_incident_types
 from bridge.settings_bridge import SettingsBridge
 from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
@@ -140,43 +139,22 @@ class _WindowSizeTitleFilter(QObject):
         return False
 
 
+def __get_incident_by_number(number: str | None) -> dict | None:
+    """Look up a single incident by its number via the API. Returns None on miss."""
+    if not number:
+        return None
+    try:
+        from utils.api_client import api_client
+        results = api_client.get("/api/incidents", params={"number": str(number)}) or []
+        return results[0] if results else None
+    except Exception:
+        return None
+
+
 @lru_cache(maxsize=1)
 def _incident_type_sets() -> tuple[set[str], set[str]]:
-    """Return sets of planned and SAR incident type names (lowercased)."""
-    planned: set[str] = set()
-    sar: set[str] = set()
-    try:
-        rows = get_all_incident_types()
-    except Exception:
-        rows = []
-    for row in rows:
-        try:
-            _, name, *_rest = row
-        except Exception:
-            continue
-        if not name:
-            continue
-        lowered = str(name).strip().lower()
-        if not lowered:
-            continue
-        is_planned = False
-        try:
-            if len(row) > 3:
-                raw_flag = row[3]
-                if isinstance(raw_flag, str):
-                    is_planned = bool(int(raw_flag))
-                else:
-                    is_planned = bool(raw_flag)
-        except Exception:
-            try:
-                is_planned = bool(row[3])
-            except Exception:
-                is_planned = False
-        if is_planned:
-            planned.add(lowered)
-        if any(token in lowered for token in ("missing", "sar", "search", "elt")):
-            sar.add(lowered)
-    return planned, sar
+    """Return empty sets — classification falls through to keyword detection."""
+    return set(), set()
 
 
 def _classify_incident_category(incident: Optional[dict]) -> Optional[str]:
@@ -311,7 +289,7 @@ class MainWindow(QMainWindow):
         user_role = AppState.get_active_user_role()
         suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
         if active_number:
-            incident = get_incident_by_number(active_number)
+            incident = _get_incident_by_number(active_number)
             if incident:
                 title = f"SARApp - {incident['number']} | {incident['name']}{suffix}"
             else:
@@ -854,8 +832,7 @@ class MainWindow(QMainWindow):
 
         init_menu = m_tool.addMenu("Initial Response")
         self._add_action(init_menu, "Overview", None, "toolkit.initial.overview")
-        self._add_action(init_menu, "Hasty Tools", None, "toolkit.initial.hasty")
-        self._add_action(init_menu, "Reflex Taskings", None, "toolkit.initial.reflex")
+        self._add_action(init_menu, "Early Tasking", None, "toolkit.initial.hasty")
 
         # ----- Reference Library & Forms -----
         m_reference = self.menuBar().addMenu("Reference Library")
@@ -979,11 +956,11 @@ class MainWindow(QMainWindow):
             if incident is None:
                 incident_id = getattr(self, "current_incident_id", None)
                 if incident_id:
-                    incident = get_incident_by_number(incident_id)
+                    incident = _get_incident_by_number(incident_id)
                 else:
                     incident_number = AppState.get_active_incident()
                     incident = (
-                        get_incident_by_number(incident_number)
+                        _get_incident_by_number(incident_number)
                         if incident_number
                         else None
                     )
@@ -1003,7 +980,6 @@ class MainWindow(QMainWindow):
             "planned.tasking": True,
             "planned.health_sanitation": True,
             "toolkit.initial.hasty": category in {"sar", "disaster"},
-            "toolkit.initial.reflex": category in {"sar", "disaster"},
         }
         if category is None:
             for key in enabled:
@@ -1152,7 +1128,6 @@ class MainWindow(QMainWindow):
             "planned.health_sanitation": self.open_planned_health_sanitation,
             "toolkit.initial.overview": self.open_toolkit_initial_overview,
             "toolkit.initial.hasty": self.open_toolkit_initial_hasty,
-            "toolkit.initial.reflex": self.open_toolkit_initial_reflex,
 
             # ----- Reference Library & Forms -----
             "library": self.open_reference_library,
@@ -1181,30 +1156,9 @@ class MainWindow(QMainWindow):
         dlg.created.connect(self._on_incident_created)
         dlg.show()
 
-    def _on_incident_created(self, meta, db_path: str) -> None:
+    def _on_incident_created(self, meta, incident_id: str) -> None:
         """Handle mission creation from the New Incident dialog."""
-        # 1) Register in master.db so it shows up in selectors
-        try:
-            from models.database import insert_new_incident, get_incident_by_number
-            # Avoid duplicate records if one already exists
-            if not get_incident_by_number(meta.number):
-                insert_new_incident(
-                    number=meta.number,
-                    name=meta.name,
-                    type=meta.type,
-                    description=meta.description,
-                    icp_location=meta.location,
-                    is_training=meta.is_training,
-                )
-        except Exception as e:
-            logger.exception("Failed to register incident in master.db: %s", e)
-            QMessageBox.warning(
-                self,
-                "Database Error",
-                f"Mission database created but failed to register in master.db:\n{e}",
-            )
-
-        # 2) Set as the active incident immediately
+        # Set as the active incident immediately
         try:
             from utils import incident_context
             self.current_incident_id = meta.number
@@ -1214,11 +1168,10 @@ class MainWindow(QMainWindow):
         except Exception:
             logger.exception("Failed to set active incident context")
 
-        # 3) Notify user (after attempting registration + activation)
         QMessageBox.information(
             self,
             "Mission Created",
-            f"Mission '{meta.name}' created and activated.\nDB path: {db_path}",
+            f"Mission '{meta.name}' created and activated.",
         )
 
         # 4) If the incident selection window is open, refresh it and select
@@ -2670,19 +2623,13 @@ class MainWindow(QMainWindow):
         from modules.initialresponse import initial
         incident_id = getattr(self, "current_incident_id", None)
         panel = initial.get_hasty_panel(incident_id)
-        self._open_standalone_widget(panel, title="Hasty Tools", preferred_size=(1000, 800))
+        self._open_standalone_widget(panel, title="Early Tasking", preferred_size=(1000, 800))
 
     def open_toolkit_initial_overview(self) -> None:
         from modules.initialresponse import initial
         incident_id = getattr(self, "current_incident_id", None)
         panel = initial.get_initialresponse_panel(incident_id)
         self._open_standalone_widget(panel, title="Initial Response Overview", preferred_size=(1000, 800))
-
-    def open_toolkit_initial_reflex(self) -> None:
-        from modules.initialresponse import initial
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = initial.get_reflex_panel(incident_id)
-        self._open_standalone_widget(panel, title="Reflex Taskings", preferred_size=(1000, 800))
 
 # --- 4.14 Reference Library (Forms) -----------------------------------
     def open_reference_library(self) -> None:
@@ -3316,7 +3263,7 @@ class MainWindow(QMainWindow):
         user_id = AppState.get_active_user_id()
         user_role = AppState.get_active_user_role()
         if incident_number:
-            incident = get_incident_by_number(incident_number)
+            incident = _get_incident_by_number(incident_number)
             if incident:
                 suffix = ""
                 if user_id or user_role:
@@ -3343,10 +3290,10 @@ class MainWindow(QMainWindow):
         # Determine the incident number via current_incident_id or AppState
         incident_id = getattr(self, "current_incident_id", None)
         if incident_id:
-            incident = get_incident_by_number(incident_id)
+            incident = _get_incident_by_number(incident_id)
         else:
             incident_number = AppState.get_active_incident()
-            incident = get_incident_by_number(incident_number) if incident_number else None
+            incident = _get_incident_by_number(incident_number) if incident_number else None
 
         # Construct the display text based on the result
         user_id = AppState.get_active_user_id()
@@ -3603,7 +3550,7 @@ class MetricWidget(QWidget):
         user_id = AppState.get_active_user_id()
         user_role = AppState.get_active_user_role()
         if incident_number:
-            incident = get_incident_by_number(incident_number)
+            incident = _get_incident_by_number(incident_number)
             if incident:
                 suffix = ""
                 if user_id or user_role:
@@ -3635,10 +3582,10 @@ class MetricWidget(QWidget):
         # Determine the incident number via current_incident_id or AppState
         incident_id = getattr(self, "current_incident_id", None)
         if incident_id:
-            incident = get_incident_by_number(incident_id)
+            incident = _get_incident_by_number(incident_id)
         else:
             incident_number = AppState.get_active_incident()
-            incident = get_incident_by_number(incident_number) if incident_number else None
+            incident = _get_incident_by_number(incident_number) if incident_number else None
 
         # Construct the display text based on the result
         user_id = AppState.get_active_user_id()

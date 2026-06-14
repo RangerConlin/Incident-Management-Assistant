@@ -36,7 +36,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
 )
 
-from utils.db import get_incident_conn
 from utils.state import AppState
 
 from modules.logistics.checkin.services import (
@@ -744,44 +743,36 @@ class CheckInWindow(QWidget):
         return rows
 
     def _source_detail_map(self, items: list[ResourceItem]) -> dict[tuple[str, str], dict[str, Any]]:
-        """Read incident tables once and map source rows for type-aware columns."""
+        """Read incident checked-in resources and map them for type-aware columns."""
+
+        from utils import incident_context
+        from utils.api_client import api_client
+
+        incident_id = incident_context.get_active_incident_id()
+        map_out: dict[tuple[str, str], dict[str, Any]] = {}
+        if not incident_id:
+            return map_out
 
         by_entity: dict[str, set[str]] = {}
         for item in items:
             if item.source_entity_type and item.source_record_id:
                 by_entity.setdefault(item.source_entity_type, set()).add(item.source_record_id)
 
-        table_for = {
-            "personnel": "personnel",
-            "vehicle": "vehicles",
-            "equipment": "equipment",
-            "aircraft": "aircraft",
-        }
-        map_out: dict[tuple[str, str], dict[str, Any]] = {}
-        with get_incident_conn() as conn:
-            for entity, ids in by_entity.items():
-                table = table_for.get(entity)
-                if not table or not ids:
-                    continue
-                try:
-                    info = conn.execute(f"PRAGMA table_info({table})").fetchall()
-                except Exception:
-                    continue
-                if not info:
-                    continue
-                id_col = "id"
-                cols = {row[1] for row in info}
-                if id_col not in cols:
-                    if "tail_number" in cols:
-                        id_col = "tail_number"
-                    else:
-                        id_col = next(iter(cols))
-                placeholders = ",".join("?" for _ in ids)
-                query = f"SELECT * FROM {table} WHERE CAST({id_col} AS TEXT) IN ({placeholders})"
-                rows = conn.execute(query, tuple(ids)).fetchall()
-                for row in rows:
-                    rec = dict(row)
-                    map_out[(entity, str(rec.get(id_col) or ""))] = rec
+        for entity, ids in by_entity.items():
+            if not ids:
+                continue
+            try:
+                docs = api_client.get(
+                    f"/api/incidents/{incident_id}/resources",
+                    params={"resource_type": entity},
+                ) or []
+            except Exception:
+                continue
+            for doc in docs:
+                rid = str(doc.get("resource_id") or doc.get("id") or doc.get("int_id") or "")
+                if rid in ids:
+                    map_out[(entity, rid)] = doc
+
         return map_out
 
     def quick_check_in(self, entity_key: str, typed_value: str, status_patch: dict[str, Any]) -> str:

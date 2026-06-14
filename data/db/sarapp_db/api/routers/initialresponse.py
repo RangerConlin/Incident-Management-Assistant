@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
@@ -45,6 +45,60 @@ def _ensure_int_ids(col) -> None:
 def _next_int_id(col) -> int:
     top = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
     return (top["int_id"] + 1) if top else 1
+
+
+def _default_overview(incident_id: str) -> Dict[str, Any]:
+    return {
+        "incident_id": incident_id,
+        "incident_mode": "Missing Person",
+        "behavior_category": "",
+        "source_info": {},
+        "subject_info": {},
+        "aircraft_info": {},
+        "timeline_info": {},
+        "primary_anchor": {},
+        "related_locations": [],
+        "clues_environment": {},
+        "operations_summary": {},
+        "narrative": "",
+        "updated_at": "",
+    }
+
+
+class InitialOverviewPayload(BaseModel):
+    incident_mode: str = "Missing Person"
+    behavior_category: str = ""
+    source_info: Dict[str, Any] = Field(default_factory=dict)
+    subject_info: Dict[str, Any] = Field(default_factory=dict)
+    aircraft_info: Dict[str, Any] = Field(default_factory=dict)
+    timeline_info: Dict[str, Any] = Field(default_factory=dict)
+    primary_anchor: Dict[str, Any] = Field(default_factory=dict)
+    related_locations: List[Dict[str, Any]] = Field(default_factory=list)
+    clues_environment: Dict[str, Any] = Field(default_factory=dict)
+    operations_summary: Dict[str, Any] = Field(default_factory=dict)
+    narrative: str = ""
+
+
+@router.get("/incidents/{incident_id}/initialresponse/overview")
+def get_initial_overview(incident_id: str):
+    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_RESPONSE_OVERVIEW]
+    doc = col.find_one({"incident_id": incident_id}, {"_id": 0})
+    if not doc:
+        return _default_overview(incident_id)
+    payload = _default_overview(incident_id)
+    payload.update(doc)
+    return payload
+
+
+@router.put("/incidents/{incident_id}/initialresponse/overview")
+def save_initial_overview(incident_id: str, data: InitialOverviewPayload):
+    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_RESPONSE_OVERVIEW]
+    payload = data.model_dump()
+    payload["incident_id"] = incident_id
+    payload["updated_at"] = _utcnow()
+    col.update_one({"incident_id": incident_id}, {"$set": payload}, upsert=True)
+    saved = col.find_one({"incident_id": incident_id}, {"_id": 0})
+    return saved or _default_overview(incident_id)
 
 
 # ---------------------------------------------------------------------------

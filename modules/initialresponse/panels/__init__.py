@@ -1,4 +1,4 @@
 from .hasty_tools_panel import HastyToolsPanel
-from .reflex_tasking_panel import ReflexTaskingPanel
+from .overview_panel import InitialOverviewPanel
 
-__all__ = ["HastyToolsPanel", "ReflexTaskingPanel"]
+__all__ = ["InitialOverviewPanel", "HastyToolsPanel"]

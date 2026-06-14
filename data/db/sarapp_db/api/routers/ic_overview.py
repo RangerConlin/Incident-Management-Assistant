@@ -28,11 +28,13 @@ def _utcnow() -> str:
 # ---------------------------------------------------------------------------
 
 @router.get("")
-def list_incidents(status: str = "") -> list[dict[str, Any]]:
+def list_incidents(status: str = "", number: str = "") -> list[dict[str, Any]]:
     col = get_system_db()[SystemCollections.INCIDENTS]
     query: dict[str, Any] = {}
     if status:
         query["status"] = {"$regex": status, "$options": "i"}
+    if number:
+        query["number"] = number
     docs = list(col.find(query).sort("created_at", -1))
     result = []
     for doc in docs:

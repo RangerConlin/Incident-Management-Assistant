@@ -941,28 +941,85 @@ class ApiObjectiveRepository:
         return {"operational_period": {}, "objectives": objectives}
 
     # ------------------------------------------------------------------
-    # Strategies (not yet migrated — stubbed until strategies module cutover)
+    # Strategies
 
     def list_strategies(self, objective_id: str) -> list:
-        return []
+        from utils.api_client import api_client
+        try:
+            docs = api_client.get(
+                f"/api/objectives/{objective_id}/strategies",
+                params={"incident_id": self.incident_id},
+            ) or []
+            return docs
+        except Exception:
+            return []
 
     def add_strategy(self, objective_id: str, payload: dict, user_id: str | None = None):
-        raise NotImplementedError("Strategies not yet migrated to MongoDB")
+        from utils.api_client import api_client
+        body = {
+            "objective_id": objective_id,
+            "title": payload.get("title", "").strip(),
+            "description": payload.get("description"),
+            "status": payload.get("status", "planned"),
+            "created_by": user_id,
+        }
+        try:
+            return api_client.post(
+                f"/api/objectives/{objective_id}/strategies",
+                json=body,
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            return {}
 
     def update_strategy(self, objective_id: str, strategy_id, payload: dict, user_id: str | None = None):
-        raise NotImplementedError("Strategies not yet migrated to MongoDB")
+        from utils.api_client import api_client
+        body: dict = {"updated_by": user_id}
+        for key in ("title", "description", "status"):
+            if key in payload:
+                body[key] = payload[key]
+        try:
+            api_client.patch(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}",
+                json=body,
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            pass
 
     def delete_strategy(self, objective_id: str, strategy_id, user_id: str | None = None) -> None:
-        raise NotImplementedError("Strategies not yet migrated to MongoDB")
+        from utils.api_client import api_client
+        try:
+            api_client.delete(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}",
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
-    # Task links / history (not yet migrated)
+    # Task links
 
-    def link_task(self, *args, **kwargs):
-        raise NotImplementedError("Task links not yet migrated to MongoDB")
+    def link_task(self, objective_id: str, strategy_id: str, task_id: int, user_id: str | None = None):
+        from utils.api_client import api_client
+        try:
+            return api_client.post(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}/tasks",
+                json={"task_id": task_id},
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            return {}
 
-    def unlink_task(self, *args, **kwargs):
-        raise NotImplementedError("Task links not yet migrated to MongoDB")
+    def unlink_task(self, objective_id: str, strategy_id: str, task_id: int, user_id: str | None = None):
+        from utils.api_client import api_client
+        try:
+            api_client.delete(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}/tasks/{task_id}",
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            pass
 
     def list_links_for_task(self, task_id) -> list:
         return []

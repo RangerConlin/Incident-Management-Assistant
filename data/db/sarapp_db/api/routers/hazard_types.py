@@ -198,6 +198,21 @@ def create_hazard_type(body: SaveHazardTypeRequest) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------
+# Hazards by resource type — used by HazardPrefillService
+
+@router.get("/by-resource-type/{resource_type_id}")
+def get_hazards_for_resource_type(resource_type_id: int) -> list[dict[str, Any]]:
+    """Return hazard types whose resource_defaults list includes this resource_type_id."""
+    col = _col()
+    docs = col.find({
+        "resource_defaults": {
+            "$elemMatch": {"resource_type_id": resource_type_id}
+        }
+    })
+    return [_normalize(d) for d in docs]
+
+
+# ------------------------------------------------------------------
 # Get one — defined AFTER /search to avoid path conflict
 
 @router.get("/{hazard_type_id}")

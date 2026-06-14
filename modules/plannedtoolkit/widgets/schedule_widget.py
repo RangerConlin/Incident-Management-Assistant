@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from .. import services
 from ..records import ScheduledItem, schedule_from_dict
+from utils.api_client import APIError
 
 
 class ScheduleWidget(QWidget):
@@ -66,22 +67,39 @@ class ScheduleWidget(QWidget):
     def _iid(self) -> str | None:
         return self.incident_id
 
+    def _describe_error(self, exc: Exception) -> str:
+        if isinstance(exc, APIError):
+            if exc.status_code is None:
+                return f"Schedule API unavailable: {exc}"
+            return f"Schedule API error {exc.status_code}: {exc}"
+        return str(exc)
+
     def refresh(self) -> None:
-        rows = services.list_schedule_items(self._iid())
+        try:
+            rows = services.list_schedule_items(self._iid())
+        except Exception as exc:
+            self._populate([])
+            self.setToolTip(self._describe_error(exc))
+            return
         self._populate(rows)
+        self.setToolTip("")
 
     def add_item(self) -> None:
         name = self.name_edit.text().strip()
         if not name:
             return
-        services.create_schedule_item(
-            self._iid(),
-            name=name,
-            kind=self.kind_edit.text().strip() or "Milestone",
-            starts_at=self.starts_edit.text().strip(),
-            ends_at=self.ends_edit.text().strip(),
-            notes=self.notes_edit.toPlainText().strip(),
-        )
+        try:
+            services.create_schedule_item(
+                self._iid(),
+                name=name,
+                kind=self.kind_edit.text().strip() or "Milestone",
+                starts_at=self.starts_edit.text().strip(),
+                ends_at=self.ends_edit.text().strip(),
+                notes=self.notes_edit.toPlainText().strip(),
+            )
+        except Exception as exc:
+            self.setToolTip(self._describe_error(exc))
+            return
         self.name_edit.clear()
         self.notes_edit.clear()
         self.refresh()

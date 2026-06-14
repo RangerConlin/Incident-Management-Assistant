@@ -44,11 +44,14 @@ def export_stream(incident_id: str, stream_id: str, options: ExportRequest):
 
 @router.get("/exports/{export_id}")
 def download_export(incident_id: str, export_id: str):
-    # Simple lookup and file serving
-    from modules._infra.repository import with_incident_session
-    from .models import ICS214Export
-    with with_incident_session(incident_id) as session:
-        exp = session.get(ICS214Export, export_id)
-        if not exp:
+    from utils.api_client import api_client
+    try:
+        doc = api_client.get(
+            f"/api/incidents/{incident_id}/ics214/exports/{export_id}",
+        )
+        file_path = doc.get("file_path")
+        if not file_path:
             return FileResponse("", status_code=404)
-        return FileResponse(exp.file_path)
+        return FileResponse(file_path)
+    except Exception:
+        return FileResponse("", status_code=404)

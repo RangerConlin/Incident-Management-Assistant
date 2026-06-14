@@ -40,7 +40,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from models.incidentlist import load_incidents_from_master
 
 from .. import services as ics214_services
 from ..schemas import (
@@ -1255,16 +1254,17 @@ class Ics214ActivityLogPanel(QWidget):
         options: list[dict[str, str]] = []
         self._incident_label_cache.clear()
         try:
-            records = load_incidents_from_master()
+            from utils.api_client import api_client
+            records = api_client.get("/api/incidents") or []
         except Exception as exc:
             logger.debug("Failed to load incidents: %s", exc)
             return options
         for row in records:
-            number = getattr(row, "number", None) or getattr(row, "id", None)
+            number = row.get("number")
             if not number:
                 continue
             number_str = str(number)
-            name = getattr(row, "name", "")
+            name = row.get("name", "")
             label = f"{name} ({number_str})" if name else number_str
             options.append({"id": number_str, "label": label})
             self._incident_label_cache[number_str] = label

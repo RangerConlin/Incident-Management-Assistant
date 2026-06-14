@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from utils import incident_context
 
-from .models import HastyTaskRecord, ReflexActionRecord
+from .models import HastyTaskRecord, InitialOverviewRecord, ReflexActionRecord
 
 
 def _client():
@@ -51,6 +51,37 @@ def _reflex_from_dict(d: dict) -> ReflexActionRecord:
         communications_alert_id=d.get("communications_alert_id"),
         created_at=d.get("created_at"),
     )
+
+
+def _overview_from_dict(d: dict) -> InitialOverviewRecord:
+    return InitialOverviewRecord.from_row(d)
+
+
+def get_initial_overview(incident_id: str | None = None) -> InitialOverviewRecord:
+    iid = incident_id or _require_incident_id()
+    payload = _client().get(f"{_base(iid)}/overview")
+    return _overview_from_dict(payload)
+
+
+def save_initial_overview(record: InitialOverviewRecord, incident_id: str | None = None) -> InitialOverviewRecord:
+    iid = incident_id or record.incident_id or _require_incident_id()
+    payload = _client().put(
+        f"{_base(iid)}/overview",
+        json={
+            "incident_mode": record.incident_mode,
+            "behavior_category": record.behavior_category,
+            "source_info": record.source_info or {},
+            "subject_info": record.subject_info or {},
+            "aircraft_info": record.aircraft_info or {},
+            "timeline_info": record.timeline_info or {},
+            "primary_anchor": record.primary_anchor or {},
+            "related_locations": record.related_locations or [],
+            "clues_environment": record.clues_environment or {},
+            "operations_summary": record.operations_summary or {},
+            "narrative": record.narrative or "",
+        },
+    )
+    return _overview_from_dict(payload)
 
 
 # ---------------------------------------------------------------------------

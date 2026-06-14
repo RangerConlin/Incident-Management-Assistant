@@ -195,6 +195,139 @@ def update_objective(
 
 
 # ------------------------------------------------------------------
+# Strategies
+
+def _strategies_col(incident_id: str):
+    client = get_client()
+    return client[get_incident_db_name(incident_id)][IncidentCollections.STRATEGIES]
+
+
+def _strategy_links_col(incident_id: str):
+    client = get_client()
+    return client[get_incident_db_name(incident_id)][IncidentCollections.OBJECTIVE_STRATEGIES_TASK_LINKS]
+
+
+class CreateStrategyRequest(BaseModel):
+    objective_id: str
+    title: str
+    description: str | None = None
+    status: str = "planned"
+    created_by: str | None = None
+
+
+@router.post("/{objective_id}/strategies", status_code=201)
+def add_strategy(
+    objective_id: str,
+    incident_id: str,
+    body: CreateStrategyRequest,
+) -> dict[str, Any]:
+    col = _strategies_col(incident_id)
+    now = _utcnow()
+    doc: dict[str, Any] = {
+        "_id": _new_id(),
+        "incident_id": incident_id,
+        "objective_id": objective_id,
+        "title": body.title,
+        "description": body.description,
+        "status": body.status,
+        "created_by": body.created_by,
+        "created_at": now,
+        "updated_at": now,
+    }
+    col.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+class UpdateStrategyRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: str | None = None
+    updated_by: str | None = None
+
+
+@router.patch("/{objective_id}/strategies/{strategy_id}")
+def update_strategy(
+    objective_id: str,
+    strategy_id: str,
+    incident_id: str,
+    body: UpdateStrategyRequest,
+) -> dict[str, Any]:
+    updates: dict[str, Any] = {"updated_at": _utcnow()}
+    for field in ("title", "description", "status", "updated_by"):
+        val = getattr(body, field)
+        if val is not None:
+            updates[field] = val
+    col = _strategies_col(incident_id)
+    result = col.update_one(
+        {"_id": strategy_id, "objective_id": objective_id},
+        {"$set": updates},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    doc = col.find_one({"_id": strategy_id})
+    if doc:
+        doc.pop("_id", None)
+    return doc or {}
+
+
+@router.delete("/{objective_id}/strategies/{strategy_id}", status_code=204)
+def delete_strategy(objective_id: str, strategy_id: str, incident_id: str) -> None:
+    col = _strategies_col(incident_id)
+    result = col.delete_one({"_id": strategy_id, "objective_id": objective_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    # Also delete any task links for this strategy
+    _strategy_links_col(incident_id).delete_many({"strategy_id": strategy_id})
+
+
+# ------------------------------------------------------------------
+# Task links
+
+class LinkTaskRequest(BaseModel):
+    task_id: int
+
+
+@router.post("/{objective_id}/strategies/{strategy_id}/tasks", status_code=201)
+def link_task(
+    objective_id: str,
+    strategy_id: str,
+    incident_id: str,
+    body: LinkTaskRequest,
+) -> dict[str, Any]:
+    col = _strategy_links_col(incident_id)
+    now = _utcnow()
+    doc: dict[str, Any] = {
+        "_id": _new_id(),
+        "incident_id": incident_id,
+        "objective_id": objective_id,
+        "strategy_id": strategy_id,
+        "task_id": body.task_id,
+        "created_at": now,
+    }
+    col.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@router.delete("/{objective_id}/strategies/{strategy_id}/tasks/{task_id}", status_code=204)
+def unlink_task(
+    objective_id: str,
+    strategy_id: str,
+    task_id: int,
+    incident_id: str,
+) -> None:
+    col = _strategy_links_col(incident_id)
+    result = col.delete_one({
+        "objective_id": objective_id,
+        "strategy_id": strategy_id,
+        "task_id": task_id,
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task link not found")
+
+
+# ------------------------------------------------------------------
 # Soft delete
 
 @router.delete("/{objective_id}", status_code=204)
