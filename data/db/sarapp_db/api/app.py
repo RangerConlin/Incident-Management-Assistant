@@ -122,4 +122,31 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import gis
     app.include_router(gis.router, prefix="/api", tags=["gis"])
 
+    from sarapp_db.api.routers import objective_templates
+    app.include_router(objective_templates.router, prefix="/api/master/objective-templates", tags=["planning"])
+
+    from sarapp_db.api.routers import aircraft
+    app.include_router(aircraft.router, prefix="/api/master/aircraft", tags=["logistics"])
+
+    from sarapp_db.api.routers import vehicles
+    app.include_router(vehicles.router, prefix="/api/master/vehicles", tags=["logistics"])
+
+    from sarapp_db.api.routers import personnel
+    app.include_router(personnel.router, prefix="/api/master/personnel", tags=["logistics"])
+
+    from sarapp_db.api.routers import equipment
+    app.include_router(equipment.router, prefix="/api/master/equipment", tags=["logistics"])
+
+    from sarapp_db.api.routers import checkin
+    app.include_router(checkin.router, prefix="/api/incidents/{incident_id}/checkin", tags=["logistics"])
+
+    from sarapp_db.api.routers import incident_resources
+    app.include_router(incident_resources.router, prefix="/api/incidents/{incident_id}/resources", tags=["logistics"])
+
+    from sarapp_db.api.routers import certifications
+    app.include_router(certifications.router, prefix="/api/master/certifications", tags=["personnel"])
+
+    from sarapp_db.api.routers import organizations
+    app.include_router(organizations.router, prefix="/api/master", tags=["personnel"])
+
     return app
