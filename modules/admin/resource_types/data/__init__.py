@@ -5,7 +5,7 @@ from .resource_assignment_repository import (
     ApiResourceAssignmentRepository,
     ResourceAssignmentRepository,
 )
-from .resource_type_repository import ApiResourceTypeRepository, ResourceTypeRepository
+from .resource_type_repository import ApiResourceTypeRepository
 from .resource_type_io import (
     export_capabilities_csv,
     export_resource_types_csv,
@@ -18,9 +18,7 @@ from .resource_type_io import (
 __all__ = [
     "READINESS_STATUSES",
     "ApiResourceAssignmentRepository",
-    "ResourceAssignmentRepository",
     "ApiResourceTypeRepository",
-    "ResourceTypeRepository",
     "export_capabilities_csv",
     "export_resource_types_csv",
     "import_capabilities_csv",

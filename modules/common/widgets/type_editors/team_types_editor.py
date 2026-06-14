@@ -4,7 +4,7 @@ from typing import Optional
 
 from PySide6.QtWidgets import QWidget
 
-from modules.common.models.lookup_models import ApiTeamTypesRepository, TeamTypesRepository
+from modules.common.models.lookup_models import ApiTeamTypesRepository
 
 from .base_editor import BaseTypeEditorDialog, ColumnSpec
 

@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..data.resource_type_repository import ApiResourceTypeRepository, ResourceTypeRepository
+from ..data.resource_type_repository import ApiResourceTypeRepository
 from ..models.resource_type_models import (
     FemaNimsMapping,
     RESOURCE_CATEGORIES,
@@ -46,7 +46,7 @@ class ComponentEditorDialog(QDialog):
 
     def __init__(
         self,
-        repository: ResourceTypeRepository,
+        repository: ApiResourceTypeRepository,
         parent_resource_type_id: Optional[int],
         parent: Optional[QWidget] = None,
     ) -> None:
@@ -126,7 +126,7 @@ class ResourceTypeEditorWindow(QDialog):
 
     def __init__(
         self,
-        repository: ResourceTypeRepository,
+        repository: ApiResourceTypeRepository,
         resource_type: Optional[ResourceType] = None,
         parent: Optional[QWidget] = None,
     ) -> None:

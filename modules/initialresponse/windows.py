@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
-from .panels import HastyToolsPanel, InitialOverviewPanel
+from .panels import HandoffPanel, HastyToolsPanel, HazardsPanel, InitialOverviewPanel, ResourcesPanel
 
 __all__ = ["get_hasty_panel", "get_initialresponse_panel"]
 
@@ -16,8 +16,14 @@ class InitialResponseWorkspace(QWidget):
             open_hasty=lambda: self._tabs.setCurrentIndex(1),
         )
         self._hasty = HastyToolsPanel()
-        self._tabs.addTab(self._overview, "Overview")
+        self._resources = ResourcesPanel()
+        self._hazards = HazardsPanel()
+        self._handoff = HandoffPanel()
+        self._tabs.addTab(self._overview, "Initial Information")
         self._tabs.addTab(self._hasty, "Early Tasking")
+        self._tabs.addTab(self._resources, "Resources")
+        self._tabs.addTab(self._hazards, "Hazards")
+        self._tabs.addTab(self._handoff, "Handoff")
 
         start_index = {"overview": 0, "hasty": 1, "reflex": 1}.get(start_tab, 0)
         self._tabs.setCurrentIndex(start_index)

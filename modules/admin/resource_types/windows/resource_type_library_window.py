@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..data.resource_type_io import export_resource_types_csv, import_resource_types_csv
-from ..data.resource_type_repository import ApiResourceTypeRepository, ResourceTypeRepository
+from ..data.resource_type_repository import ApiResourceTypeRepository
 from ..models.resource_type_models import RESOURCE_CATEGORIES, RESOURCE_SOURCES
 from .capability_manager_window import CapabilityManagerWindow
 from .resource_type_editor_window import ResourceTypeEditorWindow
@@ -102,7 +102,7 @@ class ResourceTypeLibraryWindow(QWidget):
 
     def __init__(
         self,
-        repository: Optional[ResourceTypeRepository] = None,
+        repository: Optional[ApiResourceTypeRepository] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent, Qt.Window)

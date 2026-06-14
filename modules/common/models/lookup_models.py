@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import csv
-import sqlite3
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Iterable, List, Optional
 
-from models.database import DB_PATH as DEFAULT_DB_PATH
 
-ISO_TIMESTR = "%Y-%m-%dT%H:%M:%S"
 
 
 def _local_timestamp() -> str:

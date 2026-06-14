@@ -15,7 +15,7 @@ from .models import (
     PositionAssignment,
     PositionStatusSummary,
 )
-from .repository import ApiIncidentOrganizationRepository, IncidentOrganizationRepository
+from .repository import ApiIncidentOrganizationRepository
 
 
 DEFAULT_SPAN_OF_CONTROL_LIMIT = 7

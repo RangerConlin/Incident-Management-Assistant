@@ -28,7 +28,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from PySide6 import QtCore, QtWidgets
 
-from modules.admin.resource_types.data import ResourceAssignmentRepository, ResourceTypeRepository
+from modules.admin.resource_types.data import ApiResourceAssignmentRepository, ApiResourceTypeRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
 # ----------------------------- Configuration ---------------------------------
@@ -93,7 +93,7 @@ class Certification:
 class MasterDAL:
     def __init__(self, path: str = MASTER_DB_PATH):
         self.path = path
-        self.resource_assignments = ResourceAssignmentRepository(master_db_path=path)
+        self.resource_assignments = ApiResourceAssignmentRepository()
         self._id_is_integer = False
         self._has_unit_column = False
         self._has_contact_column = False
@@ -744,7 +744,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
 
         add_row = QtWidgets.QHBoxLayout()
         self.resource_type_search = ResourceTypeSearchBox(
-            repository=ResourceTypeRepository(self.dal.path),
+            repository=ApiResourceTypeRepository(),
             parent=self,
         )
         self.btn_add_resource_type = QtWidgets.QPushButton("Add Resource Type")

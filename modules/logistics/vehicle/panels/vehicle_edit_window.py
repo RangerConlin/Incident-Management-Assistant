@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from modules.admin.resource_types.data import ApiResourceAssignmentRepository, ResourceAssignmentRepository, ResourceTypeRepository
+from modules.admin.resource_types.data import ApiResourceAssignmentRepository, ApiResourceTypeRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
 logger = logging.getLogger(__name__)
@@ -323,7 +323,7 @@ class VehicleEditDialog(QDialog):
         # Resource typing stays optional for backward compatibility. The smart
         # search box lets operators pick a library record when one exists.
         self.resource_type_search = ResourceTypeSearchBox(
-            repository=ResourceTypeRepository(str(self._repository._db_path) if self._repository._db_path else None),
+            repository=ApiResourceTypeRepository(),
             parent=self,
         )
         self.resource_type_search.setAccessibleName("Vehicle resource type")

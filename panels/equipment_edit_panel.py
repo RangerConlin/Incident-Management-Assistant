@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from modules.admin.resource_types.data import ResourceAssignmentRepository, ResourceTypeRepository
+from modules.admin.resource_types.data import ApiResourceTypeRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
 
@@ -61,10 +61,19 @@ def _ensure_data_dir(path: str) -> None:
         os.makedirs(d, exist_ok=True)
 
 
+_EXTRA_COLUMNS = {
+    "condition_status": "TEXT",
+    "resource_type_id": "INTEGER",
+    "parent_equipment_id": "INTEGER",
+    "kit_instance_id": "INTEGER",
+    "contents_verified": "INTEGER NOT NULL DEFAULT 0",
+    "team_id": "INTEGER",
+}
+
+
 def ensure_schema(db_path: str = DEFAULT_DB_PATH) -> None:
     """Ensure the equipment table exists with the required schema."""
     _ensure_data_dir(db_path)
-    assignment_repo = ResourceAssignmentRepository(master_db_path=db_path)
     con = sqlite3.connect(db_path)
     try:
         con.execute(
@@ -86,19 +95,10 @@ CREATE TABLE IF NOT EXISTS "{TABLE_NAME}" (
 );
 """
         )
-        assignment_repo._ensure_columns(
-            con,
-            TABLE_NAME,
-            {
-                "condition_status": "TEXT",
-                "resource_type_id": "INTEGER",
-                "parent_equipment_id": "INTEGER",
-                "kit_instance_id": "INTEGER",
-                "contents_verified": "INTEGER NOT NULL DEFAULT 0",
-                "team_id": "INTEGER",
-            },
-        )
-        assignment_repo._backfill_equipment_condition_status(con)
+        existing = {row[1] for row in con.execute(f"PRAGMA table_info({TABLE_NAME})")}
+        for col, col_def in _EXTRA_COLUMNS.items():
+            if col not in existing:
+                con.execute(f'ALTER TABLE "{TABLE_NAME}" ADD COLUMN "{col}" {col_def}')
         con.commit()
     finally:
         con.close()
@@ -138,12 +138,12 @@ class EquipmentDetailDialog(QtWidgets.QDialog):
     def __init__(
         self,
         parent: Optional[QtWidgets.QWidget] = None,
-        assignment_repo: Optional[ResourceAssignmentRepository] = None,
+        assignment_repo=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Equipment Details")
         self.setMinimumWidth(620)
-        self._assignment_repo = assignment_repo or ResourceAssignmentRepository()
+        self._assignment_repo = assignment_repo
         self._resource_type_id: Optional[int] = None
 
         layout = QtWidgets.QVBoxLayout(self)
@@ -158,7 +158,7 @@ class EquipmentDetailDialog(QtWidgets.QDialog):
         self.e_condition = QtWidgets.QComboBox(); self.e_condition.setEditable(False); self.e_condition.addItems(CONDITION_OPTIONS)
         self.e_condition_status = QtWidgets.QComboBox(); self.e_condition_status.setEditable(False); self.e_condition_status.addItems(CONDITION_OPTIONS)
         self.e_resource_type = ResourceTypeSearchBox(
-            repository=ResourceTypeRepository(self._assignment_repo.master_db_path),
+            repository=ApiResourceTypeRepository(),
             parent=self,
         )
         self.e_parent_equipment_id = QtWidgets.QLineEdit()
@@ -295,7 +295,7 @@ class EquipmentEditPanel(QtWidgets.QWidget):
     def __init__(self, db_path: str = DEFAULT_DB_PATH, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
         self._db_path = db_path
-        self._assignment_repo = ResourceAssignmentRepository(master_db_path=db_path)
+        self._assignment_repo = None
         ensure_schema(self._db_path)
 
         self.setWindowTitle("Equipment")

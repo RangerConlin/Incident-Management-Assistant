@@ -7,7 +7,6 @@ headless or dependency-limited environments without loading PySide6.
 from .data import ResourceTypeRepository
 
 __all__ = [
-    "ResourceTypeRepository",
     "ResourceTypeSearchBox",
     "CapabilityManagerWindow",
     "ResourceTypeEditorWindow",

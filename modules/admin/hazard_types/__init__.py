@@ -7,7 +7,6 @@ headless or dependency-limited environments without loading PySide6.
 from .data import HazardTypeRepository
 
 __all__ = [
-    "HazardTypeRepository",
     "HazardTypeSearchBox",
     "HazardTypeEditorWindow",
     "HazardTypeLibraryWindow",

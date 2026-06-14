@@ -54,7 +54,6 @@ from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
 from bridge.incident_bridge import IncidentBridge
 from models.sqlite_table_model import SqliteTableModel
-import sqlite3
 # 'os' imported earlier for env setup
 from utils.theme_manager import ThemeManager
 from bridge.theme_bridge import ThemeBridge
@@ -831,7 +830,7 @@ class MainWindow(QMainWindow):
         self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
 
         init_menu = m_tool.addMenu("Initial Response")
-        self._add_action(init_menu, "Overview", None, "toolkit.initial.overview")
+        self._add_action(init_menu, "Initial Information", None, "toolkit.initial.overview")
         self._add_action(init_menu, "Early Tasking", None, "toolkit.initial.hasty")
 
         # ----- Reference Library & Forms -----
@@ -1616,7 +1615,6 @@ class MainWindow(QMainWindow):
         from utils.app_signals import app_signals
         from utils.state import AppState
         from utils import incident_context
-        import sqlite3
         from datetime import datetime, timedelta, timezone
 
         # Button/signal wiring
@@ -1707,99 +1705,65 @@ class MainWindow(QMainWindow):
             now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
             w.set_context(str(op), now_text, str(role))
 
-            # Open DB
-            try:
-                db_path = incident_context.get_active_incident_db_path()
-                con = sqlite3.connect(str(db_path))
-                con.row_factory = sqlite3.Row
-            except Exception as exc:
-                print(f"[warn] ops dashboard DB open failed: {exc}")
-                return
+            from utils.api_client import api_client
+            iid = str(active_id)
 
-            # KPIs
-            k_active = k_due = k_assigned = k_available = k_blocking = k_new_debriefs = 0
+            # KPIs via tasks API
+            k_active = k_due = k_assigned = k_available = k_blocking = 0
             try:
-                rows = con.execute("SELECT id, status, due_time FROM tasks").fetchall()
-                def _norm(s):
-                    key = (s or '').strip().lower()
-                    return {
-                        'completed': 'complete',
-                        'complete': 'complete',
-                        'cancelled': 'cancelled',
-                        'draft': 'created',
-                        'created': 'created',
-                        'planned': 'planned',
-                        'assigned': 'assigned',
-                        'in progress': 'in progress',
-                    }.get(key, key)
-                open_rows = [r for r in rows if _norm(r['status']) not in {'complete', 'cancelled'}]
-                k_active = len(open_rows)
-                now = datetime.now(timezone.utc)
-                in2h = now + timedelta(hours=2)
+                all_tasks = api_client.get(f"/api/incidents/{iid}/operations/tasks") or []
+                closed = {"complete", "completed", "cancelled", "canceled"}
                 def _parse(dtstr):
                     try:
                         dt = datetime.fromisoformat(str(dtstr))
                         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
                     except Exception:
                         return None
-                k_due = sum(1 for r in open_rows if (p:=_parse(r['due_time'])) and now <= p <= in2h)
+                open_tasks = [t for t in all_tasks if (t.get("status") or "").strip().lower() not in closed]
+                k_active = len(open_tasks)
+                now = datetime.now(timezone.utc)
+                in2h = now + timedelta(hours=2)
+                k_due = sum(1 for t in open_tasks if (p := _parse(t.get("due_time"))) and now <= p <= in2h)
             except Exception:
-                pass
+                open_tasks = []
 
-            # Teams snapshot + counts + blocking
+            # Teams snapshot via API
             try:
-                from modules.operations.data.repository import fetch_team_assignment_rows
-                teams = fetch_team_assignment_rows() or []
-                # KPI semantics: assigned <-> has a current task; available <-> no current task
+                teams = api_client.get(f"/api/incidents/{iid}/teams") or []
                 def _has_task(t):
-                    tid = t.get('task_id')
-                    try:
-                        return int(tid) > 0
-                    except Exception:
-                        return bool(tid)
+                    return bool(t.get("task_id") or t.get("assignment"))
                 k_assigned = sum(1 for t in teams if _has_task(t))
                 k_available = sum(1 for t in teams if not _has_task(t))
-                k_blocking = sum(1 for t in teams if t.get('needs_attention') or t.get('emergency_flag'))
-                # Update Team Snapshot display
+                k_blocking = sum(1 for t in teams if t.get("needs_assistance") or t.get("emergency"))
                 w.update_team_snapshot([
                     {
-                        'name': t.get('name') or t.get('sortie') or 'Team',
-                        'status': str(t.get('status') or '').title(),
-                        'assigned': t.get('assignment') or '',
-                        'leader': t.get('leader') or '',
-                        'last_checkin_at': t.get('last_checkin_at') or t.get('last_updated') or '',
+                        "name": t.get("team_name") or "Team",
+                        "status": str(t.get("status") or "").title(),
+                        "assigned": t.get("assignment") or "",
+                        "leader": t.get("leader") or "",
+                        "last_checkin_at": t.get("last_checkin_ts") or "",
                     }
                     for t in teams[:6]
                 ])
             except Exception as exc:
-                print(f"[warn] fetch_team_assignment_rows failed: {exc}")
-
-            # New Debriefs
-            try:
-                row = con.execute(
-                    "SELECT COUNT(*) AS c FROM task_debriefs WHERE COALESCE(status,'')='Submitted' AND (reviewed_at IS NULL OR TRIM(reviewed_at)='')"
-                ).fetchone()
-                k_new_debriefs = int(row[0]) if row and row[0] is not None else 0
-            except Exception:
-                k_new_debriefs = 0
+                print(f"[warn] teams API failed: {exc}")
 
             w.update_kpis({
-                'active_tasks': k_active,
-                'due_2h': k_due,
-                'teams_assigned': k_assigned,
-                'teams_available': k_available,
-                'blocking_issues': k_blocking,
-                'new_debriefs': k_new_debriefs,
+                "active_tasks": k_active,
+                "due_2h": k_due,
+                "teams_assigned": k_assigned,
+                "teams_available": k_available,
+                "blocking_issues": k_blocking,
+                "new_debriefs": 0,
             })
 
-            # Alerts (last 30 min) from audit logs
+            # Alerts (last 30 min) via API
             try:
-                from modules.operations.taskings.repository import list_audit_logs
+                audit_rows = api_client.get(f"/api/incidents/{iid}/audit-log", params={"limit": 100}) or []
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
-                rows = list_audit_logs(limit=100)
                 alerts = []
-                for r in rows:
-                    ts = r.get('ts_utc') or r.get('timestamp') or ''
+                for r in audit_rows:
+                    ts = r.get("ts_utc") or r.get("timestamp") or ""
                     try:
                         dt = datetime.fromisoformat(str(ts)) if ts else None
                         if dt and dt.tzinfo is None:
@@ -1807,77 +1771,50 @@ class MainWindow(QMainWindow):
                     except Exception:
                         dt = None
                     if dt is not None and dt >= cutoff:
-                        msg = r.get('action') or 'Audit'
-                        who = r.get('changed_by_display') or ''
+                        msg = r.get("action") or "Audit"
+                        who = r.get("changed_by_display") or ""
                         if who:
                             msg = f"{msg} — {who}"
-                        alerts.append({'id': r.get('id'), 'ts': ts[-8:] if ts else '', 'message': msg})
+                        alerts.append({"id": r.get("id"), "ts": ts[-8:] if ts else "", "message": msg})
                 w.update_alerts(alerts[:8])
             except Exception as exc:
-                print(f"[warn] list_audit_logs failed: {exc}")
+                print(f"[warn] audit-log API failed: {exc}")
 
-            # Top Tasks (simple heuristic: open tasks by priority desc, soonest due)
+            # Top Tasks (open, sorted by priority desc then soonest due)
             try:
-                rows = con.execute(
-                    "SELECT id, title, priority, status, COALESCE(assignment,'') AS assignment, COALESCE(due_time,'') AS due_time FROM tasks"
-                ).fetchall()
-                def _norm2(s):
-                    key = (s or '').strip().lower()
-                    return key not in {'completed','complete','cancelled'}
                 def _prio(v):
-                    try:
-                        return int(v)
-                    except Exception:
-                        return 0
+                    try: return int(v)
+                    except Exception: return 0
                 def _due_val(v):
                     try:
                         dt = datetime.fromisoformat(str(v)) if v else None
-                        if dt is None:
-                            return datetime.max.replace(tzinfo=None)
-                        return dt
+                        return dt or datetime.max.replace(tzinfo=None)
                     except Exception:
                         return datetime.max.replace(tzinfo=None)
-                open_rows = [r for r in rows if _norm2(r['status'])]
-                open_rows.sort(key=lambda r: (-_prio(r['priority']), _due_val(r['due_time'])))
-                tasks = []
-                for r in open_rows[:5]:
-                    tasks.append({
-                        'id': int(r['id']),
-                        'title': r['title'] or '(untitled)',
-                        'assignee': r['assignment'] or '',
-                        'due': (str(r['due_time']) or '')[-5:] if r['due_time'] else '',
-                        'priority': r['priority'],
-                        'status': (r['status'] or ''),
-                    })
-                w.update_top_tasks(tasks)
+                sorted_tasks = sorted(open_tasks, key=lambda t: (-_prio(t.get("priority")), _due_val(t.get("due_time"))))
+                w.update_top_tasks([
+                    {
+                        "id": t.get("task_id") or t.get("id", ""),
+                        "title": t.get("title") or "(untitled)",
+                        "assignee": t.get("assignment") or "",
+                        "due": (str(t.get("due_time") or ""))[-5:],
+                        "priority": t.get("priority"),
+                        "status": t.get("status") or "",
+                    }
+                    for t in sorted_tasks[:5]
+                ])
             except Exception as exc:
-                print(f"[warn] top tasks query failed: {exc}")
+                print(f"[warn] top tasks failed: {exc}")
 
-            # Comms snapshot from ICS-205
+            # Comms snapshot via API
             try:
-                from modules.operations.taskings.repository import list_incident_channels
-                ch = list_incident_channels() or []
-                channels = []
-                for c in ch[:5]:
-                    # Handle both dicts and sqlite3.Row
-                    if hasattr(c, 'keys'):
-                        name = (c['channel'] if 'channel' in c.keys() else c['channel_name']) if c else 'Channel'
-                        role = ''
-                        for key in ('function','mode','system'):
-                            if key in c.keys() and c[key]:
-                                role = c[key]; break
-                    else:
-                        name = c.get('channel') or c.get('channel_name') or 'Channel'
-                        role = c.get('function') or c.get('mode') or (c.get('system') or '')
-                    channels.append({'name': name, 'role': role or '', 'status': 'OK'})
-                w.update_comms_snapshot(channels)
+                channels = api_client.get(f"/api/incidents/{iid}/channels") or []
+                w.update_comms_snapshot([
+                    {"name": c.get("name") or "", "role": c.get("function") or c.get("mode") or "", "status": "OK"}
+                    for c in channels[:5]
+                ])
             except Exception as exc:
-                print(f"[warn] comms list failed: {exc}")
-
-            try:
-                con.close()
-            except Exception:
-                pass
+                print(f"[warn] comms API failed: {exc}")
 
         # Initial refresh and subscriptions
         _refresh()
@@ -2629,7 +2566,7 @@ class MainWindow(QMainWindow):
         from modules.initialresponse import initial
         incident_id = getattr(self, "current_incident_id", None)
         panel = initial.get_initialresponse_panel(incident_id)
-        self._open_standalone_widget(panel, title="Initial Response Overview", preferred_size=(1000, 800))
+        self._open_standalone_widget(panel, title="Initial Information", preferred_size=(1000, 800))
 
 # --- 4.14 Reference Library (Forms) -----------------------------------
     def open_reference_library(self) -> None:
@@ -2731,62 +2668,6 @@ class MainWindow(QMainWindow):
 
 
 
-
-    def _resolve_master_table(self, base_name: str) -> str | None:
-        """Resolve a master.db table name for a given Window base name.
-        Uses sqlite_master to confirm existence and tries sensible mappings,
-        including canonical names from master_catalog where applicable.
-        """
-        # List all tables from master.db
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-        tables: set[str] = set()
-        try:
-            con = sqlite3.connect(db_path)
-            cur = con.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = {r[0] for r in cur.fetchall()}
-            con.close()
-        except Exception as e:
-            print(f"[main] _resolve_master_table: unable to read tables: {e}")
-            return None
-
-        # Canonical known mappings
-        canonical = {
-            "Personnel": "personnel",
-            "Vehicles": "vehicles",
-            "Aircraft": "aircraft",
-            "Equipment": "equipment",
-            "CommsResources": "comms_resources",
-            "Objectives": "incident_objectives",
-            "Certifications": "certification_types",
-            "TeamTypes": "team_types",
-            "TaskTypes": "task_types",
-            "CannedCommEntries": "canned_comm_entries",
-            "Ems": "ems",
-            "Hospitals": "hospitals",
-            "SafetyTemplates": "safety_templates",
-        }
-
-        # 1) Try canonical mapping
-        tbl = canonical.get(base_name)
-        if tbl and tbl in tables:
-            return tbl
-
-        # 2) Try snake_case of base name
-        import re
-        snake = re.sub(r"(?<!^)([A-Z])", r"_\1", base_name).lower()
-        if snake in tables:
-            return snake
-
-        # 3) Try simple lowercase/plural checks
-        low = base_name.lower()
-        if low in tables:
-            return low
-        if f"{low}s" in tables:
-            return f"{low}s"
-
-        # 4) Nothing matched
-        return None
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         # Save perspectives via QSettings to match ADS API
@@ -3486,63 +3367,6 @@ class MetricWidget(QWidget):
                 return sum(1 for row in TEAM_ROWS if str(row[si]).lower() not in {"out of service", "offline"})
             except Exception:
                 return 0
-
-    def _resolve_master_table(self, base_name: str) -> str | None:
-        """Resolve a master.db table name for a given Window base name.
-        Uses sqlite_master to confirm existence and tries sensible mappings,
-        including canonical names from master_catalog where applicable.
-        """
-        # List all tables from master.db
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-        tables: set[str] = set()
-        try:
-            con = sqlite3.connect(db_path)
-            cur = con.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = {r[0] for r in cur.fetchall()}
-            con.close()
-        except Exception as e:
-            print(f"[main] _resolve_master_table: unable to read tables: {e}")
-            return None
-
-        # Canonical known mappings
-        canonical = {
-            "Personnel": "personnel",
-            "Vehicles": "vehicles",
-            "Aircraft": "aircraft",
-            "Equipment": "equipment",
-            "CommsResources": "comms_resources",
-            "Objectives": "incident_objectives",
-            "Certifications": "certification_types",
-            "TeamTypes": "team_types",
-            "TaskTypes": "task_types",
-            "CannedCommEntries": "canned_comm_entries",
-            "Ems": "ems",
-            "Hospitals": "hospitals",
-            "SafetyTemplates": "safety_templates",
-        }
-
-        # 1) Try canonical mapping
-        tbl = canonical.get(base_name)
-        if tbl and tbl in tables:
-            return tbl
-
-        # 2) Try snake_case of base name
-        import re
-        snake = re.sub(r"(?<!^)([A-Z])", r"_\1", base_name).lower()
-        if snake in tables:
-            return snake
-
-        # 3) Try simple lowercase/plural checks
-        low = base_name.lower()
-        if low in tables:
-            return low
-        if f"{low}s" in tables:
-            return f"{low}s"
-
-        # 4) Nothing matched
-        return None
-
 
     def update_title_with_active_incident(self):
         """Refresh window title when active incident changes."""

@@ -6,7 +6,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, QStringListModel, QTimer, Signal
 from PySide6.QtWidgets import QCompleter, QHBoxLayout, QLineEdit, QWidget
 
-from ..data.resource_type_repository import ApiResourceTypeRepository, ResourceTypeRepository
+from ..data.resource_type_repository import ApiResourceTypeRepository
 from ..models.resource_type_models import ResourceTypeSearchResult
 
 
@@ -24,7 +24,7 @@ class ResourceTypeSearchBox(QWidget):
 
     def __init__(
         self,
-        repository: Optional[ResourceTypeRepository] = None,
+        repository: Optional[ApiResourceTypeRepository] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
