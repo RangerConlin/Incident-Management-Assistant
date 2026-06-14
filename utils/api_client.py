@@ -15,9 +15,8 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from urllib.error import URLError
-from urllib.request import Request, urlopen
-import json as _json
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +33,36 @@ class APIError(Exception):
 
 
 class _APIClient:
-    """Thin HTTP client that routes all requests to the active SARApp server."""
+    """Thin HTTP client that routes all requests to the active SARApp server.
+
+    Uses an httpx.Client so TCP connections are reused across calls — critical
+    for detail windows that make 12+ sequential requests on open.
+    """
 
     def __init__(self) -> None:
         self._base_url: str = _DEFAULT_BASE_URL
+        self._client = self._make_client()
+
+    def _make_client(self) -> httpx.Client:
+        return httpx.Client(
+            base_url=self._base_url,
+            timeout=_TIMEOUT_SECONDS,
+            limits=httpx.Limits(
+                max_keepalive_connections=10,
+                max_connections=20,
+                keepalive_expiry=None,  # never drop idle connections
+            ),
+        )
 
     def configure(self, base_url: str) -> None:
         """Point the client at a specific server URL.  Called by the connection
         manager when a server is found or offline mode is entered."""
         self._base_url = base_url.rstrip("/")
+        try:
+            self._client.close()
+        except Exception:
+            pass
+        self._client = self._make_client()
         logger.debug("API client configured: %s", self._base_url)
 
     @property
@@ -54,60 +74,53 @@ class _APIClient:
     # ------------------------------------------------------------------
 
     def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
-        url = self._build_url(path, params)
-        req = Request(url, method="GET")
-        return self._send(req)
+        return self._send("GET", path, params=params)
 
     def post(self, path: str, *, json: Any = None) -> Any:
-        return self._request("POST", path, body=json)
+        return self._send("POST", path, json=json)
 
     def put(self, path: str, *, json: Any = None) -> Any:
-        return self._request("PUT", path, body=json)
+        return self._send("PUT", path, json=json)
 
     def patch(self, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
-        return self._request("PATCH", path, body=json, params=params)
+        return self._send("PATCH", path, json=json, params=params)
 
     def delete(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
-        url = self._build_url(path, params)
-        req = Request(url, method="DELETE")
-        return self._send(req)
+        return self._send("DELETE", path, params=params)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _request(self, method: str, path: str, body: Any = None, params: dict[str, Any] | None = None) -> Any:
-        url = self._build_url(path, params)
-        data = _json.dumps(body).encode("utf-8") if body is not None else None
-        req = Request(url, data=data, method=method)
-        if data is not None:
-            req.add_header("Content-Type", "application/json")
-        return self._send(req)
+    def _build_url(self, path: str) -> str:
+        return self._base_url + ("" if path.startswith("/") else "/") + path
 
-    def _build_url(self, path: str, params: dict[str, Any] | None = None) -> str:
-        url = self._base_url + ("" if path.startswith("/") else "/") + path
+    def _send(self, method: str, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
+        url = self._build_url(path)
         if params:
-            from urllib.parse import urlencode
-            url += "?" + urlencode({k: v for k, v in params.items() if v is not None})
-        return url
-
-    def _send(self, req: Request) -> Any:
+            params = {k: v for k, v in params.items() if v is not None}
         try:
-            with urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
-                raw = resp.read()
-                if not raw:
-                    return None
-                return _json.loads(raw)
-        except URLError as exc:
-            raise APIError(f"Server unreachable: {exc.reason}") from exc
+            resp = self._client.request(
+                method,
+                url,
+                json=json,
+                params=params or None,
+            )
+        except httpx.TransportError as exc:
+            raise APIError(f"Server unreachable: {exc}") from exc
         except Exception as exc:
-            status = getattr(getattr(exc, "fp", None), "status", None)
+            raise APIError(f"Request failed: {exc}") from exc
+
+        if resp.status_code >= 400:
             try:
-                body = exc.read().decode("utf-8")  # type: ignore[attr-defined]
-                detail = _json.loads(body).get("detail", body)
+                detail = resp.json().get("detail", resp.text)
             except Exception:
-                detail = str(exc)
-            raise APIError(detail, status_code=status) from exc
+                detail = resp.text
+            raise APIError(str(detail), status_code=resp.status_code)
+
+        if not resp.content:
+            return None
+        return resp.json()
 
 
 # Module-level singleton — import and use directly.

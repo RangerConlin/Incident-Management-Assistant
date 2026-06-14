@@ -592,13 +592,9 @@ def ics214_getRecentEntries(limit: int = 30) -> List[Dict[str, Any]]:
 def subject_getProfiles() -> List[Dict[str, Any]]:
     """Return subject records for the active incident."""
     try:
-        from modules.intel.utils import db_access
-        from modules.intel.models.intel_models import Subject
-        from sqlmodel import select
-        db_access.ensure_incident_schema()
-        with db_access.incident_session() as session:
-            subjects = session.exec(select(Subject)).all()
-            return [
+        from modules.intel import services as intel_services
+        subjects = intel_services.list_subjects()
+        return [
                 {
                     "name": s.name,
                     "sex": s.sex or "",

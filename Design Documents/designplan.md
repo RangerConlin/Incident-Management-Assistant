@@ -92,12 +92,16 @@ o	services.py for business logic that should remain testable outside the widget 
 o	Modeless windows
 o	Multi-monitor layouts
 o	User-selectable themes (dark mode, light mode, and custom color profiles)
+  - Client-side IncidentCache (in-memory): populated from server snapshot on incident load; kept current by WebSocket events. All UI reads from cache (zero network cost). Writes go to server via HTTP POST; server broadcasts the change event to all connected clients.
 Backend:
-  - Python FastAPI routers are provided by modules where API access is needed. They can be mounted into a local app or test harness.
-  - SQLite databases:
-o	master.db (persistent personnel, equipment, templates, etc.)
-o	Incident-specific DBs (all incident/event data, audit trail, forms)
-  - ICS-214 includes WebSocket routing; broader LAN/mobile sync remains roadmap work unless a module implements it directly.
+  - Python FastAPI server (sarapp_server.py / SARAppServerManager) with uvicorn. Routers mounted under /api. Spawned automatically as a subprocess when the client enters offline mode.
+  - HTTP client: httpx.Client singleton (utils/api_client.py) with persistent connection pool (keepalive_expiry=None). All modules call api_client — no direct DB access from UI code.
+  - MongoDB (PyMongo, not async Motor) — three logical databases:
+o	sarapp_system — server/app configuration
+o	sarapp_master — agency-wide reference data (personnel, vehicles, equipment, templates, etc.)
+o	sarapp_incident_<id> — one per incident; all incident data, audit trail, forms
+  - WebSocket hub (planned, post-cutover): FastAPI WebSocket endpoint per incident. Server broadcasts typed change events to all connected clients when any write occurs. Client IncidentCache applies events and emits Qt signals to update panels without polling.
+  - Resilience / offline capability (planned): each client machine runs a local MongoDB node. In LAN mode the local node is a replica of the central server. On disconnection the client transparently reads/writes to its local node. MongoDB replica set replication syncs the nodes when connectivity is restored. This eliminates disconnection crashes and gives full read/write capability offline.
 File System & Data:
   - Root-Level Folders
 o	/data : All databases and uploads
@@ -2223,14 +2227,15 @@ This module enables authorized personnel (e.g., PIOs) to create, manage, and pub
   - - Inline message editor and formatting panel
   - - Revision history viewer
   - - Publish/export toolbar
-6. API Endpoints
+6. Implementation Notes
 ```
-  - - GET /api/public_info/messages
-  - - POST /api/public_info/messages
+  - - Public Information desktop workflows are implemented in `modules/public_information`.
 ```
 7. Database Tables
 ```
-  - - public_info_messages
+  - - pio_messages
+  - - pio_message_revisions
+  - - pio_approvals
 ```
 8. Inter-Module Connections
   - - Command Module: Coordinate approved updates or briefings

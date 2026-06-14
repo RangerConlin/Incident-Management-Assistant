@@ -69,4 +69,57 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import incident_org
     app.include_router(incident_org.router, prefix="/api/incidents", tags=["incident-org"])
 
+    from sarapp_db.api.routers import lookup_types
+    app.include_router(lookup_types.router, prefix="/api/lookup", tags=["lookup-types"])
+
+    from sarapp_db.api.routers import communications
+    app.include_router(communications.master_router, prefix="/api/comms", tags=["communications"])
+    app.include_router(communications.incident_router, prefix="/api", tags=["communications"])
+
+    from sarapp_db.api.routers import public_information
+    app.include_router(public_information.router, prefix="/api", tags=["public-information"])
+
+    from sarapp_db.api.routers import forms
+    app.include_router(forms.master_router, prefix="/api/forms", tags=["forms"])
+    app.include_router(forms.incident_router, prefix="/api", tags=["forms"])
+
+    from sarapp_db.api.routers import ics214
+    app.include_router(ics214.router, prefix="/api", tags=["ics214"])
+
+    from sarapp_db.api.routers import initialresponse
+    app.include_router(initialresponse.router, prefix="/api", tags=["initialresponse"])
+
+    from sarapp_db.api.routers import plannedtoolkit
+    app.include_router(plannedtoolkit.router, prefix="/api", tags=["planned-toolkit"])
+
+    from sarapp_db.api.routers import intel
+    app.include_router(intel.router, prefix="/api", tags=["intel"])
+
+    from sarapp_db.api.routers import safety
+    app.include_router(safety.router, prefix="/api", tags=["safety"])
+
+    from sarapp_db.api.routers import liaison
+    app.include_router(liaison.router, prefix="/api", tags=["liaison"])
+
+    from sarapp_db.api.routers import logistics_resource_status
+    app.include_router(logistics_resource_status.router, prefix="/api", tags=["logistics"])
+
+    from sarapp_db.api.routers import logistics_resource_requests
+    app.include_router(logistics_resource_requests.router, prefix="/api", tags=["logistics"])
+
+    from sarapp_db.api.routers import operations
+    app.include_router(operations.router, prefix="/api", tags=["operations"])
+
+    from sarapp_db.api.routers import operational_periods
+    app.include_router(operational_periods.router, prefix="/api", tags=["planning"])
+
+    from sarapp_db.api.routers import meetings
+    app.include_router(meetings.router, prefix="/api", tags=["planning"])
+
+    from sarapp_db.api.routers import work_assignments
+    app.include_router(work_assignments.router, prefix="/api", tags=["planning"])
+
+    from sarapp_db.api.routers import gis
+    app.include_router(gis.router, prefix="/api", tags=["gis"])
+
     return app

@@ -1,60 +1,107 @@
+"""Planned event toolkit repository backed by the SARApp API."""
 from __future__ import annotations
 
-import os
-from contextlib import contextmanager
-from pathlib import Path
+from typing import Any
 
-from utils import incident_storage
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from utils import incident_context
 
-from .planned_models import MasterBase, EventBase
-
-DATA_ROOT = incident_storage.data_root()
-MASTER_DB = incident_storage.master_db_path()
-INCIDENTS_DIR = incident_storage.incidents_root()
+from .records import PlannedRecord, ScheduledItem, record_from_dict, schedule_from_dict
 
 
-def get_master_engine():
-    MASTER_DB.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{MASTER_DB}", future=True)
-    MasterBase.metadata.create_all(engine)
-    return engine
+def _client():
+    from utils.api_client import api_client
+    return api_client
 
 
-def get_event_engine(event_id: str):
-    paths = incident_storage.resolve_incident_paths_by_identifier(event_id)
-    if paths is None:
-        meta = incident_storage.infer_incident_metadata(event_id)
-        paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or event_id, incident_name=meta.get("name") or event_id, incident_id=meta.get("incident_id") or event_id)
-        incident_storage.ensure_incident_structure(paths, meta)
-    db_path = paths.incident_db
-    engine = create_engine(f"sqlite:///{db_path}", future=True)
-    EventBase.metadata.create_all(engine)
-    with engine.begin() as conn:
-        conn.execute(text("CREATE VIRTUAL TABLE IF NOT EXISTS attachment_fts USING fts5(title, content)") )
-    return engine
+def _require_incident_id(incident_id: str | None = None) -> str:
+    value = incident_id or incident_context.get_active_incident_id()
+    if not value:
+        raise RuntimeError("Active incident is not set")
+    return str(value)
 
 
-@contextmanager
-def with_master_session():
-    engine = get_master_engine()
-    SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
-    session = SessionLocal()
-    try:
-        yield session
-        session.commit()
-    finally:
-        session.close()
+def _base(incident_id: str, tool: str) -> str:
+    return f"/api/incidents/{incident_id}/planned/{tool}"
 
 
-@contextmanager
-def with_event_session(event_id: str):
-    engine = get_event_engine(event_id)
-    SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
-    session = SessionLocal()
-    try:
-        yield session
-        session.commit()
-    finally:
-        session.close()
+class PlannedToolkitRepository:
+    def __init__(self, incident_id: str | None = None):
+        self._incident_id = incident_id
+
+    def _incident(self) -> str:
+        return _require_incident_id(self._incident_id)
+
+    def list_records(
+        self,
+        tool: str,
+        *,
+        status: str | None = None,
+        search: str | None = None,
+    ) -> list[PlannedRecord]:
+        params: dict[str, str] = {}
+        if status:
+            params["status"] = status
+        if search:
+            params["search"] = search
+        rows = _client().get(_base(self._incident(), tool), params=params or None) or []
+        return [record_from_dict(row) for row in rows]
+
+    def create_record(
+        self,
+        tool: str,
+        *,
+        title: str,
+        summary: str = "",
+        status: str | None = None,
+        priority: str | None = None,
+        assigned_to: str = "",
+        location: str = "",
+        scheduled_at: str = "",
+        due_at: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> PlannedRecord:
+        payload = {
+            "title": title,
+            "summary": summary,
+            "status": status,
+            "priority": priority,
+            "assigned_to": assigned_to,
+            "location": location,
+            "scheduled_at": scheduled_at,
+            "due_at": due_at,
+            "metadata": metadata or {},
+        }
+        result = _client().post(_base(self._incident(), tool), json=payload)
+        return record_from_dict(result or {})
+
+    def update_record(self, tool: str, record_id: int, patch: dict[str, Any]) -> PlannedRecord:
+        result = _client().patch(f"{_base(self._incident(), tool)}/{record_id}", json=patch)
+        return record_from_dict(result or {})
+
+    def delete_record(self, tool: str, record_id: int) -> None:
+        _client().delete(f"{_base(self._incident(), tool)}/{record_id}")
+
+    def list_schedule_items(self) -> list[ScheduledItem]:
+        rows = _client().get(f"/api/incidents/{self._incident()}/planned/promotions/schedule") or []
+        return [schedule_from_dict(row) for row in rows]
+
+    def create_schedule_item(
+        self,
+        *,
+        name: str,
+        kind: str = "Milestone",
+        starts_at: str = "",
+        ends_at: str = "",
+        notes: str = "",
+    ) -> ScheduledItem:
+        result = _client().post(
+            f"/api/incidents/{self._incident()}/planned/promotions/schedule",
+            json={
+                "name": name,
+                "kind": kind,
+                "starts_at": starts_at,
+                "ends_at": ends_at,
+                "notes": notes,
+            },
+        )
+        return schedule_from_dict(result or {})

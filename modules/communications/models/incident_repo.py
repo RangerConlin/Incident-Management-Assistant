@@ -228,4 +228,47 @@ class IncidentRepository:
         return preview
 
 
-__all__ = ["IncidentRepository", "infer_band"]
+class ApiIncidentRepository:
+    """IncidentRepository backed by the SARApp API (MongoDB)."""
+
+    def __init__(self, incident_number: str | int):
+        self._incident_id = str(incident_number)
+        self._base = f"/api/incidents/{self._incident_id}/channels-plan"
+
+    def list_plan(self) -> List[Dict[str, Any]]:
+        from utils.api_client import api_client
+        return api_client.get(self._base)
+
+    def add_from_master(self, master_row: Dict[str, Any], defaults: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        from utils.api_client import api_client
+        return api_client.post(self._base, json={"master_row": master_row, "defaults": defaults or {}})
+
+    def get_row(self, row_id: int) -> Dict[str, Any]:
+        from utils.api_client import api_client
+        try:
+            return api_client.get(f"{self._base}/{row_id}")
+        except Exception:
+            return {}
+
+    def update_row(self, row_id: int, patch: Dict[str, Any]) -> None:
+        from utils.api_client import api_client
+        api_client.put(f"{self._base}/{row_id}", json=patch)
+
+    def delete_row(self, row_id: int) -> None:
+        from utils.api_client import api_client
+        api_client.delete(f"{self._base}/{row_id}")
+
+    def reorder(self, row_id: int, direction: str) -> None:
+        from utils.api_client import api_client
+        api_client.patch(f"{self._base}/{row_id}/reorder", json={"direction": direction})
+
+    def validate_plan(self) -> Dict[str, Any]:
+        from utils.api_client import api_client
+        return api_client.get(f"{self._base}/validate")
+
+    def preview_rows(self) -> List[Dict[str, Any]]:
+        from utils.api_client import api_client
+        return api_client.get(f"{self._base}/preview")
+
+
+__all__ = ["IncidentRepository", "ApiIncidentRepository", "infer_band"]

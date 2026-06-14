@@ -8,14 +8,14 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from sarapp_db.mongo.database_manager import get_client
+from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 
 router = APIRouter()
 
 
 def _db(incident_id: str):
-    return get_client()[f"sarapp_incident_{incident_id}"]
+    return get_incident_db(incident_id)
 
 
 def _utc_now() -> str:

@@ -208,3 +208,89 @@ CREATE TABLE IF NOT EXISTS form_instance_audit (id INTEGER PRIMARY KEY, instance
 CREATE TABLE IF NOT EXISTS form_instance_exports (id INTEGER PRIMARY KEY, instance_id INTEGER NOT NULL, export_type TEXT NOT NULL, export_path TEXT NOT NULL, template_version_id INTEGER NOT NULL, revision_number INTEGER NOT NULL, created_by TEXT, created_at TEXT NOT NULL, checksum TEXT, FOREIGN KEY(instance_id) REFERENCES form_instances(id));
 CREATE TABLE IF NOT EXISTS form_instance_links (id INTEGER PRIMARY KEY, instance_id INTEGER NOT NULL, linked_module TEXT NOT NULL, linked_record_id TEXT NOT NULL, relationship_type TEXT, created_by TEXT, created_at TEXT NOT NULL, FOREIGN KEY(instance_id) REFERENCES form_instances(id));
 """
+
+
+# ---------------------------------------------------------------------------
+# API-backed repository (MongoDB via SARApp Server)
+# ---------------------------------------------------------------------------
+
+class ApiIncidentFormsRepository:
+    """Reads/writes form instances for a single incident through the SARApp API."""
+
+    def __init__(self, incident_id: str):
+        self._base = f"/api/incidents/{incident_id}/forms"
+        self._incident_id = incident_id
+
+    # ------------------------------------------------------------------ instances
+
+    def list_instances(self, agency=None, status=None, operational_period_id=None, linked_module=None, linked_record_id=None):
+        from utils.api_client import api_client
+        params = {}
+        if agency is not None:
+            params["agency"] = agency
+        if status is not None:
+            params["status"] = status
+        if operational_period_id is not None:
+            params["operational_period_id"] = operational_period_id
+        if linked_module is not None:
+            params["linked_module"] = linked_module
+        if linked_record_id is not None:
+            params["linked_record_id"] = linked_record_id
+        return api_client.get(self._base, params=params or None)
+
+    def get_instance(self, instance_id: int):
+        from utils.api_client import api_client
+        try:
+            return api_client.get(f"{self._base}/{instance_id}")
+        except Exception:
+            return None
+
+    def create_instance(self, data: dict):
+        from utils.api_client import api_client
+        return api_client.post(self._base, json=data)
+
+    # ------------------------------------------------------------------ values
+
+    def upsert_values(self, instance_id: int, updates: dict, user_id=None, require_override_reason: bool = True):
+        from utils.api_client import api_client
+        payload = {
+            "updates": updates,
+            "require_override_reason": require_override_reason,
+        }
+        if user_id is not None:
+            payload["user_id"] = user_id
+        return api_client.patch(f"{self._base}/{instance_id}/values", json=payload)
+
+    # ------------------------------------------------------------------ lifecycle
+
+    def finalize_instance(self, instance_id: int, user_id=None):
+        from utils.api_client import api_client
+        return api_client.post(f"{self._base}/{instance_id}/finalize", json={"user_id": user_id})
+
+    def reopen_instance(self, instance_id: int, user_id=None, reason=None):
+        from utils.api_client import api_client
+        return api_client.post(f"{self._base}/{instance_id}/reopen", json={"user_id": user_id, "reason": reason})
+
+    # ------------------------------------------------------------------ history
+
+    def list_revisions(self, instance_id: int):
+        from utils.api_client import api_client
+        return api_client.get(f"{self._base}/{instance_id}/revisions")
+
+    def list_audit(self, instance_id: int):
+        from utils.api_client import api_client
+        return api_client.get(f"{self._base}/{instance_id}/audit")
+
+    # ------------------------------------------------------------------ exports
+
+    def create_export_record(self, record: dict):
+        from utils.api_client import api_client
+        instance_id = record.get("instance_id") or record.get("id")
+        return api_client.post(f"{self._base}/{instance_id}/exports", json=record)
+
+    def set_exported_pdf(self, instance_id: int, path: str, user_id=None):
+        from utils.api_client import api_client
+        params = {"path": path}
+        if user_id is not None:
+            params["user_id"] = user_id
+        return api_client.patch(f"{self._base}/{instance_id}/exported-pdf", params=params)

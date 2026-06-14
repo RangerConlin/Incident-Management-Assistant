@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget,
@@ -15,11 +13,10 @@ from PySide6.QtWidgets import (
     QDialog,
     QMessageBox,
 )
-from sqlmodel import select
 
 from ..models import Clue
-from ..utils import db_access
 from .clue_editor_dialog import ClueEditorDialog
+from .. import services
 
 
 class CluePanel(QWidget):
@@ -53,27 +50,22 @@ class CluePanel(QWidget):
 
         self.refresh()
 
-    # ------------------------------------------------------------------
     def refresh(self) -> None:
-        """Reload clues from the database."""
         self.table.setRowCount(0)
-        # Ensure schema exists on first run to avoid missing-table errors.
         try:
-            db_access.ensure_incident_schema()
+            clues = services.list_clues()
         except Exception:
-            pass
-        with db_access.incident_session() as session:
-            clues: List[Clue] = session.exec(select(Clue)).all()
+            return
         for row, clue in enumerate(clues):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(clue.type))
             self.table.setItem(row, 1, QTableWidgetItem(str(clue.score)))
-            self.table.setItem(row, 2, QTableWidgetItem(clue.at_time.strftime("%Y-%m-%d %H:%M")))
+            ts = clue.at_time.strftime("%Y-%m-%d %H:%M") if clue.at_time else ""
+            self.table.setItem(row, 2, QTableWidgetItem(ts))
             self.table.setItem(row, 3, QTableWidgetItem(clue.location_text))
             self.table.setItem(row, 4, QTableWidgetItem(clue.team_text or ""))
             self.table.item(row, 0).setData(Qt.UserRole, clue.id)
 
-    # ------------------------------------------------------------------
     def _current_clue_id(self) -> int | None:
         row = self.table.currentRow()
         if row < 0:
@@ -81,42 +73,41 @@ class CluePanel(QWidget):
         item = self.table.item(row, 0)
         return int(item.data(Qt.UserRole)) if item else None
 
-    # ------------------------------------------------------------------
     def _add(self) -> None:
         dlg = ClueEditorDialog(parent=self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.clue)
-                session.commit()
-            self.refresh()
+            try:
+                services.add_clue(dlg.clue)
+                self.refresh()
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", str(exc))
 
     def _edit(self) -> None:
         clue_id = self._current_clue_id()
         if clue_id is None:
             QMessageBox.warning(self, "Edit Clue", "Select a clue to edit")
             return
-        with db_access.incident_session() as session:
-            clue = session.get(Clue, clue_id)
+        clue = services.get_clue(clue_id)
+        if not clue:
+            QMessageBox.warning(self, "Edit Clue", "Clue not found")
+            return
         dlg = ClueEditorDialog(clue, self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.clue)
-                session.commit()
-            self.refresh()
+            try:
+                services.update_clue(dlg.clue)
+                self.refresh()
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", str(exc))
 
     def _delete(self) -> None:
         clue_id = self._current_clue_id()
         if clue_id is None:
             QMessageBox.warning(self, "Delete Clue", "Select a clue to delete")
             return
-        if (
-            QMessageBox.question(self, "Delete Clue", "Delete selected clue?")
-            != QMessageBox.Yes
-        ):
+        if QMessageBox.question(self, "Delete Clue", "Delete selected clue?") != QMessageBox.Yes:
             return
-        with db_access.incident_session() as session:
-            clue = session.get(Clue, clue_id)
-            if clue:
-                session.delete(clue)
-                session.commit()
-        self.refresh()
+        try:
+            services.delete_clue(clue_id)
+            self.refresh()
+        except Exception as exc:
+            QMessageBox.warning(self, "Error", str(exc))

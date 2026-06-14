@@ -1,209 +1,97 @@
-"""SQLite repository for the Logistics resource status board."""
+"""API-backed repository for the Logistics resource status board."""
 from __future__ import annotations
 
-import sqlite3
 import uuid
 from datetime import datetime
 from typing import Any, Iterable, Optional
 
-from utils.db import get_incident_conn
-
 from .models import ResourceAuditEntry, ResourceItem
-
-RESOURCE_STATUS_SCHEMA = """
-CREATE TABLE IF NOT EXISTS logistics_resource_status_items (
-    id TEXT PRIMARY KEY,
-    resource_id TEXT NOT NULL,
-    resource_name TEXT NOT NULL,
-    resource_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    eta_utc TEXT,
-    assigned_to TEXT,
-    assignment_reference TEXT,
-    location TEXT,
-    checked_in_time TEXT,
-    last_updated TEXT NOT NULL,
-    notes TEXT,
-    source_entity_type TEXT,
-    source_record_id TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_resource_status_status
-    ON logistics_resource_status_items(status);
-CREATE INDEX IF NOT EXISTS idx_resource_status_type
-    ON logistics_resource_status_items(resource_type);
-CREATE INDEX IF NOT EXISTS idx_resource_status_source
-    ON logistics_resource_status_items(source_entity_type, source_record_id);
-
-CREATE TABLE IF NOT EXISTS logistics_resource_status_audit (
-    id TEXT PRIMARY KEY,
-    resource_status_id TEXT NOT NULL,
-    field_name TEXT NOT NULL,
-    old_value TEXT,
-    new_value TEXT,
-    actor_name TEXT,
-    changed_at TEXT NOT NULL,
-    FOREIGN KEY(resource_status_id) REFERENCES logistics_resource_status_items(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_resource_status_audit_resource
-    ON logistics_resource_status_audit(resource_status_id, changed_at DESC);
-"""
 
 
 class ResourceStatusRepository:
-    """Persist and query resource status board rows in the active incident DB."""
+    """Persist and query resource status board rows via the SARApp API server."""
 
-    def ensure_schema(self, conn: Optional[sqlite3.Connection] = None) -> None:
-        if conn is None:
-            with get_incident_conn() as managed:
-                managed.executescript(RESOURCE_STATUS_SCHEMA)
-                managed.commit()
-            return
-        conn.executescript(RESOURCE_STATUS_SCHEMA)
+    def _incident_id(self) -> str:
+        from utils import incident_context
+        from utils.state import AppState
+        iid = incident_context.get_active_incident_id() or AppState.get_active_incident()
+        if not iid:
+            raise RuntimeError("No active incident for resource status board")
+        return str(iid)
 
     def list_resources(self) -> list[ResourceItem]:
-        with get_incident_conn() as conn:
-            self.ensure_schema(conn)
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM logistics_resource_status_items
-                ORDER BY resource_type COLLATE NOCASE, resource_name COLLATE NOCASE, resource_id COLLATE NOCASE
-                """
-            ).fetchall()
-        return [ResourceItem.from_row(dict(row)) for row in rows]
+        from utils.api_client import api_client
+        iid = self._incident_id()
+        rows = api_client.get(f"/api/incidents/{iid}/logistics/resource-status")
+        return [ResourceItem.from_row(r) for r in rows]
 
     def get_resource(self, resource_status_id: str) -> Optional[ResourceItem]:
-        with get_incident_conn() as conn:
-            self.ensure_schema(conn)
-            row = conn.execute(
-                "SELECT * FROM logistics_resource_status_items WHERE id = ?",
-                (resource_status_id,),
-            ).fetchone()
-        return ResourceItem.from_row(dict(row)) if row else None
+        from utils.api_client import api_client, APIError
+        iid = self._incident_id()
+        try:
+            row = api_client.get(f"/api/incidents/{iid}/logistics/resource-status/{resource_status_id}")
+            return ResourceItem.from_row(row)
+        except APIError:
+            return None
 
     def get_by_source(self, source_entity_type: str, source_record_id: str) -> Optional[ResourceItem]:
-        with get_incident_conn() as conn:
-            self.ensure_schema(conn)
-            row = conn.execute(
-                """
-                SELECT *
-                FROM logistics_resource_status_items
-                WHERE source_entity_type = ? AND source_record_id = ?
-                """,
-                (source_entity_type, source_record_id),
-            ).fetchone()
-        return ResourceItem.from_row(dict(row)) if row else None
+        from utils.api_client import api_client, APIError
+        iid = self._incident_id()
+        try:
+            row = api_client.get(
+                f"/api/incidents/{iid}/logistics/resource-status/{source_record_id}/by-source",
+                params={"source_entity_type": source_entity_type, "source_record_id": source_record_id},
+            )
+            return ResourceItem.from_row(row) if row else None
+        except (APIError, Exception):
+            return None
 
     def save_resource(self, item: ResourceItem) -> ResourceItem:
+        from utils.api_client import api_client, APIError
+        iid = self._incident_id()
         payload = item.to_row()
-        with get_incident_conn() as conn:
-            self.ensure_schema(conn)
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO logistics_resource_status_items (
-                    id, resource_id, resource_name, resource_type, status, eta_utc,
-                    assigned_to, assignment_reference, location, checked_in_time,
-                    last_updated, notes, source_entity_type, source_record_id,
-                    created_at, updated_at
-                ) VALUES (
-                    :id, :resource_id, :resource_name, :resource_type, :status, :eta_utc,
-                    :assigned_to, :assignment_reference, :location, :checked_in_time,
-                    :last_updated, :notes, :source_entity_type, :source_record_id,
-                    :created_at, :updated_at
-                )
-                """,
-                payload,
-            )
-            conn.commit()
+        try:
+            api_client.get(f"/api/incidents/{iid}/logistics/resource-status/{item.id}")
+            api_client.patch(f"/api/incidents/{iid}/logistics/resource-status/{item.id}", json=payload)
+        except APIError:
+            api_client.post(f"/api/incidents/{iid}/logistics/resource-status", json=payload)
         return item
 
     def save_audit_entries(self, entries: Iterable[ResourceAuditEntry]) -> None:
-        entries = list(entries)
-        if not entries:
+        from utils.api_client import api_client
+        entries_list = list(entries)
+        if not entries_list:
             return
-        with get_incident_conn() as conn:
-            self.ensure_schema(conn)
-            conn.executemany(
-                """
-                INSERT INTO logistics_resource_status_audit (
-                    id, resource_status_id, field_name, old_value, new_value,
-                    actor_name, changed_at
-                ) VALUES (
-                    :id, :resource_status_id, :field_name, :old_value, :new_value,
-                    :actor_name, :changed_at
+        by_item: dict[str, list[dict]] = {}
+        for entry in entries_list:
+            by_item.setdefault(entry.resource_status_id, []).append(entry.to_row())
+        iid = self._incident_id()
+        for resource_status_id, rows in by_item.items():
+            try:
+                api_client.post(
+                    f"/api/incidents/{iid}/logistics/resource-status/{resource_status_id}/audit",
+                    json=rows,
                 )
-                """,
-                [entry.to_row() for entry in entries],
-            )
-            conn.commit()
+            except Exception:
+                pass
 
     def list_audit_entries(self, resource_status_id: str, limit: int = 50) -> list[dict[str, Any]]:
-        with get_incident_conn() as conn:
-            self.ensure_schema(conn)
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM logistics_resource_status_audit
-                WHERE resource_status_id = ?
-                ORDER BY changed_at DESC
-                LIMIT ?
-                """,
-                (resource_status_id, int(limit)),
-            ).fetchall()
-        return [dict(row) for row in rows]
+        from utils.api_client import api_client, APIError
+        iid = self._incident_id()
+        try:
+            return api_client.get(
+                f"/api/incidents/{iid}/logistics/resource-status/{resource_status_id}/audit",
+                params={"limit": limit},
+            )
+        except APIError:
+            return []
 
     def source_rows(self) -> list[dict[str, Any]]:
-        """Collect incident-scoped resources that can seed the status board."""
+        """Incident source sync deferred — checkin/vehicle/aircraft not yet migrated."""
+        return []
 
-        with get_incident_conn() as conn:
-            self.ensure_schema(conn)
-            sources: list[dict[str, Any]] = []
-            sources.extend(self._collect_table_rows(conn, "personnel", "personnel"))
-            sources.extend(self._collect_table_rows(conn, "vehicles", "vehicle"))
-            sources.extend(self._collect_table_rows(conn, "equipment", "equipment"))
-            sources.extend(self._collect_table_rows(conn, "aircraft", "aircraft"))
-            return sources
-
-    def _collect_table_rows(
-        self,
-        conn: sqlite3.Connection,
-        table_name: str,
-        entity_type: str,
-    ) -> list[dict[str, Any]]:
-        try:
-            info = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-        except sqlite3.OperationalError:
-            return []
-        if not info:
-            return []
-
-        columns = [row[1] for row in info]
-        identifier = self._pick_column(columns, "id", "person_id", "tail_number", "serial_number")
-        if identifier is None:
-            return []
-        rows = conn.execute(f"SELECT * FROM {table_name}").fetchall()
-        return [
-            {
-                "entity_type": entity_type,
-                "table_name": table_name,
-                "identifier_column": identifier,
-                "record": dict(row),
-            }
-            for row in rows
-        ]
-
-    @staticmethod
-    def _pick_column(columns: list[str], *candidates: str) -> Optional[str]:
-        lowered = {name.lower(): name for name in columns}
-        for candidate in candidates:
-            match = lowered.get(candidate.lower())
-            if match:
-                return match
-        return columns[0] if columns else None
+    def ensure_schema(self, conn=None) -> None:
+        pass
 
 
 def new_identifier() -> str:

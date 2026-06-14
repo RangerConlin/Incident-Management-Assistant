@@ -2023,21 +2023,21 @@ class TeamDetailWindow(QMainWindow):
 
     def _delete_team_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_team_ics214_stream()
+            inc, sid = self._get_team_ics214_stream()
             entry_id = self._selected_team_214_entry_id()
-            if not inc or not entry_id:
+            if not inc or not sid or not entry_id:
                 return
             if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 return
             from modules.ics214 import services
-            services.delete_entry(str(inc), str(entry_id))
+            services.delete_entry(str(inc), str(entry_id), stream_id=str(sid))
             self._load_team_ics214()
         except Exception:
             pass
 
     def _edit_team_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_team_ics214_stream()
+            inc, sid = self._get_team_ics214_stream()
             entry_id = self._selected_team_214_entry_id()
             if not inc or not entry_id:
                 return
@@ -2057,7 +2057,7 @@ class TeamDetailWindow(QMainWindow):
                 if new_txt:
                     from modules.ics214 import services
                     from modules.ics214.schemas import EntryUpdate
-                    services.update_entry(str(inc), str(entry_id), EntryUpdate(text=new_txt))
+                    services.update_entry(str(inc), str(entry_id), EntryUpdate(text=new_txt), stream_id=str(sid))
                     self._load_team_ics214()
         except Exception:
             pass

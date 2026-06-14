@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-import sqlite3
 from typing import Dict
 
 from PySide6.QtCore import Qt
@@ -247,7 +246,7 @@ class HospitalEditDialog(QDialog):
         except ValueError as exc:
             QMessageBox.warning(self, "Unable to save", str(exc))
             return
-        except sqlite3.Error as exc:  # pragma: no cover - depends on runtime DB state
+        except Exception as exc:  # pragma: no cover - depends on runtime DB state
             QMessageBox.critical(self, "Database error", f"Unable to save hospital: {exc}")
             return
 

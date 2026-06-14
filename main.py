@@ -815,9 +815,7 @@ class MainWindow(QMainWindow):
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
         # Public Information dashboard (widget-based)
-        self._add_action(m_pub, "Public Information", None, "public.dashboard")
-        # Public Affairs — Dashboard entry
-        self._add_action(m_pub, "Public Affairs Dashboard", None, "public.affairs_dashboard")
+        self._add_action(m_pub, "Public Information Dashboard", None, "public.dashboard")
         self._add_action(m_pub, "Public Information Unit Log ICS-214", None, "public.unit_log")
         m_pub.addSeparator()
         self._add_action(m_pub, "Media Releases", None, "public.media_releases")
@@ -996,11 +994,11 @@ class MainWindow(QMainWindow):
             "toolkit.disaster.damage": category == "disaster",
             "toolkit.disaster.urban_interview": category == "disaster",
             "toolkit.disaster.photos": category == "disaster",
-            "planned.promotions": category == "planned",
-            "planned.vendors": category == "planned",
-            "planned.safety": category == "planned",
-            "planned.tasking": category == "planned",
-            "planned.health_sanitation": category == "planned",
+            "planned.promotions": True,
+            "planned.vendors": True,
+            "planned.safety": True,
+            "planned.tasking": True,
+            "planned.health_sanitation": True,
             "toolkit.initial.hasty": category in {"sar", "disaster"},
             "toolkit.initial.reflex": category in {"sar", "disaster"},
         }
@@ -1129,7 +1127,6 @@ class MainWindow(QMainWindow):
             "public.unit_log": self.open_public_unit_log,
             "public.media_releases": self.open_public_media_releases,
             "public.inquiries": self.open_public_inquiries,
-            "public.affairs_dashboard": self.open_public_affairs_dashboard,
 
             # ----- Finance/Admin -----
             "finance.dashboard": self.open_finance_admin_dashboard,
@@ -1434,7 +1431,7 @@ class MainWindow(QMainWindow):
     def open_edit_units_organizations(self) -> None:
         """Open the master-data Units and Organizations editor panel."""
         try:
-            from modules.personnel_role_management.units_organizations import (
+            from modules.personnel.units_organizations import (
                 UnitsOrganizationsPanel,
             )
         except Exception as exc:
@@ -2421,77 +2418,6 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = public_information.get_inquiries_panel(incident_id)
         self._open_dock_widget(panel, title="Public Inquiries")
-
-    def open_public_affairs_dashboard(self) -> None:
-        """Create/show the Public Affairs — Dashboard as a modeless widget.
-
-        Wires basic context/overlay refresh and starts auto-refresh at 15s.
-        """
-        try:
-            from modules.publicaffairs.panels.padashboard import (
-                make_public_affairs_dashboard,
-                PublicAffairsDashboardWidget,
-            )
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Public Affairs — Dashboard", f"Widget unavailable.\n{e}")
-            except Exception:
-                print(f"[warn] PublicAffairsDashboardWidget unavailable: {e}")
-            return
-
-        # Reuse a single instance; raise if already open
-        existing = getattr(self, "_public_affairs_dashboard", None)
-        if existing is not None and getattr(existing, "isVisible", lambda: False)():
-            try:
-                existing.raise_()
-                existing.activateWindow()
-            except Exception:
-                pass
-            return
-
-        w: PublicAffairsDashboardWidget = make_public_affairs_dashboard(self)
-        w.setWindowTitle("Public Affairs — Dashboard")
-
-        # Lightweight refresh that sets context and overlay only
-        def _refresh() -> None:
-            try:
-                from utils import incident_context
-                active_id = incident_context.get_active_incident_id()
-                w.setIncidentOverlayVisible(False if active_id else True)
-            except Exception:
-                w.setIncidentOverlayVisible(True)
-            try:
-                from utils.state import AppState
-                from datetime import datetime
-                op = AppState.get_active_op_period() or "—"
-                role = AppState.get_active_user_role() or "—"
-                now_text = datetime.now().strftime("%H:%M")
-                w.set_context(str(op), now_text, str(role))
-            except Exception:
-                pass
-
-        # Wire refresh and kick off timer
-        try:
-            w.refreshRequested.connect(_refresh)
-            _refresh()
-            w.setAutoRefresh(15000)
-        except Exception:
-            pass
-
-        # Keep reference to avoid GC
-        self._public_affairs_dashboard = w
-        def _clear_ref(*_):
-            try:
-                setattr(self, "_public_affairs_dashboard", None)
-            except Exception:
-                pass
-        try:
-            w.destroyed.connect(_clear_ref)
-        except Exception:
-            pass
-
-        w.setAttribute(Qt.WA_DeleteOnClose, True)
-        w.show()
 
 # --- 4.12 Finance/Admin --------------------------------------------------
     def open_finance_admin_dashboard(self) -> None:
@@ -3718,6 +3644,44 @@ class MetricWidget(QWidget):
             self.active_incident_label.setText(text)
 
 
+def _show_connection_fallback_dialog() -> str:
+    """Ask the user how SARApp should continue when no server is reachable."""
+    dialog = QMessageBox()
+    dialog.setIcon(QMessageBox.Warning)
+    dialog.setWindowTitle("SARApp Connection")
+    dialog.setText(
+        "No SARApp server was found on the local network, and the cloud server "
+        "is unavailable.\n\nWhat would you like to do?"
+    )
+    start_button = dialog.addButton("Start Local Incident Server", QMessageBox.AcceptRole)
+    retry_button = dialog.addButton("Retry Connection", QMessageBox.ActionRole)
+    manual_button = dialog.addButton("Manual Server Address", QMessageBox.ActionRole)
+    exit_button = dialog.addButton("Exit", QMessageBox.RejectRole)
+    dialog.setDefaultButton(start_button)
+    dialog.exec()
+    clicked = dialog.clickedButton()
+    if clicked == start_button:
+        return "start_local"
+    if clicked == retry_button:
+        return "retry"
+    if clicked == manual_button:
+        return "manual"
+    return "exit"
+
+
+def _parse_manual_server_address(raw: str, default_port: int) -> tuple:
+    from urllib.parse import urlparse
+    value = raw.strip()
+    if not value:
+        raise ValueError("Enter a server host or address.")
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    host = parsed.hostname or value
+    port = parsed.port or default_port
+    if not str(host).strip():
+        raise ValueError("Enter a server host or address.")
+    return str(host).strip(), int(port)
+
+
 def _initialize_connectivity(app: QApplication) -> object | None:
     """Run SARApp's launch connectivity workflow before showing the main window.
 
@@ -3730,31 +3694,92 @@ def _initialize_connectivity(app: QApplication) -> object | None:
         return None
 
     try:
-        from core.networking import ConnectionManager, ConnectionState
+        from core.networking import (
+            ConnectionManager,
+            ConnectionState,
+            DEFAULT_SERVER_PORT,
+            LocalServerController,
+            LocalServerError,
+            PortUnavailableError,
+        )
     except Exception as exc:
         logger.warning("Connectivity framework unavailable: %s", exc)
         return None
 
     cloud_url = os.getenv("SARAPP_CLOUD_URL") or None
     manager = ConnectionManager(cloud_url=cloud_url)
+    local_controller = LocalServerController()
+
     # Keep launch delay short: one broadcast interval is enough to catch an
     # already-running server, and manual connection remains a fallback later.
     snapshot = manager.startup_connect(discovery_timeout_seconds=2.5)
-    if snapshot.state == ConnectionState.DISCONNECTED:
-        result = QMessageBox.question(
-            None,
-            "SARApp Connectivity",
-            "No local SARApp Server was discovered and cloud connection is unavailable.\n\n"
-            "Enter Offline Mode for single-computer operation?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes,
-        )
-        if result == QMessageBox.Yes:
-            manager.enter_offline_mode()
-        else:
-            # Offline Mode is valid, but the user can still cancel launch if they
-            # prefer to start a LAN server first instead of working locally.
+
+    while snapshot.state == ConnectionState.DISCONNECTED:
+        choice = _show_connection_fallback_dialog()
+
+        if choice == "start_local":
+            try:
+                local_controller.start()
+            except PortUnavailableError as exc:
+                QMessageBox.critical(None, "Local Server Port Unavailable", str(exc))
+                continue
+            except LocalServerError as exc:
+                QMessageBox.critical(None, "Local Server Failed", str(exc))
+                continue
+
+            if not local_controller.wait_until_ready(timeout_seconds=15.0):
+                QMessageBox.critical(
+                    None,
+                    "Local Server Not Ready",
+                    "SARApp started the local server, but it did not become available "
+                    "before the startup timeout. Check that SARAPP_MONGO_URI is set.",
+                )
+                continue
+
+            snapshot = manager.connect_manual(local_controller.host, local_controller.port)
+            if not snapshot.is_connected:
+                QMessageBox.critical(
+                    None,
+                    "Local Connection Failed",
+                    "The local server is running but SARApp could not connect to it.",
+                )
+
+        elif choice == "retry":
+            snapshot = manager.startup_connect(discovery_timeout_seconds=2.5)
+            if snapshot.state == ConnectionState.DISCONNECTED:
+                QMessageBox.information(
+                    None,
+                    "No Server Found",
+                    "SARApp still could not find a LAN server or reach the configured cloud server.",
+                )
+
+        elif choice == "manual":
+            text, accepted = QInputDialog.getText(
+                None,
+                "Manual Server Address",
+                f"Enter SARApp server host or host:port (default port {DEFAULT_SERVER_PORT}):",
+            )
+            if accepted and text.strip():
+                try:
+                    host, port = _parse_manual_server_address(text, DEFAULT_SERVER_PORT)
+                except ValueError as exc:
+                    QMessageBox.warning(None, "Invalid Server Address", str(exc))
+                    continue
+                snapshot = manager.connect_manual(host, port)
+                if not snapshot.is_connected:
+                    QMessageBox.warning(
+                        None,
+                        "Connection Failed",
+                        f"SARApp could not verify a compatible server at {host}:{port}.",
+                    )
+
+        else:  # exit
             sys.exit(0)
+
+    # Stop the local server child process when the app quits (no-op if we
+    # did not start it or if an external server was reused).
+    app.aboutToQuit.connect(local_controller.stop)
+
     app.setProperty("sarapp_connection_manager", manager)
     logger.info("SARApp connectivity startup state: %s", manager.snapshot.state.value)
     return manager
@@ -3821,9 +3846,19 @@ if __name__ == "__main__":
     # Wire api_client to connection state so all modules talk to the right server.
     from utils.api_client import api_client as _api_client
     if DEBUG_BYPASS_LOGIN:
-        # Debug mode always runs offline against the built-in local server.
+        # Debug mode: start the local server automatically so API calls work.
         from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
+        from core.networking import LocalServerController as _LocalServerController
+        _debug_local_controller = _LocalServerController()
+        try:
+            _debug_local_controller.start()
+            ready = _debug_local_controller.wait_until_ready(timeout_seconds=15.0)
+            print(f"[debug] Local server ready: {ready} — {_debug_local_controller.base_url}")
+        except Exception as _exc:
+            print(f"[debug] Local server start failed: {_exc}")
+        app.aboutToQuit.connect(_debug_local_controller.stop)
         _api_client.configure(f"http://localhost:{_DEFAULT_SERVER_PORT}")
+        print(f"[debug] api_client configured: http://localhost:{_DEFAULT_SERVER_PORT}")
     elif _connection_manager is not None:
         from core.networking import ConnectionState as _ConnectionState
         from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT

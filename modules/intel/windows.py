@@ -17,7 +17,8 @@ from PySide6.QtWidgets import (
 
 from .panels import IntelDashboard, CluePanel
 from .models import Clue
-from .utils import validators, db_access
+from .utils import validators
+from . import services
 
 __all__ = [
     "get_dashboard_panel",
@@ -27,28 +28,12 @@ __all__ = [
 
 
 def get_dashboard_panel(incident_id: object | None = None) -> QWidget:
-    """Return the main Intel dashboard panel.
-
-    The panel itself internally queries the active incident context, so the
-    optional ``incident_id`` is currently informational only and may be used in
-    future to scope data queries if needed.
-    """
-    # Ensure the incident database has required intel tables before any panel
-    # attempts to query. This avoids first-run crashes on a fresh incident DB.
-    try:
-        db_access.ensure_incident_schema()
-    except Exception:
-        # Non-fatal; panels may still surface specific errors to the user.
-        pass
+    """Return the main Intel dashboard panel."""
     return IntelDashboard()
 
 
 def get_clue_log_panel(incident_id: object | None = None) -> QWidget:
     """Return the clue log panel (SAR-134)."""
-    try:
-        db_access.ensure_incident_schema()
-    except Exception:
-        pass
     return CluePanel()
 
 
@@ -103,10 +88,7 @@ class _AddCluePanel(QWidget):
         )
         try:
             validators.validate_clue(clue)
-            with db_access.incident_session() as session:
-                db_access.ensure_incident_schema()
-                session.add(clue)
-                session.commit()
+            services.add_clue(clue)
             QMessageBox.information(self, "Add Clue", "Clue saved.")
             # Reset basic fields after save
             self._type.clear()

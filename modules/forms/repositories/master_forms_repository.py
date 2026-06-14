@@ -218,3 +218,125 @@ CREATE TABLE IF NOT EXISTS form_template_assets (id INTEGER PRIMARY KEY, templat
 CREATE TABLE IF NOT EXISTS form_template_exports (id INTEGER PRIMARY KEY, template_id INTEGER, template_version_id INTEGER, export_type TEXT NOT NULL, profile_json TEXT);
 CREATE TABLE IF NOT EXISTS form_template_audit (id INTEGER PRIMARY KEY, template_id INTEGER, template_version_id INTEGER, action TEXT NOT NULL, user_id TEXT, timestamp TEXT NOT NULL, details_json TEXT);
 """
+
+
+
+# ---------------------------------------------------------------------------
+# API-backed repository (MongoDB via SARApp Server)
+# ---------------------------------------------------------------------------
+
+class ApiMasterFormsRepository:
+    """Reads/writes form families, templates, and versions through the SARApp API."""
+
+    # ------------------------------------------------------------------ families
+
+    def list_families(self, code=None, category=None, active=None):
+        from utils.api_client import api_client
+        params = {}
+        if code is not None:
+            params["code"] = code
+        if category is not None:
+            params["category"] = category
+        if active is not None:
+            params["active"] = active
+        return api_client.get("/api/forms/families", params=params or None)
+
+    def get_family_by_code(self, code: str):
+        from utils.api_client import api_client
+        try:
+            return api_client.get(f"/api/forms/families/{code}")
+        except Exception:
+            return None
+
+    def create_family(self, family):
+        from utils.api_client import api_client
+        from dataclasses import asdict
+        data = asdict(family) if hasattr(family, "__dataclass_fields__") else dict(family)
+        result = api_client.post("/api/forms/families", json=data)
+        if hasattr(family, "id") and result:
+            family.id = result.get("id")
+        return family
+
+    # ------------------------------------------------------------------ templates
+
+    def list_templates(self, family_code=None, agency=None, system=None, status=None, active_only=False):
+        from utils.api_client import api_client
+        params = {}
+        if family_code is not None:
+            params["family_code"] = family_code
+        if agency is not None:
+            params["agency"] = agency
+        if system is not None:
+            params["system"] = system
+        if status is not None:
+            params["status"] = status
+        if active_only:
+            params["active_only"] = True
+        return api_client.get("/api/forms/templates", params=params or None)
+
+    def get_template(self, template_id: int):
+        from utils.api_client import api_client
+        try:
+            return api_client.get(f"/api/forms/templates/{template_id}")
+        except Exception:
+            return None
+
+    def create_template(self, template):
+        from utils.api_client import api_client
+        from dataclasses import asdict
+        data = asdict(template) if hasattr(template, "__dataclass_fields__") else dict(template)
+        result = api_client.post("/api/forms/templates", json=data)
+        if hasattr(template, "id") and result:
+            template.id = result.get("id")
+        return template
+
+    def retire_template(self, template_id: int, user_id=None):
+        from utils.api_client import api_client
+        params = {}
+        if user_id is not None:
+            params["user_id"] = user_id
+        api_client.patch(f"/api/forms/templates/{template_id}/retire", params=params or None)
+
+    # ------------------------------------------------------------------ versions
+
+    def list_template_versions(self, template_id: int):
+        from utils.api_client import api_client
+        return api_client.get(f"/api/forms/templates/{template_id}/versions")
+
+    def get_template_version(self, template_id: int, version_id: int):
+        from utils.api_client import api_client
+        try:
+            return api_client.get(f"/api/forms/templates/{template_id}/versions/{version_id}")
+        except Exception:
+            return None
+
+    def get_current_version(self, template_id: int):
+        from utils.api_client import api_client
+        try:
+            return api_client.get(f"/api/forms/templates/{template_id}/versions/current")
+        except Exception:
+            return None
+
+    def create_template_version(self, version):
+        from utils.api_client import api_client
+        from dataclasses import asdict
+        import json as _json
+
+        if hasattr(version, "__dataclass_fields__"):
+            data = asdict(version)
+        else:
+            data = dict(version)
+
+        # Serialize layout/fields/bindings if they're not already dicts/lists
+        for field in ("layout", "fields", "bindings", "validation", "export_profiles"):
+            val = data.get(field)
+            if isinstance(val, str):
+                try:
+                    data[field] = _json.loads(val)
+                except Exception:
+                    pass
+
+        result = api_client.post(f"/api/forms/templates/{version.template_id}/versions", json=data)
+        if hasattr(version, "id") and result:
+            version.id = result.get("id")
+        return version

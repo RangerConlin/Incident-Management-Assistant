@@ -3,19 +3,19 @@ from __future__ import annotations
 from typing import Any
 
 from modules.forms.repositories import IncidentFormsRepository, MasterFormsRepository
+from modules.forms.repositories.master_forms_repository import ApiMasterFormsRepository
+from modules.forms.repositories.incident_forms_repository import ApiIncidentFormsRepository
 from .binding_service import BindingService
 
 
 class InstanceService:
-    def __init__(self, master_repository: MasterFormsRepository | None = None, binding_service: BindingService | None = None, incident_base_dir=None) -> None:
-        self.master_repository = master_repository or MasterFormsRepository()
+    def __init__(self, master_repository=None, binding_service: BindingService | None = None, incident_base_dir=None) -> None:
+        self.master_repository = master_repository or ApiMasterFormsRepository()
         self.binding_service = binding_service or BindingService()
         self.incident_base_dir = incident_base_dir
 
-    def repository_for(self, incident_id: str) -> IncidentFormsRepository:
-        if self.incident_base_dir is not None:
-            return IncidentFormsRepository(incident_id, base_dir=self.incident_base_dir)
-        return IncidentFormsRepository(incident_id)
+    def repository_for(self, incident_id: str) -> ApiIncidentFormsRepository:
+        return ApiIncidentFormsRepository(incident_id)
 
     def create_instance(self, *, incident_id: str, template_id: int | None = None, template_version_id: int | None = None, binding_context: dict[str, Any] | None = None, created_by: str | None = None, **data: Any) -> dict[str, Any]:
         if template_version_id:

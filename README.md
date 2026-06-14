@@ -55,14 +55,7 @@ Use `QT_QPA_PLATFORM=offscreen` when running Qt smoke tests in CI. On Linux desk
 
 ### Running FastAPI modules
 
-Several modules expose FastAPI routers backed by the same data layer. Public Information has a standalone app entry point:
-
-```bash
-python -m modules.public_info.seed  # optional: loads sample content
-uvicorn modules.public_info.api:app --reload
-```
-
-The Public Information API supports draft, approval and publishing flows for PIO teams. Other routers are intended to be included by an app or test harness, including `modules.forms.api`, `modules.finance.api`, `modules.logistics.api`, `modules.operations.taskings.api`, `modules.planning.api`, `modules.plannedtoolkit.api`, `modules.initialresponse.api`, `modules.ics214.api`, `modules.safety.api`, `modules.safety.orm.api`, and shared catalog routers under `data/db/sarapp_db/api`.
+Several modules expose FastAPI routers backed by the same data layer. Routers are intended to be included by an app or test harness, including `modules.forms.api`, `modules.finance.api`, `modules.logistics.api`, `modules.operations.taskings.api`, `modules.planning.api`, `modules.plannedtoolkit.api`, `modules.initialresponse.api`, `modules.ics214.api`, `modules.safety.api`, `modules.safety.orm.api`, and shared catalog routers under `data/db/sarapp_db/api`.
 
 ## Working with data
 
@@ -92,7 +85,7 @@ Targeted tests include check-in workflows, resource requests, catalog repositori
 
 ## Additional resources
 
-- **Module READMEs.** Many feature areas include their own README (e.g., `modules/logistics/checkin/README.md`, `modules/public_info/README.md`) that describe domain-specific workflows and APIs.
+- **Module READMEs.** Many feature areas include their own README (e.g., `modules/logistics/checkin/README.md`) that describe domain-specific workflows and APIs.
 - **Design documents.** The `Design Documents/` directory contains the original scoping decks, wireframes and data dictionaries that informed the module layout.
 - **Notifications UI.** Notification services expose toast history, rules management and scheduler controls for the widget-based desktop app.
 

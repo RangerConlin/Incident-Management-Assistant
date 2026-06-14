@@ -19,8 +19,8 @@ from .report_panel import ReportPanel
 from .clue_editor_dialog import ClueEditorDialog
 from .subject_editor import SubjectEditor
 from ..models import IntelReport
-from ..utils import db_access
 from .report_panel import _ReportDialog  # reuse internal dialog
+from .. import services
 
 
 class IntelDashboard(QWidget):
@@ -62,23 +62,26 @@ class IntelDashboard(QWidget):
     def _new_clue(self) -> None:
         dlg = ClueEditorDialog(parent=self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.clue)
-                session.commit()
-            self.clues.refresh()
+            try:
+                services.add_clue(dlg.clue)
+                self.clues.refresh()
+            except Exception:
+                pass
 
     def _new_subject(self) -> None:
         dlg = SubjectEditor(parent=self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.subject)
-                session.commit()
-            self.subjects.refresh()
+            try:
+                services.add_subject(dlg.subject)
+                self.subjects.refresh()
+            except Exception:
+                pass
 
     def _new_report(self) -> None:
         dlg = _ReportDialog(self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.report)
-                session.commit()
-            self.reports.refresh()
+            try:
+                services.add_report(dlg.report)
+                self.reports.refresh()
+            except Exception:
+                pass

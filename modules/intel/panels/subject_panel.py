@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget,
@@ -15,11 +13,10 @@ from PySide6.QtWidgets import (
     QDialog,
     QMessageBox,
 )
-from sqlmodel import select
 
 from ..models import Subject
-from ..utils import db_access
 from .subject_editor import SubjectEditor
+from .. import services
 
 
 class SubjectPanel(QWidget):
@@ -54,11 +51,9 @@ class SubjectPanel(QWidget):
     def refresh(self) -> None:
         self.table.setRowCount(0)
         try:
-            db_access.ensure_incident_schema()
+            subjects = services.list_subjects()
         except Exception:
-            pass
-        with db_access.incident_session() as session:
-            subjects: List[Subject] = session.exec(select(Subject)).all()
+            return
         for row, sub in enumerate(subjects):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(sub.name))
@@ -77,38 +72,38 @@ class SubjectPanel(QWidget):
     def _add(self) -> None:
         dlg = SubjectEditor(parent=self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.subject)
-                session.commit()
-            self.refresh()
+            try:
+                services.add_subject(dlg.subject)
+                self.refresh()
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", str(exc))
 
     def _edit(self) -> None:
         sid = self._current_subject_id()
         if sid is None:
             QMessageBox.warning(self, "Edit Subject", "Select a subject to edit")
             return
-        with db_access.incident_session() as session:
-            sub = session.get(Subject, sid)
+        sub = services.get_subject(sid)
+        if not sub:
+            QMessageBox.warning(self, "Edit Subject", "Subject not found")
+            return
         dlg = SubjectEditor(sub, self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.subject)
-                session.commit()
-            self.refresh()
+            try:
+                services.update_subject(dlg.subject)
+                self.refresh()
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", str(exc))
 
     def _delete(self) -> None:
         sid = self._current_subject_id()
         if sid is None:
             QMessageBox.warning(self, "Delete Subject", "Select a subject to delete")
             return
-        if (
-            QMessageBox.question(self, "Delete Subject", "Delete selected subject?")
-            != QMessageBox.Yes
-        ):
+        if QMessageBox.question(self, "Delete Subject", "Delete selected subject?") != QMessageBox.Yes:
             return
-        with db_access.incident_session() as session:
-            sub = session.get(Subject, sid)
-            if sub:
-                session.delete(sub)
-                session.commit()
-        self.refresh()
+        try:
+            services.delete_subject(sid)
+            self.refresh()
+        except Exception as exc:
+            QMessageBox.warning(self, "Error", str(exc))

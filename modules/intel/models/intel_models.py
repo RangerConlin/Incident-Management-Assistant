@@ -1,75 +1,64 @@
-"""SQLModel table definitions for incident intelligence data."""
+"""Dataclass definitions for incident intelligence data."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from sqlmodel import SQLModel, Field
 
-
-class Clue(SQLModel, table=True):
-    """Intel clue recorded during an incident."""
-
-    id: Optional[int] = Field(default=None, primary_key=True)
+@dataclass
+class Clue:
     type: str
-    score: int = 0
+    score: int
     at_time: datetime
     location_text: str
-    geom: str | None = None
     entered_by: str
-    team_text: str | None = None
-    description: str | None = None
-    attachments_json: str | None = None
-    linked_subject_id: int | None = Field(default=None, foreign_key="subject.id")
-    linked_task_id: int | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    id: Optional[int] = None
+    geom: Optional[str] = None
+    team_text: Optional[str] = None
+    description: Optional[str] = None
+    attachments_json: Optional[str] = None
+    linked_subject_id: Optional[int] = None
+    linked_task_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
-class Subject(SQLModel, table=True):
-    """Subject profile information."""
-
-    id: Optional[int] = Field(default=None, primary_key=True)
+@dataclass
+class Subject:
     name: str
-    sex: str | None = None
-    dob: str | None = None
-    race: str | None = None
-    photo: str | None = None  # path to photo
-    lkp_time: datetime | None = None
-    lkp_place: str | None = None
+    id: Optional[int] = None
+    sex: Optional[str] = None
+    dob: Optional[str] = None
+    race: Optional[str] = None
+    photo: Optional[str] = None
+    lkp_time: Optional[datetime] = None
+    lkp_place: Optional[str] = None
 
 
-class EnvSnapshot(SQLModel, table=True):
-    """Environmental intel for an operational period."""
-
-    id: Optional[int] = Field(default=None, primary_key=True)
+@dataclass
+class EnvSnapshot:
     op_period: int
-    weather_json: str | None = None
-    hazards_json: str | None = None
-    terrain_json: str | None = None
-    notes: str | None = None
+    id: Optional[int] = None
+    weather_json: Optional[str] = None
+    hazards_json: Optional[str] = None
+    terrain_json: Optional[str] = None
+    notes: Optional[str] = None
 
 
-class IntelReport(SQLModel, table=True):
-    """Intel report composed from clues and subjects."""
-
-    id: Optional[int] = Field(default=None, primary_key=True)
+@dataclass
+class IntelReport:
     title: str
     body_md: str
-    linked_subject_id: int | None = Field(default=None, foreign_key="subject.id")
-    linked_task_id: int | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    id: Optional[int] = None
+    linked_subject_id: Optional[int] = None
+    linked_task_id: Optional[int] = None
+    created_at: Optional[datetime] = None
 
 
-class FormEntry(SQLModel, table=True):
-    """Generic storage for completed forms.
-
-    The project supports numerous official SAR and CAP forms.  Rather than
-    creating a dedicated table for each form during early development this
-    table stores the serialised representation and a simple name identifier.
-    """
-
-    id: Optional[int] = Field(default=None, primary_key=True)
+@dataclass
+class FormEntry:
     form_name: str
     data_json: str
+    id: Optional[int] = None

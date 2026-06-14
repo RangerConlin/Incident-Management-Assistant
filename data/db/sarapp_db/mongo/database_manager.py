@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from pymongo.database import Database
 
-from sarapp_db.mongo.mongo_client import get_client
+from sarapp_db.mongo.mongo_client import get_client  # re-exported for routers
 from sarapp_db.mongo.errors import DatabaseConnectionError, InvalidIncidentIdError
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,21 @@ def get_incident_db_name(incident_id: str) -> str:
     """Return the MongoDB database name for a given incident_id."""
     validate_incident_id(incident_id)
     return f"{DB_INCIDENT_PREFIX}{incident_id}"
+
+
+def get_system_db() -> Database:
+    """Return the sarapp_system database handle from the shared Mongo client."""
+    return get_client()[DB_SYSTEM]
+
+
+def get_master_db() -> Database:
+    """Return the sarapp_master database handle from the shared Mongo client."""
+    return get_client()[DB_MASTER]
+
+
+def get_incident_db(incident_id: str) -> Database:
+    """Return the per-incident database handle after validating incident_id."""
+    return get_client()[get_incident_db_name(incident_id)]
 
 
 class DatabaseManager:

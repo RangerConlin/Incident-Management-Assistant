@@ -104,6 +104,19 @@ class SARAppServerManager:
         self.server_info.last_heartbeat = utc_now()
         return self.server_info.to_dict()
 
+    def serve_forever(self) -> None:
+        """Start and block the calling thread until shutdown() is called."""
+        import threading
+        self._stop_event = threading.Event()
+        self.start()
+        self._stop_event.wait()
+
+    def shutdown(self) -> None:
+        """Signal serve_forever() to return and stop the server."""
+        self.stop()
+        if hasattr(self, "_stop_event"):
+            self._stop_event.set()
+
     def health_payload(self) -> dict[str, Any]:
         return {
             "ok": self.server_info.status == ServerStatus.AVAILABLE,

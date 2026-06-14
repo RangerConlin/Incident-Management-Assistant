@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import dataclass, replace
 from typing import Iterable, Sequence
 
@@ -351,7 +350,7 @@ class HospitalManagerDialog(QDialog):
     def _refresh(self, select_id: int | None = None) -> None:
         try:
             rows = self._service.list_hospitals()
-        except sqlite3.Error as exc:  # pragma: no cover - depends on runtime DB
+        except Exception as exc:  # pragma: no cover - depends on runtime DB
             QMessageBox.critical(self, "Database error", f"Unable to load hospitals: {exc}")
             rows = []
         self._model.set_hospitals(rows)
@@ -453,7 +452,7 @@ class HospitalManagerDialog(QDialog):
         ids = [row.id for row in selected if row.id is not None]
         try:
             self._service.delete_hospitals(ids)
-        except sqlite3.Error as exc:  # pragma: no cover - depends on runtime DB
+        except Exception as exc:  # pragma: no cover - depends on runtime DB
             QMessageBox.critical(self, "Database error", f"Unable to delete hospitals: {exc}")
             return
         self._refresh()

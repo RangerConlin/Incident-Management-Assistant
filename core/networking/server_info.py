@@ -13,11 +13,27 @@ from enum import Enum
 from typing import Any
 
 SARAPP_VERSION = "0.1-connectivity"
-DEFAULT_DISCOVERY_PORT = 45454
+DEFAULT_SERVER_HOST = "127.0.0.1"
 DEFAULT_SERVER_PORT = 8765
+DEFAULT_LOCAL_SERVER_NAME = "Local SARApp Server"
+DEFAULT_DISCOVERY_PORT = 45454
 DEFAULT_DISCOVERY_INTERVAL_SECONDS = 2.0
 DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 10.0
 DISCOVERY_MESSAGE_TYPE = "sarapp.server.heartbeat"
+HEALTH_PATH = "/health"
+
+
+def build_base_url(host: str, port: int) -> str:
+    cleaned = str(host).strip()
+    if cleaned.startswith("http://") or cleaned.startswith("https://"):
+        return cleaned.rstrip("/")
+    return f"http://{cleaned}:{int(port)}"
+
+
+def is_sarapp_health_payload(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    return bool(payload.get("ok"))
 
 
 def utc_now() -> datetime:

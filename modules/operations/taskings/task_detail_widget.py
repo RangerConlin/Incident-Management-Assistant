@@ -526,11 +526,6 @@ class TaskDetailWindow(QWidget):
         # plan_links_table intentionally not added to layout (objectives section removed)
         # Defer adding the Planning tab until the very end so it appears on the far right
         self._planning_content = plan_content
-        # Load data when the window is constructed
-        try:
-            self._load_planning()
-        except Exception:
-            pass
 
         # Teams tab
         teams_content = QWidget(self)
@@ -922,9 +917,9 @@ class TaskDetailWindow(QWidget):
                     # Persist selection via repository
                     it = model.item(index.row(), 0)
                     row_id = it.data(_Qt.UserRole)
-                    from modules.operations.taskings.repository import update_task_comm
+                    from modules.operations.taskings.repository import update_task_comm_for_task
                     if row_id is not None:
-                        update_task_comm(int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
+                        update_task_comm_for_task(int(self._task_id), int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
                     # Trigger reload to refresh read-only columns
                     self._parent_w.load_comms()
                 except Exception:
@@ -952,9 +947,9 @@ class TaskDetailWindow(QWidget):
                     # Persist via repository
                     it = model.item(index.row(), 0)
                     row_id = it.data(_Qt.UserRole)
-                    from modules.operations.taskings.repository import update_task_comm
+                    from modules.operations.taskings.repository import update_task_comm_for_task
                     if row_id is not None:
-                        update_task_comm(int(row_id), function=value)
+                        update_task_comm_for_task(int(self._task_id), int(row_id), function=value)
                     # Update display
                     model.setData(index, value, _Qt.DisplayRole)
                 except Exception:
@@ -1012,8 +1007,8 @@ class TaskDetailWindow(QWidget):
                 row_id = it.data(Qt.UserRole)
                 if row_id is None:
                     return
-                from modules.operations.taskings.repository import remove_task_comm
-                remove_task_comm(int(row_id))
+                from modules.operations.taskings.repository import remove_task_comm_for_task
+                remove_task_comm_for_task(int(self._task_id), int(row_id))
             except Exception as e:
                 try:
                     QMessageBox.warning(self, "Remove Channel", f"Could not remove row: {e}")
@@ -1242,8 +1237,7 @@ class TaskDetailWindow(QWidget):
                         continue
             except Exception:
                 pass
-            # Initial load
-            self._load_ics214(); self._load_task_log(); self._load_team_log()
+            # Initial load deferred to _initial_load via QTimer
         except Exception:
             pass
         # Wire attachment actions
@@ -1288,14 +1282,29 @@ class TaskDetailWindow(QWidget):
             pass
 
         # Initial data load
-        self._load_header()
-        self.load_narrative()
         try:
-            self.load_vehicles()
+            from utils.app_signals import app_signals
+            app_signals.teamStatusChanged.connect(self._on_team_updates)
+            app_signals.teamAssetsChanged.connect(self._on_team_updates)
         except Exception:
             pass
         try:
-            self.load_assignment()
+            self._wire_debrief_tab()
+        except Exception:
+            pass
+        # Defer all data loads so the window paints before any API calls fire
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._initial_load)
+
+    def _status_background_color(self, status: str | None) -> str:
+        key = str(status or "").strip().lower()
+        return self._status_bg_colors.get(key, "#ffffff")
+
+    def _initial_load(self) -> None:
+        """Load all data after the window is shown (deferred from __init__)."""
+        self._load_header()
+        try:
+            self.load_narrative()
         except Exception:
             pass
         try:
@@ -1311,32 +1320,37 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         try:
-            self._wire_debrief_tab()
             self.load_debriefs()
-        except Exception:
-            pass
-        try:
-            from utils.app_signals import app_signals
-            app_signals.teamStatusChanged.connect(self._on_team_updates)
-            app_signals.teamAssetsChanged.connect(self._on_team_updates)
         except Exception:
             pass
         try:
             self.load_vehicles()
         except Exception:
             pass
-        # Auto-refresh vehicles when team status/assets change
         try:
-            from utils.app_signals import app_signals
-            app_signals.teamStatusChanged.connect(self._on_team_updates)
-            app_signals.teamAssetsChanged.connect(self._on_team_updates)
+            self.load_assignment()
         except Exception:
             pass
-        self.adjustSize()
-
-    def _status_background_color(self, status: str | None) -> str:
-        key = str(status or "").strip().lower()
-        return self._status_bg_colors.get(key, "#ffffff")
+        try:
+            self._load_planning()
+        except Exception:
+            pass
+        try:
+            self._load_ics214()
+        except Exception:
+            pass
+        try:
+            self._load_task_log()
+        except Exception:
+            pass
+        try:
+            self._load_team_log()
+        except Exception:
+            pass
+        try:
+            self.adjustSize()
+        except Exception:
+            pass
 
     def _apply_status_background(self, status: str | None) -> None:
         try:
@@ -2229,22 +2243,22 @@ class TaskDetailWindow(QWidget):
 
     def _delete_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_ops_214_stream()
+            inc, sid = self._get_ops_214_stream()
             entry_id = self._selected_214_entry_id()
-            if not inc or not entry_id:
+            if not inc or not sid or not entry_id:
                 return
             from PySide6.QtWidgets import QMessageBox
             if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 return
             from modules.ics214 import services
-            services.delete_entry(inc, entry_id)
+            services.delete_entry(inc, entry_id, stream_id=sid)
             self._load_ics214()
         except Exception:
             pass
 
     def _edit_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_ops_214_stream()
+            inc, sid = self._get_ops_214_stream()
             entry_id = self._selected_214_entry_id()
             if not inc or not entry_id:
                 return
@@ -2264,7 +2278,7 @@ class TaskDetailWindow(QWidget):
                 if new_txt:
                     from modules.ics214 import services
                     from modules.ics214.schemas import EntryUpdate
-                    services.update_entry(inc, entry_id, EntryUpdate(text=new_txt))
+                    services.update_entry(inc, entry_id, EntryUpdate(text=new_txt), stream_id=sid)
                     self._load_ics214()
         except Exception:
             pass
@@ -2669,29 +2683,8 @@ class TaskDetailWindow(QWidget):
 
     # --- Planning / Objectives linkage ---------------------------------
     def _load_planning(self) -> None:
-        """Populate objectives, strategies and current links for this task."""
-        try:
-            from modules._infra.repository import with_incident_session
-            from modules.command.models.objectives import ObjectiveRepository, ObjectiveFilters
-            from utils import incident_context
-            incident_id = incident_context.get_active_incident_id()
-            if not incident_id:
-                return
-            with with_incident_session(str(incident_id)) as session:
-                repo = ObjectiveRepository(session, str(incident_id))
-                # Load objectives into combo (store id in UserRole)
-                objectives = repo.list_objectives(ObjectiveFilters())
-                self._plan_obj_cb.blockSignals(True)
-                self._plan_obj_cb.clear()
-                for o in objectives:
-                    self._plan_obj_cb.addItem(f"{o.code} - {o.text}", o.id)
-                self._plan_obj_cb.blockSignals(False)
-                # Build strategies for selected objective
-                self._on_plan_obj_changed(repo)
-                # Load existing links for this task
-                links = repo.list_links_for_task(int(self._task_id))
-        except Exception:
-            links = []
+        """Populate objectives/strategies — deferred until planning module migrated to MongoDB."""
+        links = []
         try:
             self._plan_links_model.removeRows(0, self._plan_links_model.rowCount())
         except Exception:
@@ -2708,25 +2701,8 @@ class TaskDetailWindow(QWidget):
             self._plan_links_model.appendRow([it_id, it_obj, it_strat, it_rm])
 
     def _on_plan_obj_changed(self, repo=None) -> None:
-        try:
-            if repo is None:
-                from modules._infra.repository import with_incident_session
-                from modules.command.models.objectives import ObjectiveRepository
-                from utils import incident_context
-                incident_id = incident_context.get_active_incident_id()
-                if not incident_id:
-                    return
-                with with_incident_session(str(incident_id)) as session:
-                    repo = ObjectiveRepository(session, str(incident_id))
-            obj_id = int(self._plan_obj_cb.currentData()) if self._plan_obj_cb.count() else None
-            self._plan_strat_cb.clear()
-            if obj_id is None:
-                return
-            strategies = repo.list_strategies(int(obj_id))
-            for s in strategies:
-                self._plan_strat_cb.addItem(s.text, s.id)
-        except Exception:
-            pass
+        """Deferred until planning module migrated to MongoDB."""
+        pass
 
     def _link_task_to_strategy(self) -> None:
         try:
@@ -4308,8 +4284,8 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 return
             new_val = item.text().strip()
-            from modules.operations.taskings.repository import update_sortie_id
-            update_sortie_id(int(tt_id), str(new_val) if new_val else None)
+            from modules.operations.taskings.repository import update_sortie_id_for_task
+            update_sortie_id_for_task(int(self._task_id), int(tt_id), str(new_val) if new_val else None)
         except Exception:
             pass
         finally:

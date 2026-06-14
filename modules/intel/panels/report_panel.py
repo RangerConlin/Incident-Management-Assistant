@@ -20,10 +20,9 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMessageBox,
 )
-from sqlmodel import select
-
 from ..models import IntelReport
-from ..utils import db_access, export
+from ..utils import export
+from .. import services
 
 
 class _ReportDialog(QDialog):
@@ -86,11 +85,9 @@ class ReportPanel(QWidget):
     def refresh(self) -> None:
         self.table.setRowCount(0)
         try:
-            db_access.ensure_incident_schema()
+            reports = services.list_reports()
         except Exception:
-            pass
-        with db_access.incident_session() as session:
-            reports: List[IntelReport] = session.exec(select(IntelReport)).all()
+            return
         for row, r in enumerate(reports):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(r.title))
@@ -108,17 +105,17 @@ class ReportPanel(QWidget):
     def _add(self) -> None:
         dlg = _ReportDialog(self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.report)
-                session.commit()
-            self.refresh()
+            try:
+                services.add_report(dlg.report)
+                self.refresh()
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", str(exc))
 
     def _export(self) -> None:
         rid = self._current_id()
         if rid is None:
             return
-        with db_access.incident_session() as session:
-            rep = session.get(IntelReport, rid)
+        rep = services.get_report(rid)
         if not rep:
             return
         path, _ = QFileDialog.getSaveFileName(self, "Export PDF", filter="PDF Files (*.pdf)")

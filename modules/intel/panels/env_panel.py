@@ -17,10 +17,9 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
 )
-from sqlmodel import select
-
 from ..models import EnvSnapshot
-from ..utils import db_access, validators
+from ..utils import validators
+from .. import services
 
 
 class _EnvDialog(QDialog):
@@ -114,11 +113,9 @@ class EnvironmentPanel(QWidget):
     def refresh(self) -> None:
         self.table.setRowCount(0)
         try:
-            db_access.ensure_incident_schema()
+            snaps = services.list_env_snapshots()
         except Exception:
-            pass
-        with db_access.incident_session() as session:
-            snaps: List[EnvSnapshot] = session.exec(select(EnvSnapshot)).all()
+            return
         for row, s in enumerate(snaps):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(str(s.op_period)))
@@ -138,31 +135,31 @@ class EnvironmentPanel(QWidget):
     def _add(self) -> None:
         dlg = _EnvDialog(parent=self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.snapshot)
-                session.commit()
-            self.refresh()
+            try:
+                services.add_env_snapshot(dlg.snapshot)
+                self.refresh()
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", str(exc))
 
     def _edit(self) -> None:
         sid = self._current_id()
         if sid is None:
             return
-        with db_access.incident_session() as session:
-            snap = session.get(EnvSnapshot, sid)
+        snap = services.get_env_snapshot(sid)
         dlg = _EnvDialog(snap, self)
         if dlg.exec() == QDialog.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.snapshot)
-                session.commit()
-            self.refresh()
+            try:
+                services.save_env_snapshot(dlg.snapshot)
+                self.refresh()
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", str(exc))
 
     def _delete(self) -> None:
         sid = self._current_id()
         if sid is None:
             return
-        with db_access.incident_session() as session:
-            snap = session.get(EnvSnapshot, sid)
-            if snap:
-                session.delete(snap)
-                session.commit()
-        self.refresh()
+        try:
+            services.delete_env_snapshot(sid)
+            self.refresh()
+        except Exception as exc:
+            QMessageBox.warning(self, "Error", str(exc))

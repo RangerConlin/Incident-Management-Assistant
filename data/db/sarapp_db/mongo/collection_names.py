@@ -42,6 +42,7 @@ class MasterCollections:
 
     # Facilities
     HOSPITALS = "hospitals"
+    EMS_AGENCIES = "ems_agencies"
 
     # Reference / lookup tables
     RESOURCE_TYPES = "resource_types"
@@ -49,10 +50,13 @@ class MasterCollections:
     AGENCY_DIRECTORY = "agency_directory"
 
     # Templates
+    FORM_FAMILIES = "form_families"
     FORM_TEMPLATES = "form_templates"
+    FORM_TEMPLATE_VERSIONS = "form_template_versions"
     INCIDENT_TEMPLATES = "incident_templates"
     MEETING_TEMPLATES = "meeting_templates"
     TASK_TYPES = "task_types"
+    TEAM_TYPES = "team_types"
 
     # Users and access
     USER_PROFILES = "user_profiles"
@@ -90,15 +94,50 @@ class IncidentCollections:
 
     # Communications
     COMMUNICATIONS_LOG = "communications_log"
+    COMMS_LOG_AUDIT = "comms_log_audit"
+    COMMS_LOG_FILTERS = "comms_log_filters"
     ICS_213_MESSAGES = "ics_213_messages"
     ICS_214_LOGS = "ics_214_logs"
     ICS_205_INSTANCES = "ics_205_instances"
+    ICS_206_AID_STATIONS = "ics_206_aid_stations"
+    ICS_206_AMBULANCE_SERVICES = "ics_206_ambulance_services"
+    ICS_206_HOSPITALS = "ics_206_hospitals"
+    ICS_206_AIR_AMBULANCE = "ics_206_air_ambulance"
+    ICS_206_MEDICAL_COMMS = "ics_206_medical_comms"
+    ICS_206_PROCEDURES = "ics_206_procedures"
+    ICS_206_SIGNATURES = "ics_206_signatures"
 
-    # Forms — completed forms only, one collection
+    # Public Information
+    PIO_MESSAGES = "pio_messages"
+    PIO_MESSAGE_REVISIONS = "pio_message_revisions"
+    PIO_APPROVALS = "pio_approvals"
+    PIO_MEDIA_LOG = "pio_media_log"
+    PIO_MISINFORMATION_ITEMS = "pio_misinformation_items"
+    PIO_MISINFORMATION_TIMELINE = "pio_misinformation_timeline"
+    PIO_TALKING_POINTS = "pio_talking_points"
+    PIO_TEMPLATES = "pio_templates"
+    PIO_TEMPLATE_VERSIONS = "pio_template_versions"
+    PIO_DISTRIBUTION_LOG = "pio_distribution_log"
+    PIO_GENERATED_DOCUMENTS = "pio_generated_documents"
+
+    # Forms — instances with embedded values; history/audit in separate collections
     FORMS = "forms"
+    FORM_INSTANCE_REVISIONS = "form_instance_revisions"
+    FORM_INSTANCE_AUDIT = "form_instance_audit"
+    FORM_INSTANCE_EXPORTS = "form_instance_exports"
+    FORM_INSTANCE_LINKS = "form_instance_links"
 
     # Hazards identified during this incident
     HAZARDS = "hazards"
+    SAFETY_REPORTS = "safety_reports"
+    MEDICAL_INCIDENTS = "medical_incidents"
+    TRIAGE_ENTRIES = "triage_entries"
+    HAZARD_ZONES = "hazard_zones"
+    CAP_ORM_SUMMARIES = "cap_orm_summaries"
+    CAP_ORM_FORMS = "cap_orm_forms"
+    CAP_ORM_HAZARDS = "cap_orm_hazards"
+    CAP_ORM_AUDIT = "cap_orm_audit"
+    ICS_206_BUILDS = "ics_206_builds"
 
     # Radio channels assigned to this incident (subset/override of master radio_channels)
     INCIDENT_CHANNELS = "incident_channels"
@@ -117,6 +156,56 @@ class IncidentCollections:
 
     # Incident journal — freeform timestamped log entries (planning section notes)
     INCIDENT_JOURNAL = "incident_journal"
+
+    # Personnel assigned/checked in to this incident
+    INCIDENT_PERSONNEL = "incident_personnel"
+
+    # Initial response planning
+    INITIAL_HASTY_TASKS = "initial_hasty_tasks"
+    INITIAL_REFLEX_ACTIONS = "initial_reflex_actions"
+
+    # Planned event toolkit
+    PLANNED_CAMPAIGNS = "planned_campaigns"
+    PLANNED_EVENT_SCHEDULES = "planned_event_schedules"
+    PLANNED_VENDORS = "planned_vendors"
+    PLANNED_PERMITS = "planned_permits"
+    PLANNED_SAFETY_REPORTS = "planned_safety_reports"
+    PLANNED_TASKS = "planned_tasks"
+    PLANNED_HEALTH_INSPECTIONS = "planned_health_inspections"
+
+    # Logistics
+    LOGISTICS_RESOURCE_STATUS_ITEMS = "logistics_resource_status_items"
+    LOGISTICS_RESOURCE_REQUESTS = "logistics_resource_requests"
+
+    # Operations (aliases to canonical task/team collections)
+    OPERATIONS_TASKS = "tasks"
+    OPERATIONS_TEAMS = "teams"
+    OPERATIONS_TASK_DEBRIEFS = "task_debriefs"
+
+    # Liaison
+    LIAISON_AGENCIES = "liaison_agencies"
+    LIAISON_CONTACTS = "liaison_contacts"
+    LIAISON_INTERACTIONS = "liaison_interactions"
+    LIAISON_AGENCY_REQUESTS = "liaison_agency_requests"
+    LIAISON_RESOURCE_OFFERS = "liaison_resource_offers"
+    LIAISON_FEEDBACK = "liaison_feedback"
+    LIAISON_FOLLOWUP_ACTIONS = "liaison_followup_actions"
+    LIAISON_RESTRICTIONS = "liaison_restrictions"
+    LIAISON_AGREEMENTS = "liaison_agreements"
+
+    # Intel
+    INTEL_CLUES = "intel_clues"
+    INTEL_SUBJECTS = "intel_subjects"
+    INTEL_ENV_SNAPSHOTS = "intel_env_snapshots"
+    INTEL_REPORTS = "intel_reports"
+    INTEL_FORM_ENTRIES = "intel_form_entries"
+
+    # Work assignments (ICS-204 tactics / strategies)
+    WORK_ASSIGNMENTS = "work_assignments"
+
+    # GIS spatial features and links
+    SPATIAL_FEATURES = "spatial_features"
+    SPATIAL_FEATURE_LINKS = "spatial_feature_links"
 
     # Supporting
     ATTACHMENTS = "attachments"

@@ -497,6 +497,34 @@ def seed_agency_directory(cur: sqlite3.Cursor, master_db) -> None:
     _report("agency_directory", i, s)
 
 
+def seed_team_types(cur: sqlite3.Cursor, master_db) -> None:
+    """Seeds team_types from master.db into sarapp_master."""
+    try:
+        cur.execute("SELECT * FROM team_types")
+        rows = [dict(r) for r in cur.fetchall()]
+    except Exception:
+        return
+    if not rows:
+        return
+    docs = [{
+        "_id": _new_id(),
+        "int_id": int(r["id"]),
+        "name": r.get("name", ""),
+        "category": r.get("category") or "",
+        "description": r.get("description") or "",
+        "is_active": bool(r.get("is_active", 1)),
+        "type_short": r.get("type_short"),
+        "organization": r.get("organization"),
+        "is_drone": bool(r.get("is_drone", 0)),
+        "is_aviation": bool(r.get("is_aviation", 0)),
+        "created_at": r.get("created_at", ""),
+        "updated_at": r.get("updated_at", ""),
+    } for r in rows]
+    col = master_db[MasterCollections.TEAM_TYPES]
+    i, s = _seed_collection(col, docs, id_field="int_id")
+    _report("team_types", i, s)
+
+
 def seed_task_types(master_db) -> None:
     """
     Reads task_categories and task_types from all incident DBs, deduplicates by
@@ -588,6 +616,83 @@ def seed_meeting_templates(master_db) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+def seed_form_templates(cur: sqlite3.Cursor, master_db) -> None:
+    def _table_exists(name: str) -> bool:
+        cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
+        return bool(cur.fetchone())
+
+    if not _table_exists("form_families"):
+        return
+
+    cur.execute("SELECT * FROM form_families")
+    families = [dict(r) for r in cur.fetchall()]
+    family_docs = [{
+        "_id": _new_id(),
+        "int_id": r["id"],
+        "code": r["code"],
+        "title": r["title"],
+        "description": r.get("description"),
+        "category": r.get("category"),
+        "default_agency": r.get("default_agency"),
+        "is_active": bool(r.get("is_active", 1)),
+        "created_at": r.get("created_at", ""),
+        "updated_at": r.get("updated_at", ""),
+    } for r in families]
+    i, s = _seed_collection(master_db[MasterCollections.FORM_FAMILIES], family_docs, "int_id")
+    _report("form_families", i, s)
+
+    if not _table_exists("form_templates"):
+        return
+    cur.execute("SELECT * FROM form_templates")
+    templates = [dict(r) for r in cur.fetchall()]
+    template_docs = [{
+        "_id": _new_id(),
+        "int_id": r["id"],
+        "family_int_id": r["family_id"],
+        "agency": r.get("agency", ""),
+        "system": r.get("system"),
+        "code": r.get("code", ""),
+        "title": r.get("title", ""),
+        "description": r.get("description"),
+        "status": r.get("status", "active"),
+        "current_version_int_id": r.get("current_version_id"),
+        "compatibility": json.loads(r["compatibility_json"]) if r.get("compatibility_json") else {},
+        "tags": json.loads(r["tags_json"]) if r.get("tags_json") else [],
+        "created_by": r.get("created_by"),
+        "created_at": r.get("created_at", ""),
+        "updated_at": r.get("updated_at", ""),
+    } for r in templates]
+    i, s = _seed_collection(master_db[MasterCollections.FORM_TEMPLATES], template_docs, "int_id")
+    _report("form_templates", i, s)
+
+    if not _table_exists("form_template_versions"):
+        return
+    cur.execute("SELECT * FROM form_template_versions")
+    versions = [dict(r) for r in cur.fetchall()]
+    version_docs = [{
+        "_id": _new_id(),
+        "int_id": r["id"],
+        "template_int_id": r["template_id"],
+        "version_number": r["version_number"],
+        "version_label": r.get("version_label"),
+        "effective_date": r.get("effective_date"),
+        "retired_date": r.get("retired_date"),
+        "layout": json.loads(r["layout_json"]) if r.get("layout_json") else {},
+        "fields": json.loads(r["fields_json"]) if r.get("fields_json") else [],
+        "bindings": json.loads(r["bindings_json"]) if r.get("bindings_json") else [],
+        "validation": json.loads(r["validation_json"]) if r.get("validation_json") else [],
+        "export_profiles": json.loads(r["export_profiles_json"]) if r.get("export_profiles_json") else {},
+        "source_asset_path": r.get("source_asset_path"),
+        "checksum": r.get("checksum"),
+        "change_summary": r.get("change_summary"),
+        "created_by": r.get("created_by"),
+        "created_at": r.get("created_at", ""),
+        "is_current": bool(r.get("is_current", 0)),
+    } for r in versions]
+    i, s = _seed_collection(master_db[MasterCollections.FORM_TEMPLATE_VERSIONS], version_docs, "int_id")
+    _report("form_template_versions", i, s)
+
+
 def main() -> int:
     print("=" * 60)
     print("SARApp master.db -> MongoDB seed")
@@ -619,6 +724,8 @@ def main() -> int:
     seed_resource_capabilities(cur, master_db)
     seed_resource_types(cur, master_db)
     seed_agency_directory(cur, master_db)
+    seed_team_types(cur, master_db)
+    seed_form_templates(cur, master_db)
 
     conn.close()
 

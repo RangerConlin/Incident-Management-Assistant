@@ -19,10 +19,9 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QDialogButtonBox,
 )
-from sqlmodel import select
-
 from ..models import FormEntry
-from ..utils import db_access, export
+from ..utils import export
+from .. import services
 
 
 class _FormDialog(QDialog):
@@ -71,8 +70,10 @@ class FormCenterPanel(QWidget):
 
     def refresh(self) -> None:
         self.table.setRowCount(0)
-        with db_access.incident_session() as session:
-            forms: List[FormEntry] = session.exec(select(FormEntry)).all()
+        try:
+            forms = services.list_form_entries()
+        except Exception:
+            return
         for row, f in enumerate(forms):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(f.form_name))
@@ -90,17 +91,17 @@ class FormCenterPanel(QWidget):
     def _add(self) -> None:
         dlg = _FormDialog(self)
         if dlg.exec() == dlg.Accepted:
-            with db_access.incident_session() as session:
-                session.add(dlg.data)
-                session.commit()
-            self.refresh()
+            try:
+                services.add_form_entry(dlg.data)
+                self.refresh()
+            except Exception:
+                pass
 
     def _export(self) -> None:
         fid = self._current_id()
         if fid is None:
             return
-        with db_access.incident_session() as session:
-            form = session.get(FormEntry, fid)
+        form = services.get_form_entry(fid)
         if not form:
             return
         path, _ = QFileDialog.getSaveFileName(self, "Export PDF", filter="PDF Files (*.pdf)")

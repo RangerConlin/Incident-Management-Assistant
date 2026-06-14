@@ -4,11 +4,12 @@ from typing import Any
 
 from modules.forms.models import FormFamily, FormFieldDefinition, FormTemplate, FormTemplateVersion
 from modules.forms.repositories import MasterFormsRepository
+from modules.forms.repositories.master_forms_repository import ApiMasterFormsRepository
 
 
 class TemplateService:
-    def __init__(self, repository: MasterFormsRepository | None = None) -> None:
-        self.repository = repository or MasterFormsRepository()
+    def __init__(self, repository=None) -> None:
+        self.repository = repository or ApiMasterFormsRepository()
 
     def create_family(self, *, code: str, title: str, description: str | None = None, category: str | None = None, default_agency: str | None = None) -> FormFamily:
         return self.repository.create_family(FormFamily(code=code, title=title, description=description, category=category, default_agency=default_agency))

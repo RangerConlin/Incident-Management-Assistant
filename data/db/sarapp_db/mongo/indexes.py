@@ -42,6 +42,9 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_unit_logs_indexes(incident_db)
     _create_meetings_indexes(incident_db)
     _create_incident_channels_indexes(incident_db)
+    _create_medical_indexes(incident_db)
+    _create_safety_indexes(incident_db)
+    _create_public_information_indexes(incident_db)
     _create_resources_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
@@ -115,6 +118,127 @@ def _create_incident_channels_indexes(incident_db: Database) -> None:
     _ensure_index(channels, [("include_on_205", ASCENDING)])
 
 
+def _create_medical_indexes(incident_db: Database) -> None:
+    for name in (
+        IncidentCollections.ICS_206_AID_STATIONS,
+        IncidentCollections.ICS_206_AMBULANCE_SERVICES,
+        IncidentCollections.ICS_206_HOSPITALS,
+        IncidentCollections.ICS_206_AIR_AMBULANCE,
+        IncidentCollections.ICS_206_MEDICAL_COMMS,
+    ):
+        col = incident_db[name]
+        _ensure_index(col, [("incident_id", ASCENDING)])
+        _ensure_index(col, [("op_period", ASCENDING)])
+        _ensure_index(col, [("id", ASCENDING)], unique=True)
+        _ensure_index(col, [("deleted", ASCENDING)])
+
+    procedures = incident_db[IncidentCollections.ICS_206_PROCEDURES]
+    _ensure_index(procedures, [("incident_id", ASCENDING)])
+    _ensure_index(
+        procedures,
+        [("incident_id", ASCENDING), ("op_period", ASCENDING)],
+        unique=True,
+        name="ics206_procedures_unique_per_op",
+    )
+
+    signatures = incident_db[IncidentCollections.ICS_206_SIGNATURES]
+    _ensure_index(signatures, [("incident_id", ASCENDING)])
+    _ensure_index(
+        signatures,
+        [("incident_id", ASCENDING), ("op_period", ASCENDING)],
+        unique=True,
+        name="ics206_signatures_unique_per_op",
+    )
+
+
+def _create_safety_indexes(incident_db: Database) -> None:
+    for name in (
+        IncidentCollections.SAFETY_REPORTS,
+        IncidentCollections.MEDICAL_INCIDENTS,
+        IncidentCollections.TRIAGE_ENTRIES,
+        IncidentCollections.HAZARD_ZONES,
+        IncidentCollections.CAP_ORM_SUMMARIES,
+        IncidentCollections.CAP_ORM_FORMS,
+        IncidentCollections.CAP_ORM_HAZARDS,
+        IncidentCollections.ICS_206_BUILDS,
+    ):
+        col = incident_db[name]
+        _ensure_index(col, [("incident_id", ASCENDING)])
+        _ensure_index(col, [("id", ASCENDING)], unique=True)
+        _ensure_index(col, [("deleted", ASCENDING)])
+
+    reports = incident_db[IncidentCollections.SAFETY_REPORTS]
+    _ensure_index(reports, [("severity", ASCENDING)])
+    _ensure_index(reports, [("flagged", ASCENDING)])
+    _ensure_index(reports, [("time", DESCENDING)])
+
+    forms = incident_db[IncidentCollections.CAP_ORM_FORMS]
+    _ensure_index(
+        forms,
+        [("incident_id", ASCENDING), ("op_period", ASCENDING)],
+        unique=True,
+        name="cap_orm_form_unique_per_op",
+    )
+    _ensure_index(forms, [("status", ASCENDING)])
+    _ensure_index(forms, [("highest_residual_risk", ASCENDING)])
+
+    hazards = incident_db[IncidentCollections.CAP_ORM_HAZARDS]
+    _ensure_index(hazards, [("form_id", ASCENDING)])
+    _ensure_index(hazards, [("residual_risk", ASCENDING)])
+
+    audit = incident_db[IncidentCollections.CAP_ORM_AUDIT]
+    _ensure_index(audit, [("incident_id", ASCENDING)])
+    _ensure_index(audit, [("entity", ASCENDING), ("entity_id", ASCENDING)])
+    _ensure_index(audit, [("ts_iso", DESCENDING)])
+
+
+def _create_public_information_indexes(incident_db: Database) -> None:
+    messages = incident_db[IncidentCollections.PIO_MESSAGES]
+    _ensure_index(messages, [("incident_id", ASCENDING)])
+    _ensure_index(messages, [("id", ASCENDING)], unique=True)
+    _ensure_index(messages, [("status", ASCENDING)])
+    _ensure_index(messages, [("type", ASCENDING)])
+    _ensure_index(messages, [("audience", ASCENDING)])
+    _ensure_index(messages, [("updated_at", DESCENDING)])
+
+    revisions = incident_db[IncidentCollections.PIO_MESSAGE_REVISIONS]
+    _ensure_index(revisions, [("message_id", ASCENDING)])
+    _ensure_index(revisions, [("created_at", DESCENDING)])
+
+    approvals = incident_db[IncidentCollections.PIO_APPROVALS]
+    _ensure_index(approvals, [("message_id", ASCENDING)])
+    _ensure_index(approvals, [("timestamp", ASCENDING)])
+
+    media = incident_db[IncidentCollections.PIO_MEDIA_LOG]
+    _ensure_index(media, [("id", ASCENDING)], unique=True)
+    _ensure_index(media, [("status", ASCENDING)])
+    _ensure_index(media, [("time", DESCENDING)])
+
+    misinformation = incident_db[IncidentCollections.PIO_MISINFORMATION_ITEMS]
+    _ensure_index(misinformation, [("id", ASCENDING)], unique=True)
+    _ensure_index(misinformation, [("status", ASCENDING)])
+    _ensure_index(misinformation, [("last_update", DESCENDING)])
+
+    timeline = incident_db[IncidentCollections.PIO_MISINFORMATION_TIMELINE]
+    _ensure_index(timeline, [("item_id", ASCENDING)])
+    _ensure_index(timeline, [("event_time", ASCENDING)])
+
+    talking_points = incident_db[IncidentCollections.PIO_TALKING_POINTS]
+    _ensure_index(talking_points, [("id", ASCENDING)], unique=True)
+    _ensure_index(talking_points, [("status", ASCENDING)])
+    _ensure_index(talking_points, [("updated_at", DESCENDING)])
+
+    templates = incident_db[IncidentCollections.PIO_TEMPLATES]
+    _ensure_index(templates, [("id", ASCENDING)], unique=True)
+    _ensure_index(templates, [("is_active", ASCENDING)])
+    _ensure_index(templates, [("template_name", ASCENDING)])
+
+    distribution = incident_db[IncidentCollections.PIO_DISTRIBUTION_LOG]
+    _ensure_index(distribution, [("id", ASCENDING)], unique=True)
+    _ensure_index(distribution, [("message_id", ASCENDING)])
+    _ensure_index(distribution, [("distributed_at", DESCENDING)])
+
+
 def _create_resources_indexes(incident_db: Database) -> None:
     resources = incident_db[IncidentCollections.RESOURCES]
     _ensure_index(resources, [("incident_id", ASCENDING)])
@@ -170,6 +294,7 @@ def create_master_indexes(master_db: Database) -> None:
     _create_personnel_indexes(master_db)
     _create_radio_channels_indexes(master_db)
     _create_hospitals_indexes(master_db)
+    _create_ems_agencies_indexes(master_db)
     _create_hazard_types_indexes(master_db)
     _create_vehicles_indexes(master_db)
     _create_aircraft_indexes(master_db)
@@ -201,6 +326,15 @@ def _create_hospitals_indexes(master_db: Database) -> None:
     _ensure_index(hospitals, [("state", ASCENDING)])
     _ensure_index(hospitals, [("county", ASCENDING)])
     _ensure_index(hospitals, [("trauma_level", ASCENDING)])
+
+
+def _create_ems_agencies_indexes(master_db: Database) -> None:
+    agencies = master_db[MasterCollections.EMS_AGENCIES]
+    _ensure_index(agencies, [("id", ASCENDING)], unique=True)
+    _ensure_index(agencies, [("name", ASCENDING)])
+    _ensure_index(agencies, [("type", ASCENDING)])
+    _ensure_index(agencies, [("phone", ASCENDING)])
+    _ensure_index(agencies, [("is_active", ASCENDING)])
 
 
 def _create_hazard_types_indexes(master_db: Database) -> None:

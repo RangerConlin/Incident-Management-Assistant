@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from modules.communications.models.master_repo import MasterRepository
+from modules.communications.models.master_repo import ApiMasterRepository
 from utils.state import AppState
 
 from .exporters import csv_exporter, pdf_exporter
@@ -18,7 +18,7 @@ from .models import (
     PRIORITY_PRIORITY,
     PRIORITY_ROUTINE,
 )
-from .repository import CommsLogRepository
+from .repository import ApiCommsLogRepository
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,11 @@ class CommsLogService:
         self,
         incident_id: Optional[str] = None,
         *,
-        repository: Optional[CommsLogRepository] = None,
-        master_repo: Optional[MasterRepository] = None,
+        repository=None,
+        master_repo=None,
     ) -> None:
-        self.repository = repository or CommsLogRepository(incident_id, master_repo=master_repo)
-        self.master_repo = master_repo or MasterRepository()
+        self.repository = repository or ApiCommsLogRepository(incident_id)
+        self.master_repo = master_repo or ApiMasterRepository()
         self._last_resource_id: Optional[int] = None
 
     # ------------------------------------------------------------------

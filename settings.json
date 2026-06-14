@@ -136,6 +136,7 @@
         "last_updated": 75
     },
     "statusboard.task.columns.widths": {
-        "assigned_teams": 116
+        "assigned_teams": 116,
+        "number": 156
     }
 }

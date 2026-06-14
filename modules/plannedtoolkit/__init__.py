@@ -1,7 +1,7 @@
-# modules/plannedtoolkit/__init__.py
 from .windows import (
     get_promotions_panel,
     get_vendors_panel,
+    get_permits_panel,
     get_safety_panel,
     get_tasking_panel,
     get_health_sanitation_panel,
@@ -11,6 +11,7 @@ from .windows import (
 __all__ = [
     "get_promotions_panel",
     "get_vendors_panel",
+    "get_permits_panel",
     "get_safety_panel",
     "get_tasking_panel",
     "get_health_sanitation_panel",
