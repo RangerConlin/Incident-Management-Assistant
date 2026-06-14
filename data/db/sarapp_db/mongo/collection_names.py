@@ -25,9 +25,18 @@ class SystemCollections:
 class MasterCollections:
     """Collection names for the sarapp_master database."""
 
-    # Personnel — certifications embedded as array inside each personnel document
+    # Personnel — certifications and org master data
     PERSONNEL = "personnel"
     CERTIFICATION_TYPES = "certification_types"
+    CERTIFICATION_TAGS = "certification_tags"
+    PERSONNEL_CERTIFICATIONS = "personnel_certifications"
+    ORGANIZATION_TYPES = "organization_types"
+    RANK_STRUCTURES = "rank_structures"
+    ORGANIZATIONS = "organizations"
+    RANKS = "ranks"
+    ORGANIZATION_RANK_STRUCTURE_OVERRIDES = "organization_rank_structure_overrides"
+    ORGANIZATION_AUDIT_LOG = "organization_audit_log"
+    RANK_STRUCTURE_AUDIT_LOG = "rank_structure_audit_log"
 
     # Resources
     EQUIPMENT = "equipment"
@@ -45,6 +54,7 @@ class MasterCollections:
     EMS_AGENCIES = "ems_agencies"
 
     # Reference / lookup tables
+    INCIDENT_TYPES = "incident_types"
     RESOURCE_TYPES = "resource_types"
     RESOURCE_CAPABILITIES = "resource_capabilities"
     AGENCY_DIRECTORY = "agency_directory"
@@ -57,6 +67,7 @@ class MasterCollections:
     MEETING_TEMPLATES = "meeting_templates"
     TASK_TYPES = "task_types"
     TEAM_TYPES = "team_types"
+    OBJECTIVE_TEMPLATES = "objective_templates"
 
     # Users and access
     USER_PROFILES = "user_profiles"
@@ -71,6 +82,7 @@ class IncidentCollections:
     OPERATIONAL_PERIODS = "operational_periods"
     INCIDENT_OBJECTIVES = "incident_objectives"
     STRATEGIES = "strategies"  # formerly strategic_objectives
+    OBJECTIVE_STRATEGIES_TASK_LINKS = "objective_strategy_task_links"
 
     # Teams — incident-specific team assignments and composition
     TEAMS = "teams"
@@ -91,6 +103,10 @@ class IncidentCollections:
     # Check in/out — one collection covering personnel, vehicles, aircraft, equipment
     # Each document has a resource_type field to distinguish
     CHECK_IN_OUT = "check_in_out"
+
+    # Personnel check-in roster and history
+    CHECKINS = "checkins"
+    CHECKIN_HISTORY = "checkin_history"
 
     # Communications
     COMMUNICATIONS_LOG = "communications_log"
@@ -161,6 +177,7 @@ class IncidentCollections:
     INCIDENT_PERSONNEL = "incident_personnel"
 
     # Initial response planning
+    INITIAL_RESPONSE_OVERVIEW = "initial_response_overview"
     INITIAL_HASTY_TASKS = "initial_hasty_tasks"
     INITIAL_REFLEX_ACTIONS = "initial_reflex_actions"
 

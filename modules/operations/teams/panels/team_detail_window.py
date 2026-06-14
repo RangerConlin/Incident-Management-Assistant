@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QSplitter,
 )
 
-from modules.admin.resource_types.data import READINESS_STATUSES, ResourceAssignmentRepository
+from modules.admin.resource_types.data import READINESS_STATUSES, ApiResourceAssignmentRepository, ResourceAssignmentRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
 
@@ -466,7 +466,7 @@ class TeamDetailBridge(QObject):
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._team: Team = Team()
-        self._resource_assignments = ResourceAssignmentRepository()
+        self._resource_assignments = ApiResourceAssignmentRepository()
         # Cached lists for QML list views
         self._personnel: list[dict[str, Any]] = []
         self._vehicles: list[dict[str, Any]] = []
@@ -1593,7 +1593,7 @@ class TeamDetailWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self._bridge = bridge or TeamDetailBridge(self)
-        self._resource_assignments = ResourceAssignmentRepository()
+        self._resource_assignments = ApiResourceAssignmentRepository()
         self._team_id: Optional[int] = team_id
         self._is_air: bool = False
         self._updating: bool = False

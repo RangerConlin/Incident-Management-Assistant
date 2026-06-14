@@ -1,16 +1,12 @@
 """Vehicle inventory editing dialog implemented with Qt widgets.
 
-Offline‑first: uses local SQLite via VehicleRepository. Removes HTTP client path
-and all merge‑conflict markers. No QML used.
+No QML used.
 """
 from __future__ import annotations
 
 import logging
-import sqlite3
-from collections import OrderedDict
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIntValidator
@@ -28,16 +24,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from modules.admin.resource_types.data import ResourceAssignmentRepository, ResourceTypeRepository
+from modules.admin.resource_types.data import ApiResourceAssignmentRepository, ResourceAssignmentRepository, ResourceTypeRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
-# Local project import: master DB connector (must return sqlite3.Connection)
-try:  # optional import for portability
-    from utils.db import get_master_conn  # type: ignore
-except Exception:  # pragma: no cover
-    get_master_conn = None  # type: ignore
-
 logger = logging.getLogger(__name__)
+
+_BASE = "/api/master/vehicles"
 
 DEFAULT_STATUS_CHOICES: list[str] = [
     "Available",
@@ -54,214 +46,53 @@ DEFAULT_TYPE_CHOICES: list[str] = [
 ]
 
 
+def _client():
+    from utils.api_client import api_client
+    return api_client
+
+
+def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
+    d = dict(doc)
+    d["id"] = d.get("id") or d.get("int_id")
+    tags = d.get("tags")
+    if isinstance(tags, str):
+        d["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+    elif tags is None:
+        d["tags"] = []
+    return d
+
+
 class VehicleRepository:
-    """Persistence helper that reads and writes vehicle records in SQLite."""
+    """API-backed repository for vehicle master catalog entries."""
 
     def __init__(self, db_path: Optional[str | Path] = None) -> None:
         self._db_path: Optional[Path] = Path(db_path) if db_path else None
-        self._vehicle_columns_cache: Optional[set[str]] = None
-        self._assignment_repo = ResourceAssignmentRepository(master_db_path=self._db_path)
-        self._ensure_schema()
-
-    # ------------------------------------------------------------------
-    # Connection helpers
-    # ------------------------------------------------------------------
-    def _connect(self) -> sqlite3.Connection:
-        if self._db_path is not None:
-            conn = sqlite3.connect(str(self._db_path))
-        else:
-            if get_master_conn is None:
-                raise RuntimeError(
-                    "get_master_conn is not available and no db_path was provided"
-                )
-            conn = get_master_conn()
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _ensure_schema(self) -> None:
-        """Ensure the vehicles table has the additive columns this editor expects."""
-
-        conn = self._connect()
-        try:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS vehicles (
-                    id TEXT PRIMARY KEY,
-                    vin TEXT,
-                    license_plate TEXT,
-                    year INTEGER,
-                    make TEXT,
-                    model TEXT,
-                    capacity INTEGER,
-                    type_id TEXT,
-                    status_id TEXT NOT NULL DEFAULT 'Available',
-                    tags TEXT,
-                    organization TEXT,
-                    resource_type_id INTEGER
-                )
-                """
-            )
-            columns = self._get_vehicle_columns(conn)
-            if "resource_type_id" not in columns:
-                conn.execute("ALTER TABLE vehicles ADD COLUMN resource_type_id INTEGER")
-            conn.commit()
-            self._vehicle_columns_cache = None
-        finally:
-            conn.close()
-
-    def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
-        query = "SELECT 1 FROM sqlite_master WHERE type='table' AND lower(name)=? LIMIT 1"
-        row = conn.execute(query, (table_name.lower(),)).fetchone()
-        return row is not None
-
-    def _get_vehicle_columns(self, conn: sqlite3.Connection | None = None) -> set[str]:
-        """Return a cached set of columns available on the vehicles table."""
-
-        if self._vehicle_columns_cache is not None:
-            return set(self._vehicle_columns_cache)
-
-        owns_connection = False
-        if conn is None:
-            conn = self._connect()
-            owns_connection = True
-        try:
-            info_rows = conn.execute("PRAGMA table_info(vehicles)").fetchall()
-            columns = {
-                row["name"] if isinstance(row, sqlite3.Row) else row[1]
-                for row in info_rows
-            }
-            self._vehicle_columns_cache = set(columns)
-            return columns
-        finally:
-            if owns_connection:
-                conn.close()
+        self._assignment_repo = ApiResourceAssignmentRepository()
 
     # ------------------------------------------------------------------
     # Reference data
     # ------------------------------------------------------------------
     def list_vehicles(self, search_text: str | None = None) -> list[dict[str, Any]]:
-        """Return vehicles from the master database, optionally filtered."""
-
-        if search_text is not None:
-            normalized = search_text.strip().lower()
-            search_text = normalized or None
-
-        conn = self._connect()
         try:
-            base_query = (
-                """
-                SELECT id, vin, license_plate, year, make, model, capacity,
-                       type_id, status_id, tags, organization, resource_type_id
-                FROM vehicles
-                """
-            )
-            params: list[Any] = []
-            if search_text:
-                term = f"%{search_text}%"
-                filters = " OR ".join(
-                    [
-                        "lower(COALESCE(vin, '')) LIKE ?",
-                        "lower(COALESCE(license_plate, '')) LIKE ?",
-                        "lower(COALESCE(make, '')) LIKE ?",
-                        "lower(COALESCE(model, '')) LIKE ?",
-                        "lower(COALESCE(tags, '')) LIKE ?",
-                    ]
-                )
-                base_query += f"WHERE {filters}\n"
-                params.extend([term] * 5)
-
-            base_query += (
-                """
-                ORDER BY
-                    CASE WHEN TRIM(COALESCE(make, '')) = '' THEN 1 ELSE 0 END,
-                    lower(COALESCE(make, '')),
-                    lower(COALESCE(model, '')),
-                    CAST(id AS INTEGER)
-                """
-            )
-
-            rows = conn.execute(base_query, tuple(params)).fetchall()
-        finally:
-            conn.close()
-
-        return [self._row_to_dict(row) for row in rows]
+            params: dict[str, Any] = {}
+            if search_text and search_text.strip():
+                params["search"] = search_text.strip()
+            docs = _client().get(_BASE, params=params or None) or []
+            return [_normalize(d) for d in docs]
+        except Exception:
+            return []
 
     def list_vehicle_types(self) -> list[dict[str, Any]]:
-        """Return available vehicle type options."""
-
-        conn = self._connect()
         try:
-            # Preferred reference tables
-            for table_name in ("vehicle_types", "vehicle_type"):
-                if self._table_exists(conn, table_name):
-                    rows = conn.execute(
-                        f"SELECT id, name FROM {table_name} ORDER BY name"
-                    ).fetchall()
-                    return [
-                        {"id": row["id"], "name": row["name"] or str(row["id"]) }
-                        for row in rows
-                    ]
-
-            # Fallback: derive distinct values from vehicles table
-            rows = conn.execute(
-                """
-                SELECT DISTINCT type_id
-                FROM vehicles
-                WHERE TRIM(COALESCE(type_id, '')) != ''
-                ORDER BY type_id
-                """
-            ).fetchall()
-            entries: list[dict[str, Any]] = []
-            for row in rows:
-                value = row["type_id"]
-                if value in (None, ""):
-                    continue
-                label = str(value).strip()
-                entries.append({"id": value, "name": label or str(value)})
-        finally:
-            conn.close()
-
-        if not entries:
-            entries = [{"id": choice, "name": choice} for choice in DEFAULT_TYPE_CHOICES]
-        return entries
+            return _client().get(f"{_BASE}/types") or []
+        except Exception:
+            return [{"id": t, "name": t} for t in DEFAULT_TYPE_CHOICES]
 
     def list_statuses(self) -> list[dict[str, Any]]:
-        """Return available vehicle status options."""
-
-        conn = self._connect()
         try:
-            for table_name in ("vehicle_statuses", "statuses"):
-                if self._table_exists(conn, table_name):
-                    rows = conn.execute(
-                        f"SELECT id, name FROM {table_name} ORDER BY name"
-                    ).fetchall()
-                    return [
-                        {"id": row["id"], "name": row["name"] or str(row["id"]) }
-                        for row in rows
-                    ]
-
-            # Fallback: derive distinct values from vehicles table
-            rows = conn.execute(
-                """
-                SELECT DISTINCT status_id
-                FROM vehicles
-                WHERE TRIM(COALESCE(status_id, '')) != ''
-                ORDER BY status_id
-                """
-            ).fetchall()
-            options: "OrderedDict[Any, str]" = OrderedDict()
-            for row in rows:
-                value = row["status_id"]
-                if value in (None, ""):
-                    continue
-                label = str(value).strip() or str(value)
-                options.setdefault(value, label)
-        finally:
-            conn.close()
-
-        for default in DEFAULT_STATUS_CHOICES:
-            options.setdefault(default, default)
-        return [{"id": key, "name": label} for key, label in options.items()]
+            return _client().get(f"{_BASE}/statuses") or []
+        except Exception:
+            return [{"id": s, "name": s} for s in DEFAULT_STATUS_CHOICES]
 
     # ------------------------------------------------------------------
     # CRUD helpers
@@ -283,258 +114,92 @@ class VehicleRepository:
         be ``None`` to fetch all rows for background exports.
         """
 
-        conn = self._connect()
         try:
-            select_columns = list(self._base_select_columns(conn))
-            column_clause = ", ".join(select_columns)
-            query = f"SELECT {column_clause} FROM vehicles"
-
-            where_clauses: list[str] = []
-            params: list[Any] = []
-
+            params: dict[str, Any] = {}
             if search:
-                search_value = f"%{search.strip()}%"
-                where_clauses.append(
-                    "("  # ensure precedence for OR block
-                    "CAST(id AS TEXT) LIKE ? OR "
-                    "license_plate LIKE ? OR "
-                    "vin LIKE ? OR "
-                    "CAST(year AS TEXT) LIKE ? OR "
-                    "LOWER(make) LIKE LOWER(?) OR "
-                    "LOWER(model) LIKE LOWER(?) OR "
-                    "LOWER(tags) LIKE LOWER(?)"
-                    ")"
-                )
-                params.extend([search_value] * 7)
+                params["search"] = search.strip()
+            if type_filter and type_filter != "All":
+                params["type_filter"] = str(type_filter).strip()
+            if status_filter and status_filter != "All":
+                params["status_filter"] = str(status_filter).strip()
+            docs = _client().get(_BASE, params=params or None) or []
+            records = [_normalize(d) for d in docs]
+        except Exception:
+            return [], 0
 
-            if type_filter not in (None, "", "All"):
-                where_clauses.append("type_id = ?")
-                params.append(self._normalize_reference(type_filter))
+        # Sort client-side
+        reverse = str(sort_order).lower() == "desc"
+        sort_map = {
+            "license_plate": lambda r: (r.get("license_plate") or "").lower(),
+            "vin": lambda r: (r.get("vin") or "").lower(),
+            "vehicle": lambda r: " ".join(filter(None, [
+                str(r.get("year") or ""), r.get("make") or "", r.get("model") or ""
+            ])).lower(),
+            "cap": lambda r: r.get("capacity") or 0,
+            "capacity": lambda r: r.get("capacity") or 0,
+            "type": lambda r: (r.get("type_id") or "").lower(),
+            "status": lambda r: (r.get("status_id") or "").lower(),
+        }
+        key_fn = sort_map.get(sort_key, lambda r: r.get("id") or 0)
+        records.sort(key=key_fn, reverse=reverse)
 
-            if status_filter not in (None, "", "All"):
-                where_clauses.append("status_id = ?")
-                params.append(self._normalize_reference(status_filter))
-
-            where_clause = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-
-            sort_expression = self._resolve_sort_expression(sort_key)
-            order_token = "DESC" if str(sort_order).lower() == "desc" else "ASC"
-            order_clause = f" ORDER BY {sort_expression} {order_token}"
-
-            limit_clause = ""
-            if limit is not None:
-                limit_clause = " LIMIT ? OFFSET ?"
-
-            count_query = f"SELECT COUNT(*) FROM vehicles{where_clause}"
-            total = conn.execute(count_query, tuple(params)).fetchone()[0] or 0
-
-            query_params: list[Any] = list(params)
-            if limit is not None:
-                query_params.extend([int(limit), max(0, int(offset))])
-
-            cursor = conn.execute(query + where_clause + order_clause + limit_clause, tuple(query_params))
-            rows = cursor.fetchall()
-        finally:
-            conn.close()
-
-        records = [self._row_to_dict(row) for row in rows]
-        return records, int(total)
+        total = len(records)
+        if limit is not None:
+            records = records[offset: offset + limit]
+        return records, total
 
     def fetch_vehicle(self, vehicle_id: int | str) -> Optional[dict[str, Any]]:
-        conn = self._connect()
         try:
-            row = conn.execute(
-                """
-                SELECT id, vin, license_plate, year, make, model, capacity,
-                       type_id, status_id, tags, organization, resource_type_id
-                FROM vehicles
-                WHERE id = ?
-                """,
-                (str(vehicle_id),),
-            ).fetchone()
-        finally:
-            conn.close()
-
-        if row is None:
+            doc = _client().get(f"{_BASE}/{vehicle_id}")
+            return _normalize(doc) if doc else None
+        except Exception:
             return None
-        return self._row_to_dict(row)
 
     def create_vehicle(self, payload: dict[str, Any]) -> dict[str, Any]:
-        conn = self._connect()
-        try:
-            new_id = self._generate_new_id(conn)
-            params = self._build_params(payload)
-            params.insert(0, new_id)
-            conn.execute(
-                """
-                INSERT INTO vehicles (
-                    id, vin, license_plate, year, make, model,
-                    capacity, type_id, status_id, tags, organization, resource_type_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                tuple(params),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-
-        record = self.fetch_vehicle(new_id)
-        if record is None:  # pragma: no cover - defensive
-            raise RuntimeError("Vehicle creation failed")
-        return record
+        tags = payload.get("tags") or []
+        if isinstance(tags, list):
+            tags_str = ", ".join(str(t) for t in tags if t)
+        else:
+            tags_str = str(tags) if tags else ""
+        body = {
+            "vin": payload.get("vin") or "",
+            "license_plate": payload.get("license_plate") or "",
+            "year": payload.get("year"),
+            "make": payload.get("make") or "",
+            "model": payload.get("model") or "",
+            "capacity": payload.get("capacity") or 0,
+            "type_id": payload.get("type_id") or "",
+            "status_id": payload.get("status_id") or "Available",
+            "tags": tags_str,
+            "organization": payload.get("organization") or "",
+            "resource_type_id": payload.get("resource_type_id"),
+        }
+        doc = _client().post(_BASE, json=body)
+        return _normalize(doc)
 
     def update_vehicle(self, vehicle_id: int | str, payload: dict[str, Any]) -> dict[str, Any]:
-        conn = self._connect()
-        try:
-            params = self._build_params(payload)
-            params.append(str(vehicle_id))
-            cur = conn.execute(
-                """
-                UPDATE vehicles
-                SET vin = ?,
-                    license_plate = ?,
-                    year = ?,
-                    make = ?,
-                    model = ?,
-                    capacity = ?,
-                    type_id = ?,
-                    status_id = ?,
-                    tags = ?,
-                    organization = ?,
-                    resource_type_id = ?
-                WHERE id = ?
-                """,
-                tuple(params),
-            )
-            if cur.rowcount == 0:
-                raise LookupError(f"Vehicle {vehicle_id} does not exist")
-            conn.commit()
-        finally:
-            conn.close()
-
-        record = self.fetch_vehicle(vehicle_id)
-        if record is None:  # pragma: no cover - defensive
-            raise RuntimeError("Vehicle update failed")
-        return record
-
-    # ------------------------------------------------------------------
-    # Internal utilities
-    # ------------------------------------------------------------------
-    def _generate_new_id(self, conn: sqlite3.Connection) -> str:
-        row = conn.execute(
-            "SELECT MAX(CAST(id AS INTEGER)) FROM vehicles WHERE CAST(id AS INTEGER) IS NOT NULL"
-        ).fetchone()
-        next_id = (row[0] or 0) + 1
-        # Ensure uniqueness in case of non-numeric identifiers.
-        while conn.execute("SELECT 1 FROM vehicles WHERE id = ?", (str(next_id),)).fetchone():
-            next_id += 1
-        return str(next_id)
-
-    def _build_params(self, payload: dict[str, Any]) -> list[Any]:
         tags = payload.get("tags") or []
-        if isinstance(tags, str):
-            tags_list = [part.strip() for part in tags.split(",") if part.strip()]
+        if isinstance(tags, list):
+            tags_str = ", ".join(str(t) for t in tags if t)
         else:
-            tags_list = list(tags)
-        tags_value = ", ".join(tags_list) if tags_list else None
-
-        make_value = payload.get("make") or None
-        model_value = payload.get("model") or None
-        organization_value = payload.get("organization")
-
-        params: list[Any] = [
-            payload.get("vin") or None,
-            payload.get("license_plate") or None,
-            payload.get("year"),
-            make_value,
-            model_value,
-            payload.get("capacity", 0),
-            self._normalize_reference(payload.get("type_id")),
-            self._normalize_reference(payload.get("status_id")),
-            tags_value,
-            organization_value,
-            payload.get("resource_type_id"),
-        ]
-        return params
-
-    def _normalize_reference(self, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            stripped = value.strip()
-            return stripped or None
-        return value
-
-    def _base_select_columns(self, conn: sqlite3.Connection) -> Iterable[str]:
-        """Return the core set of columns required for listing vehicles."""
-
-        available = self._get_vehicle_columns(conn)
-        ordered: list[str] = []
-        for column in (
-            "id",
-            "license_plate",
-            "vin",
-            "year",
-            "make",
-            "model",
-            "capacity",
-            "type_id",
-            "status_id",
-            "tags",
-            "organization",
-            "resource_type_id",
-        ):
-            if column in available:
-                ordered.append(column)
-
-        for optional in (
-            "created_at",
-            "created_ts",
-            "created",
-            "updated_at",
-            "updated_ts",
-            "updated",
-        ):
-            if optional in available and optional not in ordered:
-                ordered.append(optional)
-
-        return ordered
-
-    def _resolve_sort_expression(self, sort_key: str) -> str:
-        """Map logical sort keys to safe SQL column expressions."""
-
-        normalized = (sort_key or "id").lower()
-        mapping = {
-            "id": "CAST(id AS INTEGER)",
-            "license_plate": "license_plate COLLATE NOCASE",
-            "vin": "vin COLLATE NOCASE",
-            "vehicle": "(COALESCE(CAST(year AS TEXT), '') || ' ' || COALESCE(make, '') || ' ' || COALESCE(model, '')) COLLATE NOCASE",
-            "cap": "capacity",
-            "capacity": "capacity",
-            "type": "type_id COLLATE NOCASE",
-            "status": "status_id COLLATE NOCASE",
-            "tags": "tags COLLATE NOCASE",
+            tags_str = str(tags) if tags else ""
+        body = {
+            "vin": payload.get("vin") or "",
+            "license_plate": payload.get("license_plate") or "",
+            "year": payload.get("year"),
+            "make": payload.get("make") or "",
+            "model": payload.get("model") or "",
+            "capacity": payload.get("capacity") or 0,
+            "type_id": payload.get("type_id") or "",
+            "status_id": payload.get("status_id") or "Available",
+            "tags": tags_str,
+            "organization": payload.get("organization") or "",
+            "resource_type_id": payload.get("resource_type_id"),
         }
-        return mapping.get(normalized, "CAST(id AS INTEGER)")
-
-    def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
-        record = dict(row)
-        identifier = record.get("id")
-        if isinstance(identifier, str):
-            try:
-                record["id"] = int(identifier)
-            except ValueError:
-                pass
-
-        tags_value = record.get("tags")
-        if isinstance(tags_value, str):
-            record["tags"] = [
-                part.strip() for part in tags_value.split(",") if part.strip()
-            ]
-        elif tags_value is None:
-            record["tags"] = []
-
-        return record
+        doc = _client().patch(f"{_BASE}/{vehicle_id}", json=body)
+        if doc is None:
+            raise LookupError(f"Vehicle {vehicle_id} does not exist")
+        return _normalize(doc)
 
 
 class VehicleEditDialog(QDialog):
@@ -1012,11 +677,4 @@ class VehicleEditDialog(QDialog):
         self.accept()
 
     def _format_error_message(self, exc: Exception) -> str:
-        """Generate a user-friendly description of a persistence error."""
-
-        if isinstance(exc, sqlite3.Error):
-            parts = [str(part) for part in exc.args if part]
-            message = " ".join(parts)
-            if message:
-                return f"Unable to save the vehicle.\n\n{message}"
         return f"Unable to save the vehicle.\n\n{exc}"

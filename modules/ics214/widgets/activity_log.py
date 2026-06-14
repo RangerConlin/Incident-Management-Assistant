@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sqlite3
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1310,46 +1309,20 @@ class Ics214ActivityLogPanel(QWidget):
         self.op_combo.blockSignals(True)
         self.op_combo.clear()
         self.op_combo.addItem("Unassigned OP", 0)
-        rows: list[sqlite3.Row] = []
+        rows: list[dict] = []
         if self.incident_id:
-            from utils import incident_storage
-            paths = incident_storage.resolve_incident_paths_by_identifier(self.incident_id)
-            if paths is None:
-                raise RuntimeError(f"Unknown incident: {self.incident_id}")
-            db_path = paths.incident_db
-            if db_path.exists():
-                conn: sqlite3.Connection | None = None
-                try:
-                    conn = sqlite3.connect(db_path)
-                    conn.row_factory = sqlite3.Row
-                    cur = conn.cursor()
-                    cur.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND name='operationalperiods'"
-                    )
-                    if cur.fetchone():
-                        cur.execute(
-                            "SELECT id, op_number, start_time, end_time FROM operationalperiods ORDER BY id"
-                        )
-                        rows = cur.fetchall()
-                except Exception as exc:
-                    logger.exception(
-                        "Failed to load operational periods for %s: %s",
-                        self.incident_id,
-                        exc,
-                    )
-                finally:
-                    if conn is not None:
-                        try:
-                            conn.close()
-                        except Exception:  # pragma: no cover
-                            pass
+            try:
+                from utils.api_client import api_client
+                rows = api_client.get(f"/api/incidents/{self.incident_id}/operational-periods") or []
+            except Exception as exc:
+                logger.exception("Failed to load operational periods for %s: %s", self.incident_id, exc)
         for row in rows:
-            op_code = row["op_number"]
+            op_code = row.get("number") if isinstance(row, dict) else row["op_number"]
             op_number = _parse_op_number(op_code)
             label = _format_operational_period_label(
                 op_code,
-                row["start_time"],
-                row["end_time"],
+                row.get("start_time") if isinstance(row, dict) else row["start_time"],
+                row.get("end_time") if isinstance(row, dict) else row["end_time"],
             )
             if op_number not in self.operational_period_labels:
                 self.operational_period_labels[op_number] = label

@@ -48,25 +48,10 @@ _STATUS_COLORS = {
 
 def _get_incident_types() -> list[str]:
     try:
-        import sqlite3
-        from utils.db import get_master_conn
-        conn = get_master_conn()
-    except Exception:
-        try:
-            import sqlite3
-            from utils import incident_storage as _is
-            db_path = _is.data_root() / "master.db"
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-        except Exception:
-            return []
-    try:
-        rows = conn.execute("SELECT name FROM incident_types ORDER BY name").fetchall()
-        return [r[0] for r in rows]
+        from utils.api_client import api_client
+        return api_client.get("/api/lookup/incident-types") or []
     except Exception:
         return []
-    finally:
-        conn.close()
 
 
 def _load_incident(incident_number: str) -> Optional[dict]:

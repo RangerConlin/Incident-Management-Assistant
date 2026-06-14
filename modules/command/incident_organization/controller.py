@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Iterable
 
-from .personnel_repo import PersonnelPoolRepository
+from .personnel_repo import ApiPersonnelPoolRepository
 from .models import (
     GeneratedFormSnapshot,
     OrganizationPosition,
@@ -28,7 +28,7 @@ class IncidentOrganizationController:
     def __init__(self, incident_id: str):
         self.incident_id = str(incident_id)
         self.repo = ApiIncidentOrganizationRepository(self.incident_id)
-        self.personnel_repo = PersonnelPoolRepository()
+        self.personnel_repo = ApiPersonnelPoolRepository()
 
     # ------------------------------------------------------------------
     def add_position(self, values: dict[str, object]) -> int:

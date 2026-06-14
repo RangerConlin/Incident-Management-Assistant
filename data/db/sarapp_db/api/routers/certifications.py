@@ -58,6 +58,45 @@ def get_cert_type(cert_type_id: int) -> dict[str, Any]:
     return doc
 
 
+@router.post("/types", status_code=201)
+def upsert_cert_type(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    col = _cert_types_col()
+    cert_id = body.get("cert_type_id") or body.get("id")
+    if cert_id is None:
+        raise HTTPException(status_code=422, detail="cert_type_id required")
+    cert_id = int(cert_id)
+    now = _utcnow()
+    doc: dict[str, Any] = {
+        "int_id": cert_id,
+        "code": body.get("code", ""),
+        "name": body.get("name", ""),
+        "category": body.get("category", ""),
+        "issuing_org": body.get("issuing_org", ""),
+        "parent_id": body.get("parent_id"),
+        "updated_at": now,
+    }
+    existing = col.find_one({"int_id": cert_id})
+    if existing:
+        col.update_one({"int_id": cert_id}, {"$set": doc})
+    else:
+        doc["created_at"] = now
+        col.insert_one(doc)
+    tags = body.get("tags") or []
+    if tags:
+        tags_col = _cert_tags_col()
+        tags_col.delete_many({"cert_type_id": cert_id})
+        for tag in tags:
+            tags_col.insert_one({"cert_type_id": cert_id, "tag": tag})
+    doc.pop("_id", None)
+    return {"id": cert_id}
+
+
+@router.put("/types/{cert_type_id}")
+def update_cert_type(cert_type_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    body["cert_type_id"] = cert_type_id
+    return upsert_cert_type(body)
+
+
 @router.get("/types/{cert_type_id}/tags")
 def get_cert_tags(cert_type_id: int) -> list[str]:
     col = _cert_tags_col()

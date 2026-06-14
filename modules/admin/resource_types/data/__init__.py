@@ -2,6 +2,7 @@
 
 from .resource_assignment_repository import (
     READINESS_STATUSES,
+    ApiResourceAssignmentRepository,
     ResourceAssignmentRepository,
 )
 from .resource_type_repository import ApiResourceTypeRepository, ResourceTypeRepository
@@ -16,6 +17,7 @@ from .resource_type_io import (
 
 __all__ = [
     "READINESS_STATUSES",
+    "ApiResourceAssignmentRepository",
     "ResourceAssignmentRepository",
     "ApiResourceTypeRepository",
     "ResourceTypeRepository",

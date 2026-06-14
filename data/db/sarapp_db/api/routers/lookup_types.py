@@ -250,3 +250,30 @@ def restore_team_type(int_id: int) -> dict[str, Any]:
     col = _master_db()[MasterCollections.TEAM_TYPES]
     _restore_col(col, int_id)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# /api/lookup/incident-types
+# ---------------------------------------------------------------------------
+
+_DEFAULT_INCIDENT_TYPES = [
+    "Agricultural Event", "Air Show / Fly-In", "Community Preparedness Fair",
+    "Concert / Outdoor Entertainment", "County / State Fair",
+    "Disaster Drill / ICS Exercise", "Disaster Shelter Operations",
+    "Disaster Supply Distribution", "ELT Reports", "Earthquake Response",
+    "Festival / Fair", "Flood Response", "Hurricane Response",
+    "Ice Storm / Winter Emergency", "Major Infrastructure Failure",
+    "Marathon / Race Event", "Missing Aircraft", "Missing Person",
+    "Parade / March", "Public Demonstration / Rally", "Public Health Emergency",
+    "Public Health Event (e.g., vaccine clinic)", "Sporting Event",
+    "Tornado Response", "Wildfire Response",
+]
+
+
+@router.get("/incident-types")
+def list_incident_types() -> list[str]:
+    col = _master_db()[MasterCollections.INCIDENT_TYPES]
+    docs = list(col.find({}, {"_id": 0, "name": 1}).sort("name", 1))
+    if docs:
+        return [d["name"] for d in docs if d.get("name")]
+    return _DEFAULT_INCIDENT_TYPES
