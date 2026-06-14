@@ -1,18 +1,12 @@
-"""Public API for the Reference Library module."""
+"""Public API for the Reference Library module — backed by MongoDB API."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Optional
 
-from ..models.reference_models import (
-    Base,
-    Document,
-    Collection,
-    get_engine,
-    get_session,
-)
-from ..services import storage, ingest, search
+from utils.api_client import api_client
+from ..services import storage, ingest
 
 
 def add_reference(
@@ -25,62 +19,54 @@ def add_reference(
     jurisdiction: Optional[str] = None,
     description: Optional[str] = None,
     created_by: Optional[str] = None,
-) -> Document:
+) -> dict[str, Any]:
     """Add a reference document to the library."""
     file_path = Path(file_path)
-    engine = get_engine()
-    Base.metadata.create_all(engine)
-    with get_session(engine) as session:
-        dest_path, file_hash = storage.store_file(file_path)
-        meta = ingest.extract_metadata(dest_path)
-        doc = Document(
-            title=title,
-            category=category,
-            tags=tags or [],
-            agency=agency,
-            jurisdiction=jurisdiction,
-            description=description,
-            file_path=str(dest_path),
-            file_hash=file_hash,
-            file_ext=meta.extension,
-            file_size=meta.size,
-            created_by=created_by,
-        )
-        session.add(doc)
-        session.commit()
-        search.update_fts(session, doc)
-        return doc
+    dest_path, file_hash = storage.store_file(file_path)
+    meta = ingest.extract_metadata(dest_path)
+    return api_client.post(
+        "/api/master/reference-library/documents",
+        json={
+            "title": title,
+            "category": category,
+            "tags": tags or [],
+            "agency": agency,
+            "jurisdiction": jurisdiction,
+            "description": description,
+            "file_path": str(dest_path),
+            "file_hash": file_hash,
+            "file_ext": meta.extension,
+            "file_size": meta.size,
+            "created_by": created_by,
+        },
+    )
 
 
-def search_references(query: str, filters: Optional[dict] = None) -> list[Document]:
-    """Search reference documents using full text search."""
-    engine = get_engine()
-    Base.metadata.create_all(engine)
-    with get_session(engine) as session:
-        return search.search_documents(session, query, filters)
+def search_references(query: str, filters: Optional[dict] = None) -> list[dict[str, Any]]:
+    """Search reference documents."""
+    params: dict = {"search": query}
+    if filters:
+        if cat := filters.get("category"):
+            params["category"] = cat
+    try:
+        return api_client.get("/api/master/reference-library/documents", params=params) or []
+    except Exception:
+        return []
 
 
-def get_reference_by_id(doc_id: int) -> Optional[Document]:
-    engine = get_engine()
-    Base.metadata.create_all(engine)
-    with get_session(engine) as session:
-        return session.get(Document, doc_id)
+def get_reference_by_id(doc_id: int) -> Optional[dict[str, Any]]:
+    try:
+        return api_client.get(f"/api/master/reference-library/documents/{doc_id}")
+    except Exception:
+        return None
 
 
 def link_reference_to_collection(document_id: int, collection_id: int) -> None:
-    engine = get_engine()
-    Base.metadata.create_all(engine)
-    with get_session(engine) as session:
-        doc = session.get(Document, document_id)
-        coll = session.get(Collection, collection_id)
-        if not doc or not coll:
-            raise ValueError("Invalid document or collection ID")
-        coll.documents.append(doc)
-        session.commit()
+    api_client.post(f"/api/master/reference-library/collections/{collection_id}/documents/{document_id}")
 
 
-def list_collections() -> list[Collection]:
-    engine = get_engine()
-    Base.metadata.create_all(engine)
-    with get_session(engine) as session:
-        return session.query(Collection).all()
+def list_collections() -> list[dict[str, Any]]:
+    try:
+        return api_client.get("/api/master/reference-library/collections") or []
+    except Exception:
+        return []

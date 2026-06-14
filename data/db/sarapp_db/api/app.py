@@ -149,4 +149,7 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import organizations
     app.include_router(organizations.router, prefix="/api/master", tags=["personnel"])
 
+    from sarapp_db.api.routers import reference_library
+    app.include_router(reference_library.router, prefix="/api/master/reference-library", tags=["reference-library"])
+
     return app
