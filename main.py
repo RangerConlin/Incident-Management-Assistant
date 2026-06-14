@@ -87,6 +87,8 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Development mode toggle (prevents NameError later);
@@ -851,6 +853,7 @@ class MainWindow(QMainWindow):
         self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
 
         init_menu = m_tool.addMenu("Initial Response")
+        self._add_action(init_menu, "Overview", None, "toolkit.initial.overview")
         self._add_action(init_menu, "Hasty Tools", None, "toolkit.initial.hasty")
         self._add_action(init_menu, "Reflex Taskings", None, "toolkit.initial.reflex")
 
@@ -1147,12 +1150,13 @@ class MainWindow(QMainWindow):
             "planned.safety": self.open_planned_safety,
             "planned.tasking": self.open_planned_tasking,
             "planned.health_sanitation": self.open_planned_health_sanitation,
+            "toolkit.initial.overview": self.open_toolkit_initial_overview,
             "toolkit.initial.hasty": self.open_toolkit_initial_hasty,
             "toolkit.initial.reflex": self.open_toolkit_initial_reflex,
 
             # ----- Reference Library & Forms -----
             "library": self.open_reference_library,
-            "forms.creator": self.open_forms_creator,
+
             "help.user_guide": self.open_help_user_guide,
 
             # ----- Help -----
@@ -2666,13 +2670,19 @@ class MainWindow(QMainWindow):
         from modules.initialresponse import initial
         incident_id = getattr(self, "current_incident_id", None)
         panel = initial.get_hasty_panel(incident_id)
-        self._open_dock_widget(panel, title="Hasty Tools")
+        self._open_standalone_widget(panel, title="Hasty Tools", preferred_size=(1000, 800))
+
+    def open_toolkit_initial_overview(self) -> None:
+        from modules.initialresponse import initial
+        incident_id = getattr(self, "current_incident_id", None)
+        panel = initial.get_initialresponse_panel(incident_id)
+        self._open_standalone_widget(panel, title="Initial Response Overview", preferred_size=(1000, 800))
 
     def open_toolkit_initial_reflex(self) -> None:
         from modules.initialresponse import initial
         incident_id = getattr(self, "current_incident_id", None)
         panel = initial.get_reflex_panel(incident_id)
-        self._open_dock_widget(panel, title="Reflex Taskings")
+        self._open_standalone_widget(panel, title="Reflex Taskings", preferred_size=(1000, 800))
 
 # --- 4.14 Reference Library (Forms) -----------------------------------
     def open_reference_library(self) -> None:
@@ -2680,35 +2690,6 @@ class MainWindow(QMainWindow):
         incident_id = getattr(self, "current_incident_id", None)
         panel = referencelibrary.get_library_panel()
         self._open_dock_widget(panel, title="Reference Library")
-
-    def open_forms_creator(self) -> None:
-        try:
-            from modules.forms_creator.ui.HubWindow import HubWindow as FormsCreatorWindow
-        except Exception as exc:
-            logger.exception("Failed to open Form Creator: %s", exc)
-            QMessageBox.critical(
-                self,
-                "Form Creator Error",
-                f"Unable to open the Form Creator.\n{exc}",
-            )
-            return
-
-        window = FormsCreatorWindow(parent=self)
-        try:
-            window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        except Exception:
-            pass
-        window.show()
-
-        if not hasattr(self, "_forms_creator_windows"):
-            self._forms_creator_windows: list[QMainWindow] = []
-        self._forms_creator_windows.append(window)
-
-        def _cleanup() -> None:
-            if hasattr(self, "_forms_creator_windows") and window in self._forms_creator_windows:
-                self._forms_creator_windows.remove(window)
-
-        window.destroyed.connect(lambda _=None: _cleanup())
 
     def open_help_user_guide(self) -> None:
         from modules import referencelibrary
@@ -2724,6 +2705,34 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
+    def _open_standalone_widget(self, widget: QWidget, title: str, preferred_size: tuple[int, int] | None = None) -> None:
+        widget.setWindowTitle(title)
+        try:
+            widget.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        except Exception:
+            pass
+        if preferred_size:
+            try:
+                widget.resize(preferred_size[0], preferred_size[1])
+            except Exception:
+                pass
+        widget.show()
+        try:
+            widget.raise_()
+            widget.activateWindow()
+        except Exception:
+            pass
+
+        if not hasattr(self, "_standalone_widgets"):
+            self._standalone_widgets: list[QWidget] = []
+        self._standalone_widgets.append(widget)
+
+        def _cleanup() -> None:
+            if hasattr(self, "_standalone_widgets") and widget in self._standalone_widgets:
+                self._standalone_widgets.remove(widget)
+
+        widget.destroyed.connect(lambda _=None: _cleanup())
+
     def _open_dock_widget(self, widget: QWidget, title: str, float_on_open: bool | None = True, preferred_size: tuple[int, int] | None = None) -> None:
         """Embed widget in an ADS dock panel.
         By default, menu-launched panels open floating (undocked). Use float_on_open=False to dock.

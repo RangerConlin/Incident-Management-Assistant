@@ -66,22 +66,6 @@ def attach_dev_menu(main_window):
     dev_menu.addAction(act_prof)
 
 
-    # Form Creator (hub window)
-    act_forms = QAction("Form Creator…", main_window)
-
-    def _open_forms():
-        try:
-            from modules.forms_creator.ui.HubWindow import HubWindow
-        except Exception as e:
-            QMessageBox.critical(main_window, "Form Creator", str(e))
-            return
-        w = HubWindow(parent=main_window)
-        w.setAttribute(Qt.WA_DeleteOnClose, True)
-        w.show()
-
-    act_forms.triggered.connect(_open_forms)
-    dev_menu.addAction(act_forms)
-
     # Certification Catalog Editor (Developer-only)
     act_cert_editor = QAction("Certification Catalog Editor", main_window)
 

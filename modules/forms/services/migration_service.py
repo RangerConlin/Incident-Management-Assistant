@@ -9,7 +9,7 @@ class MigrationService:
         self.data_dir = Path(data_dir)
 
     def inspect_legacy_sources(self) -> dict[str, Any]:
-        candidates = [self.data_dir / "forms", Path("modules") / "forms_creator"]
+        candidates = [self.data_dir / "forms"]
         return {"sources": [str(p) for p in candidates if p.exists()], "legacy_data_preserved": True}
 
     def dry_run(self) -> dict[str, Any]:
