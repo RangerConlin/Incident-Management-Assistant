@@ -506,6 +506,20 @@ def list_assignments(
     return [_assignment_to_dict(d) for d in docs]
 
 
+@router.get("/{incident_id}/org/assignments/by-person/{personnel_id}")
+def list_assignments_for_person(
+    incident_id: str,
+    personnel_id: str,
+    active_only: bool = True,
+) -> list[dict[str, Any]]:
+    col = _db(incident_id)[IncidentCollections.ORG_ASSIGNMENTS]
+    filt: dict[str, Any] = {"incident_id": incident_id, "personnel_id": personnel_id}
+    if active_only:
+        filt["end_time"] = None
+    docs = list(col.find(filt).sort([("position_id", 1), ("start_time", 1)]))
+    return [_assignment_to_dict(d) for d in docs]
+
+
 @router.get("/{incident_id}/org/history")
 def list_assignment_history(
     incident_id: str, position_id: Optional[int] = None

@@ -132,7 +132,7 @@ def export_stream(incident_id: str, stream_id: str, options: ExportRequest):
     filename = f"{stream_id}_{int(datetime.now(timezone.utc).timestamp())}.pdf"
     file_path = base_dir / filename
 
-    from modules.forms.api import export_form_unified
+    from modules.forms_creator.api import export_form_unified
     export_form_unified(
         "ics_214",
         file_path,

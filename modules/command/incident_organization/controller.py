@@ -227,6 +227,11 @@ class IncidentOrganizationController:
     ) -> list[PositionAssignment]:
         return self.repo.list_assignments(position_id, active_only=active_only)
 
+    def list_assignments_for_person(
+        self, personnel_id: str, *, active_only: bool = True
+    ) -> list[PositionAssignment]:
+        return self.repo.list_assignments_for_person(personnel_id, active_only=active_only)
+
     def list_assignment_history(self, position_id: int | None = None):
         return self.repo.list_assignment_history(position_id)
 

@@ -8,6 +8,7 @@ from .services import CommsLogService
 
 __all__ = [
     "create_log_window",
+    "create_log_entry_window",
     "create_log_board_window",
     "create_quick_entry_window",
     "CommsLogService",
@@ -30,6 +31,15 @@ def get_log_window_class():
     return CommunicationsLogWindow
 
 
+def create_log_entry_window(parent=None, *, incident_id: Optional[str] = None):
+    """Factory for the combined Log + Entry dockable window."""
+    from .ui.log_entry_window import LogEntryWindow
+
+    iid = str(incident_id) if incident_id else None
+    service = CommsLogService(incident_id=iid)
+    return LogEntryWindow(service, parent=parent, incident_id=iid)
+
+
 def create_log_board_window(parent=None, *, incident_id: Optional[str] = None):
     # Return a dock-friendly QWidget panel
     from .ui.log_board_window import CommunicationsLogBoardPanel
@@ -39,8 +49,7 @@ def create_log_board_window(parent=None, *, incident_id: Optional[str] = None):
 
 
 def create_quick_entry_window(parent=None, *, incident_id: Optional[str] = None):
-    # Return a dock-friendly QWidget panel
     from .ui.quick_entry_window import QuickEntryPanel
 
     service = CommsLogService(incident_id=incident_id)
-    return QuickEntryPanel(service, parent=parent)
+    return QuickEntryPanel(service, parent=parent, incident_id=str(incident_id) if incident_id else None)

@@ -164,7 +164,20 @@ def global_qss(tokens: dict) -> str:
             border: 1px solid {tokens['ctrl_focus']};
         }}
         QComboBox::drop-down {{
-            border: none;
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 22px;
+            border-left: 1px solid {tokens['ctrl_border']};
+            border-top-right-radius: 3px;
+            border-bottom-right-radius: 3px;
+        }}
+        QComboBox::down-arrow {{
+            image: none;
+            width: 0px;
+            height: 0px;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid {tokens['fg_muted']};
         }}
         QComboBox QAbstractItemView {{
             background: {tokens['bg_panel']};

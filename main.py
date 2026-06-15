@@ -138,7 +138,7 @@ class _WindowSizeTitleFilter(QObject):
         return False
 
 
-def __get_incident_by_number(number: str | None) -> dict | None:
+def _get_incident_by_number(number: str | None) -> dict | None:
     """Look up a single incident by its number via the API. Returns None on miss."""
     if not number:
         return None
@@ -201,7 +201,7 @@ class MainWindow(QMainWindow):
     Menu-first structure. Every visible menu item has a corresponding handler method,
     and ALL handlers follow the same pattern:
       - import module
-      - incident_id = getattr(self, "current_incident_id", None)
+      - incident_id = AppState.get_active_incident()
       - panel = module.get_*_panel(incident_id)
       - self._open_dock_widget(panel, title="...")
     Placeholders are fine if a real module/factory doesn't exist yet.
@@ -481,6 +481,7 @@ class MainWindow(QMainWindow):
             pass
 
         self._init_notifications()
+        self._init_status_bar()
 
     # ----- Part 2.A: Physical Menu Builder ----------------------------------
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
@@ -720,7 +721,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_plan, "Planning Dashboard", "Ctrl+Alt+D", "planning.glance")
         self._add_action(m_plan, "Planning Unit Log ICS-214", None, "planning.unit_log")
         m_plan.addSeparator()
-        self._add_action(m_plan, "Pending Approvals", None, "planning.approvals")
         self._add_action(m_plan, "Operational Period Manager", None, "planning.op_manager")
         self._add_action(m_plan, "Meeting Planner", None, "planning.meetings")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
@@ -756,22 +756,25 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "Communications Dashboard", None, "comms.traffic_log")
         self._add_action(m_comms, "Communications Unit Log ICS-214", None, "comms.unit_log")
         m_comms.addSeparator()
-        self._add_action(m_comms, "Communications Plan (ICS-205)", None, "comms.205")
+        self._add_action(m_comms, "Communications Plan ICS-205", None, "comms.205")
         self._add_action(m_comms, "Communications Log (ICS-309)", None, "comms.log_board")
-        self._add_action(m_comms, "Communications Quick Entry", None, "comms.quick_entry")
-        self._add_action(m_comms, "Messaging", None, "comms.chat")
+        self._add_action(m_comms, "Log & Entry", None, "comms.log_entry")
+        self._add_action(m_comms, "Quick Entry", None, "comms.quick_entry")
+        self._add_action(m_comms, "Chat Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
 
 
         # ----- Intel -----
         m_intel = mb.addMenu("Intel")
-        self._add_action(m_intel, "Intel — Dashboard", None, "intel.dashboard")
+        self._add_action(m_intel, "Intel Dashboard", None, "intel.dashboard")
         self._add_action(m_intel, "Intel Unit Log ICS-214", None, "intel.unit_log")
         m_intel.addSeparator()
-        # Expose the data-centric Intel window under a clear non-dashboard label
-        self._add_action(m_intel, "Intel — Data Manager", None, "intel.data_manager")
-        self._add_action(m_intel, "Clue Log", None, "intel.clue_log")
-        self._add_action(m_intel, "Add Clue", None, "intel.add_clue")
+        self._add_action(m_intel, "Subjects", None, "intel.subjects")
+        self._add_action(m_intel, "Leads", None, "intel.leads")
+        self._add_action(m_intel, "Intel Items", None, "intel.items")
+        self._add_action(m_intel, "Assessments", None, "intel.assessments")
+        self._add_action(m_intel, "Intel Log", None, "intel.log")
+        self._add_action(m_intel, "Forms", None, "intel.forms")
 
         # ----- Medical & Safety -----
         m_med = mb.addMenu("Medical && Safety")
@@ -781,7 +784,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Medical Plan ICS 206", None, "medical.206")
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
-        self._add_action(m_med, "CAP ORM", None, "safety.caporm")
+        self._add_action(m_med, "CAP ORM CAPF-160", None, "safety.caporm")
+        self._add_action(m_med, "Safety Incident Reports (IWI)", None, "safety.iwi")
         m_med.addSeparator()
         self._add_weather_menu_items(m_med, prefix="safety.weather")
         # ----- Liaison -----
@@ -793,12 +797,15 @@ class MainWindow(QMainWindow):
 
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
-        # Public Information dashboard (widget-based)
         self._add_action(m_pub, "Public Information Dashboard", None, "public.dashboard")
         self._add_action(m_pub, "Public Information Unit Log ICS-214", None, "public.unit_log")
         m_pub.addSeparator()
-        self._add_action(m_pub, "Media Releases", None, "public.media_releases")
-        self._add_action(m_pub, "Public Inquiries", None, "public.inquiries")
+        self._add_action(m_pub, "Messages / Releases", None, "public.media_releases")
+        self._add_action(m_pub, "Rumor / Misinformation", None, "public.misinformation")
+        self._add_action(m_pub, "Media Log", None, "public.inquiries")
+        self._add_action(m_pub, "Talking Points", None, "public.talking_points")
+        self._add_action(m_pub, "Letterhead / Templates", None, "public.templates")
+        self._add_action(m_pub, "Distribution Log", None, "public.distribution")
 
         # ----- Finance/Admin -----
         m_fin = mb.addMenu("Finance/Admin")
@@ -897,7 +904,7 @@ class MainWindow(QMainWindow):
         # ----- Debug -----
         self.menuDebug = self.menuBar().addMenu("Debug")
         act = QAction("Print Active Incident", self)
-        act.triggered.connect(lambda: print(f"[debug] MainWindow current_incident_id={getattr(self,'current_incident_id',None)}; AppState={AppState.get_active_incident()}"))
+        act.triggered.connect(lambda: print(f"[debug] active incident={AppState.get_active_incident()!r}"))
         self.menuDebug.addAction(act)
 
         # Quick way to add sample docks to play with ADS
@@ -953,7 +960,7 @@ class MainWindow(QMainWindow):
         """Enable/disable toolkit menu entries based on incident type."""
         try:
             if incident is None:
-                incident_id = getattr(self, "current_incident_id", None)
+                incident_id = AppState.get_active_incident()
                 if incident_id:
                     incident = _get_incident_by_number(incident_id)
                 else:
@@ -1066,6 +1073,7 @@ class MainWindow(QMainWindow):
             "comms.unit_log": self.open_comms_unit_log,
             "comms.traffic_log": self.open_comms_traffic_log,
             "comms.log_board": self.open_comms_log_board,
+            "comms.log_entry": self.open_comms_log_entry,
             "comms.quick_entry": self.open_comms_quick_entry,
             "comms.chat": self.open_comms_chat,
             "comms.213": self.open_comms_213,
@@ -1073,10 +1081,13 @@ class MainWindow(QMainWindow):
 
             # ----- Intel -----
             "intel.unit_log": self.open_intel_unit_log,
-            "intel.dashboard": self.open_intel_dashboard,
-            "intel.data_manager": self.open_intel_data_manager,
-            "intel.clue_log": self.open_intel_clue_log,
-            "intel.add_clue": self.open_intel_add_clue,
+            "intel.dashboard": lambda: self.open_intel_module(tab="dashboard"),
+            "intel.subjects": lambda: self.open_intel_module(tab="subjects"),
+            "intel.leads": lambda: self.open_intel_module(tab="leads"),
+            "intel.items": lambda: self.open_intel_module(tab="items"),
+            "intel.assessments": lambda: self.open_intel_module(tab="assessments"),
+            "intel.log": lambda: self.open_intel_module(tab="log"),
+            "intel.forms": lambda: self.open_intel_module(tab="forms"),
 
             # ----- Medical & Safety -----
             "medical.unit_log": self.open_medical_unit_log,
@@ -1085,6 +1096,7 @@ class MainWindow(QMainWindow):
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
             "safety.caporm": self.open_safety_caporm,
+            "safety.iwi": self.open_safety_iwi,
 
             "safety.weather.summary": self.open_weather_safety_summary,
             "safety.weather.current": self.open_weather_current_forecast,
@@ -1101,10 +1113,14 @@ class MainWindow(QMainWindow):
             "liaison.requests": self.open_liaison_requests,
 
             # ----- Public Information -----
-            "public.dashboard": self.open_public_dashboard,
-            "public.unit_log": self.open_public_unit_log,
-            "public.media_releases": self.open_public_media_releases,
-            "public.inquiries": self.open_public_inquiries,
+            "public.dashboard":       self.open_public_dashboard,
+            "public.unit_log":        self.open_public_unit_log,
+            "public.media_releases":  self.open_public_media_releases,
+            "public.misinformation":  self.open_public_misinformation,
+            "public.inquiries":       self.open_public_inquiries,
+            "public.talking_points":  self.open_public_talking_points,
+            "public.templates":       self.open_public_templates,
+            "public.distribution":    self.open_public_distribution,
 
             # ----- Finance/Admin -----
             "finance.dashboard": self.open_finance_admin_dashboard,
@@ -1160,7 +1176,6 @@ class MainWindow(QMainWindow):
         # Set as the active incident immediately
         try:
             from utils import incident_context
-            self.current_incident_id = meta.number
             AppState.set_active_incident(meta.number)
             incident_context.set_active_incident(str(meta.number))
             self.update_title_with_active_incident()
@@ -1188,7 +1203,6 @@ class MainWindow(QMainWindow):
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
         def _apply_active(number: int) -> None:
             print(f"[main] on_select callback received: {number}")
-            self.current_incident_id = number
             AppState.set_active_incident(number)
             self.update_title_with_active_incident()
 
@@ -1380,7 +1394,7 @@ class MainWindow(QMainWindow):
     def open_edit_safety_templates(self) -> None:
         from modules import safety
 
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = safety.get_215A_panel(incident_id)
         self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
 
@@ -1404,7 +1418,7 @@ class MainWindow(QMainWindow):
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:command",
@@ -1415,7 +1429,7 @@ class MainWindow(QMainWindow):
 
     def open_command_incident_dashboard(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_incident_dashboard_panel(incident_id)
         self._open_dock_widget(panel, title="Incident Command Dashboard", preferred_size=(900, 700))
 
@@ -1431,38 +1445,38 @@ class MainWindow(QMainWindow):
         except Exception:
             # Fallback to legacy placeholder if import fails
             from modules import command
-            incident_id = getattr(self, "current_incident_id", None)
+            incident_id = AppState.get_active_incident()
             panel = command.get_incident_overview_panel(incident_id)
             self._open_dock_widget(panel, title="Incident Overview")
 
     def open_command_iap(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_iap_builder_panel(incident_id)
         self._open_dock_widget(panel, title="Incident Action Plan Builder")
 
     def open_command_objectives(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_objectives_panel(incident_id)
         self._open_dock_widget(panel, title="Incident Objectives (ICS 202)")
 
     def open_command_staff_org(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_staff_org_panel(incident_id)
         self._open_dock_widget(panel, title="Incident Organization")
 
     def open_command_sitrep(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_sitrep_panel(incident_id)
         self._open_dock_widget(panel, title="Situation Report (ICS 209)")
 
 # --- 4.4 Planning --------------------------------------------------------
     def open_planning_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:planning",
@@ -1494,26 +1508,29 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(widget, title="Planning — At-a-Glance")
 
     def open_planning_approvals(self) -> None:
-        from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = planning.get_approvals_panel(incident_id)
+        from modules.approvals.panels.approval_inbox_panel import ApprovalInboxPanel
+        incident_id = AppState.get_active_incident()
+        personnel_id = str(AppState.get_active_user_id() or "")
+        panel = ApprovalInboxPanel(incident_id=incident_id, personnel_id=personnel_id)
+        panel.load()
+        panel.item_activated.connect(self._on_approval_item_activated)
         self._open_dock_widget(panel, title="Pending Approvals")
 
     def open_planning_op_manager(self) -> None:
         from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = planning.get_op_manager_panel(incident_id)
         self._open_dock_widget(panel, title="Operational Period Manager")
 
     def open_planning_meetings(self) -> None:
         from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = planning.get_meetings_panel(incident_id)
         self._open_dock_widget(panel, title="Meeting Planner")
 
     def open_planning_sitrep(self) -> None:
         from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = planning.get_sitrep_panel(incident_id)
         self._open_dock_widget(panel, title="Situation Report")
 
@@ -1586,7 +1603,7 @@ class MainWindow(QMainWindow):
         window.raise_()
     def open_operations_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:operations",
@@ -1834,7 +1851,7 @@ class MainWindow(QMainWindow):
             pass
 
     def open_operations_section_org(self) -> None:
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         if not incident_id:
             QMessageBox.warning(self, "Operations Section Organization", "No active incident.")
             return
@@ -1852,7 +1869,7 @@ class MainWindow(QMainWindow):
 
     def open_operations_team_assignments(self) -> None:
         from modules import operations
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = operations.get_team_assignments_panel(incident_id)
         self._open_dock_widget(panel, title="Team Assignments")
 
@@ -1894,7 +1911,7 @@ class MainWindow(QMainWindow):
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:logistics",
@@ -2009,32 +2026,32 @@ class MainWindow(QMainWindow):
 
     def open_logistics_211(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_checkin_panel(incident_id)
         self._open_dock_widget(panel, title="Check-In (ICS-211)")
 
     def open_logistics_requests(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_requests_panel(incident_id)
         self._open_dock_widget(panel, title="Resource Requests")
 
     def open_logistics_resource_status(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_resource_status_board_panel(incident_id)
         self._open_dock_widget(panel, title="Resource Status Board")
 
     def open_logistics_213rr(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_213rr_panel(incident_id)
         self._open_dock_widget(panel, title="Resource Request (ICS-213RR)")
 
 # --- 4.7 Communications --------------------------------------------------
     def open_comms_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:communications",
@@ -2046,7 +2063,7 @@ class MainWindow(QMainWindow):
     def open_comms_traffic_log(self) -> None:
         from modules.communications.panels import MessageLogPanel
 
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=incident_id)
         self._open_dock_widget(panel, title="Communications Dashboard")
 
@@ -2054,7 +2071,7 @@ class MainWindow(QMainWindow):
         from modules.communications.panels import MessageLogPanel
 
         # TODO: incident-specific scoping for communications panels
-        _incident_id = getattr(self, "current_incident_id", None)
+        _incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=_incident_id)
         self._open_dock_widget(panel, title="Messaging")
 
@@ -2062,7 +2079,7 @@ class MainWindow(QMainWindow):
         from modules.communications.panels import MessageLogPanel
 
         # TODO: incident-specific scoping for communications panels
-        _incident_id = getattr(self, "current_incident_id", None)
+        _incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=_incident_id)
         self._open_dock_widget(panel, title="ICS 213 Messages")
 
@@ -2080,15 +2097,22 @@ class MainWindow(QMainWindow):
         # Dockable table-focused log board
         from modules.communications.traffic_log import create_log_board_window
 
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = create_log_board_window(self, incident_id=incident_id)
         self._open_dock_widget(panel, title="Communications Log Board")
+
+    def open_comms_log_entry(self) -> None:
+        from modules.communications.traffic_log import create_log_entry_window
+
+        incident_id = AppState.get_active_incident()
+        window = create_log_entry_window(self, incident_id=str(incident_id) if incident_id else None)
+        self._open_dock_widget(window, title="Log & Entry")
 
     def open_comms_quick_entry(self) -> None:
         # Dockable quick entry panel
         from modules.communications.traffic_log import create_quick_entry_window
 
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = create_quick_entry_window(self, incident_id=incident_id)
         self._open_dock_widget(panel, title="New Communications Entry")
 
@@ -2114,7 +2138,7 @@ class MainWindow(QMainWindow):
 # --- 4.8 Intel -----------------------------------------------------------
     def open_intel_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:intel",
@@ -2123,85 +2147,19 @@ class MainWindow(QMainWindow):
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Intelligence", preferred_size=(950, 600))
 
-    def open_intel_dashboard(self) -> None:
-        """Open the Intel — Dashboard (modeless) using the new QWidget."""
-        try:
-            from modules.intel.panels.inteldashboard import (
-                make_intel_dashboard,
-                IntelDashboardWidget,
-            )
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Intel — Dashboard", f"Widget unavailable.\n{e}")
-            except Exception:
-                print(f"[warn] IntelDashboardWidget unavailable: {e}")
-            return
-
-        widget: IntelDashboardWidget = make_intel_dashboard(self)
-        self._wire_intel_dashboard(widget)
-        try:
-            widget.setAutoRefresh(15000)
-        except Exception:
-            pass
-        self._open_dock_widget(widget, title="Intel — Dashboard")
-
-    def _wire_intel_dashboard(self, w) -> None:
-        """Attach a simple refresher to keep header/overlay up to date."""
-        from utils.state import AppState
-        from utils import incident_context
-        from datetime import datetime
-
-        def _refresh() -> None:
-            try:
-                active_id = incident_context.get_active_incident_id()
-                w.setIncidentOverlayVisible(False if active_id else True)
-            except Exception:
-                w.setIncidentOverlayVisible(True)
-                return
-
-            try:
-                op = AppState.get_active_op_period() or "—"
-            except Exception:
-                op = "—"
-            try:
-                role = AppState.get_active_user_role() or "—"
-            except Exception:
-                role = "—"
-            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
-            try:
-                w.set_context(str(op), now_text, str(role))
-            except Exception:
-                pass
-
-        try:
-            w.refreshRequested.connect(lambda: _refresh())
-        except Exception:
-            pass
-        _refresh()
-
-    def open_intel_data_manager(self) -> None:
-        """Open the primary data-centric Intel window (non-dashboard)."""
-        from modules import intel
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = intel.get_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Intel — Data Manager")
-
-    def open_intel_clue_log(self) -> None:
-        from modules import intel
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = intel.get_clue_log_panel(incident_id)
-        self._open_dock_widget(panel, title="Clue Log (SAR-134)")
-
-    def open_intel_add_clue(self) -> None:
-        from modules import intel
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = intel.get_add_clue_panel(incident_id)
-        self._open_dock_widget(panel, title="Add Clue (SAR-135)")
+    def open_intel_module(self, tab: str | None = None) -> None:
+        """Open (or raise) the Intel module window, optionally to a specific tab."""
+        from modules.intel import open_intel_window
+        open_intel_window(
+            incident_id=AppState.get_active_incident(),
+            tab=tab,
+            parent=self,
+        )
 
 # --- 4.9 Medical & Safety -----------------------------------------------
     def open_medical_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:medical",
@@ -2212,7 +2170,7 @@ class MainWindow(QMainWindow):
 
     def open_safety_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:safety",
@@ -2223,31 +2181,38 @@ class MainWindow(QMainWindow):
 
     def open_medical_206(self) -> None:
         from modules import medical
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = medical.get_206_panel(incident_id)
         self._open_dock_widget(panel, title="Medical Plan (ICS-206)")
 
     def open_safety_208(self) -> None:
         from modules import safety
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = safety.get_208_panel(incident_id)
         self._open_dock_widget(panel, title="Safety Message (ICS-208)")
 
     def open_safety_215A(self) -> None:
         from modules import safety
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = safety.get_215A_panel(incident_id)
         self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
 
     def open_safety_caporm(self) -> None:
         from modules import safety
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = safety.get_caporm_panel(incident_id)
         self._open_dock_widget(panel, title="CAP ORM")
+
+    def open_safety_iwi(self) -> None:
+        from modules import safety
+        incident_id = AppState.get_active_incident()
+        panel = safety.get_iwi_panel(incident_id)
+        self._open_dock_widget(panel, title="Safety Incident Reports")
+
 # --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:liaison",
@@ -2258,13 +2223,13 @@ class MainWindow(QMainWindow):
 
     def open_liaison_agencies(self) -> None:
         from modules import liaison
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = liaison.get_agencies_panel(incident_id)
         self._open_dock_widget(panel, title="Agency Directory")
 
     def open_liaison_requests(self) -> None:
         from modules import liaison
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = liaison.get_requests_panel(incident_id)
         self._open_dock_widget(panel, title="External Coordination")
 
@@ -2272,12 +2237,7 @@ class MainWindow(QMainWindow):
     def open_public_dashboard(self) -> None:
         from modules import public_information
         from utils.state import AppState
-        incident_id = getattr(self, "current_incident_id", None)
-        if not incident_id:
-            try:
-                incident_id = AppState.get_active_incident()
-            except Exception:
-                incident_id = None
+        incident_id = AppState.get_active_incident()
         try:
             uid = AppState.get_active_user_id()
         except Exception:
@@ -2287,12 +2247,11 @@ class MainWindow(QMainWindow):
         except Exception:
             role = None
         current_user = {"id": uid, "roles": ([] if not role else [role])}
-        panel = public_information.get_public_info_panel(incident_id, current_user)
-        self._open_dock_widget(panel, title="Public Information")
+        public_information.open_pio_window(incident_id, current_user, parent=self)
 
     def open_public_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:public_information",
@@ -2303,15 +2262,33 @@ class MainWindow(QMainWindow):
 
     def open_public_media_releases(self) -> None:
         from modules import public_information
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = public_information.get_media_releases_panel(incident_id)
-        self._open_dock_widget(panel, title="Media Releases")
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Messages / Releases", parent=self)
+
+    def open_public_misinformation(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Rumor / Misinformation", parent=self)
 
     def open_public_inquiries(self) -> None:
         from modules import public_information
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = public_information.get_inquiries_panel(incident_id)
-        self._open_dock_widget(panel, title="Public Inquiries")
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Media Log", parent=self)
+
+    def open_public_talking_points(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Talking Points", parent=self)
+
+    def open_public_templates(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Letterhead / Templates", parent=self)
+
+    def open_public_distribution(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Distribution Log", parent=self)
 
 # --- 4.12 Finance/Admin --------------------------------------------------
     def open_finance_admin_dashboard(self) -> None:
@@ -2462,7 +2439,7 @@ class MainWindow(QMainWindow):
         _refresh()
     def open_finance_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:finance_admin",
@@ -2473,118 +2450,118 @@ class MainWindow(QMainWindow):
 
     def open_finance_time(self) -> None:
         from modules import finance
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = finance.get_time_panel(incident_id)
         self._open_dock_widget(panel, title="Time Tracking")
 
     def open_finance_procurement(self) -> None:
         from modules import finance
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = finance.get_procurement_panel(incident_id)
         self._open_dock_widget(panel, title="Expenses && Procurement")
 
     def open_finance_summary(self) -> None:
         from modules import finance
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = finance.get_summary_panel(incident_id)
         self._open_dock_widget(panel, title="Cost Summary")
 
 # --- 4.13 Toolkits -------------------------------------------------------
     def open_toolkit_sar_missing_person(self) -> None:
         from modules.sartoolkit import sar
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = sar.get_missing_person_panel(incident_id)
         self._open_dock_widget(panel, title="Missing Person Toolkit")
 
     def open_toolkit_sar_pod(self) -> None:
         from modules.sartoolkit import sar
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = sar.get_pod_panel(incident_id)
         self._open_dock_widget(panel, title="POD Calculator")
 
     def open_toolkit_disaster_damage(self) -> None:
         from modules.disasterresponse import disaster
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = disaster.get_damage_panel(incident_id)
         self._open_dock_widget(panel, title="Damage Assessment")
 
     def open_toolkit_disaster_urban_interview(self) -> None:
         from modules.disasterresponse import disaster
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = disaster.get_urban_interview_panel(incident_id)
         self._open_dock_widget(panel, title="Urban Interview Log")
 
     def open_toolkit_disaster_photos(self) -> None:
         from modules.disasterresponse import disaster
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = disaster.get_photos_panel(incident_id)
         self._open_dock_widget(panel, title="Damage Photos")
 
 
     def open_toolkit_projection_dashboard(self) -> None:
         from modules import projection_dashboard
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = projection_dashboard.get_projection_dashboard_panel(incident_id)
         self._open_dock_widget(panel, title="Projection Dashboard")
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_promotions_panel(incident_id)
         self._open_dock_widget(panel, title="External Messaging")
 
     def open_planned_vendors(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_vendors_panel(incident_id)
         self._open_dock_widget(panel, title="Vendors && Permits")
 
     def open_planned_safety(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_safety_panel(incident_id)
         self._open_dock_widget(panel, title="Public Safety")
 
     def open_planned_tasking(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_tasking_panel(incident_id)
         self._open_dock_widget(panel, title="Tasking && Assignments")
 
     def open_planned_health_sanitation(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
         self._open_dock_widget(panel, title="Health && Sanitation")
 
     def open_toolkit_initial_hasty(self) -> None:
         from modules.initialresponse import initial
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = initial.get_hasty_panel(incident_id)
         self._open_standalone_widget(panel, title="Early Tasking", preferred_size=(1000, 800))
 
     def open_toolkit_initial_overview(self) -> None:
         from modules.initialresponse import initial
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = initial.get_initialresponse_panel(incident_id)
         self._open_standalone_widget(panel, title="Initial Information", preferred_size=(1000, 800))
 
 # --- 4.14 Reference Library (Forms) -----------------------------------
     def open_reference_library(self) -> None:
         from modules import referencelibrary
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_library_panel()
         self._open_dock_widget(panel, title="Reference Library")
 
     def open_help_user_guide(self) -> None:
         from modules import referencelibrary
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_user_guide_panel(incident_id)
         self._open_dock_widget(panel, title="User Guide")
 
 # --- 4.15 Help -----------------------------------------------------------
     def open_help_about(self) -> None:
         from modules import referencelibrary
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_about_panel(incident_id)
         self._open_dock_widget(panel, title="About SARApp")
 
@@ -3138,77 +3115,6 @@ class MainWindow(QMainWindow):
                 pass
 
 
-    def update_title_with_active_incident(self):
-        """Refresh window title when active incident changes."""
-        incident_number = AppState.get_active_incident()
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident_number:
-            incident = _get_incident_by_number(incident_number)
-            if incident:
-                suffix = ""
-                if user_id or user_role:
-                    suffix = f"  •  User: {user_id or ''} ({user_role or ''})"
-                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
-        else:
-            suffix = ""
-            if user_id or user_role:
-                suffix = f"  •  User: {user_id or ''} ({user_role or ''})"
-            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
-
-        # Also update the active incident label so it stays in sync with the title
-        if hasattr(self, "update_active_incident_label"):
-            self.update_active_incident_label()
-
-        # Instrumentation
-        print(
-            f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, "
-            f"self.current_incident_id={getattr(self,'current_incident_id',None)}"
-        )
-
-    def update_active_incident_label(self):
-        """Update the active incident debug label with the current incident details."""
-        # Determine the incident number via current_incident_id or AppState
-        incident_id = getattr(self, "current_incident_id", None)
-        if incident_id:
-            incident = _get_incident_by_number(incident_id)
-        else:
-            incident_number = AppState.get_active_incident()
-            incident = _get_incident_by_number(incident_number) if incident_number else None
-
-        # Construct the display text based on the result
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident:
-            text = (
-                f"Incident: {incident['number']} | {incident['name']}  •  "
-                f"User: {user_id or '-'}  •  Role: {user_role or '-'}"
-            )
-        else:
-            text = f"Incident: None  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
-
-        # Normalize no-incident text
-        try:
-            if 'Incident: None' in text:
-                text = text.replace('Incident: None', 'Incident: No Incident Loaded', 1)
-        except Exception:
-            pass
-
-        # Normalize no-incident text
-        try:
-            if 'Incident: None' in text:
-                text = text.replace('Incident: None', 'Incident: No Incident Loaded', 1)
-        except Exception:
-            pass
-
-        # Update the label if it exists (e.g. if the debug panel was created)
-        if hasattr(self, "active_incident_label"):
-            self.active_incident_label.setText(text)
-        try:
-            self._refresh_toolkit_menu_gates(incident)
-        except Exception:
-            pass
-
     def _wire_connection_status_label(self) -> None:
         """Register as a ConnectionManager listener and set the initial label text."""
         try:
@@ -3248,6 +3154,42 @@ class MainWindow(QMainWindow):
 
     def _init_notifications(self) -> None:
         self._toast_widget = None
+
+    def _on_approval_item_activated(self, entity_type: str, entity_id: str) -> None:
+        """Route an inbox click to the relevant module panel."""
+        _routes = {
+            "ics_205": "comms.205",
+            "ics_206": "medical.206",
+            "iwi_report": "safety.iwi",
+            "iap": "command.iap",
+        }
+        key = _routes.get(entity_type)
+        if key:
+            self.open_module(key)
+
+    def _init_status_bar(self) -> None:
+        from ui.status_bar import AppStatusBar
+        bar = AppStatusBar(self)
+        self.setStatusBar(bar)
+        self._app_status_bar = bar
+
+        # Wire connection status
+        try:
+            app = QApplication.instance()
+            manager = app.property("sarapp_connection_manager") if app else None
+            if manager is not None:
+                manager.add_listener(bar.on_connection_snapshot)
+                bar.on_connection_snapshot(manager.snapshot)
+        except Exception:
+            pass
+
+        # Clicking the approvals indicator opens the inbox panel
+        bar.approval_indicator_clicked.connect(self.open_planning_approvals)
+
+        # Clicking the messages indicator opens the comms traffic log
+        bar.messages_indicator_clicked.connect(self.open_comms_traffic_log)
+
+        bar.start()
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
@@ -3328,6 +3270,39 @@ class MainWindow(QMainWindow):
             except Exception:
                 return 0
 
+    def update_title_with_active_incident(self) -> None:
+        """Refresh window title and incident label when active incident changes."""
+        incident_number = AppState.get_active_incident()
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
+        if incident_number:
+            incident = _get_incident_by_number(incident_number)
+            if incident:
+                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
+            else:
+                self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
+        else:
+            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
+        self.update_active_incident_label()
+
+    def update_active_incident_label(self) -> None:
+        """Update the status label and menu gates with the current incident."""
+        incident_id = AppState.get_active_incident()
+        incident = _get_incident_by_number(incident_id) if incident_id else None
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        if incident:
+            text = f"Incident: {incident['number']} | {incident['name']}  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+        else:
+            text = f"Incident: No Incident Loaded  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+        if hasattr(self, "active_incident_label"):
+            self.active_incident_label.setText(text)
+        try:
+            self._refresh_toolkit_menu_gates(incident)
+        except Exception:
+            pass
+
 
 # Lightweight widget used by the Widgets submenu for simple metrics
 class MetricWidget(QWidget):
@@ -3368,60 +3343,6 @@ class MetricWidget(QWidget):
             except Exception:
                 return 0
 
-    def update_title_with_active_incident(self):
-        """Refresh window title when active incident changes."""
-        incident_number = AppState.get_active_incident()
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident_number:
-            incident = _get_incident_by_number(incident_number)
-            if incident:
-                suffix = ""
-                if user_id or user_role:
-                    suffix = f" — User: {user_id or ''} ({user_role or ''})"
-                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
-        else:
-            suffix = ""
-            if user_id or user_role:
-                suffix = f" — User: {user_id or ''} ({user_role or ''})"
-            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
-
-        # Also update the active incident label so it stays in sync with the title
-        # (this will only have an effect if the debug panel has been created)
-        if hasattr(self, "update_active_incident_label"):
-            self.update_active_incident_label()
-
-        # Instrumentation
-        print(f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, self.current_incident_id={getattr(self,'current_incident_id',None)}")
-
-    def update_active_incident_label(self):
-        """
-        Update the active incident debug label with the current incident details.
-
-        If the main window has a current_incident_id attribute, use it to look up
-        the incident; otherwise fall back to whatever AppState reports as the
-        active incident. The label will show the incident number and name if
-        available, or indicate that no incident is active.
-        """
-        # Determine the incident number via current_incident_id or AppState
-        incident_id = getattr(self, "current_incident_id", None)
-        if incident_id:
-            incident = _get_incident_by_number(incident_id)
-        else:
-            incident_number = AppState.get_active_incident()
-            incident = _get_incident_by_number(incident_number) if incident_number else None
-
-        # Construct the display text based on the result
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident:
-            text = f"Incident: {incident['number']} | {incident['name']}  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
-        else:
-            text = f"Incident: None  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
-
-        # Update the label if it exists (e.g. if the debug panel was created)
-        if hasattr(self, "active_incident_label"):
-            self.active_incident_label.setText(text)
 
 
 def _show_connection_fallback_dialog() -> str:

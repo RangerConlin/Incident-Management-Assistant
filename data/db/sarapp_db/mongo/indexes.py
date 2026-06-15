@@ -46,6 +46,8 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_safety_indexes(incident_db)
     _create_public_information_indexes(incident_db)
     _create_resources_indexes(incident_db)
+    _create_intel_indexes(incident_db)
+    _create_approval_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
 
@@ -256,6 +258,18 @@ def _create_incident_organization_indexes(incident_db: Database) -> None:
     _ensure_index(org, [("assignments.person_id", ASCENDING)])
     _ensure_index(org, [("assignments.position_id", ASCENDING)])
 
+    positions = incident_db[IncidentCollections.ORG_POSITIONS]
+    _ensure_index(positions, [("incident_id", ASCENDING)])
+    _ensure_index(positions, [("position_id", ASCENDING)], unique=True)
+    _ensure_index(positions, [("status", ASCENDING)])
+
+    assignments = incident_db[IncidentCollections.ORG_ASSIGNMENTS]
+    _ensure_index(assignments, [("incident_id", ASCENDING)])
+    _ensure_index(assignments, [("assignment_id", ASCENDING)], unique=True)
+    _ensure_index(assignments, [("position_id", ASCENDING)])
+    _ensure_index(assignments, [("personnel_id", ASCENDING)])
+    _ensure_index(assignments, [("end_time", ASCENDING)])
+
 
 def _create_unit_logs_indexes(incident_db: Database) -> None:
     logs = incident_db[IncidentCollections.UNIT_LOGS]
@@ -274,6 +288,87 @@ def _create_meetings_indexes(incident_db: Database) -> None:
     _ensure_index(meetings, [("op_period_id", ASCENDING)])
     _ensure_index(meetings, [("meeting_date", ASCENDING)])
     _ensure_index(meetings, [("status", ASCENDING)])
+
+
+def _create_intel_indexes(incident_db: Database) -> None:
+    """Indexes for the Module 7 All-Hazards Intel collections."""
+    subjects = incident_db[IncidentCollections.INTEL_SUBJECTS]
+    _ensure_index(subjects, [("incident_id", ASCENDING)])
+    _ensure_index(subjects, [("subject_type", ASCENDING)])
+    _ensure_index(subjects, [("status", ASCENDING)])
+    _ensure_index(subjects, [("deleted", ASCENDING)])
+    _ensure_index(subjects, [("updated_at", DESCENDING)])
+
+    leads = incident_db[IncidentCollections.INTEL_LEADS]
+    _ensure_index(leads, [("incident_id", ASCENDING)])
+    _ensure_index(leads, [("status", ASCENDING)])
+    _ensure_index(leads, [("priority", ASCENDING)])
+    _ensure_index(leads, [("assigned_to", ASCENDING)])
+    _ensure_index(leads, [("deleted", ASCENDING)])
+    _ensure_index(leads, [("updated_at", DESCENDING)])
+    # lead_number unique within an incident
+    _ensure_index(
+        leads,
+        [("incident_id", ASCENDING), ("lead_number", ASCENDING)],
+        unique=True,
+        sparse=True,
+        name="lead_number_unique_per_incident",
+    )
+
+    items = incident_db[IncidentCollections.INTEL_ITEMS]
+    _ensure_index(items, [("incident_id", ASCENDING)])
+    _ensure_index(items, [("item_type", ASCENDING)])
+    _ensure_index(items, [("status", ASCENDING)])
+    _ensure_index(items, [("priority", ASCENDING)])
+    _ensure_index(items, [("trend", ASCENDING)])
+    _ensure_index(items, [("deleted", ASCENDING)])
+    _ensure_index(items, [("updated_at", DESCENDING)])
+    # Embedded observations array — indexed for time-range queries
+    _ensure_index(items, [("observations.observed_at", DESCENDING)])
+    _ensure_index(items, [("linked_subject_ids", ASCENDING)])
+    _ensure_index(items, [("linked_task_ids", ASCENDING)])
+
+    assessments = incident_db[IncidentCollections.INTEL_ASSESSMENTS]
+    _ensure_index(assessments, [("incident_id", ASCENDING)])
+    _ensure_index(assessments, [("status", ASCENDING)])
+    _ensure_index(assessments, [("confidence", ASCENDING)])
+    _ensure_index(assessments, [("deleted", ASCENDING)])
+    _ensure_index(assessments, [("updated_at", DESCENDING)])
+    _ensure_index(assessments, [("linked_item_ids", ASCENDING)])
+
+    log = incident_db[IncidentCollections.INTEL_LOG]
+    _ensure_index(log, [("incident_id", ASCENDING)])
+    _ensure_index(log, [("entity_type", ASCENDING)])
+    _ensure_index(log, [("entity_id", ASCENDING)])
+    _ensure_index(log, [("event_type", ASCENDING)])
+    _ensure_index(log, [("logged_at", DESCENDING)])
+
+    reports = incident_db[IncidentCollections.INTEL_REPORTS]
+    _ensure_index(reports, [("incident_id", ASCENDING)])
+    _ensure_index(reports, [("report_type", ASCENDING)])
+    _ensure_index(reports, [("status", ASCENDING)])
+    _ensure_index(reports, [("deleted", ASCENDING)])
+    _ensure_index(reports, [("created_at", DESCENDING)])
+
+
+def _create_approval_indexes(incident_db: Database) -> None:
+    instances = incident_db[IncidentCollections.APPROVAL_INSTANCES]
+    _ensure_index(instances, [("incident_id", ASCENDING)])
+    _ensure_index(
+        instances,
+        [("incident_id", ASCENDING), ("entity_type", ASCENDING), ("entity_id", ASCENDING)],
+        unique=True,
+        name="approval_instance_unique_per_entity",
+    )
+    _ensure_index(instances, [("status", ASCENDING)])
+    _ensure_index(instances, [("steps.status", ASCENDING)])
+    _ensure_index(instances, [("steps.resolved_actor_id", ASCENDING)])
+
+    records = incident_db[IncidentCollections.APPROVAL_RECORDS]
+    _ensure_index(records, [("incident_id", ASCENDING)])
+    _ensure_index(records, [("entity_type", ASCENDING), ("entity_id", ASCENDING)])
+    _ensure_index(records, [("actor_id", ASCENDING)])
+    _ensure_index(records, [("timestamp", DESCENDING)])
 
 
 def _create_audit_logs_indexes(incident_db: Database) -> None:

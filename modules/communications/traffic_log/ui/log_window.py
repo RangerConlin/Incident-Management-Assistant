@@ -21,19 +21,13 @@ from PySide6.QtWidgets import (
     QWidgetAction,
 )
 
-from ..models import (
-    CommsLogQuery,
-    PRIORITY_EMERGENCY,
-    PRIORITY_PRIORITY,
-    PRIORITY_ROUTINE,
-)
+from ..models import CommsLogQuery
 from ..services import CommsLogService
 from notifications.models.notification import Notification
 from notifications.services import get_notifier
 from .log_detail import LogDetailDrawer
 from .log_filters import LogFilterPanel
 from .log_table import CommsLogTableView
-from .quick_entry import QuickEntryWidget
 
 
 class CommunicationsLogWindow(QMainWindow):
@@ -57,7 +51,7 @@ class CommunicationsLogWindow(QMainWindow):
 
         self.action_new = QAction("New Entry", self)
         self.action_new.setShortcut(QKeySequence("Ctrl+N"))
-        self.action_new.triggered.connect(self._focus_quick_entry)
+        self.action_new.triggered.connect(lambda: None)  # Use Log & Entry window for new entries
         toolbar.addAction(self.action_new)
 
         self.action_save = QAction("Save", self)
@@ -118,22 +112,7 @@ class CommunicationsLogWindow(QMainWindow):
         central = QWidget()
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(6)
-
-        self.quick_entry = QuickEntryWidget()
-        central_layout.addWidget(self.quick_entry)
-        self._priority_shortcuts: List[QShortcut] = []
-        for key, priority in (
-            ("1", PRIORITY_ROUTINE),
-            ("2", PRIORITY_PRIORITY),
-            ("3", PRIORITY_EMERGENCY),
-        ):
-            shortcut = QShortcut(QKeySequence(key), self)
-            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
-            shortcut.activated.connect(lambda p=priority: self.quick_entry.set_priority(p))
-            self._priority_shortcuts.append(shortcut)
-        self.quick_entry.message_edit.focusChanged.connect(self._on_entry_message_focus_changed)
-        self._on_entry_message_focus_changed(self.quick_entry.message_edit.hasFocus())
+        central_layout.setSpacing(0)
 
         content_splitter = QSplitter(Qt.Vertical)
         self.table_view = CommsLogTableView()
@@ -166,7 +145,6 @@ class CommunicationsLogWindow(QMainWindow):
         self.filter_panel.filtersChanged.connect(self._on_filters_changed)
         self.filter_panel.presetSaveRequested.connect(self._on_save_preset)
         self.filter_panel.presetDeleteRequested.connect(self._on_delete_preset)
-        self.quick_entry.submitted.connect(self._on_quick_entry_submitted)
         self.detail_drawer.saveRequested.connect(self._on_detail_save)
         self.detail_drawer.createTaskRequested.connect(lambda entry_id: self._create_follow_up_task(entry_id))
         self.table_view.selectionModel().currentChanged.connect(self._on_selection_changed)
@@ -214,9 +192,6 @@ class CommunicationsLogWindow(QMainWindow):
     def _load_initial_data(self) -> None:
         channels = self.service.list_channels()
         self.filter_panel.populate_channels(channels)
-        self.quick_entry.set_channels(channels)
-        self.quick_entry.set_default_resource(self.service.last_used_resource())
-        self.quick_entry.set_contact_suggestions(self.service.list_contact_entities())
         presets = self.service.list_filter_presets()
         self.filter_panel.populate_presets(presets)
 
@@ -314,18 +289,6 @@ class CommunicationsLogWindow(QMainWindow):
     def _on_selection_changed(self, current, previous) -> None:  # noqa: D401
         self._update_detail_from_selection()
 
-    def _on_quick_entry_submitted(self, payload: dict) -> None:
-        try:
-            entry = self.service.create_entry(payload)
-        except Exception as exc:
-            QMessageBox.warning(self, "Entry Error", str(exc))
-            return
-        self.statusBar().showMessage("Entry added", 2000)
-        self._refresh_entries(select_id=entry.id)
-        self.quick_entry.set_default_resource(self.service.last_used_resource())
-
-    # Attachments UI removed from Quick Entry
-
     def _on_detail_save(self, entry_id: int, patch: dict) -> None:
         try:
             updated = self.service.update_entry(entry_id, patch)
@@ -343,11 +306,6 @@ class CommunicationsLogWindow(QMainWindow):
         if not patch:
             return
         self._on_detail_save(int(entry.id), patch)
-
-    def _focus_quick_entry(self) -> None:
-        self.quick_entry.focus_message()
-
-
 
     def _focus_filters(self) -> None:
         if getattr(self, "filter_button", None) and self.filter_button.menu():
@@ -464,10 +422,6 @@ class CommunicationsLogWindow(QMainWindow):
             )
         )
         self.statusBar().showMessage("Notification sent", 2000)
-
-    def _on_entry_message_focus_changed(self, focused: bool) -> None:
-        for shortcut in self._priority_shortcuts:
-            shortcut.setEnabled(not focused)
 
     def _export(self, fmt: str) -> None:
         if fmt == "csv":

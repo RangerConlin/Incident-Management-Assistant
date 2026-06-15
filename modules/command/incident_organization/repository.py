@@ -151,6 +151,16 @@ class ApiIncidentOrganizationRepository:
         docs = api_client.get(self._base + "/assignments", params=params)
         return [self._doc_to_assignment(d) for d in docs]
 
+    def list_assignments_for_person(
+        self, personnel_id: str, *, active_only: bool = True
+    ) -> list[PositionAssignment]:
+        from utils.api_client import api_client
+        params: dict = {"active_only": str(active_only).lower()}
+        docs = api_client.get(
+            self._base + f"/assignments/by-person/{personnel_id}", params=params
+        )
+        return [self._doc_to_assignment(d) for d in docs]
+
     def list_assignment_history(
         self, position_id: int | None = None
     ) -> list[AssignmentHistoryEntry]:

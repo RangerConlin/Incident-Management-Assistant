@@ -175,7 +175,7 @@ class CommsLogTableView(QTableView):
     """Table view wrapper with sensible defaults."""
 
     # Remove display of the "Notification" column from default view
-    DEFAULT_VISIBLE_COLUMNS: Set[str] = {"Timestamp", "From", "To", "Message"}
+    DEFAULT_VISIBLE_COLUMNS: Set[str] = {"Timestamp", "Priority", "Channel/Resource", "From", "To", "Message"}
     _HIDDEN_COLUMNS: Set[str] = {"Notification"}
 
     def __init__(self, parent=None):

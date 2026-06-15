@@ -89,6 +89,21 @@ def attach_dev_menu(main_window):
     act_cert_editor.triggered.connect(_open_cert_editor)
     dev_menu.addAction(act_cert_editor)
 
+    # Forms Creator (Hub: catalog, versions, binding editor)
+    act_forms = QAction("Forms Creator…", main_window)
+
+    def _open_forms():
+        try:
+            from modules.forms_creator.ui.HubWindow import HubWindow
+            win = HubWindow(parent=main_window)
+            win.setAttribute(Qt.WA_DeleteOnClose, True)
+            win.show()
+        except Exception as e:
+            QMessageBox.critical(main_window, "Developer Tools", str(e))
+
+    act_forms.triggered.connect(_open_forms)
+    dev_menu.addAction(act_forms)
+
     # Rerun Catalog Seeder
     act_seed = QAction("Rerun Catalog Seeder", main_window)
 

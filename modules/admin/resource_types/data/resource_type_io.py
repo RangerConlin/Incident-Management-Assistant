@@ -21,7 +21,7 @@ from ..models.resource_type_models import (
     ResourceCapability,
     ResourceType,
 )
-from .resource_type_repository import ResourceTypeRepository
+from .resource_type_repository import ApiResourceTypeRepository
 
 # ---------------------------------------------------------------------------
 # Field definitions
@@ -60,7 +60,7 @@ RESOURCE_TYPE_CSV_FIELDS = [
 
 
 def export_capabilities_csv(
-    repository: ResourceTypeRepository, file_path: str | Path
+    repository: ApiResourceTypeRepository, file_path: str | Path
 ) -> int:
     """Write all capabilities (including inactive) to *file_path*.
 
@@ -85,7 +85,7 @@ def export_capabilities_csv(
 
 
 def import_capabilities_csv(
-    repository: ResourceTypeRepository, file_path: str | Path
+    repository: ApiResourceTypeRepository, file_path: str | Path
 ) -> dict[str, Any]:
     """Read capabilities from *file_path* and upsert them into the database.
 
@@ -134,7 +134,7 @@ def import_capabilities_csv(
 
 
 def export_resource_types_csv(
-    repository: ResourceTypeRepository, file_path: str | Path
+    repository: ApiResourceTypeRepository, file_path: str | Path
 ) -> int:
     """Write all resource types (including inactive) to *file_path*.
 
@@ -175,7 +175,7 @@ def export_resource_types_csv(
 
 
 def import_resource_types_csv(
-    repository: ResourceTypeRepository, file_path: str | Path
+    repository: ApiResourceTypeRepository, file_path: str | Path
 ) -> dict[str, Any]:
     """Read resource types from *file_path* and upsert them into the database.
 

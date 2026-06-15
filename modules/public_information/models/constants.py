@@ -17,29 +17,28 @@ AUDIENCES = ["Public", "Media", "Agency", "Internal"]
 PRIORITIES = ["Low", "Normal", "High", "Critical"]
 MESSAGE_STATUSES = [
     "Draft",
-    "Submitted for Review",
+    "Pending Approval",
     "Returned for Revision",
     "Approved",
     "Published",
-    "Retracted",
+    "Needs Corrections",
     "Archived",
 ]
 APPROVAL_ACTIONS = [
-    "Submit",
+    "Submit for Approval",
     "Approve",
     "Return for Revision",
-    "Reject",
     "Publish",
-    "Retract",
+    "Flag Corrections Needed",
     "Archive",
 ]
 APPROVAL_STEPS = [
-    "Created",
-    "Submitted for Review",
-    "Under Review",
-    "Command Review",
+    "Draft",
+    "Pending Approval",
+    "Returned for Revision",
     "Approved",
     "Published",
+    "Needs Corrections",
 ]
 MISINFORMATION_SEVERITIES = ["Low", "Moderate", "High", "Critical"]
 MISINFORMATION_STATUSES = [

@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QSplitter,
 )
 
-from modules.admin.resource_types.data import READINESS_STATUSES, ApiResourceAssignmentRepository, ResourceAssignmentRepository
+from modules.admin.resource_types.data import READINESS_STATUSES, ApiResourceAssignmentRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
 

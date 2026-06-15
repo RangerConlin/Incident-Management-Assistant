@@ -4,7 +4,6 @@ Qt widgets/windows are imported lazily so repository-only code can run in
 headless or dependency-limited environments without loading PySide6.
 """
 
-from .data import ResourceTypeRepository
 
 __all__ = [
     "ResourceTypeSearchBox",

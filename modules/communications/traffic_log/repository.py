@@ -610,7 +610,6 @@ class ApiCommsLogRepository:
             id=data.get("id"),
             ts_utc=data.get("ts_utc", ""),
             ts_local=data.get("ts_local", ""),
-            direction=data.get("direction"),
             priority=data.get("priority", "Routine"),
             resource_id=data.get("resource_id"),
             resource_label=data.get("resource_label", ""),

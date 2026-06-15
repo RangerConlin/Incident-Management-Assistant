@@ -150,6 +150,8 @@ def create_app(server_info_fn=None) -> FastAPI:
     app.include_router(organizations.router, prefix="/api/master", tags=["personnel"])
 
     from sarapp_db.api.routers import reference_library
+    from sarapp_db.api.routers import approvals
     app.include_router(reference_library.router, prefix="/api/master/reference-library", tags=["reference-library"])
+    app.include_router(approvals.router, prefix="/api", tags=["approvals"])
 
     return app

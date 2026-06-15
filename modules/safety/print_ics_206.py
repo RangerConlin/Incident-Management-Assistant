@@ -14,7 +14,7 @@ def generate(incident_id: str, html: str = "") -> tuple[bytes, str]:
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     pdf_path = forms_dir / f"ICS206-{timestamp}.pdf"
 
-    from modules.forms.api import export_form_unified
+    from modules.forms_creator.api import export_form_unified
 
     export_form_unified("ics_206", pdf_path, context={"incident_id": incident_id})
     content = pdf_path.read_bytes()

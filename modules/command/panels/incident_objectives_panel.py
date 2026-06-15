@@ -388,7 +388,7 @@ class IncidentObjectivesPanel(QWidget):
         try:
             from pathlib import Path
             from utils import incident_storage
-            from modules.forms.api import export_form_unified
+            from modules.forms_creator.api import export_form_unified
 
             paths = incident_storage.resolve_incident_paths_by_identifier(str(incident_id))
             out_dir = paths.forms_exports if paths else Path("data") / "exports" / str(incident_id)

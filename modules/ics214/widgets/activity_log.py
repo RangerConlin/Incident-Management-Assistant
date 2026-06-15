@@ -1489,7 +1489,7 @@ class Ics214ActivityLogPanel(QWidget):
         label = name
         section = json.dumps({"category": kind, "ref": ref, "label": label}, ensure_ascii=False)
         try:
-            stream = self.services.create_stream(
+            _stream_raw = self.services.create_stream(
                 StreamCreate(
                     incident_id=self.incident_id,
                     name=name,
@@ -1498,6 +1498,8 @@ class Ics214ActivityLogPanel(QWidget):
                     section=section,
                 )
             )
+            from types import SimpleNamespace
+            stream = SimpleNamespace(**_stream_raw) if isinstance(_stream_raw, dict) else _stream_raw
             logger.info(
                 "Auto-created ICS-214 stream '%s' (kind=%s, ref=%s) for incident %s",
                 name, kind, ref, self.incident_id,
@@ -1519,7 +1521,12 @@ class Ics214ActivityLogPanel(QWidget):
             self._set_empty_state()
             return
         try:
-            streams = self.services.list_streams(self.incident_id)
+            _raw = self.services.list_streams(self.incident_id)
+            from types import SimpleNamespace
+            streams = [
+                SimpleNamespace(**s) if isinstance(s, dict) else s
+                for s in (_raw or [])
+            ]
         except Exception as exc:
             logger.exception(
                 "Failed to load ICS-214 streams for %s: %s",
@@ -2025,11 +2032,13 @@ class Ics214ActivityLogPanel(QWidget):
                     kind=data["kind"],
                     section=data["section"],
                 )
-                stream = self.services.update_stream(
+                _raw_stream = self.services.update_stream(
                     self.incident_id,
                     self.header.stream_id,
                     payload,
                 )
+                from types import SimpleNamespace
+                stream = SimpleNamespace(**_raw_stream) if isinstance(_raw_stream, dict) else _raw_stream
             except Exception as exc:
                 logger.exception(
                     "Failed to update stream %s: %s",
@@ -2079,7 +2088,9 @@ class Ics214ActivityLogPanel(QWidget):
                     kind=data["kind"],
                     section=data["section"],
                 )
-                stream = self.services.create_stream(payload)
+                _raw_stream = self.services.create_stream(payload)
+                from types import SimpleNamespace
+                stream = SimpleNamespace(**_raw_stream) if isinstance(_raw_stream, dict) else _raw_stream
             except Exception as exc:
                 logger.exception("Failed to create stream: %s", exc)
                 QMessageBox.critical(
@@ -2112,7 +2123,12 @@ class Ics214ActivityLogPanel(QWidget):
         header = self.known_logs.get(log_id)
         if header is None and self.incident_id:
             try:
-                streams = self.services.list_streams(self.incident_id)
+                from types import SimpleNamespace
+                _raw = self.services.list_streams(self.incident_id)
+                streams = [
+                    SimpleNamespace(**s) if isinstance(s, dict) else s
+                    for s in (_raw or [])
+                ]
             except Exception:
                 streams = []
             for stream in streams:

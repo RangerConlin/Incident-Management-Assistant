@@ -211,12 +211,18 @@ class IncidentCollections:
     LIAISON_RESTRICTIONS = "liaison_restrictions"
     LIAISON_AGREEMENTS = "liaison_agreements"
 
-    # Intel
+    # Intel — legacy (retained for migration compatibility)
     INTEL_CLUES = "intel_clues"
-    INTEL_SUBJECTS = "intel_subjects"
     INTEL_ENV_SNAPSHOTS = "intel_env_snapshots"
-    INTEL_REPORTS = "intel_reports"
     INTEL_FORM_ENTRIES = "intel_form_entries"
+
+    # Intel — All-Hazards Information Management (Module 7 redesign)
+    INTEL_SUBJECTS = "intel_subjects"          # Human subjects (missing persons, witnesses, etc.)
+    INTEL_LEADS = "intel_leads"                # Unverified tips and reports
+    INTEL_ITEMS = "intel_items"                # Verified intel items with embedded observations[]
+    INTEL_ASSESSMENTS = "intel_assessments"    # Finished analytical products
+    INTEL_LOG = "intel_log"                    # Chronological activity log (ICS-214 equivalent)
+    INTEL_REPORTS = "intel_reports"            # Frozen report snapshots
 
     # Work assignments (ICS-204 tactics / strategies)
     WORK_ASSIGNMENTS = "work_assignments"
@@ -224,6 +230,16 @@ class IncidentCollections:
     # GIS spatial features and links
     SPATIAL_FEATURES = "spatial_features"
     SPATIAL_FEATURE_LINKS = "spatial_feature_links"
+
+    # ICS-208 Safety Message (one document per incident + op period)
+    ICS_208_INSTANCES = "ics_208_instances"
+
+    # Safety Incident (IWI) reports
+    IWI_REPORTS = "iwi_reports"
+
+    # Approvals — one instance per approvable entity, plus an append-only audit trail
+    APPROVAL_INSTANCES = "approval_instances"
+    APPROVAL_RECORDS = "approval_records"
 
     # Supporting
     ATTACHMENTS = "attachments"

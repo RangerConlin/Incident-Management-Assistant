@@ -3,7 +3,6 @@
 from .resource_assignment_repository import (
     READINESS_STATUSES,
     ApiResourceAssignmentRepository,
-    ResourceAssignmentRepository,
 )
 from .resource_type_repository import ApiResourceTypeRepository
 from .resource_type_io import (

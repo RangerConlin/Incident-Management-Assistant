@@ -143,6 +143,70 @@ def build_ics206(incident_id: str, payload: schemas.ICS206Create) -> schemas.ICS
     return schemas.ICS206Read(**data)
 
 
+# ---------------------------------------------------------------------------
+# ICS-208 — Safety Message
+# ---------------------------------------------------------------------------
+
+def get_ics208(incident_id: str, op_period: int) -> dict:
+    try:
+        return api_client.get(f"/api/incidents/{incident_id}/safety/ics208", params={"op": op_period}) or {}
+    except Exception:
+        return {}
+
+
+def save_ics208(incident_id: str, data: dict) -> dict:
+    return api_client.put(f"/api/incidents/{incident_id}/safety/ics208", json=data)
+
+
+# ---------------------------------------------------------------------------
+# IWI — Safety Incident Reports
+# ---------------------------------------------------------------------------
+
+def list_iwi_reports(
+    incident_id: str,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+) -> List[dict]:
+    params: dict = {}
+    if severity:
+        params["severity"] = severity
+    if status:
+        params["status"] = status
+    try:
+        return api_client.get(f"/api/incidents/{incident_id}/safety/iwi", params=params) or []
+    except Exception:
+        return []
+
+
+def get_iwi_report(incident_id: str, report_id: str) -> Optional[dict]:
+    try:
+        return api_client.get(f"/api/incidents/{incident_id}/safety/iwi/{report_id}")
+    except Exception:
+        return None
+
+
+def create_iwi_report(incident_id: str, data: dict) -> dict:
+    return api_client.post(f"/api/incidents/{incident_id}/safety/iwi", json=data)
+
+
+def update_iwi_report(incident_id: str, report_id: str, data: dict) -> dict:
+    return api_client.put(f"/api/incidents/{incident_id}/safety/iwi/{report_id}", json=data)
+
+
+def signoff_iwi_report(incident_id: str, report_id: str, role: str, name: str) -> dict:
+    return api_client.post(
+        f"/api/incidents/{incident_id}/safety/iwi/{report_id}/signoff",
+        json={"role": role, "name": name},
+    )
+
+
+def delete_iwi_report(incident_id: str, report_id: str) -> None:
+    try:
+        api_client.delete(f"/api/incidents/{incident_id}/safety/iwi/{report_id}")
+    except Exception:
+        pass
+
+
 __all__ = [
     "register_flagged_callback",
     "list_safety_reports",
@@ -155,4 +219,10 @@ __all__ = [
     "create_hazard_zone",
     "create_cap_orm",
     "build_ics206",
+    "list_iwi_reports",
+    "get_iwi_report",
+    "create_iwi_report",
+    "update_iwi_report",
+    "signoff_iwi_report",
+    "delete_iwi_report",
 ]

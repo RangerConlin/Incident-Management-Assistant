@@ -481,3 +481,192 @@ def approve_orm_form(incident_id: str, body: ApproveRequest):
     )
     _log_audit(incident_id, "orm_form", form["id"], "approve", "status", form.get("status"), "approved")
     return _form_col(incident_id).find_one({"id": form["id"], "incident_id": incident_id}, {"_id": 0}) or {}
+
+
+# ---------------------------------------------------------------------------
+# IWI — Safety Incident (Incident Within Incident) Reports
+# ---------------------------------------------------------------------------
+
+from sarapp_db.mongo.collection_names import IncidentCollections as _IC  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# ICS-208 — Safety Message (upsert per incident + op period)
+# ---------------------------------------------------------------------------
+
+class ICS208Body(BaseModel):
+    op_period: int = Field(ge=1)
+    op_period_from: Optional[str] = None
+    op_period_to: Optional[str] = None
+    safety_message: Optional[str] = None
+    site_safety_plan_required: bool = False
+    site_safety_plan_location: Optional[str] = None
+    prepared_by_name: Optional[str] = None
+    prepared_by_position: Optional[str] = None
+    prepared_by_datetime: Optional[str] = None
+
+
+@router.get("/incidents/{incident_id}/safety/ics208")
+def get_ics208(incident_id: str, op: int = Query(..., ge=1)) -> dict[str, Any]:
+    col = _collection(incident_id, _IC.ICS_208_INSTANCES)
+    doc = col.find_one({"incident_id": incident_id, "op_period": op}, {"_id": 0})
+    if not doc:
+        return {"incident_id": incident_id, "op_period": op}
+    return doc
+
+
+@router.put("/incidents/{incident_id}/safety/ics208")
+def upsert_ics208(incident_id: str, body: ICS208Body) -> dict[str, Any]:
+    col = _collection(incident_id, _IC.ICS_208_INSTANCES)
+    now = _utcnow()
+    updates = {**body.model_dump(), "incident_id": incident_id, "updated_at": now}
+    col.update_one(
+        {"incident_id": incident_id, "op_period": body.op_period},
+        {"$set": updates, "$setOnInsert": {"_id": _new_uuid(), "created_at": now}},
+        upsert=True,
+    )
+    return col.find_one({"incident_id": incident_id, "op_period": body.op_period}, {"_id": 0}) or updates
+
+
+def _iwi_col(incident_id: str):
+    return _collection(incident_id, _IC.IWI_REPORTS)
+
+
+def _next_form_number(incident_id: str) -> int:
+    doc = _iwi_col(incident_id).find_one(
+        {"incident_id": incident_id},
+        sort=[("form_number", -1)],
+        projection={"form_number": 1},
+    )
+    return int((doc or {}).get("form_number") or 0) + 1
+
+
+class IWICreate(BaseModel):
+    op_period: Optional[int] = None
+    date_of_occurrence: Optional[str] = None
+    day_of_event: Optional[int] = None
+    time_of_occurrence: Optional[str] = None
+    time_reported: Optional[str] = None
+    reported_by: Optional[str] = None
+    location_general: Optional[str] = None
+    location_zone: Optional[str] = None
+    location_sector: Optional[str] = None
+    location_specific: Optional[str] = None
+    incident_types: list[str] = Field(default_factory=list)
+    incident_type_other: Optional[str] = None
+    actual_outcome: Optional[str] = None
+    actual_severity: Optional[str] = None
+    activity_impact: Optional[str] = None
+    activity_suspension_ref: Optional[str] = None
+    conditions: dict[str, Any] = Field(default_factory=dict)
+    persons_involved: list[dict[str, Any]] = Field(default_factory=list)
+    injury_details: list[dict[str, Any]] = Field(default_factory=list)
+    equipment: dict[str, Any] = Field(default_factory=dict)
+    sequence_of_events: list[dict[str, Any]] = Field(default_factory=list)
+    narrative: Optional[str] = None
+    contributing_factors: dict[str, Any] = Field(default_factory=dict)
+    immediate_actions: Optional[str] = None
+    notifications: list[dict[str, Any]] = Field(default_factory=list)
+    corrective_actions: list[dict[str, Any]] = Field(default_factory=list)
+    escalation_decision: Optional[str] = None
+    escalation_rationale: Optional[str] = None
+    witnesses: list[dict[str, Any]] = Field(default_factory=list)
+    prepared_by: Optional[str] = None
+
+
+class IWISignoff(BaseModel):
+    role: str  # reporter | supervisor | ops_chief | ic | safety_officer
+    name: str
+
+
+@router.get("/incidents/{incident_id}/safety/iwi")
+def list_iwi_reports(
+    incident_id: str,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {}
+    if severity:
+        query["actual_severity"] = severity
+    if status:
+        query["status"] = status
+    return list(_query_incident_docs(incident_id, _IC.IWI_REPORTS, query))
+
+
+@router.post("/incidents/{incident_id}/safety/iwi", status_code=201)
+def create_iwi_report(incident_id: str, body: IWICreate) -> dict[str, Any]:
+    col = _iwi_col(incident_id)
+    now = _utcnow()
+    doc = {
+        "_id": _new_uuid(),
+        "id": _next_id(col, incident_id),
+        "form_number": _next_form_number(incident_id),
+        "incident_id": incident_id,
+        "status": "draft",
+        **body.model_dump(),
+        "signoffs": {
+            "reporter": None,
+            "supervisor": None,
+            "ops_chief": None,
+            "ic": None,
+            "safety_officer": None,
+        },
+        "created_at": now,
+        "updated_at": now,
+        "deleted": False,
+    }
+    col.insert_one(doc)
+    return _clean_doc(doc)
+
+
+@router.get("/incidents/{incident_id}/safety/iwi/{report_id}")
+def get_iwi_report(incident_id: str, report_id: str) -> dict[str, Any]:
+    doc = _iwi_col(incident_id).find_one(
+        {"_id": report_id, "incident_id": incident_id, "deleted": {"$ne": True}},
+        {"_id": 0},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="IWI report not found")
+    return doc
+
+
+@router.put("/incidents/{incident_id}/safety/iwi/{report_id}")
+def update_iwi_report(incident_id: str, report_id: str, body: IWICreate) -> dict[str, Any]:
+    col = _iwi_col(incident_id)
+    existing = col.find_one({"_id": report_id, "incident_id": incident_id, "deleted": {"$ne": True}})
+    if not existing:
+        raise HTTPException(status_code=404, detail="IWI report not found")
+    updates = {**body.model_dump(), "updated_at": _utcnow()}
+    col.update_one({"_id": report_id}, {"$set": updates})
+    return col.find_one({"_id": report_id}, {"_id": 0}) or {}
+
+
+@router.post("/incidents/{incident_id}/safety/iwi/{report_id}/signoff")
+def signoff_iwi_report(incident_id: str, report_id: str, body: IWISignoff) -> dict[str, Any]:
+    col = _iwi_col(incident_id)
+    existing = col.find_one({"_id": report_id, "incident_id": incident_id, "deleted": {"$ne": True}})
+    if not existing:
+        raise HTTPException(status_code=404, detail="IWI report not found")
+    now = _utcnow()
+    signoff_entry = {"name": body.name, "signed_at": now}
+    new_status = existing.get("status", "draft")
+    if body.role == "reporter" and new_status == "draft":
+        new_status = "submitted"
+    elif body.role == "safety_officer" and new_status == "submitted":
+        new_status = "reviewed"
+    elif body.role == "ic" and new_status == "reviewed":
+        new_status = "closed"
+    col.update_one(
+        {"_id": report_id},
+        {"$set": {f"signoffs.{body.role}": signoff_entry, "status": new_status, "updated_at": now}},
+    )
+    return col.find_one({"_id": report_id}, {"_id": 0}) or {}
+
+
+@router.delete("/incidents/{incident_id}/safety/iwi/{report_id}", status_code=204)
+def delete_iwi_report(incident_id: str, report_id: str) -> Response:
+    _iwi_col(incident_id).update_one(
+        {"_id": report_id, "incident_id": incident_id},
+        {"$set": {"deleted": True, "updated_at": _utcnow()}},
+    )
+    return Response(status_code=204)
