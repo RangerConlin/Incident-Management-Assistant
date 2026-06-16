@@ -1,0 +1,37 @@
+services:
+  sarapp-cloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sarapp-cloud
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      - SARAPP_MONGO_URI=${SARAPP_MONGO_URI:-mongodb://mongo:27017}
+      - SARAPP_SERVER_NAME=${SARAPP_SERVER_NAME:-SARApp Cloud Server}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - sarapp-net
+
+  mongo:
+    image: mongo:7
+    container_name: sarapp-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - sarapp-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo-data:
+
+networks:
+  sarapp-net:
