@@ -41,7 +41,7 @@ from PySide6QtAds import (
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"
@@ -3532,6 +3532,20 @@ if __name__ == "__main__":
         AppState.set_active_user_role(DEBUG_ROLE)
         print("[debug] Login bypass enabled: loaded test credentials.")
     else:
+        # Connectivity must be established before login so the dialog can load incidents.
+        _connection_manager = _initialize_connectivity(app)
+        from utils.api_client import api_client as _api_client_pre
+        from core.networking import ConnectionState as _ConnectionState_pre
+        from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT_pre
+        if _connection_manager is not None:
+            def _on_pre_connection_changed(snapshot) -> None:
+                if snapshot.state in {_ConnectionState_pre.CONNECTED_LAN, _ConnectionState_pre.CONNECTED_CLOUD}:
+                    _api_client_pre.configure(snapshot.server.base_url)
+                elif snapshot.state == _ConnectionState_pre.OFFLINE:
+                    _api_client_pre.configure(f"http://localhost:{_DEFAULT_SERVER_PORT_pre}")
+            _connection_manager.add_listener(_on_pre_connection_changed)
+            _on_pre_connection_changed(_connection_manager.snapshot)
+
         from modules.login_dialog import LoginDialog
         try:
             _startup_mode = int(_early_settings.get('startupBehaviorIndex', 0) or 0)
@@ -3546,12 +3560,6 @@ if __name__ == "__main__":
     settings_manager = _early_settings
     settings_bridge = SettingsBridge(settings_manager)
 
-    # Connectivity starts before the main workspace so clients automatically
-    # prefer a LAN incident server, fall back to cloud when configured, and only
-    # prompt for Offline Mode after both network options fail.
-    # Skipped in debug bypass mode — always offline during dev testing.
-    _connection_manager = None if DEBUG_BYPASS_LOGIN else _initialize_connectivity(app)
-
     # Wire api_client to connection state so all modules talk to the right server.
     from utils.api_client import api_client as _api_client
     if DEBUG_BYPASS_LOGIN:
@@ -3559,6 +3567,7 @@ if __name__ == "__main__":
         from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
         from core.networking import LocalServerController as _LocalServerController
         _debug_local_controller = _LocalServerController()
+        _connection_manager = None
         try:
             _debug_local_controller.start()
             ready = _debug_local_controller.wait_until_ready(timeout_seconds=15.0)
