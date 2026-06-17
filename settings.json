@@ -121,7 +121,7 @@
     "statusboard.team.columns.hidden": [
         "team_type"
     ],
-    "lastIncidentNumber": "2025-FAIR",
+    "lastIncidentNumber": "T2T-2026",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
