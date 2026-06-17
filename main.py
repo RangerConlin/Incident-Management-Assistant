@@ -722,6 +722,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_plan, "Planning Unit Log ICS-214", None, "planning.unit_log")
         m_plan.addSeparator()
         self._add_action(m_plan, "Operational Period Manager", None, "planning.op_manager")
+        self._add_action(m_plan, "Demobilization Planner", None, "planning.demobilization")
         self._add_action(m_plan, "Meeting Planner", None, "planning.meetings")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
         m_plan.addSeparator()
@@ -1039,6 +1040,7 @@ class MainWindow(QMainWindow):
             "planning.glance": self.open_planning_glance,
             "planning.approvals": self.open_planning_approvals,
             "planning.op_manager": self.open_planning_op_manager,
+            "planning.demobilization": self.open_planning_demobilization,
             "planning.meetings": self.open_planning_meetings,
             "planning.sitrep": self.open_planning_sitrep,
             "planning.tactics_planner": self.open_tactics_resources_planner,
@@ -1521,6 +1523,12 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = planning.get_op_manager_panel(incident_id)
         self._open_dock_widget(panel, title="Operational Period Manager")
+
+    def open_planning_demobilization(self) -> None:
+        from modules import planning
+        incident_id = AppState.get_active_incident()
+        panel = planning.get_demobilization_panel(incident_id)
+        self._open_dock_widget(panel, title="Demobilization Planner")
 
     def open_planning_meetings(self) -> None:
         from modules import planning
