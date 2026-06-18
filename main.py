@@ -3496,7 +3496,10 @@ def _initialize_connectivity(app: QApplication) -> object | None:
         logger.warning("Connectivity framework unavailable: %s", exc)
         return None
 
-    cloud_url = os.getenv("SARAPP_CLOUD_URL") or None
+    # Cloud server URL — update this if the VPS address changes.
+    # Long-term: move this to the Settings UI (Menu → Settings → Connection).
+    _HARDCODED_CLOUD_URL = "http://srv1707346.hstgr.cloud:8765"
+    cloud_url = os.getenv("SARAPP_CLOUD_URL") or _HARDCODED_CLOUD_URL
     manager = ConnectionManager(cloud_url=cloud_url)
     local_controller = LocalServerController()
 

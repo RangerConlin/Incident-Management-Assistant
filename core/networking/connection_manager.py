@@ -145,11 +145,14 @@ class ConnectionManager:
                 "Cloud URL is not configured",
             )
             return self.snapshot
+        from urllib.parse import urlparse
+        _parsed = urlparse(self.cloud_url)
+        _cloud_port = _parsed.port or (443 if _parsed.scheme == "https" else 80)
         cloud = ServerInfo(
             server_id="cloud",
             server_name="SARApp Cloud",
-            host=self.cloud_url,
-            port=443,
+            host=_parsed.hostname,
+            port=_cloud_port,
         )
         if not self._check_server_health(self.cloud_url.rstrip("/")):
             self._set_snapshot(

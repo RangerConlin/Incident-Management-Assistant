@@ -117,7 +117,8 @@ class ServerInfo:
     @property
     def base_url(self) -> str:
         """HTTP base URL used for health checks and future API traffic."""
-
+        if self.host.startswith("http://") or self.host.startswith("https://"):
+            return self.host.rstrip("/")
         return f"http://{self.host}:{self.port}"
 
     def to_dict(self) -> dict[str, Any]:
