@@ -154,4 +154,7 @@ def create_app(server_info_fn=None) -> FastAPI:
     app.include_router(reference_library.router, prefix="/api/master/reference-library", tags=["reference-library"])
     app.include_router(approvals.router, prefix="/api", tags=["approvals"])
 
+    from sarapp_db.api.routers import safety_templates
+    app.include_router(safety_templates.router, prefix="/api/master/safety-templates", tags=["safety"])
+
     return app

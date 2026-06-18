@@ -14,10 +14,14 @@ from ..models.hazard_type_models import (
     HAZARD_RISK_LEVELS,
     HAZARD_SEVERITIES,
     HAZARD_SOURCES,
+    SAFETY_SCENARIO_TYPES,
+    SAFETY_TARGET_FORMS,
     HazardMitigation,
     HazardPpeItem,
     HazardReference,
     HazardTypeResourceDefault,
+    SafetyAnalysisTemplate,
+    SafetyTemplateHazardEntry,
 )
 
 class ApiHazardTypeRepository:
@@ -255,6 +259,95 @@ def _api_doc_to_hazard_type(doc: dict[str, Any]) -> HazardType:
                 notes=rd.get("notes", ""),
             )
             for rd in (doc.get("resource_defaults") or [])
+        ],
+    )
+
+
+class ApiSafetyTemplateRepository:
+    """CRUD repository for Safety Analysis Templates via the FastAPI server."""
+
+    def list_templates(
+        self,
+        search_text: str = "",
+        scenario_type: str = "All",
+        include_inactive: bool = False,
+    ) -> list[dict[str, Any]]:
+        from utils.api_client import api_client
+        params: dict[str, Any] = {"include_inactive": include_inactive}
+        if search_text:
+            params["search_text"] = search_text
+        if scenario_type and scenario_type != "All":
+            params["scenario_type"] = scenario_type
+        return api_client.get("/api/master/safety-templates", params=params) or []
+
+    def get_template(self, template_id: int) -> Optional[SafetyAnalysisTemplate]:
+        from utils.api_client import api_client
+        from utils.api_client import APIError
+        try:
+            doc = api_client.get(f"/api/master/safety-templates/{template_id}")
+        except APIError as exc:
+            if getattr(exc, "status_code", None) == 404:
+                return None
+            raise
+        if doc is None:
+            return None
+        return _doc_to_template(doc)
+
+    def create_template(self, data: dict[str, Any]) -> int:
+        from utils.api_client import api_client
+        result = api_client.post("/api/master/safety-templates", json=data)
+        return int(result["template_id"])
+
+    def update_template(self, template_id: int, data: dict[str, Any]) -> int:
+        from utils.api_client import api_client
+        result = api_client.put(f"/api/master/safety-templates/{template_id}", json=data)
+        return int(result["template_id"])
+
+    def delete_template(self, template_id: int) -> None:
+        from utils.api_client import api_client
+        api_client.delete(f"/api/master/safety-templates/{template_id}")
+
+    def clone_template(self, template_id: int) -> int:
+        from utils.api_client import api_client
+        result = api_client.post(f"/api/master/safety-templates/{template_id}/clone")
+        return int(result["template_id"])
+
+    def set_active(self, template_id: int, active: bool) -> None:
+        from utils.api_client import api_client
+        api_client.patch(
+            f"/api/master/safety-templates/{template_id}/active",
+            json={"active": active},
+        )
+
+
+def _doc_to_template(doc: dict[str, Any]) -> SafetyAnalysisTemplate:
+    int_id = doc.get("template_id")
+    try:
+        int_id = int(int_id) if int_id is not None else None
+    except (ValueError, TypeError):
+        int_id = None
+    return SafetyAnalysisTemplate(
+        id=int_id,
+        name=doc.get("name", ""),
+        description=doc.get("description", ""),
+        scenario_type=doc.get("scenario_type", "General"),
+        target_forms=list(doc.get("target_forms") or []),
+        is_active=bool(doc.get("is_active", True)),
+        notes=doc.get("notes", ""),
+        created_at=doc.get("created_at", ""),
+        updated_at=doc.get("updated_at", ""),
+        created_by=doc.get("created_by", ""),
+        updated_by=doc.get("updated_by", ""),
+        hazard_entries=[
+            SafetyTemplateHazardEntry(
+                hazard_type_id=int(e.get("hazard_type_id", 0)),
+                sort_order=int(e.get("sort_order", 0)),
+                override_notes=e.get("override_notes", ""),
+                hazard_name=e.get("hazard_name", ""),
+                hazard_category=e.get("hazard_category", ""),
+                default_risk_level=e.get("default_risk_level", ""),
+            )
+            for e in (doc.get("hazard_entries") or [])
         ],
     )
 

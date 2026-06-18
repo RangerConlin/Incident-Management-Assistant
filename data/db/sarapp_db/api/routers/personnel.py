@@ -115,7 +115,39 @@ def get_person(person_id: str) -> dict[str, Any]:
     doc = (
         _col().find_one({"person_id": person_id})
         or _col().find_one({"id": person_id})
+        or _col().find_one({"int_id": int(person_id)}) if person_id.isdigit() else None
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Person not found")
     return _normalize(doc)
+
+
+@router.put("/{person_id}")
+def update_person(person_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    col = _col()
+    existing = (
+        col.find_one({"person_id": person_id})
+        or col.find_one({"id": person_id})
+        or (col.find_one({"int_id": int(person_id)}) if person_id.isdigit() else None)
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Person not found")
+    body.pop("_id", None)
+    body.pop("int_id", None)
+    body["updated_at"] = _utcnow()
+    col.update_one({"_id": existing["_id"]}, {"$set": body})
+    updated = col.find_one({"_id": existing["_id"]})
+    return _normalize(updated)
+
+
+@router.delete("/{person_id}", status_code=204)
+def delete_person(person_id: str) -> None:
+    col = _col()
+    existing = (
+        col.find_one({"person_id": person_id})
+        or col.find_one({"id": person_id})
+        or (col.find_one({"int_id": int(person_id)}) if person_id.isdigit() else None)
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Person not found")
+    col.delete_one({"_id": existing["_id"]})

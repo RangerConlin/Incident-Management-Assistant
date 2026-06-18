@@ -524,72 +524,281 @@ class CsvUtil:
         return certs
 
 
+# ----------------------------- UI: Personnel Table Model ----------------------
+class _PersonnelTableModel(QtCore.QAbstractTableModel):
+    HEADERS = ["ID", "Name", "Callsign", "Role", "Organization", "Email", "Phone"]
+    KEYS = ["id", "name", "callsign", "primary_role", "home_unit", "email", "phone"]
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._records: list[dict[str, Any]] = []
+
+    def rowCount(self, parent=QtCore.QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._records)
+
+    def columnCount(self, parent=QtCore.QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self.HEADERS)
+
+    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+        if role == QtCore.Qt.DisplayRole and orientation == QtCore.Qt.Horizontal:
+            return self.HEADERS[section]
+        return None
+
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        rec = self._records[index.row()]
+        if role == QtCore.Qt.DisplayRole:
+            return str(rec.get(self.KEYS[index.column()]) or "")
+        if role == QtCore.Qt.UserRole:
+            return rec
+        return None
+
+    def set_records(self, records: list[dict[str, Any]]) -> None:
+        self.beginResetModel()
+        self._records = records
+        self.endResetModel()
+
+    def record_at(self, row: int) -> Optional[dict[str, Any]]:
+        return self._records[row] if 0 <= row < len(self._records) else None
+
+
+# ----------------------------- UI: Cert Picker Dialog -------------------------
+class _CertPickerDialog(QtWidgets.QDialog):
+    """Search the cert catalog and pick one to add, setting level/expiration/docs."""
+
+    _LEVEL_LABELS = ["None", "Trainee", "Qualified", "Evaluator"]
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Certification")
+        self.resize(720, 520)
+        self.setModal(True)
+        self._all_certs: list[dict[str, Any]] = []
+        self._result: Optional[dict[str, Any]] = None
+
+        self.search_edit = QtWidgets.QLineEdit()
+        self.search_edit.setPlaceholderText("Search by code, name, or category…")
+
+        self.catalog_table = QtWidgets.QTableWidget(0, 3)
+        self.catalog_table.setHorizontalHeaderLabels(["Code", "Name", "Category"])
+        self.catalog_table.horizontalHeader().setStretchLastSection(True)
+        self.catalog_table.setSelectionBehavior(QtWidgets.QTableWidget.SelectRows)
+        self.catalog_table.setSelectionMode(QtWidgets.QTableWidget.SingleSelection)
+        self.catalog_table.setEditTriggers(QtWidgets.QTableWidget.NoEditTriggers)
+        self.catalog_table.doubleClicked.connect(self._on_accept)
+
+        self.level_combo = QtWidgets.QComboBox()
+        self.level_combo.addItems(self._LEVEL_LABELS)
+        self.level_combo.setCurrentIndex(2)
+        self.exp_edit = QtWidgets.QLineEdit()
+        self.exp_edit.setPlaceholderText("YYYY-MM-DD")
+        self.docs_edit = QtWidgets.QLineEdit()
+        self.docs_edit.setPlaceholderText("Certificate number, file path, or notes")
+
+        detail_form = QtWidgets.QFormLayout()
+        detail_form.addRow("Level:", self.level_combo)
+        detail_form.addRow("Expiration:", self.exp_edit)
+        detail_form.addRow("Documents:", self.docs_edit)
+
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        search_row = QtWidgets.QHBoxLayout()
+        search_row.addWidget(QtWidgets.QLabel("Search:"))
+        search_row.addWidget(self.search_edit, 1)
+        layout.addLayout(search_row)
+        layout.addWidget(self.catalog_table, 1)
+        layout.addLayout(detail_form)
+        layout.addWidget(buttons)
+
+        self.search_edit.textChanged.connect(self._filter)
+        self._load_catalog()
+
+    def _load_catalog(self) -> None:
+        from utils.api_client import api_client
+        try:
+            self._all_certs = api_client.get("/api/master/certifications/types") or []
+        except Exception:
+            self._all_certs = []
+        self._populate(self._all_certs)
+
+    def _filter(self, text: str) -> None:
+        t = text.lower()
+        self._populate([
+            c for c in self._all_certs
+            if not t
+            or t in (c.get("code") or "").lower()
+            or t in (c.get("name") or "").lower()
+            or t in (c.get("category") or "").lower()
+        ])
+
+    def _populate(self, certs: list[dict[str, Any]]) -> None:
+        self.catalog_table.setRowCount(0)
+        for cert in certs:
+            row = self.catalog_table.rowCount()
+            self.catalog_table.insertRow(row)
+            code_item = QtWidgets.QTableWidgetItem(cert.get("code") or "")
+            code_item.setData(QtCore.Qt.UserRole, cert)
+            self.catalog_table.setItem(row, 0, code_item)
+            self.catalog_table.setItem(row, 1, QtWidgets.QTableWidgetItem(cert.get("name") or ""))
+            self.catalog_table.setItem(row, 2, QtWidgets.QTableWidgetItem(cert.get("category") or ""))
+
+    def _on_accept(self) -> None:
+        row = self.catalog_table.currentRow()
+        if row < 0:
+            QtWidgets.QMessageBox.information(self, "Select Certification", "Pick a certification from the list.")
+            return
+        item = self.catalog_table.item(row, 0)
+        cert = item.data(QtCore.Qt.UserRole) if item else None
+        if not cert:
+            return
+        level_map = {label: i for i, label in enumerate(self._LEVEL_LABELS)}
+        self._result = {
+            "code": cert.get("code", ""),
+            "name": cert.get("name", ""),
+            "category": cert.get("category", ""),
+            "cert_type_id": cert.get("int_id"),
+            "level": level_map.get(self.level_combo.currentText(), 0),
+            "expiration": self.exp_edit.text().strip(),
+            "docs": self.docs_edit.text().strip(),
+        }
+        self.accept()
+
+    def result_cert(self) -> Optional[dict[str, Any]]:
+        return self._result
+
+
+class _CertEditDetailsDialog(QtWidgets.QDialog):
+    """Edit level/expiration/docs for an existing cert entry (catalog already known)."""
+
+    _LEVEL_LABELS = ["None", "Trainee", "Qualified", "Evaluator"]
+
+    def __init__(self, cert: dict[str, Any], parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Edit — {cert.get('name') or cert.get('code', '')}")
+        self.setModal(True)
+        self._cert = dict(cert)
+
+        name_label = QtWidgets.QLabel(f"<b>{cert.get('code', '')} — {cert.get('name', '')}</b>")
+        self.level_combo = QtWidgets.QComboBox()
+        self.level_combo.addItems(self._LEVEL_LABELS)
+        self.level_combo.setCurrentIndex(int(cert.get("level") or 0))
+        self.exp_edit = QtWidgets.QLineEdit(cert.get("expiration") or "")
+        self.exp_edit.setPlaceholderText("YYYY-MM-DD")
+        self.docs_edit = QtWidgets.QLineEdit(cert.get("docs") or "")
+
+        form = QtWidgets.QFormLayout()
+        form.addRow(name_label)
+        form.addRow("Level:", self.level_combo)
+        form.addRow("Expiration:", self.exp_edit)
+        form.addRow("Documents:", self.docs_edit)
+
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Save | QtWidgets.QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def updated_cert(self) -> dict[str, Any]:
+        result = dict(self._cert)
+        result["level"] = self.level_combo.currentIndex()
+        result["expiration"] = self.exp_edit.text().strip()
+        result["docs"] = self.docs_edit.text().strip()
+        return result
+
+
 # ----------------------------- UI: Detail Dialog ------------------------------
 class PersonnelDetailDialog(QtWidgets.QDialog):
-    def __init__(self, dal: MasterDAL, parent: Optional[QtWidgets.QWidget] = None, personnel_id: Optional[str] = None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None, personnel_id: Optional[str] = None):
         super().__init__(parent)
         self.setWindowTitle("Edit Personnel Record" if personnel_id else "Add New Personnel")
+        self.resize(760, 640)
         self.setModal(True)
-        self.dal = dal
         self.personnel_id = personnel_id or ""
         self._photo_path = ""
+        self._local_certs: list[dict[str, Any]] = []
+
+        basic_panel = self._build_basic_panel()
 
         self.tabs = QtWidgets.QTabWidget()
-        self._build_tab_demographics()
+        self._build_tab_certifications()
         self._build_tab_emergency()
         self._build_tab_contact()
-        self._build_tab_certifications()
-        self._build_tab_resource_types()
 
-        self.btn_save = QtWidgets.QPushButton("Save")
-        self.btn_cancel = QtWidgets.QPushButton("Cancel")
-        self.btn_save.clicked.connect(self._on_save)
-        self.btn_cancel.clicked.connect(self.reject)
+        btn_save = QtWidgets.QPushButton("Save")
+        btn_cancel = QtWidgets.QPushButton("Cancel")
+        btn_save.clicked.connect(self._on_save)
+        btn_cancel.clicked.connect(self.reject)
 
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.addStretch(1)
-        btn_row.addWidget(self.btn_save)
-        btn_row.addWidget(self.btn_cancel)
+        btn_row.addWidget(btn_save)
+        btn_row.addWidget(btn_cancel)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.tabs)
+        layout.addWidget(basic_panel)
+        layout.addWidget(self.tabs, 1)
         layout.addLayout(btn_row)
 
         if self.personnel_id:
             self._load_all()
 
-    # ----------------- Tabs -----------------
-    def _build_tab_demographics(self) -> None:
-        widget = QtWidgets.QWidget()
-        form = QtWidgets.QFormLayout(widget)
+    # ----------------- Layout -----------------
+    def _build_basic_panel(self) -> QtWidgets.QGroupBox:
+        box = QtWidgets.QGroupBox("Basic Information")
+        grid = QtWidgets.QGridLayout(box)
 
         self.txt_id = QtWidgets.QLineEdit()
-        self.txt_id.setReadOnly(bool(self.personnel_id))
+        self.txt_id.setPlaceholderText("Auto-assigned if blank")
         self.txt_name = QtWidgets.QLineEdit()
         self.txt_callsign = QtWidgets.QLineEdit()
-        self.cbo_role = QtWidgets.QComboBox()
-        self.cbo_role.setEditable(True)
-        self.cbo_rank = QtWidgets.QComboBox()
-        self.cbo_rank.setEditable(True)
+        self.txt_role = QtWidgets.QLineEdit()
+        self.txt_role.setPlaceholderText("e.g. Search Team Leader")
+        self.txt_rank = QtWidgets.QLineEdit()
         self.txt_org = QtWidgets.QLineEdit()
         self.txt_email = QtWidgets.QLineEdit()
         self.txt_phone = QtWidgets.QLineEdit()
-        self.txt_notes = QtWidgets.QTextEdit()
-        self.btn_photo = QtWidgets.QPushButton("Upload Photo…")
+        self.txt_notes = QtWidgets.QLineEdit()
+        self.btn_photo = QtWidgets.QPushButton("Photo…")
+        self.btn_photo.setFixedWidth(80)
         self.btn_photo.clicked.connect(self._choose_photo)
 
-        form.addRow("ID:", self.txt_id)
-        form.addRow("Name:", self.txt_name)
-        form.addRow("Callsign:", self.txt_callsign)
-        form.addRow("Role/Title:", self.cbo_role)
-        form.addRow("Rank:", self.cbo_rank)
-        form.addRow("Organization:", self.txt_org)
-        form.addRow("Email:", self.txt_email)
-        form.addRow("Phone:", self.txt_phone)
-        form.addRow("Notes:", self.txt_notes)
-        form.addRow("Photo:", self.btn_photo)
+        # Row 0: ID, Name, Callsign
+        grid.addWidget(QtWidgets.QLabel("ID:"), 0, 0)
+        grid.addWidget(self.txt_id, 0, 1)
+        grid.addWidget(QtWidgets.QLabel("Name:"), 0, 2)
+        grid.addWidget(self.txt_name, 0, 3)
+        grid.addWidget(QtWidgets.QLabel("Callsign:"), 0, 4)
+        grid.addWidget(self.txt_callsign, 0, 5)
 
-        self.tabs.addTab(widget, "Demographics & Contact")
+        # Row 1: Role, Rank, Organization
+        grid.addWidget(QtWidgets.QLabel("Role/Title:"), 1, 0)
+        grid.addWidget(self.txt_role, 1, 1)
+        grid.addWidget(QtWidgets.QLabel("Rank:"), 1, 2)
+        grid.addWidget(self.txt_rank, 1, 3)
+        grid.addWidget(QtWidgets.QLabel("Organization:"), 1, 4)
+        grid.addWidget(self.txt_org, 1, 5)
+
+        # Row 2: Email, Phone, Photo
+        grid.addWidget(QtWidgets.QLabel("Email:"), 2, 0)
+        grid.addWidget(self.txt_email, 2, 1)
+        grid.addWidget(QtWidgets.QLabel("Phone:"), 2, 2)
+        grid.addWidget(self.txt_phone, 2, 3)
+        grid.addWidget(QtWidgets.QLabel("Notes:"), 2, 4)
+        notes_row = QtWidgets.QHBoxLayout()
+        notes_row.addWidget(self.txt_notes)
+        notes_row.addWidget(self.btn_photo)
+        grid.addLayout(notes_row, 2, 5)
+
+        grid.setColumnStretch(1, 2)
+        grid.setColumnStretch(3, 2)
+        grid.setColumnStretch(5, 3)
+        return box
 
     def _build_tab_emergency(self) -> None:
         widget = QtWidgets.QWidget()
@@ -732,94 +941,52 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
 
         self.tabs.addTab(widget, "Certifications")
 
-    def _build_tab_resource_types(self) -> None:
-        widget = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(widget)
-
-        intro = QtWidgets.QLabel(
-            "Link this person to one or more resource types so planning and availability tools can match people to typed roles."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-
-        add_row = QtWidgets.QHBoxLayout()
-        self.resource_type_search = ResourceTypeSearchBox(
-            repository=ApiResourceTypeRepository(),
-            parent=self,
-        )
-        self.btn_add_resource_type = QtWidgets.QPushButton("Add Resource Type")
-        add_row.addWidget(self.resource_type_search, 1)
-        add_row.addWidget(self.btn_add_resource_type)
-        layout.addLayout(add_row)
-
-        self.tbl_resource_types = QtWidgets.QTableWidget(0, 4)
-        self.tbl_resource_types.setHorizontalHeaderLabels(["Primary", "Resource Type", "Capabilities", "Notes"])
-        self.tbl_resource_types.horizontalHeader().setStretchLastSection(True)
-        self.tbl_resource_types.setSelectionBehavior(QtWidgets.QTableWidget.SelectRows)
-        self.tbl_resource_types.setSelectionMode(QtWidgets.QTableWidget.SingleSelection)
-        layout.addWidget(self.tbl_resource_types)
-
-        button_row = QtWidgets.QHBoxLayout()
-        self.btn_mark_primary = QtWidgets.QPushButton("Mark Primary")
-        self.btn_remove_resource_type = QtWidgets.QPushButton("Remove")
-        button_row.addWidget(self.btn_mark_primary)
-        button_row.addWidget(self.btn_remove_resource_type)
-        button_row.addStretch(1)
-        layout.addLayout(button_row)
-
-        self.capability_label = QtWidgets.QLabel("Capabilities: none linked")
-        self.capability_label.setWordWrap(True)
-        layout.addWidget(self.capability_label)
-
-        self._resource_type_rows: list[dict[str, Any]] = []
-        self.btn_add_resource_type.clicked.connect(self._on_add_resource_type)
-        self.btn_mark_primary.clicked.connect(self._on_mark_primary_resource_type)
-        self.btn_remove_resource_type.clicked.connect(self._on_remove_resource_type)
-        self.tbl_resource_types.itemSelectionChanged.connect(self._update_selected_resource_type_capabilities)
-
-        self.tabs.addTab(widget, "Resource Types")
-
     # ----------------- Load/Save -----------------
     def _load_all(self) -> None:
-        person = self.dal.get_personnel(self.personnel_id)
-        if person:
-            self.txt_id.setText(person.id)
-            self.txt_name.setText(person.name)
-            self.txt_callsign.setText(person.callsign)
-            self.cbo_role.setCurrentText(person.role)
-            self.cbo_rank.setCurrentText(person.rank)
-            self.txt_org.setText(person.organization)
-            self.txt_email.setText(person.email)
-            self.txt_phone.setText(person.phone)
-            self.txt_notes.setPlainText(person.notes)
-            self._photo_path = person.photo_url
-        else:
+        from utils.api_client import api_client
+        try:
+            doc = api_client.get(f"/api/master/personnel/{self.personnel_id}")
+        except Exception:
+            doc = None
+        if not doc:
             self._photo_path = ""
+            return
 
-        emergency = self.dal.get_emergency(self.personnel_id)
-        self.em_primary_name.setText(emergency.primary_name)
-        self.em_primary_rel.setText(emergency.primary_relationship)
-        self.em_primary_phone.setText(emergency.primary_phone)
-        self.em_secondary_name.setText(emergency.secondary_name)
-        self.em_secondary_rel.setText(emergency.secondary_relationship)
-        self.em_secondary_phone.setText(emergency.secondary_phone)
-        self.em_medical.setPlainText(emergency.medical)
-        self.em_blood.setCurrentText(emergency.blood_type)
-        self.em_ins.setPlainText(emergency.insurance)
+        self.txt_id.setText(str(doc.get("id") or ""))
+        self.txt_name.setText(doc.get("name") or "")
+        self.txt_callsign.setText(doc.get("callsign") or "")
+        self.txt_role.setText(doc.get("primary_role") or doc.get("role") or "")
+        self.txt_rank.setText(doc.get("rank") or "")
+        self.txt_org.setText(doc.get("home_unit") or doc.get("organization") or "")
+        self.txt_email.setText(doc.get("email") or "")
+        self.txt_phone.setText(doc.get("phone") or "")
+        self.txt_notes.setText(doc.get("notes") or "")
+        self._photo_path = doc.get("photo_url") or ""
 
-        contact = self.dal.get_contact(self.personnel_id)
-        self.addr1.setText(contact.address1)
-        self.addr2.setText(contact.address2)
-        self.city.setText(contact.city)
-        self.state.setCurrentText(contact.state)
-        self.zip.setText(contact.zip)
-        self.work_phone.setText(contact.work_phone)
-        self.secondary_phone.setText(contact.secondary_phone)
-        self.pager.setText(contact.pager_id)
-        self.c_notes.setPlainText(contact.notes)
+        em = doc.get("emergency_info") or {}
+        self.em_primary_name.setText(em.get("primary_name") or "")
+        self.em_primary_rel.setText(em.get("primary_relationship") or "")
+        self.em_primary_phone.setText(em.get("primary_phone") or "")
+        self.em_secondary_name.setText(em.get("secondary_name") or "")
+        self.em_secondary_rel.setText(em.get("secondary_relationship") or "")
+        self.em_secondary_phone.setText(em.get("secondary_phone") or "")
+        self.em_medical.setPlainText(em.get("medical") or "")
+        self.em_blood.setCurrentText(em.get("blood_type") or "")
+        self.em_ins.setPlainText(em.get("insurance") or "")
 
+        ct = doc.get("contact_info") or {}
+        self.addr1.setText(ct.get("address1") or "")
+        self.addr2.setText(ct.get("address2") or "")
+        self.city.setText(ct.get("city") or "")
+        self.state.setCurrentText(ct.get("state") or "")
+        self.zip.setText(ct.get("zip") or "")
+        self.work_phone.setText(ct.get("work_phone") or "")
+        self.secondary_phone.setText(ct.get("secondary_phone") or "")
+        self.pager.setText(ct.get("pager_id") or "")
+        self.c_notes.setPlainText(ct.get("notes") or "")
+
+        self._local_certs = list(doc.get("certifications") or [])
         self._refresh_certs()
-        self._refresh_resource_types()
 
     def _collect_personnel(self) -> Personnel:
         pid = self.txt_id.text().strip() or self.personnel_id
@@ -827,12 +994,12 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             id=pid,
             name=self.txt_name.text().strip(),
             callsign=self.txt_callsign.text().strip(),
-            role=self.cbo_role.currentText().strip(),
-            rank=self.cbo_rank.currentText().strip(),
+            role=self.txt_role.text().strip(),
+            rank=self.txt_rank.text().strip(),
             organization=self.txt_org.text().strip(),
             email=self.txt_email.text().strip(),
             phone=self.txt_phone.text().strip(),
-            notes=self.txt_notes.toPlainText().strip(),
+            notes=self.txt_notes.text().strip(),
             photo_url=self._photo_path,
         )
 
@@ -868,143 +1035,70 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
 
     def _refresh_certs(self) -> None:
         self.tbl_certs.setRowCount(0)
-        pid = self.txt_id.text().strip() or self.personnel_id
-        if not pid:
-            return
-        certs = self.dal.list_certs(pid)
-        for cert in certs:
+        for i, cert in enumerate(self._local_certs):
             row = self.tbl_certs.rowCount()
             self.tbl_certs.insertRow(row)
-            self.tbl_certs.setItem(row, 0, QtWidgets.QTableWidgetItem(cert.code))
-            self.tbl_certs.setItem(row, 1, QtWidgets.QTableWidgetItem(cert.name))
-            self.tbl_certs.setItem(row, 2, QtWidgets.QTableWidgetItem(str(cert.level)))
-            self.tbl_certs.setItem(row, 3, QtWidgets.QTableWidgetItem(cert.expiration))
-            self.tbl_certs.setItem(row, 4, QtWidgets.QTableWidgetItem(cert.docs))
-            header_item = QtWidgets.QTableWidgetItem(str(cert.id)) if cert.id is not None else QtWidgets.QTableWidgetItem("")
-            self.tbl_certs.setVerticalHeaderItem(row, header_item)
-
-    def _refresh_resource_types(self) -> None:
-        pid = self.txt_id.text().strip() or self.personnel_id
-        self.tbl_resource_types.setRowCount(0)
-        self.capability_label.setText("Capabilities: none linked")
-        if pid:
-            self._resource_type_rows = self.dal.resource_assignments.get_personnel_resource_types(pid)
-        for entry in self._resource_type_rows:
-            row = self.tbl_resource_types.rowCount()
-            self.tbl_resource_types.insertRow(row)
-            primary_text = "Yes" if entry.get("is_primary") else ""
-            self.tbl_resource_types.setItem(row, 0, QtWidgets.QTableWidgetItem(primary_text))
-            name = entry.get("planning_display_name") or entry.get("resource_type_name") or ""
-            self.tbl_resource_types.setItem(row, 1, QtWidgets.QTableWidgetItem(str(name)))
-            self.tbl_resource_types.setItem(row, 2, QtWidgets.QTableWidgetItem(self._capabilities_for_resource_type(entry.get("resource_type_id"))))
-            self.tbl_resource_types.setItem(row, 3, QtWidgets.QTableWidgetItem(str(entry.get("notes") or "")))
-        self.tbl_resource_types.resizeColumnsToContents()
-
-    def _capabilities_for_resource_type(self, resource_type_id: Any) -> str:
-        if resource_type_id in (None, ""):
-            return ""
-        try:
-            resource_type = self.resource_type_search.repository.get_resource_type(int(resource_type_id))
-        except Exception:
-            resource_type = None
-        if not resource_type or not resource_type.capability_ids:
-            return ""
-        labels: list[str] = []
-        for capability_id in resource_type.capability_ids:
-            capability = self.resource_type_search.repository.get_capability(capability_id)
-            if capability and capability.get("name"):
-                labels.append(str(capability["name"]))
-        return ", ".join(labels)
-
-    def _selected_resource_type_row(self) -> Optional[int]:
-        row = self.tbl_resource_types.currentRow()
-        if 0 <= row < len(self._resource_type_rows):
-            return row
-        return None
-
-    def _update_selected_resource_type_capabilities(self) -> None:
-        row = self._selected_resource_type_row()
-        if row is None:
-            self.capability_label.setText("Capabilities: none linked")
-            return
-        capabilities = self._capabilities_for_resource_type(self._resource_type_rows[row].get("resource_type_id"))
-        self.capability_label.setText(f"Capabilities: {capabilities or 'none linked'}")
-
-    def _persist_resource_types(self, normalized_id: str) -> None:
-        resource_type_ids: list[int] = []
-        primary_id: Optional[int] = None
-        for index, entry in enumerate(self._resource_type_rows):
-            resource_type_id = entry.get("resource_type_id")
-            if resource_type_id in (None, ""):
-                continue
-            resource_type_ids.append(int(resource_type_id))
-            if entry.get("is_primary") or primary_id is None or index == 0:
-                primary_id = int(resource_type_id)
-        self.dal.resource_assignments.set_personnel_resource_types(
-            normalized_id,
-            resource_type_ids,
-            primary_resource_type_id=primary_id,
-        )
-
-    def _on_add_resource_type(self) -> None:
-        resource_type_id = self.resource_type_search.resource_type_id
-        resource_type_text = self.resource_type_search.resource_type_text
-        if resource_type_id in (None, "") or not resource_type_text:
-            QtWidgets.QMessageBox.information(self, "Select Resource Type", "Choose a resource type from the library before adding it.")
-            return
-        if any(int(row.get("resource_type_id")) == int(resource_type_id) for row in self._resource_type_rows if row.get("resource_type_id") not in (None, "")):
-            return
-        self._resource_type_rows.append(
-            {
-                "resource_type_id": int(resource_type_id),
-                "planning_display_name": resource_type_text,
-                "resource_type_name": resource_type_text,
-                "is_primary": 1 if not self._resource_type_rows else 0,
-                "notes": "",
-            }
-        )
-        self.resource_type_search.clear()
-        self._refresh_resource_types()
-
-    def _on_mark_primary_resource_type(self) -> None:
-        row = self._selected_resource_type_row()
-        if row is None:
-            return
-        for index, entry in enumerate(self._resource_type_rows):
-            entry["is_primary"] = 1 if index == row else 0
-        self._refresh_resource_types()
-        self.tbl_resource_types.selectRow(row)
-
-    def _on_remove_resource_type(self) -> None:
-        row = self._selected_resource_type_row()
-        if row is None:
-            return
-        self._resource_type_rows.pop(row)
-        if self._resource_type_rows and not any(entry.get("is_primary") for entry in self._resource_type_rows):
-            self._resource_type_rows[0]["is_primary"] = 1
-        self._refresh_resource_types()
+            self.tbl_certs.setItem(row, 0, QtWidgets.QTableWidgetItem(str(cert.get("code") or "")))
+            self.tbl_certs.setItem(row, 1, QtWidgets.QTableWidgetItem(str(cert.get("name") or "")))
+            level_labels = {0: "None", 1: "Trainee", 2: "Qualified", 3: "Evaluator"}
+            self.tbl_certs.setItem(row, 2, QtWidgets.QTableWidgetItem(level_labels.get(int(cert.get("level") or 0), str(cert.get("level") or ""))))
+            self.tbl_certs.setItem(row, 3, QtWidgets.QTableWidgetItem(str(cert.get("expiration") or "")))
+            self.tbl_certs.setItem(row, 4, QtWidgets.QTableWidgetItem(str(cert.get("docs") or "")))
+            self.tbl_certs.setVerticalHeaderItem(row, QtWidgets.QTableWidgetItem(str(i)))
 
     # ----------------- Actions -----------------
     def _on_save(self) -> None:
-        # TODO: add field validation (e.g., required Name/ID, email format, etc.)
-        person = self._collect_personnel()
-        if not person.id or not person.name:
-            QtWidgets.QMessageBox.warning(self, "Missing Required", "ID and Name are required.")
+        from utils.api_client import api_client, APIError
+        name = self.txt_name.text().strip()
+        if not name:
+            QtWidgets.QMessageBox.warning(self, "Missing Required", "Name is required.")
             return
+        doc = {
+            "name": name,
+            "callsign": self.txt_callsign.text().strip(),
+            "primary_role": self.txt_role.text().strip(),
+            "rank": self.txt_rank.text().strip(),
+            "home_unit": self.txt_org.text().strip(),
+            "email": self.txt_email.text().strip(),
+            "phone": self.txt_phone.text().strip(),
+            "notes": self.txt_notes.text().strip(),
+            "photo_url": self._photo_path,
+            "emergency_info": {
+                "primary_name": self.em_primary_name.text().strip(),
+                "primary_relationship": self.em_primary_rel.text().strip(),
+                "primary_phone": self.em_primary_phone.text().strip(),
+                "secondary_name": self.em_secondary_name.text().strip(),
+                "secondary_relationship": self.em_secondary_rel.text().strip(),
+                "secondary_phone": self.em_secondary_phone.text().strip(),
+                "medical": self.em_medical.toPlainText().strip(),
+                "blood_type": self.em_blood.currentText().strip(),
+                "insurance": self.em_ins.toPlainText().strip(),
+            },
+            "contact_info": {
+                "address1": self.addr1.text().strip(),
+                "address2": self.addr2.text().strip(),
+                "city": self.city.text().strip(),
+                "state": self.state.currentText().strip(),
+                "zip": self.zip.text().strip(),
+                "work_phone": self.work_phone.text().strip(),
+                "secondary_phone": self.secondary_phone.text().strip(),
+                "pager_id": self.pager.text().strip(),
+                "notes": self.c_notes.toPlainText().strip(),
+            },
+            "certifications": self._local_certs,
+        }
         try:
-            normalized_id = self.dal.upsert_personnel(person)
-        except ValueError as exc:
-            QtWidgets.QMessageBox.warning(self, "Invalid ID", str(exc))
+            if self.personnel_id:
+                result = api_client.put(f"/api/master/personnel/{self.personnel_id}", json=doc)
+                normalized_id = str(result.get("id") or self.personnel_id)
+            else:
+                result = api_client.post("/api/master/personnel", json=doc)
+                normalized_id = str(result.get("id") or "")
+        except APIError as exc:
+            QtWidgets.QMessageBox.warning(self, "Save Failed", str(exc))
             return
         self.personnel_id = normalized_id
         self.txt_id.setText(normalized_id)
-        emergency = self._collect_emergency()
-        emergency.personnel_id = normalized_id
-        contact = self._collect_contact()
-        contact.personnel_id = normalized_id
-        self.dal.upsert_emergency(emergency)
-        self.dal.upsert_contact(contact)
-        self._persist_resource_types(normalized_id)
         self.accept()
 
     def _choose_photo(self) -> None:
@@ -1016,94 +1110,33 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             self.btn_photo.setText(os.path.basename(path))
 
     def _on_add_cert(self) -> None:
-        pid = self.txt_id.text().strip() or self.personnel_id
-        if not pid:
-            QtWidgets.QMessageBox.information(
-                self,
-                "Set ID First",
-                "Please set/save Personnel ID before adding certifications.",
-            )
-            return
-        dialog = CertEditDialog(parent=self)
+        dialog = _CertPickerDialog(parent=self)
         if dialog.exec() == QtWidgets.QDialog.Accepted:
-            cert = Certification(
-                id=None,
-                personnel_id=pid,
-                code=dialog.code(),
-                name=dialog.cname(),
-                level=dialog.level(),
-                expiration=dialog.expiration(),
-                docs=dialog.docs(),
-            )
-            self.dal.add_cert(cert)
-            self._refresh_certs()
+            cert = dialog.result_cert()
+            if cert:
+                self._local_certs.append(cert)
+                self._refresh_certs()
 
     def _on_edit_cert(self) -> None:
         row = self.tbl_certs.currentRow()
-        if row < 0:
+        if row < 0 or row >= len(self._local_certs):
             return
-        cert_id_item = self.tbl_certs.verticalHeaderItem(row)
-        cert_id = int(cert_id_item.text()) if cert_id_item and cert_id_item.text().isdigit() else None
-        code_item = self.tbl_certs.item(row, 0)
-        name_item = self.tbl_certs.item(row, 1)
-        level_item = self.tbl_certs.item(row, 2)
-        exp_item = self.tbl_certs.item(row, 3)
-        docs_item = self.tbl_certs.item(row, 4)
-        dialog = CertEditDialog(
-            parent=self,
-            code=code_item.text() if code_item else "",
-            name=name_item.text() if name_item else "",
-            level=int(level_item.text()) if level_item and level_item.text().isdigit() else 0,
-            expiration=exp_item.text() if exp_item else "",
-            docs=docs_item.text() if docs_item else "",
-        )
-        if dialog.exec() == QtWidgets.QDialog.Accepted and cert_id is not None:
-            self.dal.update_cert(
-                Certification(
-                    id=cert_id,
-                    personnel_id=self.txt_id.text().strip() or self.personnel_id,
-                    code=dialog.code(),
-                    name=dialog.cname(),
-                    level=dialog.level(),
-                    expiration=dialog.expiration(),
-                    docs=dialog.docs(),
-                )
-            )
+        dialog = _CertEditDetailsDialog(self._local_certs[row], parent=self)
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            self._local_certs[row] = dialog.updated_cert()
             self._refresh_certs()
 
     def _on_del_cert(self) -> None:
         row = self.tbl_certs.currentRow()
-        if row < 0:
+        if row < 0 or row >= len(self._local_certs):
             return
-        if (
-            QtWidgets.QMessageBox.question(
-                self,
-                "Confirm",
-                "Remove selected certification?",
-            )
-            != QtWidgets.QMessageBox.Yes
-        ):
+        if QtWidgets.QMessageBox.question(self, "Confirm", "Remove selected certification?") != QtWidgets.QMessageBox.Yes:
             return
-        cert_id_item = self.tbl_certs.verticalHeaderItem(row)
-        if cert_id_item and cert_id_item.text().isdigit():
-            self.dal.delete_cert([int(cert_id_item.text())])
-            self._refresh_certs()
+        self._local_certs.pop(row)
+        self._refresh_certs()
 
     def _on_import_certs(self) -> None:
-        pid = self.txt_id.text().strip() or self.personnel_id
-        if not pid:
-            QtWidgets.QMessageBox.information(
-                self,
-                "Set ID First",
-                "Please set/save Personnel ID before importing certifications.",
-            )
-            return
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Import Certifications",
-            "",
-            "CSV Files (*.csv)",
-        )
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import Certifications", "", "CSV Files (*.csv)")
         if not path:
             return
         try:
@@ -1113,320 +1146,164 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             return
         imported = 0
         for cert in certs:
-            cert.personnel_id = pid or cert.personnel_id
-            cert.id = None
             if cert.code or cert.name:
-                self.dal.add_cert(cert)
+                self._local_certs.append({
+                    "code": cert.code,
+                    "name": cert.name,
+                    "level": cert.level,
+                    "expiration": cert.expiration,
+                    "docs": cert.docs,
+                })
                 imported += 1
-        QtWidgets.QMessageBox.information(
-            self,
-            "Import Complete",
-            f"Imported {imported} certification(s).",
-        )
+        QtWidgets.QMessageBox.information(self, "Import Complete", f"Imported {imported} certification(s).")
         self._refresh_certs()
 
     def _on_export_certs(self) -> None:
-        pid = self.txt_id.text().strip() or self.personnel_id
-        if not pid:
-            QtWidgets.QMessageBox.information(
-                self,
-                "Save Record First",
-                "Please save this personnel record before exporting certifications.",
-            )
-            return
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self,
-            "Export Certifications",
-            "certifications.csv",
-            "CSV Files (*.csv)",
-        )
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export Certifications", "certifications.csv", "CSV Files (*.csv)")
         if not path:
             return
-        certs = self.dal.list_certs(pid)
+        certs = [
+            Certification(
+                id=None,
+                personnel_id=self.personnel_id,
+                code=c.get("code", ""),
+                name=c.get("name", ""),
+                level=int(c.get("level") or 0),
+                expiration=c.get("expiration", ""),
+                docs=c.get("docs", ""),
+            )
+            for c in self._local_certs
+        ]
         try:
             CsvUtil.export_certifications(path, certs)
         except (OSError, csv.Error) as exc:
             QtWidgets.QMessageBox.critical(self, "Export Failed", str(exc))
             return
-        QtWidgets.QMessageBox.information(
-            self,
-            "Export Complete",
-            f"Exported {len(certs)} certification(s).",
-        )
-
-
-# ----------------------------- UI: Cert Edit Dialog ---------------------------
-class CertEditDialog(QtWidgets.QDialog):
-    LEVEL_MAP = [
-        (0, "None"),
-        (1, "Trainee"),
-        (2, "Qualified"),
-        (3, "Evaluator"),
-    ]
-
-    def __init__(
-        self,
-        parent: Optional[QtWidgets.QWidget] = None,
-        code: str = "",
-        name: str = "",
-        level: int = 0,
-        expiration: str = "",
-        docs: str = "",
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Certification")
-        form = QtWidgets.QFormLayout(self)
-
-        self._code = QtWidgets.QLineEdit(code)
-        self._name = QtWidgets.QLineEdit(name)
-        self._level = QtWidgets.QComboBox()
-        for value, label in self.LEVEL_MAP:
-            self._level.addItem(label, value)
-        index = next((i for i, (value, _) in enumerate(self.LEVEL_MAP) if value == level), 0)
-        self._level.setCurrentIndex(index)
-        self._expiration = QtWidgets.QLineEdit(expiration)
-        self._docs = QtWidgets.QLineEdit(docs)
-
-        form.addRow("Code:", self._code)
-        form.addRow("Name:", self._name)
-        form.addRow("Level:", self._level)
-        form.addRow("Expiration (YYYY-MM-DD):", self._expiration)
-        form.addRow("Documents/Notes:", self._docs)
-
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        btn_box.accepted.connect(self.accept)
-        btn_box.rejected.connect(self.reject)
-        form.addRow(btn_box)
-
-    def code(self) -> str:
-        return self._code.text().strip()
-
-    def cname(self) -> str:
-        return self._name.text().strip()
-
-    def level(self) -> int:
-        return int(self._level.currentData())
-
-    def expiration(self) -> str:
-        return self._expiration.text().strip()
-
-    def docs(self) -> str:
-        return self._docs.text().strip()
+        QtWidgets.QMessageBox.information(self, "Export Complete", f"Exported {len(certs)} certification(s).")
 
 
 # ----------------------------- UI: Inventory Window --------------------------
-class PersonnelInventoryWindow(QtWidgets.QDialog):
-    def __init__(
-        self,
-        parent: Optional[QtWidgets.QWidget] = None,
-        dal: Optional[MasterDAL] = None,
-    ) -> None:
+class PersonnelInventoryWindow(QtWidgets.QMainWindow):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
-        self.dal = dal or MasterDAL()
         self.setWindowTitle("Personnel Inventory")
+        self.resize(1000, 600)
 
         self.search = QtWidgets.QLineEdit()
-        self.search.setPlaceholderText("Search by name, ID, callsign, phone, or email…")
-        self.cbo_role = QtWidgets.QComboBox()
-        self.cbo_org = QtWidgets.QComboBox()
-        self.cbo_role.addItem("All Roles")
-        self.cbo_org.addItem("All Organizations")
+        self.search.setPlaceholderText("Search by name, callsign, ID, email, phone…")
 
-        filter_layout = QtWidgets.QHBoxLayout()
-        filter_layout.addWidget(QtWidgets.QLabel("Search:"))
-        filter_layout.addWidget(self.search, stretch=2)
-        filter_layout.addWidget(QtWidgets.QLabel("Role:"))
-        filter_layout.addWidget(self.cbo_role)
-        filter_layout.addWidget(QtWidgets.QLabel("Organization:"))
-        filter_layout.addWidget(self.cbo_org)
+        self._model = _PersonnelTableModel(self)
+        self._proxy = QtCore.QSortFilterProxyModel(self)
+        self._proxy.setSourceModel(self._model)
+        self._proxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self._proxy.setFilterKeyColumn(-1)
 
-        self.table = QtWidgets.QTableWidget(0, 8)
-        self.table.setHorizontalHeaderLabels(
-            [
-                "ID",
-                "Name",
-                "Callsign",
-                "Role",
-                "Rank",
-                "Organization",
-                "Email",
-                "Phone",
-            ]
-        )
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table = QtWidgets.QTableView()
+        self.table.setModel(self._proxy)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+        self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(1, QtCore.Qt.AscendingOrder)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
+        self.table.setAlternatingRowColors(False)
+        self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
+        from utils.itemview_delegates import RowOutlineSelectionDelegate
+        self.table.setItemDelegate(RowOutlineSelectionDelegate(self.table))
         self.table.doubleClicked.connect(self._on_edit)
 
-        btn_layout = QtWidgets.QHBoxLayout()
-        self.btn_add = QtWidgets.QPushButton("Add")
-        self.btn_edit = QtWidgets.QPushButton("Edit")
-        self.btn_delete = QtWidgets.QPushButton("Delete")
-        self.btn_import = QtWidgets.QPushButton("Import CSV")
-        self.btn_export = QtWidgets.QPushButton("Export CSV")
-        self.btn_refresh = QtWidgets.QPushButton("Refresh")
+        btn_add = QtWidgets.QPushButton("Add")
+        btn_edit = QtWidgets.QPushButton("Edit")
+        btn_delete = QtWidgets.QPushButton("Delete")
+        btn_import = QtWidgets.QPushButton("Import CSV")
+        btn_export = QtWidgets.QPushButton("Export CSV")
+        btn_refresh = QtWidgets.QPushButton("Refresh")
 
-        btn_layout.addWidget(self.btn_add)
-        btn_layout.addWidget(self.btn_edit)
-        btn_layout.addWidget(self.btn_delete)
-        btn_layout.addStretch(1)
-        btn_layout.addWidget(self.btn_import)
-        btn_layout.addWidget(self.btn_export)
-        btn_layout.addWidget(self.btn_refresh)
+        btn_add.clicked.connect(self._on_add)
+        btn_edit.clicked.connect(self._on_edit)
+        btn_delete.clicked.connect(self._on_delete)
+        btn_import.clicked.connect(self._on_import)
+        btn_export.clicked.connect(self._on_export)
+        btn_refresh.clicked.connect(self.refresh)
+        self.search.textChanged.connect(self._proxy.setFilterFixedString)
 
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.addLayout(filter_layout)
-        layout.addWidget(self.table)
-        layout.addLayout(btn_layout)
+        filter_row = QtWidgets.QHBoxLayout()
+        filter_row.addWidget(QtWidgets.QLabel("Search:"))
+        filter_row.addWidget(self.search, stretch=2)
 
-        self.search.textChanged.connect(self._refresh_table)
-        self.cbo_role.currentIndexChanged.connect(self._refresh_table)
-        self.cbo_org.currentIndexChanged.connect(self._refresh_table)
-        self.btn_add.clicked.connect(self._on_add)
-        self.btn_edit.clicked.connect(self._on_edit)
-        self.btn_delete.clicked.connect(self._on_delete)
-        self.btn_import.clicked.connect(self._on_import)
-        self.btn_export.clicked.connect(self._on_export)
-        self.btn_refresh.clicked.connect(self.refresh)
+        btn_row = QtWidgets.QHBoxLayout()
+        btn_row.addWidget(btn_add)
+        btn_row.addWidget(btn_edit)
+        btn_row.addWidget(btn_delete)
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_import)
+        btn_row.addWidget(btn_export)
+        btn_row.addWidget(btn_refresh)
+
+        central = QtWidgets.QWidget()
+        self.setCentralWidget(central)
+        layout = QtWidgets.QVBoxLayout(central)
+        layout.addLayout(filter_row)
+        layout.addWidget(self.table, 1)
+        layout.addLayout(btn_row)
 
         self.refresh()
-        self.adjustSize()
 
     # ----------------------------- Helpers ---------------------------------
     def refresh(self) -> None:
-        self._load_filters()
-        self._refresh_table()
-
-    def _load_filters(self) -> None:
-        current_role = self.cbo_role.currentText() if self.cbo_role.count() else "All Roles"
-        current_org = self.cbo_org.currentText() if self.cbo_org.count() else "All Organizations"
-
-        roles = ["All Roles"] + self.dal.list_roles()
-        orgs = ["All Organizations"] + self.dal.list_organizations()
-
-        self.cbo_role.blockSignals(True)
-        self.cbo_org.blockSignals(True)
+        from utils.api_client import api_client
         try:
-            self.cbo_role.clear()
-            self.cbo_role.addItems(roles)
-            self.cbo_org.clear()
-            self.cbo_org.addItems(orgs)
-        finally:
-            self.cbo_role.blockSignals(False)
-            self.cbo_org.blockSignals(False)
+            records = api_client.get("/api/master/personnel") or []
+        except Exception:
+            records = []
+        self._model.set_records(records)
 
-        if current_role in roles:
-            self.cbo_role.setCurrentText(current_role)
-        else:
-            self.cbo_role.setCurrentIndex(0)
-        if current_org in orgs:
-            self.cbo_org.setCurrentText(current_org)
-        else:
-            self.cbo_org.setCurrentIndex(0)
-
-    def _current_role_filter(self) -> str:
-        return self.cbo_role.currentText()
-
-    def _current_org_filter(self) -> str:
-        return self.cbo_org.currentText()
-
-    def _refresh_table(self) -> None:
-        role = self._current_role_filter()
-        org = self._current_org_filter()
-        search_text = self.search.text().strip()
-        records = self.dal.list_personnel(role, org, search_text)
-
-        self.table.setRowCount(0)
-        for person in records:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            columns = [
-                person.id,
-                person.name,
-                person.callsign,
-                person.role,
-                person.rank,
-                person.organization,
-                person.email,
-                person.phone,
-            ]
-            for col, value in enumerate(columns):
-                item = QtWidgets.QTableWidgetItem(value or "")
-                if col == 0:
-                    item.setData(QtCore.Qt.UserRole, person)
-                self.table.setItem(row, col, item)
-
-        self.table.resizeColumnsToContents()
-
-    def _selected_rows(self) -> List[int]:
-        return sorted({index.row() for index in self.table.selectionModel().selectedRows()})
-
-    def _selected_ids(self) -> List[str]:
-        ids: list[str] = []
-        for row in self._selected_rows():
-            item = self.table.item(row, 0)
-            if item:
-                ids.append(item.text())
-        return ids
+    def _selected_record(self) -> Optional[dict[str, Any]]:
+        idx = self.table.currentIndex()
+        if not idx.isValid():
+            return None
+        return self._model.record_at(self._proxy.mapToSource(idx).row())
 
     # ----------------------------- Slots ----------------------------------
     def _on_add(self) -> None:
-        dialog = PersonnelDetailDialog(self.dal, parent=self)
+        dialog = PersonnelDetailDialog(parent=self)
         if dialog.exec() == QtWidgets.QDialog.Accepted:
             self.refresh()
 
     def _on_edit(self) -> None:
-        selected = self._selected_rows()
-        if not selected:
-            # Allow double-click editing via event argument but keep behaviour consistent
-            index = self.table.currentRow()
-            if index >= 0:
-                selected = [index]
-            else:
+        record = self._selected_record()
+        if not record:
+            idx = self.table.currentIndex()
+            if not idx.isValid():
                 return
-        row = selected[0]
-        item = self.table.item(row, 0)
-        if not item:
+            record = self._model.record_at(self._proxy.mapToSource(idx).row())
+        if not record:
             return
-        pid = item.text()
-        dialog = PersonnelDetailDialog(self.dal, parent=self, personnel_id=pid)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
-            self.refresh()
-        else:
-            # Always refresh after edit to reflect potential external changes
-            self.refresh()
+        pid = str(record.get("id") or "")
+        dialog = PersonnelDetailDialog(parent=self, personnel_id=pid)
+        dialog.exec()
+        self.refresh()
 
     def _on_delete(self) -> None:
-        ids = self._selected_ids()
-        if not ids:
-            QtWidgets.QMessageBox.information(self, "No Selection", "Select at least one record to delete.")
+        from utils.api_client import api_client, APIError
+        record = self._selected_record()
+        if not record:
+            QtWidgets.QMessageBox.information(self, "No Selection", "Select a record to delete.")
             return
-        if (
-            QtWidgets.QMessageBox.question(
-                self,
-                "Confirm Delete",
-                f"Delete {len(ids)} personnel record(s)?",
-            )
-            != QtWidgets.QMessageBox.Yes
-        ):
+        name = record.get("name") or record.get("id", "")
+        if QtWidgets.QMessageBox.question(self, "Confirm Delete", f"Delete '{name}'?") != QtWidgets.QMessageBox.Yes:
             return
         try:
-            self.dal.delete_personnel(ids)
-        except ValueError as exc:
+            api_client.delete(f"/api/master/personnel/{record['id']}")
+        except APIError as exc:
             QtWidgets.QMessageBox.warning(self, "Delete Failed", str(exc))
             return
         self.refresh()
 
     def _on_import(self) -> None:
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Import Personnel",
-            "",
-            "CSV Files (*.csv)",
-        )
+        from utils.api_client import api_client
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import Personnel", "", "CSV Files (*.csv)")
         if not path:
             return
         try:
@@ -1437,49 +1314,52 @@ class PersonnelInventoryWindow(QtWidgets.QDialog):
         imported = 0
         skipped: list[str] = []
         for person in records:
-            if not (person.id and person.name):
-                skipped.append(person.id or "<missing id>")
+            if not person.name:
+                skipped.append(person.id or "<no name>")
                 continue
             try:
-                self.dal.upsert_personnel(person)
-            except ValueError as exc:
-                skipped.append(f"{person.id}: {exc}")
-            else:
+                api_client.post("/api/master/personnel", json={
+                    "name": person.name,
+                    "callsign": person.callsign,
+                    "primary_role": person.role,
+                    "rank": person.rank,
+                    "home_unit": person.organization,
+                    "email": person.email,
+                    "phone": person.phone,
+                    "notes": person.notes,
+                })
                 imported += 1
+            except Exception as exc:
+                skipped.append(f"{person.name}: {exc}")
         message = f"Imported {imported} personnel record(s)."
         if skipped:
-            detail = "\n".join(skipped[:5])
-            if len(skipped) > 5:
-                detail += f"\n…and {len(skipped) - 5} more"
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Import Completed With Warnings",
-                message + "\nSome records were skipped due to missing or invalid IDs.\n\n" + detail,
-            )
+            QtWidgets.QMessageBox.warning(self, "Import Completed With Warnings",
+                message + "\n\n" + "\n".join(skipped[:5]))
         else:
             QtWidgets.QMessageBox.information(self, "Import Complete", message)
         self.refresh()
 
     def _on_export(self) -> None:
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self,
-            "Export Personnel",
-            "personnel.csv",
-            "CSV Files (*.csv)",
-        )
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export Personnel", "personnel.csv", "CSV Files (*.csv)")
         if not path:
             return
-        role = self._current_role_filter()
-        org = self._current_org_filter()
-        search_text = self.search.text().strip()
-        records = self.dal.list_personnel(role, org, search_text)
+        records = [
+            Personnel(
+                id=str(r.get("id") or ""),
+                name=r.get("name") or "",
+                callsign=r.get("callsign") or "",
+                role=r.get("primary_role") or "",
+                rank=r.get("rank") or "",
+                organization=r.get("home_unit") or "",
+                email=r.get("email") or "",
+                phone=r.get("phone") or "",
+                notes=r.get("notes") or "",
+            )
+            for r in self._model._records
+        ]
         try:
             CsvUtil.export_personnel(path, records)
         except (OSError, csv.Error) as exc:
             QtWidgets.QMessageBox.critical(self, "Export Failed", str(exc))
             return
-        QtWidgets.QMessageBox.information(
-            self,
-            "Export Complete",
-            f"Exported {len(records)} personnel record(s).",
-        )
+        QtWidgets.QMessageBox.information(self, "Export Complete", f"Exported {len(records)} personnel record(s).")

@@ -49,6 +49,7 @@ class MasterCollections:
 
     # Hazard typing library
     HAZARD_TYPES = "hazard_types"
+    SAFETY_ANALYSIS_TEMPLATES = "safety_analysis_templates"
 
     # Facilities
     HOSPITALS = "hospitals"

@@ -41,7 +41,7 @@ from PySide6QtAds import (
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"
@@ -1275,8 +1275,11 @@ class MainWindow(QMainWindow):
     def open_edit_personnel(self) -> None:
         from ui.personnel import PersonnelInventoryWindow
 
-        dialog = PersonnelInventoryWindow(parent=self)
-        dialog.exec()
+        win = PersonnelInventoryWindow(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_objectives(self) -> None:
         try:
@@ -1394,11 +1397,17 @@ class MainWindow(QMainWindow):
         self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
 
     def open_edit_safety_templates(self) -> None:
-        from modules import safety
-
-        incident_id = AppState.get_active_incident()
-        panel = safety.get_215A_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
+        """Open the Safety Analysis Library on the Scenario Templates tab."""
+        try:
+            from modules.admin.hazard_types.windows import open_hazard_type_library
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Safety Analysis Library",
+                f"Unable to load Safety Analysis Library.\n{exc}",
+            )
+            return
+        open_hazard_type_library(parent=self, tab=1)
 
     def open_edit_units_organizations(self) -> None:
         """Open the master-data Units and Organizations editor panel."""

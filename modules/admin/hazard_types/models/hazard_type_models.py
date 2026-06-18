@@ -142,6 +142,57 @@ class HazardType:
     updated_by: str = ""
 
 
+SAFETY_SCENARIO_TYPES: tuple[str, ...] = (
+    "General",
+    "SAR",
+    "Wildfire",
+    "Flood",
+    "HazMat",
+    "Planned Event",
+    "Hurricane",
+    "Earthquake",
+    "Other",
+)
+
+SAFETY_TARGET_FORMS: tuple[str, ...] = (
+    "ICS-215A",
+    "CAPF-160",
+    "ICS-208",
+    "ORM",
+    "ICS-206",
+)
+
+
+@dataclass(slots=True)
+class SafetyTemplateHazardEntry:
+    """One hazard entry inside a safety analysis template."""
+
+    hazard_type_id: int
+    sort_order: int = 0
+    override_notes: str = ""
+    hazard_name: str = ""
+    hazard_category: str = ""
+    default_risk_level: str = ""
+
+
+@dataclass(slots=True)
+class SafetyAnalysisTemplate:
+    """Named scenario template — a curated set of hazards for a given incident type."""
+
+    name: str
+    description: str = ""
+    scenario_type: str = "General"
+    target_forms: list[str] = field(default_factory=list)
+    hazard_entries: list[SafetyTemplateHazardEntry] = field(default_factory=list)
+    is_active: bool = True
+    notes: str = ""
+    id: Optional[int] = None
+    created_at: str = ""
+    updated_at: str = ""
+    created_by: str = ""
+    updated_by: str = ""
+
+
 @dataclass(slots=True)
 class HazardTypeSearchResult:
     """Lightweight row returned by the smart hazard lookup widget."""
