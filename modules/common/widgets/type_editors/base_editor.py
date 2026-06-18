@@ -13,6 +13,7 @@ from PySide6.QtCore import (
     Qt,
 )
 from PySide6.QtGui import QBrush, QColor, QKeySequence, QPalette, QShortcut
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -242,7 +243,10 @@ class BaseTypeEditorDialog(QWidget):
         self.table.setSortingEnabled(True)
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.setSelectionMode(QTableView.ExtendedSelection)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
+        self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
+        self._sel_delegate = RowOutlineSelectionDelegate(self.table, QColor("#FFFFFF"))
+        self.table.setItemDelegate(self._sel_delegate)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.verticalHeader().setVisible(False)
         self.table.doubleClicked.connect(self._on_table_double_clicked)

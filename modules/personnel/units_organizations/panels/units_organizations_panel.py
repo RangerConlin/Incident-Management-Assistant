@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -128,6 +129,11 @@ class UnitsOrganizationsPanel(QWidget):
         )
         self.children_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.children_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.children_table.setAlternatingRowColors(False)
+        self.children_table.setStyleSheet("QTableWidget { selection-background-color: transparent; }")
+        from utils.itemview_delegates import RowOutlineSelectionDelegate
+        self._units_sel_delegate = RowOutlineSelectionDelegate(self.children_table, QColor("#FFFFFF"))
+        self.children_table.setItemDelegate(self._units_sel_delegate)
         self.children_table.itemSelectionChanged.connect(self._on_children_table_selected)
         center_layout.addWidget(self.children_table)
         splitter.addWidget(center)

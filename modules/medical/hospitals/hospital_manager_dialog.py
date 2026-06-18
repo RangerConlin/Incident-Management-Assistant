@@ -1,10 +1,10 @@
-"""Modern manager dialog for the master hospital catalog."""
+"""Modeless manager window for the master hospital catalog."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
-from typing import Iterable, Sequence
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Sequence
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -14,457 +14,391 @@ from PySide6.QtCore import (
     QSortFilterProxyModel,
     Qt,
 )
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
+    QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
+    QMainWindow,
     QMessageBox,
     QPushButton,
     QTableView,
     QVBoxLayout,
     QWidget,
-    QHeaderView,
+    QCheckBox,
+    QComboBox,
+    QDialogButtonBox,
+    QScrollArea,
 )
 
-from models.hospital import Hospital
-from services.hospital_service import HospitalService
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 
-from .hospital_edit_dialog import HospitalEditDialog
+_BASE = "/api/master/hospitals"
 
-
-@dataclass(frozen=True)
-class _ColumnConfig:
-    key: str
-    label: str
-    stretch: bool = False
-    default_width: int | None = None
-
-
-_DISPLAY_CANDIDATES = [
-    _ColumnConfig("name", "Name", stretch=True),
-    _ColumnConfig("city", "City"),
-    _ColumnConfig("state", "State/Prov"),
-    _ColumnConfig("code", "Code"),
-    _ColumnConfig("trauma_level", "Trauma"),
-    _ColumnConfig("helipad", "Helipad"),
-    _ColumnConfig("phone_er", "ER Phone", default_width=140),
-    _ColumnConfig("phone", "Phone", default_width=140),
-    _ColumnConfig("contact_name", "Contact"),
+_COLUMNS = [
+    ("name",          "Name",        True),
+    ("city",          "City",        True),
+    ("state",         "State",       True),
+    ("code",          "Code",        True),
+    ("trauma_level",  "Trauma",      True),
+    ("helipad",       "Helipad",     True),
+    ("phone_er",      "ER Phone",    True),
+    ("phone",         "Phone",       True),
+    ("contact_name",  "Contact",     True),
 ]
 
+_BOOL_KEYS = {"helipad", "burn_center", "pediatric_capability", "is_active"}
 
-_BOOL_FIELDS = {"helipad", "burn_center", "pediatric_capability", "is_active"}
-_INT_FIELDS = {"travel_time_min", "bed_available"}
+
+def _api():
+    from utils.api_client import api_client
+    return api_client
 
 
 class _HospitalTableModel(QAbstractTableModel):
-    def __init__(self, columns: list[_ColumnConfig], parent: QWidget | None = None) -> None:
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._columns = columns
-        self._hospitals: list[Hospital] = []
+        self._rows: List[Dict[str, Any]] = []
 
-    # --- convenience -------------------------------------------------
-    def set_hospitals(self, rows: Iterable[Hospital]) -> None:
+    def load(self, rows: List[Dict[str, Any]]) -> None:
         self.beginResetModel()
-        self._hospitals = list(rows)
+        self._rows = rows
         self.endResetModel()
 
-    def hospital_at(self, row: int) -> Hospital | None:
-        if 0 <= row < len(self._hospitals):
-            return self._hospitals[row]
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(_COLUMNS)
+
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return _COLUMNS[section][1]
         return None
 
-    def column_index(self, key: str) -> int:
-        for idx, col in enumerate(self._columns):
-            if col.key == key:
-                return idx
-        return -1
-
-    def row_for_id(self, hospital_id: int | None) -> int:
-        if hospital_id is None:
-            return -1
-        for idx, row in enumerate(self._hospitals):
-            if row.id == hospital_id:
-                return idx
-        return -1
-
-    # --- Qt model interface -----------------------------------------
-    def rowCount(self, parent: QModelIndex | None = None) -> int:  # type: ignore[override]
-        if parent and parent.isValid():  # pragma: no cover - tree behaviour unused
-            return 0
-        return len(self._hospitals)
-
-    def columnCount(self, parent: QModelIndex | None = None) -> int:  # type: ignore[override]
-        if parent and parent.isValid():  # pragma: no cover - tree behaviour unused
-            return 0
-        return len(self._columns)
-
-    def headerData(  # type: ignore[override]
-        self,
-        section: int,
-        orientation: Qt.Orientation,
-        role: int = Qt.DisplayRole,
-    ) -> str | None:
-        if role != Qt.DisplayRole or orientation != Qt.Horizontal:
-            return None
-        if 0 <= section < len(self._columns):
-            return self._columns[section].label
-        return None
-
-    def data(self, index: QModelIndex, role: int = Qt.DisplayRole):  # type: ignore[override]
+    def data(self, index: QModelIndex, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-        row = self._hospitals[index.row()]
-        column = self._columns[index.column()].key
-        value = getattr(row, column, None)
-
+        row = self._rows[index.row()]
+        key = _COLUMNS[index.column()][0]
+        val = row.get(key)
         if role == Qt.DisplayRole:
-            if column in _BOOL_FIELDS:
-                if value is None:
-                    return ""
-                return "Yes" if bool(value) else "No"
-            if value is None:
-                return ""
-            return str(value)
+            if key in _BOOL_KEYS:
+                return "Yes" if bool(val) else "No"
+            return "" if val is None else str(val)
         if role == Qt.TextAlignmentRole:
-            if column in _BOOL_FIELDS or column in _INT_FIELDS:
+            if key in _BOOL_KEYS:
                 return int(Qt.AlignCenter)
             return int(Qt.AlignVCenter | Qt.AlignLeft)
         return None
 
+    def record_at(self, row: int) -> Optional[Dict[str, Any]]:
+        return dict(self._rows[row]) if 0 <= row < len(self._rows) else None
 
-class _HospitalFilterProxyModel(QSortFilterProxyModel):
-    def __init__(self, filter_keys: Sequence[str], parent: QWidget | None = None) -> None:
+    def update_record(self, row: int, data: Dict[str, Any]) -> None:
+        self._rows[row] = data
+        self.dataChanged.emit(self.index(row, 0), self.index(row, len(_COLUMNS) - 1))
+
+    def insert_record(self, data: Dict[str, Any]) -> None:
+        r = len(self._rows)
+        self.beginInsertRows(QModelIndex(), r, r)
+        self._rows.append(data)
+        self.endInsertRows()
+
+    def remove_record(self, row: int) -> None:
+        self.beginRemoveRows(QModelIndex(), row, row)
+        self._rows.pop(row)
+        self.endRemoveRows()
+
+
+class _FilterProxy(QSortFilterProxyModel):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._filter_keys = list(filter_keys)
         self._needle = ""
         self.setFilterCaseSensitivity(Qt.CaseInsensitive)
 
-    def set_filter_text(self, text: str) -> None:
+    def set_filter(self, text: str) -> None:
         self._needle = text.strip().lower()
         self.invalidateFilter()
 
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
+    def filterAcceptsRow(self, source_row, source_parent):
         if not self._needle:
             return True
-        model = self.sourceModel()
-        if not isinstance(model, _HospitalTableModel):
-            return super().filterAcceptsRow(source_row, source_parent)
-        for key in self._filter_keys:
-            col = model.column_index(key)
-            if col < 0:
-                continue
-            idx = model.index(source_row, col, source_parent)
-            text = model.data(idx, Qt.DisplayRole)
-            if text and self._needle in str(text).lower():
+        m = self.sourceModel()
+        for col in range(m.columnCount()):
+            val = m.data(m.index(source_row, col, source_parent), Qt.DisplayRole)
+            if val and self._needle in str(val).lower():
                 return True
         return False
 
 
-class HospitalManagerDialog(QDialog):
-    """Dialog that manages hospital catalog entries using a table view."""
-
-    def __init__(
-        self,
-        service: HospitalService | None = None,
-        parent: QWidget | None = None,
-    ) -> None:
+class _HospitalEditDialog(QDialog):
+    def __init__(self, record: Optional[Dict[str, Any]] = None, parent=None):
         super().__init__(parent)
-        self._service = service or HospitalService()
-        self._settings = QSettings()
-        self._columns = self._resolve_columns()
-        self._model = _HospitalTableModel(self._columns, self)
-        filter_keys = [key for key in ("name", "city", "state", "code", "contact_name") if self._column_available(key)]
-        self._proxy = _HospitalFilterProxyModel(filter_keys, self)
-        self._proxy.setSourceModel(self._model)
-        self._total_rows = 0
-
-        self.setWindowTitle("Hospital Manager")
-        self.setModal(True)
-
+        self._new = record is None
+        self.setWindowTitle("New Hospital" if self._new else "Edit Hospital")
+        self.setMinimumWidth(500)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
-        # --- top toolbar ------------------------------------------------
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(8)
+        self.e_name = QLineEdit()
+        self.e_code = QLineEdit()
+        self.e_address = QLineEdit()
+        self.e_city = QLineEdit()
+        self.e_state = QLineEdit(); self.e_state.setMaximumWidth(80)
+        self.e_zip = QLineEdit(); self.e_zip.setMaximumWidth(100)
+        self.e_phone_er = QLineEdit(); self.e_phone_er.setPlaceholderText("ER / main emergency line")
+        self.e_phone = QLineEdit(); self.e_phone.setPlaceholderText("General")
+        self.e_contact_name = QLineEdit()
+        self.e_trauma_level = QComboBox()
+        self.e_trauma_level.addItems(["", "I", "II", "III", "IV", "V", "Pediatric"])
+        self.e_helipad = QCheckBox("Helipad available")
+        self.e_burn = QCheckBox("Burn center")
+        self.e_peds = QCheckBox("Pediatric capability")
+        self.e_active = QCheckBox("Active")
+        self.e_active.setChecked(True)
+        self.e_notes = QLineEdit()
 
-        self._new_button = QPushButton("New")
-        self._edit_button = QPushButton("Edit")
-        self._duplicate_button = QPushButton("Duplicate")
-        self._delete_button = QPushButton("Delete")
-        for btn in (self._new_button, self._edit_button, self._duplicate_button, self._delete_button):
-            btn.setCursor(Qt.PointingHandCursor)
+        form.addRow("Name *", self.e_name)
+        form.addRow("Code", self.e_code)
+        form.addRow("Address", self.e_address)
+        form.addRow("City", self.e_city)
+        form.addRow("State", self.e_state)
+        form.addRow("ZIP", self.e_zip)
+        form.addRow("ER Phone", self.e_phone_er)
+        form.addRow("Phone", self.e_phone)
+        form.addRow("Contact", self.e_contact_name)
+        form.addRow("Trauma Level", self.e_trauma_level)
+        form.addRow("", self.e_helipad)
+        form.addRow("", self.e_burn)
+        form.addRow("", self.e_peds)
+        form.addRow("", self.e_active)
+        form.addRow("Notes", self.e_notes)
+        layout.addLayout(form)
 
-        toolbar.addWidget(self._new_button)
-        toolbar.addWidget(self._edit_button)
-        toolbar.addWidget(self._duplicate_button)
-        toolbar.addWidget(self._delete_button)
-        toolbar.addStretch(1)
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(self._on_accept)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
 
-        self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText("Search hospitals…")
-        self._search_edit.setClearButtonEnabled(True)
-        toolbar.addWidget(QLabel("Search:"))
-        toolbar.addWidget(self._search_edit)
+        if record:
+            self._load(record)
 
-        self._close_button = QPushButton("Close")
-        self._close_button.setCursor(Qt.PointingHandCursor)
-        toolbar.addWidget(self._close_button)
+    def _load(self, r: Dict[str, Any]) -> None:
+        self.e_name.setText(str(r.get("name") or ""))
+        self.e_code.setText(str(r.get("code") or ""))
+        self.e_address.setText(str(r.get("address") or ""))
+        self.e_city.setText(str(r.get("city") or ""))
+        self.e_state.setText(str(r.get("state") or ""))
+        self.e_zip.setText(str(r.get("zip") or ""))
+        self.e_phone_er.setText(str(r.get("phone_er") or ""))
+        self.e_phone.setText(str(r.get("phone") or ""))
+        self.e_contact_name.setText(str(r.get("contact_name") or ""))
+        trauma = str(r.get("trauma_level") or "")
+        i = self.e_trauma_level.findText(trauma)
+        self.e_trauma_level.setCurrentIndex(i if i >= 0 else 0)
+        self.e_helipad.setChecked(bool(r.get("helipad")))
+        self.e_burn.setChecked(bool(r.get("burn_center")))
+        self.e_peds.setChecked(bool(r.get("pediatric_capability")))
+        self.e_active.setChecked(bool(r.get("is_active", True)))
+        self.e_notes.setText(str(r.get("notes") or ""))
 
-        layout.addLayout(toolbar)
+    def _on_accept(self) -> None:
+        if not self.e_name.text().strip():
+            QMessageBox.warning(self, "Validation", "Name is required.")
+            return
+        self.accept()
 
-        # --- table ------------------------------------------------------
-        self._table = QTableView(self)
-        self._table.setModel(self._proxy)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self._table.setSortingEnabled(True)
-        self._table.setAlternatingRowColors(True)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.verticalHeader().setVisible(False)
-        header: QHeaderView = self._table.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setSectionsClickable(True)
-        header.setSectionResizeMode(QHeaderView.Interactive)
+    def payload(self) -> Dict[str, Any]:
+        return {
+            "name": self.e_name.text().strip(),
+            "code": self.e_code.text().strip() or None,
+            "address": self.e_address.text().strip() or None,
+            "city": self.e_city.text().strip() or None,
+            "state": self.e_state.text().strip() or None,
+            "zip": self.e_zip.text().strip() or None,
+            "phone_er": self.e_phone_er.text().strip() or None,
+            "phone": self.e_phone.text().strip() or None,
+            "contact_name": self.e_contact_name.text().strip() or None,
+            "trauma_level": self.e_trauma_level.currentText() or None,
+            "helipad": self.e_helipad.isChecked(),
+            "burn_center": self.e_burn.isChecked(),
+            "pediatric_capability": self.e_peds.isChecked(),
+            "is_active": self.e_active.isChecked(),
+            "notes": self.e_notes.text().strip() or None,
+        }
 
-        for idx, column in enumerate(self._columns):
-            if column.stretch:
-                header.setSectionResizeMode(idx, QHeaderView.Stretch)
-            elif column.default_width:
-                self._table.setColumnWidth(idx, column.default_width)
 
-        layout.addWidget(self._table)
+class HospitalManagerDialog(QMainWindow):
+    """Modeless window for managing the master hospital catalog."""
 
-        # --- footer -----------------------------------------------------
-        footer = QHBoxLayout()
-        footer.setContentsMargins(0, 0, 0, 0)
-        footer.addStretch(1)
-        self._status_label = QLabel("Loading hospitals…")
-        footer.addWidget(self._status_label)
-        layout.addLayout(footer)
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Hospital Manager")
+        self.resize(1000, 620)
+        self._model = _HospitalTableModel(self)
+        self._proxy = _FilterProxy(self)
+        self._proxy.setSourceModel(self._model)
+        self._build_ui()
+        self.refresh()
 
-        # --- shortcuts --------------------------------------------------
-        self._delete_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self)
-        self._delete_shortcut.activated.connect(self._on_delete)
-        self._enter_shortcut = QShortcut(QKeySequence(Qt.Key_Return), self)
-        self._enter_shortcut.activated.connect(self._on_edit_shortcut)
-        self._enter_shortcut2 = QShortcut(QKeySequence(Qt.Key_Enter), self)
-        self._enter_shortcut2.activated.connect(self._on_edit_shortcut)
-        self._new_shortcut = QShortcut(QKeySequence("Ctrl+N"), self)
-        self._new_shortcut.activated.connect(self._on_new)
-        self._duplicate_shortcut = QShortcut(QKeySequence("Ctrl+D"), self)
-        self._duplicate_shortcut.activated.connect(self._on_duplicate)
-        self._escape_shortcut = QShortcut(QKeySequence(Qt.Key_Escape), self)
-        self._escape_shortcut.activated.connect(self.close)
+    def _build_ui(self) -> None:
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
 
-        # --- signal wiring ---------------------------------------------
-        self._new_button.clicked.connect(self._on_new)
-        self._edit_button.clicked.connect(self._on_edit)
-        self._duplicate_button.clicked.connect(self._on_duplicate)
-        self._delete_button.clicked.connect(self._on_delete)
-        self._close_button.clicked.connect(self.close)
-        self._search_edit.textChanged.connect(self._on_search_changed)
-        self._table.doubleClicked.connect(lambda _: self._on_edit())
+        title = QLabel("Hospital Manager")
+        f = title.font(); f.setPointSize(14); f.setBold(True); title.setFont(f)
+        layout.addWidget(title)
 
-        sel_model = self._table.selectionModel()
-        if sel_model:
-            sel_model.selectionChanged.connect(lambda *_: self._update_button_states())
+        tb = QHBoxLayout()
+        self.btn_new = QPushButton("New")
+        self.btn_edit = QPushButton("Edit")
+        self.btn_duplicate = QPushButton("Duplicate")
+        self.btn_delete = QPushButton("Delete")
+        self.btn_refresh = QPushButton("Refresh")
+        for btn in (self.btn_new, self.btn_edit, self.btn_duplicate, self.btn_delete, self.btn_refresh):
+            tb.addWidget(btn)
+        tb.addStretch(1)
+        tb.addWidget(QLabel("Search:"))
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Search hospitals...")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setFixedWidth(240)
+        tb.addWidget(self.search_edit)
+        layout.addLayout(tb)
 
-        self._proxy.modelReset.connect(self._update_status)
-        self._proxy.rowsInserted.connect(lambda *_: self._update_status())
-        self._proxy.rowsRemoved.connect(lambda *_: self._update_status())
-        self._proxy.layoutChanged.connect(self._update_status)
+        self.table = QTableView()
+        self.table.setModel(self._proxy)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.table.setSortingEnabled(True)
+        self.table.setAlternatingRowColors(False)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
+        self._sel_delegate = RowOutlineSelectionDelegate(self.table, QColor("#FFFFFF"))
+        self.table.setItemDelegate(self._sel_delegate)
+        layout.addWidget(self.table, 1)
 
-        self._restore_state()
-        self._refresh()
-        self.adjustSize()
+        self.count_label = QLabel()
+        layout.addWidget(self.count_label)
 
-    # ----- helpers -----------------------------------------------------
-    def _column_available(self, key: str) -> bool:
-        return any(col.key == key for col in self._columns)
+        self.btn_new.clicked.connect(self._on_new)
+        self.btn_edit.clicked.connect(self._on_edit)
+        self.btn_duplicate.clicked.connect(self._on_duplicate)
+        self.btn_delete.clicked.connect(self._on_delete)
+        self.btn_refresh.clicked.connect(self.refresh)
+        self.search_edit.textChanged.connect(lambda t: (self._proxy.set_filter(t), self._update_count()))
+        self.table.doubleClicked.connect(lambda _: self._on_edit())
+        self.table.selectionModel().selectionChanged.connect(self._update_buttons)
+        self._update_buttons()
 
-    def _resolve_columns(self) -> list[_ColumnConfig]:
-        columns: list[_ColumnConfig] = []
-        available = set(self._service.available_columns)
-        for candidate in _DISPLAY_CANDIDATES:
-            if candidate.key == "phone" and "phone_er" in available:
-                continue
-            if candidate.key not in available and candidate.key != "name":
-                continue
-            if candidate.key == "name":
-                columns.insert(0, candidate)
-            else:
-                columns.append(candidate)
-        # Ensure name column exists even if schema omitted it (should never happen)
-        if not any(col.key == "name" for col in columns):
-            columns.insert(0, _ColumnConfig("name", "Name", stretch=True))
-        return columns
-
-    def _restore_state(self) -> None:
-        geometry = self._settings.value("hospital_manager/geometry")
-        if isinstance(geometry, QByteArray):
-            self.restoreGeometry(geometry)
-
-        widths_value = self._settings.value("hospital_manager/column_widths")
+    def refresh(self) -> None:
         try:
-            widths = json.loads(widths_value) if widths_value else []
-        except (TypeError, ValueError):  # pragma: no cover - corrupted settings
-            widths = []
-        header = self._table.horizontalHeader()
-        for idx, width in enumerate(widths):
-            if 0 <= idx < header.count():
-                try:
-                    header.resizeSection(idx, int(width))
-                except (TypeError, ValueError):
-                    continue
-
-        sort_section = self._settings.value("hospital_manager/sort_section")
-        sort_order = self._settings.value("hospital_manager/sort_order")
-        try:
-            section = int(sort_section)
-            order = Qt.SortOrder(int(sort_order))
-            if 0 <= section < header.count():
-                self._table.sortByColumn(section, order)
-        except (TypeError, ValueError):
-            pass
-
-    def _save_state(self) -> None:
-        self._settings.setValue("hospital_manager/geometry", self.saveGeometry())
-        header = self._table.horizontalHeader()
-        widths = [header.sectionSize(i) for i in range(header.count())]
-        self._settings.setValue("hospital_manager/column_widths", json.dumps(widths))
-        self._settings.setValue("hospital_manager/sort_section", header.sortIndicatorSection())
-        sort_order = header.sortIndicatorOrder()
-        try:
-            sort_order_value = int(sort_order)
-        except (TypeError, ValueError):
-            value = getattr(sort_order, "value", None)
-            sort_order_value = int(value) if value is not None else 0
-        self._settings.setValue("hospital_manager/sort_order", sort_order_value)
-
-    def _refresh(self, select_id: int | None = None) -> None:
-        try:
-            rows = self._service.list_hospitals()
-        except Exception as exc:  # pragma: no cover - depends on runtime DB
-            QMessageBox.critical(self, "Database error", f"Unable to load hospitals: {exc}")
+            rows = _api().get(_BASE) or []
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to load hospitals:\n{exc}")
             rows = []
-        self._model.set_hospitals(rows)
-        self._total_rows = len(rows)
-        self._update_status()
-        if select_id:
-            self._select_hospital(select_id)
-        else:
-            self._update_button_states()
+        self._model.load(rows)
+        self._update_count()
 
-    def _selected_hospitals(self) -> list[Hospital]:
-        sel_model = self._table.selectionModel()
-        if not sel_model:
-            return []
-        hospitals: list[Hospital] = []
-        for proxy_index in sel_model.selectedRows():
-            source_index = self._proxy.mapToSource(proxy_index)
-            row = self._model.hospital_at(source_index.row())
-            if row:
-                hospitals.append(row)
-        return hospitals
+    def _selected_source_row(self) -> Optional[int]:
+        idxs = self.table.selectionModel().selectedRows()
+        if not idxs:
+            return None
+        return self._proxy.mapToSource(idxs[0]).row()
 
-    def _select_hospital(self, hospital_id: int) -> None:
-        row = self._model.row_for_id(hospital_id)
-        if row < 0:
-            return
-        source_index = self._model.index(row, 0)
-        proxy_index = self._proxy.mapFromSource(source_index)
-        if not proxy_index.isValid():
-            return
-        sel_model = self._table.selectionModel()
-        if not sel_model:
-            return
-        sel_model.clearSelection()
-        sel_model.select(proxy_index, sel_model.Select | sel_model.Rows)
-        self._table.scrollTo(proxy_index)
-        self._update_button_states()
+    def _selected_source_rows(self) -> List[int]:
+        return [self._proxy.mapToSource(i).row() for i in self.table.selectionModel().selectedRows()]
 
-    def _update_button_states(self) -> None:
-        selected = self._selected_hospitals()
-        has_selection = bool(selected)
-        single = len(selected) == 1
-        self._edit_button.setEnabled(single)
-        self._duplicate_button.setEnabled(single)
-        self._delete_button.setEnabled(has_selection)
+    def _update_buttons(self) -> None:
+        rows = self._selected_source_rows()
+        self.btn_edit.setEnabled(len(rows) == 1)
+        self.btn_duplicate.setEnabled(len(rows) == 1)
+        self.btn_delete.setEnabled(bool(rows))
 
-    def _update_status(self) -> None:
-        visible = self._proxy.rowCount()
-        selected = len(self._selected_hospitals())
-        total = self._total_rows
-        if total == visible:
-            summary = f"{visible} hospital" if visible == 1 else f"{visible} hospitals"
-        else:
-            summary = f"Showing {visible} of {total} hospitals"
-        if selected:
-            summary += f" — {selected} selected"
-        self._status_label.setText(summary)
-        self._update_button_states()
+    def _update_count(self) -> None:
+        total = self._model.rowCount()
+        shown = self._proxy.rowCount()
+        self.count_label.setText(f"{shown} of {total} hospitals" if shown != total else f"{total} hospitals")
 
-    # ----- actions -----------------------------------------------------
     def _on_new(self) -> None:
-        dialog = HospitalEditDialog(self._service, parent=self)
-        if dialog.exec() == QDialog.Accepted and dialog.hospital and dialog.hospital.id:
-            self._refresh(select_id=dialog.hospital.id)
+        dlg = _HospitalEditDialog(parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        try:
+            created = _api().post(_BASE, json=dlg.payload())
+            self._model.insert_record(created)
+            self._update_count()
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to create hospital:\n{exc}")
 
     def _on_edit(self) -> None:
-        selected = self._selected_hospitals()
-        if len(selected) != 1:
+        row = self._selected_source_row()
+        if row is None:
             return
-        dialog = HospitalEditDialog(self._service, hospital=selected[0], parent=self)
-        if dialog.exec() == QDialog.Accepted and dialog.hospital and dialog.hospital.id:
-            self._refresh(select_id=dialog.hospital.id)
-
-    def _on_edit_shortcut(self) -> None:
-        if self._table.hasFocus():
-            self._on_edit()
+        rec = self._model.record_at(row)
+        dlg = _HospitalEditDialog(record=rec, parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        hospital_id = rec.get("id")
+        if hospital_id is None:
+            return
+        try:
+            updated = _api().patch(f"{_BASE}/{hospital_id}", json=dlg.payload())
+            self._model.update_record(row, updated)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to update hospital:\n{exc}")
 
     def _on_duplicate(self) -> None:
-        selected = self._selected_hospitals()
-        if len(selected) != 1:
+        row = self._selected_source_row()
+        if row is None:
             return
-        original = selected[0]
-        duplicate = replace(original)
-        duplicate.id = None
-        duplicate.name = (original.name or "") + " (Copy)"
-        dialog = HospitalEditDialog(self._service, hospital=duplicate, parent=self)
-        if dialog.exec() == QDialog.Accepted and dialog.hospital and dialog.hospital.id:
-            self._refresh(select_id=dialog.hospital.id)
+        rec = dict(self._model.record_at(row))
+        rec.pop("id", None)
+        rec["name"] = (rec.get("name") or "") + " (Copy)"
+        dlg = _HospitalEditDialog(record=rec, parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        try:
+            created = _api().post(_BASE, json=dlg.payload())
+            self._model.insert_record(created)
+            self._update_count()
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to duplicate hospital:\n{exc}")
 
     def _on_delete(self) -> None:
-        selected = self._selected_hospitals()
-        if not selected:
+        rows = self._selected_source_rows()
+        if not rows:
             return
-        count = len(selected)
-        title = "Delete Hospital" if count == 1 else "Delete Hospitals"
+        count = len(rows)
         prompt = "Delete the selected hospital?" if count == 1 else f"Delete {count} hospitals?"
-        if QMessageBox.question(self, title, prompt) != QMessageBox.Yes:
+        if QMessageBox.question(self, "Confirm Delete", prompt) != QMessageBox.Yes:
             return
-        ids = [row.id for row in selected if row.id is not None]
-        try:
-            self._service.delete_hospitals(ids)
-        except Exception as exc:  # pragma: no cover - depends on runtime DB
-            QMessageBox.critical(self, "Database error", f"Unable to delete hospitals: {exc}")
-            return
-        self._refresh()
-
-    def _on_search_changed(self, text: str) -> None:
-        self._proxy.set_filter_text(text)
-        self._update_status()
-
-    # ----- Qt overrides -----------------------------------------------
-    def closeEvent(self, event) -> None:  # type: ignore[override]
-        self._save_state()
-        super().closeEvent(event)
+        failed = 0
+        for row in sorted(rows, reverse=True):
+            rec = self._model.record_at(row)
+            hospital_id = rec.get("id") if rec else None
+            if hospital_id is None:
+                continue
+            try:
+                _api().delete(f"{_BASE}/{hospital_id}")
+                self._model.remove_record(row)
+            except Exception:
+                failed += 1
+        self._update_count()
+        if failed:
+            QMessageBox.warning(self, "Delete", f"{failed} hospital(s) could not be deleted.")
 
 
 __all__ = ["HospitalManagerDialog"]

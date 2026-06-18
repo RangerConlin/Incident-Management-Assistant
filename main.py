@@ -87,6 +87,7 @@ logging.basicConfig(
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("pymongo").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Development mode toggle (prevents NameError later);
@@ -641,21 +642,21 @@ class MainWindow(QMainWindow):
 
         # ----- Edit -----
         m_edit = mb.addMenu("Edit")
-        self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
-        self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
+        self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
         self._add_action(m_edit, "Canned Communication Entries", None, "edit.canned_comm_entries")
-        self._add_action(m_edit, "Personnel", None, "edit.personnel")
+        self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
+        self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
+        self._add_action(m_edit, "Equipment", None, "edit.equipment")
+        self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
+        self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
+        self._add_action(m_edit, "Personnel", None, "edit.personnel")
+        self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
+        self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
         self._add_action(m_edit, "Team Types", None, "edit.team_types")
-        self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
-        self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
-        self._add_action(m_edit, "Equipment", None, "edit.equipment")
-        self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
-        self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
-        self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
-        self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Units and Organizations", None, "edit.units_organizations")
+        self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
 
         # ----- View (moved under Menu) -----
         m_view = m_menu.addMenu("View")
@@ -763,6 +764,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "Quick Entry", None, "comms.quick_entry")
         self._add_action(m_comms, "Chat Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
+        m_comms.addSeparator()
+        self._add_action(m_comms, "Notification Feed", None, "comms.notifications")
 
 
         # ----- Intel -----
@@ -1080,6 +1083,7 @@ class MainWindow(QMainWindow):
             "comms.chat": self.open_comms_chat,
             "comms.213": self.open_comms_213,
             "comms.205": self.open_comms_205,
+            "comms.notifications": self.open_notifications_panel,
 
             # ----- Intel -----
             "intel.unit_log": self.open_intel_unit_log,
@@ -1247,8 +1251,11 @@ class MainWindow(QMainWindow):
     def open_edit_hospitals(self) -> None:
         from modules.medical.hospitals import HospitalManagerDialog
 
-        dialog = HospitalManagerDialog(parent=self)
-        dialog.exec()
+        win = HospitalManagerDialog(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_canned_comm_entries(self) -> None:
         # Use the QtWidgets-based window under root panels
@@ -1331,8 +1338,11 @@ class MainWindow(QMainWindow):
         from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
             VehicleInventoryDialog,
         )
-        dialog = VehicleInventoryDialog(parent=self)
-        dialog.exec()
+        win = VehicleInventoryDialog(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_aircraft(self) -> None:
         from modules.logistics.aircraft.panels.aircraft_inventory_window import (
@@ -1340,7 +1350,10 @@ class MainWindow(QMainWindow):
         )
 
         dialog = AircraftInventoryWindow(parent=self)
-        dialog.exec()
+        self._register_child_window(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def open_edit_equipment(self) -> None:
         try:
@@ -1349,8 +1362,11 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Equipment Panel Error", f"Unable to load Equipment panel.\n{exc}")
             return
-        panel = EquipmentEditPanel(db_path="data/master.db")
-        self._open_dock_widget(panel, title="Equipment")
+        win = EquipmentEditPanel(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_resource_types(self) -> None:
         """Open the Resource Type Library from the Edit menu.
@@ -1386,15 +1402,17 @@ class MainWindow(QMainWindow):
         open_hazard_type_library(parent=self)
 
     def open_edit_comms_resources(self) -> None:
-        # Open new QWidget-based Comms Resource Editor (dock-friendly)
         try:
             from panels.comms_resource_editor import CommsResourceEditor
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Load Failed", f"Unable to load Comms Resource Editor: {e}")
             return
-        panel = CommsResourceEditor()
-        self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
+        win = CommsResourceEditor(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_safety_templates(self) -> None:
         """Open the Safety Analysis Library on the Scenario Templates tab."""
@@ -1424,7 +1442,7 @@ class MainWindow(QMainWindow):
             return
 
         panel = UnitsOrganizationsPanel(parent=self)
-        self._open_dock_widget(panel, title="Units and Organizations")
+        self._open_panel(panel, title="Units and Organizations")
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
@@ -1442,7 +1460,7 @@ class MainWindow(QMainWindow):
         from modules import command
         incident_id = AppState.get_active_incident()
         panel = command.get_incident_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Command Dashboard", preferred_size=(900, 700))
+        self._open_panel(panel, title="Incident Command Dashboard", preferred_size=(900, 700))
 
     def open_command_incident_overview(self) -> None:
         # Replace placeholder with real Incident Overview panel (widgets only)
@@ -1452,37 +1470,37 @@ class MainWindow(QMainWindow):
                 create_command_incident_overview_panel,
             )
             widget = create_command_incident_overview_panel(self.dock_manager, getattr(self, "app_context", None))
-            self._open_dock_widget(widget, title=IncidentOverviewPanel.panel_title)
+            self._open_panel(widget, title=IncidentOverviewPanel.panel_title)
         except Exception:
             # Fallback to legacy placeholder if import fails
             from modules import command
             incident_id = AppState.get_active_incident()
             panel = command.get_incident_overview_panel(incident_id)
-            self._open_dock_widget(panel, title="Incident Overview")
+            self._open_panel(panel, title="Incident Overview")
 
     def open_command_iap(self) -> None:
         from modules import command
         incident_id = AppState.get_active_incident()
         panel = command.get_iap_builder_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Action Plan Builder")
+        self._open_panel(panel, title="Incident Action Plan Builder")
 
     def open_command_objectives(self) -> None:
         from modules import command
         incident_id = AppState.get_active_incident()
         panel = command.get_objectives_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Objectives (ICS 202)")
+        self._open_panel(panel, title="Incident Objectives (ICS 202)")
 
     def open_command_staff_org(self) -> None:
         from modules import command
         incident_id = AppState.get_active_incident()
         panel = command.get_staff_org_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Organization")
+        self._open_panel(panel, title="Incident Organization")
 
     def open_command_sitrep(self) -> None:
         from modules import command
         incident_id = AppState.get_active_incident()
         panel = command.get_sitrep_panel(incident_id)
-        self._open_dock_widget(panel, title="Situation Report (ICS 209)")
+        self._open_panel(panel, title="Situation Report (ICS 209)")
 
 # --- 4.4 Planning --------------------------------------------------------
     def open_planning_unit_log(self) -> None:
@@ -1516,7 +1534,7 @@ class MainWindow(QMainWindow):
             widget.setAutoRefresh(30000)
         except Exception:
             pass
-        self._open_dock_widget(widget, title="Planning — At-a-Glance")
+        self._open_panel(widget, title="Planning — At-a-Glance")
 
     def open_planning_approvals(self) -> None:
         from modules.approvals.panels.approval_inbox_panel import ApprovalInboxPanel
@@ -1525,31 +1543,31 @@ class MainWindow(QMainWindow):
         panel = ApprovalInboxPanel(incident_id=incident_id, personnel_id=personnel_id)
         panel.load()
         panel.item_activated.connect(self._on_approval_item_activated)
-        self._open_dock_widget(panel, title="Pending Approvals")
+        self._open_panel(panel, title="Pending Approvals")
 
     def open_planning_op_manager(self) -> None:
         from modules import planning
         incident_id = AppState.get_active_incident()
         panel = planning.get_op_manager_panel(incident_id)
-        self._open_dock_widget(panel, title="Operational Period Manager")
+        self._open_panel(panel, title="Operational Period Manager")
 
     def open_planning_demobilization(self) -> None:
         from modules import planning
         incident_id = AppState.get_active_incident()
         panel = planning.get_demobilization_panel(incident_id)
-        self._open_dock_widget(panel, title="Demobilization Planner")
+        self._open_panel(panel, title="Demobilization Planner")
 
     def open_planning_meetings(self) -> None:
         from modules import planning
         incident_id = AppState.get_active_incident()
         panel = planning.get_meetings_panel(incident_id)
-        self._open_dock_widget(panel, title="Meeting Planner")
+        self._open_panel(panel, title="Meeting Planner")
 
     def open_planning_sitrep(self) -> None:
         from modules import planning
         incident_id = AppState.get_active_incident()
         panel = planning.get_sitrep_panel(incident_id)
-        self._open_dock_widget(panel, title="Situation Report")
+        self._open_panel(panel, title="Situation Report")
 
     def open_tactics_resources_planner(self) -> None:
         try:
@@ -1564,7 +1582,7 @@ class MainWindow(QMainWindow):
         """Open the dockable Weather Safety summary page."""
         from modules.intel.weather.pages.weather_summary_page import WeatherSummaryPage
         panel = WeatherSummaryPage(self)
-        self._open_dock_widget(panel, title="Weather Safety")
+        self._open_panel(panel, title="Weather Safety")
 
     def open_weather_timeline(self) -> None:
         """Open the standalone Weather Timeline window."""
@@ -1642,7 +1660,7 @@ class MainWindow(QMainWindow):
 
         widget: OpsGlanceWidget = make_ops_glance_widget(self)
         self._wire_ops_glance(widget)
-        self._open_dock_widget(widget, title="Operations — Dashboard")
+        self._open_panel(widget, title="Operations — Dashboard")
 
     # ---- Ops Glance data wiring ----
     def _wire_ops_glance(self, w) -> None:
@@ -1888,7 +1906,7 @@ class MainWindow(QMainWindow):
         from modules import operations
         incident_id = AppState.get_active_incident()
         panel = operations.get_team_assignments_panel(incident_id)
-        self._open_dock_widget(panel, title="Team Assignments")
+        self._open_panel(panel, title="Team Assignments")
 
     def open_operations_team_status(self) -> None:
 
@@ -1960,7 +1978,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         # Show as a docked, modeless panel for consistency with app UX
-        self._open_dock_widget(widget, title="Logistics Dashboard")
+        self._open_panel(widget, title="Logistics Dashboard")
 
     def _wire_logistics_dashboard(self, w) -> None:
         """Attach handlers and simple refresh that updates header context.
@@ -2045,25 +2063,25 @@ class MainWindow(QMainWindow):
         from modules import logistics
         incident_id = AppState.get_active_incident()
         panel = logistics.get_checkin_panel(incident_id)
-        self._open_dock_widget(panel, title="Check-In (ICS-211)")
+        self._open_panel(panel, title="Check-In (ICS-211)")
 
     def open_logistics_requests(self) -> None:
         from modules import logistics
         incident_id = AppState.get_active_incident()
         panel = logistics.get_requests_panel(incident_id)
-        self._open_dock_widget(panel, title="Resource Requests")
+        self._open_panel(panel, title="Resource Requests")
 
     def open_logistics_resource_status(self) -> None:
         from modules import logistics
         incident_id = AppState.get_active_incident()
         panel = logistics.get_resource_status_board_panel(incident_id)
-        self._open_dock_widget(panel, title="Resource Status Board")
+        self._open_panel(panel, title="Resource Status Board")
 
     def open_logistics_213rr(self) -> None:
         from modules import logistics
         incident_id = AppState.get_active_incident()
         panel = logistics.get_213rr_panel(incident_id)
-        self._open_dock_widget(panel, title="Resource Request (ICS-213RR)")
+        self._open_panel(panel, title="Resource Request (ICS-213RR)")
 
 # --- 4.7 Communications --------------------------------------------------
     def open_comms_unit_log(self) -> None:
@@ -2082,7 +2100,7 @@ class MainWindow(QMainWindow):
 
         incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=incident_id)
-        self._open_dock_widget(panel, title="Communications Dashboard")
+        self._open_panel(panel, title="Communications Dashboard")
 
     def open_comms_chat(self) -> None:
         from modules.communications.panels import MessageLogPanel
@@ -2090,7 +2108,7 @@ class MainWindow(QMainWindow):
         # TODO: incident-specific scoping for communications panels
         _incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=_incident_id)
-        self._open_dock_widget(panel, title="Messaging")
+        self._open_panel(panel, title="Messaging")
 
     def open_comms_213(self) -> None:
         from modules.communications.panels import MessageLogPanel
@@ -2098,7 +2116,12 @@ class MainWindow(QMainWindow):
         # TODO: incident-specific scoping for communications panels
         _incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=_incident_id)
-        self._open_dock_widget(panel, title="ICS 213 Messages")
+        self._open_panel(panel, title="ICS 213 Messages")
+
+    def open_notifications_panel(self) -> None:
+        from notifications.panels.notifications_panel import get_notifications_panel
+        panel = get_notifications_panel(parent=self)
+        self._open_dock_widget(panel, title="Notification Feed", preferred_size=(480, 600))
 
     def open_comms_205(self) -> None:
         # Open standalone ICS-205 window (Widgets only, non-dockable)
@@ -2116,14 +2139,14 @@ class MainWindow(QMainWindow):
 
         incident_id = AppState.get_active_incident()
         panel = create_log_board_window(self, incident_id=incident_id)
-        self._open_dock_widget(panel, title="Communications Log Board")
+        self._open_panel(panel, title="Communications Log Board")
 
     def open_comms_log_entry(self) -> None:
         from modules.communications.traffic_log import create_log_entry_window
 
         incident_id = AppState.get_active_incident()
         window = create_log_entry_window(self, incident_id=str(incident_id) if incident_id else None)
-        self._open_dock_widget(window, title="Log & Entry")
+        self._open_panel(window, title="Log & Entry")
 
     def open_comms_quick_entry(self) -> None:
         # Dockable quick entry panel
@@ -2200,31 +2223,31 @@ class MainWindow(QMainWindow):
         from modules import medical
         incident_id = AppState.get_active_incident()
         panel = medical.get_206_panel(incident_id)
-        self._open_dock_widget(panel, title="Medical Plan (ICS-206)")
+        self._open_panel(panel, title="Medical Plan (ICS-206)")
 
     def open_safety_208(self) -> None:
         from modules import safety
         incident_id = AppState.get_active_incident()
         panel = safety.get_208_panel(incident_id)
-        self._open_dock_widget(panel, title="Safety Message (ICS-208)")
+        self._open_panel(panel, title="Safety Message (ICS-208)")
 
     def open_safety_215A(self) -> None:
         from modules import safety
         incident_id = AppState.get_active_incident()
         panel = safety.get_215A_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
+        self._open_panel(panel, title="Incident Safety Analysis (ICS-215A)")
 
     def open_safety_caporm(self) -> None:
         from modules import safety
         incident_id = AppState.get_active_incident()
         panel = safety.get_caporm_panel(incident_id)
-        self._open_dock_widget(panel, title="CAP ORM")
+        self._open_panel(panel, title="CAP ORM")
 
     def open_safety_iwi(self) -> None:
         from modules import safety
         incident_id = AppState.get_active_incident()
         panel = safety.get_iwi_panel(incident_id)
-        self._open_dock_widget(panel, title="Safety Incident Reports")
+        self._open_panel(panel, title="Safety Incident Reports")
 
 # --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
@@ -2242,13 +2265,13 @@ class MainWindow(QMainWindow):
         from modules import liaison
         incident_id = AppState.get_active_incident()
         panel = liaison.get_agencies_panel(incident_id)
-        self._open_dock_widget(panel, title="Agency Directory")
+        self._open_panel(panel, title="Agency Directory")
 
     def open_liaison_requests(self) -> None:
         from modules import liaison
         incident_id = AppState.get_active_incident()
         panel = liaison.get_requests_panel(incident_id)
-        self._open_dock_widget(panel, title="External Coordination")
+        self._open_panel(panel, title="External Coordination")
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_dashboard(self) -> None:
@@ -2322,15 +2345,17 @@ class MainWindow(QMainWindow):
                 print(f"[warn] FinanceAdminDashboardWidget unavailable: {e}")
             return
 
-        widget: FinanceAdminDashboardWidget = make_finance_admin_dashboard(self)
+        widget: FinanceAdminDashboardWidget = make_finance_admin_dashboard()
+        widget.setWindowTitle("Finance/Admin — Dashboard")
+        widget.setWindowFlags(Qt.Window)
+        widget.resize(1000, 800)
         # Wire signals and a basic refresh function (time/role/overlay + placeholders)
         self._wire_finance_admin_dashboard(widget)
         try:
             widget.setAutoRefresh(15000)
         except Exception:
             pass
-        # Show as a docked, modeless panel
-        self._open_dock_widget(widget, title="Finance/Admin — Dashboard")
+        widget.show()
 
     def _wire_finance_admin_dashboard(self, w) -> None:
         """Attach handlers and simple refresh that updates context and placeholders."""
@@ -2469,120 +2494,177 @@ class MainWindow(QMainWindow):
         from modules import finance
         incident_id = AppState.get_active_incident()
         panel = finance.get_time_panel(incident_id)
-        self._open_dock_widget(panel, title="Time Tracking")
+        self._open_panel(panel, title="Time Tracking")
 
     def open_finance_procurement(self) -> None:
         from modules import finance
         incident_id = AppState.get_active_incident()
         panel = finance.get_procurement_panel(incident_id)
-        self._open_dock_widget(panel, title="Expenses && Procurement")
+        self._open_panel(panel, title="Expenses && Procurement")
 
     def open_finance_summary(self) -> None:
         from modules import finance
         incident_id = AppState.get_active_incident()
         panel = finance.get_summary_panel(incident_id)
-        self._open_dock_widget(panel, title="Cost Summary")
+        self._open_panel(panel, title="Cost Summary")
 
 # --- 4.13 Toolkits -------------------------------------------------------
     def open_toolkit_sar_missing_person(self) -> None:
         from modules.sartoolkit import sar
         incident_id = AppState.get_active_incident()
         panel = sar.get_missing_person_panel(incident_id)
-        self._open_dock_widget(panel, title="Missing Person Toolkit")
+        self._open_panel(panel, title="Missing Person Toolkit")
 
     def open_toolkit_sar_pod(self) -> None:
         from modules.sartoolkit import sar
         incident_id = AppState.get_active_incident()
         panel = sar.get_pod_panel(incident_id)
-        self._open_dock_widget(panel, title="POD Calculator")
+        self._open_panel(panel, title="POD Calculator")
 
     def open_toolkit_disaster_damage(self) -> None:
         from modules.disasterresponse import disaster
         incident_id = AppState.get_active_incident()
         panel = disaster.get_damage_panel(incident_id)
-        self._open_dock_widget(panel, title="Damage Assessment")
+        self._open_panel(panel, title="Damage Assessment")
 
     def open_toolkit_disaster_urban_interview(self) -> None:
         from modules.disasterresponse import disaster
         incident_id = AppState.get_active_incident()
         panel = disaster.get_urban_interview_panel(incident_id)
-        self._open_dock_widget(panel, title="Urban Interview Log")
+        self._open_panel(panel, title="Urban Interview Log")
 
     def open_toolkit_disaster_photos(self) -> None:
         from modules.disasterresponse import disaster
         incident_id = AppState.get_active_incident()
         panel = disaster.get_photos_panel(incident_id)
-        self._open_dock_widget(panel, title="Damage Photos")
+        self._open_panel(panel, title="Damage Photos")
 
 
     def open_toolkit_projection_dashboard(self) -> None:
         from modules import projection_dashboard
         incident_id = AppState.get_active_incident()
         panel = projection_dashboard.get_projection_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Projection Dashboard")
+        self._open_panel(panel, title="Projection Dashboard")
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
         incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_promotions_panel(incident_id)
-        self._open_dock_widget(panel, title="External Messaging")
+        self._open_panel(panel, title="External Messaging")
 
     def open_planned_vendors(self) -> None:
         from modules import plannedtoolkit
         incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_vendors_panel(incident_id)
-        self._open_dock_widget(panel, title="Vendors && Permits")
+        self._open_panel(panel, title="Vendors && Permits")
 
     def open_planned_safety(self) -> None:
         from modules import plannedtoolkit
         incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_safety_panel(incident_id)
-        self._open_dock_widget(panel, title="Public Safety")
+        self._open_panel(panel, title="Public Safety")
 
     def open_planned_tasking(self) -> None:
         from modules import plannedtoolkit
         incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_tasking_panel(incident_id)
-        self._open_dock_widget(panel, title="Tasking && Assignments")
+        self._open_panel(panel, title="Tasking && Assignments")
 
     def open_planned_health_sanitation(self) -> None:
         from modules import plannedtoolkit
         incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
-        self._open_dock_widget(panel, title="Health && Sanitation")
+        self._open_panel(panel, title="Health && Sanitation")
 
     def open_toolkit_initial_hasty(self) -> None:
         from modules.initialresponse import initial
         incident_id = AppState.get_active_incident()
         panel = initial.get_hasty_panel(incident_id)
-        self._open_standalone_widget(panel, title="Early Tasking", preferred_size=(1000, 800))
+        self._open_panel(panel, title="Early Tasking", preferred_size=(1000, 800))
 
     def open_toolkit_initial_overview(self) -> None:
         from modules.initialresponse import initial
         incident_id = AppState.get_active_incident()
         panel = initial.get_initialresponse_panel(incident_id)
-        self._open_standalone_widget(panel, title="Initial Information", preferred_size=(1000, 800))
+        self._open_panel(panel, title="Initial Information", preferred_size=(1000, 800))
 
 # --- 4.14 Reference Library (Forms) -----------------------------------
     def open_reference_library(self) -> None:
         from modules import referencelibrary
         incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_library_panel()
-        self._open_dock_widget(panel, title="Reference Library")
+        self._open_panel(panel, title="Reference Library")
 
     def open_help_user_guide(self) -> None:
         from modules import referencelibrary
         incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_user_guide_panel(incident_id)
-        self._open_dock_widget(panel, title="User Guide")
+        self._open_panel(panel, title="User Guide")
 
 # --- 4.15 Help -----------------------------------------------------------
     def open_help_about(self) -> None:
         from modules import referencelibrary
         incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_about_panel(incident_id)
-        self._open_dock_widget(panel, title="About SARApp")
+        self._open_panel(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
+    def _open_panel(self, widget: QWidget, title: str, preferred_size: tuple[int, int] | None = None) -> None:
+        """Open widget as a plain floating OS window — no ADS docking, no snap behaviour."""
+        widget.setWindowTitle(title)
+        widget.setWindowFlag(Qt.WindowType.Window, True)
+        try:
+            widget.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        except Exception:
+            pass
+        if preferred_size:
+            try:
+                widget.resize(preferred_size[0], preferred_size[1])
+            except Exception:
+                pass
+        else:
+            try:
+                widget.resize(900, 650)
+            except Exception:
+                pass
+
+        # Cascading placement: each window opens offset from the previous one
+        try:
+            geo = self.geometry()
+            screen = self.screen().availableGeometry() if self.screen() else geo
+            step = 32
+            if not hasattr(self, "_panel_cascade_index"):
+                self._panel_cascade_index = 0
+            offset = self._panel_cascade_index * step
+            # Reset cascade when the next window would clip off the bottom-right of the screen
+            max_x = screen.x() + screen.width() - widget.width() - step
+            max_y = screen.y() + screen.height() - widget.height() - step
+            base_x = geo.x() + (geo.width() - widget.width()) // 2
+            base_y = geo.y() + (geo.height() - widget.height()) // 2
+            if base_x + offset > max_x or base_y + offset > max_y:
+                self._panel_cascade_index = 0
+                offset = 0
+            widget.move(base_x + offset, base_y + offset)
+            self._panel_cascade_index += 1
+        except Exception:
+            pass
+
+        widget.show()
+        try:
+            widget.raise_()
+            widget.activateWindow()
+        except Exception:
+            pass
+
+        if not hasattr(self, "_panel_windows"):
+            self._panel_windows: list[QWidget] = []
+        self._panel_windows.append(widget)
+
+        def _cleanup() -> None:
+            if hasattr(self, "_panel_windows") and widget in self._panel_windows:
+                self._panel_windows.remove(widget)
+
+        widget.destroyed.connect(lambda _=None: _cleanup())
+
     def _open_standalone_widget(self, widget: QWidget, title: str, preferred_size: tuple[int, int] | None = None) -> None:
         widget.setWindowTitle(title)
         try:
@@ -2864,7 +2946,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Customization", f"Failed to open layout manager: {exc}")
             return
-        self._open_dock_widget(panel, title="Layout Templates", float_on_open=True)
+        self._open_panel(panel, title="Layout Templates")
 
     def open_customization_dashboard_designer(self) -> None:
         if get_dashboard_designer_panel is None:
@@ -2875,7 +2957,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Customization", f"Failed to open dashboard designer: {exc}")
             return
-        self._open_dock_widget(panel, title="Dashboard Designer", float_on_open=True)
+        self._open_panel(panel, title="Dashboard Designer")
 
     def open_customization_theme_editor(self) -> None:
         if get_theme_editor_panel is None:
@@ -2886,7 +2968,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Customization", f"Failed to open theme designer: {exc}")
             return
-        self._open_dock_widget(panel, title="Theme Designer", float_on_open=True)
+        self._open_panel(panel, title="Theme Designer")
 
     def export_customizations_bundle(self) -> None:
         if not self.customization_repo:
@@ -3170,7 +3252,13 @@ class MainWindow(QMainWindow):
             pass
 
     def _init_notifications(self) -> None:
-        self._toast_widget = None
+        from notifications.widgets.toast_manager import ToastManager
+        toast = ToastManager(parent=self)
+        toast.show()
+        self._toast_widget = toast
+
+        notifier = get_notifier()
+        notifier.showToast.connect(toast.enqueue)
 
     def _on_approval_item_activated(self, entity_type: str, entity_id: str) -> None:
         """Route an inbox click to the relevant module panel."""
@@ -3211,19 +3299,11 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
         tw = getattr(self, "_toast_widget", None)
-        if not tw or not hasattr(tw, "setGeometry"):
-            return
-        try:
-            tw.setGeometry(self.width() - tw.width(), 0, tw.width(), self.height())
-            root = getattr(tw, "rootObject", lambda: None)()
-            if root is not None:
-                try:
-                    root.setProperty("width", tw.width())
-                    root.setProperty("height", tw.height())
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        if tw is not None:
+            try:
+                tw.reflow()
+            except Exception:
+                pass
 
     def open_home_dashboard(self) -> None:
         from ui.dashboard.home_dashboard import HomeDashboard

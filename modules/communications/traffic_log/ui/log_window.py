@@ -130,7 +130,7 @@ class CommunicationsLogWindow(QMainWindow):
         content_splitter.setStretchFactor(1, 1)
 
         self.content_splitter = content_splitter
-        self._detail_last_size = 240
+        self._detail_last_size = 160
         self._detail_visible = True
         content_splitter.splitterMoved.connect(self._on_splitter_moved)
 
@@ -238,7 +238,7 @@ class CommunicationsLogWindow(QMainWindow):
                 total = self.height() or 600
             detail_size = self._detail_last_size
             if detail_size <= 0 or detail_size >= total:
-                detail_size = max(180, total // 4) if total > 0 else 180
+                detail_size = max(160, total // 5) if total > 0 else 160
             table_size = max(total - detail_size, 0)
             if table_size <= 0:
                 table_size = max(int(total * 0.7), 1)

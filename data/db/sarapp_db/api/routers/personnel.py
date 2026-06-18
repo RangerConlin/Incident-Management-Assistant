@@ -110,12 +110,17 @@ def create_person(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     return _normalize(doc)
 
 
+def _find_person(col, person_id: str):
+    return col.find_one({"person_id": person_id}) or col.find_one({"id": person_id})
+
+
 @router.get("/{person_id}")
 def get_person(person_id: str) -> dict[str, Any]:
+    col = _col()
     doc = (
-        _col().find_one({"person_id": person_id})
-        or _col().find_one({"id": person_id})
-        or _col().find_one({"int_id": int(person_id)}) if person_id.isdigit() else None
+        col.find_one({"person_id": person_id})
+        or col.find_one({"id": person_id})
+        or (col.find_one({"int_id": int(person_id)}) if person_id.isdigit() else None)
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Person not found")
@@ -134,10 +139,10 @@ def update_person(person_id: str, body: dict[str, Any] = Body(...)) -> dict[str,
         raise HTTPException(status_code=404, detail="Person not found")
     body.pop("_id", None)
     body.pop("int_id", None)
+    body.pop("id", None)
     body["updated_at"] = _utcnow()
     col.update_one({"_id": existing["_id"]}, {"$set": body})
-    updated = col.find_one({"_id": existing["_id"]})
-    return _normalize(updated)
+    return _normalize(col.find_one({"_id": existing["_id"]}))
 
 
 @router.delete("/{person_id}", status_code=204)

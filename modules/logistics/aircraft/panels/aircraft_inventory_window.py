@@ -7,13 +7,13 @@ import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QKeySequence, QShortcut, QTextDocument
+from PySide6.QtGui import QAction, QColor, QKeySequence, QShortcut, QTextDocument
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QListWidgetItem,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -34,7 +33,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QDoubleSpinBox,
-    QSplitter,
+    QMainWindow,
     QTableView,
     QTableWidget,
     QTableWidgetItem,
@@ -54,6 +53,14 @@ MED_CONFIG_OPTIONS = ["None", "Basic", "Advanced"]
 CAPABILITY_KEYS = ["Hoist", "Night Ops", "FLIR", "IFR"]
 RADIO_KEYS = ["VHF Air", "VHF SAR", "UHF"]
 PAGE_SIZE = 50
+
+STATUS_ROW_COLORS: Dict[str, str] = {
+    "Available": "#2E8B57",
+    "Assigned": "#1E88E5",
+    "Out of Service": "#C62828",
+    "Standby": "#F9A825",
+    "In Transit": "#6D4C41",
+}
 
 
 @dataclass
@@ -89,15 +96,13 @@ class AircraftFilterState:
 
 
 class AircraftTableModel(QAbstractTableModel):
-    """Table model presenting aircraft rows with checkbox selection."""
+    """Table model for aircraft rows with status colour coding."""
 
-    selectionChanged = Signal(int, bool)
-    headers = ["", "Tail #", "Callsign", "Type", "Make/Model", "Status", "Base", "Assigned To"]
+    HEADERS = ["Tail #", "Callsign", "Type", "Make/Model", "Status", "Base", "Assigned To"]
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._records: List[Dict[str, Any]] = []
-        self._selected_ids: set[int] = set()
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         if parent.isValid():
@@ -107,83 +112,53 @@ class AircraftTableModel(QAbstractTableModel):
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         if parent.isValid():
             return 0
-        return len(self.headers)
+        return len(self.HEADERS)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):  # type: ignore[override]
         if role != Qt.DisplayRole:
             return None
         if orientation == Qt.Horizontal:
-            return self.headers[section]
+            return self.HEADERS[section]
         return section + 1
 
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole):  # type: ignore[override]
         if not index.isValid():
             return None
         record = self._records[index.row()]
-        column = index.column()
+        col = index.column()
+
         if role == Qt.DisplayRole:
-            if column == 1:
+            if col == 0:
                 return record.get("tail_number", "")
-            if column == 2:
+            if col == 1:
                 return record.get("callsign", "")
-            if column == 3:
+            if col == 2:
                 return record.get("type", "")
-            if column == 4:
+            if col == 3:
                 return record.get("make_model", "")
-            if column == 5:
+            if col == 4:
                 return record.get("status", "")
-            if column == 6:
+            if col == 5:
                 return record.get("base", "")
-            if column == 7:
+            if col == 6:
                 return record.get("assigned_team_name") or "(none)"
-        if role == Qt.CheckStateRole and column == 0:
-            rid = record.get("id")
-            if rid is None:
-                return Qt.Unchecked
-            return Qt.Checked if rid in self._selected_ids else Qt.Unchecked
-        if role == Qt.TextAlignmentRole and column == 1:
-            return Qt.AlignLeft | Qt.AlignVCenter
+
+        if role == Qt.BackgroundRole:
+            color_hex = STATUS_ROW_COLORS.get(record.get("status", ""))
+            if color_hex:
+                return QColor(color_hex)
+
         return None
 
     def flags(self, index: QModelIndex):  # type: ignore[override]
         if not index.isValid():
             return Qt.NoItemFlags
-        flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled
-        if index.column() == 0:
-            flags |= Qt.ItemIsUserCheckable
-        return flags
-
-    def setData(self, index: QModelIndex, value: Any, role: int = Qt.EditRole):  # type: ignore[override]
-        if not index.isValid() or index.column() != 0 or role != Qt.CheckStateRole:
-            return False
-        record = self._records[index.row()]
-        rid = record.get("id")
-        if rid is None:
-            return False
-        checked = value == Qt.Checked
-        changed = False
-        if checked and rid not in self._selected_ids:
-            self._selected_ids.add(int(rid))
-            changed = True
-        elif not checked and rid in self._selected_ids:
-            self._selected_ids.remove(int(rid))
-            changed = True
-        if changed:
-            self.selectionChanged.emit(int(rid), checked)
-            self.dataChanged.emit(index, index, [Qt.CheckStateRole])
-        return changed
+        return Qt.ItemIsSelectable | Qt.ItemIsEnabled
 
     def set_records(self, records: Sequence[Dict[str, Any]]) -> None:
         self.beginResetModel()
         self._records = list(records)
         self.endResetModel()
-
-    def set_selected_ids(self, selected: Iterable[int]) -> None:
-        self._selected_ids = {int(v) for v in selected}
-        if self._records:
-            top_left = self.index(0, 0)
-            bottom_right = self.index(len(self._records) - 1, 0)
-            self.dataChanged.emit(top_left, bottom_right, [Qt.CheckStateRole])
 
     def record_at(self, row: int) -> Optional[Dict[str, Any]]:
         if 0 <= row < len(self._records):
@@ -223,8 +198,9 @@ class DebouncedUpdater(QObject):
         self._pending = {}
         self.patchReady.emit(payload)
 
+
 class AircraftDetailPane(QWidget):
-    """Right-hand detail pane with autosave form."""
+    """Detail form with autosave used inside the edit dialog."""
 
     patchReady = Signal(dict)
     requestAssign = Signal()
@@ -243,9 +219,6 @@ class AircraftDetailPane(QWidget):
         self._debouncer.patchReady.connect(self.patchReady)
         self._build_ui()
 
-    # ------------------------------------------------------------------
-    # UI construction helpers
-    # ------------------------------------------------------------------
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
@@ -429,7 +402,7 @@ class AircraftDetailPane(QWidget):
         notes_group = QGroupBox("Notes")
         notes_layout = QVBoxLayout(notes_group)
         self.notes_edit = QPlainTextEdit()
-        self.notes_edit.setPlaceholderText("Free-text notes. Supports @mention and #tag syntax.")
+        self.notes_edit.setPlaceholderText("Free-text notes.")
         self.notes_edit.textChanged.connect(self._on_notes_changed)
         notes_layout.addWidget(self.notes_edit)
         form_layout.addWidget(notes_group)
@@ -510,15 +483,12 @@ class AircraftDetailPane(QWidget):
         self.history_list = QListWidget()
         layout.addWidget(self.history_list)
         return widget
-    # ------------------------------------------------------------------
-    # Signal helpers
-    # ------------------------------------------------------------------
+
     def _bind_line_edit(self, edit: QLineEdit, key: str, transform=lambda v: v) -> None:
         def _commit() -> None:
             if self._updating:
                 return
             self._debouncer.add_update(key, transform(edit.text()))
-
         edit.editingFinished.connect(_commit)
 
     def _emit_combo(self, key: str, value: str) -> None:
@@ -534,11 +504,7 @@ class AircraftDetailPane(QWidget):
     def _emit_radio(self, key: str, checked: bool) -> None:
         if self._updating:
             return
-        mapping = {
-            "VHF Air": "radio_vhf_air",
-            "VHF SAR": "radio_vhf_sar",
-            "UHF": "radio_uhf",
-        }
+        mapping = {"VHF Air": "radio_vhf_air", "VHF SAR": "radio_vhf_sar", "UHF": "radio_uhf"}
         column = mapping.get(key)
         if column:
             self._debouncer.add_update(column, bool(checked))
@@ -546,12 +512,7 @@ class AircraftDetailPane(QWidget):
     def _emit_capability(self, key: str, checked: bool) -> None:
         if self._updating:
             return
-        mapping = {
-            "Hoist": "cap_hoist",
-            "Night Ops": "cap_nvg",
-            "FLIR": "cap_flir",
-            "IFR": "cap_ifr",
-        }
+        mapping = {"Hoist": "cap_hoist", "Night Ops": "cap_nvg", "FLIR": "cap_flir", "IFR": "cap_ifr"}
         column = mapping.get(key)
         if column:
             self._debouncer.add_update(column, bool(checked))
@@ -585,11 +546,8 @@ class AircraftDetailPane(QWidget):
         QMessageBox.information(self, "Maintenance", "Detailed maintenance tracking will be added in a later iteration.")
 
     def _show_attachment_placeholder(self) -> None:
-        QMessageBox.information(self, "Attachments", "Attachment upload is not yet implemented in this mockup.")
+        QMessageBox.information(self, "Attachments", "Attachment upload is not yet implemented.")
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
     def set_bases(self, bases: Sequence[str]) -> None:
         unique = sorted({b for b in bases if b})
         self._bases = unique
@@ -687,10 +645,7 @@ class AircraftDetailPane(QWidget):
             self.notes_edit.setPlainText(record.get("notes", ""))
             self.serial_edit.setText(record.get("serial_number", ""))
             year_value = record.get("year")
-            if year_value:
-                self.year_spin.setValue(int(year_value))
-            else:
-                self.year_spin.setValue(self.year_spin.minimum())
+            self.year_spin.setValue(int(year_value) if year_value else self.year_spin.minimum())
             self.owner_edit.setText(record.get("owner_operator", ""))
             self.reg_edit.setText(record.get("registration_exp", "") or "")
             self.inspection_edit.setText(record.get("inspection_due", "") or "")
@@ -704,14 +659,12 @@ class AircraftDetailPane(QWidget):
 
     def _refresh_maintenance(self, record: Dict[str, Any]) -> None:
         self.maintenance_list.clear()
-        history = record.get("history") or []
-        entries = [entry for entry in history if entry.get("action") == "maintenance"]
+        entries = [e for e in (record.get("history") or []) if e.get("action") == "maintenance"]
         if not entries:
             self.maintenance_list.addItem("No maintenance entries recorded.")
             return
         for item in entries:
-            summary = f"{item.get('ts', '')}: {item.get('details', '')}"
-            self.maintenance_list.addItem(summary)
+            self.maintenance_list.addItem(f"{item.get('ts', '')}: {item.get('details', '')}")
 
     def _refresh_attachments(self, record: Dict[str, Any]) -> None:
         self.attachments_list.clear()
@@ -720,8 +673,7 @@ class AircraftDetailPane(QWidget):
             self.attachments_list.addItem("No attachments uploaded.")
             return
         for item in attachments:
-            summary = f"{item.get('name', 'Attachment')} ({item.get('type', '')})"
-            self.attachments_list.addItem(summary)
+            self.attachments_list.addItem(f"{item.get('name', 'Attachment')} ({item.get('type', '')})")
 
     def _refresh_history(self, record: Dict[str, Any]) -> None:
         self.history_list.clear()
@@ -730,8 +682,8 @@ class AircraftDetailPane(QWidget):
             self.history_list.addItem("No history yet.")
             return
         for item in reversed(history):
-            summary = f"{item.get('ts', '')} • {item.get('action', '')}: {item.get('details', '')}"
-            self.history_list.addItem(summary)
+            self.history_list.addItem(f"{item.get('ts', '')} • {item.get('action', '')}: {item.get('details', '')}")
+
 
 class NewAircraftDialog(QDialog):
     """Modal dialog for adding new aircraft records."""
@@ -935,7 +887,7 @@ class NewAircraftDialog(QDialog):
         }
         try:
             record = self.repository.create_aircraft(payload)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             QMessageBox.critical(self, "Error", f"Failed to create aircraft: {exc}")
             return
         self.recordCreated.emit(record)
@@ -1027,6 +979,7 @@ class AssignTeamDialog(QDialog):
             self.team_name_edit.text().strip() or None,
             self.notify_check.isChecked(),
         )
+
 
 class ImportAircraftDialog(QDialog):
     recordsImported = Signal(list)
@@ -1121,18 +1074,12 @@ class ImportAircraftDialog(QDialog):
         self.import_btn.setEnabled(bool(self._rows))
 
     def _load_file(self, path: Path) -> None:
-        suffix = path.suffix.lower()
-        rows: List[Dict[str, Any]]
-        if suffix == ".json":
+        if path.suffix.lower() == ".json":
             data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                rows = [data]
-            else:
-                rows = [dict(item) for item in data]
+            rows = [data] if isinstance(data, dict) else [dict(item) for item in data]
         else:
             with path.open("r", encoding="utf-8-sig", newline="") as handle:
-                reader = csv.DictReader(handle)
-                rows = [dict(row) for row in reader]
+                rows = [dict(row) for row in csv.DictReader(handle)]
         if not rows:
             raise ValueError("No rows found in file")
         self._rows = rows
@@ -1141,10 +1088,8 @@ class ImportAircraftDialog(QDialog):
         self._populate_preview()
 
     def _build_mapping_controls(self) -> None:
-        # clear existing
         for i in reversed(range(self.mapping_grid.count())):
-            item = self.mapping_grid.itemAt(i)
-            widget = item.widget()
+            widget = self.mapping_grid.itemAt(i).widget()
             if widget is not None:
                 widget.deleteLater()
         self._mapping.clear()
@@ -1161,9 +1106,7 @@ class ImportAircraftDialog(QDialog):
     def _auto_guess(self, field: str) -> int:
         target = field.lower()
         for index, header in enumerate(["<skip>"] + self._headers):
-            if header.lower() == target:
-                return index
-            if header.lower().replace("_", " ") == target:
+            if header.lower() == target or header.lower().replace("_", " ") == target:
                 return index
         return 0
 
@@ -1175,19 +1118,15 @@ class ImportAircraftDialog(QDialog):
         limit = min(50, len(self._rows))
         self.preview_table.setRowCount(limit)
         for row_idx in range(limit):
-            row = self._rows[row_idx]
             for col_idx, header in enumerate(headers):
-                value = row.get(header, "")
-                item = QTableWidgetItem(str(value))
-                self.preview_table.setItem(row_idx, col_idx, item)
+                self.preview_table.setItem(row_idx, col_idx, QTableWidgetItem(str(self._rows[row_idx].get(header, ""))))
         self.preview_table.resizeColumnsToContents()
 
     def _import(self) -> None:
         if not self._rows:
             return
         imported: List[Dict[str, Any]] = []
-        created = 0
-        updated = 0
+        created = updated = 0
         for row in self._rows:
             payload: Dict[str, Any] = {}
             for field, combo in self._mapping.items():
@@ -1226,7 +1165,7 @@ class ImportAircraftDialog(QDialog):
                     continue
                 imported.append(record)
                 updated += 1
-            elif existing and not self.update_existing_check.isChecked():
+            elif existing:
                 continue
             else:
                 try:
@@ -1238,16 +1177,158 @@ class ImportAircraftDialog(QDialog):
         if not imported:
             QMessageBox.information(self, "Import", "No records imported.")
             return
-        QMessageBox.information(
-            self,
-            "Import",
-            f"Imported {created} new and {updated} updated aircraft.",
-        )
+        QMessageBox.information(self, "Import", f"Imported {created} new and {updated} updated aircraft.")
         self.recordsImported.emit(imported)
         self.accept()
 
-class AircraftInventoryWindow(QDialog):
-    """Main window combining filters, table and detail pane."""
+
+class AircraftEditDialog(QDialog):
+    """Modal detail/edit dialog for a single aircraft record."""
+
+    recordUpdated = Signal(dict)
+    recordDeleted = Signal(int)
+
+    def __init__(
+        self,
+        record: Dict[str, Any],
+        repository: AircraftRepository,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.repository = repository
+        self._record = record
+        self.setWindowTitle(f"Aircraft — {record.get('tail_number', '')}")
+        self.resize(860, 720)
+        self._build_ui()
+        self.detail_pane.set_record(record)
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        self.detail_pane = AircraftDetailPane()
+        self.detail_pane.patchReady.connect(self._handle_patch)
+        self.detail_pane.requestAssign.connect(self._open_assign_dialog)
+        self.detail_pane.requestStatus.connect(self._open_set_status_dialog)
+        self.detail_pane.requestClearAssignment.connect(self._clear_assignment)
+        self.detail_pane.requestPrint.connect(self._print_summary)
+        self.detail_pane.requestOpenLog.connect(self._open_history_tab)
+        self.detail_pane.requestDelete.connect(self._delete_record)
+        layout.addWidget(self.detail_pane, stretch=1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+    def _handle_patch(self, patch: Dict[str, Any]) -> None:
+        record_id = patch.pop("id", None)
+        if record_id is None:
+            return
+        try:
+            updated = self.repository.update_aircraft(int(record_id), patch)
+        except Exception as exc:
+            QMessageBox.critical(self, "Update", f"Failed to update aircraft: {exc}")
+            return
+        self._record = updated
+        self.detail_pane.set_record(updated)
+        self.recordUpdated.emit(updated)
+
+    def _open_set_status_dialog(self) -> None:
+        dialog = SetStatusDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            status, notes = dialog.values()
+            rid = self._record.get("id")
+            if rid is not None:
+                self.repository.set_status([int(rid)], status, notes)
+                updated = self.repository.fetch_aircraft(int(rid))
+                if updated:
+                    self._record = updated
+                    self.detail_pane.set_record(updated)
+                    self.recordUpdated.emit(updated)
+
+    def _open_assign_dialog(self) -> None:
+        dialog = AssignTeamDialog(self)
+        if dialog.exec() == QDialog.Accepted:
+            team_id, team_name, notify = dialog.values()
+            rid = self._record.get("id")
+            if rid is not None:
+                self.repository.assign_team([int(rid)], team_id, team_name, notify)
+                updated = self.repository.fetch_aircraft(int(rid))
+                if updated:
+                    self._record = updated
+                    self.detail_pane.set_record(updated)
+                    self.recordUpdated.emit(updated)
+
+    def _clear_assignment(self) -> None:
+        rid = self._record.get("id")
+        if rid is not None:
+            self.repository.clear_assignment([int(rid)])
+            updated = self.repository.fetch_aircraft(int(rid))
+            if updated:
+                self._record = updated
+                self.detail_pane.set_record(updated)
+                self.recordUpdated.emit(updated)
+
+    def _print_summary(self) -> None:
+        record = self._record
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Print Aircraft Summary",
+            str(Path.home() / f"{record.get('tail_number', 'aircraft')}.pdf"),
+            "PDF Files (*.pdf)",
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".pdf"):
+            path = f"{path}.pdf"
+        notes_html = (record.get("notes") or "").replace("\n", "<br/>")
+        html = (
+            f"<h2>Aircraft {record.get('tail_number', '')}</h2>"
+            f"<p><strong>Callsign:</strong> {record.get('callsign', '')}<br/>"
+            f"<strong>Status:</strong> {record.get('status', '')}<br/>"
+            f"<strong>Base:</strong> {record.get('base', '')}<br/>"
+            f"<strong>Assigned:</strong> {record.get('assigned_team_name') or '(none)'}<br/>"
+            f"<strong>Make/Model:</strong> {record.get('make_model', '')}<br/>"
+            f"<strong>Fuel:</strong> {record.get('fuel_type', '')}<br/>"
+            f"<strong>Range:</strong> {record.get('range_nm', 0)} nm<br/>"
+            f"<strong>Endurance:</strong> {record.get('endurance_hr', 0)} hr<br/>"
+            f"<strong>Crew:</strong> {record.get('crew_min', 0)} / {record.get('crew_max', 0)}</p>"
+            f"<p><strong>Notes:</strong><br/>{notes_html}</p>"
+            f"<h3>Recent History</h3><ul>"
+            + "".join(
+                f"<li>{item.get('ts', '')}: {item.get('action', '')} — {item.get('details', '')}</li>"
+                for item in (record.get("history") or [])[-5:]
+            )
+            + "</ul>"
+        )
+        doc = QTextDocument()
+        doc.setHtml(html)
+        printer = QPrinter(QPrinter.HighResolution)
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(path)
+        doc.print(printer)
+        QMessageBox.information(self, "Print", f"Saved summary to {path}.")
+
+    def _open_history_tab(self) -> None:
+        self.detail_pane.tab_widget.setCurrentIndex(4)
+
+    def _delete_record(self) -> None:
+        tail = self._record.get("tail_number", "")
+        if QMessageBox.question(self, "Delete", f"Delete aircraft {tail}?") != QMessageBox.Yes:
+            return
+        rid = self._record.get("id")
+        if rid is not None:
+            self.repository.delete_aircraft(int(rid))
+            self.recordDeleted.emit(int(rid))
+            self.accept()
+
+
+class AircraftInventoryWindow(QMainWindow):
+    """Aircraft inventory list — double-click a row to open the edit dialog."""
 
     def __init__(self, repository: Optional[AircraftRepository] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -1258,27 +1339,23 @@ class AircraftInventoryWindow(QDialog):
         self.filtered_records: List[Dict[str, Any]] = []
         self.current_page = 1
         self.total_pages = 1
-        self.selected_ids: set[int] = set()
         self.sort_options: List[Tuple[str, str, bool]] = [
             ("Tail # ↑", "tail_number", False),
             ("Tail # ↓", "tail_number", True),
-            ("Name ↑", "callsign", False),
-            ("Name ↓", "callsign", True),
+            ("Callsign ↑", "callsign", False),
+            ("Callsign ↓", "callsign", True),
             ("Type ↑", "type", False),
             ("Type ↓", "type", True),
             ("Status ↑", "status", False),
             ("Status ↓", "status", True),
             ("Base ↑", "base", False),
             ("Base ↓", "base", True),
-            ("Fuel ↑", "fuel_type", False),
-            ("Fuel ↓", "fuel_type", True),
             ("Endurance ↑", "endurance_hr", False),
             ("Endurance ↓", "endurance_hr", True),
             ("Updated ↑", "updated_at", False),
             ("Updated ↓", "updated_at", True),
         ]
         self.table_model = AircraftTableModel(self)
-        self.table_model.selectionChanged.connect(self._on_checkbox_selection)
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(250)
@@ -1286,35 +1363,31 @@ class AircraftInventoryWindow(QDialog):
         self._build_ui()
         self._setup_shortcuts()
         self._load_records()
-        self.adjustSize()
+        self.resize(1000, 650)
 
-    # ------------------------------------------------------------------
-    # UI construction
-    # ------------------------------------------------------------------
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
         layout.setSpacing(8)
         layout.setContentsMargins(12, 12, 12, 12)
 
         # Toolbar
         toolbar = QHBoxLayout()
-        title_lbl = QLabel("Aircraft Inventory Management")
+        title_lbl = QLabel("Aircraft Inventory")
         title_lbl.setStyleSheet("font-size: 18px; font-weight: 600;")
         toolbar.addWidget(title_lbl)
         toolbar.addStretch()
         self.add_btn = QPushButton("Add")
         self.add_btn.clicked.connect(self._open_add_dialog)
+        self.edit_btn = QPushButton("Edit…")
+        self.edit_btn.setEnabled(False)
+        self.edit_btn.clicked.connect(self._open_selected_edit_dialog)
         self.import_btn = QPushButton("Import")
         self.import_btn.clicked.connect(self._open_import_dialog)
         self.export_btn = QPushButton("Export")
         self.export_btn.clicked.connect(self._export_records)
-        self.bulk_btn = QToolButton()
-        self.bulk_btn.setText("Bulk Actions")
-        self.bulk_btn.setPopupMode(QToolButton.MenuButtonPopup)
-        self.bulk_menu = QMenu(self.bulk_btn)
-        self.bulk_btn.setMenu(self.bulk_menu)
-        self._populate_bulk_menu()
-        for btn in (self.add_btn, self.import_btn, self.export_btn, self.bulk_btn):
+        for btn in (self.add_btn, self.edit_btn, self.import_btn, self.export_btn):
             toolbar.addWidget(btn)
         layout.addLayout(toolbar)
 
@@ -1354,7 +1427,6 @@ class AircraftInventoryWindow(QDialog):
         for label, key, desc in self.sort_options:
             self.sort_combo.addItem(label, (key, desc))
         self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
-        self.sort_combo.setCurrentIndex(0)
         top_row.addWidget(self.sort_combo)
         filter_layout.addLayout(top_row)
 
@@ -1362,8 +1434,9 @@ class AircraftInventoryWindow(QDialog):
         second_row.setSpacing(6)
         self.filters_label = QLabel("Filters")
         second_row.addWidget(self.filters_label)
+
         self.capabilities_btn = QToolButton()
-        self.capabilities_btn.setText("Capabilities")
+        self.capabilities_btn.setText("Capabilities ▾")
         self.capabilities_btn.setPopupMode(QToolButton.InstantPopup)
         self.capabilities_menu = QMenu(self.capabilities_btn)
         self.capabilities_actions: Dict[str, QAction] = {}
@@ -1376,7 +1449,7 @@ class AircraftInventoryWindow(QDialog):
         second_row.addWidget(self.capabilities_btn)
 
         self.fuel_btn = QToolButton()
-        self.fuel_btn.setText("Fuel")
+        self.fuel_btn.setText("Fuel ▾")
         self.fuel_btn.setPopupMode(QToolButton.InstantPopup)
         self.fuel_menu = QMenu(self.fuel_btn)
         self.fuel_actions: Dict[str, QAction] = {}
@@ -1419,23 +1492,21 @@ class AircraftInventoryWindow(QDialog):
         filter_layout.addLayout(second_row)
         layout.addWidget(filter_frame)
 
-        # Main content splitter
-        splitter = QSplitter(Qt.Horizontal)
-        left_panel = QWidget()
-        left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(6)
-
+        # Table
         self.table_view = QTableView()
         self.table_view.setModel(self.table_model)
         self.table_view.setSelectionBehavior(QTableView.SelectRows)
-        self.table_view.setSelectionMode(QTableView.SingleSelection)
+        self.table_view.setSelectionMode(QTableView.ExtendedSelection)
         self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.setAlternatingRowColors(True)
+        self.table_view.setAlternatingRowColors(False)
+        self.table_view.setStyleSheet("QTableView { selection-background-color: transparent; }")
         self.table_view.doubleClicked.connect(self._on_row_activated)
-        self.table_view.selectionModel().selectionChanged.connect(lambda *_: self._update_detail_from_selection())
-        left_layout.addWidget(self.table_view)
+        self.table_view.selectionModel().selectionChanged.connect(lambda *_: self._on_selection_changed())
+        self._outline_delegate = RowOutlineSelectionDelegate(self.table_view, QColor("#FFFFFF"))
+        self.table_view.setItemDelegate(self._outline_delegate)
+        layout.addWidget(self.table_view, stretch=1)
 
+        # Pagination
         pagination_row = QHBoxLayout()
         self.pagination_label = QLabel("Rows: 0")
         pagination_row.addWidget(self.pagination_label)
@@ -1449,59 +1520,25 @@ class AircraftInventoryWindow(QDialog):
         self.next_page_btn.clicked.connect(lambda: self._change_page(self.current_page + 1))
         self.last_page_btn = QPushButton(">>")
         self.last_page_btn.clicked.connect(lambda: self._change_page(self.total_pages))
-        for btn in (
-            self.first_page_btn,
-            self.prev_page_btn,
-            self.page_info_label,
-            self.next_page_btn,
-            self.last_page_btn,
-        ):
-            pagination_row.addWidget(btn)
+        for widget in (self.first_page_btn, self.prev_page_btn, self.page_info_label, self.next_page_btn, self.last_page_btn):
+            pagination_row.addWidget(widget)
         pagination_row.addStretch()
-        self.select_all_btn = QPushButton("Select All")
-        self.select_all_btn.clicked.connect(self._select_all_filtered)
-        self.clear_selection_btn = QPushButton("Clear")
-        self.clear_selection_btn.clicked.connect(self._clear_selection)
-        pagination_row.addWidget(self.select_all_btn)
-        pagination_row.addWidget(self.clear_selection_btn)
-        left_layout.addLayout(pagination_row)
+        layout.addLayout(pagination_row)
 
-        splitter.addWidget(left_panel)
-        self.detail_pane = AircraftDetailPane()
-        self.detail_pane.patchReady.connect(self._handle_patch)
-        self.detail_pane.requestAssign.connect(self._open_assign_dialog)
-        self.detail_pane.requestStatus.connect(self._open_set_status_dialog)
-        self.detail_pane.requestClearAssignment.connect(self._clear_assignment)
-        self.detail_pane.requestPrint.connect(self._print_current_summary)
-        self.detail_pane.requestOpenLog.connect(self._open_history_tab)
-        self.detail_pane.requestDelete.connect(self._delete_current_record)
-        splitter.addWidget(self.detail_pane)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 3)
-        layout.addWidget(splitter, stretch=1)
-
-        # Status legend
+        # Status legend (now matches actual row colours)
         legend_frame = QFrame()
         legend_layout = QHBoxLayout(legend_frame)
         legend_layout.setContentsMargins(8, 4, 8, 4)
         legend_layout.setSpacing(12)
-        legend_layout.addWidget(QLabel("Status Legend:"))
-        for label, color in [
-            ("Available", "#2E8B57"),
-            ("Assigned", "#1E88E5"),
-            ("Out of Service", "#C62828"),
-            ("Standby", "#F9A825"),
-            ("In Transit", "#6D4C41"),
-        ]:
+        legend_layout.addWidget(QLabel("Status:"))
+        for label, color in STATUS_ROW_COLORS.items():
             swatch = QFrame()
             swatch.setFixedSize(14, 14)
-            swatch.setStyleSheet(f"background-color: {color}; border-radius: 3px;")
+            swatch.setStyleSheet(f"background-color: {color}; border: 1px solid #aaa; border-radius: 2px;")
             legend_layout.addWidget(swatch)
             legend_layout.addWidget(QLabel(label))
         legend_layout.addStretch()
         layout.addWidget(legend_frame)
-
-        self._update_bulk_state()
 
     def _setup_shortcuts(self) -> None:
         QShortcut(QKeySequence("Ctrl+N"), self, activated=self._open_add_dialog)
@@ -1509,13 +1546,8 @@ class AircraftInventoryWindow(QDialog):
         QShortcut(QKeySequence("Ctrl+E"), self, activated=self._export_records)
         QShortcut(QKeySequence("Ctrl+F"), self, activated=self.search_edit.setFocus)
 
-    # ------------------------------------------------------------------
-    # Data loading and filtering
-    # ------------------------------------------------------------------
     def _load_records(self) -> None:
         self.records = self.repository.list_aircraft()
-        existing_ids = {int(record.get("id")) for record in self.records if record.get("id") is not None}
-        self.selected_ids = {rid for rid in self.selected_ids if rid in existing_ids}
         self._update_base_options()
         self._apply_filters()
 
@@ -1524,17 +1556,15 @@ class AircraftInventoryWindow(QDialog):
         results: List[Dict[str, Any]] = []
         for record in self.records:
             if search:
-                haystack = " ".join(
-                    [
-                        record.get("tail_number", ""),
-                        record.get("callsign", ""),
-                        record.get("make", ""),
-                        record.get("model", ""),
-                        record.get("make_model", ""),
-                        record.get("adsb_hex", ""),
-                        record.get("base", ""),
-                    ]
-                ).lower()
+                haystack = " ".join([
+                    record.get("tail_number", ""),
+                    record.get("callsign", ""),
+                    record.get("make", ""),
+                    record.get("model", ""),
+                    record.get("make_model", ""),
+                    record.get("adsb_hex", ""),
+                    record.get("base", ""),
+                ]).lower()
                 if search not in haystack:
                     continue
             if self.filter_state.type_filter != "All" and record.get("type") != self.filter_state.type_filter:
@@ -1553,8 +1583,7 @@ class AircraftInventoryWindow(QDialog):
                     continue
                 if "IFR" in caps and not record.get("cap_ifr"):
                     continue
-            fuels = self.filter_state.fuels
-            if fuels and record.get("fuel_type") not in fuels:
+            if self.filter_state.fuels and record.get("fuel_type") not in self.filter_state.fuels:
                 continue
             if self.filter_state.night_ops and not record.get("cap_nvg"):
                 continue
@@ -1566,21 +1595,17 @@ class AircraftInventoryWindow(QDialog):
                 continue
             results.append(record)
         key = self.filter_state.sort_key
-        desc = self.filter_state.sort_desc
-        results.sort(key=lambda item: self._sort_value(item, key), reverse=desc)
+        results.sort(key=lambda item: self._sort_value(item, key), reverse=self.filter_state.sort_desc)
         self.filtered_records = results
         self.total_pages = max(1, math.ceil(len(results) / PAGE_SIZE))
         self.current_page = min(self.current_page, self.total_pages) or 1
         self._update_filter_badge()
         self._update_page_view()
-        self._update_bulk_state()
 
     def _update_page_view(self) -> None:
         start = (self.current_page - 1) * PAGE_SIZE
-        end = start + PAGE_SIZE
-        page_records = self.filtered_records[start:end]
+        page_records = self.filtered_records[start:start + PAGE_SIZE]
         self.table_model.set_records(page_records)
-        self.table_model.set_selected_ids(self.selected_ids)
         self.pagination_label.setText(
             f"Rows: {start + 1 if page_records else 0}–{start + len(page_records)} of {len(self.filtered_records)}"
         )
@@ -1590,21 +1615,19 @@ class AircraftInventoryWindow(QDialog):
         self.next_page_btn.setEnabled(self.current_page < self.total_pages)
         self.last_page_btn.setEnabled(self.current_page < self.total_pages)
         if page_records:
-            index = self.table_model.index(0, 0)
             self.table_view.selectRow(0)
-            self._update_detail_from_selection()
         else:
             self.table_view.clearSelection()
-            self.detail_pane.set_record(None)
+        self._on_selection_changed()
 
     def _update_filter_badge(self) -> None:
         count = self.filter_state.active_filter_count()
         self.filters_label.setText(f"Filters ({count})" if count else "Filters")
 
     def _update_base_options(self) -> None:
-        bases = sorted({record.get("base", "") for record in self.records if record.get("base")})
-        self.base_combo.blockSignals(True)
+        bases = sorted({r.get("base", "") for r in self.records if r.get("base")})
         current = self.base_combo.currentText()
+        self.base_combo.blockSignals(True)
         self.base_combo.clear()
         self.base_combo.addItem("All")
         for base in bases:
@@ -1612,11 +1635,7 @@ class AircraftInventoryWindow(QDialog):
         if current in ("All", *bases):
             self.base_combo.setCurrentText(current)
         self.base_combo.blockSignals(False)
-        self.detail_pane.set_bases(bases)
 
-    # ------------------------------------------------------------------
-    # Event handlers
-    # ------------------------------------------------------------------
     def _on_search_text(self, text: str) -> None:
         self.filter_state.search = text
         self.search_timer.start()
@@ -1635,12 +1654,9 @@ class AircraftInventoryWindow(QDialog):
 
     def _on_sort_changed(self) -> None:
         data = self.sort_combo.currentData()
-        if not data:
-            return
-        key, desc = data
-        self.filter_state.sort_key = key
-        self.filter_state.sort_desc = bool(desc)
-        self._apply_filters()
+        if data:
+            self.filter_state.sort_key, self.filter_state.sort_desc = data[0], bool(data[1])
+            self._apply_filters()
 
     def _on_capability_filter(self, key: str, state: bool) -> None:
         if state:
@@ -1677,58 +1693,25 @@ class AircraftInventoryWindow(QDialog):
         self.flir_btn.setChecked(False)
         self._apply_filters()
 
-    def _on_checkbox_selection(self, record_id: int, checked: bool) -> None:
-        if checked:
-            self.selected_ids.add(record_id)
-        else:
-            self.selected_ids.discard(record_id)
-        self._update_bulk_state()
+    def _on_selection_changed(self) -> None:
+        self.edit_btn.setEnabled(self._get_selected_record() is not None)
+
+    def _get_selected_record(self) -> Optional[Dict[str, Any]]:
+        indexes = self.table_view.selectionModel().selectedRows()
+        if indexes:
+            return self.table_model.record_at(indexes[0].row())
+        return None
 
     def _on_row_activated(self, index: QModelIndex) -> None:
-        if not index.isValid():
-            return
         record = self.table_model.record_at(index.row())
         if record:
-            self.detail_pane.set_record(record)
+            self._open_edit_dialog(record)
 
     def _change_page(self, page: int) -> None:
         page = max(1, min(page, self.total_pages))
-        if page == self.current_page:
-            return
-        self.current_page = page
-        self._update_page_view()
-
-    def _select_all_filtered(self) -> None:
-        self.selected_ids = {int(record.get("id")) for record in self.filtered_records if record.get("id") is not None}
-        self.table_model.set_selected_ids(self.selected_ids)
-        self._update_bulk_state()
-
-    def _clear_selection(self) -> None:
-        self.selected_ids.clear()
-        self.table_model.set_selected_ids(self.selected_ids)
-        self._update_bulk_state()
-
-    def _update_detail_from_selection(self) -> None:
-        indexes = self.table_view.selectionModel().selectedRows()
-        if indexes:
-            record = self.table_model.record_at(indexes[0].row())
-            self.detail_pane.set_record(record)
-        else:
-            self.detail_pane.set_record(None)
-
-    # ------------------------------------------------------------------
-    # Actions
-    # ------------------------------------------------------------------
-    def _populate_bulk_menu(self) -> None:
-        self.bulk_menu.clear()
-        status_action = self.bulk_menu.addAction("Set Status…")
-        status_action.triggered.connect(self._open_set_status_dialog)
-        assign_action = self.bulk_menu.addAction("Assign to Team…")
-        assign_action.triggered.connect(self._open_assign_dialog)
-        clear_action = self.bulk_menu.addAction("Clear Assignment")
-        clear_action.triggered.connect(self._clear_assignment)
-        delete_action = self.bulk_menu.addAction("Delete")
-        delete_action.triggered.connect(self._delete_selected)
+        if page != self.current_page:
+            self.current_page = page
+            self._update_page_view()
 
     def _open_add_dialog(self) -> None:
         dialog = NewAircraftDialog(self.repository, self)
@@ -1740,35 +1723,45 @@ class AircraftInventoryWindow(QDialog):
         dialog.recordsImported.connect(self._on_records_imported)
         dialog.exec()
 
+    def _open_selected_edit_dialog(self) -> None:
+        record = self._get_selected_record()
+        if record:
+            self._open_edit_dialog(record)
+
+    def _open_edit_dialog(self, record: Dict[str, Any]) -> None:
+        dialog = AircraftEditDialog(record, self.repository, self)
+        dialog.recordUpdated.connect(self._on_record_updated)
+        dialog.recordDeleted.connect(self._on_record_deleted)
+        dialog.exec()
+
     def _on_record_created(self, record: Dict[str, Any]) -> None:
         self.records.append(record)
-        self.selected_ids.add(int(record.get("id")))
         self._update_base_options()
         self._apply_filters()
-        self._update_bulk_state()
 
     def _on_records_imported(self, records: List[Dict[str, Any]]) -> None:
-        by_id = {record["id"]: record for record in self.records if record.get("id") is not None}
+        by_id = {r["id"]: r for r in self.records if r.get("id") is not None}
         for record in records:
-            rid = record.get("id")
-            if rid in by_id:
-                by_id[rid] = record
-            else:
-                by_id[rid] = record
+            if record.get("id") is not None:
+                by_id[record["id"]] = record
         self.records = list(by_id.values())
         self._update_base_options()
         self._apply_filters()
-        self.selected_ids = {rid for rid in self.selected_ids if rid in {int(r.get("id")) for r in self.records if r.get("id")}}
-        self._update_bulk_state()
+
+    def _on_record_updated(self, updated: Dict[str, Any]) -> None:
+        self.records = [updated if r.get("id") == updated.get("id") else r for r in self.records]
+        self._apply_filters()
+
+    def _on_record_deleted(self, record_id: int) -> None:
+        self.records = [r for r in self.records if r.get("id") != record_id]
+        self._apply_filters()
 
     def _export_records(self) -> None:
         if not self.filtered_records:
             QMessageBox.information(self, "Export", "No records to export.")
             return
         path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Export Aircraft",
-            str(Path.home() / "aircraft"),
+            self, "Export Aircraft", str(Path.home() / "aircraft"),
             "CSV Files (*.csv);;JSON Files (*.json);;PDF Files (*.pdf)",
         )
         if not path:
@@ -1784,42 +1777,33 @@ class AircraftInventoryWindow(QDialog):
             self._export_pdf(Path(path))
 
     def _export_csv(self, path: Path) -> None:
-        rows = self.filtered_records
-        headers = ["tail_number", "callsign", "type", "make", "model", "status", "base", "assigned_team_name"]
+        keys = ["tail_number", "callsign", "type", "make", "model", "status", "base", "assigned_team_name"]
         with path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(["Tail #", "Callsign", "Type", "Make", "Model", "Status", "Base", "Assigned To"])
-            for record in rows:
-                writer.writerow([record.get(key, "") for key in headers])
-        QMessageBox.information(self, "Export", f"Exported {len(rows)} rows to {path}.")
+            for record in self.filtered_records:
+                writer.writerow([record.get(k, "") for k in keys])
+        QMessageBox.information(self, "Export", f"Exported {len(self.filtered_records)} rows to {path}.")
 
     def _export_json(self, path: Path) -> None:
         path.write_text(json.dumps(self.filtered_records, indent=2), encoding="utf-8")
         QMessageBox.information(self, "Export", f"Exported {len(self.filtered_records)} rows to {path}.")
 
     def _export_pdf(self, path: Path) -> None:
-        html_rows = []
-        for record in self.filtered_records:
-            html_rows.append(
-                "<tr>" + "".join(
-                    f"<td>{value}</td>"
-                    for value in [
-                        record.get("tail_number", ""),
-                        record.get("callsign", ""),
-                        record.get("type", ""),
-                        record.get("make_model", ""),
-                        record.get("status", ""),
-                        record.get("base", ""),
-                        record.get("assigned_team_name", "") or "(none)",
-                    ]
-                ) + "</tr>"
-            )
+        html_rows = "".join(
+            "<tr>" + "".join(f"<td>{v}</td>" for v in [
+                r.get("tail_number", ""), r.get("callsign", ""), r.get("type", ""),
+                r.get("make_model", ""), r.get("status", ""), r.get("base", ""),
+                r.get("assigned_team_name", "") or "(none)",
+            ]) + "</tr>"
+            for r in self.filtered_records
+        )
         html = (
             "<h2>Aircraft Inventory Export</h2>"
             "<table border='1' cellspacing='0' cellpadding='4'>"
-            "<tr><th>Tail #</th><th>Callsign</th><th>Type</th><th>Make/Model</th><th>Status</th><th>Base</th><th>Assigned To</th></tr>"
-            + "".join(html_rows)
-            + "</table>"
+            "<tr><th>Tail #</th><th>Callsign</th><th>Type</th><th>Make/Model</th>"
+            "<th>Status</th><th>Base</th><th>Assigned To</th></tr>"
+            + html_rows + "</table>"
         )
         doc = QTextDocument()
         doc.setHtml(html)
@@ -1829,147 +1813,6 @@ class AircraftInventoryWindow(QDialog):
         doc.print(printer)
         QMessageBox.information(self, "Export", f"Exported PDF to {path}.")
 
-    def _open_set_status_dialog(self) -> None:
-        if not self.selected_ids:
-            QMessageBox.information(self, "Status", "Select at least one aircraft.")
-            return
-        dialog = SetStatusDialog(self)
-        if dialog.exec() == QDialog.Accepted:
-            status, notes = dialog.values()
-            self.repository.set_status(self.selected_ids, status, notes)
-            self._load_records()
-
-    def _open_assign_dialog(self) -> None:
-        if not self.selected_ids:
-            QMessageBox.information(self, "Assign", "Select at least one aircraft.")
-            return
-        dialog = AssignTeamDialog(self)
-        if dialog.exec() == QDialog.Accepted:
-            team_id, team_name, notify = dialog.values()
-            self.repository.assign_team(self.selected_ids, team_id, team_name, notify)
-            self._load_records()
-
-    def _clear_assignment(self) -> None:
-        if not self.selected_ids:
-            return
-        self.repository.clear_assignment(self.selected_ids)
-        self._load_records()
-
-    def _delete_selected(self) -> None:
-        if not self.selected_ids:
-            return
-        count = len(self.selected_ids)
-        msg = QMessageBox.question(
-            self,
-            "Delete",
-            f"Delete {count} aircraft? This action cannot be undone.",
-        )
-        if msg != QMessageBox.Yes:
-            return
-        for record_id in list(self.selected_ids):
-            self.repository.delete_aircraft(record_id)
-        self.selected_ids.clear()
-        self._load_records()
-
-    def _print_current_summary(self) -> None:
-        record = self.detail_pane._record
-        if not record:
-            return
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Print Aircraft Summary",
-            str(Path.home() / f"{record.get('tail_number', 'aircraft')}.pdf"),
-            "PDF Files (*.pdf)",
-        )
-        if not path:
-            return
-        if not path.lower().endswith(".pdf"):
-            path = f"{path}.pdf"
-        html = self._build_summary_html(record)
-        doc = QTextDocument()
-        doc.setHtml(html)
-        printer = QPrinter(QPrinter.HighResolution)
-        printer.setOutputFormat(QPrinter.PdfFormat)
-        printer.setOutputFileName(path)
-        doc.print(printer)
-        QMessageBox.information(self, "Print", f"Saved summary to {path}.")
-
-    def _build_summary_html(self, record: Dict[str, Any]) -> str:
-
-        notes_html = (record.get("notes") or "").replace("\n", "<br/>")
-        recent_history = "".join(
-            f"<li>{item.get('ts', '')}: {item.get('action', '')} — {item.get('details', '')}</li>"
-            for item in (record.get("history") or [])[-5:]
-        )
-
-        return f"""
-        <h2>Aircraft {record.get('tail_number', '')}</h2>
-        <p><strong>Callsign:</strong> {record.get('callsign', '')}<br/>
-        <strong>Status:</strong> {record.get('status', '')}<br/>
-        <strong>Base:</strong> {record.get('base', '')}<br/>
-        <strong>Assigned:</strong> {record.get('assigned_team_name') or '(none)'}<br/>
-        <strong>Make/Model:</strong> {record.get('make_model', '')}<br/>
-        <strong>Fuel:</strong> {record.get('fuel_type', '')}<br/>
-        <strong>Range:</strong> {record.get('range_nm', 0)} nm<br/>
-        <strong>Endurance:</strong> {record.get('endurance_hr', 0)} hr<br/>
-        <strong>Crew:</strong> {record.get('crew_min', 0)} / {record.get('crew_max', 0)}</p>
-        <p><strong>Notes:</strong><br/>{notes_html}</p>
-        <h3>Recent History</h3>
-        <ul>
-        {''.join(f"<li>{item.get('ts', '')}: {item.get('action', '')} — {item.get('details', '')}</li>" for item in (record.get('history') or [])[-5:])}
-        </ul>
-        """
-
-    def _open_history_tab(self) -> None:
-        self.detail_pane.tab_widget.setCurrentIndex(4)
-
-    def _delete_current_record(self) -> None:
-        record = self.detail_pane._record
-        if not record:
-            return
-        tail = record.get("tail_number", "")
-        confirm = QMessageBox.question(
-            self,
-            "Delete",
-            f"Delete aircraft {tail}?",
-        )
-        if confirm != QMessageBox.Yes:
-            return
-        rid = record.get("id")
-        if rid is not None:
-            self.repository.delete_aircraft(int(rid))
-            self.selected_ids.discard(int(rid))
-            self._load_records()
-
-    # ------------------------------------------------------------------
-    # Detail pane integration
-    # ------------------------------------------------------------------
-    def _handle_patch(self, patch: Dict[str, Any]) -> None:
-        record_id = patch.pop("id", None)
-        if record_id is None:
-            return
-        if patch.get("status", "").lower() == "out of service":
-            patch.setdefault("assigned_team_id", None)
-            patch.setdefault("assigned_team_name", None)
-        try:
-            updated = self.repository.update_aircraft(int(record_id), patch)
-        except Exception as exc:  # pragma: no cover - defensive
-            QMessageBox.critical(self, "Update", f"Failed to update aircraft: {exc}")
-            return
-        self.records = [updated if item.get("id") == updated.get("id") else item for item in self.records]
-        self._apply_filters()
-        self.detail_pane.set_record(updated)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-    def _update_bulk_state(self) -> None:
-        enabled = bool(self.selected_ids)
-        self.bulk_btn.setEnabled(enabled)
-        self.clear_selection_btn.setEnabled(enabled)
-
     def _sort_value(self, record: Dict[str, Any], key: str) -> Any:
         value = record.get(key)
-        if value is None:
-            return ""
-        return value
+        return "" if value is None else value

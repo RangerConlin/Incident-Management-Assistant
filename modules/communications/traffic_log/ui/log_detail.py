@@ -8,12 +8,10 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QFormLayout,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -30,8 +28,14 @@ from ..models import (
 )
 
 
+def _lbl(text: str) -> QLabel:
+    l = QLabel(text)
+    l.setStyleSheet("font-size: 10px; color: #90a4ae; font-weight: 600;")
+    return l
+
+
 class LogDetailDrawer(QWidget):
-    """Slide-in widget presenting the full entry view."""
+    """Compact detail panel for reviewing and editing a selected log entry."""
 
     saveRequested = Signal(int, dict)
     createTaskRequested = Signal(int)
@@ -42,87 +46,102 @@ class LogDetailDrawer(QWidget):
         self._build_ui()
 
     def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(6)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(10, 6, 10, 6)
+        root.setSpacing(4)
 
+        # ── Header ────────────────────────────────────────────────────────
+        hdr = QHBoxLayout()
         self.header_label = QLabel("Select a log entry to view details")
-        self.header_label.setWordWrap(True)
-        layout.addWidget(self.header_label)
+        self.header_label.setStyleSheet("font-size: 11px; font-weight: 700;")
+        hdr.addWidget(self.header_label, 1)
+        self.save_button = QPushButton("Save")
+        self.save_button.setFixedHeight(24)
+        self.save_button.setFixedWidth(54)
+        self.save_button.clicked.connect(self._on_save)
+        hdr.addWidget(self.save_button)
+        self.task_button = QPushButton("+ Task")
+        self.task_button.setFixedHeight(24)
+        self.task_button.setFixedWidth(54)
+        self.task_button.clicked.connect(self._on_create_task)
+        hdr.addWidget(self.task_button)
+        root.addLayout(hdr)
 
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignLeft)
-        form.setFormAlignment(Qt.AlignTop)
+        # ── Two-column grid: meta fields ──────────────────────────────────
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(2)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
 
+        grid.addWidget(_lbl("Timestamp"), 0, 0)
         self.ts_label = QLabel("—")
-        form.addRow("Timestamp", self.ts_label)
+        self.ts_label.setStyleSheet("font-size: 11px;")
+        grid.addWidget(self.ts_label, 0, 1, 1, 3)
 
+        grid.addWidget(_lbl("Priority"), 1, 0)
         self.priority_combo = QComboBox()
         self.priority_combo.addItems([PRIORITY_ROUTINE, PRIORITY_PRIORITY, PRIORITY_EMERGENCY])
-        form.addRow("Priority", self.priority_combo)
+        self.priority_combo.setFixedHeight(22)
+        grid.addWidget(self.priority_combo, 1, 1)
 
-        self.channel_field = QLineEdit()
-        self.channel_field.setReadOnly(True)
-        form.addRow("Channel", self.channel_field)
-
-        self.from_field = QLineEdit()
-        self.to_field = QLineEdit()
-        form.addRow("From", self.from_field)
-        form.addRow("To", self.to_field)
-
-        self.message_edit = QTextEdit()
-        self.message_edit.setPlaceholderText("Message content")
-        form.addRow("Message", self.message_edit)
-
-        self.action_edit = QTextEdit()
-        self.action_edit.setPlaceholderText("Action taken")
-        form.addRow("Action", self.action_edit)
-
+        grid.addWidget(_lbl("Disposition"), 1, 2)
         self.disposition_combo = QComboBox()
         self.disposition_combo.addItems([DISPOSITION_OPEN, DISPOSITION_CLOSED])
-        form.addRow("Disposition", self.disposition_combo)
+        self.disposition_combo.setFixedHeight(22)
+        grid.addWidget(self.disposition_combo, 1, 3)
 
+        grid.addWidget(_lbl("Channel"), 2, 0)
+        self.channel_field = QLineEdit()
+        self.channel_field.setReadOnly(True)
+        self.channel_field.setFixedHeight(22)
+        grid.addWidget(self.channel_field, 2, 1)
+
+        grid.addWidget(_lbl("Attachments"), 2, 2)
+        self.attachment_label = QLabel("—")
+        self.attachment_label.setStyleSheet("font-size: 11px;")
+        grid.addWidget(self.attachment_label, 2, 3)
+
+        grid.addWidget(_lbl("From"), 3, 0)
+        self.from_field = QLineEdit()
+        self.from_field.setFixedHeight(22)
+        grid.addWidget(self.from_field, 3, 1)
+
+        grid.addWidget(_lbl("To"), 3, 2)
+        self.to_field = QLineEdit()
+        self.to_field.setFixedHeight(22)
+        grid.addWidget(self.to_field, 3, 3)
+
+        root.addLayout(grid)
+
+        # ── Message ───────────────────────────────────────────────────────
+        root.addWidget(_lbl("Message"))
+        self.message_edit = QTextEdit()
+        self.message_edit.setPlaceholderText("Message content")
+        self.message_edit.setFixedHeight(56)
+        root.addWidget(self.message_edit)
+
+        # ── Flags row ─────────────────────────────────────────────────────
+        flags = QHBoxLayout()
         self.follow_checkbox = QCheckBox("Follow-up Required")
-        form.addRow("Follow-up", self.follow_checkbox)
-
+        self.follow_checkbox.setStyleSheet("font-size: 11px;")
+        flags.addWidget(self.follow_checkbox)
         self.status_checkbox = QCheckBox("Status Update")
-        form.addRow("Status", self.status_checkbox)
+        self.status_checkbox.setStyleSheet("font-size: 11px;")
+        flags.addWidget(self.status_checkbox)
+        flags.addStretch()
+        root.addLayout(flags)
 
-        self.notification_field = QLineEdit()
-        form.addRow("Notification", self.notification_field)
-
-        self.related_label = QLabel("—")
-        self.related_label.setWordWrap(True)
-        form.addRow("Related", self.related_label)
-
-        layout.addLayout(form)
-
-        layout.addWidget(QLabel("Attachments"))
-        self.attachment_list = QListWidget()
-        layout.addWidget(self.attachment_list)
-
+        # ── Diff hint ─────────────────────────────────────────────────────
         self.diff_label = QLabel("")
         self.diff_label.setWordWrap(True)
-        self.diff_label.setStyleSheet("color: #5A5F6A; font-size: 11px;")
-        layout.addWidget(self.diff_label)
+        self.diff_label.setStyleSheet("color: #78909c; font-size: 10px;")
+        root.addWidget(self.diff_label)
 
-        button_row = QHBoxLayout()
-        self.save_button = QPushButton("Save Changes")
-        self.save_button.clicked.connect(self._on_save)
-        button_row.addWidget(self.save_button)
-
-        self.task_button = QPushButton("Create Task")
-        self.task_button.clicked.connect(self._on_create_task)
-        button_row.addWidget(self.task_button)
-        button_row.addStretch(1)
-        layout.addLayout(button_row)
-
-        # Track edits to update diff preview
+        # Wire change signals
         self.from_field.textChanged.connect(self._update_diff)
         self.to_field.textChanged.connect(self._update_diff)
         self.message_edit.textChanged.connect(self._update_diff)
-        self.action_edit.textChanged.connect(self._update_diff)
-        self.notification_field.textChanged.connect(self._update_diff)
         self.follow_checkbox.toggled.connect(self._update_diff)
         self.status_checkbox.toggled.connect(self._update_diff)
         self.priority_combo.currentIndexChanged.connect(self._update_diff)
@@ -138,43 +157,27 @@ class LogDetailDrawer(QWidget):
             self.from_field.setText("")
             self.to_field.setText("")
             self.message_edit.clear()
-            self.action_edit.clear()
             self.disposition_combo.setCurrentIndex(0)
             self.follow_checkbox.setChecked(False)
             self.status_checkbox.setChecked(False)
-            self.notification_field.clear()
-            self.attachment_list.clear()
-            self.related_label.setText("—")
+            self.attachment_label.setText("—")
             self.diff_label.clear()
             self.setEnabled(False)
             return
 
         self.setEnabled(True)
-        self.header_label.setText(f"Entry #{entry.id} — {entry.ts_local}")
-        self.ts_label.setText(f"Local: {entry.ts_local}\nUTC: {entry.ts_utc}")
+        self.header_label.setText(f"Entry #{entry.id}")
+        self.ts_label.setText(f"{entry.ts_local}  /  {entry.ts_utc} UTC")
         self.priority_combo.setCurrentText(entry.priority)
         self.channel_field.setText(entry.resource_label)
         self.from_field.setText(entry.from_unit)
         self.to_field.setText(entry.to_unit)
         self.message_edit.setPlainText(entry.message)
-        self.action_edit.setPlainText(entry.action_taken)
         self.disposition_combo.setCurrentText(entry.disposition)
         self.follow_checkbox.setChecked(entry.follow_up_required)
         self.status_checkbox.setChecked(entry.is_status_update)
-        self.notification_field.setText(entry.notification_level or "")
-        related_bits = []
-        if entry.task_id:
-            related_bits.append(f"Task {entry.task_id}")
-        if entry.team_id:
-            related_bits.append(f"Team {entry.team_id}")
-        if entry.vehicle_id:
-            related_bits.append(f"Vehicle {entry.vehicle_id}")
-        if entry.personnel_id:
-            related_bits.append(f"Personnel {entry.personnel_id}")
-        self.related_label.setText(", ".join(related_bits) if related_bits else "—")
-        self.attachment_list.clear()
-        for item in entry.attachments:
-            self.attachment_list.addItem(QListWidgetItem(item))
+        count = len(entry.attachments)
+        self.attachment_label.setText(str(count) if count else "—")
         self._update_diff()
 
     def _collect_patch(self) -> dict:
@@ -190,23 +193,15 @@ class LogDetailDrawer(QWidget):
             patch["to_unit"] = self.to_field.text()
         if entry.message != self.message_edit.toPlainText():
             patch["message"] = self.message_edit.toPlainText()
-        if entry.action_taken != self.action_edit.toPlainText():
-            patch["action_taken"] = self.action_edit.toPlainText()
         if entry.disposition != self.disposition_combo.currentText():
             patch["disposition"] = self.disposition_combo.currentText()
         if entry.follow_up_required != self.follow_checkbox.isChecked():
             patch["follow_up_required"] = self.follow_checkbox.isChecked()
         if entry.is_status_update != self.status_checkbox.isChecked():
             patch["is_status_update"] = self.status_checkbox.isChecked()
-        if (entry.notification_level or "") != self.notification_field.text():
-            patch["notification_level"] = self.notification_field.text()
-        attachments = [self.attachment_list.item(i).text() for i in range(self.attachment_list.count())]
-        if attachments != entry.attachments:
-            patch["attachments"] = attachments
         return patch
 
     def pending_patch(self) -> dict:
-        """Return the current unsaved modifications."""
         return self._collect_patch()
 
     def _update_diff(self) -> None:
@@ -214,8 +209,8 @@ class LogDetailDrawer(QWidget):
         if not patch:
             self.diff_label.setText("")
             return
-        parts = [f"{key} → {value}" for key, value in patch.items()]
-        self.diff_label.setText("Pending changes: " + "; ".join(parts))
+        keys = ", ".join(patch.keys())
+        self.diff_label.setText(f"Unsaved changes: {keys}")
 
     def _on_save(self) -> None:
         if not self._entry:

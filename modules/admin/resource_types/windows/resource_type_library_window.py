@@ -20,11 +20,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from PySide6.QtGui import QColor
+
 from ..data.resource_type_io import export_resource_types_csv, import_resource_types_csv
 from ..data.resource_type_repository import ApiResourceTypeRepository
 from ..models.resource_type_models import RESOURCE_CATEGORIES, RESOURCE_SOURCES
 from .capability_manager_window import CapabilityManagerWindow
 from .resource_type_editor_window import ResourceTypeEditorWindow
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 
 
 class ResourceTypeTableModel(QAbstractTableModel):
@@ -136,6 +139,10 @@ class ResourceTypeLibraryWindow(QWidget):
         header.setSectionResizeMode(QHeaderView.Interactive)
         header.setStretchLastSection(True)
         header.setMinimumSectionSize(60)
+        self.table.setAlternatingRowColors(False)
+        self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
+        self._sel_delegate = RowOutlineSelectionDelegate(self.table, QColor("#FFFFFF"))
+        self.table.setItemDelegate(self._sel_delegate)
         self.table.doubleClicked.connect(self._edit_selected)
 
         new_button = QPushButton("New")

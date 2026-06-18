@@ -137,6 +137,9 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import equipment
     app.include_router(equipment.router, prefix="/api/master/equipment", tags=["logistics"])
 
+    from sarapp_db.api.routers import hospitals
+    app.include_router(hospitals.router, prefix="/api/master/hospitals", tags=["medical"])
+
     from sarapp_db.api.routers import checkin
     app.include_router(checkin.router, prefix="/api/incidents/{incident_id}/checkin", tags=["logistics"])
 

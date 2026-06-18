@@ -78,7 +78,7 @@ def ensure_schema(conn_factory: Any = None, db: Any = None) -> None:
     The ``conn_factory`` argument is retained for compatibility with older
     callers that passed a connection factory.
     """
-    col = (db or get_master_db())["ems_agencies"]
+    col = (db if db is not None else get_master_db())["ems_agencies"]
     col.create_index([("id", 1)], unique=True)
     col.create_index([("name", 1)])
     col.create_index([("type", 1)])
@@ -90,7 +90,7 @@ class EMSAgencyRepository:
     """Persistence layer handling CRUD and reporting for EMS agencies."""
 
     def __init__(self, conn_factory: Any = None, db: Any = None) -> None:
-        self._db = db or get_master_db()
+        self._db = db if db is not None else get_master_db()
         self._col = self._db["ems_agencies"]
         ensure_schema(conn_factory, db=self._db)
 

@@ -45,6 +45,13 @@ The current implementation already points toward a shared record shape with fiel
 
 That is a strong foundation for this toolkit family.
 
+The toolkit should use a consistent separation of concerns:
+- Condition records capture state, compliance, risk, readiness, or what happened.
+- Quick Assignments capture work that needs a person or team assigned to complete it.
+- Reminders and notifications prompt awareness, acknowledgement, or review.
+
+This pattern should apply across vendors, permits, health/sanitation, public safety, messaging, and schedule-driven event work.
+
 ## Candidate Tool Set
 - External Messaging
 - Vendors
@@ -239,6 +246,21 @@ Schedule items may represent:
 - performance
 - demobilization item
 
+Schedule item fields:
+- id / schedule_item_id
+- incident_id
+- title
+- kind
+- starts_at
+- ends_at
+- location / zone
+- owner
+- description / notes
+- tags
+- status
+- created_at
+- updated_at
+
 Schedule triggers may create either reminders/notifications or Quick Assignments.
 
 Reminder / notification triggers:
@@ -352,6 +374,272 @@ Behavior:
 - notifications should not be promoted to full Operations Tasking; create a Quick Assignment first if work tracking becomes necessary
 
 Decision rule: reminders and notifications prompt awareness. Quick Assignments track work.
+
+## Vendor Day-Of Flow
+Vendor records track readiness, presence, and compliance. Quick Assignments track the work needed to fix vendor problems.
+
+Vendor day-of states:
+- Expected
+- Checked In
+- Setting Up
+- Ready / Open
+- Blocked
+- Closed
+- No Show
+
+Common blocker reasons:
+- missing permit
+- missing insurance or license
+- failed inspection
+- wrong location
+- late arrival
+- unsafe setup
+- unpaid fee if finance integration exists
+- other / manual reason
+
+Day-of actions:
+- check in vendor
+- mark ready or open
+- mark blocked with reason
+- mark closed or no-show
+- create Quick Assignment for follow-up
+- create reminder or notification
+- open vendor detail
+- link permit or inspection issue
+
+Rule: vendor records track readiness and compliance. Quick Assignments track the work needed to resolve vendor issues.
+
+Example:
+- Vendor status: Blocked
+- Block reason: Missing health inspection
+- Quick Assignment: Send health inspector to Taco Booth
+
+## Permits And Compliance Flow
+Permit and compliance records track requirement state. They may link to vendors, locations, facilities, or event-wide requirements.
+
+Permit / compliance fields:
+- id / permit_id
+- incident_id
+- name / type
+- linked_vendor_id
+- linked_record_type
+- linked_record_id
+- location / zone
+- issuing_authority
+- status
+- required_by
+- expires_at
+- received_at
+- verified_by
+- document_reference
+- blocker
+- notes
+- created_at
+- updated_at
+
+Useful statuses:
+- Not Required
+- Required
+- Requested
+- Received
+- Verified
+- Expired
+- Missing
+- Rejected
+
+Day-of behavior:
+- permit state may determine whether a vendor, facility, or event function is blocked
+- missing, rejected, or expired permits can create reminders or Quick Assignments
+- permit document management belongs in the permit/vendor detail workflow, not the dashboard
+
+Rule: permit records track compliance state. Vendor records track operational readiness. Quick Assignments track work needed to resolve compliance problems.
+
+## Health And Sanitation Flow
+Health and sanitation records capture conditions, inspections, findings, and corrective-action needs. Quick Assignments capture the work needed to correct or verify those conditions.
+
+Health inspection fields:
+- id / inspection_id
+- incident_id
+- target_type
+- target_id
+- target_label
+- location / zone
+- inspection_type
+- status
+- result
+- severity
+- findings
+- critical_issue
+- follow_up_needed
+- inspected_at
+- inspected_by
+- resolved_at
+- created_at
+- updated_at
+
+Inspection targets may include:
+- vendor
+- facility
+- restroom
+- water station
+- food area
+- sanitation area
+- other
+
+Inspection results/statuses may include:
+- Pending
+- Passed
+- Failed
+- Needs Recheck
+- Closed
+
+Sanitation issue fields:
+- id / issue_id
+- incident_id
+- issue_type
+- summary
+- location / zone
+- severity
+- status
+- reported_at
+- reported_by
+- resolved_at
+- follow_up_needed
+- linked_vendor_id
+- notes
+- created_at
+- updated_at
+
+Sanitation issue types may include:
+- trash
+- restroom
+- water
+- handwashing
+- spill
+- pest
+- food safety
+- other
+
+Actions:
+- create Quick Assignment for work needing a person or team
+- create reminder or notification for awareness
+- link to vendor if relevant
+- mark resolved or closed
+- open inspection or issue detail
+
+Rule: health/sanitation records capture condition and compliance. Quick Assignments capture the work to correct or verify them.
+
+Examples:
+- Sanitation issue: restroom supplies empty
+- Quick Assignment: Restock restroom trailer 2
+
+- Inspection: food vendor failed temperature control
+- Notification: Command notified of critical violation
+- Quick Assignment: Recheck vendor after corrective action
+
+## Public Safety Flow
+Public safety records capture an event, incident, or risk. Quick Assignments capture simple response work. Full Safety, Medical, or Operations records capture formal incident management when needed.
+
+Safety report fields:
+- id / safety_report_id
+- incident_id
+- type
+- summary
+- location / zone
+- severity
+- status
+- reported_at
+- reported_by
+- people_involved
+- notes
+- linked_quick_assignment_id
+- linked_full_record_type
+- linked_full_record_id
+- created_at
+- updated_at
+
+Safety report types may include:
+- medical
+- security
+- lost child
+- crowd
+- traffic
+- weather
+- suspicious activity
+- facility hazard
+- other
+
+Safety report statuses may include:
+- New
+- Monitoring
+- Responding
+- Resolved
+- Closed
+- Escalated
+
+Safety response options:
+- notify only when awareness is enough
+- create Quick Assignment when simple assigned response work is needed
+- escalate or open a full module record when formal Safety, Medical, or Operations tracking is needed
+
+Rule: safety reports capture the event or risk. Quick Assignments capture simple response work. Full Safety, Medical, or Operations records capture formal incident management when needed.
+
+Flow:
+1. Log safety report.
+2. Decide whether to notify only, create a Quick Assignment, or escalate/open a full module.
+3. Track safety report status separately from any assignment status.
+4. Link related notifications, Quick Assignments, or full module records.
+
+## Messaging Flow
+Messaging records capture what is communicated. Notifications prompt staff to act or review. Quick Assignments handle field verification or other assigned work needed before communication.
+
+Message fields:
+- id / message_id
+- incident_id
+- title
+- audience
+- channel
+- status
+- scheduled_at
+- sent_at
+- author
+- approver
+- body / template
+- source_type
+- source_id
+- location / zone
+- created_at
+- updated_at
+
+Channels may include:
+- public address
+- social
+- email
+- SMS
+- push
+- radio / internal
+- partner agency
+
+Day-of message uses:
+- scheduled announcements
+- event changes
+- weather advisories
+- traffic or parking updates
+- missing/lost child public notice when policy allows
+- vendor or public-health closure notices
+- safety advisories
+- demobilization or egress updates
+
+Boundary:
+- planned toolkit dashboards can show scheduled, queued, sent, and urgent message status
+- full drafting and approval should open the Public Information or messaging detail workflow
+- schedule triggers can create reminders to send or review messages
+- serious public messaging should integrate with Public Information instead of becoming a separate mini PIO module
+
+Examples:
+- Notification: Send parking advisory now
+- Message: Parking advisory text sent to public channels
+- Quick Assignment: Verify Lot C is full before sending advisory
 
 ## Dashboard Action Boundaries
 Dashboards should support inline actions for day-of motion, while deeper editing opens the owning module.

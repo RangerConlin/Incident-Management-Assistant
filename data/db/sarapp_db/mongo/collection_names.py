@@ -242,6 +242,9 @@ class IncidentCollections:
     APPROVAL_INSTANCES = "approval_instances"
     APPROVAL_RECORDS = "approval_records"
 
+    # Notifications — incident-scoped alert history
+    NOTIFICATIONS = "notifications"
+
     # Supporting
     ATTACHMENTS = "attachments"
     AUDIT_LOGS = "audit_logs"

@@ -308,7 +308,10 @@ class ObjectivesTableModel(QAbstractTableModel):
         return QBrush(color)
 
 
-class ObjectivesEditor(QDialog):
+from PySide6.QtWidgets import QMainWindow as _QMainWindow
+
+
+class ObjectivesEditor(_QMainWindow):
     """Modeless editor window for managing objective templates."""
 
     window_closed = Signal()
@@ -316,7 +319,6 @@ class ObjectivesEditor(QDialog):
     def __init__(self, dao: ObjectivesDAO, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Objective Templates")
-        self.setModal(False)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
 
         self._dao = dao
@@ -335,7 +337,9 @@ class ObjectivesEditor(QDialog):
 
     # UI construction ---------------------------------------------------
     def _build_ui(self) -> None:
-        layout = QHBoxLayout(self)
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QHBoxLayout(central)
         layout.setContentsMargins(8, 8, 8, 8)
 
         splitter = QSplitter(Qt.Horizontal)
@@ -355,8 +359,14 @@ class ObjectivesEditor(QDialog):
         self._table.setSelectionMode(QTableView.SingleSelection)
         self._table.setEditTriggers(QTableView.NoEditTriggers)
         self._table.setSortingEnabled(True)
+        self._table.setAlternatingRowColors(False)
+        self._table.setStyleSheet("QTableView { selection-background-color: transparent; }")
         self._table.horizontalHeader().setStretchLastSection(True)
         self._table.verticalHeader().setVisible(False)
+        from utils.itemview_delegates import RowOutlineSelectionDelegate
+        from PySide6.QtGui import QColor as _QColor
+        self._sel_delegate = RowOutlineSelectionDelegate(self._table, _QColor("#FFFFFF"))
+        self._table.setItemDelegate(self._sel_delegate)
         table_layout.addWidget(self._table)
 
         splitter.addWidget(table_container)

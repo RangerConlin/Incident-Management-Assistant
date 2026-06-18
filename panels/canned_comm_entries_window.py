@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Optional
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -41,6 +43,7 @@ NOTIFICATION_LEVEL_CHOICES: List[tuple[int, str]] = [
     (1, "Notification"),
     (2, "Emergency Alert"),
 ]
+
 
 
 @dataclass(slots=True)
@@ -217,22 +220,22 @@ class CannedCommEntriesWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        search_layout = QHBoxLayout()
-        search_layout.setContentsMargins(0, 0, 0, 0)
-        search_layout.setSpacing(8)
+        # Header
+        header_label = QLabel("Canned Communication Entries")
+        header_font = QFont()
+        header_font.setPointSize(14)
+        header_font.setBold(True)
+        header_label.setFont(header_font)
+        layout.addWidget(header_label)
 
-        search_label = QLabel("Search")
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search canned entries")
-        self.search_input.textChanged.connect(self.refresh_entries)
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(divider)
 
-        search_layout.addWidget(search_label)
-        search_layout.addWidget(self.search_input)
-        layout.addLayout(search_layout)
-
-        button_layout = QHBoxLayout()
-        button_layout.setContentsMargins(0, 0, 0, 0)
-        button_layout.setSpacing(8)
+        # Toolbar: actions left, filters/search right
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
 
         self.add_button = QPushButton("Add")
         self.add_button.clicked.connect(self.add_entry)
@@ -240,22 +243,37 @@ class CannedCommEntriesWindow(QMainWindow):
         self.edit_button.clicked.connect(self.edit_entry)
         self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self.delete_entry)
+        for btn in (self.add_button, self.edit_button, self.delete_button):
+            toolbar.addWidget(btn)
 
-        button_layout.addWidget(self.add_button)
-        button_layout.addWidget(self.edit_button)
-        button_layout.addWidget(self.delete_button)
-        button_layout.addStretch()
+        toolbar.addStretch()
 
-        layout.addLayout(button_layout)
+        toolbar.addWidget(QLabel("Category:"))
+        self.category_filter = QComboBox()
+        self.category_filter.setMinimumWidth(140)
+        self.category_filter.addItem("All")
+        self.category_filter.currentTextChanged.connect(lambda _: self.refresh_entries())
+        toolbar.addWidget(self.category_filter)
 
+        toolbar.addWidget(QLabel("Search:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Filter by title or message…")
+        self.search_input.setMinimumWidth(220)
+        self.search_input.textChanged.connect(self.refresh_entries)
+        toolbar.addWidget(self.search_input)
+
+        layout.addLayout(toolbar)
+
+        # Table
         self.table = QTableWidget(0, len(TABLE_COLUMNS))
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
         self.table.setSortingEnabled(True)
-        self.table.setWordWrap(True)
+        self.table.setWordWrap(False)
         self.table.verticalHeader().setVisible(False)
+        self.table.setShowGrid(True)
         self.table.itemSelectionChanged.connect(self._update_button_states)
         self.table.cellDoubleClicked.connect(lambda *_: self.edit_entry())
 
@@ -263,10 +281,10 @@ class CannedCommEntriesWindow(QMainWindow):
         self.table.setHorizontalHeaderLabels(header_labels)
         header = self.table.horizontalHeader()
         header.setStretchLastSection(True)
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         for index, column in enumerate(TABLE_COLUMNS):
             if column.width is not None:
                 header.resizeSection(index, column.width)
-        # Hide ID column; keep it for internal lookups
         try:
             self.table.setColumnHidden(0, True)
         except Exception:
@@ -274,9 +292,16 @@ class CannedCommEntriesWindow(QMainWindow):
 
         layout.addWidget(self.table)
 
+        # Footer: entry count
+        footer = QHBoxLayout()
+        footer.addStretch()
+        self.count_label = QLabel("")
+        footer.addWidget(self.count_label)
+        layout.addLayout(footer)
+
         self._update_button_states()
         self.refresh_entries()
-        self.adjustSize()
+        self.resize(1200, 500)
 
     def current_entry(self) -> Optional[dict]:
         rows = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []
@@ -318,6 +343,24 @@ class CannedCommEntriesWindow(QMainWindow):
 
         entries = sorted(entries, key=lambda item: (str(item.get("title") or "").lower(), item.get("id", 0)))
         self._entries = entries
+
+        # Rebuild category filter options without losing current selection
+        current_cat = self.category_filter.currentText()
+        categories = sorted({str(e.get("category") or "") for e in entries if e.get("category")})
+        self.category_filter.blockSignals(True)
+        self.category_filter.clear()
+        self.category_filter.addItem("All")
+        for cat in categories:
+            self.category_filter.addItem(cat)
+        if current_cat in ("All", *categories):
+            self.category_filter.setCurrentText(current_cat)
+        self.category_filter.blockSignals(False)
+
+        # Apply category filter
+        selected_cat = self.category_filter.currentText()
+        if selected_cat and selected_cat != "All":
+            entries = [e for e in entries if (e.get("category") or "") == selected_cat]
+
         self._populate_table(entries)
 
     def _populate_table(self, entries: list[dict]) -> None:
@@ -326,20 +369,22 @@ class CannedCommEntriesWindow(QMainWindow):
         self.table.setRowCount(len(entries))
 
         for row, entry in enumerate(entries):
+            is_active = bool(entry.get("is_active", True))
             for column_index, column in enumerate(TABLE_COLUMNS):
                 display = self._display_value(column.key, entry)
                 item = QTableWidgetItem(display)
                 if column.key == "id":
                     item.setData(Qt.UserRole, entry.get("id"))
-                if column.key == "is_active" and not bool(entry.get("is_active", True)):
+                if not is_active:
                     font = item.font()
                     font.setStrikeOut(True)
                     item.setFont(font)
-                if column.key == "message":
-                    item.setTextAlignment(Qt.AlignLeft | Qt.AlignTop)
                 self.table.setItem(row, column_index, item)
 
         self.table.setSortingEnabled(True)
+        total = len(self._entries)
+        shown = len(entries)
+        self.count_label.setText(f"{shown} of {total} entries" if shown != total else f"{total} entries")
         self._update_button_states()
 
     def _display_value(self, key: str, entry: dict) -> str:

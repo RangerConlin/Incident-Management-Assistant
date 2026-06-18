@@ -295,41 +295,91 @@ class FinanceAdminDashboardWidget(QWidget):
     def _apply_styles(self) -> None:
         self.setStyleSheet(
             """
+            QWidget {
+                background-color: #151821;
+                color: #ECEFF4;
+            }
             QLabel#HeaderTitle {
                 font-size: 18px;
                 font-weight: 600;
+                color: #ECEFF4;
             }
             QLabel#HeaderContext {
-                color: #444;
+                color: #A4ADBA;
             }
             QFrame#PillCard {
-                background: white;
-                border: 1px solid #dcdcdc;
+                background: #1B1F2A;
+                border: 1px solid #2A2F3A;
                 border-radius: 12px;
             }
             QLabel#PillValue {
                 font-size: 20px;
                 font-weight: 600;
+                color: #90caf9;
             }
             QLabel#PillText {
-                color: #555;
+                color: #A4ADBA;
             }
             QLabel#SnapBadge, QLabel#TELine {
-                border: 1px solid #e0e0e0;
+                border: 1px solid #2A2F3A;
                 border-radius: 6px;
                 padding: 6px 8px;
-                background: #fafafa;
+                background: #1B1F2A;
+                color: #ECEFF4;
             }
             QGroupBox {
                 font-weight: 600;
+                color: #ECEFF4;
+                border: 1px solid #2A2F3A;
+                border-radius: 6px;
+                margin-top: 6px;
+                padding-top: 6px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 4px;
+                color: #A4ADBA;
+            }
+            QListWidget {
+                background: #0F1115;
+                border: 1px solid #2A2F3A;
+                color: #ECEFF4;
+                alternate-background-color: #1B1F2A;
+            }
+            QListWidget::item:selected {
+                background: #2F80ED;
+                color: #ECEFF4;
+            }
+            QPushButton {
+                background: #2A3042;
+                border: 1px solid #3A4358;
+                border-radius: 4px;
+                color: #ECEFF4;
+                padding: 4px 10px;
+            }
+            QPushButton:hover {
+                background: #353D55;
+            }
+            QPushButton:pressed {
+                background: #2F80ED;
+            }
+            QScrollBar:vertical, QScrollBar:horizontal {
+                background: #0F1115;
+                width: 8px;
+                height: 8px;
+            }
+            QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+                background: #2A2F3A;
+                border-radius: 4px;
             }
             QFrame#IncidentOverlay {
-                background: rgba(245,245,245,0.9);
+                background: rgba(15, 17, 21, 0.92);
                 border: 0px;
             }
             QLabel#OverlayLabel {
                 font-size: 16px;
-                color: #555;
+                color: #A4ADBA;
             }
             """
         )
@@ -537,7 +587,8 @@ if __name__ == "__main__":
     w.set_context("3", "14:52", "Finance/Admin Chief")
     w.setAutoRefresh(15000)
 
-    w.adjustSize()
+    w.setWindowFlags(Qt.Window)
+    w.resize(1000, 800)
     w.show()
 
     sys.exit(app.exec())

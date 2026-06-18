@@ -302,7 +302,11 @@ class EMSAgenciesWindow(QMainWindow):
         self.table.setModel(self.model)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
+        self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
+        from utils.itemview_delegates import RowOutlineSelectionDelegate
+        self._sel_delegate = RowOutlineSelectionDelegate(self.table, QColor("#FFFFFF"))
+        self.table.setItemDelegate(self._sel_delegate)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.verticalHeader().setVisible(False)
