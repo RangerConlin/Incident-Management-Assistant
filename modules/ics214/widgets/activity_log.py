@@ -1768,6 +1768,7 @@ class Ics214ActivityLogPanel(QWidget):
                     self.incident_id,
                     entry.entry_id,
                     payload,
+                    stream_id=self.header.stream_id,
                 )
             except Exception as exc:
                 logger.exception("Failed to update entry %s: %s", entry.entry_id, exc)

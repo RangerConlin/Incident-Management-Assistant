@@ -837,7 +837,7 @@ class MainWindow(QMainWindow):
         self._add_action(plan_menu, "External Messaging", None, "planned.promotions")
         self._add_action(plan_menu, "Vendors && Permits", None, "planned.vendors")
         self._add_action(plan_menu, "Public Safety", None, "planned.safety")
-        self._add_action(plan_menu, "Tasking && Assignments", None, "planned.tasking")
+        self._add_action(plan_menu, "Quick Assignments", None, "planned.tasking")
         self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
 
         init_menu = m_tool.addMenu("Initial Response")
@@ -1290,27 +1290,14 @@ class MainWindow(QMainWindow):
 
     def open_edit_objectives(self) -> None:
         try:
-            from types import SimpleNamespace
-            import os
-            from modules.planning.widgets.objectives_editor import (
-                show_objectives_editor,
-            )
-
-            data_dir = os.environ.get("CHECKIN_DATA_DIR", "data")
-            state = SimpleNamespace(data_dir=data_dir)
-            editor = show_objectives_editor(state)
+            from modules.planning.widgets.objectives_editor import show_objectives_editor
+            editor = show_objectives_editor(None)
             self._register_child_window(editor)
-            try:
-                editor.raise_()
-                editor.activateWindow()
-            except Exception:
-                pass
-        except Exception as e:
-            try:
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.critical(self, "Objectives", f"Failed to open Objectives Editor:\n{e}")
-            except Exception:
-                print(f"[main] Failed to open Objectives Editor: {e}")
+            editor.raise_()
+            editor.activateWindow()
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Objectives", f"Failed to open Objectives Editor:\n{exc}")
 
     def open_edit_task_types(self) -> None:
         from modules.common.widgets.type_editors.task_types_editor import (
@@ -1441,8 +1428,11 @@ class MainWindow(QMainWindow):
             )
             return
 
-        panel = UnitsOrganizationsPanel(parent=self)
-        self._open_panel(panel, title="Units and Organizations")
+        win = UnitsOrganizationsPanel(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
@@ -2160,6 +2150,8 @@ class MainWindow(QMainWindow):
         if window is None:
             return
         try:
+            if window in self._child_windows:
+                return
             self._child_windows.append(window)
         except Exception:
             self._child_windows = [window]

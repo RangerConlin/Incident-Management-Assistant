@@ -1184,8 +1184,8 @@ class TaskDetailWindow(QWidget):
             self._tlog_field = QLineEdit(); self._tlog_field.setPlaceholderText("Field filter...")
             self._tlog_from = QLineEdit(); self._tlog_from.setPlaceholderText("From (YYYY-MM-DD)")
             self._tlog_to = QLineEdit(); self._tlog_to.setPlaceholderText("To (YYYY-MM-DD)")
-            self._btn_tlog_refresh = QPushButton("Refresh"); self._btn_tlog_export = QPushButton("Export CSV")
-            for w in (self._tlog_search, self._tlog_field, self._tlog_from, self._tlog_to, self._btn_tlog_refresh, self._btn_tlog_export): tlog_bar.addWidget(w)
+            self._btn_tlog_refresh = QPushButton("Refresh"); self._btn_tlog_export = QPushButton("Export CSV"); self._btn_tlog_export_214 = QPushButton("Export ICS-214")
+            for w in (self._tlog_search, self._tlog_field, self._tlog_from, self._tlog_to, self._btn_tlog_refresh, self._btn_tlog_export, self._btn_tlog_export_214): tlog_bar.addWidget(w)
             tlog_bar.addStretch(1); tlog_layout.addLayout(tlog_bar)
             self._tbl_tlog = QTableView(self)
             self._model_tlog = QStandardItemModel(0, 5, self)
@@ -1223,6 +1223,7 @@ class TaskDetailWindow(QWidget):
             # Actions
             self._btn_tlog_refresh.clicked.connect(self._load_task_log)
             self._btn_tlog_export.clicked.connect(self._export_task_log)
+            self._btn_tlog_export_214.clicked.connect(self._export_task_log_214)
             self._tlog_search.returnPressed.connect(self._load_task_log)
             self._tlog_field.returnPressed.connect(self._load_task_log)
             self._tlog_from.returnPressed.connect(self._load_task_log)
@@ -2230,19 +2231,46 @@ class TaskDetailWindow(QWidget):
             self._model_tlog.appendRow([QStandardItem(str(ts)), QStandardItem(str(field)), QStandardItem(str(old)), QStandardItem(str(new)), QStandardItem(str(by))])
 
     def _export_task_log(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Task Log", f"task_{self._task_id}_log.csv", "CSV Files (*.csv)"
+        )
+        if not path:
+            return
         try:
             from modules.operations.taskings.repository import export_audit_csv
-            p = export_audit_csv(
-                int(self._task_id),
+            result = export_audit_csv(
+                task_id=int(self._task_id),
+                output_path=path,
                 search=str(self._tlog_search.text() or ""),
                 date_from=str(self._tlog_from.text() or "") or None,
                 date_to=str(self._tlog_to.text() or "") or None,
                 field_filter=str(self._tlog_field.text() or ""),
             )
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Task Log Export", f"Saved CSV to:\n{p}")
-        except Exception:
-            pass
+            QMessageBox.information(self, "Task Log Export", f"Saved to:\n{result}")
+        except Exception as exc:
+            QMessageBox.warning(self, "Task Log Export", f"Export failed:\n{exc}")
+
+    def _export_task_log_214(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Task Log as ICS-214", f"task_{self._task_id}_214.pdf", "PDF Files (*.pdf)"
+        )
+        if not path:
+            return
+        try:
+            from modules.operations.taskings.repository import export_audit_as_214
+            result = export_audit_as_214(
+                task_id=int(self._task_id),
+                output_path=path,
+                search=str(self._tlog_search.text() or ""),
+                date_from=str(self._tlog_from.text() or "") or None,
+                date_to=str(self._tlog_to.text() or "") or None,
+                field_filter=str(self._tlog_field.text() or ""),
+            )
+            QMessageBox.information(self, "ICS-214 Export", f"Saved to:\n{result}")
+        except Exception as exc:
+            QMessageBox.warning(self, "ICS-214 Export", f"Export failed:\n{exc}")
 
     def _load_team_log(self) -> None:
         try:
@@ -2254,8 +2282,26 @@ class TaskDetailWindow(QWidget):
             self._model_teamlog.removeRows(0, self._model_teamlog.rowCount())
         except Exception:
             pass
+        _status_fields = [
+            ("time_assigned", "Assigned"),
+            ("time_briefed", "Briefed"),
+            ("time_enroute", "En Route"),
+            ("time_arrived", "On Scene"),
+            ("time_discovery", "Discovery"),
+            ("time_complete", "Complete"),
+            ("time_cleared", "RTB / Cleared"),
+        ]
+        events: list = []
         for r in rows:
-            self._model_teamlog.appendRow([QStandardItem(_fmt_ts(str(r.get("timestamp") or ""))), QStandardItem(str(r.get("team") or "")), QStandardItem(str(r.get("status") or ""))])
+            team_name = str(r.get("team_name") or r.get("team_id") or "")
+            for field, label in _status_fields:
+                ts_raw = r.get(field)
+                if ts_raw:
+                    events.append((_fmt_ts(str(ts_raw)), team_name, label, str(ts_raw)))
+        # Sort by raw timestamp ascending so the log reads chronologically
+        events.sort(key=lambda e: e[3])
+        for ts, team, status, _ in events:
+            self._model_teamlog.appendRow([QStandardItem(ts), QStandardItem(team), QStandardItem(status)])
 
     def _open_full_ics214(self) -> None:
         try:

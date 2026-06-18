@@ -72,9 +72,9 @@ SAFETY_SPEC = PanelSpec(
 )
 
 TASK_SPEC = PanelSpec(
-    title="Tasking",
-    tool_key="tasks",
-    columns=("ID", "Task", "Status", "Priority", "Assignee", "Due", "Updated"),
+    title="Quick Assignments",
+    tool_key="quick-assignments",
+    columns=("ID", "Assignment", "Status", "Priority", "Assignee", "Due", "Updated"),
     extra_rows=(("Assignee", "assigned_edit"), ("Due", "due_edit")),
 )
 

@@ -162,12 +162,14 @@ class EntryUpdate(BaseModel):
 
 
 @router.get("/incidents/{incident_id}/ics214/streams/{stream_id}/entries")
-def list_entries(incident_id: str, stream_id: str):
+def list_entries(incident_id: str, stream_id: str, exclude_internal: bool = False):
     col = _col(incident_id)
     doc = col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries": 1})
     if not doc:
         raise HTTPException(status_code=404, detail="Stream not found")
     entries = sorted(doc.get("entries") or [], key=lambda e: e.get("timestamp_utc", ""))
+    if exclude_internal:
+        entries = [e for e in entries if e.get("source") != "internal"]
     return [_map_entry(e) for e in entries]
 
 

@@ -77,3 +77,59 @@ def create_schedule_item(
         ends_at=ends_at,
         notes=notes,
     )
+
+
+def list_schedule_triggers(incident_id: str | None = None, schedule_item_id: str | None = None):
+    return PlannedToolkitRepository(incident_id).list_schedule_triggers(schedule_item_id)
+
+
+def create_schedule_trigger(incident_id: str | None = None, **payload: Any):
+    return PlannedToolkitRepository(incident_id).create_schedule_trigger(**payload)
+
+
+def update_schedule_trigger(
+    record_id: int,
+    patch: dict[str, Any],
+    incident_id: str | None = None,
+):
+    return PlannedToolkitRepository(incident_id).update_schedule_trigger(record_id, patch)
+
+
+def delete_schedule_trigger(record_id: int, incident_id: str | None = None) -> None:
+    PlannedToolkitRepository(incident_id).delete_schedule_trigger(record_id)
+
+
+def list_notifications(incident_id: str | None = None):
+    return PlannedToolkitRepository(incident_id).list_notifications()
+
+
+def create_notification(incident_id: str | None = None, **payload: Any):
+    return PlannedToolkitRepository(incident_id).create_notification(**payload)
+
+
+def acknowledge_notification(
+    record_id: int,
+    incident_id: str | None = None,
+    *,
+    acknowledged_by: str = "",
+):
+    return PlannedToolkitRepository(incident_id).acknowledge_notification(
+        record_id,
+        acknowledged_by=acknowledged_by,
+    )
+
+
+def dismiss_notification(record_id: int, incident_id: str | None = None):
+    return PlannedToolkitRepository(incident_id).dismiss_notification(record_id)
+
+
+def promote_quick_assignment(
+    record_id: int,
+    incident_id: str | None = None,
+    *,
+    promoted_by: str = "",
+):
+    return PlannedToolkitRepository(incident_id).promote_quick_assignment(
+        record_id,
+        promoted_by=promoted_by,
+    )

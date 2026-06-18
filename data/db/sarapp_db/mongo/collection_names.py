@@ -190,7 +190,10 @@ class IncidentCollections:
     PLANNED_PERMITS = "planned_permits"
     PLANNED_SAFETY_REPORTS = "planned_safety_reports"
     PLANNED_TASKS = "planned_tasks"
+    PLANNED_QUICK_ASSIGNMENTS = "planned_quick_assignments"
     PLANNED_HEALTH_INSPECTIONS = "planned_health_inspections"
+    PLANNED_SCHEDULE_TRIGGERS = "planned_schedule_triggers"
+    PLANNED_NOTIFICATIONS = "planned_notifications"
 
     # Logistics
     LOGISTICS_RESOURCE_STATUS_ITEMS = "logistics_resource_status_items"

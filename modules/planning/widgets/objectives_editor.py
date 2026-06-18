@@ -934,7 +934,7 @@ class ObjectivesEditor(_QMainWindow):
 _open_editor: Optional[ObjectivesEditor] = None
 
 
-def show_objectives_editor(app_state) -> ObjectivesEditor:
+def show_objectives_editor(app_state=None) -> ObjectivesEditor:
     """Create (or focus) the modeless objectives editor window."""
 
     global _open_editor
@@ -943,11 +943,7 @@ def show_objectives_editor(app_state) -> ObjectivesEditor:
         _open_editor.activateWindow()
         return _open_editor
 
-    data_dir = getattr(app_state, "data_dir", None)
-    if not data_dir:
-        raise RuntimeError("App state is missing data_dir")
-    db_path = Path(data_dir) / "master.db"
-    dao = ObjectivesDAO(db_path)
+    dao = ObjectivesDAO()
     editor = ObjectivesEditor(dao)
 
     def _clear_reference() -> None:

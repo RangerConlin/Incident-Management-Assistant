@@ -76,8 +76,8 @@ class _APIClient:
     def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         return self._send("GET", path, params=params)
 
-    def post(self, path: str, *, json: Any = None) -> Any:
-        return self._send("POST", path, json=json)
+    def post(self, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
+        return self._send("POST", path, json=json, params=params)
 
     def put(self, path: str, *, json: Any = None) -> Any:
         return self._send("PUT", path, json=json)

@@ -19,10 +19,14 @@ def _utcnow() -> str:
 
 
 def _ensure_int_ids(col) -> None:
-    for doc in col.find({"int_id": {"$exists": False}}):
-        max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
-        next_id = (max_doc["int_id"] + 1) if max_doc else 1
+    missing = list(col.find({"int_id": {"$exists": False}}))
+    if not missing:
+        return
+    max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+    next_id = (max_doc["int_id"] + 1) if max_doc else 1
+    for doc in missing:
         col.update_one({"_id": doc["_id"]}, {"$set": {"int_id": next_id}})
+        next_id += 1
 
 
 def _col():
@@ -32,7 +36,7 @@ def _col():
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
-    person_id = d.get("person_id") or d.get("int_id") or d.get("id")
+    person_id = next((d[k] for k in ("person_id", "int_id", "id") if d.get(k) is not None), None)
     d["id"] = str(person_id) if person_id is not None else None
     d["primary_role"] = d.get("primary_role") or d.get("role") or d.get("rank")
     d["phone"] = d.get("phone") or d.get("contact")
