@@ -766,6 +766,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
         m_comms.addSeparator()
         self._add_action(m_comms, "Notification Feed", None, "comms.notifications")
+        self._add_action(m_comms, "Notification Settings", None, "comms.notification_settings")
 
 
         # ----- Intel -----
@@ -3245,12 +3246,31 @@ class MainWindow(QMainWindow):
 
     def _init_notifications(self) -> None:
         from notifications.widgets.toast_manager import ToastManager
+        from notifications.services.sound_player import SoundPlayer
         toast = ToastManager(parent=self)
         toast.show()
         self._toast_widget = toast
 
         notifier = get_notifier()
         notifier.showToast.connect(toast.enqueue)
+
+        # Apply persisted sound and threshold settings
+        player = SoundPlayer.instance()
+        sm = getattr(self, "settings_manager", None)
+        if sm is not None:
+            from notifications.services.sound_player import CATEGORIES, SEVERITIES, settings_key
+            for cat in CATEGORIES:
+                for sev in SEVERITIES:
+                    val = sm.get(settings_key(cat, sev))
+                    if val is not None:
+                        player.set_sound(cat, sev, val or None)
+                threshold = sm.get(f"notification.threshold.{cat}")
+                if threshold:
+                    notifier.set_threshold(cat, threshold)
+            try:
+                player.set_volume(int(sm.get("volume", 75) or 75))
+            except Exception:
+                pass
 
     def _on_approval_item_activated(self, entity_type: str, entity_id: str) -> None:
         """Route an inbox click to the relevant module panel."""

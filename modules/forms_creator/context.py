@@ -42,27 +42,52 @@ class FormDataContext:
     """Assemble a nested dict from the active incident and master API."""
 
     _ORG_POSITIONS: dict[str, str] = {
-        "Incident Commander":             "incident_commander",
-        "Deputy Incident Commander":      "deputy_incident_commander",
-        "Safety Officer":                 "safety_officer",
-        "Public Information Officer":     "public_information_officer",
-        "Liaison Officer":                "liaison_officer",
-        "Operations Section Chief":       "operations_section_chief",
-        "Planning Section Chief":         "planning_section_chief",
-        "Logistics Section Chief":        "logistics_section_chief",
-        "Finance/Admin Section Chief":    "finance_admin_section_chief",
-        "Communications Unit Leader":     "communications_unit_leader",
-        "Medical Unit Leader":            "medical_unit_leader",
-        "Air Operations Branch Director": "air_operations_branch_director",
-        "Ground Support Unit Leader":     "ground_support_unit_leader",
-        "Food Unit Leader":               "food_unit_leader",
-        "Facilities Unit Leader":         "facilities_unit_leader",
-        "Supply Unit Leader":             "supply_unit_leader",
-        "Situation Unit Leader":          "situation_unit_leader",
-        "Resources Unit Leader":          "resources_unit_leader",
-        "Documentation Unit Leader":      "documentation_unit_leader",
-        "Demobilization Unit Leader":     "demobilization_unit_leader",
-        "Staging Area Manager":           "staging_area_manager",
+        # Command
+        "Incident Commander":                    "incident_commander",
+        "Deputy Incident Commander":             "deputy_incident_commander",
+        # Command Staff
+        "Safety Officer":                        "safety_officer",
+        "Public Information Officer":            "public_information_officer",
+        "Liaison Officer":                       "liaison_officer",
+        # Section Chiefs + Deputies
+        "Operations Section Chief":              "operations_section_chief",
+        "Deputy Operations Section Chief":       "deputy_operations_section_chief",
+        "Planning Section Chief":                "planning_section_chief",
+        "Deputy Planning Section Chief":         "deputy_planning_section_chief",
+        "Logistics Section Chief":               "logistics_section_chief",
+        "Deputy Logistics Section Chief":        "deputy_logistics_section_chief",
+        "Finance/Admin Section Chief":           "finance_admin_section_chief",
+        "Deputy Finance/Admin Section Chief":    "deputy_finance_admin_section_chief",
+        # Logistics Section units
+        "Communications Unit Leader":            "communications_unit_leader",
+        "Medical Unit Leader":                   "medical_unit_leader",
+        "Ground Support Unit Leader":            "ground_support_unit_leader",
+        "Food Unit Leader":                      "food_unit_leader",
+        "Facilities Unit Leader":                "facilities_unit_leader",
+        "Supply Unit Leader":                    "supply_unit_leader",
+        # Operations Section
+        "Air Operations Branch Director":        "air_operations_branch_director",
+        "Air Tactical Group Supervisor":         "air_tactical_group_supervisor",
+        "Air Support Group Supervisor":          "air_support_group_supervisor",
+        "Service Branch Director":               "service_branch_director",
+        "Support Branch Director":               "support_branch_director",
+        "Staging Area Manager":                  "staging_area_manager",
+        # Intelligence / Investigations Section (CG/DHS extended ICS)
+        "Intelligence Section Chief":            "intelligence_section_chief",
+        "Deputy Intelligence Section Chief":     "deputy_intelligence_section_chief",
+        "Collection Coordinator":                "collection_coordinator",
+        "Intelligence Operations Coordinator":   "intelligence_operations_coordinator",
+        "Dissemination Manager":                 "dissemination_manager",
+        # Planning Section units
+        "Situation Unit Leader":                 "situation_unit_leader",
+        "Resources Unit Leader":                 "resources_unit_leader",
+        "Documentation Unit Leader":             "documentation_unit_leader",
+        "Demobilization Unit Leader":            "demobilization_unit_leader",
+        # Finance/Admin Section units
+        "Time Unit Leader":                      "time_unit_leader",
+        "Procurement Unit Leader":               "procurement_unit_leader",
+        "Compensation/Claims Unit Leader":       "compensation_claims_unit_leader",
+        "Cost Unit Leader":                      "cost_unit_leader",
     }
 
     def build(self, incident_id: str | None = None) -> dict[str, Any]:
@@ -97,6 +122,14 @@ class FormDataContext:
         data["resource_types"]  = self._build_resource_types()
 
         data["message"]         = {}
+
+        data["comm_log"]        = self._build_comm_log(inc_id)
+
+        data["uc_commanders"]              = []
+        data["org_branches"]               = []   # each entry carries branch director + div slots
+        data["org_agency_reps"]            = []
+        data["team_members"]               = []
+        data["planning_tech_specialists"]  = []
 
         return data
 
@@ -227,7 +260,12 @@ class FormDataContext:
         if not inc_id:
             return []
         try:
-            return _get(f"/api/incidents/{inc_id}/tasks") or []
+            rows = _get(f"/api/incidents/{inc_id}/tasks") or []
+            for r in rows:
+                created = r.get("created_at") or ""
+                r.setdefault("task_date", _fmt_date(created))
+                r.setdefault("task_time", _fmt_time(created))
+            return rows
         except Exception:
             return []
 
@@ -335,6 +373,29 @@ class FormDataContext:
     # ------------------------------------------------------------------
     # Resource types (master)
     # ------------------------------------------------------------------
+
+    def _build_comm_log(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/comms-log") or []
+            return [
+                {
+                    "ts_local":            r.get("ts_local") or r.get("ts_utc") or "",
+                    "priority":            r.get("priority") or "",
+                    "from_unit":           r.get("from_unit") or "",
+                    "to_unit":             r.get("to_unit") or "",
+                    "frequency":           r.get("frequency") or "",
+                    "resource_label":      r.get("resource_label") or "",
+                    "message":             r.get("message") or "",
+                    "action_taken":        r.get("action_taken") or "",
+                    "follow_up_required":  bool(r.get("follow_up_required")),
+                    "operator_display_name": r.get("operator_display_name") or "",
+                }
+                for r in rows
+            ]
+        except Exception:
+            return []
 
     def _build_resource_types(self) -> list[dict[str, Any]]:
         try:

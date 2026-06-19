@@ -1,16 +1,507 @@
 {
-  "description": "ICS 214 Activity Log — FEMA",
+  "description": "ICS 214 — Activity Log — FEMA ICS Forms 2023",
   "fields": [
-    { "pdf_field": "IncidentName",    "source": "incident.name" },
-    { "pdf_field": "IncidentNumber",  "source": { "key": "incident.number", "default": "" } },
-    { "pdf_field": "OpPeriodFrom",    "source": { "key": "op_period.start", "transform": "date_short" } },
-    { "pdf_field": "OpPeriodTo",      "source": { "key": "op_period.end",   "transform": "date_short" } },
-    { "pdf_field": "OpPeriodFromTime","source": { "key": "op_period.start", "transform": "time_short" } },
-    { "pdf_field": "OpPeriodToTime",  "source": { "key": "op_period.end",   "transform": "time_short" } },
-    { "pdf_field": "Name",            "source": "prepared_by.name" },
-    { "pdf_field": "ICSPosition",     "source": "prepared_by.position" },
-    { "pdf_field": "HomeAgency",      "source": "prepared_by.agency" },
-    { "pdf_field": "PreparedBy",      "source": "prepared_by.name" },
-    { "pdf_field": "PreparedDateTime","source": { "key": "prepared_by.date_time", "transform": "datetime_short" } }
+    {
+      "pdf_field": "1 Incident Name_19",
+      "source": {
+        "key": "incident.name"
+      }
+    },
+    {
+      "pdf_field": "Date From",
+      "source": {
+        "key": "op_period.date_from"
+      }
+    },
+    {
+      "pdf_field": "Date To",
+      "source": {
+        "key": "op_period.date_to"
+      }
+    },
+    {
+      "pdf_field": "Time From",
+      "source": {
+        "key": "op_period.time_from"
+      }
+    },
+    {
+      "pdf_field": "Time To",
+      "source": {
+        "key": "op_period.time_to"
+      }
+    },
+    {
+      "pdf_field": "3 Name",
+      "source": {
+        "key": "unit.name"
+      }
+    },
+    {
+      "pdf_field": "4 ICS Position",
+      "source": {
+        "key": "unit.ics_position"
+      }
+    },
+    {
+      "pdf_field": "5 Home Agency and Unit",
+      "source": {
+        "key": "unit.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow1_3",
+      "source": {
+        "key": "resources.0.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow1",
+      "source": {
+        "key": "resources.0.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow1",
+      "source": {
+        "key": "resources.0.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow2_3",
+      "source": {
+        "key": "resources.1.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow2",
+      "source": {
+        "key": "resources.1.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow2",
+      "source": {
+        "key": "resources.1.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow3_3",
+      "source": {
+        "key": "resources.2.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow3",
+      "source": {
+        "key": "resources.2.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow3",
+      "source": {
+        "key": "resources.2.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow4_3",
+      "source": {
+        "key": "resources.3.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow4",
+      "source": {
+        "key": "resources.3.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow4",
+      "source": {
+        "key": "resources.3.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow5_3",
+      "source": {
+        "key": "resources.4.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow5",
+      "source": {
+        "key": "resources.4.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow5",
+      "source": {
+        "key": "resources.4.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow6_3",
+      "source": {
+        "key": "resources.5.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow6",
+      "source": {
+        "key": "resources.5.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow6",
+      "source": {
+        "key": "resources.5.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow7",
+      "source": {
+        "key": "resources.6.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow7",
+      "source": {
+        "key": "resources.6.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow7",
+      "source": {
+        "key": "resources.6.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow8",
+      "source": {
+        "key": "resources.7.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow8",
+      "source": {
+        "key": "resources.7.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home Agency and UnitRow8",
+      "source": {
+        "key": "resources.7.home_agency"
+      }
+    },
+    {
+      "pdf_field": "timestamp1",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative1",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp2",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative2",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp3",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative3",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp4",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative4",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp5",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative5",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp6",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative6",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp7",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative7",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp8",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative8",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp9",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative9",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp10",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative10",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp11",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative11",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp12",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative12",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp13",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative13",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp14",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative14",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp15",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative15",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp16",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative16",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp17",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative17",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp18",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative18",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp19",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative19",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp20",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative20",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp21",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative21",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp22",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative22",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp23",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative23",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp24",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative24",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Prepared by Name",
+      "source": {
+        "key": "prepared.name"
+      }
+    },
+    {
+      "pdf_field": "PositionTitle_15",
+      "source": {
+        "key": "prepared.title"
+      }
+    },
+    {
+      "pdf_field": "Signature_21",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_15",
+      "source": {
+        "key": "prepared.dt"
+      }
+    },
+    {
+      "pdf_field": "DateTimeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notable ActivitiesRow1",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "activity_log",
+      "rows_per_page": [
+        24,
+        36
+      ],
+      "continuation_template": "continuation.pdf",
+      "continuation_header_fields": {
+        "1 Incident Name_20": {
+          "key": "incident.name"
+        },
+        "Date From": {
+          "key": "op_period.date_from"
+        },
+        "Date To": {
+          "key": "op_period.date_to"
+        },
+        "Time From": {
+          "key": "op_period.time_from"
+        },
+        "Time To": {
+          "key": "op_period.time_to"
+        },
+        "8 Prepared by Name_2": {
+          "key": "prepared.name"
+        },
+        "PositionTitle_16": {
+          "key": "prepared.title"
+        },
+        "DateTime_16": {
+          "key": "prepared.dt"
+        }
+      },
+      "fields": [
+        {
+          "from_row": 1,
+          "to_row": 24,
+          "pdf_field_pattern": "DateTimeRow{n}",
+          "column": "timestamp"
+        },
+        {
+          "from_row": 1,
+          "to_row": 24,
+          "pdf_field_pattern": "Notable ActivitiesRow{n}",
+          "column": "text"
+        }
+      ],
+      "continuation_fields": [
+        {
+          "from_row": 1,
+          "to_row": 24,
+          "pdf_field_pattern": "DateTimeRow{n}_2",
+          "column": "timestamp"
+        },
+        {
+          "from_row": 1,
+          "to_row": 24,
+          "pdf_field_pattern": "Notable ActivitiesRow{n}_2",
+          "column": "text"
+        },
+        {
+          "from_row": 25,
+          "to_row": 36,
+          "pdf_field_pattern": "DateTimeRow{n}",
+          "column": "timestamp"
+        },
+        {
+          "from_row": 25,
+          "to_row": 36,
+          "pdf_field_pattern": "Notable ActivitiesRow{n}",
+          "column": "text"
+        }
+      ]
+    },
+    {
+      "ref": "narrative",
+      "overflow_mode": "continuation",
+      "rows_per_page": [
+        24
+      ],
+      "col_patterns": {
+        "timestamp": "timestamp{n}",
+        "narrative": "narrative{n}"
+      },
+      "continuation_template": "ICS 214 Activity Log Page 2.pdf"
+    }
   ]
 }

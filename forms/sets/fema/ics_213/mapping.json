@@ -1,18 +1,160 @@
 {
-  "description": "ICS 213 General Message — FEMA",
+  "description": "ICS 213 — General Message — FEMA ICS Forms 2023",
   "fields": [
-    { "pdf_field": "To",           "source": { "key": "message.to",      "default": "" } },
-    { "pdf_field": "Position",     "source": { "key": "message.to_position", "default": "" } },
-    { "pdf_field": "From",         "source": { "key": "message.from",    "default": "" } },
-    { "pdf_field": "FromPosition", "source": { "key": "message.from_position", "default": "" } },
-    { "pdf_field": "Subject",      "source": { "key": "message.subject", "default": "" } },
-    { "pdf_field": "Date",         "source": { "key": "message.date",    "transform": "date_short", "default": "" } },
-    { "pdf_field": "Time",         "source": { "key": "message.time",    "transform": "time_short", "default": "" } },
-    { "pdf_field": "Message",      "source": { "key": "message.body",    "default": "" } },
-    { "pdf_field": "Approved",     "source": { "key": "message.approved_by", "default": "" } },
-    { "pdf_field": "Reply",        "source": { "key": "message.reply",   "default": "" } },
-    { "pdf_field": "RepliedBy",    "source": { "key": "message.replied_by", "default": "" } },
-    { "pdf_field": "ReplyDate",    "source": { "key": "message.reply_date", "transform": "date_short", "default": "" } },
-    { "pdf_field": "ReplyTime",    "source": { "key": "message.reply_time", "transform": "time_short", "default": "" } }
+    {
+      "pdf_field": "1 Incident Name Optional",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 To Name and Position",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 From Name and Position",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Subject",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Date",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Time",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Message",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Approved by Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_19",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_13",
+      "source": ""
+    },
+    {
+      "pdf_field": "9 Reply",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 Replied by Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_20",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_14",
+      "source": ""
+    },
+    {
+      "pdf_field": "To",
+      "source": {
+        "key": "message.to",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Position",
+      "source": {
+        "key": "message.to_position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "From",
+      "source": {
+        "key": "message.from",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "FromPosition",
+      "source": {
+        "key": "message.from_position",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Subject",
+      "source": {
+        "key": "message.subject",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Date",
+      "source": {
+        "key": "message.date",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Time",
+      "source": {
+        "key": "message.time",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Message",
+      "source": {
+        "key": "message.body",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Approved",
+      "source": {
+        "key": "message.approved_by",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Reply",
+      "source": {
+        "key": "message.reply",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "RepliedBy",
+      "source": {
+        "key": "message.replied_by",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReplyDate",
+      "source": {
+        "key": "message.reply_date",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ReplyTime",
+      "source": {
+        "key": "message.reply_time",
+        "transform": "time_short",
+        "default": ""
+      }
+    }
   ]
 }

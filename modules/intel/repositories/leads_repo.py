@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from utils.api_client import api_client, APIError
 from modules.intel.models.leads import Lead
+
+_log = logging.getLogger(__name__)
+
+
+def _team_log(team_id: int, text: str) -> None:
+    try:
+        from modules.operations.data.repository import ics214_log_entry
+        ics214_log_entry("team", team_id, text, source="auto")
+    except Exception as exc:
+        _log.warning("leads team ICS-214 log failed (team %s): %s", team_id, exc)
 
 
 class LeadsRepository:
@@ -45,16 +56,31 @@ class LeadsRepository:
     def create(self, lead: Lead) -> Optional[Lead]:
         try:
             data = api_client.post(self._base, json=lead.to_api_dict())
-            return Lead.from_api(data)
+            result = Lead.from_api(data)
         except APIError:
             return None
+        if result.assigned_team_id:
+            _team_log(result.assigned_team_id,
+                      f"Lead assigned: {result.display_number} — {result.title} "
+                      f"(priority: {result.priority})")
+        return result
 
     def update(self, lead_id: str, updates: dict) -> Optional[Lead]:
+        prev_team_id = updates.pop("_prev_assigned_team_id", None)
         try:
             data = api_client.patch(f"{self._base}/{lead_id}", json=updates)
-            return Lead.from_api(data)
+            result = Lead.from_api(data)
         except APIError:
             return None
+        new_team_id = result.assigned_team_id
+        if new_team_id and new_team_id != prev_team_id:
+            _team_log(new_team_id,
+                      f"Lead assigned: {result.display_number} — {result.title} "
+                      f"(priority: {result.priority})")
+        if prev_team_id and prev_team_id != new_team_id:
+            _team_log(prev_team_id,
+                      f"Lead reassigned away: {result.display_number} — {result.title}")
+        return result
 
     def close(self, lead_id: str) -> bool:
         try:

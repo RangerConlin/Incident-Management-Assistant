@@ -26,6 +26,7 @@ class FormCatalogEntry:
     number: str
     title: str
     category: str
+    row_groups: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -125,12 +126,23 @@ class FormSetRegistry:
         shutil.rmtree(form_dir, ignore_errors=True)
         return True
 
-    def add_form_definition(self, form_id: str, number: str, title: str, category: str) -> FormCatalogEntry:
+    def add_form_definition(self, form_id: str, number: str, title: str, category: str,
+                            row_groups: list[dict] | None = None) -> FormCatalogEntry:
         """Add a new form to catalog.json and return the entry."""
-        entry = FormCatalogEntry(id=form_id, number=number, title=title, category=category)
+        entry = FormCatalogEntry(id=form_id, number=number, title=title, category=category,
+                                 row_groups=row_groups or [])
         self._catalog.append(entry)
         self._save_catalog()
         return entry
+
+    def update_form_row_groups(self, form_id: str, row_groups: list[dict]) -> bool:
+        """Replace the row_groups list for a form and save catalog.json."""
+        for entry in self._catalog:
+            if entry.id == form_id:
+                entry.row_groups = row_groups
+                self._save_catalog()
+                return True
+        return False
 
     def coverage(self, form_id: str) -> FormCoverage:
         """Return implementation status for a form across all known sets."""
@@ -200,16 +212,20 @@ class FormSetRegistry:
                     number=item.get("number", item["id"]),
                     title=item.get("title", ""),
                     category=item.get("category", ""),
+                    row_groups=item.get("row_groups", []),
                 ))
         except Exception:
             pass
 
     def _save_catalog(self) -> None:
         catalog_path = self._root / "catalog.json"
-        data = {"forms": [
-            {"id": e.id, "number": e.number, "title": e.title, "category": e.category}
-            for e in self._catalog
-        ]}
+        rows = []
+        for e in self._catalog:
+            entry: dict = {"id": e.id, "number": e.number, "title": e.title, "category": e.category}
+            if e.row_groups:
+                entry["row_groups"] = e.row_groups
+            rows.append(entry)
+        data = {"forms": rows}
         catalog_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _resolve_fallback(self, set_meta: FormSetMeta, form_id: str) -> str | None:
@@ -231,13 +247,25 @@ class FormSetRegistry:
 
     @staticmethod
     def _count_unmapped(mapping_path: Path) -> int:
+        import re
         try:
             data = json.loads(mapping_path.read_text(encoding="utf-8"))
+
+            # Build set of regex patterns for fields covered by array col_patterns
+            rg_patterns: list[re.Pattern] = []
+            for rg in data.get("row_groups", []):
+                for pattern in rg.get("col_patterns", {}).values():
+                    if pattern:
+                        regex = re.escape(pattern).replace(r"\{n\}", r"\d+") + "$"
+                        rg_patterns.append(re.compile(regex, re.IGNORECASE))
+
             count = 0
             for field_entry in data.get("fields", []):
                 source = field_entry.get("source")
                 if source is None or source == "" or source == {"literal": ""}:
-                    count += 1
+                    name = field_entry.get("pdf_field") or field_entry.get("name") or ""
+                    if not any(p.match(name) for p in rg_patterns):
+                        count += 1
             return count
         except Exception:
             return 0

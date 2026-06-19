@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from utils.api_client import api_client, APIError
 from modules.intel.models.intel_items import IntelItem, Observation
+
+_log = logging.getLogger(__name__)
+
+
+def _team_log(team_id: int, text: str) -> None:
+    try:
+        from modules.operations.data.repository import ics214_log_entry
+        ics214_log_entry("team", team_id, text, source="auto")
+    except Exception as exc:
+        _log.warning("intel team ICS-214 log failed (team %s): %s", team_id, exc)
 
 
 class IntelItemsRepository:
@@ -48,9 +59,12 @@ class IntelItemsRepository:
     def create(self, item: IntelItem) -> Optional[IntelItem]:
         try:
             data = api_client.post(self._base, json=item.to_api_dict())
-            return IntelItem.from_api(data)
+            result = IntelItem.from_api(data)
         except APIError:
             return None
+        for team_id in result.linked_team_ids:
+            _team_log(team_id, f"{result.item_type} reported: {result.title}")
+        return result
 
     def update(self, item_id: str, updates: dict) -> Optional[IntelItem]:
         try:
@@ -73,9 +87,15 @@ class IntelItemsRepository:
                 f"{self._base}/{item_id}/observations",
                 json=obs.to_api_dict(),
             )
-            return IntelItem.from_api(data)
+            result = IntelItem.from_api(data)
         except APIError:
             return None
+        if obs.source_team_id:
+            label = obs.source_team or f"Team {obs.source_team_id}"
+            _team_log(obs.source_team_id,
+                      f"Observation submitted on {result.item_type}: {result.title} "
+                      f"(confidence: {obs.confidence})")
+        return result
 
     def update_observation(
         self, item_id: str, obs_id: str, updates: dict

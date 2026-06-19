@@ -30,11 +30,13 @@ class CreateVersionDialog(QDialog):
         form_title: str,
         sets: list[FormSetMeta],
         parent=None,
+        has_continuation_page: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Create Version — {form_title}")
         self.setMinimumWidth(420)
         self._sets = {s.id: s for s in sets}
+        self._continuation_pdf_path: Path | None = None
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -57,7 +59,16 @@ class CreateVersionDialog(QDialog):
         browse_btn.clicked.connect(self._browse_pdf)
         pdf_row.addWidget(self.pdf_label, 1)
         pdf_row.addWidget(browse_btn)
-        form.addRow("Template PDF", pdf_row)
+        form.addRow("Template PDF (Page 1)", pdf_row)
+
+        cont_row = QHBoxLayout()
+        self._cont_label = QLabel("No file selected  (optional)")
+        self._cont_label.setWordWrap(True)
+        cont_browse_btn = QPushButton("Browse…")
+        cont_browse_btn.clicked.connect(self._browse_continuation_pdf)
+        cont_row.addWidget(self._cont_label, 1)
+        cont_row.addWidget(cont_browse_btn)
+        form.addRow("Continuation PDF (Page 2+)", cont_row)
 
         info = QLabel(
             "The PDF will be copied into the form set directory and a mapping "
@@ -83,6 +94,14 @@ class CreateVersionDialog(QDialog):
             self._pdf_path = Path(path)
             self.pdf_label.setText(self._pdf_path.name)
 
+    def _browse_continuation_pdf(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Continuation PDF", "", "PDF Files (*.pdf)"
+        )
+        if path:
+            self._continuation_pdf_path = Path(path)
+            self._cont_label.setText(self._continuation_pdf_path.name)
+
     def _on_accept(self) -> None:
         set_id = self.set_combo.currentData()
         version = self.version_edit.text().strip()
@@ -96,6 +115,7 @@ class CreateVersionDialog(QDialog):
             "set_id": set_id,
             "version": version,
             "pdf_path": self._pdf_path,
+            "continuation_pdf_path": self._continuation_pdf_path,
         }
         self.accept()
 

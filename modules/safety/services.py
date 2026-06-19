@@ -59,6 +59,16 @@ def create_safety_report(incident_id: str, data: schemas.SafetyReportCreate) -> 
     result = schemas.SafetyReportRead(**row)
     if getattr(result, "flagged", False):
         _notify_flagged(result)
+    if getattr(result, "team_id", None):
+        try:
+            from modules.operations.data.repository import ics214_log_entry
+            severity = getattr(result, "severity", None) or "Unknown"
+            location = getattr(result, "location", None)
+            loc_part = f" at {location}" if location else ""
+            ics214_log_entry("team", result.team_id,
+                             f"Safety report{loc_part}: {severity} severity", source="auto")
+        except Exception:
+            pass
     return result
 
 
@@ -76,7 +86,17 @@ def list_medical_incidents(incident_id: str) -> List[schemas.MedicalIncidentRead
 
 def create_medical_incident(incident_id: str, data: schemas.MedicalIncidentCreate) -> schemas.MedicalIncidentRead:
     row = api_client.post(f"/api/incidents/{incident_id}/medical/incidents", json=data.dict())
-    return schemas.MedicalIncidentRead(**row)
+    result = schemas.MedicalIncidentRead(**row)
+    if getattr(result, "team_id", None):
+        try:
+            from modules.operations.data.repository import ics214_log_entry
+            incident_type = getattr(result, "type", None) or "medical incident"
+            evac = " — evacuation required" if getattr(result, "evac_required", False) else ""
+            ics214_log_entry("team", result.team_id,
+                             f"Medical incident: {incident_type}{evac}", source="auto")
+        except Exception:
+            pass
+    return result
 
 
 # ---------------------------------------------------------------------------

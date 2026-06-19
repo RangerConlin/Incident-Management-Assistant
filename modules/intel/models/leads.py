@@ -73,6 +73,7 @@ class Lead:
     contact_info: Optional[str] = None
     location_text: Optional[str] = None
     assigned_to: Optional[str] = None
+    assigned_team_id: Optional[int] = None
     notes: Optional[str] = None
     lead_number: Optional[int] = None
     converted_to_type: Optional[str] = None
@@ -106,6 +107,7 @@ class Lead:
             contact_info=data.get("contact_info"),
             location_text=data.get("location_text"),
             assigned_to=data.get("assigned_to"),
+            assigned_team_id=data.get("assigned_team_id"),
             notes=data.get("notes"),
             lead_number=data.get("lead_number"),
             converted_to_type=data.get("converted_to_type"),
@@ -127,5 +129,6 @@ class Lead:
             "contact_info": self.contact_info,
             "location_text": self.location_text,
             "assigned_to": self.assigned_to,
+            "assigned_team_id": self.assigned_team_id,
             "notes": self.notes,
         }

@@ -1,6 +1,170 @@
 {
-  "description": "ICS 207 Incident Organization Chart — FEMA",
+  "description": "ICS 207 — Incident Organization Chart — FEMA ICS Forms 2023",
   "fields": [
+    {
+      "pdf_field": "1 Incident Name_11",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "Date From",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Date To",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "Time From",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Time To",
+      "source": "op_period"
+    },
+    {
+      "pdf_field": "Incident Commanders_2",
+      "source": "organization.incident_commander.name"
+    },
+    {
+      "pdf_field": "Liaison Officer_3",
+      "source": "organization.liaison_officer.name"
+    },
+    {
+      "pdf_field": "Safety Officer_4",
+      "source": "organization.safety_officer.name"
+    },
+    {
+      "pdf_field": "Operations Section ChiefRow1",
+      "source": "organization.operations_section_chief.name"
+    },
+    {
+      "pdf_field": "Public Information Officer_2",
+      "source": "organization.public_information_officer.name"
+    },
+    {
+      "pdf_field": "Staging Area Manager",
+      "source": "organization.staging_area_manager.name"
+    },
+    {
+      "pdf_field": "Planning Section Chief_3",
+      "source": "organization.planning_section_chief.name"
+    },
+    {
+      "pdf_field": "Logistics Section Chief_2",
+      "source": "organization.logistics_section_chief.name"
+    },
+    {
+      "pdf_field": "FinanceAdmin Section Chief",
+      "source": "organization.finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "undefined_27",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_28",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_29",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_30",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resources Unit Ldr",
+      "source": "organization.resources_unit_leader.name"
+    },
+    {
+      "pdf_field": "Support Branch Dir",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time Unit Ldr",
+      "source": ""
+    },
+    {
+      "pdf_field": "Situation Unit Ldr",
+      "source": "organization.situation_unit_leader.name"
+    },
+    {
+      "pdf_field": "Supply Unit Ldr",
+      "source": "organization.supply_unit_leader.name"
+    },
+    {
+      "pdf_field": "Procurement Unit Ldr",
+      "source": ""
+    },
+    {
+      "pdf_field": "Documentation Unit Ldr",
+      "source": "organization.documentation_unit_leader.name"
+    },
+    {
+      "pdf_field": "Facilities Unit Ldr",
+      "source": "organization.facilities_unit_leader.name"
+    },
+    {
+      "pdf_field": "CompClaims Unit Ldr",
+      "source": ""
+    },
+    {
+      "pdf_field": "Demobilization Unit Ldr",
+      "source": "organization.demobilization_unit_leader.name"
+    },
+    {
+      "pdf_field": "Ground Spt Unit Ldr",
+      "source": "organization.ground_support_unit_leader.name"
+    },
+    {
+      "pdf_field": "Cost Unit Ldr",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_31",
+      "source": ""
+    },
+    {
+      "pdf_field": "Service Branch Dir",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_32",
+      "source": ""
+    },
+    {
+      "pdf_field": "Comms Unit Ldr",
+      "source": "organization.communications_unit_leader.name"
+    },
+    {
+      "pdf_field": "Medical Unit Ldr",
+      "source": "organization.medical_unit_leader.name"
+    },
+    {
+      "pdf_field": "Food Unit Ldr",
+      "source": "organization.food_unit_leader.name"
+    },
+    {
+      "pdf_field": "IAP Page_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Prepared by Name_2",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PositionTitle_9",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "DateTime_11",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "Signature_13",
+      "source": ""
+    },
     {
       "pdf_field": "IncidentName",
       "source": "incident.name"

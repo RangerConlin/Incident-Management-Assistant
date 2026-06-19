@@ -1,6 +1,620 @@
 {
-  "description": "ICS 218 Support Vehicle / Equipment Inventory — FEMA",
+  "description": "ICS 218 — Support Vehicle / Equipment Inventory — FEMA ICS Forms 2023",
   "fields": [
+    {
+      "pdf_field": "1 Incident Name_22",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 Incident Number_11",
+      "source": "incident"
+    },
+    {
+      "pdf_field": "Date",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Time",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "4 VehicleEquipment Category",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "make1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency1",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator1",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate1",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to1",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time1",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "make2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency2",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator2",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate2",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to2",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time2",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "make3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency3",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator3",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate3",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to3",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time3",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "make4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency4",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator4",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate4",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to4",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time4",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "make5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency5",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator5",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate5",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to5",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time5",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "make6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency6",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator6",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate6",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to6",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time6",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "make7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency7",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator7",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate7",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to7",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time7",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "make8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency8",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator8",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate8",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to8",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time8",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "make9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency9",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator9",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate9",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to9",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time9",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "make10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency10",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator10",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate10",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to10",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time10",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "make11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency11",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator11",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate11",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to11",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time11",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NumberRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "make12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment FeaturesRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "owner_agency12",
+      "source": ""
+    },
+    {
+      "pdf_field": "operator12",
+      "source": ""
+    },
+    {
+      "pdf_field": "license_plate12",
+      "source": ""
+    },
+    {
+      "pdf_field": "assigned_to12",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkin_time12",
+      "source": ""
+    },
+    {
+      "pdf_field": "checkout_time12",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Prepared by Name_5",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PositionTitle_17",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature_25",
+      "source": ""
+    },
     {
       "pdf_field": "IncidentName",
       "source": "incident.name"
@@ -390,6 +1004,53 @@
         "key": "prepared_by.date_time",
         "transform": "datetime_short",
         "default": ""
+      }
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow4",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "checkin_vehicles",
+      "data_key": "checkin_vehicles",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "checkout_time": "checkout_time{n}",
+        "license_plate": "license_plate{n}",
+        "make": "make{n}",
+        "checkin_time": "checkin_time{n}",
+        "owner_agency": "owner_agency{n}",
+        "assigned_to": "assigned_to{n}",
+        "operator": "operator{n}"
       }
     }
   ]

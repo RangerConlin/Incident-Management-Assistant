@@ -1,6 +1,62 @@
 {
-  "description": "ICS 208 Safety Message / Plan — FEMA",
+  "description": "ICS 208 — Safety Message / Plan — FEMA ICS Forms 2023",
   "fields": [
+    {
+      "pdf_field": "1 Incident Name_12",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "Date From",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Date To",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Time From",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "Time To",
+      "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": "3 Safety MessageExpanded Safety Message Safety Plan Site Safety Plan",
+      "source": ""
+    },
+    {
+      "pdf_field": "Site Safety Plan Required? Yes",
+      "source": ""
+    },
+    {
+      "pdf_field": "Site Safety Plan Required? No",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Site Safety Plan Required Yes No Approved Site Safety Plans Located At",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Prepared by Name",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PositionTitle_10",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "IAP Page_7",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_12",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "Signature_14",
+      "source": ""
+    },
     {
       "pdf_field": "IncidentName",
       "source": "incident.name"

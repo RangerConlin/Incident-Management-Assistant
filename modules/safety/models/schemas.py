@@ -27,6 +27,7 @@ class SafetyReportBase(BaseModel):
     notes: Optional[str] = None
     flagged: bool = False
     reported_by: Optional[str] = None
+    team_id: Optional[int] = None
 
 
 class SafetyReportCreate(SafetyReportBase):
@@ -51,6 +52,7 @@ class MedicalIncidentBase(BaseModel):
     treatment_given: Optional[str] = None
     evac_required: bool = False
     reported_by: Optional[str] = None
+    team_id: Optional[int] = None
 
 
 class MedicalIncidentCreate(MedicalIncidentBase):

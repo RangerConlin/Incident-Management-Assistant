@@ -14,7 +14,7 @@ Desktop-first incident management suite (ICS Command Assistant / SARApp) built w
 - **Never create demo/fake data** — only migrate or use data that already exists, however creating fake data is ok if instructed to.
 - **Never wire MongoDB directly into the UI** — architecture is UI → API server → MongoDB.
 - **`SARAPP_MONGO_URI` is never hardcoded** — read from environment variable only.
-- **All text files must be UTF-8 (no BOM) with LF line endings** — audit with `python scripts/encoding_audit.py --summary`.
+- **All text files must be UTF-8 (no BOM) with LF line endings** — audit with `python tools/encoding_audit.py --summary`.
 
 ---
 
@@ -141,8 +141,8 @@ pytest --import-mode=importlib
 
 - All repo text files: UTF-8 (no BOM), LF line endings
 - Avoid pasting from Word/PDF — paste as plain text, replace curly quotes/dashes
-- Audit: `python scripts/encoding_audit.py --summary`
-- CI gate: `python scripts/encoding_audit.py --fail-on-find`
+- Audit: `python tools/encoding_audit.py --summary`
+- CI gate: `python tools/encoding_audit.py --fail-on-find`
 - Pre-commit: `pipx install pre-commit && pre-commit install`; run with `pre-commit run --all-files`
 - Windows console: `chcp 65001` before running tools
 

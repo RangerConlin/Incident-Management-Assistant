@@ -643,7 +643,28 @@ class ApiCommsLogRepository:
         payload = asdict(entry)
         payload.pop("id", None)
         result = api_client.post(self._base, json=payload)
-        return self._entry_from_response(result)
+        saved = self._entry_from_response(result)
+        if saved.team_id:
+            try:
+                from modules.operations.data.repository import ics214_log_entry
+                direction = entry.direction or ""
+                priority = entry.priority or "Routine"
+                text = entry.message or ""
+                parts = []
+                if direction:
+                    parts.append(direction)
+                if priority and priority != "Routine":
+                    parts.append(priority)
+                if entry.from_unit:
+                    parts.append(f"from {entry.from_unit}")
+                if entry.to_unit:
+                    parts.append(f"to {entry.to_unit}")
+                prefix = " / ".join(parts)
+                log_text = f"[Comms] {prefix}: {text}" if prefix else f"[Comms] {text}"
+                ics214_log_entry("team", int(saved.team_id), log_text[:200], source="auto")
+            except Exception:
+                pass
+        return saved
 
     def get_entry(self, entry_id: int) -> CommsLogEntry:
         from utils.api_client import api_client

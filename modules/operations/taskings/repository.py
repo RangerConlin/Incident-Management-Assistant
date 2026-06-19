@@ -250,13 +250,24 @@ def list_task_debriefs(task_id: int) -> List[Dict[str, Any]]:
         return []
 
 
-def create_debrief(task_id: int, sortie_number: str, debriefer_id: str, types: List[str]) -> int:
+def create_debrief(task_id: int, sortie_number: str, debriefer_id: str, types: List[str],
+                   team_id: Optional[int] = None) -> int:
     result = _client().post(f"{_base()}/tasks/{task_id}/debriefs", json={
         "sortie_number": sortie_number,
         "debriefer_id": debriefer_id,
         "types": list(types or []),
     })
-    return int(result.get("int_id") or 0)
+    debrief_id = int(result.get("int_id") or 0)
+    if team_id:
+        try:
+            from modules.operations.data.repository import ics214_log_entry
+            sortie_label = f" (Sortie {sortie_number})" if sortie_number else ""
+            ics214_log_entry("team", team_id,
+                             f"Debrief completed for Task {task_id}{sortie_label}",
+                             source="auto")
+        except Exception:
+            pass
+    return debrief_id
 
 
 def update_debrief_header(debrief_id: int, patch: Dict[str, Any]) -> None:
@@ -503,6 +514,11 @@ def create_team(team_leader_id: Optional[int] = None) -> int:
         ))
     except Exception as exc:
         logger.debug("ICS-214 stream creation for team %s: %s", team_int_id, exc)
+    try:
+        from modules.operations.data.repository import ics214_log_entry
+        ics214_log_entry("team", team_int_id, "Team created", source="auto")
+    except Exception:
+        pass
     return team_int_id
 
 
@@ -519,8 +535,8 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
         from modules.operations.data.repository import set_team_assignment_status, ics214_log_entry
         set_team_assignment_status(tt_id, "assigned")
         if actual_team_id:
-            ics214_log_entry("team", actual_team_id, f"Assigned to Task {task_id}")
-        ics214_log_entry("task", int(task_id), f"Team {actual_team_id or tt_id} assigned to task")
+            ics214_log_entry("team", actual_team_id, f"Assigned to Task {task_id}", source="auto")
+        ics214_log_entry("task", int(task_id), f"Team {actual_team_id or tt_id} assigned to task", source="auto")
     except Exception:
         pass
     try:
@@ -571,8 +587,8 @@ def remove_task_team_from_task(task_id: int, tt_id: int, team_id: Optional[int] 
     try:
         from modules.operations.data.repository import ics214_log_entry
         if team_id:
-            ics214_log_entry("team", int(team_id), f"Removed from Task {task_id}")
-        ics214_log_entry("task", int(task_id), f"Team {team_id or tt_id} removed from task")
+            ics214_log_entry("team", int(team_id), f"Removed from Task {task_id}", source="auto")
+        ics214_log_entry("task", int(task_id), f"Team {team_id or tt_id} removed from task", source="auto")
     except Exception:
         pass
     try:

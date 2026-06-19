@@ -34,6 +34,7 @@ class Observation:
     confidence: str = "Possible"
     summary: str = ""
     source_team: Optional[str] = None
+    source_team_id: Optional[int] = None
     detailed_notes: Optional[str] = None
     location_text: Optional[str] = None
     attachments: list[str] = field(default_factory=list)
@@ -49,6 +50,7 @@ class Observation:
             confidence=data.get("confidence", "Possible"),
             summary=data.get("summary", ""),
             source_team=data.get("source_team"),
+            source_team_id=data.get("source_team_id"),
             detailed_notes=data.get("detailed_notes"),
             location_text=data.get("location_text"),
             attachments=data.get("attachments", []),
@@ -63,6 +65,7 @@ class Observation:
             "confidence": self.confidence,
             "summary": self.summary,
             "source_team": self.source_team,
+            "source_team_id": self.source_team_id,
             "detailed_notes": self.detailed_notes,
             "location_text": self.location_text,
             "attachments": self.attachments,
@@ -89,6 +92,7 @@ class IntelItem:
     observations: list[Observation] = field(default_factory=list)
     linked_subject_ids: list[str] = field(default_factory=list)
     linked_task_ids: list[str] = field(default_factory=list)
+    linked_team_ids: list[int] = field(default_factory=list)
 
     @property
     def observation_count(self) -> int:
@@ -123,6 +127,7 @@ class IntelItem:
             observations=observations,
             linked_subject_ids=data.get("linked_subject_ids", []),
             linked_task_ids=data.get("linked_task_ids", []),
+            linked_team_ids=data.get("linked_team_ids", []),
         )
 
     def to_api_dict(self) -> dict:
@@ -135,4 +140,5 @@ class IntelItem:
             "trend": self.trend,
             "location_text": self.location_text,
             "notes": self.notes,
+            "linked_team_ids": self.linked_team_ids,
         }

@@ -745,6 +745,57 @@ def save_task_assignment(incident_id: str, task_id: int, body: dict[str, Any]) -
 
 
 # ---------------------------------------------------------------------------
+# Task narratives
+# ---------------------------------------------------------------------------
+
+@router.get("/incidents/{incident_id}/operations/tasks/{task_id}/narrative")
+def list_task_narrative(incident_id: str, task_id: int) -> list[dict]:
+    col = _tasks(incident_id)
+    doc = col.find_one({"int_id": task_id}, {"narrative": 1})
+    entries = sorted(
+        (doc or {}).get("narrative") or [],
+        key=lambda e: e.get("timestamp", ""),
+    )
+    return entries
+
+
+@router.post("/incidents/{incident_id}/operations/tasks/{task_id}/narrative", status_code=201)
+def add_task_narrative(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
+    col = _tasks(incident_id)
+    entry = {
+        "id": _new_id(),
+        "timestamp": body.get("timestamp") or _now(),
+        "narrative": body.get("narrative") or body.get("text") or "",
+        "entered_by": body.get("entered_by") or "",
+        "team_id": body.get("team_id"),
+        "team_num": body.get("team_num") or "",
+        "critical": bool(body.get("critical", False)),
+        "source": body.get("source", "manual"),
+    }
+    result = col.find_one_and_update(
+        {"int_id": task_id},
+        {"$push": {"narrative": entry}, "$set": {"updated_at": _now()}},
+        return_document=True,
+        projection={"int_id": 1},
+    )
+    if not result:
+        raise HTTPException(404)
+    return entry
+
+
+@router.delete(
+    "/incidents/{incident_id}/operations/tasks/{task_id}/narrative/{entry_id}",
+    status_code=204,
+)
+def delete_task_narrative(incident_id: str, task_id: int, entry_id: str) -> None:
+    col = _tasks(incident_id)
+    col.update_one(
+        {"int_id": task_id},
+        {"$pull": {"narrative": {"id": entry_id}}, "$set": {"updated_at": _now()}},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Debriefs
 # ---------------------------------------------------------------------------
 

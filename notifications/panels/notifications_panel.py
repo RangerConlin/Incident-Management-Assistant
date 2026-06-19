@@ -17,11 +17,26 @@ from PySide6.QtWidgets import (
 from notifications.services import get_notifier
 from utils.app_signals import app_signals
 
-_SEVERITY_COLORS = {
-    "info":    ("#3879D9", "#1a2a4a"),
-    "success": ("#38D978", "#1a3a2a"),
-    "warning": ("#D9A938", "#3a2e1a"),
-    "error":   ("#D93838", "#3a1a1a"),
+_SEVERITY_ACCENT = {
+    "informational": "#444444",
+    "routine":       "#888888",
+    "priority":      "#D9A938",
+    "emergency":     "#D93838",
+}
+_SEVERITY_BG = {
+    "informational": "#1e1e1e",
+    "routine":       "#282828",
+    "priority":      "#3a2e1a",
+    "emergency":     "#3a1a1a",
+}
+_CATEGORY_LABEL = {
+    "operations":     ("OPS",   "#3879D9"),
+    "communications": ("COMMS", "#38A8D9"),
+    "safety":         ("SAFETY","#D9A938"),
+    "logistics":      ("LOG",   "#8A38D9"),
+    "planning":       ("PLAN",  "#38D978"),
+    "administrative": ("ADMIN", "#888888"),
+    "system":         ("SYS",   "#888888"),
 }
 
 
@@ -31,7 +46,10 @@ class _NotificationRow(QFrame):
         self.setAttribute(Qt.WA_StyledBackground, True)
 
         severity = str(payload.get("severity") or "info")
-        accent, bg = _SEVERITY_COLORS.get(severity, _SEVERITY_COLORS["info"])
+        category = str(payload.get("category") or "operational")
+        accent = _SEVERITY_ACCENT.get(severity, _SEVERITY_ACCENT["info"])
+        bg = _SEVERITY_BG.get(severity, _SEVERITY_BG["info"])
+        cat_text, cat_color = _CATEGORY_LABEL.get(category, ("", "#888888"))
 
         self.setStyleSheet(
             f"QFrame {{ background: {bg}22; border-left: 3px solid {accent}; "
@@ -44,6 +62,15 @@ class _NotificationRow(QFrame):
 
         header = QHBoxLayout()
         header.setSpacing(8)
+
+        if cat_text:
+            cat_lbl = QLabel(cat_text)
+            cat_lbl.setStyleSheet(
+                f"color: {cat_color}; font-size: 10px; font-weight: 700;"
+                " padding: 1px 4px; border-radius: 3px;"
+                f" border: 1px solid {cat_color};"
+            )
+            header.addWidget(cat_lbl, 0)
 
         title_lbl = QLabel(str(payload.get("title") or ""))
         title_lbl.setStyleSheet("font-weight: 600;")

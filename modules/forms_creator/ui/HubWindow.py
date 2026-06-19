@@ -11,6 +11,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QMenu,
     QAbstractItemView,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -35,6 +36,7 @@ from .dialogs.NewFormDialog import NewFormDialog
 from .dialogs.CreateVersionDialog import CreateVersionDialog
 from .dialogs.NewBindingDialog import NewBindingDialog
 from .dialogs.NewFormSetDialog import NewFormSetDialog
+from .dialogs.ArraySourceDialog import ArraySourceDialog
 
 _BINDING_CATALOG_PATH = Path(__file__).resolve().parents[3] / "forms" / "binding_catalog.json"
 
@@ -140,6 +142,39 @@ class HubWindow(QMainWindow):
         self._form_header.setStyleSheet("font-size: 14px;")
         layout.addWidget(self._form_header)
 
+        # --- Row Groups section ---
+        self._row_groups_box = QGroupBox("Row Groups")
+        rg_layout = QVBoxLayout(self._row_groups_box)
+
+        self._rg_empty_label = QLabel("No row groups defined.")
+        self._rg_empty_label.setStyleSheet("color: gray; font-style: italic;")
+        rg_layout.addWidget(self._rg_empty_label)
+
+        self._rg_table = QTableWidget()
+        self._rg_table.setColumnCount(4)
+        self._rg_table.setHorizontalHeaderLabels(["ID", "Data Key", "Columns", "Actions"])
+        self._rg_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self._rg_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self._rg_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self._rg_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self._rg_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._rg_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._rg_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._rg_table.verticalHeader().setVisible(False)
+        self._rg_table.hide()
+        rg_layout.addWidget(self._rg_table)
+
+        rg_btn_row = QHBoxLayout()
+        self._add_rg_btn = QPushButton("+ Add Row Group")
+        self._add_rg_btn.clicked.connect(self._on_add_row_group)
+        rg_btn_row.addWidget(self._add_rg_btn)
+        rg_btn_row.addStretch()
+        rg_layout.addLayout(rg_btn_row)
+
+        self._row_groups_box.setVisible(False)
+        layout.addWidget(self._row_groups_box)
+
+        # --- Create version button ---
         btn_row = QHBoxLayout()
         self._create_version_btn = QPushButton("+ Create Version for a Form Set…")
         self._create_version_btn.setEnabled(False)
@@ -175,9 +210,12 @@ class HubWindow(QMainWindow):
         edit_btn.clicked.connect(self._on_edit_binding)
         delete_btn = QPushButton("Delete")
         delete_btn.clicked.connect(self._on_delete_binding)
+        new_array_btn = QPushButton("New Array Source…")
+        new_array_btn.clicked.connect(self._on_new_array_source)
         btn_row.addWidget(new_btn)
         btn_row.addWidget(edit_btn)
         btn_row.addWidget(delete_btn)
+        btn_row.addWidget(new_array_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
@@ -260,11 +298,13 @@ class HubWindow(QMainWindow):
         if not items:
             self._edit_form_btn.setEnabled(False)
             self._remove_form_btn.setEnabled(False)
+            self._row_groups_box.setVisible(False)
             return
         form_id = items[0].data(0, Qt.ItemDataRole.UserRole)
         if not form_id:
             self._edit_form_btn.setEnabled(False)
             self._remove_form_btn.setEnabled(False)
+            self._row_groups_box.setVisible(False)
             return
         self._selected_form_id = form_id
         self._edit_form_btn.setEnabled(True)
@@ -277,6 +317,8 @@ class HubWindow(QMainWindow):
             return
         self._form_header.setText(f"<b>{entry.number}</b> — {entry.title}")
         self._create_version_btn.setEnabled(True)
+        self._refresh_row_groups_display(form_id)
+
 
         coverage = self._registry.coverage(form_id)
         sets = self._registry.list_sets()
@@ -354,6 +396,105 @@ class HubWindow(QMainWindow):
         self._version_table.resizeRowsToContents()
 
     # ------------------------------------------------------------------
+    # Row groups display and actions
+    # ------------------------------------------------------------------
+
+    def _refresh_row_groups_display(self, form_id: str) -> None:
+        self._row_groups_box.setVisible(False)
+        entry = self._registry.get_form_definition(form_id)
+        row_groups = entry.row_groups if entry else []
+
+        if row_groups:
+            self._rg_empty_label.hide()
+            self._rg_table.show()
+            self._rg_table.setRowCount(len(row_groups))
+            for row_idx, rg in enumerate(row_groups):
+                self._rg_table.setItem(row_idx, 0, QTableWidgetItem(rg.get("id", "")))
+                self._rg_table.setItem(row_idx, 1, QTableWidgetItem(rg.get("data_key", "")))
+                col_summary = ", ".join(c.get("id", "?") for c in rg.get("columns", []))
+                self._rg_table.setItem(row_idx, 2, QTableWidgetItem(col_summary))
+
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(2, 2, 2, 2)
+                actions_layout.setSpacing(4)
+
+                edit_btn = QPushButton("Edit")
+                edit_btn.setFixedHeight(24)
+                edit_btn.clicked.connect(
+                    lambda checked=False, idx=row_idx: self._on_edit_row_group(idx)
+                )
+                actions_layout.addWidget(edit_btn)
+
+                rem_btn = QPushButton("Remove")
+                rem_btn.setFixedHeight(24)
+                rem_btn.setStyleSheet("color: #cc3333;")
+                rem_btn.clicked.connect(
+                    lambda checked=False, idx=row_idx: self._on_remove_row_group(idx)
+                )
+                actions_layout.addWidget(rem_btn)
+                actions_layout.addStretch()
+                self._rg_table.setCellWidget(row_idx, 3, actions_widget)
+
+            self._rg_table.resizeRowsToContents()
+        else:
+            self._rg_empty_label.show()
+            self._rg_table.hide()
+            self._rg_table.setRowCount(0)
+
+    def _on_add_row_group(self) -> None:
+        if not self._selected_form_id:
+            return
+        dlg = ArraySourceDialog(parent=self)
+        if dlg.exec() != ArraySourceDialog.DialogCode.Accepted:
+            return
+        data = dlg.result_data()
+        if not data:
+            return
+        entry = self._registry.get_form_definition(self._selected_form_id)
+        row_groups = list(entry.row_groups) if entry else []
+        row_groups.append(data)
+        self._registry.update_form_row_groups(self._selected_form_id, row_groups)
+        self._refresh_row_groups_display(self._selected_form_id)
+
+    def _on_edit_row_group(self, idx: int) -> None:
+        if not self._selected_form_id:
+            return
+        entry = self._registry.get_form_definition(self._selected_form_id)
+        if not entry or idx >= len(entry.row_groups):
+            return
+        existing = entry.row_groups[idx]
+        dlg = ArraySourceDialog(existing=existing, parent=self)
+        if dlg.exec() != ArraySourceDialog.DialogCode.Accepted:
+            return
+        data = dlg.result_data()
+        if not data:
+            return
+        row_groups = list(entry.row_groups)
+        row_groups[idx] = data
+        self._registry.update_form_row_groups(self._selected_form_id, row_groups)
+        self._refresh_row_groups_display(self._selected_form_id)
+
+    def _on_remove_row_group(self, idx: int) -> None:
+        if not self._selected_form_id:
+            return
+        entry = self._registry.get_form_definition(self._selected_form_id)
+        if not entry or idx >= len(entry.row_groups):
+            return
+        rg = entry.row_groups[idx]
+        reply = QMessageBox.question(
+            self, "Remove Row Group",
+            f"Remove row group '{rg.get('id', '?')}'?\nThis cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        row_groups = list(entry.row_groups)
+        row_groups.pop(idx)
+        self._registry.update_form_row_groups(self._selected_form_id, row_groups)
+        self._refresh_row_groups_display(self._selected_form_id)
+
+    # ------------------------------------------------------------------
     # New / Edit / Remove form definition
     # ------------------------------------------------------------------
 
@@ -427,6 +568,7 @@ class HubWindow(QMainWindow):
         self._create_version_btn.setEnabled(False)
         self._form_header.setText("<i>Select a form from the catalog</i>")
         self._version_table.setRowCount(0)
+        self._row_groups_box.setVisible(False)
         self._populate_catalog_tree()
 
     def _select_form_in_tree(self, form_id: str) -> None:
@@ -477,10 +619,14 @@ class HubWindow(QMainWindow):
         if preselect_set:
             sets = sorted(sets, key=lambda s: (s.id != preselect_set, s.id))
 
+        has_continuation = bool(
+            entry and any(rg.get("has_continuation_page") for rg in entry.row_groups)
+        )
         dlg = CreateVersionDialog(
             self._selected_form_id,
             entry.title if entry else self._selected_form_id,
             sets, self,
+            has_continuation_page=has_continuation,
         )
         if dlg.exec() != CreateVersionDialog.DialogCode.Accepted:
             return
@@ -501,6 +647,15 @@ class HubWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "Create Version", f"Could not copy PDF:\n{exc}")
             return
+
+        if data.get("continuation_pdf_path"):
+            try:
+                shutil.copy2(data["continuation_pdf_path"], form_dir / "continuation_template.pdf")
+            except Exception as exc:
+                QMessageBox.warning(
+                    self, "Create Version",
+                    f"Could not copy continuation PDF:\n{exc}",
+                )
 
         mapping_path = form_dir / "mapping.json"
         try:
@@ -537,21 +692,43 @@ class HubWindow(QMainWindow):
     def _open_mapper(self, form_id: str, set_id: str) -> None:
         from .MapperWindow import MapperWindow
         w = MapperWindow(form_id, set_id, parent=self)
+        w.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        w.destroyed.connect(lambda: self._refresh_versions_tab(form_id))
         w.show()
 
     # ------------------------------------------------------------------
     # Binding catalog
     # ------------------------------------------------------------------
 
-    def _load_binding_catalog(self) -> list[dict]:
+    def _load_binding_catalog_raw(self) -> dict:
+        """Return the raw catalog dict (may be a list for legacy files or a dict)."""
         try:
-            return json.loads(_BINDING_CATALOG_PATH.read_text(encoding="utf-8"))
+            raw = json.loads(_BINDING_CATALOG_PATH.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                return {"bindings": raw, "array_sources": []}
+            return raw
         except Exception:
-            return []
+            return {"bindings": [], "array_sources": []}
+
+    def _load_binding_catalog(self) -> list[dict]:
+        return self._load_binding_catalog_raw().get("bindings", [])
+
+    def _load_array_sources(self) -> list[dict]:
+        raw = self._load_binding_catalog_raw()
+        return raw.get("array_sources", [])
 
     def _save_binding_catalog(self, entries: list[dict]) -> None:
+        raw = self._load_binding_catalog_raw()
+        raw["bindings"] = entries
         _BINDING_CATALOG_PATH.write_text(
-            json.dumps(entries, indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(raw, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+    def _save_array_sources(self, array_sources: list[dict]) -> None:
+        raw = self._load_binding_catalog_raw()
+        raw["array_sources"] = array_sources
+        _BINDING_CATALOG_PATH.write_text(
+            json.dumps(raw, indent=2, ensure_ascii=False), encoding="utf-8"
         )
 
     def _refresh_binding_tree(self) -> None:
@@ -575,7 +752,29 @@ class HubWindow(QMainWindow):
             ])
             row.setData(0, Qt.ItemDataRole.UserRole, entry)
             categories[cat].addChild(row)
-        self._binding_tree.expandAll()
+
+        # Array sources category
+        array_sources = self._load_array_sources()
+        if array_sources:
+            arr_cat = "Array Sources"
+            if arr_cat not in categories:
+                cat_item = QTreeWidgetItem([arr_cat, "", ""])
+                cat_item.setFlags(cat_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                font = cat_item.font(0)
+                font.setBold(True)
+                cat_item.setFont(0, font)
+                self._binding_tree.addTopLevelItem(cat_item)
+                categories[arr_cat] = cat_item
+            for src in array_sources:
+                row = QTreeWidgetItem([
+                    src.get("label", src.get("id", "")),
+                    src.get("data_key", src.get("id", "")),
+                    "array",
+                ])
+                row.setData(0, Qt.ItemDataRole.UserRole, None)  # not editable via binding edit
+                categories[arr_cat].addChild(row)
+
+        self._binding_tree.collapseAll()
 
     def _selected_binding_item(self) -> QTreeWidgetItem | None:
         items = self._binding_tree.selectedItems()
@@ -585,6 +784,18 @@ class HubWindow(QMainWindow):
         if not item.data(0, Qt.ItemDataRole.UserRole):
             return None
         return item
+
+    def _on_new_array_source(self) -> None:
+        dlg = ArraySourceDialog(parent=self)
+        if dlg.exec() != ArraySourceDialog.DialogCode.Accepted:
+            return
+        data = dlg.result_data()
+        if not data:
+            return
+        sources = self._load_array_sources()
+        sources.append(data)
+        self._save_array_sources(sources)
+        self._refresh_binding_tree()
 
     def _on_new_binding(self) -> None:
         entries = self._load_binding_catalog()
@@ -640,3 +851,4 @@ class HubWindow(QMainWindow):
         entries = [e for e in entries if e.get("path") != orig_path]
         self._save_binding_catalog(entries)
         self._refresh_binding_tree()
+

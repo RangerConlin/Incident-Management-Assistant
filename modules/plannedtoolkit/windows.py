@@ -5,6 +5,8 @@ from typing import Iterable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFormLayout,
     QFrame,
     QGridLayout,
@@ -25,6 +27,9 @@ from utils.api_client import APIError
 from . import services
 from .records import PlannedRecord, PlannedToolDefinition, ScheduledItem, TOOLS
 from .widgets.schedule_widget import ScheduleWidget
+
+TASK_STATUSES = ["Draft", "Planned", "In Progress", "Completed", "Cancelled"]
+PRIORITIES = ["", "Low", "Medium", "High", "Critical"]
 
 __all__ = [
     "get_promotions_panel",
@@ -251,6 +256,245 @@ class _ToolPanel(QWidget):
                 self.table.setItem(row_idx, col_idx, item)
 
 
+class QuickAssignmentsPanel(QWidget):
+    def __init__(self, incident_id: object | None = None, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.incident_id = None if incident_id is None else str(incident_id)
+        self._records: list[PlannedRecord] = []
+        self._build_ui()
+        self.refresh()
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+
+        header = QHBoxLayout()
+        title = QLabel("Quick Assignments")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        self.status_label = QLabel("")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        header.addWidget(title)
+        header.addStretch(1)
+        header.addWidget(self.status_label)
+        layout.addLayout(header)
+
+        fast_row = QHBoxLayout()
+        self.assignment_edit = QLineEdit()
+        self.assignment_edit.setPlaceholderText("Quick assignment")
+        self.assignee_edit = QLineEdit()
+        self.assignee_edit.setPlaceholderText("Assignee")
+        self.location_edit = QLineEdit()
+        self.location_edit.setPlaceholderText("Location / zone")
+        self.due_edit = QLineEdit()
+        self.due_edit.setPlaceholderText("Due")
+        add_btn = QPushButton("Add")
+        refresh_btn = QPushButton("Refresh")
+        add_btn.clicked.connect(self.add_assignment)
+        refresh_btn.clicked.connect(self.refresh)
+        fast_row.addWidget(self.assignment_edit, 3)
+        fast_row.addWidget(self.assignee_edit, 1)
+        fast_row.addWidget(self.location_edit, 1)
+        fast_row.addWidget(self.due_edit, 1)
+        fast_row.addWidget(add_btn)
+        fast_row.addWidget(refresh_btn)
+        layout.addLayout(fast_row)
+
+        options_row = QHBoxLayout()
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(TASK_STATUSES)
+        self.status_combo.setCurrentText("Planned")
+        self.priority_combo = QComboBox()
+        self.priority_combo.addItems(PRIORITIES)
+        self.priority_combo.setCurrentText("Medium")
+        self.scheduled_edit = QLineEdit()
+        self.scheduled_edit.setPlaceholderText("Scheduled")
+        self.recurring_check = QCheckBox("Recurring?")
+        self.recurrence_edit = QLineEdit()
+        self.recurrence_edit.setPlaceholderText("Recurrence rule")
+        self.recurrence_edit.setVisible(False)
+        self.recurring_check.toggled.connect(self.recurrence_edit.setVisible)
+        options_row.addWidget(QLabel("Status"))
+        options_row.addWidget(self.status_combo)
+        options_row.addWidget(QLabel("Priority"))
+        options_row.addWidget(self.priority_combo)
+        options_row.addWidget(self.scheduled_edit)
+        options_row.addWidget(self.recurring_check)
+        options_row.addWidget(self.recurrence_edit, 2)
+        options_row.addStretch(1)
+        layout.addLayout(options_row)
+
+        self.notes_edit = QTextEdit()
+        self.notes_edit.setPlaceholderText("Notes")
+        self.notes_edit.setFixedHeight(58)
+        layout.addWidget(self.notes_edit)
+
+        self.table = QTableWidget(0, 10)
+        self.table.setHorizontalHeaderLabels([
+            "ID",
+            "Assignment",
+            "Status",
+            "Priority",
+            "Assignee",
+            "Location / Zone",
+            "Scheduled",
+            "Due",
+            "Source",
+            "Action",
+        ])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table)
+
+    def _iid(self) -> str | None:
+        return self.incident_id
+
+    def _set_status(self, message: str, *, error: bool = False) -> None:
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet(f"color: {'#b00020' if error else '#375a2b'};")
+
+    def _describe_error(self, exc: Exception) -> str:
+        if isinstance(exc, APIError):
+            if exc.status_code is None:
+                return f"Quick Assignments API unavailable: {exc}"
+            return f"Quick Assignments API error {exc.status_code}: {exc}"
+        return str(exc)
+
+    def refresh(self) -> None:
+        if not self._iid():
+            self._records = []
+            self.table.setRowCount(0)
+            self._set_status("Select an incident to use this panel.", error=True)
+            return
+        try:
+            rows = services.list_records("quick-assignments", self._iid())
+        except Exception as exc:
+            self._records = []
+            self.table.setRowCount(0)
+            self._set_status(self._describe_error(exc), error=True)
+            return
+        self._records = list(rows)
+        self._populate()
+        self._set_status(f"{len(self._records)} quick assignments")
+
+    def add_assignment(self) -> None:
+        if not self._iid():
+            self._set_status("Select an incident before creating assignments.", error=True)
+            return
+        recurring = self.recurring_check.isChecked()
+        try:
+            services.create_record(
+                "quick-assignments",
+                self._iid(),
+                title=self.assignment_edit.text().strip(),
+                summary=self.notes_edit.toPlainText().strip(),
+                status=self.status_combo.currentText().strip(),
+                priority=self.priority_combo.currentText().strip(),
+                assigned_to=self.assignee_edit.text().strip(),
+                location=self.location_edit.text().strip(),
+                zone=self.location_edit.text().strip(),
+                scheduled_at=self.scheduled_edit.text().strip(),
+                due_at=self.due_edit.text().strip(),
+                recurring=recurring,
+                recurrence_rule=self.recurrence_edit.text().strip() if recurring else "",
+                missed_occurrence_behavior="latest_overdue" if recurring else "",
+                lifecycle_state="Pending" if self.scheduled_edit.text().strip() else "Active",
+            )
+        except Exception as exc:
+            self._set_status(self._describe_error(exc), error=True)
+            return
+        self.assignment_edit.clear()
+        self.notes_edit.clear()
+        self.assignee_edit.clear()
+        self.location_edit.clear()
+        self.scheduled_edit.clear()
+        self.due_edit.clear()
+        self.recurring_check.setChecked(False)
+        self.recurrence_edit.clear()
+        self.refresh()
+
+    def _make_status_combo(self, record: PlannedRecord) -> QComboBox:
+        combo = QComboBox()
+        combo.addItems(TASK_STATUSES)
+        if record.status in TASK_STATUSES:
+            combo.setCurrentText(record.status)
+        combo.setEnabled(not record.promoted_read_only)
+        combo.currentTextChanged.connect(lambda value, rec_id=record.id: self._change_status(rec_id, value))
+        return combo
+
+    def _change_status(self, record_id: int | None, status: str) -> None:
+        if not self._iid() or not record_id:
+            return
+        try:
+            services.update_record("quick-assignments", int(record_id), {"status": status}, self._iid())
+        except Exception as exc:
+            self._set_status(self._describe_error(exc), error=True)
+            self.refresh()
+            return
+        self._set_status("Status updated")
+
+    def _make_action_button(self, record: PlannedRecord) -> QPushButton:
+        if record.linked_tasking_id:
+            button = QPushButton(f"Open Task {record.linked_tasking_id}")
+            button.clicked.connect(lambda _=False, task_id=record.linked_tasking_id: self._open_tasking(task_id))
+            return button
+        button = QPushButton("Promote")
+        button.clicked.connect(lambda _=False, rec_id=record.id: self._promote(rec_id))
+        return button
+
+    def _promote(self, record_id: int | None) -> None:
+        if not self._iid() or not record_id:
+            return
+        try:
+            promoted = services.promote_quick_assignment(int(record_id), self._iid())
+        except Exception as exc:
+            self._set_status(self._describe_error(exc), error=True)
+            return
+        self._set_status(f"Promoted to tasking {promoted.linked_tasking_id}")
+        self.refresh()
+
+    def _open_tasking(self, task_id: str) -> None:
+        try:
+            from modules.operations.taskings.windows import open_task_detail_window
+
+            open_task_detail_window(int(task_id))
+        except Exception as exc:
+            self._set_status(f"Could not open full tasking: {exc}", error=True)
+
+    def _source_text(self, record: PlannedRecord) -> str:
+        if record.source_label:
+            return record.source_label
+        if record.source_type:
+            return record.source_type
+        if record.recurring:
+            return "Recurring"
+        return ""
+
+    def _populate(self) -> None:
+        self.table.setRowCount(len(self._records))
+        for row_idx, record in enumerate(self._records):
+            values = [
+                str(record.id or ""),
+                record.title,
+                "",
+                record.priority,
+                record.assigned_to,
+                record.zone or record.location,
+                record.scheduled_at,
+                record.due_at,
+                self._source_text(record),
+            ]
+            for col_idx, value in enumerate(values):
+                item = QTableWidgetItem("" if value is None else str(value))
+                if record.promoted_read_only:
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    item.setToolTip(f"Promoted to full tasking {record.linked_tasking_id}")
+                if col_idx == 0:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.table.setItem(row_idx, col_idx, item)
+            self.table.setCellWidget(row_idx, 2, self._make_status_combo(record))
+            self.table.setCellWidget(row_idx, 9, self._make_action_button(record))
+
+
 class _DashboardCard(QFrame):
     def __init__(self, heading: str, body: str, parent: QWidget | None = None):
         super().__init__(parent)
@@ -292,7 +536,7 @@ class PlannedToolkitHome(QWidget):
         tabs.addTab(_ToolPanel(VENDOR_SPEC, incident_id), "Vendors")
         tabs.addTab(_ToolPanel(PERMIT_SPEC, incident_id), "Permits")
         tabs.addTab(_ToolPanel(SAFETY_SPEC, incident_id), "Public Safety")
-        tabs.addTab(_ToolPanel(TASK_SPEC, incident_id), "Tasking")
+        tabs.addTab(QuickAssignmentsPanel(incident_id), "Quick Assignments")
         tabs.addTab(_ToolPanel(HEALTH_SPEC, incident_id), "Health & Sanitation")
         layout.addWidget(tabs)
 
@@ -314,7 +558,7 @@ def get_safety_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_tasking_panel(incident_id: object | None = None) -> QWidget:
-    return _ToolPanel(TASK_SPEC, incident_id)
+    return QuickAssignmentsPanel(incident_id)
 
 
 def get_health_sanitation_panel(incident_id: object | None = None) -> QWidget:

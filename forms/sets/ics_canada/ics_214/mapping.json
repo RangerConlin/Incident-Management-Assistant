@@ -1,0 +1,438 @@
+{
+  "description": "ICS 214 — Activity Log — ICS Canada 2023",
+  "fields": [
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 DATE PREPARED",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "3 TIME PREPARED",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": " NAME",
+      "source": "teams.0.name"
+    },
+    {
+      "pdf_field": " ICS POSITION",
+      "source": "teams.0.resource_type"
+    },
+    {
+      "pdf_field": "Text56",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Text19",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "Text57",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Text20",
+      "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": "NameRow1",
+      "source": {
+        "key": "resources.0.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow1",
+      "source": {
+        "key": "resources.0.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow1",
+      "source": {
+        "key": "resources.0.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow2",
+      "source": {
+        "key": "resources.1.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow2",
+      "source": {
+        "key": "resources.1.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow2",
+      "source": {
+        "key": "resources.1.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow3",
+      "source": {
+        "key": "resources.2.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow3",
+      "source": {
+        "key": "resources.2.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow3",
+      "source": {
+        "key": "resources.2.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow4",
+      "source": {
+        "key": "resources.3.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow4",
+      "source": {
+        "key": "resources.3.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow4",
+      "source": {
+        "key": "resources.3.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow5",
+      "source": {
+        "key": "resources.4.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow5",
+      "source": {
+        "key": "resources.4.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow5",
+      "source": {
+        "key": "resources.4.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow6",
+      "source": {
+        "key": "resources.5.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow6",
+      "source": {
+        "key": "resources.5.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow6",
+      "source": {
+        "key": "resources.5.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow7",
+      "source": {
+        "key": "resources.6.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow7",
+      "source": {
+        "key": "resources.6.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow7",
+      "source": {
+        "key": "resources.6.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow8",
+      "source": {
+        "key": "resources.7.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow8",
+      "source": {
+        "key": "resources.7.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow8",
+      "source": {
+        "key": "resources.7.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow9",
+      "source": {
+        "key": "resources.8.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow9",
+      "source": {
+        "key": "resources.8.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow9",
+      "source": {
+        "key": "resources.8.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow10",
+      "source": {
+        "key": "resources.9.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow10",
+      "source": {
+        "key": "resources.9.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow10",
+      "source": {
+        "key": "resources.9.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow11",
+      "source": {
+        "key": "resources.10.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow11",
+      "source": {
+        "key": "resources.10.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow11",
+      "source": {
+        "key": "resources.10.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow12",
+      "source": {
+        "key": "resources.11.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow12",
+      "source": {
+        "key": "resources.11.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow12",
+      "source": {
+        "key": "resources.11.home_agency"
+      }
+    },
+    {
+      "pdf_field": "NameRow13",
+      "source": {
+        "key": "resources.12.name"
+      }
+    },
+    {
+      "pdf_field": "ICS PositionRow13",
+      "source": {
+        "key": "resources.12.ics_position"
+      }
+    },
+    {
+      "pdf_field": "Home BaseRow13",
+      "source": {
+        "key": "resources.12.home_agency"
+      }
+    },
+    {
+      "pdf_field": "timestamp1",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative1",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp2",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative2",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp3",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative3",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp4",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative4",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp5",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative5",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp6",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative6",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp7",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative7",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp8",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative8",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp9",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative9",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp10",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative10",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp11",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative11",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp12",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative12",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp13",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative13",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp14",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative14",
+      "source": ""
+    },
+    {
+      "pdf_field": "timestamp15",
+      "source": ""
+    },
+    {
+      "pdf_field": "narrative15",
+      "source": ""
+    },
+    {
+      "pdf_field": " PREPARED BY (Name and Position)",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Text1",
+      "source": "page.current_number"
+    },
+    {
+      "pdf_field": "Text2",
+      "source": "page.total_pages"
+    },
+    {
+      "pdf_field": "TimeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Major EventsRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Major EventsRow15",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "narrative",
+      "overflow_mode": "continuation",
+      "rows_per_page": [
+        15
+      ],
+      "col_patterns": {
+        "timestamp": "timestamp{n}",
+        "narrative": "narrative{n}"
+      }
+    }
+  ]
+}

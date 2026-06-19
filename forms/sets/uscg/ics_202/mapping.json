@@ -1,0 +1,104 @@
+{
+  "_comment": "Replace source values with real incident data paths; PDF field IDs must match the template exactly.",
+  "description": "Starter mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "2 Incident Location",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "4 ObjectivesRow1",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "5 Operational Period Command Emphasis Safety Message Priorities Key Decisions Directions",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "7 Site Safety Plan located at",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Check Box1",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "Check Box2",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "checkbox"
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Name",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "OMRow1",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Position Title",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Signature",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Text3",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    },
+    {
+      "pdf_field": "Text4",
+      "source": {
+        "literal": ""
+      },
+      "field_type": "text"
+    }
+  ]
+}

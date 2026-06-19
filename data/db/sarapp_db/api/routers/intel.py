@@ -373,6 +373,7 @@ def _map_lead(doc: Dict[str, Any]) -> Dict[str, Any]:
         "priority": doc.get("priority", "Medium"),
         "status": doc.get("status", "New"),
         "assigned_to": doc.get("assigned_to"),
+        "assigned_team_id": doc.get("assigned_team_id"),
         "notes": doc.get("notes"),
         "converted_to_type": doc.get("converted_to_type"),
         "converted_to_id": doc.get("converted_to_id"),
@@ -402,6 +403,7 @@ class LeadCreate(BaseModel):
     priority: str = "Medium"
     status: str = "New"
     assigned_to: Optional[str] = None
+    assigned_team_id: Optional[int] = None  # numeric team id for ICS-214 linkage
     notes: Optional[str] = None
     created_by: str = ""
 
@@ -416,6 +418,7 @@ class LeadUpdate(BaseModel):
     priority: Optional[str] = None
     status: Optional[str] = None
     assigned_to: Optional[str] = None
+    assigned_team_id: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -536,6 +539,7 @@ def _map_observation(obs: Dict[str, Any]) -> Dict[str, Any]:
         "observed_at": obs.get("observed_at", ""),
         "observer": obs.get("observer", ""),
         "source_team": obs.get("source_team"),
+        "source_team_id": obs.get("source_team_id"),
         "status": obs.get("status", ""),
         "severity": obs.get("severity", "Unknown"),
         "confidence": obs.get("confidence", "Unconfirmed"),
@@ -559,6 +563,7 @@ def _map_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "location_text": doc.get("location_text"),
         "linked_subject_ids": doc.get("linked_subject_ids", []),
         "linked_task_ids": doc.get("linked_task_ids", []),
+        "linked_team_ids": doc.get("linked_team_ids", []),
         "created_by": doc.get("created_by", ""),
         "created_at": doc.get("created_at", ""),
         "updated_at": doc.get("updated_at", ""),
@@ -574,6 +579,7 @@ class ObservationCreate(BaseModel):
     observed_at: Optional[str] = None  # ISO string; defaults to now
     observer: str = ""
     source_team: Optional[str] = None
+    source_team_id: Optional[int] = None  # numeric team id for ICS-214 linkage
     status: str = ""
     severity: str = "Unknown"
     confidence: str = "Unconfirmed"
@@ -588,6 +594,7 @@ class ObservationUpdate(BaseModel):
     observed_at: Optional[str] = None
     observer: Optional[str] = None
     source_team: Optional[str] = None
+    source_team_id: Optional[int] = None
     status: Optional[str] = None
     severity: Optional[str] = None
     confidence: Optional[str] = None
@@ -607,6 +614,7 @@ class IntelItemCreate(BaseModel):
     location_text: Optional[str] = None
     linked_subject_ids: List[str] = Field(default_factory=list)
     linked_task_ids: List[str] = Field(default_factory=list)
+    linked_team_ids: List[int] = Field(default_factory=list)
     notes: Optional[str] = None
     created_by: str = ""
     source_lead_id: Optional[str] = None
@@ -622,6 +630,7 @@ class IntelItemUpdate(BaseModel):
     location_text: Optional[str] = None
     linked_subject_ids: Optional[List[str]] = None
     linked_task_ids: Optional[List[str]] = None
+    linked_team_ids: Optional[List[int]] = None
     notes: Optional[str] = None
     actor: str = "system"
 
@@ -719,6 +728,7 @@ def add_observation(incident_id: str, item_id: str, data: ObservationCreate):
         "observed_at": data.observed_at or _utcnow(),
         "observer": data.observer,
         "source_team": data.source_team,
+        "source_team_id": data.source_team_id,
         "status": data.status,
         "severity": data.severity,
         "confidence": data.confidence,

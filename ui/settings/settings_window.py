@@ -82,6 +82,13 @@ class SettingsWindow(QDialog):
         self.section_list.setFocus()
         self.adjustSize()
 
+    def jump_to(self, section_name: str) -> None:
+        """Switch to the named section, e.g. 'Notifications'."""
+        for i, (name, _) in enumerate(SECTIONS):
+            if name == section_name:
+                self.section_list.setCurrentRow(i)
+                return
+
     # ------------------------------------------------------------------
     def _build_header(self) -> QHBoxLayout:
         header = QHBoxLayout()

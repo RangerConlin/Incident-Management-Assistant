@@ -251,15 +251,15 @@
     },
     {
       "pdf_field": "6 Prepared by Name_2",
-      "source": ""
+      "source": "prepared_by.name"
     },
     {
       "pdf_field": "PositionTitle_2",
-      "source": ""
+      "source": "prepared_by.position"
     },
     {
       "pdf_field": "DateTime_2",
-      "source": ""
+      "source": "prepared_by.date_time"
     },
     {
       "pdf_field": "Signature_2",
@@ -362,11 +362,11 @@
       }
     },
     {
-      "pdf_field": "ResourceRow1",
+      "pdf_field": "resource_type1",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow1",
+      "pdf_field": "name1",
       "source": ""
     },
     {
@@ -382,15 +382,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatus",
+      "pdf_field": "status1",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow2",
+      "pdf_field": "resource_type2",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow2",
+      "pdf_field": "name2",
       "source": ""
     },
     {
@@ -406,15 +406,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatus_2",
+      "pdf_field": "status2",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow3",
+      "pdf_field": "resource_type3",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow3",
+      "pdf_field": "name3",
       "source": ""
     },
     {
@@ -430,15 +430,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatus_3",
+      "pdf_field": "status3",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow4",
+      "pdf_field": "resource_type4",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow4",
+      "pdf_field": "name4",
       "source": ""
     },
     {
@@ -454,15 +454,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatus_4",
+      "pdf_field": "status4",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow5",
+      "pdf_field": "resource_type5",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow5",
+      "pdf_field": "name5",
       "source": ""
     },
     {
@@ -478,15 +478,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatus_5",
+      "pdf_field": "status5",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow6",
+      "pdf_field": "resource_type6",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow6",
+      "pdf_field": "name6",
       "source": ""
     },
     {
@@ -502,15 +502,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatus_6",
+      "pdf_field": "status6",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow7",
+      "pdf_field": "resource_type7",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow7",
+      "pdf_field": "name7",
       "source": ""
     },
     {
@@ -526,15 +526,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatus_7",
+      "pdf_field": "status7",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow8",
+      "pdf_field": "resource_type8",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow8",
+      "pdf_field": "name8",
       "source": ""
     },
     {
@@ -550,15 +550,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow8",
+      "pdf_field": "status8",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow9",
+      "pdf_field": "resource_type9",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow9",
+      "pdf_field": "name9",
       "source": ""
     },
     {
@@ -574,15 +574,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow9",
+      "pdf_field": "status9",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow10",
+      "pdf_field": "resource_type10",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow10",
+      "pdf_field": "name10",
       "source": ""
     },
     {
@@ -598,15 +598,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow10",
+      "pdf_field": "status10",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow11",
+      "pdf_field": "resource_type11",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow11",
+      "pdf_field": "name11",
       "source": ""
     },
     {
@@ -622,15 +622,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow11",
+      "pdf_field": "status11",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow12",
+      "pdf_field": "resource_type12",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow12",
+      "pdf_field": "name12",
       "source": ""
     },
     {
@@ -646,15 +646,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow12",
+      "pdf_field": "status12",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow13",
+      "pdf_field": "resource_type13",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow13",
+      "pdf_field": "name13",
       "source": ""
     },
     {
@@ -670,15 +670,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow13",
+      "pdf_field": "status13",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow14",
+      "pdf_field": "resource_type14",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow14",
+      "pdf_field": "name14",
       "source": ""
     },
     {
@@ -694,15 +694,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow14",
+      "pdf_field": "status14",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow15",
+      "pdf_field": "resource_type15",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow15",
+      "pdf_field": "name15",
       "source": ""
     },
     {
@@ -718,15 +718,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow15",
+      "pdf_field": "status15",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow16",
+      "pdf_field": "resource_type16",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow16",
+      "pdf_field": "name16",
       "source": ""
     },
     {
@@ -742,15 +742,15 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow16",
+      "pdf_field": "status16",
       "source": ""
     },
     {
-      "pdf_field": "ResourceRow17",
+      "pdf_field": "resource_type17",
       "source": ""
     },
     {
-      "pdf_field": "Resource IdentifierRow17",
+      "pdf_field": "name17",
       "source": ""
     },
     {
@@ -766,7 +766,7 @@
       "source": ""
     },
     {
-      "pdf_field": "Notes locationassignmentstatusRow17",
+      "pdf_field": "status17",
       "source": ""
     },
     {
@@ -1092,6 +1092,34 @@
         "transform": "datetime_short",
         "default": ""
       }
+    },
+    {
+      "pdf_field": "ResourceRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes locationassignmentstatus",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "teams",
+      "overflow_mode": "continuation",
+      "rows_per_page": [
+        17,
+        17
+      ],
+      "col_patterns": {
+        "resource_type": "resource_type{n}",
+        "name": "name{n}",
+        "status": "status{n}"
+      },
+      "continuation_page": 4
     }
   ]
 }

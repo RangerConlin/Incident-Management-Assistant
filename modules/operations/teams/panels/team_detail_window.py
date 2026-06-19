@@ -1265,11 +1265,11 @@ class TeamDetailBridge(QObject):
         except Exception as e:
             self.error.emit(f"Failed to set medic: {e}")
 
-    def _team_log(self, text: str) -> None:
+    def _team_log(self, text: str, source: str = "internal") -> None:
         try:
             if self._team.team_id:
                 from modules.operations.data.repository import ics214_log_entry
-                ics214_log_entry("team", int(self._team.team_id), text)
+                ics214_log_entry("team", int(self._team.team_id), text, source=source)
         except Exception:
             pass
 
@@ -1453,6 +1453,8 @@ class TeamDetailBridge(QObject):
             if "location" in payload:
                 value = payload.get("location")
                 self._team.location = str(value) if value not in (None, "") else None
+                if value and self._team.team_id:
+                    self._team_log(f"Location updated: {value}", source="auto")
             if "team_leader_phone" in payload:
                 value = payload.get("team_leader_phone")
                 self._team.team_leader_phone = str(value) if value not in (None, "") else None
