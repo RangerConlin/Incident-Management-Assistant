@@ -642,30 +642,21 @@ class MainWindow(QMainWindow):
 
         # ----- Edit -----
         m_edit = mb.addMenu("Edit")
-
-        def _edit_submenu(parent_menu, label: str, open_key: str, import_key: str, export_key: str, shortcut=None):
-            sub = parent_menu.addMenu(label)
-            self._add_action(sub, f"Open {label}", shortcut, open_key)
-            sub.addSeparator()
-            self._add_action(sub, "Import (CSV)…", None, import_key)
-            self._add_action(sub, "Export (CSV)…", None, export_key)
-            return sub
-
-        _edit_submenu(m_edit, "Aircraft",                       "edit.aircraft",            "edit.aircraft.import",         "edit.aircraft.export")
-        _edit_submenu(m_edit, "Canned Communication Entries",   "edit.canned_comm_entries", "edit.canned_comm_entries.import", "edit.canned_comm_entries.export")
-        _edit_submenu(m_edit, "Communications Resources (ICS-217)", "communications.217",   "edit.comms_resources.import",  "edit.comms_resources.export")
-        _edit_submenu(m_edit, "EMS Agencies",                   "edit.ems",                 "edit.ems.import",              "edit.ems.export")
-        _edit_submenu(m_edit, "Equipment",                      "edit.equipment",           "edit.equipment.import",        "edit.equipment.export")
-        _edit_submenu(m_edit, "Hazard Type Library",            "edit.hazard_types",        "edit.hazard_types.import",     "edit.hazard_types.export")
-        _edit_submenu(m_edit, "Hospitals",                      "edit.hospitals",           "edit.hospitals.import",        "edit.hospitals.export", shortcut="Ctrl+H")
-        _edit_submenu(m_edit, "Objectives",                     "edit.objectives",          "edit.objectives.import",       "edit.objectives.export")
-        _edit_submenu(m_edit, "Personnel",                      "edit.personnel",           "edit.personnel.import",        "edit.personnel.export")
-        _edit_submenu(m_edit, "Resource Type Library",          "edit.resource_types",      "edit.resource_types.import",   "edit.resource_types.export")
-        _edit_submenu(m_edit, "Safety Analysis Templates",      "edit.safety_templates",    "edit.safety_templates.import", "edit.safety_templates.export")
-        _edit_submenu(m_edit, "Task Types",                     "edit.task_types",          "edit.task_types.import",       "edit.task_types.export")
-        _edit_submenu(m_edit, "Team Types",                     "edit.team_types",          "edit.team_types.import",       "edit.team_types.export")
-        _edit_submenu(m_edit, "Units and Organizations",        "edit.units_organizations", "edit.units_organizations.import", "edit.units_organizations.export")
-        _edit_submenu(m_edit, "Vehicles",                       "edit.vehicles",            "edit.vehicles.import",         "edit.vehicles.export")
+        self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
+        self._add_action(m_edit, "Canned Communication Entries", None, "edit.canned_comm_entries")
+        self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
+        self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
+        self._add_action(m_edit, "Equipment", None, "edit.equipment")
+        self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
+        self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
+        self._add_action(m_edit, "Objectives", None, "edit.objectives")
+        self._add_action(m_edit, "Personnel", None, "edit.personnel")
+        self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
+        self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
+        self._add_action(m_edit, "Task Types", None, "edit.task_types")
+        self._add_action(m_edit, "Team Types", None, "edit.team_types")
+        self._add_action(m_edit, "Units and Organizations", None, "edit.units_organizations")
+        self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
 
         # ----- View (moved under Menu) -----
         m_view = m_menu.addMenu("View")
@@ -1037,38 +1028,6 @@ class MainWindow(QMainWindow):
             "communications.217": self.open_edit_comms_resources,
             "edit.safety_templates": self.open_edit_safety_templates,
             "edit.units_organizations": self.open_edit_units_organizations,
-            # Edit → Import
-            "edit.aircraft.import": self.import_edit_aircraft,
-            "edit.canned_comm_entries.import": self.import_edit_canned_comm_entries,
-            "edit.comms_resources.import": self.import_edit_comms_resources,
-            "edit.ems.import": self.import_edit_ems,
-            "edit.equipment.import": self.import_edit_equipment,
-            "edit.hazard_types.import": self.import_edit_hazard_types,
-            "edit.hospitals.import": self.import_edit_hospitals,
-            "edit.objectives.import": self.import_edit_objectives,
-            "edit.personnel.import": self.import_edit_personnel,
-            "edit.resource_types.import": self.import_edit_resource_types,
-            "edit.safety_templates.import": self.import_edit_safety_templates,
-            "edit.task_types.import": self.import_edit_task_types,
-            "edit.team_types.import": self.import_edit_team_types,
-            "edit.units_organizations.import": self.import_edit_units_organizations,
-            "edit.vehicles.import": self.import_edit_vehicles,
-            # Edit → Export
-            "edit.aircraft.export": self.export_edit_aircraft,
-            "edit.canned_comm_entries.export": self.export_edit_canned_comm_entries,
-            "edit.comms_resources.export": self.export_edit_comms_resources,
-            "edit.ems.export": self.export_edit_ems,
-            "edit.equipment.export": self.export_edit_equipment,
-            "edit.hazard_types.export": self.export_edit_hazard_types,
-            "edit.hospitals.export": self.export_edit_hospitals,
-            "edit.objectives.export": self.export_edit_objectives,
-            "edit.personnel.export": self.export_edit_personnel,
-            "edit.resource_types.export": self.export_edit_resource_types,
-            "edit.safety_templates.export": self.export_edit_safety_templates,
-            "edit.task_types.export": self.export_edit_task_types,
-            "edit.team_types.export": self.export_edit_team_types,
-            "edit.units_organizations.export": self.export_edit_units_organizations,
-            "edit.vehicles.export": self.export_edit_vehicles,
 
             # ----- Command -----
             "command.unit_log": self.open_command_unit_log,
@@ -1307,12 +1266,7 @@ class MainWindow(QMainWindow):
 
         window = getattr(self, "_canned_comm_window", None)
         if window is None or not isinstance(window, CannedCommEntriesWindow):
-            if not hasattr(self, "_catalog_bridge"):
-                self._catalog_bridge = CatalogBridge(db_path="data/master.db")
-            window = CannedCommEntriesWindow(
-                catalog_bridge=self._catalog_bridge,
-                parent=self,
-            )
+            window = CannedCommEntriesWindow(parent=self)
             window.setAttribute(Qt.WA_DeleteOnClose, True)
             window.destroyed.connect(lambda: setattr(self, "_canned_comm_window", None))
             self._canned_comm_window = window
@@ -1475,138 +1429,6 @@ class MainWindow(QMainWindow):
         win.show()
         win.raise_()
         win.activateWindow()
-
-    # ------------------------------------------------------------------
-    # Edit menu — Import / Export handlers
-    # ------------------------------------------------------------------
-
-    def _edit_import(self, io_class) -> None:
-        from utils.edit_menu_io import do_import_csv
-        do_import_csv(io_class(), self)
-
-    def _edit_export(self, io_class) -> None:
-        from utils.edit_menu_io import do_export_csv
-        do_export_csv(io_class(), self)
-
-    def import_edit_aircraft(self) -> None:
-        from utils.edit_menu_io import AircraftIO
-        self._edit_import(AircraftIO)
-
-    def export_edit_aircraft(self) -> None:
-        from utils.edit_menu_io import AircraftIO
-        self._edit_export(AircraftIO)
-
-    def import_edit_canned_comm_entries(self) -> None:
-        from utils.edit_menu_io import CannedCommEntriesIO
-        self._edit_import(CannedCommEntriesIO)
-
-    def export_edit_canned_comm_entries(self) -> None:
-        from utils.edit_menu_io import CannedCommEntriesIO
-        self._edit_export(CannedCommEntriesIO)
-
-    def import_edit_comms_resources(self) -> None:
-        from utils.edit_menu_io import CommsResourcesIO
-        self._edit_import(CommsResourcesIO)
-
-    def export_edit_comms_resources(self) -> None:
-        from utils.edit_menu_io import CommsResourcesIO
-        self._edit_export(CommsResourcesIO)
-
-    def import_edit_ems(self) -> None:
-        from utils.edit_menu_io import EmsAgenciesIO
-        self._edit_import(EmsAgenciesIO)
-
-    def export_edit_ems(self) -> None:
-        from utils.edit_menu_io import EmsAgenciesIO
-        self._edit_export(EmsAgenciesIO)
-
-    def import_edit_equipment(self) -> None:
-        from utils.edit_menu_io import EquipmentIO
-        self._edit_import(EquipmentIO)
-
-    def export_edit_equipment(self) -> None:
-        from utils.edit_menu_io import EquipmentIO
-        self._edit_export(EquipmentIO)
-
-    def import_edit_hazard_types(self) -> None:
-        from utils.edit_menu_io import HazardTypesIO
-        self._edit_import(HazardTypesIO)
-
-    def export_edit_hazard_types(self) -> None:
-        from utils.edit_menu_io import HazardTypesIO
-        self._edit_export(HazardTypesIO)
-
-    def import_edit_hospitals(self) -> None:
-        from utils.edit_menu_io import HospitalsIO
-        self._edit_import(HospitalsIO)
-
-    def export_edit_hospitals(self) -> None:
-        from utils.edit_menu_io import HospitalsIO
-        self._edit_export(HospitalsIO)
-
-    def import_edit_objectives(self) -> None:
-        from utils.edit_menu_io import ObjectivesIO
-        self._edit_import(ObjectivesIO)
-
-    def export_edit_objectives(self) -> None:
-        from utils.edit_menu_io import ObjectivesIO
-        self._edit_export(ObjectivesIO)
-
-    def import_edit_personnel(self) -> None:
-        from utils.edit_menu_io import PersonnelIO
-        self._edit_import(PersonnelIO)
-
-    def export_edit_personnel(self) -> None:
-        from utils.edit_menu_io import PersonnelIO
-        self._edit_export(PersonnelIO)
-
-    def import_edit_resource_types(self) -> None:
-        from utils.edit_menu_io import ResourceTypesIO
-        self._edit_import(ResourceTypesIO)
-
-    def export_edit_resource_types(self) -> None:
-        from utils.edit_menu_io import ResourceTypesIO
-        self._edit_export(ResourceTypesIO)
-
-    def import_edit_safety_templates(self) -> None:
-        from utils.edit_menu_io import SafetyTemplatesIO
-        self._edit_import(SafetyTemplatesIO)
-
-    def export_edit_safety_templates(self) -> None:
-        from utils.edit_menu_io import SafetyTemplatesIO
-        self._edit_export(SafetyTemplatesIO)
-
-    def import_edit_task_types(self) -> None:
-        from utils.edit_menu_io import TaskTypesIO
-        self._edit_import(TaskTypesIO)
-
-    def export_edit_task_types(self) -> None:
-        from utils.edit_menu_io import TaskTypesIO
-        self._edit_export(TaskTypesIO)
-
-    def import_edit_team_types(self) -> None:
-        from utils.edit_menu_io import TeamTypesIO
-        self._edit_import(TeamTypesIO)
-
-    def export_edit_team_types(self) -> None:
-        from utils.edit_menu_io import TeamTypesIO
-        self._edit_export(TeamTypesIO)
-
-    def import_edit_units_organizations(self) -> None:
-        from utils.edit_menu_io import UnitsOrganizationsIO
-        self._edit_import(UnitsOrganizationsIO)
-
-    def export_edit_units_organizations(self) -> None:
-        from utils.edit_menu_io import UnitsOrganizationsIO
-        self._edit_export(UnitsOrganizationsIO)
-
-    def import_edit_vehicles(self) -> None:
-        from utils.edit_menu_io import VehiclesIO
-        self._edit_import(VehiclesIO)
-
-    def export_edit_vehicles(self) -> None:
-        from utils.edit_menu_io import VehiclesIO
-        self._edit_export(VehiclesIO)
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:

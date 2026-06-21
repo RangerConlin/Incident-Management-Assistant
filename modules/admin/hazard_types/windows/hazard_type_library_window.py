@@ -426,7 +426,7 @@ class HazardTypeLibraryWindow(QWidget):
         self.ht_table.sortByColumn(0, Qt.AscendingOrder)
         self.ht_table.setAlternatingRowColors(False)
         self.ht_table.setStyleSheet("QTableView { selection-background-color: transparent; }")
-        self.ht_table.setItemDelegate(RowOutlineSelectionDelegate(self.ht_table))
+        self.ht_table.setItemDelegate(RowOutlineSelectionDelegate(self.ht_table, QColor("#FFFFFF")))
         header = self.ht_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
         header.setStretchLastSection(True)
@@ -473,12 +473,19 @@ class HazardTypeLibraryWindow(QWidget):
         filters.addWidget(QLabel("Status"))
         filters.addWidget(self.ht_active_filter)
 
+        import_btn = QPushButton("Import CSV...")
+        import_btn.clicked.connect(self._ht_import_csv)
+        export_btn = QPushButton("Export CSV...")
+        export_btn.clicked.connect(self._ht_export_csv)
+
         actions = QHBoxLayout()
         actions.addWidget(new_btn)
         actions.addWidget(edit_btn)
         actions.addWidget(clone_btn)
         actions.addWidget(self.ht_toggle_btn)
         actions.addWidget(refresh_btn)
+        actions.addWidget(import_btn)
+        actions.addWidget(export_btn)
         actions.addStretch()
 
         layout = QVBoxLayout(tab)
@@ -486,6 +493,15 @@ class HazardTypeLibraryWindow(QWidget):
         layout.addWidget(splitter, 1)
         layout.addLayout(actions)
         return tab
+
+    def _ht_import_csv(self) -> None:
+        from utils.edit_menu_io import HazardTypesIO, do_import_csv
+        do_import_csv(HazardTypesIO(), self)
+        self.refresh_hazard_types()
+
+    def _ht_export_csv(self) -> None:
+        from utils.edit_menu_io import HazardTypesIO, do_export_csv
+        do_export_csv(HazardTypesIO(), self)
 
     def refresh_hazard_types(self) -> None:
         records = self._hazard_repo.list_hazard_types({
@@ -611,7 +627,7 @@ class HazardTypeLibraryWindow(QWidget):
         self.tpl_table.sortByColumn(0, Qt.AscendingOrder)
         self.tpl_table.setAlternatingRowColors(False)
         self.tpl_table.setStyleSheet("QTableView { selection-background-color: transparent; }")
-        self.tpl_table.setItemDelegate(RowOutlineSelectionDelegate(self.tpl_table))
+        self.tpl_table.setItemDelegate(RowOutlineSelectionDelegate(self.tpl_table, QColor("#FFFFFF")))
         self.tpl_table.horizontalHeader().setStretchLastSection(True)
         self.tpl_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.tpl_table.doubleClicked.connect(self._tpl_edit_selected)
@@ -653,6 +669,11 @@ class HazardTypeLibraryWindow(QWidget):
         filters.addWidget(QLabel("Status"))
         filters.addWidget(self.tpl_active_filter)
 
+        import_btn = QPushButton("Import CSV...")
+        import_btn.clicked.connect(self._tpl_import_csv)
+        export_btn = QPushButton("Export CSV...")
+        export_btn.clicked.connect(self._tpl_export_csv)
+
         actions = QHBoxLayout()
         actions.addWidget(new_btn)
         actions.addWidget(edit_btn)
@@ -660,6 +681,8 @@ class HazardTypeLibraryWindow(QWidget):
         actions.addWidget(delete_btn)
         actions.addWidget(self.tpl_toggle_btn)
         actions.addWidget(refresh_btn)
+        actions.addWidget(import_btn)
+        actions.addWidget(export_btn)
         actions.addStretch()
 
         layout = QVBoxLayout(tab)
@@ -667,6 +690,15 @@ class HazardTypeLibraryWindow(QWidget):
         layout.addWidget(splitter, 1)
         layout.addLayout(actions)
         return tab
+
+    def _tpl_import_csv(self) -> None:
+        from utils.edit_menu_io import SafetyTemplatesIO, do_import_csv
+        do_import_csv(SafetyTemplatesIO(), self)
+        self.refresh_templates()
+
+    def _tpl_export_csv(self) -> None:
+        from utils.edit_menu_io import SafetyTemplatesIO, do_export_csv
+        do_export_csv(SafetyTemplatesIO(), self)
 
     def refresh_templates(self) -> None:
         status = self.tpl_active_filter.currentText()

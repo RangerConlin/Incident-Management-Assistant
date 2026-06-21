@@ -1,7 +1,16 @@
 """CSV import/export helpers for Edit-menu catalog items.
 
-Each IO class handles one entity type. Call do_export_csv / do_import_csv
-from main.py menu handlers; the helpers open file dialogs and display results.
+All entities use the MongoDB API via api_client, matching the architecture
+rule (UI → API server → MongoDB). Canned Communication Entries is the one
+exception that is still SQLite-backed pending its own cutover.
+
+Each IO class exposes:
+  - fetch_rows() → list[dict]  (for export)
+  - import_row(payload)        (for import, one row at a time)
+  - csv_fields                 (column order in the CSV)
+
+Call do_export_csv / do_import_csv from main.py menu handlers; they open
+Qt file dialogs and show results to the user.
 """
 from __future__ import annotations
 
@@ -12,8 +21,6 @@ from pathlib import Path
 from typing import Any
 
 log = logging.getLogger(__name__)
-
-_MASTER_DB = "data/master.db"
 
 
 # ---------------------------------------------------------------------------
@@ -91,71 +98,76 @@ class CatalogIO:
 
 
 # ---------------------------------------------------------------------------
-# SQLite catalog base (uses models.master_catalog.make_service)
+# API-backed base (MongoDB via api_client)
 # ---------------------------------------------------------------------------
 
-class _SqliteIO(CatalogIO):
-    entity_key: str = ""
+class _ApiIO(CatalogIO):
+    _list_endpoint: str = ""
+    _create_endpoint: str = ""
 
-    def _svc(self):
-        from models.master_catalog import make_service
-        return make_service(_MASTER_DB, self.entity_key)
+    def _api(self):
+        from utils.api_client import api_client
+        return api_client
 
     def fetch_rows(self) -> list[dict[str, Any]]:
-        return self._svc().list()
+        return self._api().get(self._list_endpoint) or []
 
     def import_row(self, payload: dict[str, Any]) -> None:
-        self._svc().create(payload)
+        self._api().post(self._create_endpoint, json=payload)
 
 
 # ---------------------------------------------------------------------------
-# Aircraft
+# Aircraft — /api/master/aircraft
 # ---------------------------------------------------------------------------
 
-class AircraftIO(_SqliteIO):
+class AircraftIO(_ApiIO):
     label = "Aircraft"
-    entity_key = "aircraft"
+    _list_endpoint = "/api/master/aircraft"
+    _create_endpoint = "/api/master/aircraft"
     csv_fields = [
-        "tail_number", "callsign", "type", "make_model",
-        "capacity", "status", "base_location", "capabilities", "notes",
+        "tail_number", "callsign", "type", "make", "model",
+        "base", "status", "organization", "fuel_type",
+        "range_nm", "endurance_hr", "cruise_kt",
+        "crew_min", "crew_max", "notes",
     ]
 
 
 # ---------------------------------------------------------------------------
-# Canned Communication Entries
+# Canned Communication Entries — /api/master/canned-comm-entries
 # ---------------------------------------------------------------------------
 
-class CannedCommEntriesIO(_SqliteIO):
+class CannedCommEntriesIO(_ApiIO):
     label = "Canned Communication Entries"
-    entity_key = "canned_comm_entries"
+    _list_endpoint = "/api/master/canned-comm-entries"
+    _create_endpoint = "/api/master/canned-comm-entries"
     csv_fields = [
         "title", "category", "message", "priority",
         "notification_level", "status_update", "is_active",
     ]
 
+    def import_row(self, payload: dict[str, Any]) -> None:
+        v = payload.get("is_active", "1")
+        payload["is_active"] = str(v).strip().lower() not in ("0", "false", "no")
+        payload["notification_level"] = int(payload.get("notification_level") or 0)
+        self._api().post(self._create_endpoint, json=payload)
+
 
 # ---------------------------------------------------------------------------
-# Communications Resources (ICS-217) — MongoDB via API
+# Communications Resources (ICS-217) — /api/comms/master-channels
 # ---------------------------------------------------------------------------
 
-class CommsResourcesIO(CatalogIO):
+class CommsResourcesIO(_ApiIO):
     label = "Communications Resources (ICS-217)"
+    _list_endpoint = "/api/comms/master-channels"
+    _create_endpoint = "/api/comms/master-channels"
     csv_fields = [
         "name", "function", "rx_freq", "tx_freq",
         "rx_tone", "tx_tone", "system", "mode", "notes",
     ]
 
-    def fetch_rows(self) -> list[dict[str, Any]]:
-        from utils.api_client import api_client
-        return api_client.get("/api/comms/master-channels") or []
-
-    def import_row(self, payload: dict[str, Any]) -> None:
-        from utils.api_client import api_client
-        api_client.post("/api/comms/master-channels", json=payload)
-
 
 # ---------------------------------------------------------------------------
-# EMS Agencies — MongoDB direct
+# EMS Agencies — MongoDB direct via EMSAgencyRepository
 # ---------------------------------------------------------------------------
 
 class EmsAgenciesIO(CatalogIO):
@@ -181,12 +193,13 @@ class EmsAgenciesIO(CatalogIO):
 
 
 # ---------------------------------------------------------------------------
-# Equipment
+# Equipment — /api/master/equipment
 # ---------------------------------------------------------------------------
 
-class EquipmentIO(_SqliteIO):
+class EquipmentIO(_ApiIO):
     label = "Equipment"
-    entity_key = "equipment"
+    _list_endpoint = "/api/master/equipment"
+    _create_endpoint = "/api/master/equipment"
     csv_fields = [
         "name", "type", "serial_number",
         "condition", "condition_status", "notes",
@@ -194,23 +207,22 @@ class EquipmentIO(_SqliteIO):
 
 
 # ---------------------------------------------------------------------------
-# Hazard Type Library — MongoDB via API
+# Hazard Type Library — /api/hazard-types
 # ---------------------------------------------------------------------------
 
-class HazardTypesIO(CatalogIO):
+class HazardTypesIO(_ApiIO):
     label = "Hazard Type Library"
+    _list_endpoint = "/api/hazard-types"
+    _create_endpoint = "/api/hazard-types"
     csv_fields = [
         "name", "category", "default_risk_level", "source",
         "typical_likelihood", "description", "is_active",
     ]
 
     def fetch_rows(self) -> list[dict[str, Any]]:
-        from modules.admin.hazard_types.data.hazard_type_repository import ApiHazardTypeRepository
-        repo = ApiHazardTypeRepository()
-        raw = repo.list_hazard_types({"include_inactive": True})
-        out = []
-        for r in raw:
-            out.append({
+        rows = self._api().get(self._list_endpoint, params={"include_inactive": "true"}) or []
+        return [
+            {
                 "name": r.get("name", ""),
                 "category": r.get("category", ""),
                 "default_risk_level": r.get("default_risk_level", ""),
@@ -218,23 +230,24 @@ class HazardTypesIO(CatalogIO):
                 "typical_likelihood": r.get("typical_likelihood", ""),
                 "description": r.get("description", ""),
                 "is_active": r.get("is_active", True),
-            })
-        return out
+            }
+            for r in rows
+        ]
 
     def import_row(self, payload: dict[str, Any]) -> None:
-        from utils.api_client import api_client
         v = payload.get("is_active", "1")
         payload["is_active"] = str(v).strip().lower() not in ("0", "false", "no")
-        api_client.post("/api/hazard-types", json=payload)
+        self._api().post(self._create_endpoint, json=payload)
 
 
 # ---------------------------------------------------------------------------
-# Hospitals
+# Hospitals — /api/master/hospitals
 # ---------------------------------------------------------------------------
 
-class HospitalsIO(_SqliteIO):
+class HospitalsIO(_ApiIO):
     label = "Hospitals"
-    entity_key = "hospitals"
+    _list_endpoint = "/api/master/hospitals"
+    _create_endpoint = "/api/master/hospitals"
     csv_fields = [
         "name", "address", "contact_name", "phone_er", "phone_switchboard",
         "travel_time_min", "helipad", "trauma_level", "burn_center",
@@ -243,25 +256,73 @@ class HospitalsIO(_SqliteIO):
 
 
 # ---------------------------------------------------------------------------
-# Objectives (master template list)
+# Objectives (master templates) — /api/master/objective-templates
 # ---------------------------------------------------------------------------
 
-class ObjectivesIO(_SqliteIO):
+class ObjectivesIO(_ApiIO):
     label = "Objectives"
-    entity_key = "incident_objectives"
+    _list_endpoint = "/api/master/objective-templates"
+    _create_endpoint = "/api/master/objective-templates"
     csv_fields = [
-        "description", "priority", "status", "section", "customer",
+        "code", "title", "description", "default_section",
+        "priority", "tags",
     ]
 
+    def fetch_rows(self) -> list[dict[str, Any]]:
+        rows = self._api().get(self._list_endpoint, params={"include_archived": "true"}) or []
+        return [
+            {
+                "code": r.get("code", ""),
+                "title": r.get("title", ""),
+                "description": r.get("description", ""),
+                "default_section": r.get("default_section", ""),
+                "priority": r.get("priority", "Normal"),
+                "tags": ";".join(r.get("tags") or []),
+            }
+            for r in rows
+        ]
+
+    def map_csv_row(self, raw: dict[str, str]) -> dict[str, Any]:
+        norm = {k.strip().lower().replace(" ", "_"): (v or "").strip() for k, v in raw.items()}
+        tags_raw = norm.get("tags", "")
+        tags = [t.strip() for t in tags_raw.split(";") if t.strip()] if tags_raw else []
+        return {
+            "code": norm.get("code", ""),
+            "title": norm.get("title", ""),
+            "description": norm.get("description", ""),
+            "default_section": norm.get("default_section", ""),
+            "priority": norm.get("priority", "Normal"),
+            "tags": tags,
+        }
+
 
 # ---------------------------------------------------------------------------
-# Personnel
+# Personnel — /api/master/personnel
 # ---------------------------------------------------------------------------
 
-class PersonnelIO(_SqliteIO):
+class PersonnelIO(_ApiIO):
     label = "Personnel"
-    entity_key = "personnel"
-    csv_fields = ["name", "callsign", "role", "phone", "email"]
+    _list_endpoint = "/api/master/personnel"
+    _create_endpoint = "/api/master/personnel"
+    csv_fields = [
+        "name", "callsign", "role", "phone", "email",
+        "organization", "qualifications",
+    ]
+
+    def fetch_rows(self) -> list[dict[str, Any]]:
+        rows = self._api().get(self._list_endpoint, params={"limit": 2000}) or []
+        return [
+            {
+                "name": r.get("name", ""),
+                "callsign": r.get("callsign", ""),
+                "role": r.get("role", ""),
+                "phone": r.get("phone", ""),
+                "email": r.get("email", ""),
+                "organization": r.get("organization", ""),
+                "qualifications": r.get("qualifications", ""),
+            }
+            for r in rows
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -269,25 +330,23 @@ class PersonnelIO(_SqliteIO):
 # ---------------------------------------------------------------------------
 
 class ResourceTypesIO(CatalogIO):
-    """Thin wrapper that delegates to the existing resource_type_io module."""
+    """Thin wrapper delegating to the existing resource_type_io module."""
 
     label = "Resource Type Library"
-    csv_fields = []  # io module manages its own fields
+    csv_fields = []
 
     def export_csv(self, path: Path) -> Path:
         from modules.admin.resource_types.data.resource_type_repository import (
             ApiResourceTypeRepository,
         )
-        repo = ApiResourceTypeRepository()
-        return repo.export_csv(path)
+        return ApiResourceTypeRepository().export_csv(path)
 
     def import_csv(self, path: Path) -> ImportResult:
         from modules.admin.resource_types.data.resource_type_repository import (
             ApiResourceTypeRepository,
         )
         from modules.common.models.lookup_models import ImportResult as _IR
-        repo = ApiResourceTypeRepository()
-        r: _IR = repo.import_csv(path)
+        r: _IR = ApiResourceTypeRepository().import_csv(path)
         return ImportResult(r.inserted, r.skipped_duplicates, r.errors)
 
     def fetch_rows(self) -> list[dict[str, Any]]:
@@ -298,20 +357,38 @@ class ResourceTypesIO(CatalogIO):
 
 
 # ---------------------------------------------------------------------------
-# Safety Analysis Templates
+# Safety Analysis Templates — /api/master/safety-templates
 # ---------------------------------------------------------------------------
 
-class SafetyTemplatesIO(_SqliteIO):
+class SafetyTemplatesIO(_ApiIO):
     label = "Safety Analysis Templates"
-    entity_key = "safety_templates"
+    _list_endpoint = "/api/master/safety-templates"
+    _create_endpoint = "/api/master/safety-templates"
     csv_fields = [
-        "name", "operational_context", "hazard",
-        "controls", "residual_risk", "ppe", "notes",
+        "name", "description", "scenario_type", "notes", "is_active",
     ]
 
+    def fetch_rows(self) -> list[dict[str, Any]]:
+        rows = self._api().get(self._list_endpoint, params={"include_inactive": "true"}) or []
+        return [
+            {
+                "name": r.get("name", ""),
+                "description": r.get("description", ""),
+                "scenario_type": r.get("scenario_type", ""),
+                "notes": r.get("notes", ""),
+                "is_active": r.get("is_active", True),
+            }
+            for r in rows
+        ]
+
+    def import_row(self, payload: dict[str, Any]) -> None:
+        v = payload.get("is_active", "1")
+        payload["is_active"] = str(v).strip().lower() not in ("0", "false", "no")
+        self._api().post(self._create_endpoint, json=payload)
+
 
 # ---------------------------------------------------------------------------
-# Task Types — MongoDB via ApiTaskTypesRepository
+# Task Types — ApiTaskTypesRepository (MongoDB)
 # ---------------------------------------------------------------------------
 
 class TaskTypesIO(CatalogIO):
@@ -338,7 +415,7 @@ class TaskTypesIO(CatalogIO):
 
 
 # ---------------------------------------------------------------------------
-# Team Types — MongoDB via ApiTeamTypesRepository
+# Team Types — ApiTeamTypesRepository (MongoDB)
 # ---------------------------------------------------------------------------
 
 class TeamTypesIO(CatalogIO):
@@ -365,52 +442,46 @@ class TeamTypesIO(CatalogIO):
 
 
 # ---------------------------------------------------------------------------
-# Units and Organizations — MongoDB via API
+# Units and Organizations — /api/master/organizations
 # ---------------------------------------------------------------------------
 
-class UnitsOrganizationsIO(CatalogIO):
+class UnitsOrganizationsIO(_ApiIO):
     label = "Units and Organizations"
+    _list_endpoint = "/api/master/organizations"
+    _create_endpoint = "/api/master/organizations"
     csv_fields = [
         "name", "short_name", "org_type", "parent_name",
         "address", "phone", "email", "notes",
     ]
 
     def fetch_rows(self) -> list[dict[str, Any]]:
-        from modules.personnel.units_organizations.models.repository import (
-            UnitsOrganizationsRepository,
-        )
-        repo = UnitsOrganizationsRepository()
-        orgs = repo.list_organizations(include_inactive=True)
-        out = []
-        for o in orgs:
-            out.append({
-                "name": o.get("name", ""),
-                "short_name": o.get("short_name", ""),
-                "org_type": o.get("type") or o.get("org_type", ""),
-                "parent_name": o.get("parent_name", ""),
-                "address": o.get("address", ""),
-                "phone": o.get("phone", ""),
-                "email": o.get("email", ""),
-                "notes": o.get("notes", ""),
-            })
-        return out
-
-    def import_row(self, payload: dict[str, Any]) -> None:
-        from utils.api_client import api_client
-        payload.setdefault("is_active", True)
-        api_client.post("/api/master/organizations", json=payload)
+        rows = self._api().get(self._list_endpoint) or []
+        return [
+            {
+                "name": r.get("name", ""),
+                "short_name": r.get("short_name", ""),
+                "org_type": r.get("type") or r.get("org_type", ""),
+                "parent_name": r.get("parent_name", ""),
+                "address": r.get("address", ""),
+                "phone": r.get("phone", ""),
+                "email": r.get("email", ""),
+                "notes": r.get("notes", ""),
+            }
+            for r in rows
+        ]
 
 
 # ---------------------------------------------------------------------------
-# Vehicles
+# Vehicles — /api/master/vehicles
 # ---------------------------------------------------------------------------
 
-class VehiclesIO(_SqliteIO):
+class VehiclesIO(_ApiIO):
     label = "Vehicles"
-    entity_key = "vehicles"
+    _list_endpoint = "/api/master/vehicles"
+    _create_endpoint = "/api/master/vehicles"
     csv_fields = [
         "license_plate", "vin", "year", "make", "model",
-        "capacity", "organization",
+        "capacity", "type_id", "status_id", "organization",
     ]
 
 

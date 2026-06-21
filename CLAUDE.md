@@ -80,13 +80,14 @@ Desktop-first incident management suite (ICS Command Assistant / SARApp) built w
 
 ---
 
-## MongoDB Migration Status (as of 2026-06-13)
+## MongoDB Migration Status (as of 2026-06-21)
 
 **Completed cutover** (SQLite → MongoDB):
 - `modules/admin` — hazard_types, resource_types + capabilities
 - `modules/command` — objectives, IC overview, incident profile, ICS 203 (incident organization)
 - `modules/common` — task_types, team_types lookup tables
 - `modules/communications` — master channels, ICS 205 plan, traffic log
+- `panels/canned_comm_entries_window.py` — canned comm entries (`/api/master/canned-comm-entries`, `MasterCollections.CANNED_COMM_ENTRIES`)
 
 **Still on SQLite** (deliberate, pending their own cutover):
 - `ResourceAssignmentRepository` (bridges master+incident data)

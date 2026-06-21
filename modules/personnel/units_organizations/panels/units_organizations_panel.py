@@ -10,6 +10,7 @@ from PySide6.QtCore import (
     QSortFilterProxyModel,
     Qt,
 )
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -145,6 +146,15 @@ class UnitsOrganizationsPanel(QMainWindow):
         for btn in (self.btn_types, self.btn_rank_templates, self.btn_expand, self.btn_collapse):
             tb.addWidget(btn)
 
+        tb.addSeparator()
+
+        self.btn_import = QPushButton("Import CSV...")
+        self.btn_import.clicked.connect(self._on_import_csv)
+        self.btn_export = QPushButton("Export CSV...")
+        self.btn_export.clicked.connect(self._on_export_csv)
+        tb.addWidget(self.btn_import)
+        tb.addWidget(self.btn_export)
+
         self.addToolBar(tb)
 
         self.btn_new.clicked.connect(self._create_root_organization)
@@ -213,7 +223,7 @@ class UnitsOrganizationsPanel(QMainWindow):
         self.children_table.horizontalHeader().setStretchLastSection(True)
         self.children_table.setAlternatingRowColors(False)
         self.children_table.setStyleSheet("QTableView { selection-background-color: transparent; }")
-        self.children_table.setItemDelegate(RowOutlineSelectionDelegate(self.children_table))
+        self.children_table.setItemDelegate(RowOutlineSelectionDelegate(self.children_table, QColor("#FFFFFF")))
         self.children_table.selectionModel().selectionChanged.connect(self._on_children_table_selected)
         self.children_table.doubleClicked.connect(self._on_children_table_double_clicked)
 
@@ -609,6 +619,15 @@ class UnitsOrganizationsPanel(QMainWindow):
     def _open_rank_templates(self) -> None:
         RankTemplateManagerDialog(self.controller, parent=self).exec()
         self.refresh_all()
+
+    def _on_import_csv(self) -> None:
+        from utils.edit_menu_io import UnitsOrganizationsIO, do_import_csv
+        do_import_csv(UnitsOrganizationsIO(), self)
+        self.refresh_all()
+
+    def _on_export_csv(self) -> None:
+        from utils.edit_menu_io import UnitsOrganizationsIO, do_export_csv
+        do_export_csv(UnitsOrganizationsIO(), self)
 
     # ---- Context menu --------------------------------------------------------
     def _show_tree_context_menu(self, position: QPoint) -> None:

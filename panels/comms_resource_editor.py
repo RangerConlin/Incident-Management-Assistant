@@ -281,6 +281,14 @@ class CommsResourceEditor(QtWidgets.QMainWindow):
         self.btn_refresh = QtWidgets.QPushButton("Refresh")
         for btn in (self.btn_add, self.btn_edit, self.btn_delete, self.btn_refresh):
             tb.addWidget(btn)
+
+        self.btn_import = QtWidgets.QPushButton("Import CSV...")
+        self.btn_import.clicked.connect(self._on_import_csv)
+        self.btn_export = QtWidgets.QPushButton("Export CSV...")
+        self.btn_export.clicked.connect(self._on_export_csv)
+        tb.addWidget(self.btn_import)
+        tb.addWidget(self.btn_export)
+
         tb.addStretch(1)
         tb.addWidget(QtWidgets.QLabel("Search:"))
         self.search_edit = QtWidgets.QLineEdit()
@@ -393,6 +401,15 @@ class CommsResourceEditor(QtWidgets.QMainWindow):
             self._update_count()
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Error", f"Failed to delete channel:\n{exc}")
+
+    def _on_import_csv(self) -> None:
+        from utils.edit_menu_io import CommsResourcesIO, do_import_csv
+        do_import_csv(CommsResourcesIO(), self)
+        self.refresh()
+
+    def _on_export_csv(self) -> None:
+        from utils.edit_menu_io import CommsResourcesIO, do_export_csv
+        do_export_csv(CommsResourcesIO(), self)
 
     def _on_search(self, text: str) -> None:
         self._proxy.set_pattern(text)

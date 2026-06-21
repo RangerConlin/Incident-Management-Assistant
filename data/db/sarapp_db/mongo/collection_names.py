@@ -70,6 +70,7 @@ class MasterCollections:
     TASK_TYPES = "task_types"
     TEAM_TYPES = "team_types"
     OBJECTIVE_TEMPLATES = "objective_templates"
+    CANNED_COMM_ENTRIES = "canned_comm_entries"
 
     # Users and access
     USER_PROFILES = "user_profiles"

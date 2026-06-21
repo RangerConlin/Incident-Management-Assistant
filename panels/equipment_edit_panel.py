@@ -227,6 +227,14 @@ class EquipmentEditPanel(QMainWindow):
         self.btn_refresh = QPushButton("Refresh")
         for btn in (self.btn_add, self.btn_edit, self.btn_delete, self.btn_refresh):
             tb.addWidget(btn)
+
+        self.btn_import = QPushButton("Import CSV...")
+        self.btn_import.clicked.connect(self._on_import_csv)
+        self.btn_export = QPushButton("Export CSV...")
+        self.btn_export.clicked.connect(self._on_export_csv)
+        tb.addWidget(self.btn_import)
+        tb.addWidget(self.btn_export)
+
         tb.addStretch(1)
         tb.addWidget(QLabel("Search:"))
         self.search_edit = QLineEdit()
@@ -291,6 +299,15 @@ class EquipmentEditPanel(QMainWindow):
     def _on_search(self, text: str) -> None:
         self._proxy.set_pattern(text)
         self._update_count()
+
+    def _on_import_csv(self) -> None:
+        from utils.edit_menu_io import EquipmentIO, do_import_csv
+        do_import_csv(EquipmentIO(), self)
+        self.refresh()
+
+    def _on_export_csv(self) -> None:
+        from utils.edit_menu_io import EquipmentIO, do_export_csv
+        do_export_csv(EquipmentIO(), self)
 
     def _on_add(self) -> None:
         dlg = _EquipmentEditDialog(parent=self)

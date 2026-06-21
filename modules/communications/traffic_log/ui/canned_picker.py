@@ -18,19 +18,23 @@ from PySide6.QtWidgets import (
     QCheckBox,
 )
 
-from bridge.catalog_bridge import CatalogBridge
+_BASE = "/api/master/canned-comm-entries"
+
+
+def _api():
+    from utils.api_client import api_client
+    return api_client
 
 
 class CannedCommPickerDialog(QDialog):
     """Picker for canned communication entries — Title / Team Status / Message."""
 
-    def __init__(self, parent=None, *, catalog_bridge: CatalogBridge | None = None) -> None:
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Insert Canned Communication")
         self.setModal(True)
         self.resize(680, 440)
 
-        self._bridge = catalog_bridge or CatalogBridge()
         self._entries: list[dict] = []
         self._selected: dict | None = None
 
@@ -106,8 +110,9 @@ class CannedCommPickerDialog(QDialog):
         q = self.search_input.text().lower().strip()
         active_only = self.active_only.isChecked()
         try:
-            all_entries = self._bridge.listCannedCommEntries("") or []
-            entries = [e for e in all_entries if (not active_only or bool(e.get("is_active", 1)))]
+            params = {"active_only": "true"} if active_only else {}
+            all_entries = _api().get(_BASE, params=params) or []
+            entries = list(all_entries)
         except Exception:
             entries = []
         if q:

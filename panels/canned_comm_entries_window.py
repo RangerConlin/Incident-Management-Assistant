@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from bridge.catalog_bridge import CatalogBridge
 from utils.constants import TEAM_STATUSES
 from modules.communications.traffic_log.models import (
     PRIORITY_EMERGENCY,
@@ -37,13 +36,19 @@ from modules.communications.traffic_log.models import (
     PRIORITY_ROUTINE,
 )
 
+_BASE = "/api/master/canned-comm-entries"
+
+
+def _api():
+    from utils.api_client import api_client
+    return api_client
+
 
 NOTIFICATION_LEVEL_CHOICES: List[tuple[int, str]] = [
     (0, "None"),
     (1, "Notification"),
     (2, "Emergency Alert"),
 ]
-
 
 
 @dataclass(slots=True)
@@ -108,7 +113,6 @@ class CannedCommEntryDialog(QDialog):
             self.notification_combo.addItem(label, value)
         form.addRow("Notify Level", self.notification_combo)
 
-        # Priority for auto-fill in Comms Log
         self.priority_combo = QComboBox()
         self.priority_combo.addItem("", None)
         for p in (PRIORITY_ROUTINE, PRIORITY_PRIORITY, PRIORITY_EMERGENCY):
@@ -201,16 +205,10 @@ class CannedCommEntryDialog(QDialog):
 class CannedCommEntriesWindow(QMainWindow):
     """Qt Widgets implementation of the canned communication entries window."""
 
-    def __init__(
-        self,
-        catalog_bridge: CatalogBridge | None = None,
-        *,
-        parent: QWidget | None = None,
-    ) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Canned Communication Entries")
 
-        self._bridge = catalog_bridge or CatalogBridge()
         self._entries: list[dict] = []
 
         central = QWidget(self)
@@ -233,7 +231,7 @@ class CannedCommEntriesWindow(QMainWindow):
         divider.setFrameShadow(QFrame.Sunken)
         layout.addWidget(divider)
 
-        # Toolbar: actions left, filters/search right
+        # Toolbar
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
 
@@ -245,6 +243,13 @@ class CannedCommEntriesWindow(QMainWindow):
         self.delete_button.clicked.connect(self.delete_entry)
         for btn in (self.add_button, self.edit_button, self.delete_button):
             toolbar.addWidget(btn)
+
+        self.import_button = QPushButton("Import CSV...")
+        self.import_button.clicked.connect(self._on_import_csv)
+        self.export_button = QPushButton("Export CSV...")
+        self.export_button.clicked.connect(self._on_export_csv)
+        toolbar.addWidget(self.import_button)
+        toolbar.addWidget(self.export_button)
 
         toolbar.addStretch()
 
@@ -292,7 +297,6 @@ class CannedCommEntriesWindow(QMainWindow):
 
         layout.addWidget(self.table)
 
-        # Footer: entry count
         footer = QHBoxLayout()
         footer.addStretch()
         self.count_label = QLabel("")
@@ -308,7 +312,6 @@ class CannedCommEntriesWindow(QMainWindow):
         if not rows:
             return None
         row_index = rows[0].row()
-        # Resolve by stable primary key from the (hidden) ID column to avoid view sorting issues
         try:
             id_item = self.table.item(row_index, 0)
             entry_id = id_item.data(Qt.UserRole) if id_item is not None else None
@@ -324,7 +327,6 @@ class CannedCommEntriesWindow(QMainWindow):
                         return e
         except Exception:
             pass
-        # Fallback: index-based mapping (may be incorrect if user-sorted)
         if 0 <= row_index < len(self._entries):
             return self._entries[row_index]
         return None
@@ -332,8 +334,8 @@ class CannedCommEntriesWindow(QMainWindow):
     def refresh_entries(self, text: str | None = None) -> None:
         query = text.strip() if isinstance(text, str) else self.search_input.text().strip()
         try:
-            entries = self._bridge.listCannedCommEntries(query)
-        except Exception as exc:  # pragma: no cover - display error dialog
+            entries = _api().get(_BASE, params={"search": query} if query else None) or []
+        except Exception as exc:
             QMessageBox.critical(
                 self,
                 "Canned Communications",
@@ -344,7 +346,6 @@ class CannedCommEntriesWindow(QMainWindow):
         entries = sorted(entries, key=lambda item: (str(item.get("title") or "").lower(), item.get("id", 0)))
         self._entries = entries
 
-        # Rebuild category filter options without losing current selection
         current_cat = self.category_filter.currentText()
         categories = sorted({str(e.get("category") or "") for e in entries if e.get("category")})
         self.category_filter.blockSignals(True)
@@ -356,7 +357,6 @@ class CannedCommEntriesWindow(QMainWindow):
             self.category_filter.setCurrentText(current_cat)
         self.category_filter.blockSignals(False)
 
-        # Apply category filter
         selected_cat = self.category_filter.currentText()
         if selected_cat and selected_cat != "All":
             entries = [e for e in entries if (e.get("category") or "") == selected_cat]
@@ -412,14 +412,14 @@ class CannedCommEntriesWindow(QMainWindow):
             return
         payload = dialog.data()
         try:
-            created_id = self._bridge.createCannedCommEntry(payload)
-        except Exception as exc:  # pragma: no cover - display error dialog
+            created = _api().post(_BASE, json=payload)
+        except Exception as exc:
             QMessageBox.critical(self, "Canned Communications", f"Failed to create entry:\n{exc}")
             return
 
         self.refresh_entries()
-        if created_id:
-            self._select_entry_by_id(created_id)
+        if created and created.get("id"):
+            self._select_entry_by_id(created["id"])
 
     def edit_entry(self) -> None:
         entry = self.current_entry()
@@ -438,8 +438,8 @@ class CannedCommEntriesWindow(QMainWindow):
 
         payload = dialog.data()
         try:
-            self._bridge.updateCannedCommEntry(int(entry["id"]), payload)
-        except Exception as exc:  # pragma: no cover - display error dialog
+            _api().patch(f"{_BASE}/{int(entry['id'])}", json=payload)
+        except Exception as exc:
             QMessageBox.critical(self, "Canned Communications", f"Failed to update entry:\n{exc}")
             return
 
@@ -464,12 +464,21 @@ class CannedCommEntriesWindow(QMainWindow):
             return
 
         try:
-            self._bridge.deleteCannedCommEntry(int(entry["id"]))
-        except Exception as exc:  # pragma: no cover - display error dialog
+            _api().delete(f"{_BASE}/{int(entry['id'])}")
+        except Exception as exc:
             QMessageBox.critical(self, "Canned Communications", f"Failed to delete entry:\n{exc}")
             return
 
         self.refresh_entries()
+
+    def _on_import_csv(self) -> None:
+        from utils.edit_menu_io import CannedCommEntriesIO, do_import_csv
+        do_import_csv(CannedCommEntriesIO(), self)
+        self.refresh_entries()
+
+    def _on_export_csv(self) -> None:
+        from utils.edit_menu_io import CannedCommEntriesIO, do_export_csv
+        do_export_csv(CannedCommEntriesIO(), self)
 
     def _select_entry_by_id(self, entry_id: int | None) -> None:
         if entry_id is None:
@@ -483,13 +492,8 @@ class CannedCommEntriesWindow(QMainWindow):
 
 def open_canned_comm_entries_window(parent: QWidget | None = None) -> CannedCommEntriesWindow:
     """Utility to instantiate and show the canned communications window."""
-
     app = QApplication.instance()
-    bridge = None
-    if parent is not None and hasattr(parent, "_catalog_bridge"):
-        bridge = getattr(parent, "_catalog_bridge")
-
-    window = CannedCommEntriesWindow(catalog_bridge=bridge, parent=parent)
+    window = CannedCommEntriesWindow(parent=parent)
     window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
     window.show()
     if app is not None:

@@ -266,6 +266,14 @@ class HospitalManagerDialog(QMainWindow):
         self.btn_refresh = QPushButton("Refresh")
         for btn in (self.btn_new, self.btn_edit, self.btn_duplicate, self.btn_delete, self.btn_refresh):
             tb.addWidget(btn)
+
+        self.btn_import = QPushButton("Import CSV...")
+        self.btn_import.clicked.connect(self._on_import_csv)
+        self.btn_export = QPushButton("Export CSV...")
+        self.btn_export.clicked.connect(self._on_export_csv)
+        tb.addWidget(self.btn_import)
+        tb.addWidget(self.btn_export)
+
         tb.addStretch(1)
         tb.addWidget(QLabel("Search:"))
         self.search_edit = QLineEdit()
@@ -302,6 +310,15 @@ class HospitalManagerDialog(QMainWindow):
         self.table.doubleClicked.connect(lambda _: self._on_edit())
         self.table.selectionModel().selectionChanged.connect(self._update_buttons)
         self._update_buttons()
+
+    def _on_import_csv(self) -> None:
+        from utils.edit_menu_io import HospitalsIO, do_import_csv
+        do_import_csv(HospitalsIO(), self)
+        self.refresh()
+
+    def _on_export_csv(self) -> None:
+        from utils.edit_menu_io import HospitalsIO, do_export_csv
+        do_export_csv(HospitalsIO(), self)
 
     def refresh(self) -> None:
         try:

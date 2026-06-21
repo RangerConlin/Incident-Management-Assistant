@@ -433,7 +433,11 @@ class ObjectivesEditor(_QMainWindow):
         self._delete_button.clicked.connect(self._delete_selected)
         layout.addWidget(self._delete_button)
 
-        self._export_button = QPushButton("Export CSV")
+        self._import_button = QPushButton("Import CSV...")
+        self._import_button.clicked.connect(self._import_csv)
+        layout.addWidget(self._import_button)
+
+        self._export_button = QPushButton("Export CSV...")
         self._export_button.clicked.connect(self._export_csv)
         layout.addWidget(self._export_button)
 
@@ -898,6 +902,11 @@ class ObjectivesEditor(_QMainWindow):
             QMessageBox.critical(self, "Database Error", str(exc))
             return
         self._current_template = None
+        self._refresh_table()
+
+    def _import_csv(self) -> None:
+        from utils.edit_menu_io import ObjectivesIO, do_import_csv
+        do_import_csv(ObjectivesIO(), self)
         self._refresh_table()
 
     def _export_csv(self) -> None:
