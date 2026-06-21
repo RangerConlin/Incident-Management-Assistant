@@ -3,7 +3,25 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import signal
+import sys
+
+
+def _ensure_repo_packages_on_path() -> None:
+    """Allow local runs without requiring editable installs first."""
+    repo_root = Path(__file__).resolve().parent
+    package_roots = (
+        repo_root / "data" / "db",
+        repo_root / "cloud_server",
+    )
+    for package_root in package_roots:
+        package_root_str = str(package_root)
+        if package_root.exists() and package_root_str not in sys.path:
+            sys.path.insert(0, package_root_str)
+
+
+_ensure_repo_packages_on_path()
 
 from core.networking.server_info import DEFAULT_LOCAL_SERVER_NAME, DEFAULT_SERVER_PORT
 from server.server_manager import SARAppServerManager
