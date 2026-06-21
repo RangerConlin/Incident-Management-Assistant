@@ -1210,7 +1210,9 @@ class PersonnelInventoryWindow(QtWidgets.QMainWindow):
         self.table.setAlternatingRowColors(False)
         self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
         from utils.itemview_delegates import RowOutlineSelectionDelegate
-        self.table.setItemDelegate(RowOutlineSelectionDelegate(self.table))
+        self.table.setItemDelegate(
+            RowOutlineSelectionDelegate(self.table, self.table.palette().highlight().color())
+        )
         self.table.doubleClicked.connect(self._on_edit)
 
         btn_add = QtWidgets.QPushButton("Add")

@@ -29,13 +29,15 @@ PALETTE: Dict[str, str] = {
     "error":        "#d32f2f",
 
     # Window specific surfaces from the semantic palette for legacy widgets.
-    "bg_window":    "#d1d1d1",
-    "bg_panel":     "#9E9E9E",
-    "menu_bar_bg":  "#1313AB",
-    "bg_raised":    "#686868",
+    # Lightness ladder (lightest -> darkest): bg_window > dock_tab_bg > bg_raised > bg_panel,
+    # mirroring the dark profile's darkest -> lightest ladder in reverse.
+    "bg_window":    "#D1D1D1",
+    "bg_panel":     "#A8A8A8",
+    "menu_bar_bg":  "#B5B5B5",
+    "bg_raised":    "#BEBEBE",
     "fg_primary":   "#0F0F0F",
     "fg_muted":     "#5A5F6A",
-    "dock_tab_bg":  "#C0C0C0",
+    "dock_tab_bg":  "#C6C6C6",
 
     # Additional semantic accents used by reports and specialty panels.
     "accent_alt":   "#27AE60",
@@ -45,16 +47,16 @@ PALETTE: Dict[str, str] = {
     # Control states for button chrome, hover rings, focus outlines, and dividers.
     "ctrl_bg":      "#E9E9E9",
     "ctrl_border":  "#D5D8DE",
-    "ctrl_hover":   "#858585",
+    "ctrl_hover":   "#DDE1E6",
     "ctrl_focus":   "#2F80ED",
-    "divider":      "#000000",
+    "divider":      "#D5D8DE",
 
     # Buttons
     "btn_bg":       "#E9E9E9",
     "btn_border":   "#D5D8DE",
-    "btn_hover":    "#858585",
+    "btn_hover":    "#DDE1E6",
     "btn_focus":    "#2F80ED",
-    "btn_disabled": "#000000",
+    "btn_disabled": "#C8CBCF",
     "btn_checked":  "#2F80ED",
 }
 

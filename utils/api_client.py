@@ -95,17 +95,28 @@ class _APIClient:
     def _build_url(self, path: str) -> str:
         return self._base_url + ("" if path.startswith("/") else "/") + path
 
+    def _request_with_retry(
+        self, method: str, url: str, *, json: Any, params: dict[str, Any] | None
+    ) -> httpx.Response:
+        """Send a request, retrying once on a stale pooled connection.
+
+        The server's keep-alive timeout can expire and close an idle socket
+        before httpx's connection pool (configured to never expire client-side)
+        notices, so the first write on a reused connection can land on an
+        already-closed socket with no response. Retrying once with a fresh
+        connection resolves it without masking real server-down errors.
+        """
+        try:
+            return self._client.request(method, url, json=json, params=params or None)
+        except httpx.RemoteProtocolError:
+            return self._client.request(method, url, json=json, params=params or None)
+
     def _send(self, method: str, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
         url = self._build_url(path)
         if params:
             params = {k: v for k, v in params.items() if v is not None}
         try:
-            resp = self._client.request(
-                method,
-                url,
-                json=json,
-                params=params or None,
-            )
+            resp = self._request_with_retry(method, url, json=json, params=params)
         except httpx.TransportError as exc:
             raise APIError(f"Server unreachable: {exc}") from exc
         except Exception as exc:
