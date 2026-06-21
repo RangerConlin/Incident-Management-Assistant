@@ -1,0 +1,1095 @@
+{
+  "description": "ICS 201 — Incident Briefing — USCG ICS Forms 2023",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 Incident Location",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "3   Time",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "4 MapSketch include sketch showing the total area of operations the incident site area overflight results trajectories impacted shorelines or other graphics depicting situational and response status",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Current SituationRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Current SituationRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Current SituationRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Current SituationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Current SituationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Current SituationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Current SituationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Position Title",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "Date",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "1 Incident Name_2",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "2 Incident Location_2",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "3 Time Initiated",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow16_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow17_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow18_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow19_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow20_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow21_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow22_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow23_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow24_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow25_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Initial Response Objectives Current Actions Planned ActionsRow26_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Prepared by",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Name_2",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Position Title_2",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_2",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "3 Date Initiated",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "1 Incident Name_3",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 Incident Location_3",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "3 Date  Time Initiated Date Time_3",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "9 Current Organization fill in additional appropriate organization Safety Officer Liaison Officer Public Information Officer Operations Section Planning Section Logistics Section Finance Section IntelInvest Section",
+      "source": ""
+    },
+    {
+      "pdf_field": "1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "1_3",
+      "source": "organization.safety_officer.name"
+    },
+    {
+      "pdf_field": "2_3",
+      "source": "organization.liaison_officer.name"
+    },
+    {
+      "pdf_field": "3_3",
+      "source": "organization.public_information_officer.name"
+    },
+    {
+      "pdf_field": "Public Information Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section",
+      "source": ""
+    },
+    {
+      "pdf_field": "Finance Section",
+      "source": "organization.finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "Operations SectionRow1",
+      "source": "organization.operations_section_chief.name"
+    },
+    {
+      "pdf_field": "Planning SectionRow1",
+      "source": "organization.planning_section_chief.name"
+    },
+    {
+      "pdf_field": "Logistics SectionRow1",
+      "source": "organization.logistics_section_chief.name"
+    },
+    {
+      "pdf_field": "IntelInvest SectionRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Date Initiated",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "1 Incident Name_4",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "3 Date  Time Initiated Date Time_4",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "10 Resources Summary",
+      "source": ""
+    },
+    {
+      "pdf_field": "2 Incident Location10 Resources Summary",
+      "source": ""
+    },
+    {
+      "pdf_field": "2 Incident Location10 Resources Summary_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type1",
+      "source": ""
+    },
+    {
+      "pdf_field": "name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type2",
+      "source": ""
+    },
+    {
+      "pdf_field": "name2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type3",
+      "source": ""
+    },
+    {
+      "pdf_field": "name3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type4",
+      "source": ""
+    },
+    {
+      "pdf_field": "name4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type5",
+      "source": ""
+    },
+    {
+      "pdf_field": "name5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type6",
+      "source": ""
+    },
+    {
+      "pdf_field": "name6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "status1",
+      "source": ""
+    },
+    {
+      "pdf_field": "status2",
+      "source": ""
+    },
+    {
+      "pdf_field": "status3",
+      "source": ""
+    },
+    {
+      "pdf_field": "status4",
+      "source": ""
+    },
+    {
+      "pdf_field": "status5",
+      "source": ""
+    },
+    {
+      "pdf_field": "status6",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type7",
+      "source": ""
+    },
+    {
+      "pdf_field": "name7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "status7",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type8",
+      "source": ""
+    },
+    {
+      "pdf_field": "name8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "status8",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type9",
+      "source": ""
+    },
+    {
+      "pdf_field": "name9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "status9",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type10",
+      "source": ""
+    },
+    {
+      "pdf_field": "name10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "status10",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type11",
+      "source": ""
+    },
+    {
+      "pdf_field": "name11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "status11",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type12",
+      "source": ""
+    },
+    {
+      "pdf_field": "name12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "status12",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type13",
+      "source": ""
+    },
+    {
+      "pdf_field": "name13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "status13",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type14",
+      "source": ""
+    },
+    {
+      "pdf_field": "name14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "status14",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type15",
+      "source": ""
+    },
+    {
+      "pdf_field": "name15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "status15",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type16",
+      "source": ""
+    },
+    {
+      "pdf_field": "name16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "status16",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type17",
+      "source": ""
+    },
+    {
+      "pdf_field": "name17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "status17",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type18",
+      "source": ""
+    },
+    {
+      "pdf_field": "name18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "status18",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type19",
+      "source": ""
+    },
+    {
+      "pdf_field": "name19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "status19",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type20",
+      "source": ""
+    },
+    {
+      "pdf_field": "name20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "status20",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type21",
+      "source": ""
+    },
+    {
+      "pdf_field": "name21",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "status21",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type22",
+      "source": ""
+    },
+    {
+      "pdf_field": "name22",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "status22",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type23",
+      "source": ""
+    },
+    {
+      "pdf_field": "name23",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "status23",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type24",
+      "source": ""
+    },
+    {
+      "pdf_field": "name24",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "status24",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_type25",
+      "source": ""
+    },
+    {
+      "pdf_field": "name25",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date  Time OrderedRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "ETARow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "status25",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name_3",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Position Title_3",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_3",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "Location",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "3 Date Initiated",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Check Box3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box21",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box22",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box23",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box24",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box25",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box26",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box27",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow25",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Resource IdentifierRow1",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Notes LocationAssignmentStatus",
+      "source": {
+        "literal": ""
+      }
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "teams",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        25
+      ],
+      "col_patterns": {
+        "resource_type": "resource_type{n}",
+        "name": "name{n}",
+        "status": "status{n}"
+      }
+    }
+  ]
+}

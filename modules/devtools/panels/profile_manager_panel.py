@@ -343,7 +343,7 @@ class ProfileManagerPanel(QWidget):
 
         # Copy PDF into profile and create a v2 template JSON with fingerprint
         try:
-            from modules.forms.export import sha256_of_file
+            from modules.forms_creator.export import sha256_of_file
         except Exception:
             from pathlib import Path as _P
             def sha256_of_file(p: _P) -> str:

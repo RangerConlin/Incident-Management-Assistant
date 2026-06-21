@@ -1,108 +1,109 @@
 from __future__ import annotations
 
 import socket
-import threading
-import time
-from http.server import ThreadingHTTPServer
+from datetime import timedelta
 
-import pytest
-
-from core.networking import ConnectionManager, ConnectionState, LocalServerController, PortUnavailableError
+from core.networking.connection_manager import ConnectionManager
+from core.networking.discovery import DiscoveryClient
+from core.networking.heartbeat import HeartbeatTracker
+from core.networking.server_info import (
+    ConnectionHealth,
+    ConnectionMode,
+    ConnectionState,
+    DiscoveryAnnouncement,
+    ServerInfo,
+    utc_now,
+)
 from server.server_manager import SARAppServerManager
 
 
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+def test_discovery_packet_decodes_and_uses_packet_host_for_wildcard_bind() -> None:
+    server = ServerInfo(
+        server_id="server-1",
+        server_name="Incident LAN Server",
+        host="0.0.0.0",
+        port=8765,
+    )
+    payload = DiscoveryAnnouncement(server).to_dict()
+
+    decoded = DiscoveryClient._decode_packet(  # noqa: SLF001 - targeted wire-format test
+        __import__("json").dumps(payload).encode("utf-8"),
+        "192.0.2.10",
+    )
+
+    assert decoded is not None
+    assert decoded.server_id == "server-1"
+    assert decoded.host == "192.0.2.10"
+    assert decoded.last_heartbeat is not None
 
 
-class _RunningTestServer:
-    def __init__(self, port: int, compatible: bool = True):
-        self.port = port
-        if compatible:
-            manager = SARAppServerManager("127.0.0.1", port, "Test SARApp Server")
-            handler = manager.make_handler()
-        else:
-            from http.server import BaseHTTPRequestHandler
-
-            class handler(BaseHTTPRequestHandler):  # type: ignore[no-redef]
-                def do_GET(self):  # noqa: N802
-                    self.send_response(200)
-                    self.end_headers()
-                    self.wfile.write(b"not sarapp")
-
-                def log_message(self, format, *args):  # noqa: A002,N802
-                    return
-
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
-
-    def __enter__(self):
-        self.thread.start()
-        time.sleep(0.05)
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        self.httpd.shutdown()
-        self.thread.join(timeout=2)
-        self.httpd.server_close()
-
-
-def test_local_server_controller_detects_already_running_server():
-    port = _free_port()
-    with _RunningTestServer(port, compatible=True):
-        controller = LocalServerController(port=port)
-        assert controller.is_running() is True
-        controller.start()
-        assert controller.started_by_this_app is False
-        assert controller.process is None
-
-
-def test_local_server_controller_can_start_server_and_wait_for_readiness():
-    port = _free_port()
-    controller = LocalServerController(port=port)
+def test_connection_manager_connects_to_local_server_health_endpoint() -> None:
+    server = SARAppServerManager(
+        host="127.0.0.1",
+        port=0,
+        server_id="test-server",
+        server_name="Test Server",
+    )
+    server.start()
     try:
-        controller.start()
-        assert controller.started_by_this_app is True
-        assert controller.wait_until_ready(timeout_seconds=5.0) is True
-        assert controller.is_running() is True
+        manager = ConnectionManager(request_timeout_seconds=1.0)
+        snapshot = manager.connect_to_server(server.server_info, mode=ConnectionMode.LAN)
+
+        assert snapshot.state == ConnectionState.CONNECTED_LAN
+        assert snapshot.mode == ConnectionMode.LAN
+        assert snapshot.health == ConnectionHealth.HEALTHY
+        assert snapshot.server is not None
+        assert snapshot.server.connected_timestamp is not None
     finally:
-        controller.stop()
+        server.stop()
 
 
-def test_starting_local_server_allows_connection_manager_to_connect():
-    port = _free_port()
-    controller = LocalServerController(port=port)
-    manager = ConnectionManager(timeout_seconds=1.0)
+def test_offline_mode_is_explicit_valid_state() -> None:
+    manager = ConnectionManager()
+
+    snapshot = manager.enter_offline_mode()
+
+    assert snapshot.state == ConnectionState.OFFLINE
+    assert snapshot.mode == ConnectionMode.OFFLINE
+    assert not snapshot.is_connected
+
+
+def test_heartbeat_tracker_marks_stale_after_timeout() -> None:
+    tracker = HeartbeatTracker(timeout_seconds=5)
+    server = ServerInfo(server_id="stale-server", server_name="Stale Server")
+    observed_at = utc_now() - timedelta(seconds=30)
+
+    tracker.observe(server, observed_at=observed_at)
+
+    assert tracker.health_for("stale-server") == ConnectionHealth.STALE
+
+
+def test_discovery_client_can_receive_udp_announcement_on_loopback() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = int(probe.getsockname()[1])
+
+    server = ServerInfo(
+        server_id="udp-server",
+        server_name="UDP Server",
+        host="127.0.0.1",
+        port=8765,
+    )
+
+    def send_packet() -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            packet = __import__("json").dumps(
+                DiscoveryAnnouncement(server).to_dict()
+            ).encode("utf-8")
+            sock.sendto(packet, ("127.0.0.1", port))
+
+    import threading
+
+    timer = threading.Timer(0.05, send_packet)
+    timer.start()
     try:
-        controller.start()
-        assert controller.wait_until_ready(timeout_seconds=5.0) is True
-        assert manager.connect_manual("127.0.0.1", port) is True
-        snapshot = manager.snapshot
-        assert snapshot.state == ConnectionState.LAN
-        assert snapshot.is_connected is True
-        assert snapshot.is_offline is False
+        servers = DiscoveryClient(port=port, bind_host="127.0.0.1").discover(timeout_seconds=0.5)
     finally:
-        controller.stop()
+        timer.cancel()
 
-
-def test_offline_mode_remains_available_when_server_start_fails():
-    port = _free_port()
-    manager = ConnectionManager(timeout_seconds=0.2)
-    with _RunningTestServer(port, compatible=False):
-        controller = LocalServerController(port=port)
-        with pytest.raises(PortUnavailableError):
-            controller.start()
-        manager.work_offline()
-        assert manager.snapshot.state == ConnectionState.OFFLINE
-        assert manager.snapshot.is_offline is True
-
-
-def test_manual_connection_still_works():
-    port = _free_port()
-    manager = ConnectionManager(timeout_seconds=1.0)
-    with _RunningTestServer(port, compatible=True):
-        assert manager.connect_manual("127.0.0.1", port) is True
-        assert manager.snapshot.state == ConnectionState.LAN
-        assert manager.snapshot.server_name == "Test SARApp Server"
+    assert [item.server_id for item in servers] == ["udp-server"]

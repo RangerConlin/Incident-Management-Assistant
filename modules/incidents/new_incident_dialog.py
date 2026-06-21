@@ -1,9 +1,4 @@
-"""Dialog for creating a new incident.
-
-Both the main menu action and the Incident Selection window reuse this
-dialog. It gathers basic incident metadata and creates a placeholder
-SQLite database for the incident.
-"""
+"""Dialog for creating a new incident."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,9 +17,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from utils.incident_db import create_incident_database
-from models.database import get_incident_by_number
-
 
 @dataclass(slots=True)
 class IncidentMeta:
@@ -38,20 +30,26 @@ class IncidentMeta:
     is_training: bool
 
     def slug(self) -> str:
-        """Return a filesystem-friendly slug.
-
-        Uses the incident number if available; otherwise falls back to the
-        name. Non-alphanumeric characters are replaced with hyphens and the
-        result is lowercased.
-        """
         base = self.number or self.name
         slug = re.sub(r"[^A-Za-z0-9]+", "-", base).strip("-").lower()
         return slug or "incident"
 
 
+def _load_incident_types() -> list[str]:
+    try:
+        from utils.api_client import api_client
+        types = api_client.get("/api/lookup/incident-types") or []
+        if types:
+            return types
+    except Exception:
+        pass
+    return ["SAR", "Disaster Response"]
+
+
 class NewIncidentDialog(QDialog):
     """Collect incident metadata and emit a creation signal."""
 
+    # Emits (meta, incident_id) where incident_id is the MongoDB UUID string
     created = Signal(IncidentMeta, str)
     cancelled = Signal()
 
@@ -63,7 +61,7 @@ class NewIncidentDialog(QDialog):
         self._name = QLineEdit()
         self._number = QLineEdit()
         self._type = QComboBox()
-        self._type.addItems(["SAR", "Disaster Response"])
+        self._type.addItems(_load_incident_types())
         self._desc = QLineEdit()
         self._location = QLineEdit()
         self._training = QCheckBox("Training Incident?")
@@ -84,7 +82,6 @@ class NewIncidentDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    # ------------------------------------------------------------------
     def _handle_accept(self) -> None:
         meta = IncidentMeta(
             number=self._number.text().strip(),
@@ -98,31 +95,36 @@ class NewIncidentDialog(QDialog):
             QMessageBox.warning(self, "Missing Data", "Name and Number are required.")
             return
 
-        # Prevent duplicates: check master for existing incident number
         try:
-            existing = get_incident_by_number(meta.number)
-            if existing:
+            from utils.api_client import api_client
+            result = api_client.post(
+                "/api/incidents",
+                json={
+                    "number": meta.number,
+                    "name": meta.name,
+                    "type": meta.type,
+                    "description": meta.description,
+                    "icp_location": meta.location,
+                    "is_training": meta.is_training,
+                },
+            )
+            if result is None:
+                QMessageBox.critical(self, "Error", "Failed to create incident: no response from server.")
+                return
+            incident_id = result.get("incident_id") or result.get("id", "")
+        except Exception as e:
+            err = str(e)
+            if "409" in err or "already exists" in err.lower():
                 QMessageBox.warning(
                     self,
                     "Duplicate Incident",
                     f"An incident with number '{meta.number}' already exists.",
                 )
-                return
-        except Exception:
-            # If master.db is unavailable, still proceed to file-level check
-            pass
-
-        # Create incident DB named after the incident number; prevent overwrite
-        try:
-            db_path = create_incident_database(meta.number, incident_name=meta.name)
-        except FileExistsError as e:
-            QMessageBox.warning(self, "Already Exists", str(e))
-            return
-        except Exception as e:
-            QMessageBox.critical(self, "Incident Database Error", str(e))
+            else:
+                QMessageBox.critical(self, "Incident Creation Error", err)
             return
 
-        self.created.emit(meta, str(db_path))
+        self.created.emit(meta, incident_id)
         self.accept()
 
     def _handle_reject(self) -> None:

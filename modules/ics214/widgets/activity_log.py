@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import sqlite3
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,7 +40,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from models.incidentlist import load_incidents_from_master
 
 from .. import services as ics214_services
 from ..schemas import (
@@ -1256,16 +1254,17 @@ class Ics214ActivityLogPanel(QWidget):
         options: list[dict[str, str]] = []
         self._incident_label_cache.clear()
         try:
-            records = load_incidents_from_master()
+            from utils.api_client import api_client
+            records = api_client.get("/api/incidents") or []
         except Exception as exc:
             logger.debug("Failed to load incidents: %s", exc)
             return options
         for row in records:
-            number = getattr(row, "number", None) or getattr(row, "id", None)
+            number = row.get("number")
             if not number:
                 continue
             number_str = str(number)
-            name = getattr(row, "name", "")
+            name = row.get("name", "")
             label = f"{name} ({number_str})" if name else number_str
             options.append({"id": number_str, "label": label})
             self._incident_label_cache[number_str] = label
@@ -1310,46 +1309,20 @@ class Ics214ActivityLogPanel(QWidget):
         self.op_combo.blockSignals(True)
         self.op_combo.clear()
         self.op_combo.addItem("Unassigned OP", 0)
-        rows: list[sqlite3.Row] = []
+        rows: list[dict] = []
         if self.incident_id:
-            from utils import incident_storage
-            paths = incident_storage.resolve_incident_paths_by_identifier(self.incident_id)
-            if paths is None:
-                raise RuntimeError(f"Unknown incident: {self.incident_id}")
-            db_path = paths.incident_db
-            if db_path.exists():
-                conn: sqlite3.Connection | None = None
-                try:
-                    conn = sqlite3.connect(db_path)
-                    conn.row_factory = sqlite3.Row
-                    cur = conn.cursor()
-                    cur.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND name='operationalperiods'"
-                    )
-                    if cur.fetchone():
-                        cur.execute(
-                            "SELECT id, op_number, start_time, end_time FROM operationalperiods ORDER BY id"
-                        )
-                        rows = cur.fetchall()
-                except Exception as exc:
-                    logger.exception(
-                        "Failed to load operational periods for %s: %s",
-                        self.incident_id,
-                        exc,
-                    )
-                finally:
-                    if conn is not None:
-                        try:
-                            conn.close()
-                        except Exception:  # pragma: no cover
-                            pass
+            try:
+                from utils.api_client import api_client
+                rows = api_client.get(f"/api/incidents/{self.incident_id}/operational-periods") or []
+            except Exception as exc:
+                logger.exception("Failed to load operational periods for %s: %s", self.incident_id, exc)
         for row in rows:
-            op_code = row["op_number"]
+            op_code = row.get("number") if isinstance(row, dict) else row["op_number"]
             op_number = _parse_op_number(op_code)
             label = _format_operational_period_label(
                 op_code,
-                row["start_time"],
-                row["end_time"],
+                row.get("start_time") if isinstance(row, dict) else row["start_time"],
+                row.get("end_time") if isinstance(row, dict) else row["end_time"],
             )
             if op_number not in self.operational_period_labels:
                 self.operational_period_labels[op_number] = label
@@ -1516,7 +1489,7 @@ class Ics214ActivityLogPanel(QWidget):
         label = name
         section = json.dumps({"category": kind, "ref": ref, "label": label}, ensure_ascii=False)
         try:
-            stream = self.services.create_stream(
+            _stream_raw = self.services.create_stream(
                 StreamCreate(
                     incident_id=self.incident_id,
                     name=name,
@@ -1525,6 +1498,8 @@ class Ics214ActivityLogPanel(QWidget):
                     section=section,
                 )
             )
+            from types import SimpleNamespace
+            stream = SimpleNamespace(**_stream_raw) if isinstance(_stream_raw, dict) else _stream_raw
             logger.info(
                 "Auto-created ICS-214 stream '%s' (kind=%s, ref=%s) for incident %s",
                 name, kind, ref, self.incident_id,
@@ -1546,7 +1521,12 @@ class Ics214ActivityLogPanel(QWidget):
             self._set_empty_state()
             return
         try:
-            streams = self.services.list_streams(self.incident_id)
+            _raw = self.services.list_streams(self.incident_id)
+            from types import SimpleNamespace
+            streams = [
+                SimpleNamespace(**s) if isinstance(s, dict) else s
+                for s in (_raw or [])
+            ]
         except Exception as exc:
             logger.exception(
                 "Failed to load ICS-214 streams for %s: %s",
@@ -1788,6 +1768,7 @@ class Ics214ActivityLogPanel(QWidget):
                     self.incident_id,
                     entry.entry_id,
                     payload,
+                    stream_id=self.header.stream_id,
                 )
             except Exception as exc:
                 logger.exception("Failed to update entry %s: %s", entry.entry_id, exc)
@@ -2052,11 +2033,13 @@ class Ics214ActivityLogPanel(QWidget):
                     kind=data["kind"],
                     section=data["section"],
                 )
-                stream = self.services.update_stream(
+                _raw_stream = self.services.update_stream(
                     self.incident_id,
                     self.header.stream_id,
                     payload,
                 )
+                from types import SimpleNamespace
+                stream = SimpleNamespace(**_raw_stream) if isinstance(_raw_stream, dict) else _raw_stream
             except Exception as exc:
                 logger.exception(
                     "Failed to update stream %s: %s",
@@ -2106,7 +2089,9 @@ class Ics214ActivityLogPanel(QWidget):
                     kind=data["kind"],
                     section=data["section"],
                 )
-                stream = self.services.create_stream(payload)
+                _raw_stream = self.services.create_stream(payload)
+                from types import SimpleNamespace
+                stream = SimpleNamespace(**_raw_stream) if isinstance(_raw_stream, dict) else _raw_stream
             except Exception as exc:
                 logger.exception("Failed to create stream: %s", exc)
                 QMessageBox.critical(
@@ -2139,7 +2124,12 @@ class Ics214ActivityLogPanel(QWidget):
         header = self.known_logs.get(log_id)
         if header is None and self.incident_id:
             try:
-                streams = self.services.list_streams(self.incident_id)
+                from types import SimpleNamespace
+                _raw = self.services.list_streams(self.incident_id)
+                streams = [
+                    SimpleNamespace(**s) if isinstance(s, dict) else s
+                    for s in (_raw or [])
+                ]
             except Exception:
                 streams = []
             for stream in streams:

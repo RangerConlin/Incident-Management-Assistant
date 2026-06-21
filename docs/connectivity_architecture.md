@@ -1,64 +1,91 @@
-# SARApp Connectivity Architecture
+# SARApp Connectivity Architecture (Phase 1)
 
-SARApp remains a desktop-first PySide6 / Qt Widgets application. This phase adds a built-in local server startup path for users who launch the desktop app when no existing incident server is reachable. It does not redesign storage, migrate modules, replace SQLite behavior, add synchronization, or introduce QML.
+SARApp and ICS Command Assistant are the same desktop-first PySide6 project. This phase adds the networking foundation only: discovery, connection state management, heartbeats, and server health checks. It does not change database storage, add MongoDB, introduce QML, or migrate incident modules.
 
-## Startup Order
+## Launch Connection Workflow
 
-At launch, the desktop app uses `ConnectionManager` as the central place for connection state:
+When SARApp starts, `main.py` creates a centralized `ConnectionManager` and runs the startup connection flow before the main workspace is shown:
 
-1. Try LAN/local discovery.
-2. Try a configured cloud server.
-3. If both fail, show the fallback prompt.
+1. Search the local LAN for SARApp Server announcements.
+2. If a server is discovered, connect to that LAN server automatically.
+3. If no LAN server is found, try the configured cloud URL (`SARAPP_CLOUD_URL`).
+4. If cloud is unavailable, prompt the user to enter Offline Mode.
 
-The connection snapshot reports one of the high-level states used by the rest of the app:
+`SARAPP_CONNECTIVITY_DISABLED=1` can disable this startup workflow for troubleshooting or specialized test runs.
 
-- `lan` for a LAN or same-machine local SARApp server.
-- `cloud` for a configured cloud SARApp server.
-- `offline` for desktop-only SQLite operation.
-- `disconnected` before a successful connection or offline selection.
+## LAN Discovery Process
 
-## Fallback Prompt
+Phase 1 uses UDP broadcast rather than cloud services, DNS, or manual IP entry as the primary discovery mechanism. A SARApp Server periodically sends a JSON announcement to the local broadcast domain. The payload contains:
 
-When no LAN server is found and the cloud server is unavailable, SARApp shows a plain Qt fallback prompt:
+- Server ID
+- Server name
+- Version
+- Status
+- Host and port
+- Last heartbeat timestamp
+- Future failover fields (`connected_timestamp`, `last_synchronization_timestamp`)
 
-- **Start Local Incident Server**
-- **Work Offline**
-- **Retry Connection**
-- **Manual Server Address**
-- **Exit**
+Broadcast is intentionally simple for incident networks where laptops are commonly connected to the same router or access point. If a network blocks broadcast, clients can still use manual connection fallback through the same `ConnectionManager` API.
 
-The prompt appears before the main window opens, so the app can start in a clear connection mode.
+## SARApp Server Health Endpoints
 
-## Built-In Local Server Option
+`server/server_manager.py` provides a minimal phase-1 server runtime using the Python standard library. It exposes:
 
-The **Start Local Incident Server** option uses `LocalServerController` in `core/networking/local_server_controller.py`. The controller:
+- `GET /health` for connection checks.
+- `GET /server-info` for server metadata.
+- UDP discovery announcements through `DiscoveryBroadcaster`.
 
-- Checks whether `127.0.0.1:<default port>` already has a compatible SARApp `/health` endpoint.
-- Treats an already-running compatible server as reusable and does not start a duplicate process.
-- Detects when the port is occupied by a non-SARApp service and reports an error.
-- Starts `sarapp_server.py` as a separate process with `sys.executable` in development mode.
-- Waits for `/health` with a timeout.
-- Tracks whether this desktop app started the process.
-- Stops only the process it owns on application exit.
+This is not a data API and does not perform database work. Future server implementations can replace or extend it while preserving the advertised `ServerInfo` contract.
 
-The local server advertises a simple SARApp-compatible health payload from `server/server_manager.py` at `/health`.
+A server can be started with:
 
-## LAN Server vs Local Server vs Offline
+```bash
+python sarapp_server.py --host 0.0.0.0 --port 8765 --name "Incident Command Server"
+```
 
-- **Connecting to a LAN server** means SARApp found or was pointed at an existing SARApp server and connected after `/health` succeeded. The desktop app does not own that process.
-- **Starting a local server** means the desktop app launched the bundled server process on the same machine, waited for readiness, then connected to `127.0.0.1` through the same manual connection path used for other LAN/local servers.
-- **Working offline** keeps the existing desktop SQLite behavior available without a network server.
+Dedicated server machines can also launch the PySide6 Qt Widgets Server Console:
 
-## Manual Server Address
+```bash
+python sarapp_server_console.py
+```
 
-The manual fallback path accepts a host, `host:port`, or URL-like address. It validates the address by calling the server `/health` endpoint through `ConnectionManager.connect_manual`. Failed health checks return the user to the fallback prompt.
+The Server Console is a control panel for starting, stopping, monitoring, and configuring the same `SARAppServerManager` runtime. It is not a second desktop client and does not load incident workspace modules.
 
-## Current Limitations
+## Heartbeat Mechanism
 
-This phase is intentionally narrow:
+The same UDP announcement acts as a heartbeat. Clients record the latest heartbeat in `HeartbeatTracker` and derive connection health from heartbeat freshness:
 
-- No server administration dashboard is included.
-- No separate server console application is included.
-- No sync, failover, election, or cloud management is implemented.
-- Storage remains the current desktop SQLite behavior; this change does not migrate existing modules.
-- The development startup command uses `sys.executable sarapp_server.py --host 127.0.0.1 --port <port> --name "Local SARApp Server"`. Future packaging can replace that command with a bundled executable without changing the startup flow.
+- `healthy`: heartbeat was observed within the timeout window.
+- `stale`: the known server has not been heard from recently.
+- `unknown`: no heartbeat record exists.
+- `disconnected`: no active connection exists.
+
+The heartbeat framework is intentionally separate from persistence so later failover and synchronization logic can be added without redesigning discovery.
+
+## Offline Mode Behavior
+
+Offline Mode is a first-class connection state, not an error. The connection manager exposes it as:
+
+- `ConnectionState.OFFLINE`
+- `ConnectionMode.OFFLINE`
+
+The launch workflow only prompts for Offline Mode after LAN discovery and cloud connection attempts fail. Existing single-computer workflows can continue to operate while future modules can inspect the connection snapshot to decide whether network synchronization is available.
+
+## Future Failover Preparation
+
+`ServerInfo` already includes the fields needed for the future strategy:
+
+- `server_id`
+- `connected_timestamp`
+- `last_heartbeat`
+- `last_synchronization_timestamp`
+
+The planned failover rule is **Oldest Connected Synchronized Server Wins**. Election and failover behavior are intentionally not implemented in this phase. The current code only records the metadata needed to support that future decision.
+
+## Architectural Decisions
+
+- **Central manager:** All connection decisions are made through `ConnectionManager`, keeping incident modules independent from discovery/cloud/offline details.
+- **UDP broadcast discovery:** Chosen for no-cloud LAN operation and minimal user configuration.
+- **HTTP health checks:** Chosen as a lightweight connection confirmation path that future API servers can preserve.
+- **No storage redesign:** Connectivity metadata remains in memory for phase 1.
+- **No QML:** The startup prompt uses existing PySide6 widgets.

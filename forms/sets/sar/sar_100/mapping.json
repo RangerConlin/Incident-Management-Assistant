@@ -15,9 +15,7 @@
     },
     {
       "pdf_field": "4 INCIDENT SUMMARYRow1",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "FREQUENCYCOMMAND TEAM BASE",
@@ -45,9 +43,7 @@
     },
     {
       "pdf_field": "6 ACTION PLAN SUMMARYRow1",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "7 PREPARED BY",

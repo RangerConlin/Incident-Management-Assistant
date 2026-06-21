@@ -16,9 +16,8 @@ from PySide6.QtCore import (
 )
 
 from utils.state import AppState
-from .models.master_repo import MasterRepository
-from .models.incident_repo import IncidentRepository
-from .models import db
+from .models.master_repo import ApiMasterRepository
+from .models.incident_repo import ApiIncidentRepository
 
 
 class MasterListModel(QAbstractListModel):
@@ -210,9 +209,8 @@ class ICS205Controller(QObject):
         incident = AppState.get_active_incident()
         if incident is None:
             raise RuntimeError("Active incident not set")
-        db.ensure_incident_schema(incident)
-        self.master_repo = MasterRepository()
-        self.incident_repo = IncidentRepository(incident)
+        self.master_repo = ApiMasterRepository()
+        self.incident_repo = ApiIncidentRepository(incident)
 
         self.masterModel = MasterListModel([])
         self.planModel = PlanModel(self.incident_repo)

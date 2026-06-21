@@ -6,6 +6,9 @@ from .models import (
     HastyTaskCreate,
     HastyTaskRead,
     HastyTaskRecord,
+    InitialOverviewRead,
+    InitialOverviewRecord,
+    InitialOverviewUpdate,
     ReflexActionCreate,
     ReflexActionRead,
     ReflexActionRecord,
@@ -13,8 +16,10 @@ from .models import (
 from .repository import (
     add_hasty_task,
     add_reflex_action,
+    get_initial_overview,
     list_hasty_tasks,
     list_reflex_actions,
+    save_initial_overview,
     update_hasty_task_logistics,
     update_hasty_task_task_id,
     update_reflex_notification,
@@ -24,9 +29,60 @@ from .repository import (
 # ---------------------------------------------------------------------------
 # Query helpers
 
-def list_hasty_task_entries() -> List[HastyTaskRead]:
+def get_initial_overview_entry(incident_id: str | None = None) -> InitialOverviewRead:
+    record = get_initial_overview(incident_id)
+    return InitialOverviewRead(
+        incident_id=record.incident_id,
+        incident_mode=record.incident_mode,
+        behavior_category=record.behavior_category,
+        source_info=record.source_info or {},
+        subject_info=record.subject_info or {},
+        aircraft_info=record.aircraft_info or {},
+        timeline_info=record.timeline_info or {},
+        primary_anchor=record.primary_anchor or {},
+        related_locations=record.related_locations or [],
+        clues_environment=record.clues_environment or {},
+        operations_summary=record.operations_summary or {},
+        narrative=record.narrative or "",
+        updated_at=record.updated_at,
+    )
+
+
+def save_initial_overview_entry(data: InitialOverviewUpdate, incident_id: str | None = None) -> InitialOverviewRead:
+    record = InitialOverviewRecord(
+        incident_id=incident_id or "",
+        incident_mode=data.incident_mode,
+        behavior_category=data.behavior_category,
+        source_info=data.source_info,
+        subject_info=data.subject_info,
+        aircraft_info=data.aircraft_info,
+        timeline_info=data.timeline_info,
+        primary_anchor=data.primary_anchor,
+        related_locations=data.related_locations,
+        clues_environment=data.clues_environment,
+        operations_summary=data.operations_summary,
+        narrative=data.narrative,
+    )
+    saved = save_initial_overview(record, incident_id)
+    return InitialOverviewRead(
+        incident_id=saved.incident_id,
+        incident_mode=saved.incident_mode,
+        behavior_category=saved.behavior_category,
+        source_info=saved.source_info or {},
+        subject_info=saved.subject_info or {},
+        aircraft_info=saved.aircraft_info or {},
+        timeline_info=saved.timeline_info or {},
+        primary_anchor=saved.primary_anchor or {},
+        related_locations=saved.related_locations or [],
+        clues_environment=saved.clues_environment or {},
+        operations_summary=saved.operations_summary or {},
+        narrative=saved.narrative or "",
+        updated_at=saved.updated_at,
+    )
+
+def list_hasty_task_entries(incident_id: str | None = None) -> List[HastyTaskRead]:
     rows: List[HastyTaskRead] = []
-    for record in list_hasty_tasks():
+    for record in list_hasty_tasks(incident_id):
         rows.append(
             HastyTaskRead(
                 id=record.id or 0,
@@ -41,9 +97,9 @@ def list_hasty_task_entries() -> List[HastyTaskRead]:
     return rows
 
 
-def list_reflex_action_entries() -> List[ReflexActionRead]:
+def list_reflex_action_entries(incident_id: str | None = None) -> List[ReflexActionRead]:
     rows: List[ReflexActionRead] = []
-    for record in list_reflex_actions():
+    for record in list_reflex_actions(incident_id):
         rows.append(
             ReflexActionRead(
                 id=record.id or 0,
@@ -236,6 +292,8 @@ def _emit_notification(
 
 
 __all__ = [
+    "get_initial_overview_entry",
+    "save_initial_overview_entry",
     "list_hasty_task_entries",
     "list_reflex_action_entries",
     "create_hasty_task",

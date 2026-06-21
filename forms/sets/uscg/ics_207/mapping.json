@@ -1,0 +1,289 @@
+{
+  "description": "ICS 207 — Incident Organization Chart — USCG ICS Forms 2023",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 Incident Location",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "PUBLIC INFORMATION OFFICER",
+      "source": "organization.public_information_officer.name"
+    },
+    {
+      "pdf_field": "Incident CommandersUnified CommandRow1",
+      "source": "organization.incident_commander.name"
+    },
+    {
+      "pdf_field": "SAFETY OFFICER",
+      "source": "organization.safety_officer.name"
+    },
+    {
+      "pdf_field": "Indicates",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident CommandersUnified CommandRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "INTELLIGENCE OFFICER",
+      "source": ""
+    },
+    {
+      "pdf_field": "LIAISON OFFICER",
+      "source": "organization.liaison_officer.name"
+    },
+    {
+      "pdf_field": "Incident CommandersUnified CommandRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "AGENCYRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "AREP1",
+      "source": ""
+    },
+    {
+      "pdf_field": "OPERATIONS SECTION CHIEF",
+      "source": "organization.operations_section_chief.name"
+    },
+    {
+      "pdf_field": "PLANNING SECTION CHIEF",
+      "source": "organization.planning_section_chief.name"
+    },
+    {
+      "pdf_field": "undefined_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_7",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_8",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_9",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_10",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_11",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_12",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_13",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_15",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_16",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_17",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_18",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_19",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_20",
+      "source": ""
+    },
+    {
+      "pdf_field": "TECHNICAL SPECIALISTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "VESSEL SUPPORT UNIT LEADER",
+      "source": ""
+    },
+    {
+      "pdf_field": "GROUND SUPPORT UNIT LEADER",
+      "source": "organization.ground_support_unit_leader.name"
+    },
+    {
+      "pdf_field": "MEDICAL UNIT LEADER",
+      "source": "organization.medical_unit_leader.name"
+    },
+    {
+      "pdf_field": "COMMUNICATIONS UNIT LEADER",
+      "source": "organization.communications_unit_leader.name"
+    },
+    {
+      "pdf_field": "PROCUREMENT UNIT LEADER",
+      "source": ""
+    },
+    {
+      "pdf_field": "COMPENSATION UNIT LEADER",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_21",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Position Title",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "undef",
+      "source": ""
+    },
+    {
+      "pdf_field": "undef1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Branch 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Branch 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Branch 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "AREP2",
+      "source": ""
+    },
+    {
+      "pdf_field": "AREP3",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Date/Time1",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "3  DateTime2",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "SAM",
+      "source": "organization.staging_area_manager.name"
+    },
+    {
+      "pdf_field": "SITL",
+      "source": "organization.situation_unit_leader.name"
+    },
+    {
+      "pdf_field": "RESL",
+      "source": "organization.resources_unit_leader.name"
+    },
+    {
+      "pdf_field": "DOCL",
+      "source": "organization.documentation_unit_leader.name"
+    },
+    {
+      "pdf_field": "DEMOB",
+      "source": "organization.demobilization_unit_leader.name"
+    },
+    {
+      "pdf_field": "LOGISTICS SECTION CHIEF",
+      "source": "organization.logistics_section_chief.name"
+    },
+    {
+      "pdf_field": "FINANCE SECTION CHIEF",
+      "source": "organization.finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "INTEL/INV SECTION CHIEF",
+      "source": ""
+    },
+    {
+      "pdf_field": "SUPP BD",
+      "source": ""
+    },
+    {
+      "pdf_field": "SUPL",
+      "source": "organization"
+    },
+    {
+      "pdf_field": "FACL",
+      "source": "organization.facilities_unit_leader.name"
+    },
+    {
+      "pdf_field": "SERV BD",
+      "source": ""
+    },
+    {
+      "pdf_field": "FOODUL",
+      "source": "organization.food_unit_leader.name"
+    },
+    {
+      "pdf_field": "COST",
+      "source": ""
+    },
+    {
+      "pdf_field": "TIME",
+      "source": ""
+    },
+    {
+      "pdf_field": "INTEL GROUP",
+      "source": ""
+    },
+    {
+      "pdf_field": "INVESTIGATIONS GROUP",
+      "source": ""
+    },
+    {
+      "pdf_field": "undef intel",
+      "source": ""
+    }
+  ]
+}

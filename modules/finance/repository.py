@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-import json
 from contextlib import contextmanager
 from pathlib import Path
-
-from utils import incident_storage
 from typing import Generator
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
+
+from utils import incident_storage
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 MASTER_DB = DATA_DIR / "master.db"
-INCIDENTS_DIR = DATA_DIR / "incidents"
-
-# -- table initialization ----------------------------------------------------
 
 MASTER_TABLES = [
     """
@@ -28,182 +24,176 @@ MASTER_TABLES = [
         notes TEXT
     )
     """,
-    """
-    CREATE TABLE IF NOT EXISTS labor_rates (
-        id INTEGER PRIMARY KEY,
-        title TEXT,
-        rate_per_hour REAL,
-        overtime_mult REAL,
-        effective_from DATE,
-        effective_to DATE
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS equipment_rates (
-        id INTEGER PRIMARY KEY,
-        type TEXT,
-        rate_per_hour REAL,
-        rate_per_day REAL,
-        effective_from DATE,
-        effective_to DATE
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS approval_chains (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        steps_json TEXT
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS accounts (
-        id INTEGER PRIMARY KEY,
-        code TEXT,
-        name TEXT,
-        category TEXT
-    )
-    """,
 ]
 
 INCIDENT_TABLES = [
     """
-    CREATE TABLE IF NOT EXISTS time_entries (
+    CREATE TABLE IF NOT EXISTS finance_fuel_price_profiles (
         id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        person_id INTEGER,
-        role TEXT,
-        op_period TEXT,
-        date DATE,
-        hours_worked REAL,
-        overtime_hours REAL,
-        labor_rate_id INTEGER,
-        equipment_id INTEGER,
-        notes TEXT,
-        status TEXT,
-        approved_by INTEGER,
-        approved_at DATETIME
+        incident_id TEXT NOT NULL,
+        operational_period_id TEXT,
+        gasoline_price REAL NOT NULL,
+        diesel_price REAL NOT NULL,
+        jet_a_price REAL NOT NULL,
+        aviation_100ll_price REAL NOT NULL,
+        location_note TEXT,
+        source_note TEXT,
+        entered_by TEXT,
+        entered_at DATETIME NOT NULL,
+        effective_at DATETIME NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 0
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS requisitions (
+    CREATE TABLE IF NOT EXISTS finance_forecasts (
         id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        req_number TEXT,
-        request_id INTEGER,
-        requestor_id INTEGER,
-        date DATE,
-        description TEXT,
-        amount_est REAL,
-        status TEXT,
-        approval_chain_id INTEGER
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS purchase_orders (
-        id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        po_number TEXT,
-        vendor_id INTEGER,
-        req_id INTEGER,
-        date DATE,
-        amount_auth REAL,
-        status TEXT
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS receipts (
-        id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        po_id INTEGER,
-        date DATE,
-        qty REAL,
-        amount REAL,
+        incident_id TEXT NOT NULL,
+        operational_period_id TEXT,
+        forecast_name TEXT NOT NULL,
+        forecast_type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        status TEXT NOT NULL,
+        total_estimated_cost REAL NOT NULL DEFAULT 0,
+        total_estimated_gallons REAL NOT NULL DEFAULT 0,
+        created_by TEXT,
+        created_at DATETIME NOT NULL,
+        submitted_at DATETIME,
+        approved_by TEXT,
+        approved_at DATETIME,
         notes TEXT
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS invoices (
+    CREATE TABLE IF NOT EXISTS finance_fuel_forecast_lines (
         id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        po_id INTEGER,
-        vendor_invoice_no TEXT,
-        date DATE,
-        amount REAL,
-        status TEXT
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS cost_entries (
-        id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        date DATE,
-        account_id INTEGER,
-        description TEXT,
-        amount REAL,
-        source TEXT,
-        ref_table TEXT,
-        ref_id INTEGER
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS daily_cost_summary (
-        id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        date DATE,
-        total_labor REAL,
-        total_equipment REAL,
-        total_procurement REAL,
-        total_other REAL,
+        forecast_id INTEGER NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT,
+        resource_name TEXT NOT NULL,
+        fuel_type TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        estimated_miles_per_resource REAL,
+        estimated_total_miles REAL NOT NULL DEFAULT 0,
+        estimated_mpg REAL,
+        estimated_hours REAL,
+        gallons_per_hour REAL,
+        fuel_price REAL NOT NULL,
+        estimated_gallons REAL NOT NULL,
+        estimated_cost REAL NOT NULL,
+        linked_task_id TEXT,
         notes TEXT,
-        finalized_by INTEGER,
-        finalized_at DATETIME
+        FOREIGN KEY (forecast_id) REFERENCES finance_forecasts(id) ON DELETE CASCADE
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS budgets (
+    CREATE TABLE IF NOT EXISTS finance_funding_sources (
         id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        account_id INTEGER,
-        amount_budgeted REAL,
+        incident_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        code TEXT,
+        type TEXT NOT NULL,
+        agency TEXT,
+        starting_balance REAL,
+        current_balance REAL,
+        notes TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS finance_expenses (
+        id INTEGER PRIMARY KEY,
+        incident_id TEXT NOT NULL,
+        operational_period_id TEXT,
+        expense_number TEXT NOT NULL,
+        category TEXT NOT NULL,
+        subcategory TEXT,
+        description TEXT NOT NULL,
+        vendor TEXT,
+        expense_datetime DATETIME NOT NULL,
+        amount_subtotal REAL NOT NULL,
+        amount_tax REAL NOT NULL DEFAULT 0,
+        amount_tip REAL NOT NULL DEFAULT 0,
+        amount_total REAL NOT NULL,
+        payment_method TEXT,
+        funding_source_id INTEGER,
+        status TEXT NOT NULL,
+        entered_by TEXT,
+        entered_at DATETIME NOT NULL,
+        submitted_at DATETIME,
+        approved_by TEXT,
+        approved_at DATETIME,
+        paid_at DATETIME,
+        notes TEXT,
+        linked_forecast_id INTEGER,
+        receipt_attached INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS finance_expense_lines (
+        id INTEGER PRIMARY KEY,
+        expense_id INTEGER NOT NULL,
+        item_description TEXT NOT NULL,
+        quantity REAL,
+        unit TEXT,
+        unit_cost REAL,
+        tax_amount REAL,
+        line_total REAL NOT NULL,
+        category TEXT,
+        notes TEXT,
+        FOREIGN KEY (expense_id) REFERENCES finance_expenses(id) ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS finance_expense_links (
+        id INTEGER PRIMARY KEY,
+        expense_id INTEGER NOT NULL,
+        linked_type TEXT NOT NULL,
+        linked_id TEXT NOT NULL,
+        relationship_type TEXT,
+        notes TEXT,
+        FOREIGN KEY (expense_id) REFERENCES finance_expenses(id) ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS finance_approvals (
+        id INTEGER PRIMARY KEY,
+        incident_id TEXT NOT NULL,
+        record_type TEXT NOT NULL,
+        record_id INTEGER NOT NULL,
+        approver_id TEXT,
+        approver_role TEXT,
+        action TEXT NOT NULL,
+        comments TEXT,
+        timestamp DATETIME NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS finance_attachments (
+        id INTEGER PRIMARY KEY,
+        incident_id TEXT NOT NULL,
+        record_type TEXT NOT NULL,
+        record_id INTEGER NOT NULL,
+        filename TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_type TEXT,
+        attachment_type TEXT NOT NULL,
+        uploaded_by TEXT,
+        uploaded_at DATETIME NOT NULL,
         notes TEXT
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS claims (
+    CREATE TABLE IF NOT EXISTS finance_audit_log (
         id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        claim_type TEXT,
-        claimant_id INTEGER,
-        date_reported DATE,
-        description TEXT,
-        amount_est REAL,
-        status TEXT,
-        attachments_json TEXT
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS approvals (
-        id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        entity TEXT,
-        entity_id INTEGER,
-        step TEXT,
-        actor_id INTEGER,
-        action TEXT,
-        timestamp DATETIME,
-        comments TEXT
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS finance_audit (
-        id INTEGER PRIMARY KEY,
-        incident_id TEXT,
-        entity TEXT,
-        entity_id INTEGER,
-        action TEXT,
-        who INTEGER,
-        when DATETIME,
-        details_json TEXT
+        incident_id TEXT NOT NULL,
+        record_type TEXT NOT NULL,
+        record_id INTEGER NOT NULL,
+        timestamp DATETIME NOT NULL,
+        changed_by TEXT,
+        field_changed TEXT,
+        old_value TEXT,
+        new_value TEXT,
+        change_reason TEXT
     )
     """,
 ]
@@ -211,6 +201,7 @@ INCIDENT_TABLES = [
 
 def _init_db(engine: Engine, statements: list[str]) -> None:
     with engine.begin() as conn:
+        conn.exec_driver_sql("PRAGMA foreign_keys = ON")
         for stmt in statements:
             conn.exec_driver_sql(stmt)
 
@@ -226,19 +217,20 @@ def get_incident_engine(incident_id: str) -> Engine:
     paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
     if paths is None:
         metadata = incident_storage.infer_incident_metadata(str(incident_id))
-        paths = incident_storage.get_incident_paths(incident_number=metadata.get("incident_number") or incident_id, incident_name=metadata.get("name") or incident_id, incident_id=metadata.get("incident_id") or incident_id)
+        paths = incident_storage.get_incident_paths(
+            incident_number=metadata.get("incident_number") or incident_id,
+            incident_name=metadata.get("name") or incident_id,
+            incident_id=metadata.get("incident_id") or incident_id,
+        )
         incident_storage.ensure_incident_structure(paths, metadata)
-    incident_path = paths.incident_db
-    engine = create_engine(f"sqlite:///{incident_path}")
+    engine = create_engine(f"sqlite:///{paths.incident_db}")
     _init_db(engine, INCIDENT_TABLES)
     return engine
 
 
 @contextmanager
 def with_master_session() -> Generator[Session, None, None]:
-    engine = get_master_engine()
-    SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-    session = SessionLocal()
+    session = sessionmaker(bind=get_master_engine(), autocommit=False, autoflush=False)()
     try:
         yield session
     finally:
@@ -247,9 +239,7 @@ def with_master_session() -> Generator[Session, None, None]:
 
 @contextmanager
 def with_incident_session(incident_id: str) -> Generator[Session, None, None]:
-    engine = get_incident_engine(incident_id)
-    SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-    session = SessionLocal()
+    session = sessionmaker(bind=get_incident_engine(incident_id), autocommit=False, autoflush=False)()
     try:
         yield session
     finally:

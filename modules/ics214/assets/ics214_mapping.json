@@ -1,0 +1,69 @@
+{
+  "_comment": "ICS-214 Activity Log — PDFFiller mapping. Row group behavior (data_key, chars_per_row, columns) is defined on the form catalog entry for ics_214 and referenced here via 'ref'. Only PDF field patterns and row counts are version-specific.",
+  "description": "ICS 214 Activity Log",
+  "fields": [
+    { "pdf_field": "1 Incident Name_19",      "source": { "key": "incident.name" } },
+    { "pdf_field": "Date From",               "source": { "key": "op_period.date_from" } },
+    { "pdf_field": "Date To",                 "source": { "key": "op_period.date_to" } },
+    { "pdf_field": "Time From",               "source": { "key": "op_period.time_from" } },
+    { "pdf_field": "Time To",                 "source": { "key": "op_period.time_to" } },
+    { "pdf_field": "3 Name",                  "source": { "key": "unit.name" } },
+    { "pdf_field": "4 ICS Position",          "source": { "key": "unit.ics_position" } },
+    { "pdf_field": "5 Home Agency and Unit",  "source": { "key": "unit.home_agency" } },
+    { "pdf_field": "8 Prepared by Name",      "source": { "key": "prepared.name" } },
+    { "pdf_field": "PositionTitle_15",        "source": { "key": "prepared.title" } },
+    { "pdf_field": "DateTime_15",             "source": { "key": "prepared.dt" } },
+
+    { "pdf_field": "NameRow1_3",               "source": { "key": "resources.0.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow1",         "source": { "key": "resources.0.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow1", "source": { "key": "resources.0.home_agency" },  "default": "" },
+    { "pdf_field": "NameRow2_3",               "source": { "key": "resources.1.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow2",         "source": { "key": "resources.1.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow2", "source": { "key": "resources.1.home_agency" },  "default": "" },
+    { "pdf_field": "NameRow3_3",               "source": { "key": "resources.2.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow3",         "source": { "key": "resources.2.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow3", "source": { "key": "resources.2.home_agency" },  "default": "" },
+    { "pdf_field": "NameRow4_3",               "source": { "key": "resources.3.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow4",         "source": { "key": "resources.3.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow4", "source": { "key": "resources.3.home_agency" },  "default": "" },
+    { "pdf_field": "NameRow5_3",               "source": { "key": "resources.4.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow5",         "source": { "key": "resources.4.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow5", "source": { "key": "resources.4.home_agency" },  "default": "" },
+    { "pdf_field": "NameRow6_3",               "source": { "key": "resources.5.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow6",         "source": { "key": "resources.5.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow6", "source": { "key": "resources.5.home_agency" },  "default": "" },
+    { "pdf_field": "NameRow7",                 "source": { "key": "resources.6.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow7",         "source": { "key": "resources.6.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow7", "source": { "key": "resources.6.home_agency" },  "default": "" },
+    { "pdf_field": "NameRow8",                 "source": { "key": "resources.7.name" },         "default": "" },
+    { "pdf_field": "ICS PositionRow8",         "source": { "key": "resources.7.ics_position" }, "default": "" },
+    { "pdf_field": "Home Agency and UnitRow8", "source": { "key": "resources.7.home_agency" },  "default": "" }
+  ],
+  "row_groups": [
+    {
+      "ref": "activity_log",
+      "rows_per_page": [24, 36],
+      "continuation_template": "ics214_page2.pdf",
+      "continuation_header_fields": {
+        "1 Incident Name_20": { "key": "incident.name" },
+        "Date From":          { "key": "op_period.date_from" },
+        "Date To":            { "key": "op_period.date_to" },
+        "Time From":          { "key": "op_period.time_from" },
+        "Time To":            { "key": "op_period.time_to" },
+        "8 Prepared by Name_2": { "key": "prepared.name" },
+        "PositionTitle_16":   { "key": "prepared.title" },
+        "DateTime_16":        { "key": "prepared.dt" }
+      },
+      "fields": [
+        { "from_row": 1, "to_row": 24, "pdf_field_pattern": "DateTimeRow{n}",           "column": "timestamp" },
+        { "from_row": 1, "to_row": 24, "pdf_field_pattern": "Notable ActivitiesRow{n}", "column": "text" }
+      ],
+      "continuation_fields": [
+        { "from_row": 1,  "to_row": 24, "pdf_field_pattern": "DateTimeRow{n}_2",           "column": "timestamp" },
+        { "from_row": 1,  "to_row": 24, "pdf_field_pattern": "Notable ActivitiesRow{n}_2", "column": "text" },
+        { "from_row": 25, "to_row": 36, "pdf_field_pattern": "DateTimeRow{n}",              "column": "timestamp" },
+        { "from_row": 25, "to_row": 36, "pdf_field_pattern": "Notable ActivitiesRow{n}",   "column": "text" }
+      ]
+    }
+  ]
+}

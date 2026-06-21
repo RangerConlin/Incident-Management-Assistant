@@ -1,127 +1,147 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
-from typing import List
+from fastapi import APIRouter
 
 from modules.finance import services
 from modules.finance.models.schemas import (
-    VendorRead, LaborRateRead, EquipmentRateRead, AccountRead,
-    TimeEntryCreate, TimeEntryUpdate, RequisitionCreate, POCreate,
-    ReceiptCreate, InvoiceCreate, InvoiceUpdate, CostEntryCreate,
-    BudgetCreate, DailyCostFinalizeRequest, ClaimCreate, ClaimUpdate,
-    ReportRequest, ExportArtifactRead,
+    AttachmentCreate,
+    AttachmentRead,
+    FinanceDashboardSnapshot,
+    FinanceExpenseCreate,
+    FinanceExpenseRead,
+    FinanceExpenseUpdate,
+    FinanceForecastCreate,
+    FinanceForecastRead,
+    FuelForecastLineCreate,
+    FuelForecastLineRead,
+    FuelPriceProfileCreate,
+    FuelPriceProfileRead,
+    FuelReportRow,
+    FundingSourceCreate,
+    FundingSourceRead,
+    PendingApprovalRow,
 )
 
 router = APIRouter(prefix="/api/finance", tags=["finance"])
 
-# Lookups --------------------------------------------------------------------
 
-@router.get("/lookups/vendors", response_model=List[VendorRead])
-def lookup_vendors():
-    return services.list_vendors()
-
-
-@router.get("/lookups/rates/labor", response_model=List[LaborRateRead])
-def lookup_labor_rates():
-    return services.list_labor_rates()
+@router.get("/dashboard", response_model=FinanceDashboardSnapshot)
+def get_dashboard(incident_id: str):
+    return services.get_dashboard_snapshot(incident_id)
 
 
-@router.get("/lookups/rates/equipment", response_model=List[EquipmentRateRead])
-def lookup_equipment_rates():
-    return services.list_equipment_rates()
+@router.get("/fuel-prices", response_model=list[FuelPriceProfileRead])
+def list_fuel_prices(incident_id: str):
+    return services.list_fuel_price_profiles(incident_id)
 
 
-@router.get("/lookups/accounts", response_model=List[AccountRead])
-def lookup_accounts():
-    return services.list_accounts()
-
-# Time Unit ------------------------------------------------------------------
-
-@router.post("/time", response_model=int)
-def create_time_entry(incident_id: str, data: TimeEntryCreate):
-    return services.create_time_entry(incident_id, data)
+@router.get("/fuel-prices/active", response_model=FuelPriceProfileRead | None)
+def get_active_fuel_price(incident_id: str):
+    return services.get_active_fuel_price_profile(incident_id)
 
 
-@router.put("/time/{entry_id}")
-def update_time_entry(incident_id: str, entry_id: int, data: TimeEntryUpdate):
-    services.update_time_entry(incident_id, entry_id, data)
+@router.post("/fuel-prices", response_model=FuelPriceProfileRead)
+def create_fuel_price(incident_id: str, data: FuelPriceProfileCreate):
+    return services.create_fuel_price_profile(incident_id, data)
+
+
+@router.post("/fuel-prices/{profile_id}/set-active")
+def set_active_fuel_price(incident_id: str, profile_id: int):
+    services.set_active_fuel_price_profile(incident_id, profile_id)
     return {"status": "ok"}
 
 
-@router.post("/time/{entry_id}/submit")
-def submit_time_entry(incident_id: str, entry_id: int):
-    services.submit_time_entry(incident_id, entry_id)
+@router.get("/forecasts", response_model=list[FinanceForecastRead])
+def list_forecasts(incident_id: str):
+    return services.list_forecasts(incident_id)
+
+
+@router.post("/forecasts", response_model=FinanceForecastRead)
+def create_forecast(incident_id: str, data: FinanceForecastCreate):
+    return services.create_forecast(incident_id, data)
+
+
+@router.post("/forecasts/{forecast_id}/fuel-lines", response_model=FuelForecastLineRead)
+def add_fuel_line(incident_id: str, forecast_id: int, data: FuelForecastLineCreate):
+    return services.add_fuel_forecast_line(incident_id, forecast_id, data)
+
+
+@router.get("/forecasts/{forecast_id}/fuel-lines", response_model=list[FuelForecastLineRead])
+def list_fuel_lines(incident_id: str, forecast_id: int):
+    return services.list_fuel_forecast_lines(incident_id, forecast_id)
+
+
+@router.post("/forecasts/{forecast_id}/submit")
+def submit_forecast(incident_id: str, forecast_id: int):
+    services.submit_forecast(incident_id, forecast_id, "Finance/Admin")
     return {"status": "ok"}
 
 
-@router.post("/time/{entry_id}/approve")
-def approve_time_entry(incident_id: str, entry_id: int, approve: bool, actor_id: int):
-    services.approve_time_entry(incident_id, entry_id, actor_id, approve)
+@router.post("/forecasts/{forecast_id}/approve")
+def approve_forecast(incident_id: str, forecast_id: int):
+    services.approve_forecast(incident_id, forecast_id, "Finance/Admin")
     return {"status": "ok"}
 
-# Procurement ----------------------------------------------------------------
 
-@router.post("/requisitions", response_model=int)
-def create_requisition(incident_id: str, data: RequisitionCreate):
-    return services.create_requisition(incident_id, data)
-
-
-@router.post("/pos", response_model=int)
-def create_po(incident_id: str, data: POCreate):
-    return services.create_purchase_order(incident_id, data)
+@router.get("/expenses", response_model=list[FinanceExpenseRead])
+def list_expenses(incident_id: str):
+    return services.list_expenses(incident_id)
 
 
-@router.post("/pos/{po_id}/receive", response_model=int)
-def receive_po(incident_id: str, po_id: int, data: ReceiptCreate):
-    data.po_id = po_id
-    return services.receive_po(incident_id, data)
+@router.post("/expenses", response_model=FinanceExpenseRead)
+def create_expense(incident_id: str, data: FinanceExpenseCreate):
+    return services.create_expense(incident_id, data)
 
 
-@router.post("/invoices", response_model=int)
-def create_invoice(incident_id: str, data: InvoiceCreate):
-    return services.create_invoice(incident_id, data)
+@router.get("/expenses/{expense_id}", response_model=FinanceExpenseRead)
+def get_expense(incident_id: str, expense_id: int):
+    return services.get_expense(incident_id, expense_id)
 
 
-@router.post("/invoices/{invoice_id}/approve")
-def approve_invoice(incident_id: str, invoice_id: int):
-    services.approve_invoice(incident_id, invoice_id)
+@router.put("/expenses/{expense_id}")
+def update_expense(incident_id: str, expense_id: int, data: FinanceExpenseUpdate):
+    services.update_expense(incident_id, expense_id, data)
     return {"status": "ok"}
 
-# Cost Unit ------------------------------------------------------------------
 
-@router.post("/costs", response_model=int)
-def post_cost_entry(incident_id: str, data: CostEntryCreate):
-    return services.post_cost_entry(incident_id, data)
-
-
-@router.post("/budgets", response_model=int)
-def create_budget(incident_id: str, data: BudgetCreate):
-    return services.create_budget(incident_id, data)
-
-
-@router.post("/daily/finalize", response_model=int)
-def finalize_daily(incident_id: str, data: DailyCostFinalizeRequest):
-    return services.finalize_daily_cost_summary(incident_id, data)
-
-# Claims ---------------------------------------------------------------------
-
-@router.post("/claims", response_model=int)
-def create_claim(incident_id: str, data: ClaimCreate):
-    return services.create_claim(incident_id, data)
-
-
-@router.put("/claims/{claim_id}")
-def update_claim(incident_id: str, claim_id: int, data: ClaimUpdate):
-    services.update_claim(incident_id, claim_id, data)
+@router.post("/expenses/{expense_id}/submit")
+def submit_expense(incident_id: str, expense_id: int):
+    services.submit_expense(incident_id, expense_id, "Finance/Admin")
     return {"status": "ok"}
 
-# Exports --------------------------------------------------------------------
 
-@router.post("/exports/report", response_model=ExportArtifactRead)
-def export_report(incident_id: str, req: ReportRequest):
-    return services.generate_report(incident_id, req)
+@router.post("/expenses/{expense_id}/approve")
+def approve_expense(incident_id: str, expense_id: int):
+    services.approve_expense(incident_id, expense_id, "Finance/Admin")
+    return {"status": "ok"}
 
 
-@router.get("/exports", response_model=List[ExportArtifactRead])
-def list_exports(incident_id: str):
-    return services.list_exports(incident_id)
+@router.get("/funding-sources", response_model=list[FundingSourceRead])
+def list_funding_sources(incident_id: str):
+    return services.list_funding_sources(incident_id)
+
+
+@router.post("/funding-sources", response_model=FundingSourceRead)
+def create_funding_source(incident_id: str, data: FundingSourceCreate):
+    return services.create_funding_source(incident_id, data)
+
+
+@router.get("/{record_type}/{record_id}/attachments", response_model=list[AttachmentRead])
+def list_attachments(incident_id: str, record_type: str, record_id: int):
+    return services.list_attachments(incident_id, record_type, record_id)
+
+
+@router.post("/{record_type}/{record_id}/attachments", response_model=AttachmentRead)
+def create_attachment(incident_id: str, record_type: str, record_id: int, data: AttachmentCreate):
+    payload = data.model_copy(update={"record_type": record_type, "record_id": record_id})
+    return services.create_attachment(incident_id, payload)
+
+
+@router.get("/reports/fuel", response_model=list[FuelReportRow])
+def fuel_report(incident_id: str):
+    return services.get_fuel_report(incident_id)
+
+
+@router.get("/approvals/pending", response_model=list[PendingApprovalRow])
+def pending_approvals(incident_id: str):
+    return services.list_pending_approvals(incident_id)

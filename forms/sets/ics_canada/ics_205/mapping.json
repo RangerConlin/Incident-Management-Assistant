@@ -1,0 +1,51 @@
+{
+  "description": "ICS 205 — Radio Communications Plan — ICS Canada 2023",
+  "fields": [
+    {
+      "pdf_field": "2 DATETIME PREPARED",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": "incident"
+    },
+    {
+      "pdf_field": "Text1",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Text2",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Text3",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "Text4",
+      "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": "PREPARED BY (Communications Unit)",
+      "source": "prepared_by.name"
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "master_channels",
+      "overflow_mode": "repeat",
+      "rows_per_page": [
+        13,
+        13
+      ],
+      "col_patterns": {
+        "name": "ChannelRow{n}",
+        "function": "FunctionRow{n}",
+        "rx_freq": "FrequencyTone Row{n}",
+        "system_type": "SystemTypeRow{n}",
+        "assignment": "AssignmentRow{n}",
+        "remarks": "RemarksRow{n}"
+      }
+    }
+  ]
+}

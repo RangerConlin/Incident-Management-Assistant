@@ -1,5 +1,17 @@
 # ICS Command Assistant - Design Plan
 
+## Current Implementation Baseline
+This document is the long-form roadmap and design archive for Incident Management Assistant/SARApp. The current desktop application is PySide6 widget-first and ADS-docked. Do not add new QML, NiceGUI, Tkinter, or Electron UI surfaces when extending the program. Some older bridge/model names and comments still reference QML because they support legacy compatibility or were not renamed during migration.
+
+Current implementation highlights:
+  - `main.py` creates the PySide6 `QMainWindow`, ADS dock manager, menu tree, default docks, layout template management, profile switching, theme wiring and module launch handlers.
+  - `AppState` in `utils/state.py` is the UI/session source of truth for active incident, user, role and operational period. `AppState.set_active_incident()` synchronizes `utils.incident_context` and emits `app_signals.incidentChanged`.
+  - Active incident persistence is SQLite-first: shared catalogs live in `data/master.db`; incident data lives under `data/incidents/<id>.db`; `CHECKIN_DATA_DIR` can redirect storage for tests or deployments.
+  - Modules use PySide6 widgets, repositories/services, dataclasses or Pydantic/SQLModel schemas, and FastAPI routers where a REST boundary is useful.
+  - Active module surface includes Command, Planning, Operations, Logistics, Communications, ICS-214, Forms, Forms Creator, Intel, Weather, GIS/spatial services, Medical, Safety/CAP ORM, Liaison, Public Information, Finance/Admin, admin catalogs, Reference Library, Notifications, UI Customization, SAR Toolkit, Disaster Toolkit, Planned Event Toolkit, Initial Response and Projection Dashboard.
+  - ADS layouts persist in `settings/ads_perspectives.ini`; `FORCE_DEFAULT_LAYOUT` in `main.py` should only be used temporarily to troubleshoot layout state.
+  - Text files must remain UTF-8 without BOM and LF line endings. Run `python scripts/encoding_audit.py --summary` before committing broad doc/template changes.
+
 ## Table of Contents
   - [Overview](#overview)
   - [System Architecture](#system-architecture)
@@ -9,7 +21,7 @@
   - [Design Phases](#design-phases)
   - [Future Considerations](#future-considerations)
 
- 
+
 ICS Command Assistant - Desktop Application
 ## Phase 1: Core System & User Foundation
 ## Phase 2: Team Operations, Personnel, and Status Boards
@@ -56,7 +68,7 @@ ICS Command Assistant - Desktop Application
 ## Module 20: Initial Response Toolkit
 ## Module 21: UI Customization
 ## Module XX: AI Integration (Wishlist Phase)
- 
+
 ICS Command Assistant - Desktop Application
 ### Overview
 The ICS Command Assistant is a Windows desktop application designed to support emergency management, search and rescue, and incident command operations. Its goal is to streamline information flow, tasking, personnel/resource tracking, documentation, and reporting, with a flexible, modular design based on the Incident Command System (ICS) framework.
@@ -69,36 +81,44 @@ Target Users:
   - Emergency management staff at local, state, and federal levels
 ### System Architecture
 Frontend:
-  - Developed with Qt Widgets (PySide6), NiceGUI, and Tkinter for UI and Python for logic
+  - Developed with PySide6 Qt Widgets and Python application logic.
+  - Qt Advanced Docking System (PySide6-QtAds) provides dockable panels, floating workspaces and persisted layout perspectives.
+  - New UI work must be implemented as PySide6 widgets. No new QML, NiceGUI, Tkinter or Electron surfaces should be introduced.
   - Modular UI layout with each module having its own:
-o	Models/ for class definitions
-o	Panels/ for PySide6 widgets (e.g., status boards)
-o	Tkinter for simple popups/utility tools where minimal overhead is preferred.
+o	models/ or data/ for class definitions, schemas and repositories
+o	panels/, widgets/, ui/ or windows.py for PySide6 widgets and launch factories
+o	services.py for business logic that should remain testable outside the widget layer
   - Supports:
 o	Modeless windows
 o	Multi-monitor layouts
 o	User-selectable themes (dark mode, light mode, and custom color profiles)
+  - Client-side IncidentCache (in-memory): populated from server snapshot on incident load; kept current by WebSocket events. All UI reads from cache (zero network cost). Writes go to server via HTTP POST; server broadcasts the change event to all connected clients.
 Backend:
-  - Python FastAPI server (bundled and run locally)
-  - SQLite databases:
-o	master.db (persistent personnel, equipment, templates, etc.)
-o	Incident-specific DBs (all incident/event data, audit trail, forms)
-  - Local LAN/WebSocket support for real-time collaboration
+  - Python FastAPI server (sarapp_server.py / SARAppServerManager) with uvicorn. Routers mounted under /api. Spawned automatically as a subprocess when the client enters offline mode.
+  - HTTP client: httpx.Client singleton (utils/api_client.py) with persistent connection pool (keepalive_expiry=None). All modules call api_client — no direct DB access from UI code.
+  - MongoDB (PyMongo, not async Motor) — three logical databases:
+o	sarapp_system — server/app configuration
+o	sarapp_master — agency-wide reference data (personnel, vehicles, equipment, templates, etc.)
+o	sarapp_incident_<id> — one per incident; all incident data, audit trail, forms
+  - WebSocket hub (planned, post-cutover): FastAPI WebSocket endpoint per incident. Server broadcasts typed change events to all connected clients when any write occurs. Client IncidentCache applies events and emits Qt signals to update panels without polling.
+  - Resilience / offline capability (planned): each client machine runs a local MongoDB node. In LAN mode the local node is a replica of the central server. On disconnection the client transparently reads/writes to its local node. MongoDB replica set replication syncs the nodes when connectivity is restored. This eliminates disconnection crashes and gives full read/write capability offline.
 File System & Data:
   - Root-Level Folders
 o	/data : All databases and uploads
 o	/modules : All feature-specific logic and UI (subfolders for each module)
-o	/qml : Shared QML ui files for program level forms and windows.
+o	/profiles : Deployable profile manifests, templates and assets
+o	/settings : User settings and ADS layout perspectives
   - Each module folder contains:
 o	modules/<module_name>/models/ – Python classes and datatypes
 o	modules/<module_name>/panels/ – Qt Widget panels (tables, editors, status boards)
 o	modules/<module_name>/widgets/ – Additional Qt Widget dialogs/windows
-o	modules/<module_name>/nicegui/ – NiceGUI endpoints/components (optional)
-o	modules/<module_name>/tk/ – Tkinter utilities (optional)
+o	modules/<module_name>/services.py – Business logic and workflows
+o	modules/<module_name>/repository.py or data/ – Persistence boundary
+o	modules/<module_name>/api.py – Optional FastAPI router
   - Drag-and-drop upload interface for:
 o	Documents, ICS forms, media (photos, video, and audio), other attachments
-Security & Perincidents:
-  - Role-based UI/perincidents
+Security & Permissions:
+  - Role-based UI permissions
 o	User role affects visible modules, context menu options, and edit rights
   - Audit logs for all changes
 o	All data changes tracked per user in the incident-specific database
@@ -119,6 +139,8 @@ The app is divided into major ICS sections, each with its own modules:
 ### Finance/Admin: Time tracking, expense reporting, procurement, reimbursement
 ### Status Boards: Global/module-specific boards (team, personnel, equipment, resource requests, etc.)
 ### Public Information: Press releases, briefing log, public info contacts
+### GIS and Weather: Spatial features, linked map objects, NOAA/NWS-oriented weather panels, advisory/lightning tools
+### Admin Catalogs: Resource types, hazard types, team types, task types and shared lookup maintenance
 ### Mobile App Integration: Sync/bridge with field/mobile app (future)
 ### Training/Sandbox Mode: Simulated incidents, user practice environment
 ### Search and Rescue Toolkit: Specialized tools, calculators, and workflows for SAR operations
@@ -128,7 +150,7 @@ The app is divided into major ICS sections, each with its own modules:
 ### UI Customization: End-user module for UI Template Selector, Custom Theme Editor, and Dashboard Builder (custom layouts, colors, and widget arrangements)
 Special/Planned:
   - Module XX: AI Integration (future AI assistant, data automation, recommendations)
-  - Module XX: GIS Integration (future advanced GIS and mapping platform)
+  - Module XX: Advanced GIS Integration (future mapping platform extensions beyond the current spatial services)
 
 ### UI Layout
 Main Window:
@@ -146,8 +168,8 @@ Main Window:
   - Margins: Zeroed central/container layout margins and spacing to make the dock area fill the window.
   - Constructors: Standardized on CDockWidget(self.dock_manager, title) to avoid deprecated paths and ensure full ADS behavior.
   - Default Layout
-  - Forced defaults: Added FORCE_DEFAULT_LAYOUT = True to always start with a known-good layout.
-  - Default docks: Creates “Mission Status” (center), “Team Status” (left), and “Task Status” (bottom).
+  - Forced defaults: `FORCE_DEFAULT_LAYOUT` exists as a temporary debugging toggle; normal startup respects saved perspectives.
+  - Default docks: Creates Mission Status, Team Status and Task Status docks as baseline workspace content.
   - Reset: Debug menu adds “Reset Layout (Default)” to clear saved perspectives and rebuild.
   - Status Boards
   - Unified panels: Default docks now use the same rich panels as menu items:
@@ -158,7 +180,7 @@ Main Window:
   - Right click menu: Per-row context menus for status changes and “View Detail”.
   - Menu Behavior
   - Undocked by default: Panels opened via menu now float (open undocked). They can be docked by the user afterward.
-  - QML docks: When QML is used for a panel, it’s wrapped in a QQuickWidget inside a CDockWidget so it’s dockable.
+  - Widget docks: New panels are PySide6 widgets embedded in `CDockWidget` instances.
   - Layout Persistence
   - Save/load: Persists perspectives to settings/ads_perspectives.ini (“default”) on close, auto-loads on startup when not forcing defaults.
   - Safe fallback: If loading fails or yields no docks, seeds the default layout.
@@ -197,7 +219,7 @@ Module Windows:
 
 ### Design Phases
 ## Phase 1: Core System & User Foundation
-  - QML/PySide6 UI scaffold and main window shell
+  - PySide6 widget scaffold and main window shell
   - FastAPI backend integration
   - Database architecture: master and incident DBs
   - Role-based login & user management
@@ -289,14 +311,14 @@ Module Windows:
   - Additional theme and branding options
   - Enhanced mapping (e.g., drone overlays, live AVL)
 
- 
+
 ## Phase 1: Core System & User Foundation
 
 ## Phase 1 Goals:
 Establish the backbone of the application, ensuring the system runs locally, supports users, and lays groundwork for all future modules. Build a stable, modular, and secure core that is easy to extend.
 Major Components to Build
-### QML/PySide6 UI Scaffold and Main Window Shell
-  - QML UI/frontend
+### PySide6 UI Scaffold and Main Window Shell
+  - PySide6 widget UI/frontend
   - Build the main window with persistent header (shows incident name, op period, user role, etc.).
   - Implement top-level navigation (tab bar for Command, Planning, Operations, etc.).
   - Display empty placeholders or "coming soon" for modules not yet built.
@@ -304,7 +326,7 @@ Major Components to Build
 
 ### FastAPI Backend Integration
   - Create the initial FastAPI project structure.
-  - Set up API routing and allow connection from the Electron frontend.
+  - Set up API routing for local widgets, test harnesses, and optional service boundaries.
   - Enable CORS to allow local frontend-backend communication.
   - Add a health check endpoint for dev testing (/api/health).
 
@@ -357,7 +379,7 @@ Optional (Phase 1.5 / Stretch Goals):
   - Add basic in-app help/about screen.
   - Support for minimal user settings (theme, font size).
   - Allow basic app update checking (if relevant).
- 
+
 ## Phase 2: Team Operations, Personnel, and Status Boards
 ## Phase 2 Goals:
 Enable robust management and real-time tracking of all teams, personnel, and their statuses. Implement organization structure, assignments, dashboards, and initial activity logging to support incident operations and accountability.
@@ -410,7 +432,7 @@ Major Components to Build
   - Enable export/print of activity log for recordkeeping.
 
 Security and User Experience
-  - Enforce role-based perincidents for sensitive actions (e.g., only Ops/Planning/Command can change teams or assignments).
+  - Enforce role-based permissions for sensitive actions (e.g., only Ops/Planning/Command can change teams or assignments).
   - All personnel and assignment changes are recorded in audit trail.
   - UI always shows current user, role, and incident context.
 
@@ -429,37 +451,37 @@ Optional (Phase 2.5 / Stretch Goals)
   - Enable basic map visualization for team locations (if not done in Phase 1).
   - Add automated reminders/alerts for overdue tasks or status changes.
 
- 
+
 ## Phase 3: Communications & Public Information
 
- 
+
 ## Phase 4: Forms, Documentation, & Reference Library
 
- 
+
 ## Phase 5: Logistics, Medical, & Safety
 
- 
+
 ## Phase 6: Intel & Mapping
 
- 
+
 ## Phase 7: Advanced Operations & Toolkits
 
- 
+
 ## Phase 8: UI Customization & Multi-Window UX
 
- 
+
 ## Phase 9: Status Boards, Automation, & Reporting
 
- 
+
 ## Phase 10: Finance/Admin & Incident Closeout
 
- 
+
 ## Phase 11: Mobile Integration & Future Systems
 
- 
+
 ## Phase 12: Special/Planned (AI & Advanced GIS)
 
- 
+
 
 ## Module 1: Command
 1. Module Name & Description
@@ -529,7 +551,7 @@ Operational period rollover logic can be optionally enabled per incident. If act
   - - All timestamps stored in UTC
   - - Optional finance tracker can be toggled on/off based on organization policy or role access
   - - The incident status is displayed in context (e.g., header or dashboard) but does not persist as a banner across unrelated modules
- 
+
 ## Module 2: Planning
 1. Module Name & Description
 Planning Module
@@ -706,7 +728,7 @@ Tab 6: Log
   - Objective Detail Window is modeless and resizable for side-by-side workflow
   - Full export/reporting capability for incident reviews and after-action reports
 
- 
+
 ## Module 3: Operations
 1. Module Name & Description
 The Operations Module coordinates tactical field execution of tasks, tracks live team status, and manages assignments. It provides real-time situational awareness for operations leaders and integrates with Planning, Communications, and Personnel modules.
@@ -1199,7 +1221,7 @@ Communications
 
 9. Special Features / Notes
 
- 
+
 ## Module 4: Logistics
 1. Module Name & Description
 The Logistics Module manages all resource, supply, and equipment operations for an incident. It supports the entire lifecycle of resource requests—from creation and approval to assignment and fulfillment—while maintaining accurate real-time inventory of equipment, supplies, vehicles, and personnel-related logistical support. This module provides transparent workflows, audit trails, and critical support for both field and command personnel.
@@ -1376,7 +1398,7 @@ Resource Request Module Design Document
   - Validation Flows: Before moving to Ordered, system validates that Section Chief, RESL, Logistics, and Finance approvals are present; missing approvals trigger an error dialog listing required steps.
   - Column Views & Persistence:** Saved board views persist per-user and across sessions.
 
- 
+
 ## Module 5: Communications
 
 1. Module Name & Description
@@ -1438,7 +1460,7 @@ The Communications Module manages all inbound, outbound, and internal messaging 
   - - High-priority alerts override mute or standby settings
   - - Channels can be filtered by group, location, or operational period
   - - Supports optional encryption for sensitive messages
- 
+
 ## Module 6: Medical and Safety
 1. Module Name & Description
 This module consolidates all health, injury, responder safety, and medical support tracking. It enables on-site triage tracking, responder health logs, safety briefings, and medical plan management. It serves both Medical Unit Leaders and Safety Officers.
@@ -1619,13 +1641,12 @@ Mission DB tables (see §7 for schemas):
   - Form aligned: intel_form_sar134, intel_form_sar134_entry, intel_form_sar135, intel_form_sar135_segment_prob, intel_form_sar301, intel_form_sar307, intel_form_sar306, intel_form_sar305, intel_form_sar132, intel_form_sar132_entry, intel_form_capf105, intel_form_capf106, intel_form_capf106_entry.
 Shared export header (injected at print time from mission context): incident_name, incident_number, operational_period, prepared_by, prepared_by_id, date, time, page, page_total.
 5. UI Components
-5.1 QML Windows (files under modules/intel/qml/)
-  - IntelDashboard.qml
-  - ClueListPanel.qml, ClueDetailDialog.qml
-  - SubjectEditorWindow.qml (tabbed)
-  - EnvIntelPanel.qml
-  - Form editors: FormSAR134.qml, FormSAR135.qml, FormSAR301.qml, FormSAR307.qml, FormSAR306.qml, FormSAR305.qml, FormSAR132.qml, FormCAPF105.qml, FormCAPF106.qml
-  - IntelReportComposer.qml
+5.1 PySide6 Widget Windows (files under modules/intel/panels, modules/intel/weather, and related widgets)
+  - Intel dashboard and data manager panels
+  - Clue list, clue editor and subject/report panels
+  - Environmental intel and weather windows
+  - Form center widgets for SAR/CAP exports
+  - Intel report composer widgets
 5.2 ASCII Wireframes
 Intel Dashboard
 +--------------------------------------------------------------+
@@ -1755,7 +1776,7 @@ CAPF 106
   - No evidence chain of custody in this module (clue handling only, per project scope).
   - Shared sample data at data/sample_data.py for UI prototypes.
 
- 
+
 ## Module 8: Liaison
 1. Module Name & Description
 The Liaison Module manages relationships with assisting and cooperating agencies, external stakeholders, and mutual aid partners. It documents contacts, tracks agency-specific requests, and logs correspondence throughout the incident.
@@ -1802,12 +1823,12 @@ The Liaison Module manages relationships with assisting and cooperating agencies
   - - External agency offers can auto-generate planning tasks for evaluation
   - - All logs are time-synced and audit-tracked
   - - Designed to be usable in both real-world incidents and tabletop exercises
- 
+
 ## Module 9: Personnel and Role Management
 1. Module Name & Description
 This module centralizes personnel tracking, assignment management, credential verification, and ICS role allocation. It maintains personnel records, manages organizational hierarchy, and provides dynamic assignment tools to support field and command operations.
 2. Primary Functions
-  - - Sync ICS role assignments with system access perincidents
+  - - Sync ICS role assignments with system access permissions
   - - Support hot-swap of assignments while preserving audit trail
   - - Enable alerting when critical roles are unfilled or undermanned
   - - Maintain personnel database with contact, credential, and status info
@@ -1865,7 +1886,7 @@ This module centralizes personnel tracking, assignment management, credential ve
   - - Includes audit trail for role assignment changes
   - - Supports training incidents with optional credential masking
   - - Allows designation of units as inactive or virtual
- 
+
 ## Module 9-1: Personnel Certifications
 1. Module Name & Description
 The Certifications Module manages all professional credentials, trainings, and certifications for personnel within the ICS Command Assistant. It tracks certification levels and progression chains, and provides reporting for compliance and readiness.
@@ -1956,7 +1977,7 @@ DELETE /api/personnel/{pid}/certifications/{cid}
   - Bulk Import/Export: CSV support for certification types (including chains) and personnel levels.
   - Role-Based Access Control: Admins manage certification definitions; supervisors can assign levels and view reports.
 
- 
+
 ## Module 10: Reference Library
 1. Module Name & Description
 This module serves as a centralized repository for doctrine, guides, agency policies, mutual aid agreements, jurisdictional maps, SOPs, and other reference materials. It allows teams to quickly locate, search, and share incident-critical documents from within the system.
@@ -1967,7 +1988,7 @@ This module serves as a centralized repository for doctrine, guides, agency poli
   - - Organize documents by custom collections or folders
   - - Provide access controls per document or collection
 3. Submodules / Tools
-  - - Document Uploader: Drag-and-drop or browse to upload documents with category, keywords, and perincidents
+  - - Document Uploader: Drag-and-drop or browse to upload documents with category, keywords, and permissions
   - - Reference Browser: Interface to search, filter, preview, and download documents
   - - Collections Manager: Create and maintain sets of related documents by topic, agency, or function
   - - External Link Register: Store and access bookmarked online resources or interagency sites
@@ -2009,7 +2030,7 @@ This module serves as a centralized repository for doctrine, guides, agency poli
   - - Optional annotation system to allow shared highlights/notes
   - - Version control and document history supported
   - - Offline access for pre-synced document bundles
- 
+
 ## Module 11: ICS Forms and Documentation
 1. Module Name & Description
 This module provides a centralized location to view, fill, manage, and archive ICS forms and custom documentation. It supports digital form filling, version control, cross-module data integration, and export to PDF/print formats. The system also allows uploading custom agency forms and automatically converting them into fillable digital templates.
@@ -2072,7 +2093,7 @@ This module provides a centralized location to view, fill, manage, and archive I
   - - Form builder uses drag-and-drop interface for field mapping
   - - Supports offline form filling with sync upon reconnect
   - - All forms tied to incident context for sorting and archiving
- 
+
 ## Module 12: Finance/Admin
 1. Module Name & Description
 This optional module supports incident-related financial tracking, administrative documentation, cost recovery, resource timekeeping, and expense forecasting. It can be enabled or disabled per incident and is structured to align with ICS finance unit responsibilities, with optional CAP or agency-specific workflows.
@@ -2129,7 +2150,7 @@ This optional module supports incident-related financial tracking, administrativ
   - - Digital signature for cost approval routing
   - - Role-based finance access
   - - Printable financial reports and audit logs
- 
+
 ## Module 13: Status Boards
 1. Module Name & Description
 This module provides dynamic, incident-specific status boards for real-time situational awareness across all ICS sections. Status boards are configurable and tailored to specific needs such as task status, personnel availability, communications readiness, logistics supply levels, and more. This module does not generate or store new data. Instead, it presents information produced and maintained by other modules in a visual format.
@@ -2184,7 +2205,7 @@ This module provides dynamic, incident-specific status boards for real-time situ
   - - Display on dedicated monitors or screens for command posts
   - - Export snapshots or history logs to PDF or image
   - - Optional refresh rates or live sync settings for LAN deployments
- 
+
 ## Module 14: Public Information
 1. Module Name & Description
 This module enables authorized personnel (e.g., PIOs) to create, manage, and publish information for internal staff, partner agencies, and the public. It supports message review workflows, media coordination, and internal press log tracking.
@@ -2206,14 +2227,15 @@ This module enables authorized personnel (e.g., PIOs) to create, manage, and pub
   - - Inline message editor and formatting panel
   - - Revision history viewer
   - - Publish/export toolbar
-6. API Endpoints
+6. Implementation Notes
 ```
-  - - GET /api/public_info/messages
-  - - POST /api/public_info/messages
+  - - Public Information desktop workflows are implemented in `modules/public_information`.
 ```
 7. Database Tables
 ```
-  - - public_info_messages
+  - - pio_messages
+  - - pio_message_revisions
+  - - pio_approvals
 ```
 8. Inter-Module Connections
   - - Command Module: Coordinate approved updates or briefings
@@ -2225,7 +2247,7 @@ This module enables authorized personnel (e.g., PIOs) to create, manage, and pub
   - - Role-based publishing controls (e.g., only lead PIOs can finalize)
   - - Public briefing export to PDF, print, or email
   - - Offline message drafting support with queued sync
- 
+
 ## Module 15: Mobile App Integration
 1. Module Name & Description
 This module enables seamless interaction between the desktop ICS Command Assistant and a separately designed mobile application. This module serves as the bridge for real-time data syncing and workflow continuity between the two systems. It provides real-time data syncing, tailored mobile interfaces, and role-based mobile access for field personnel.
@@ -2254,7 +2276,7 @@ This module enables seamless interaction between the desktop ICS Command Assista
   - - GET /api/mobile/sync
   - - POST /api/mobile/push
   - - POST /api/mobile/pull
-  - - GET /api/mobile/perincidents
+  - - GET /api/mobile/permissions
 ```
 7. Database Tables
 ```
@@ -2269,9 +2291,9 @@ This module enables seamless interaction between the desktop ICS Command Assista
 9. Special Features / Notes
   - - Field entries marked as mobile-sourced in audit logs
   - - Optional incident QR code or link-based mobile app onboarding
-  - - Configurable field perincidents and lockdowns
+  - - Configurable field permissions and lockdowns
   - - Offline-first design for austere environments
- 
+
 ## Module 16: Training/Sandbox Mode
 1. Module Name & Description
 2. Primary Functions
@@ -2287,7 +2309,7 @@ This module enables seamless interaction between the desktop ICS Command Assista
 8. Inter-Module Connections
 9. Special Features / Notes
 
- 
+
 
 ## Module 17: Search and Rescue Toolkit
 1. Module Name & Description
@@ -2311,7 +2333,7 @@ A specialized suite of planning tools designed to support Search and Rescue (SAR
 8. Inter-Module Connections
 9. Special Features / Notes
 
- 
+
 ## Module 18: Disaster Response Toolkit
 1. Module Name & Description
 2. Primary Functions
@@ -2327,7 +2349,7 @@ A specialized suite of planning tools designed to support Search and Rescue (SAR
 8. Inter-Module Connections
 9. Special Features / Notes
 
- 
+
 ## Module 19: Planned Event Toolkit
 1. Module Name & Description
   Planned Events Toolkit: A suite of standalone modules, activated only for planned incidents (e.g., festivals, parades, marathons). Provides event-specific planning, public safety, and streamlined tasking—independent of core ICS features.
@@ -2443,7 +2465,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 9. Special Features / Notes
   - Fully independent: no overlap with core ICS modules
   - Real time updates via WebSocket for critical data
-  - Role based perincidents via planned_event_roles
+  - Role based permissions via planned_event_roles
   - Offline support with automatic sync on reconnect
 
 
@@ -2461,7 +2483,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 ```
 8. Inter-Module Connections
 9. Special Features / Notes
- 
+
 ## Module 19-2: Vendor & Permitting Coordination
 1. Module Name & Description
 2. Primary Functions
@@ -2476,7 +2498,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 ```
 8. Inter-Module Connections
 9. Special Features / Notes
- 
+
 ## Module 19-3: Public Safety & Incident Management
 1. Module Name & Description
 2. Primary Functions
@@ -2491,7 +2513,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 ```
 8. Inter-Module Connections
 9. Special Features / Notes
- 
+
 ## Module 19-4: Mini Tasking Module
 1. Module Name & Description
 2. Primary Functions
@@ -2506,7 +2528,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 ```
 8. Inter-Module Connections
 9. Special Features / Notes
- 
+
 ## Module 19-5: Public Health & Sanitation Oversight
 1. Module Name & Description
 2. Primary Functions
@@ -2521,7 +2543,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 ```
 8. Inter-Module Connections
 9. Special Features / Notes
- 
+
 ## Module 20: Initial Response Toolkit
 1. Module Name & Description
 2. Primary Functions
@@ -2537,7 +2559,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 8. Inter-Module Connections
 9. Special Features / Notes
 
- 
+
 ## Module 21: UI Customization
 1. Module Name & Description
 2. Primary Functions
@@ -2553,7 +2575,7 @@ iv.	Follow Up Tracker (resolution status, timestamps).
 8. Inter-Module Connections
 9. Special Features / Notes
 
- 
+
 ## Module XX: AI Integration (Wishlist Phase)
 1. Module Name & Description
 This forward-looking module explores integration of artificial intelligence to enhance decision support, situational analysis, and workload reduction throughout the ICS Command Assistant ecosystem. This phase remains conceptual until prioritized for development.
@@ -2591,7 +2613,7 @@ This forward-looking module explores integration of artificial intelligence to e
   - - Will require regulatory review for sensitive data
   - - Designed for opt-in usage with explicit controls
   - - Intended to support, not replace, human decision-making
- 
+
 
 ## Text Encoding (UTF-8 Everywhere)
 - Use UTF-8 for all text: source, JSON, YAML, CSV, Markdown, INI, and templates. Avoid ANSI/Windows-1252.
@@ -2617,7 +2639,7 @@ This forward-looking module explores integration of artificial intelligence to e
 ### Dev check (optional)
 Run a quick grep before submitting:
 ```
-rg -n "read_text\(|write_text\(|open\(.*['"]r['"]|open\(.*['"]w['"]" -S | rg -v "encoding=|open\([^)]*[arb]b""
+rg -n "read_text\(|write_text\(|open\(.*['\"]r['\"]|open\(.*['\"]w['\"]" -S | rg -v "encoding=|open\([^)]*[arb]b"
 ```
 This flags text I/O that may be missing an explicit `encoding`.
 

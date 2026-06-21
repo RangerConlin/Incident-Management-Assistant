@@ -1,129 +1,209 @@
-"""Centralized client connection state for SARApp startup and UI code."""
+"""Centralized connectivity orchestration for SARApp clients.
+
+The rest of the application should depend on :class:`ConnectionManager` state
+instead of knowing whether a server was found via LAN broadcast, cloud health
+checks, manual entry, or offline fallback.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-import json
-import os
-from typing import Optional
-from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+import logging
+from dataclasses import replace
+from typing import Protocol
 
-from .server_info import DEFAULT_SERVER_PORT, HEALTH_PATH, build_base_url, is_sarapp_health_payload
+import httpx
+
+from .discovery import DiscoveryClient
+from .heartbeat import HeartbeatTracker
+from .server_info import (
+    ConnectionHealth,
+    ConnectionMode,
+    ConnectionSnapshot,
+    ConnectionState,
+    ServerInfo,
+    utc_now,
+)
+
+logger = logging.getLogger(__name__)
 
 
-class ConnectionState(str, Enum):
-    """High-level connection modes exposed to the rest of the desktop app."""
-
-    LAN = "lan"
-    CLOUD = "cloud"
-    OFFLINE = "offline"
-    DISCONNECTED = "disconnected"
-
-
-@dataclass(frozen=True)
-class ConnectionSnapshot:
-    """Immutable view of the current connection state."""
-
-    state: ConnectionState = ConnectionState.DISCONNECTED
-    host: Optional[str] = None
-    port: Optional[int] = None
-    base_url: Optional[str] = None
-    server_name: Optional[str] = None
-    message: str = "Disconnected"
-
-    @property
-    def is_connected(self) -> bool:
-        return self.state in {ConnectionState.LAN, ConnectionState.CLOUD}
-
-    @property
-    def is_offline(self) -> bool:
-        return self.state == ConnectionState.OFFLINE
+class SnapshotListener(Protocol):
+    def __call__(self, snapshot: ConnectionSnapshot) -> None: ...
 
 
 class ConnectionManager:
-    """Owns connection checks so UI code does not duplicate state logic."""
+    """Discovers, connects, monitors, and exposes SARApp connectivity state."""
 
-    def __init__(self, timeout_seconds: float = 1.5):
-        self.timeout_seconds = timeout_seconds
-        self._snapshot = ConnectionSnapshot()
+    def __init__(
+        self,
+        *,
+        discovery_client: DiscoveryClient | None = None,
+        cloud_url: str | None = None,
+        request_timeout_seconds: float = 2.0,
+        heartbeat_timeout_seconds: float = 10.0,
+    ) -> None:
+        self.discovery_client = discovery_client or DiscoveryClient()
+        self.cloud_url = cloud_url
+        self.request_timeout_seconds = request_timeout_seconds
+        self.heartbeats = HeartbeatTracker(timeout_seconds=heartbeat_timeout_seconds)
+        self._snapshot = ConnectionSnapshot(
+            state=ConnectionState.DISCONNECTED,
+            mode=None,
+            health=ConnectionHealth.DISCONNECTED,
+            message="Not connected",
+        )
+        self._listeners: list[SnapshotListener] = []
 
     @property
     def snapshot(self) -> ConnectionSnapshot:
         return self._snapshot
 
-    def check_health(self, host: str, port: int = DEFAULT_SERVER_PORT) -> Optional[dict]:
-        """Return a compatible SARApp /health payload, or None when unavailable."""
-        base_url = build_base_url(host, port)
-        try:
-            with urlopen(f"{base_url}{HEALTH_PATH}", timeout=self.timeout_seconds) as response:
-                if response.status != 200:
-                    return None
-                payload = json.loads(response.read().decode("utf-8"))
-        except (OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError, ValueError):
-            return None
-        if not is_sarapp_health_payload(payload):
-            return None
-        return payload
+    def add_listener(self, listener: SnapshotListener) -> None:
+        self._listeners.append(listener)
 
-    def connect_manual(self, host: str, port: int = DEFAULT_SERVER_PORT) -> bool:
-        """Connect to a user-supplied LAN/local server after a health check."""
-        payload = self.check_health(host, port)
-        if not payload:
-            self._snapshot = ConnectionSnapshot(
-                state=ConnectionState.DISCONNECTED,
-                host=host,
-                port=port,
-                base_url=build_base_url(host, port),
-                message="Manual server health check failed",
+    def startup_connect(
+        self, *, discovery_timeout_seconds: float = 3.0
+    ) -> ConnectionSnapshot:
+        """Run the launch workflow: LAN discovery, cloud fallback, offline prompt state."""
+
+        self._set_snapshot(
+            ConnectionState.DISCOVERING,
+            None,
+            ConnectionHealth.UNKNOWN,
+            "Searching LAN for SARApp Servers",
+        )
+        servers = self.discover_servers(timeout_seconds=discovery_timeout_seconds)
+        if servers:
+            return self.connect_to_server(servers[0], mode=ConnectionMode.LAN)
+
+        cloud_snapshot = self.try_cloud_connection()
+        if cloud_snapshot.is_connected:
+            return cloud_snapshot
+
+        # Do not silently switch to offline: the UI decides whether the user
+        # accepts Offline Mode, but the manager clearly exposes that it is valid.
+        self._set_snapshot(
+            ConnectionState.DISCONNECTED,
+            None,
+            ConnectionHealth.DISCONNECTED,
+            "No LAN server found and cloud is unavailable",
+        )
+        return self.snapshot
+
+    def discover_servers(self, *, timeout_seconds: float = 3.0) -> list[ServerInfo]:
+        servers = self.discovery_client.discover(timeout_seconds=timeout_seconds)
+        for server in servers:
+            self.heartbeats.observe(server)
+        return servers
+
+    def connect_to_server(
+        self, server: ServerInfo, *, mode: ConnectionMode
+    ) -> ConnectionSnapshot:
+        self._set_snapshot(
+            ConnectionState.CONNECTING,
+            mode,
+            ConnectionHealth.UNKNOWN,
+            f"Connecting to {server.server_name}",
+            server,
+        )
+        if not self._check_server_health(server.base_url):
+            self._set_snapshot(
+                ConnectionState.DISCONNECTED,
+                None,
+                ConnectionHealth.DISCONNECTED,
+                f"Unable to connect to {server.server_name}",
+                server,
             )
-            return False
-        self._snapshot = ConnectionSnapshot(
-            state=ConnectionState.LAN,
-            host=host,
-            port=port,
-            base_url=build_base_url(host, port),
-            server_name=str(payload.get("name") or "SARApp Server"),
-            message="Connected to LAN/local SARApp server",
+            return self.snapshot
+        connected = replace(server, connected_timestamp=utc_now(), last_heartbeat=utc_now())
+        self.heartbeats.observe(connected)
+        state = (
+            ConnectionState.CONNECTED_LAN
+            if mode == ConnectionMode.LAN
+            else ConnectionState.CONNECTED_CLOUD
         )
-        return True
+        self._set_snapshot(
+            state,
+            mode,
+            ConnectionHealth.HEALTHY,
+            f"Connected to {connected.server_name}",
+            connected,
+        )
+        return self.snapshot
 
-    def connect_cloud(self) -> bool:
-        """Try an optional configured cloud URL from SARAPP_CLOUD_URL."""
-        cloud_url = str(os.getenv("SARAPP_CLOUD_URL", "")).strip().rstrip("/")
-        if not cloud_url:
-            return False
+    def connect_manual(self, host: str, port: int) -> ConnectionSnapshot:
+        """Manual connection fallback for broadcast-restricted networks."""
+
+        return self.connect_to_server(DiscoveryClient.manual_server(host, port), mode=ConnectionMode.LAN)
+
+    def try_cloud_connection(self) -> ConnectionSnapshot:
+        if not self.cloud_url:
+            self._set_snapshot(
+                ConnectionState.DISCONNECTED,
+                None,
+                ConnectionHealth.DISCONNECTED,
+                "Cloud URL is not configured",
+            )
+            return self.snapshot
+        from urllib.parse import urlparse
+        _parsed = urlparse(self.cloud_url)
+        _cloud_port = _parsed.port or (443 if _parsed.scheme == "https" else 80)
+        cloud = ServerInfo(
+            server_id="cloud",
+            server_name="SARApp Cloud",
+            host=_parsed.hostname,
+            port=_cloud_port,
+        )
+        if not self._check_server_health(self.cloud_url.rstrip("/")):
+            self._set_snapshot(
+                ConnectionState.DISCONNECTED,
+                None,
+                ConnectionHealth.DISCONNECTED,
+                "Cloud is unavailable",
+            )
+            return self.snapshot
+        self._set_snapshot(
+            ConnectionState.CONNECTED_CLOUD,
+            ConnectionMode.CLOUD,
+            ConnectionHealth.HEALTHY,
+            "Connected to SARApp Cloud",
+            cloud,
+        )
+        return self.snapshot
+
+    def enter_offline_mode(self) -> ConnectionSnapshot:
+        self._set_snapshot(ConnectionState.OFFLINE, ConnectionMode.OFFLINE, ConnectionHealth.DISCONNECTED, "Offline Mode active")
+        return self.snapshot
+
+    def refresh_health(self) -> ConnectionSnapshot:
+        """Update health from heartbeat age; future failover can hook in here."""
+
+        server = self.snapshot.server
+        if server is None:
+            return self.snapshot
+        health = self.heartbeats.health_for(server.server_id)
+        if health == ConnectionHealth.STALE:
+            self._set_snapshot(self.snapshot.state, self.snapshot.mode, health, "Server heartbeat is stale", server)
+        else:
+            self._set_snapshot(self.snapshot.state, self.snapshot.mode, health, self.snapshot.message, server)
+        return self.snapshot
+
+    def _check_server_health(self, base_url: str) -> bool:
         try:
-            with urlopen(f"{cloud_url}{HEALTH_PATH}", timeout=self.timeout_seconds) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except (OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError, ValueError):
+            response = httpx.get(f"{base_url}/health", timeout=self.request_timeout_seconds)
+            return 200 <= response.status_code < 300
+        except httpx.HTTPError as exc:
+            logger.info("SARApp server health check failed for %s: %s", base_url, exc)
             return False
-        if not is_sarapp_health_payload(payload):
-            return False
-        self._snapshot = ConnectionSnapshot(
-            state=ConnectionState.CLOUD,
-            base_url=cloud_url,
-            server_name=str(payload.get("name") or "SARApp Cloud Server"),
-            message="Connected to cloud SARApp server",
-        )
-        return True
 
-    def discover_lan(self) -> bool:
-        """Placeholder LAN discovery hook; existing discovery can be wired here later."""
-        # Keep discovery centralized. This first version only performs an inexpensive
-        # localhost probe so startup does not block on fixed external network state.
-        return self.connect_manual("127.0.0.1", DEFAULT_SERVER_PORT)
-
-    def connect_startup(self) -> bool:
-        """Run the startup connection order: LAN/local discovery, then cloud."""
-        if self.discover_lan():
-            return True
-        return self.connect_cloud()
-
-    def work_offline(self) -> None:
-        """Switch to the existing desktop-first offline behavior."""
-        self._snapshot = ConnectionSnapshot(
-            state=ConnectionState.OFFLINE,
-            message="Working offline with local SQLite data",
-        )
+    def _set_snapshot(
+        self,
+        state: ConnectionState,
+        mode: ConnectionMode | None,
+        health: ConnectionHealth,
+        message: str,
+        server: ServerInfo | None = None,
+    ) -> None:
+        self._snapshot = ConnectionSnapshot(state=state, mode=mode, health=health, server=server, message=message)
+        for listener in list(self._listeners):
+            listener(self._snapshot)

@@ -1,0 +1,1839 @@
+{
+  "description": "CAPF 104 Mission Flight Plan / Briefing - fully bound task-scoped mapping",
+  "fields": [
+    {
+      "pdf_field": "Flight Plan Closed",
+      "source": {
+        "key": "task.flight_plan.closed",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "ATD Z",
+      "source": {
+        "key": "task.flight.actual_departure_z",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ATA Z",
+      "source": {
+        "key": "task.flight.actual_arrival_z",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hobbs End",
+      "source": {
+        "key": "task.aircraft.hobbs_end",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Tach End",
+      "source": {
+        "key": "task.aircraft.tach_end",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hobbs Start",
+      "source": {
+        "key": "task.aircraft.hobbs_start",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Tach Start",
+      "source": {
+        "key": "task.aircraft.tach_start",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hobbs ToFrom",
+      "source": {
+        "key": "task.aircraft.hobbs_to_from",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hobbs in Area",
+      "source": {
+        "key": "task.aircraft.hobbs_in_area",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hobbs Total",
+      "source": {
+        "key": "task.aircraft.hobbs_total",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Fuel Used Gal",
+      "source": {
+        "key": "task.aircraft.fuel_used_gallons",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Oil Used Qt",
+      "source": {
+        "key": "task.aircraft.oil_used_quarts",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Fuel  Oil Cost",
+      "source": {
+        "key": "task.aircraft.fuel_oil_cost",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Receipt",
+      "source": {
+        "key": "task.aircraft.receipt_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Wing Paid",
+      "source": {
+        "key": "task.aircraft.wing_paid",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Summary",
+      "source": {
+        "key": "task.debrief.summary",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ResultsDeliverables",
+      "source": {
+        "key": "task.debrief.results_deliverables",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Weather Conditions",
+      "source": {
+        "key": "weather.conditions",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Remarks CAPF 104b Reconnaissance Summary ICSF 214 Unit Log Receipts",
+      "source": {
+        "key": "task.debrief.remarks",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "undefined",
+      "source": {
+        "key": "task.debrief.attachments.capf104b_recon_summary",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_2",
+      "source": {
+        "key": "task.debrief.attachments.icsf214_unit_log",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_3",
+      "source": {
+        "key": "task.debrief.attachments.receipts",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Successful",
+      "source": {
+        "key": "task.debrief.outcome.successful",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Marginal",
+      "source": {
+        "key": "task.debrief.outcome.marginal",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Unsuccessful",
+      "source": {
+        "key": "task.debrief.outcome.unsuccessful",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Not Flown",
+      "source": {
+        "key": "task.debrief.outcome.not_flown",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Not Required",
+      "source": {
+        "key": "task.debrief.outcome.not_required",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Weather",
+      "source": {
+        "key": "task.debrief.not_flown_reason.weather",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Aircraft Maintenance",
+      "source": {
+        "key": "task.debrief.not_flown_reason.aircraft_maintenance",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Equipment Failure",
+      "source": {
+        "key": "task.debrief.not_flown_reason.equipment_failure",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Unavailable",
+      "source": {
+        "key": "task.debrief.not_flown_reason.crew_unavailable",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Customer Cancellation",
+      "source": {
+        "key": "task.debrief.not_flown_reason.customer_cancellation",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_4",
+      "source": {
+        "key": "task.debrief.not_flown_reason.other",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Other",
+      "source": {
+        "key": "task.debrief.not_flown_reason.other_text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AIF ORM Matrix",
+      "source": {
+        "key": "task.debrief.attachments.orm_matrix",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "ICSF 214 Unit Log",
+      "source": {
+        "key": "task.debrief.attachments.icsf214_unit_log",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "CAPF 104a SAR",
+      "source": {
+        "key": "task.debrief.attachments.capf104a_sar",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "CAPF 104b Recon Summary",
+      "source": {
+        "key": "task.debrief.attachments.capf104b_recon_summary",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Receipts",
+      "source": {
+        "key": "task.debrief.attachments.receipts",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Results Worksheet",
+      "source": {
+        "key": "task.debrief.attachments.results_worksheet",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Other_2",
+      "source": {
+        "key": "task.debrief.attachments.other_text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Phone",
+      "source": {
+        "key": "task.debrief.contact_by_phone",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Debriefer Name  CAPID",
+      "source": {
+        "key": "task.debrief.debriefer.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Time  Date Debriefed",
+      "source": {
+        "key": "task.debrief.debriefed_datetime",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TRACKING NUMBER",
+      "source": {
+        "key": "task.tracking_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Mission Number",
+      "source": {
+        "key": "incident.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Mission Name",
+      "source": {
+        "key": "incident.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Mission Symbol",
+      "source": {
+        "key": "task.mission_symbol",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Mission Date",
+      "source": {
+        "key": "task.date",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Pilot In Command Name  CAPID",
+      "source": {
+        "key": "task.team.leader",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "MP",
+      "source": {
+        "key": "task.team.leader_certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "COM",
+      "source": {
+        "key": "task.team.leader_certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Trainee",
+      "source": {
+        "key": "task.team.leader_certifications.trainee",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_5",
+      "source": {
+        "key": "task.team.leader_certifications.form_5_current",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_6",
+      "source": {
+        "key": "task.team.leader_certifications.form_91_current",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "MFC",
+      "source": {
+        "key": "task.team.leader_certifications.mission_flight_clinic",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Night",
+      "source": {
+        "key": "task.team.leader_certifications.night",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_7",
+      "source": {
+        "key": "task.team.leader_certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_8",
+      "source": {
+        "key": "task.team.leader_certifications.other",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Member  Passenger 1 Name  CAPID",
+      "source": {
+        "key": "task.team.members.1.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "MCP",
+      "source": {
+        "key": "task.team.members.1.certifications.mission_check_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "COM_2",
+      "source": {
+        "key": "task.team.members.1.certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "MO",
+      "source": {
+        "key": "task.team.members.1.certifications.mission_observer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "HRO",
+      "source": {
+        "key": "task.team.members.1.certifications.highbird_radio_operator",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "MP_2",
+      "source": {
+        "key": "task.team.members.1.certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "IFR",
+      "source": {
+        "key": "task.team.members.1.certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "MS",
+      "source": {
+        "key": "task.team.members.1.certifications.mission_scanner",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "LES",
+      "source": {
+        "key": "task.team.members.1.certifications.law_enforcement_sensitive",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "TMP",
+      "source": {
+        "key": "task.team.members.1.certifications.transport_mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Night_2",
+      "source": {
+        "key": "task.team.members.1.certifications.night",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "ADIS",
+      "source": {
+        "key": "task.team.members.1.certifications.advanced_digital_imaging_system",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Trainee_2",
+      "source": {
+        "key": "task.team.members.1.certifications.trainee",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "MFC_2",
+      "source": {
+        "key": "task.team.members.1.certifications.mission_flight_clinic",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "WS",
+      "source": {
+        "key": "task.team.members.1.certifications.water_survival",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "AP",
+      "source": {
+        "key": "task.team.members.1.certifications.aerial_photographer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Other_3",
+      "source": {
+        "key": "task.team.members.1.certifications.other",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Member  Passenger 2 Name  CAPID",
+      "source": {
+        "key": "task.team.members.2.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "undefined_9",
+      "source": {
+        "key": "task.team.members.2.certifications.mission_check_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_10",
+      "source": {
+        "key": "task.team.members.2.certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_11",
+      "source": {
+        "key": "task.team.members.2.certifications.mission_observer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_12",
+      "source": {
+        "key": "task.team.members.2.certifications.highbird_radio_operator",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_13",
+      "source": {
+        "key": "task.team.members.2.certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_14",
+      "source": {
+        "key": "task.team.members.2.certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_15",
+      "source": {
+        "key": "task.team.members.2.certifications.mission_scanner",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_16",
+      "source": {
+        "key": "task.team.members.2.certifications.law_enforcement_sensitive",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_17",
+      "source": {
+        "key": "task.team.members.2.certifications.transport_mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Member  Passenger 3 Name  CAPID",
+      "source": {
+        "key": "task.team.members.3.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "undefined_18",
+      "source": {
+        "key": "task.team.members.3.certifications.mission_check_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_19",
+      "source": {
+        "key": "task.team.members.3.certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_20",
+      "source": {
+        "key": "task.team.members.3.certifications.mission_observer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_21",
+      "source": {
+        "key": "task.team.members.3.certifications.highbird_radio_operator",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_22",
+      "source": {
+        "key": "task.team.members.3.certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_23",
+      "source": {
+        "key": "task.team.members.3.certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_24",
+      "source": {
+        "key": "task.team.members.3.certifications.mission_scanner",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_25",
+      "source": {
+        "key": "task.team.members.3.certifications.law_enforcement_sensitive",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_26",
+      "source": {
+        "key": "task.team.members.3.certifications.transport_mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Member  Passenger 4 Name  CAPID",
+      "source": {
+        "key": "task.team.members.4.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "undefined_27",
+      "source": {
+        "key": "task.team.members.4.certifications.mission_check_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_28",
+      "source": {
+        "key": "task.team.members.4.certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_29",
+      "source": {
+        "key": "task.team.members.4.certifications.mission_observer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_30",
+      "source": {
+        "key": "task.team.members.4.certifications.highbird_radio_operator",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_31",
+      "source": {
+        "key": "task.team.members.4.certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_32",
+      "source": {
+        "key": "task.team.members.4.certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_33",
+      "source": {
+        "key": "task.team.members.4.certifications.mission_scanner",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_34",
+      "source": {
+        "key": "task.team.members.4.certifications.law_enforcement_sensitive",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_35",
+      "source": {
+        "key": "task.team.members.4.certifications.transport_mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Member  Passenger 5 Name  CAPID",
+      "source": {
+        "key": "task.team.members.5.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "undefined_36",
+      "source": {
+        "key": "task.team.members.5.certifications.mission_check_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_37",
+      "source": {
+        "key": "task.team.members.5.certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_38",
+      "source": {
+        "key": "task.team.members.5.certifications.mission_observer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_39",
+      "source": {
+        "key": "task.team.members.5.certifications.highbird_radio_operator",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_40",
+      "source": {
+        "key": "task.team.members.5.certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_41",
+      "source": {
+        "key": "task.team.members.5.certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_42",
+      "source": {
+        "key": "task.team.members.5.certifications.mission_scanner",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_43",
+      "source": {
+        "key": "task.team.members.5.certifications.law_enforcement_sensitive",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_44",
+      "source": {
+        "key": "task.team.members.5.certifications.transport_mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Member  Passenger 6 Name  CAPID",
+      "source": {
+        "key": "task.team.members.6.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "undefined_45",
+      "source": {
+        "key": "task.team.members.6.certifications.mission_check_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_46",
+      "source": {
+        "key": "task.team.members.6.certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_47",
+      "source": {
+        "key": "task.team.members.6.certifications.mission_observer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_48",
+      "source": {
+        "key": "task.team.members.6.certifications.highbird_radio_operator",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_49",
+      "source": {
+        "key": "task.team.members.6.certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_50",
+      "source": {
+        "key": "task.team.members.6.certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_51",
+      "source": {
+        "key": "task.team.members.6.certifications.mission_scanner",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_52",
+      "source": {
+        "key": "task.team.members.6.certifications.law_enforcement_sensitive",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_53",
+      "source": {
+        "key": "task.team.members.6.certifications.transport_mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Member  Passenger 7 Name  CAPID",
+      "source": {
+        "key": "task.team.members.7.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "undefined_54",
+      "source": {
+        "key": "task.team.members.7.certifications.mission_check_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_55",
+      "source": {
+        "key": "task.team.members.7.certifications.communications",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_56",
+      "source": {
+        "key": "task.team.members.7.certifications.mission_observer",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_57",
+      "source": {
+        "key": "task.team.members.7.certifications.highbird_radio_operator",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_58",
+      "source": {
+        "key": "task.team.members.7.certifications.mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_59",
+      "source": {
+        "key": "task.team.members.7.certifications.ifr",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_60",
+      "source": {
+        "key": "task.team.members.7.certifications.mission_scanner",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_61",
+      "source": {
+        "key": "task.team.members.7.certifications.law_enforcement_sensitive",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_62",
+      "source": {
+        "key": "task.team.members.7.certifications.transport_mission_pilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Crew Contact Phone Email etc",
+      "source": {
+        "key": "task.team.contact",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Tail Number",
+      "source": {
+        "key": "task.aircraft.tail_number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Callsign",
+      "source": {
+        "key": "task.aircraft.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Type",
+      "source": {
+        "key": "task.aircraft.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "TAS Knots",
+      "source": {
+        "key": "task.aircraft.true_airspeed_knots",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ColorDescription",
+      "source": {
+        "key": "task.aircraft.color_description",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CAP",
+      "source": {
+        "key": "task.aircraft.owner.cap",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Member",
+      "source": {
+        "key": "task.aircraft.owner.member",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Fuel In Hours",
+      "source": {
+        "key": "task.aircraft.fuel_hours",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Home Base",
+      "source": {
+        "key": "task.aircraft.home_base",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AERONet",
+      "source": {
+        "key": "task.aircraft.equipment.aeronet",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "CAP FM Radio",
+      "source": {
+        "key": "task.aircraft.equipment.cap_fm_radio",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Digital Camera",
+      "source": {
+        "key": "task.aircraft.equipment.digital_camera",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Survival Kit",
+      "source": {
+        "key": "task.aircraft.equipment.survival_kit",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Sat Phone",
+      "source": {
+        "key": "task.aircraft.equipment.sat_phone",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "VOR",
+      "source": {
+        "key": "task.aircraft.equipment.vor",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "DME",
+      "source": {
+        "key": "task.aircraft.equipment.dme",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Autopilot",
+      "source": {
+        "key": "task.aircraft.equipment.autopilot",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "GPS",
+      "source": {
+        "key": "task.aircraft.equipment.gps",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "FLIR",
+      "source": {
+        "key": "task.aircraft.equipment.flir",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Becker  Rho Theta DF",
+      "source": {
+        "key": "task.aircraft.equipment.becker_rho_theta_df",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "LTronics DF",
+      "source": {
+        "key": "task.aircraft.equipment.ltronics_df",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Tactical Repeater",
+      "source": {
+        "key": "task.aircraft.equipment.tactical_repeater",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Life Raft  Vests",
+      "source": {
+        "key": "task.aircraft.equipment.life_raft_vests",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "undefined_63",
+      "source": {
+        "key": "task.aircraft.equipment.other",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Other_4",
+      "source": {
+        "key": "task.aircraft.equipment.other_text",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Phone_2",
+      "source": {
+        "key": "task.flight_plan.contact_by_phone",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Briefer Name  CAPID",
+      "source": {
+        "key": "task.briefing.briefer.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Flight Release Officer Name  CAPID",
+      "source": {
+        "key": "task.flight_release_officer.name_capid",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WMIRS Sortie",
+      "source": {
+        "key": "task.sortie.number",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WMIRS Sortie Type",
+      "source": {
+        "key": "task.sortie.type",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WMIRS Sortie Objective",
+      "source": {
+        "key": "task.sortie.objective",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "WMIRS Area of Operations",
+      "source": {
+        "key": "task.area_of_operations",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Dep Airport",
+      "source": {
+        "key": "task.flight.departure_airport",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Dest Airport",
+      "source": {
+        "key": "task.flight.destination_airport",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ETDz",
+      "source": {
+        "key": "task.flight.estimated_departure_z",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "ETE",
+      "source": {
+        "key": "task.flight.estimated_time_enroute",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Base Telephone",
+      "source": {
+        "key": "task.base.telephone",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Base Callsign",
+      "source": {
+        "key": "task.base.callsign",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Base",
+      "source": {
+        "key": "task.base.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirGround",
+      "source": {
+        "key": "task.communications.air_ground",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "AirAir",
+      "source": {
+        "key": "task.communications.air_air",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Required Radio Checks  Contacts",
+      "source": {
+        "key": "task.communications.required_radio_checks_contacts",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Other Aircraft in Area Location  Callsign",
+      "source": {
+        "key": "task.flight_plan.other_aircraft",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Ground Teams in Area Location  Callsign",
+      "source": {
+        "key": "task.flight_plan.ground_teams",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Sortie Objectives",
+      "source": {
+        "key": "task.sortie.objectives",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Sortie Deliverables",
+      "source": {
+        "key": "task.sortie.deliverables",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Actions To Be Taken on Objectives  Deliverables",
+      "source": {
+        "key": "task.sortie.actions",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Route Of Flight",
+      "source": {
+        "key": "task.flight.route",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Altitude Assignment  Restrictions",
+      "source": {
+        "key": "task.flight.altitude_assignment_restrictions",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Airspeed Expected  Restrictions",
+      "source": {
+        "key": "task.flight.airspeed_expected_restrictions",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Aircraft Separation Adjoining Areas",
+      "source": {
+        "key": "task.flight.aircraft_separation_adjoining_areas",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Emergency  Alternate Fields",
+      "source": {
+        "key": "task.flight.emergency_alternate_fields",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Military Low Altitude Training Routes",
+      "source": {
+        "key": "task.flight.military_low_altitude_training_routes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Hazards To Flight",
+      "source": {
+        "key": "task.flight.hazards_to_flight",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Current Local",
+      "source": {
+        "key": "weather.current.local",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Current Enroute",
+      "source": {
+        "key": "weather.current.enroute",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Current Area of Operations",
+      "source": {
+        "key": "weather.current.area_of_operations",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Forecast Local",
+      "source": {
+        "key": "weather.forecast.local",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Forecast Enroute",
+      "source": {
+        "key": "weather.forecast.enroute",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Forecast Area of Operations",
+      "source": {
+        "key": "weather.forecast.area_of_operations",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Flight Plan Required",
+      "source": {
+        "key": "task.flight_plan.required",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Flight Plan Filed",
+      "source": {
+        "key": "task.flight_plan.filed",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Flight Plan Opened",
+      "source": {
+        "key": "task.flight_plan.opened",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "ORM Matrix Complete",
+      "source": {
+        "key": "risk.orm_matrix_complete",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Low",
+      "source": {
+        "key": "risk.level.low",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Moderate",
+      "source": {
+        "key": "risk.level.moderate",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "High",
+      "source": {
+        "key": "risk.level.high",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Risk Assessment Approval",
+      "source": {
+        "key": "risk.approval_required",
+        "checkbox": true,
+        "checked_value": "/On",
+        "unchecked_value": "/Off",
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Special Instructions Including Risk Mitigation Procedures",
+      "source": {
+        "key": "risk.mitigation_procedures",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "CREW NOTESRow1",
+      "source": {
+        "key": "task.team.crew_notes",
+        "default": ""
+      }
+    }
+  ],
+  "row_groups": []
+}

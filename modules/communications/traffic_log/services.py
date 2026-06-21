@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from modules.communications.models.master_repo import MasterRepository
+from modules.communications.models.master_repo import ApiMasterRepository
 from utils.state import AppState
 
 from .exporters import csv_exporter, pdf_exporter
@@ -18,7 +18,7 @@ from .models import (
     PRIORITY_PRIORITY,
     PRIORITY_ROUTINE,
 )
-from .repository import CommsLogRepository
+from .repository import ApiCommsLogRepository
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,11 @@ class CommsLogService:
         self,
         incident_id: Optional[str] = None,
         *,
-        repository: Optional[CommsLogRepository] = None,
-        master_repo: Optional[MasterRepository] = None,
+        repository=None,
+        master_repo=None,
     ) -> None:
-        self.repository = repository or CommsLogRepository(incident_id, master_repo=master_repo)
-        self.master_repo = master_repo or MasterRepository()
+        self.repository = repository or ApiCommsLogRepository(incident_id)
+        self.master_repo = master_repo or ApiMasterRepository()
         self._last_resource_id: Optional[int] = None
 
     # ------------------------------------------------------------------
@@ -102,6 +102,24 @@ class CommsLogService:
     # Shortcut helpers
     # ------------------------------------------------------------------
     def list_channels(self) -> List[Dict[str, Any]]:
+        """Return ICS-205 channels for the active incident, falling back to master list."""
+        if self.repository.incident_id:
+            try:
+                from utils.api_client import api_client
+                plan = api_client.get(f"/api/incidents/{self.repository.incident_id}/channels-plan") or []
+                if plan:
+                    # Normalise to the same shape the entry widget expects
+                    return [
+                        {
+                            "id": ch.get("id"),
+                            "display_name": ch.get("channel") or ch.get("display_name") or "",
+                            "name": ch.get("channel") or "",
+                            "function": ch.get("function", ""),
+                        }
+                        for ch in plan
+                    ]
+            except Exception as exc:
+                logger.warning("Unable to fetch ICS-205 channel plan: %s", exc)
         try:
             return self.master_repo.list_channels()
         except Exception as exc:

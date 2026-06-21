@@ -1,0 +1,860 @@
+{
+  "description": "ICS 217 — Communcations Resource Availability — FEMA ICS Forms 2023",
+  "fields": [
+    {
+      "pdf_field": "Frequency Band",
+      "source": ""
+    },
+    {
+      "pdf_field": "Description",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx1",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone1",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx1",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone1",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode1",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx2",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone2",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx2",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone2",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode2",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx3",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone3",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx3",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone3",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode3",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx4",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone4",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx4",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone4",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode4",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx5",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone5",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx5",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone5",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode5",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx6",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone6",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx6",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone6",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode6",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx7",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone7",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx7",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone7",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode7",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx8",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone8",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx8",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone8",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode8",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx9",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone9",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx9",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone9",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode9",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx10",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone10",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx10",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone10",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode10",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx11",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone11",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx11",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone11",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode11",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx12",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone12",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx12",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone12",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode12",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx13",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone13",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx13",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone13",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode13",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx14",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone14",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx14",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone14",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode14",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx15",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone15",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx15",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone15",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode15",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx16",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone16",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx16",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone16",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode16",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx17",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone17",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx17",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone17",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode17",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx18",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone18",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx18",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone18",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode18",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx19",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone19",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx19",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone19",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode19",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Pg NoRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "alpha_tag20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Eligible UsersRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_rx20",
+      "source": ""
+    },
+    {
+      "pdf_field": "rx_tone20",
+      "source": ""
+    },
+    {
+      "pdf_field": "freq_tx20",
+      "source": ""
+    },
+    {
+      "pdf_field": "tx_tone20",
+      "source": ""
+    },
+    {
+      "pdf_field": "mode20",
+      "source": ""
+    },
+    {
+      "pdf_field": "remarks20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel NameTrunked Radio System TalkgroupRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RX Freq N or WRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "RX ToneNACRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "TX Freq N or WRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx ToneNACRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode A D or MRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow9",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "master_channels",
+      "data_key": "master_channels",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "alpha_tag": "alpha_tag{n}",
+        "freq_rx": "freq_rx{n}",
+        "rx_tone": "rx_tone{n}",
+        "freq_tx": "freq_tx{n}",
+        "tx_tone": "tx_tone{n}",
+        "mode": "mode{n}",
+        "remarks": "remarks{n}"
+      }
+    }
+  ]
+}

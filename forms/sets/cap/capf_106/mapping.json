@@ -1,0 +1,171 @@
+{
+  "description": "CAPF 106 — Ground Interrogation Form — Civil Air Patrol 2023",
+  "fields": [
+    {
+      "pdf_field": "Mission Number",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "Lead Number",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time @ Mission HQ",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date @ Mission HQ",
+      "source": ""
+    },
+    {
+      "pdf_field": "Information Recorded By",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Home Unit",
+      "source": "prepared_by.agency"
+    },
+    {
+      "pdf_field": "Text1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text11",
+      "source": ""
+    },
+    {
+      "pdf_field": "ComboBox1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ComboBox2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ComboBox3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ComboBox4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text20",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Text21",
+      "source": "prepared_by.agency"
+    },
+    {
+      "pdf_field": "Text22",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Text23",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "dochub_cb_23a057ef9236b699",
+      "source": ""
+    },
+    {
+      "pdf_field": "dochub_cb_9306260aa33d2394",
+      "source": ""
+    },
+    {
+      "pdf_field": "dochub_cb_941efacd61bf1763",
+      "source": ""
+    },
+    {
+      "pdf_field": "dochub_cb_e90fffee57d6fb1c",
+      "source": ""
+    },
+    {
+      "pdf_field": "dochub_cb_bc6de8c54d305393",
+      "source": ""
+    },
+    {
+      "pdf_field": "dochub_cb_a36b3918769cfd81",
+      "source": ""
+    },
+    {
+      "pdf_field": "dochub_cb_493c464d5eaca8ac",
+      "source": ""
+    }
+  ]
+}

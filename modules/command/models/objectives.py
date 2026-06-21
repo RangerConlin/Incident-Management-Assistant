@@ -192,14 +192,14 @@ class TaskObjectiveLink:
 class ObjectiveSummary:
     """Summary row exposed to the table model."""
 
-    id: int
+    id: str
     code: str
     text: str
     priority: str
     status: str
     owner_section: str | None
     tags: list[str]
-    op_period_id: int | None
+    op_period_id: str | None
     updated_at: datetime | None
     updated_by: str | None
     display_order: int
@@ -842,4 +842,215 @@ class ObjectiveRepository:
             due=due,
             assignee=assignee,
             is_open=is_open,
+        )
+
+
+# ---------------------------------------------------------------------------
+# MongoDB-backed repository — used by all UI code after the SQLite cutover.
+# ---------------------------------------------------------------------------
+
+class ApiObjectiveRepository:
+    """Incident objective repository backed by the SARApp API (MongoDB)."""
+
+    def __init__(self, incident_id: str) -> None:
+        self.incident_id = str(incident_id)
+
+    # ------------------------------------------------------------------
+    # Objectives
+
+    def list_objectives(self, filters: ObjectiveFilters | None = None) -> list[ObjectiveSummary]:
+        from utils.api_client import api_client
+        params: dict = {"incident_id": self.incident_id}
+        if filters:
+            if filters.search:
+                params["search"] = filters.search
+            if filters.op_period_id is not None:
+                params["op_period_id"] = str(filters.op_period_id)
+            if filters.status:
+                params["status"] = list(filters.status)[0]
+            if filters.priority:
+                params["priority"] = list(filters.priority)[0]
+        docs = api_client.get("/api/objectives", params=params) or []
+        return [self._doc_to_summary(d) for d in docs]
+
+    def create_objective(self, payload: dict, user_id: str | None = None) -> "ObjectiveDetail":
+        from utils.api_client import api_client
+        body = {
+            "incident_id": self.incident_id,
+            "text": payload.get("text", "").strip(),
+            "priority": payload.get("priority", "normal"),
+            "status": payload.get("status", "draft"),
+            "owner_section": payload.get("owner_section"),
+            "op_period_id": payload.get("op_period_id"),
+            "tags": list(payload.get("tags") or []),
+            "created_by": user_id,
+        }
+        if payload.get("narrative"):
+            body["narrative"] = payload["narrative"]
+        doc = api_client.post("/api/objectives", json=body)
+        return self.get_objective_detail(doc["_id"])
+
+    def update_objective(self, objective_id: str, payload: dict, user_id: str | None = None) -> "ObjectiveDetail":
+        from utils.api_client import api_client
+        body: dict = {"updated_by": user_id}
+        for key in ("text", "priority", "status", "owner_section", "tags", "op_period_id", "narrative"):
+            if key in payload:
+                body[key] = payload[key]
+        api_client.patch(
+            f"/api/objectives/{objective_id}",
+            json=body,
+            params={"incident_id": self.incident_id},
+        )
+        return self.get_objective_detail(objective_id)
+
+    def set_status(self, objective_id: str, status: str, user_id: str | None = None) -> "ObjectiveDetail":
+        return self.update_objective(objective_id, {"status": status}, user_id=user_id)
+
+    def reorder_objectives(self, ordered_ids: list[str], user_id: str | None = None) -> None:
+        from utils.api_client import api_client
+        api_client.post(
+            f"/api/objectives/reorder?incident_id={self.incident_id}",
+            json={"ids": [str(i) for i in ordered_ids]},
+        )
+
+    def get_objective_detail(self, objective_id: str) -> "ObjectiveDetail":
+        from utils.api_client import api_client
+        doc = api_client.get(
+            f"/api/objectives/{objective_id}",
+            params={"incident_id": self.incident_id},
+        )
+        summary = self._doc_to_summary(doc)
+        return ObjectiveDetail(
+            summary=summary,
+            strategies=[],
+            tasks=[],
+            narrative=doc.get("narrative"),
+        )
+
+    def export_ics202(self) -> dict:
+        objectives = []
+        for summary in self.list_objectives():
+            objectives.append({
+                "order": summary.display_order,
+                "code": summary.code,
+                "text": summary.text,
+                "priority": summary.priority,
+                "status": summary.status,
+                "strategies": [],
+            })
+        return {"operational_period": {}, "objectives": objectives}
+
+    # ------------------------------------------------------------------
+    # Strategies
+
+    def list_strategies(self, objective_id: str) -> list:
+        from utils.api_client import api_client
+        try:
+            docs = api_client.get(
+                f"/api/objectives/{objective_id}/strategies",
+                params={"incident_id": self.incident_id},
+            ) or []
+            return docs
+        except Exception:
+            return []
+
+    def add_strategy(self, objective_id: str, payload: dict, user_id: str | None = None):
+        from utils.api_client import api_client
+        body = {
+            "objective_id": objective_id,
+            "title": payload.get("title", "").strip(),
+            "description": payload.get("description"),
+            "status": payload.get("status", "planned"),
+            "created_by": user_id,
+        }
+        try:
+            return api_client.post(
+                f"/api/objectives/{objective_id}/strategies",
+                json=body,
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            return {}
+
+    def update_strategy(self, objective_id: str, strategy_id, payload: dict, user_id: str | None = None):
+        from utils.api_client import api_client
+        body: dict = {"updated_by": user_id}
+        for key in ("title", "description", "status"):
+            if key in payload:
+                body[key] = payload[key]
+        try:
+            api_client.patch(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}",
+                json=body,
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            pass
+
+    def delete_strategy(self, objective_id: str, strategy_id, user_id: str | None = None) -> None:
+        from utils.api_client import api_client
+        try:
+            api_client.delete(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}",
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Task links
+
+    def link_task(self, objective_id: str, strategy_id: str, task_id: int, user_id: str | None = None):
+        from utils.api_client import api_client
+        try:
+            return api_client.post(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}/tasks",
+                json={"task_id": task_id},
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            return {}
+
+    def unlink_task(self, objective_id: str, strategy_id: str, task_id: int, user_id: str | None = None):
+        from utils.api_client import api_client
+        try:
+            api_client.delete(
+                f"/api/objectives/{objective_id}/strategies/{strategy_id}/tasks/{task_id}",
+                params={"incident_id": self.incident_id},
+            )
+        except Exception:
+            pass
+
+    def list_links_for_task(self, task_id) -> list:
+        return []
+
+    def list_history(self, objective_id: str) -> list:
+        return []
+
+    # ------------------------------------------------------------------
+    # Internal
+
+    @staticmethod
+    def _doc_to_summary(doc: dict) -> ObjectiveSummary:
+        updated_at: datetime | None = None
+        raw_ts = doc.get("updated_at")
+        if raw_ts:
+            try:
+                ts = raw_ts.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(ts)
+                updated_at = dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
+            except Exception:
+                pass
+        return ObjectiveSummary(
+            id=doc["_id"],
+            code=doc.get("code") or doc.get("objective_id") or doc["_id"],
+            text=doc.get("text") or doc.get("description") or "",
+            priority=(doc.get("priority") or "normal").lower(),
+            status=(doc.get("status") or "draft").lower(),
+            owner_section=doc.get("owner_section") or doc.get("assigned_section"),
+            tags=doc.get("tags") or doc.get("tags_json") or [],
+            op_period_id=doc.get("op_period_id"),
+            updated_at=updated_at,
+            updated_by=doc.get("updated_by"),
+            display_order=int(doc.get("display_order") or 0),
         )

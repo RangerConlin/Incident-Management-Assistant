@@ -1,0 +1,984 @@
+{
+  "description": "SAR 134 — Clue Log — SAR 1",
+  "fields": [
+    {
+      "pdf_field": "3 Date",
+      "source": ""
+    },
+    {
+      "pdf_field": "1 Incident Number",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "2 Initial Operational Period",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "datetime_short"
+      }
+    },
+    {
+      "pdf_field": "4 Page",
+      "source": "page"
+    },
+    {
+      "pdf_field": "Page Total",
+      "source": "page.total_pages"
+    },
+    {
+      "pdf_field": "clue_id1",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time1",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by1",
+      "source": ""
+    },
+    {
+      "pdf_field": "location1",
+      "source": ""
+    },
+    {
+      "pdf_field": "description1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "status1",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id2",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time2",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by2",
+      "source": ""
+    },
+    {
+      "pdf_field": "location2",
+      "source": ""
+    },
+    {
+      "pdf_field": "description2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "status2",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id3",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time3",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by3",
+      "source": ""
+    },
+    {
+      "pdf_field": "location3",
+      "source": ""
+    },
+    {
+      "pdf_field": "description3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "status3",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id4",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time4",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by4",
+      "source": ""
+    },
+    {
+      "pdf_field": "location4",
+      "source": ""
+    },
+    {
+      "pdf_field": "description4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "status4",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id5",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time5",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by5",
+      "source": ""
+    },
+    {
+      "pdf_field": "location5",
+      "source": ""
+    },
+    {
+      "pdf_field": "description5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "status5",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id6",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time6",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by6",
+      "source": ""
+    },
+    {
+      "pdf_field": "location6",
+      "source": ""
+    },
+    {
+      "pdf_field": "description6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "status6",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id7",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time7",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by7",
+      "source": ""
+    },
+    {
+      "pdf_field": "location7",
+      "source": ""
+    },
+    {
+      "pdf_field": "description7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "status7",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id8",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time8",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by8",
+      "source": ""
+    },
+    {
+      "pdf_field": "location8",
+      "source": ""
+    },
+    {
+      "pdf_field": "description8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "status8",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id9",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time9",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by9",
+      "source": ""
+    },
+    {
+      "pdf_field": "location9",
+      "source": ""
+    },
+    {
+      "pdf_field": "description9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "status9",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id10",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time10",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by10",
+      "source": ""
+    },
+    {
+      "pdf_field": "location10",
+      "source": ""
+    },
+    {
+      "pdf_field": "description10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "status10",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id11",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time11",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by11",
+      "source": ""
+    },
+    {
+      "pdf_field": "location11",
+      "source": ""
+    },
+    {
+      "pdf_field": "description11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "status11",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id12",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time12",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by12",
+      "source": ""
+    },
+    {
+      "pdf_field": "location12",
+      "source": ""
+    },
+    {
+      "pdf_field": "description12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "status12",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id13",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time13",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by13",
+      "source": ""
+    },
+    {
+      "pdf_field": "location13",
+      "source": ""
+    },
+    {
+      "pdf_field": "description13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "status13",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id14",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time14",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by14",
+      "source": ""
+    },
+    {
+      "pdf_field": "location14",
+      "source": ""
+    },
+    {
+      "pdf_field": "description14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "status14",
+      "source": ""
+    },
+    {
+      "pdf_field": "clue_id15",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time15",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by15",
+      "source": ""
+    },
+    {
+      "pdf_field": "location15",
+      "source": ""
+    },
+    {
+      "pdf_field": "description15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow30",
+      "source": ""
+    },
+    {
+      "pdf_field": "status15",
+      "source": ""
+    },
+    {
+      "pdf_field": "PREPARED BY",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "DATE",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "TIME",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "3 Date_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "1 Incident Number",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "2 Initial Operational Period",
+      "source": {
+        "key": "incident.start_time",
+        "transform": "datetime_short"
+      }
+    },
+    {
+      "pdf_field": "4 Page_2",
+      "source": "page.current_number"
+    },
+    {
+      "pdf_field": "Page Total",
+      "source": "page.total_pages"
+    },
+    {
+      "pdf_field": "Clue Row1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow16_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow16_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow17_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow17_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow18_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow18_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow19_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow19_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow20_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow20_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow21_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow21_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow22_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow22_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow23_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow23_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow24_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow24_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow25_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow25_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow26_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow26_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow27_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow27_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow28_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow28_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow29_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow29_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow30_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow30_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row16",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow31",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow31",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow32",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow32",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue Row6",
+      "source": ""
+    },
+    {
+      "pdf_field": "TimeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ResourceRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location  UTMRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Clue  DispositionRow30",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "clues",
+      "data_key": "clues",
+      "overflow_mode": "continuation",
+      "rows_per_page": [
+        15
+      ],
+      "col_patterns": {
+        "clue_id": "clue_id{n}",
+        "found_time": "found_time{n}",
+        "found_by": "found_by{n}",
+        "location": "location{n}",
+        "description": "description{n}",
+        "status": "status{n}"
+      },
+      "continuation_page": 2
+    }
+  ]
+}

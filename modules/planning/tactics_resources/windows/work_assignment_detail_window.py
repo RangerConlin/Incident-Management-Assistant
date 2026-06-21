@@ -13,7 +13,6 @@ Tabs:
 """
 from __future__ import annotations
 
-import sqlite3
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -352,45 +351,32 @@ class WorkAssignmentDetailWindow(QWidget):
     # Combo population helpers
     # ------------------------------------------------------------------
 
-    def _resolved_db_path(self) -> str | None:
-        """Return _db_path, falling back to incident_context if None."""
-        if self._db_path:
-            return self._db_path
+    def _incident_id(self) -> str | None:
         try:
-            from utils.incident_context import get_active_incident_db_path
-            p = get_active_incident_db_path()
-            return str(p) if p else None
+            from utils import incident_context
+            return str(incident_context.get_active_incident_id() or "")
         except Exception:
             return None
 
-    def _db_conn(self) -> sqlite3.Connection | None:
-        """Open a read connection to the incident DB, or return None."""
-        path = self._resolved_db_path()
-        if not path:
-            return None
-        try:
-            conn = sqlite3.connect(path)
-            conn.row_factory = sqlite3.Row
-            return conn
-        except Exception:
-            return None
+    def _client(self):
+        from utils.api_client import api_client
+        return api_client
 
     def _load_op_periods(self) -> None:
         self._op_period_combo.clear()
         self._op_period_combo.addItem("(none)", None)
-        conn = self._db_conn()
-        if conn is None:
+        iid = self._incident_id()
+        if not iid:
             return
         try:
-            rows = conn.execute(
-                "SELECT id, number, start_time, end_time FROM operationalperiods ORDER BY number"
-            ).fetchall()
+            rows = self._client().get(f"/api/incidents/{iid}/planning/operational-periods") or []
         except Exception:
             rows = []
-        finally:
-            conn.close()
         for row in rows:
-            op_id, number, start_time, end_time = row[0], row[1], row[2], row[3]
+            op_id = row.get("id") or row.get("int_id")
+            number = row.get("number") or ""
+            start_time = row.get("start_time") or ""
+            end_time = row.get("end_time") or ""
             label = f"OP {number}"
             if start_time:
                 label += f" ({start_time}"
@@ -399,24 +385,21 @@ class WorkAssignmentDetailWindow(QWidget):
                 label += ")"
             self._op_period_combo.addItem(label, op_id)
 
+    def _all_positions(self) -> list[dict]:
+        iid = self._incident_id()
+        if not iid:
+            return []
+        try:
+            return self._client().get(f"/api/incidents/{iid}/org/positions") or []
+        except Exception:
+            return []
+
     def _load_branches(self) -> None:
         self._branch_combo.clear()
         self._branch_combo.addItem("(none)", None)
-        conn = self._db_conn()
-        if conn is None:
-            return
-        try:
-            rows = conn.execute(
-                "SELECT id, title FROM organization_positions "
-                "WHERE status='active' AND classification='branch' "
-                "ORDER BY sort_order, title"
-            ).fetchall()
-        except Exception:
-            rows = []
-        finally:
-            conn.close()
-        for row in rows:
-            self._branch_combo.addItem(row[1], row[0])
+        for row in self._all_positions():
+            if row.get("classification") == "branch" and row.get("status") == "active":
+                self._branch_combo.addItem(row.get("title") or "", row.get("int_id") or row.get("id"))
 
     def _on_branch_changed(self) -> None:
         branch_pos_id = self._branch_combo.currentData()
@@ -424,24 +407,14 @@ class WorkAssignmentDetailWindow(QWidget):
         self._division_combo.addItem("(none)", None)
         if not branch_pos_id:
             return
-        conn = self._db_conn()
-        if conn is None:
-            return
-        try:
-            rows = conn.execute(
-                "SELECT id, title, classification FROM organization_positions "
-                "WHERE status='active' AND classification IN ('division','group') "
-                "AND parent_position_id=? ORDER BY sort_order, title",
-                (branch_pos_id,)
-            ).fetchall()
-        except Exception:
-            rows = []
-        finally:
-            conn.close()
-        for row in rows:
-            pos_id, title, classification = row[0], row[1], row[2]
-            label = f"{title} (Group)" if classification == "group" else title
-            self._division_combo.addItem(label, pos_id)
+        for row in self._all_positions():
+            if (row.get("parent_position_id") == branch_pos_id
+                    and row.get("status") == "active"
+                    and row.get("classification") in ("division", "group")):
+                classification = row.get("classification") or ""
+                title = row.get("title") or ""
+                label = f"{title} (Group)" if classification == "group" else title
+                self._division_combo.addItem(label, row.get("int_id") or row.get("id"))
 
     # ------------------------------------------------------------------
     # Load / Save

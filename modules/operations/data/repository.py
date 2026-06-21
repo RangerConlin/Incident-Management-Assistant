@@ -1,43 +1,36 @@
+"""Operations data repository — proxies through SARApp API (MongoDB backend).
+
+Qt signals and ICS-214 side effects are kept client-side.
+"""
 from __future__ import annotations
 
-import os
-import sqlite3
+import json as _json
+import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from utils import incident_context
 
-
-def _connect() -> sqlite3.Connection:
-    """Open a connection to the active incident database.
-
-    Raises RuntimeError if no active incident is set.
-    """
-    db_path = incident_context.get_active_incident_db_path()
-    # ensure absolute path for sqlite
-    abs_path = os.path.abspath(str(db_path))
-    con = sqlite3.connect(abs_path)
-    con.row_factory = sqlite3.Row
-    try:
-        con.execute("PRAGMA busy_timeout=3000")
-    except Exception:
-        pass
-    return con
+_log = logging.getLogger(__name__)
 
 
-def _has_table(con: sqlite3.Connection, name: str) -> bool:
-    try:
-        cur = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
-        return cur.fetchone() is not None
-    except Exception:
-        return False
+def _iid() -> str:
+    v = incident_context.get_active_incident_id()
+    if not v:
+        raise RuntimeError("No active incident")
+    return str(v)
+
+
+def _base() -> str:
+    return f"/api/incidents/{_iid()}/operations"
+
+
+def _client():
+    from utils.api_client import api_client
+    return api_client
 
 
 def _priority_label(value: Any) -> str:
-    """Map integer priority (1..4) to label; pass through strings.
-
-    1 -> Low, 2 -> Medium, 3 -> High, 4 -> Critical
-    """
     try:
         i = int(value)
     except Exception:
@@ -46,669 +39,320 @@ def _priority_label(value: Any) -> str:
 
 
 def _task_status_label(value: Any) -> str:
-    """Normalize task status strings to align with color keys.
-
-    Maps e.g. "Completed" -> "complete", "Draft" -> "created".
-    """
     if value is None:
         return ""
     s = str(value).strip().lower()
     return {
-        "completed": "complete",
-        "complete": "complete",
-        "draft": "created",
-        "created": "created",
-        "planned": "planned",
-        "assigned": "assigned",
-        "in progress": "in progress",
-        "cancelled": "cancelled",
+        "completed": "complete", "complete": "complete", "draft": "created", "created": "created",
+        "planned": "planned", "assigned": "assigned", "in progress": "in progress", "cancelled": "cancelled",
     }.get(s, s)
 
 
-def _ensure_teams_status_columns(con: sqlite3.Connection) -> None:
-    """Add teams.status and teams.status_updated if missing (best-effort)."""
-    try:
-        cur = con.execute("PRAGMA table_info(teams)")
-        cols = {row[1] for row in cur.fetchall()}
-        if "status" not in cols:
-            con.execute("ALTER TABLE teams ADD COLUMN status TEXT")
-        if "status_updated" not in cols:
-            con.execute("ALTER TABLE teams ADD COLUMN status_updated TEXT")
-        con.commit()
-    except Exception:
-        pass
-
-
-def _ensure_teams_current_task_column(con: sqlite3.Connection) -> None:
-    """Add teams.current_task_id if missing (best-effort)."""
-    try:
-        cur = con.execute("PRAGMA table_info(teams)")
-        cols = {row[1] for row in cur.fetchall()}
-        if "current_task_id" not in cols:
-            con.execute("ALTER TABLE teams ADD COLUMN current_task_id INTEGER")
-            con.commit()
-    except Exception:
-        pass
-
-
-def _ensure_teams_name_column(con: sqlite3.Connection) -> None:
-    """Add teams.name if missing (best-effort)."""
-    try:
-        cur = con.execute("PRAGMA table_info(teams)")
-        cols = {row[1] for row in cur.fetchall()}
-        if "name" not in cols:
-            con.execute("ALTER TABLE teams ADD COLUMN name TEXT")
-            con.commit()
-    except Exception:
-        pass
-
-
-def _ensure_teams_location_column(con: sqlite3.Connection) -> None:
-    """Add teams.location if missing (best-effort)."""
-    try:
-        cur = con.execute("PRAGMA table_info(teams)")
-        cols = {row[1] for row in cur.fetchall()}
-        if "location" not in cols:
-            con.execute("ALTER TABLE teams ADD COLUMN location TEXT")
-            con.commit()
-    except Exception:
-        pass
-
-
-def _ensure_teams_attention_column(con: sqlite3.Connection) -> None:
-    """Add teams.needs_attention if missing (best-effort)."""
-    try:
-        cur = con.execute("PRAGMA table_info(teams)")
-        cols = {row[1] for row in cur.fetchall()}
-        if "needs_attention" not in cols:
-            con.execute("ALTER TABLE teams ADD COLUMN needs_attention BOOLEAN DEFAULT 0")
-            con.commit()
-    except Exception:
-        pass
-
-
-def _ensure_team_alert_columns(con: sqlite3.Connection) -> None:
-    """Ensure modern alert columns exist on the teams table."""
-    try:
-        cur = con.execute("PRAGMA table_info(teams)")
-        cols = {row[1] for row in cur.fetchall()}
-        to_add: list[tuple[str, str]] = []
-        if "emergency_flag" not in cols:
-            to_add.append(("emergency_flag", "BOOLEAN"))
-        if "last_checkin_at" not in cols:
-            to_add.append(("last_checkin_at", "TEXT"))
-        if "checkin_reference_at" not in cols:
-            to_add.append(("checkin_reference_at", "TEXT"))
-        for col, typ in to_add:
-            try:
-                con.execute(f"ALTER TABLE teams ADD COLUMN {col} {typ}")
-            except Exception:
-                pass
-        if to_add:
-            try:
-                con.commit()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-
-def _iso_timestamp(value: datetime | None) -> str:
-    """Return an ISO-8601 string for ``value`` normalized to UTC."""
-    dt = value or datetime.now(timezone.utc)
-    if dt.tzinfo is None or dt.utcoffset() is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    else:
-        dt = dt.astimezone(timezone.utc)
+def _iso_timestamp(dt: datetime | None) -> str:
+    if dt is None:
+        return ""
     return dt.isoformat(timespec="seconds")
 
-def _derive_team_status(row: sqlite3.Row) -> str:
-    """Derive a coarse team status from task_teams timestamp columns.
 
-    Uses the following precedence: cleared -> complete -> arrived -> enroute ->
-    briefed -> assigned. Falls back to "assigned" if no timestamps.
-    """
-    # Note: columns may be NULL or empty strings
-    def _val(key: str):
-        try:
-            return row[key]
-        except Exception:
-            return None
-
-    if _val("time_cleared"):
-        return "returning"
-    if _val("time_complete"):
-        return "complete"
-    if _val("time_arrived"):
-        # We use "arrival" to match TEAM_STATUS_COLORS keys
-        return "arrival"
-    if _val("time_enroute"):
-        return "enroute"
-    if _val("time_briefed"):
-        return "briefed"
-    if _val("time_assigned"):
-        return "assigned"
-    # If no timestamps present, consider the team "available" for display
-    ts_keys = [
-        "time_assigned",
-        "time_briefed",
-        "time_enroute",
-        "time_arrived",
-        "time_discovery",
-        "time_complete",
-        "time_cleared",
-    ]
-    if not any(_val(k) for k in ts_keys):
-        return "available"
-    return "assigned"
+# Expose as module-level so other modules can call _ensure_* guards safely
+def _ensure_teams_status_columns(*args, **kwargs) -> None:
+    pass
 
 
+def _ensure_teams_name_column(*args, **kwargs) -> None:
+    pass
 
+
+def _ensure_teams_current_task_column(*args, **kwargs) -> None:
+    pass
+
+
+def _ensure_teams_location_column(*args, **kwargs) -> None:
+    pass
+
+
+def _ensure_teams_attention_column(*args, **kwargs) -> None:
+    pass
+
+
+def _ensure_team_alert_columns(*args, **kwargs) -> None:
+    pass
 
 
 def fetch_task_rows() -> List[Dict[str, Any]]:
-    """Return task rows for the Task Status board from the incident DB.
-
-    Each dict contains: number, name, assigned_teams (List[str]), status,
-    priority, location.
-    """
-    with _connect() as con:
-        # Base task headers
-        tasks = con.execute(
-            "SELECT id, task_id, title, status, priority, location FROM tasks ORDER BY id"
-        ).fetchall()
-        # Ensure teams.current_task_id exists for filtering
-        _ensure_teams_current_task_column(con)
-        # Preload active assignments grouped by task_id, per policy: active iff team's current_task_id == task.id
-        tt_rows = con.execute(
-            """
-            SELECT tt.task_id,
-                   tt.teamid,
-                   tt.sortie_id,
-                   tm.name AS team_name
-              FROM task_teams tt
-         LEFT JOIN teams tm ON tt.teamid = tm.id
-             WHERE tm.current_task_id = tt.task_id
-             ORDER BY tt.id
-            """
-        ).fetchall()
-
-    assigned_map: Dict[int, List[str]] = {}
-    for r in tt_rows:
-        label = (
-            r["team_name"]
-            or r["sortie_id"]
-            or (f"Team {r['teamid']}" if r["teamid"] is not None else "Team")
-        )
-        assigned_map.setdefault(int(r["task_id"]), []).append(str(label))
-
-    out: List[Dict[str, Any]] = []
-    for t in tasks:
-        out.append(
-            {
-                "id": int(t["id"]),
-                "number": t["task_id"] or f"T-{t['id']}",
-                "name": t["title"] or "",
-                "assigned_teams": assigned_map.get(int(t["id"]), []),
-                "status": _task_status_label(t["status"]),
-                "priority": _priority_label(t["priority"]),
-                "location": t["location"] or "",
-            }
-        )
-    return out
+    try:
+        return _client().get(f"{_base()}/task-rows")
+    except Exception:
+        return []
 
 
 def fetch_team_assignment_rows() -> List[Dict[str, Any]]:
-    """Return team rows for the Team Status board based on teams as the source.
+    try:
+        return _client().get(f"{_base()}/team-assignment-rows")
+    except Exception:
+        return []
 
-    Each dict contains: team_id, sortie, name(label), leader, contact, status,
-    assignment (task title if currently assigned), location, task_id (current).
-    """
-    with _connect() as con:
-        _ensure_teams_status_columns(con)
-        _ensure_teams_current_task_column(con)
-        _ensure_teams_name_column(con)
-        _ensure_teams_location_column(con)
-        _ensure_teams_attention_column(con)
-        _ensure_team_alert_columns(con)
-        cols = {r[1] for r in con.execute("PRAGMA table_info(teams)").fetchall()}
-        has_team_loc = ("location" in cols)
-        has_msg = _has_table(con, "message_log_entry")
-        last_msg_select = (
-            "(SELECT MAX(timestamp) FROM message_log_entry me WHERE me.sender = COALESCE(tm.callsign, tm.name) OR me.recipient = COALESCE(tm.callsign, tm.name))"
-            if has_msg
-            else "NULL"
-        )
-        loc_select = "tm.location AS team_location," if has_team_loc else "NULL AS team_location,"
-        sql = f"""
-            SELECT tm.id AS team_id,
-                   tm.current_task_id AS task_id,
-                   tm.team_type AS team_type,
-                   (SELECT tt2.sortie_id
-                      FROM task_teams tt2
-                     WHERE tt2.teamid = tm.id
-                       AND (tm.current_task_id IS NULL OR tt2.task_id = tm.current_task_id)
-                     ORDER BY tt2.id DESC
-                     LIMIT 1) AS sortie_id,
-                   tm.name AS team_name,
-                   {loc_select}
-                   t.title AS assignment,
-                   t.location AS task_location,
-                   tm.status AS team_status,
-                   tm.status_updated AS team_status_updated,
-                   tm.needs_attention AS needs_attention,
-                   tm.emergency_flag AS emergency_flag,
-                   tm.last_checkin_at AS last_checkin_at,
-                   tm.checkin_reference_at AS checkin_reference_at,
-                   {last_msg_select} AS last_msg_ts,
-                   p.name AS leader_name,
-                   COALESCE(p.phone, p.contact, p.email, '') AS leader_contact
-              FROM teams tm
-         LEFT JOIN tasks t ON t.id = tm.current_task_id
-         LEFT JOIN personnel p ON p.id = tm.team_leader
-         ORDER BY tm.id
-        """
-        rows = con.execute(sql).fetchall()
 
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        team_id = int(r["team_id"]) if r["team_id"] is not None else None
-        team_label = r["team_name"] or r["sortie_id"] or (f"Team {team_id}" if team_id is not None else "Team")
-        team_type = (r["team_type"] if "team_type" in r.keys() else None) or ""
-        try:
-            team_type = str(team_type).upper()
-        except Exception:
-            team_type = str(team_type)
-        ts = r["team_status"] if "team_status" in r.keys() else None
-        status = str(ts).strip().lower() if ts else "available"
-        status = {
-            "en route": "enroute",
-            "on scene": "arrival",
-            "rtb": "returning",
-        }.get(status, status)
-        try:
-            ts1 = (r["team_status_updated"] or "").strip() if "team_status_updated" in r.keys() else ""
-        except Exception:
-            ts1 = ""
-        try:
-            ts2 = (r["last_msg_ts"] or "").strip() if "last_msg_ts" in r.keys() else ""
-        except Exception:
-            ts2 = ""
-        derived_last_updated = ts1 if (ts1 and (not ts2 or ts1 >= ts2)) else (ts2 or None)
-        needs_attention = r["needs_attention"] if "needs_attention" in r.keys() else 0
-        try:
-            needs_attention = int(needs_attention)
-        except Exception:
-            needs_attention = 1 if str(needs_attention).strip().lower() in {"true", "yes", "1"} else 0
-        raw_emergency = r["emergency_flag"] if "emergency_flag" in r.keys() else 0
-        try:
-            emergency_flag = bool(int(raw_emergency))
-        except Exception:
-            emergency_flag = str(raw_emergency).strip().lower() in {"true", "yes", "1"}
-        last_checkin_at = r["last_checkin_at"] if "last_checkin_at" in r.keys() else None
-        checkin_reference_at = r["checkin_reference_at"] if "checkin_reference_at" in r.keys() else None
-        last_checkin_at = str(last_checkin_at).strip() if last_checkin_at else None
-        checkin_reference_at = str(checkin_reference_at).strip() if checkin_reference_at else None
-        last_updated = last_checkin_at or checkin_reference_at or derived_last_updated
-        try:
-            current_task_id = int(r["task_id"]) if r["task_id"] is not None else None
-        except Exception:
-            current_task_id = None
-        raw_sortie = r["sortie_id"] if "sortie_id" in r.keys() else None
-        sortie_display = str(raw_sortie) if (current_task_id is not None and raw_sortie) else ""
-        # Location selection: team location preferred over task location
-        team_loc = r["team_location"] if ("team_location" in r.keys() and r["team_location"]) else None
-        task_loc = r["task_location"] if ("task_location" in r.keys() and r["task_location"]) else ""
-        location = team_loc or task_loc or ""
-
-        out.append(
-            {
-                "tt_id": None,
-                "task_id": current_task_id,
-                "team_id": team_id,
-                "sortie": sortie_display,
-                "name": str(team_label),
-                "team_type": team_type,
-                "leader": r["leader_name"] or "",
-                "contact": r["leader_contact"] or "",
-                "status": status,
-                "assignment": r["assignment"] or "",
-                "location": location,
-                "needs_attention": bool(needs_attention),
-                "needs_assistance_flag": bool(needs_attention),
-                "emergency_flag": emergency_flag,
-                "last_checkin_at": last_checkin_at,
-                "checkin_reference_at": checkin_reference_at,
-                "team_status_updated": ts1 or None,
-                "last_updated": last_updated,
-            }
-        )
-    return out
 def touch_team_checkin(
     team_id: int,
     *,
     checkin_time: datetime | None = None,
     reference_time: datetime | None = None,
 ) -> None:
-    """Persist an updated check-in baseline for the given team."""
-
-    check_dt = checkin_time or datetime.now(timezone.utc)
-    ref_dt = reference_time or check_dt
-    check_iso = _iso_timestamp(check_dt)
-    ref_iso = _iso_timestamp(ref_dt)
-
-    with _connect() as con:
-        _ensure_team_alert_columns(con)
-        con.execute(
-            "UPDATE teams SET last_checkin_at=?, checkin_reference_at=? WHERE id=?",
-            (check_iso, ref_iso, int(team_id)),
-        )
-        con.commit()
+    check_iso = _iso_timestamp(checkin_time or datetime.now(timezone.utc))
+    ref_iso = _iso_timestamp(reference_time or checkin_time or datetime.now(timezone.utc))
+    try:
+        _client().patch(f"{_base()}/teams/{team_id}/checkin", json={"checkin_time": check_iso, "reference_time": ref_iso})
+    except Exception:
+        pass
 
 
 def set_task_status(task_id: int, status_key: str) -> None:
-    """Persist a task status change to the DB.
-
-    status_key should be one of: created, planned, assigned, in progress,
-    complete, cancelled. These are mapped to human-readable DB values.
-    """
     key = str(status_key).strip().lower()
-    to_db = {
-        "created": "Draft",
-        "planned": "Planned",
-        "assigned": "Assigned",
-        "in progress": "In Progress",
-        "complete": "Completed",
-        "cancelled": "Cancelled",
-    }.get(key, status_key)
-    with _connect() as con:
-        con.execute("UPDATE tasks SET status=? WHERE id=?", (to_db, int(task_id)))
-        con.commit()
+    try:
+        _client().patch(f"{_base()}/tasks/{task_id}/status", json={"status_key": key})
+    except Exception as exc:
+        _log.warning("set_task_status API call failed: %s", exc)
+        return
+
+    try:
+        from utils.app_signals import app_signals
+        app_signals.taskHeaderChanged.emit(int(task_id), {"status": True})
+    except Exception:
+        pass
+
+    try:
+        from modules.ics214 import services as _ics
+        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
+        inc = incident_context.get_active_incident_id()
+        if inc:
+            disp = _task_status_label(key).title() or key.title()
+            _ics214_auto_entry(
+                str(inc),
+                category="task", ref_id=int(task_id),
+                text=f"Task status changed to {disp}",
+                ics=_ics, EntryCreate=_EntryCreate, StreamCreate=_StreamCreate,
+            )
+    except Exception as exc:
+        _log.warning("ICS-214 auto-log failed for task status: %s", exc, exc_info=True)
+
+
+_TEAM_STATUS_DISPLAY: dict[str, str] = {
+    "available":  "Available",
+    "assigned":   "Assigned",
+    "briefed":    "Briefed",
+    "enroute":    "En Route",
+    "arrival":    "On Scene",
+    "on scene":   "On Scene",
+    "find":       "Discovery",
+    "discovery":  "Discovery",
+    "complete":   "Complete",
+    "returning":  "RTB",
+    "rtb":        "RTB",
+    "oos":        "Out of Service",
+    "break":      "On Break",
+}
+
+
+def _active_user_id() -> str | None:
+    try:
+        from utils.state import AppState
+        return AppState.get_active_user_id() or None
+    except Exception:
+        return None
+
+
+def _ics214_auto_entry(
+    inc: str,
+    *,
+    category: str,
+    ref_id: int,
+    text: str,
+    ics,
+    EntryCreate,
+    StreamCreate,
+    actor_user_id: str | None = None,
+    source: str = "auto",
+) -> None:
+    """Find or create an ICS-214 stream for the given category/ref_id and append an auto entry."""
+    streams = ics.list_streams(inc)
+    stream = None
+    ref_tag = f'"ref": "{category}:{ref_id}"'
+    stream_name = f"{category.title()} {ref_id}"
+    for s in streams:
+        sec = s.get("section") or ""
+        name = s.get("name") or ""
+        if ref_tag in str(sec) or name.strip() == stream_name:
+            stream = s
+            break
+    if stream is None:
+        section = _json.dumps({"category": category, "ref": f"{category}:{ref_id}", "label": stream_name})
+        stream = ics.create_stream(
+            StreamCreate(incident_id=inc, name=stream_name, section=section, kind=category)
+        )
+    stream_id = stream.get("id") if isinstance(stream, dict) else getattr(stream, "id", None)
+    if not stream_id:
+        raise ValueError(f"ICS-214 stream has no id after find/create (category={category}, ref={ref_id})")
+    ics.add_entry(
+        inc, stream_id,
+        EntryCreate(text=text, source=source, actor_user_id=actor_user_id),
+        autogenerated=True,
+    )
+
+
+def ics214_log_entry(
+    category: str,
+    ref_id: int,
+    text: str,
+    source: str = "internal",
+) -> None:
+    """Public helper: append a log entry to any ICS-214 stream.
+
+    Use source='internal' for composition changes (personnel/asset/task assignment).
+    Use source='auto' for operational status changes.
+    """
+    try:
+        from modules.ics214 import services as _ics
+        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
+        inc = incident_context.get_active_incident_id()
+        if not inc:
+            return
+        _ics214_auto_entry(
+            str(inc),
+            category=category,
+            ref_id=ref_id,
+            text=text,
+            ics=_ics,
+            EntryCreate=_EntryCreate,
+            StreamCreate=_StreamCreate,
+            actor_user_id=_active_user_id(),
+            source=source,
+        )
+    except Exception as exc:
+        _log.warning("ics214_log_entry(%s:%s) failed: %s", category, ref_id, exc, exc_info=True)
+
+
+TS_STATUS_COLS = {
+    "assigned": "time_assigned", "briefed": "time_briefed",
+    "enroute": "time_enroute", "arrival": "time_arrived", "on scene": "time_arrived",
+    "find": "time_discovery", "discovery": "time_discovery",
+    "complete": "time_complete", "returning": "time_cleared", "rtb": "time_cleared",
+}
 
 
 def set_team_assignment_status(tt_id: int, status_key: str) -> None:
-    """Persist a team assignment status by stamping the appropriate timestamp.
-
-    Maps common status keys to columns in task_teams: assigned, briefed,
-    enroute, arrival(on scene), find(discovery), complete, returning(cleared).
-    """
+    """Stamp task_team timestamp via API, then fire ICS-214 entries and Qt signals."""
     key = str(status_key).strip().lower()
-    col_map = {
-        "assigned": "time_assigned",
-        "briefed": "time_briefed",
-        "enroute": "time_enroute",
-        "arrival": "time_arrived",
-        "on scene": "time_arrived",
-        "find": "time_discovery",
-        "discovery": "time_discovery",
-        "complete": "time_complete",
-        "returning": "time_cleared",
-        "rtb": "time_cleared",
-    }
-    col = col_map.get(key)
-    from datetime import datetime
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    with _connect() as con:
-        # Update task_teams timeline (first instance only if already stamped)
-        if col:
-            try:
-                prev = con.execute(f"SELECT {col} FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
-                already = bool(prev and prev[0])
-            except Exception:
-                already = False
-            if not already:
-                con.execute(f"UPDATE task_teams SET {col}=? WHERE id=?", (now, int(tt_id)))
-        elif key in {"available"}:
-            # Clear all timestamps to represent availability
-            con.execute(
-                "UPDATE task_teams SET time_assigned=NULL, time_briefed=NULL, time_enroute=NULL, time_arrived=NULL, time_discovery=NULL, time_complete=NULL, time_cleared=NULL WHERE id=?",
-                (int(tt_id),),
-            )
-        # Also maintain team-level status to support unassigned contexts
-        try:
-            _ensure_teams_status_columns(con)
-            trow = con.execute("SELECT task_id, teamid FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
-            task_id_for_214 = int(trow[0]) if trow and trow[0] is not None else None
-            if trow and trow[1] is not None:
-                team_id = int(trow[1])
-                display = {
-                    "enroute": "En Route",
-                    "on scene": "On Scene",
-                    "arrival": "On Scene",
-                    "rtb": "RTB",
-                }.get(key, str(status_key).title())
-                con.execute("UPDATE teams SET status=?, status_updated=? WHERE id=?", (display, now, team_id))
-        except Exception:
-            pass
-        con.commit()
-        # Notify UI that team status changed (if team_id is known)
-        try:
-            if 'team_id' in locals() and team_id is not None:
-                from utils.app_signals import app_signals
-                app_signals.teamStatusChanged.emit(int(team_id))
-        except Exception:
-            pass
-        # Also notify task board to refresh assignments if task id known
-        try:
-            if 'task_id_for_214' in locals() and task_id_for_214 is not None:
-                from utils.app_signals import app_signals as _sig2
-                _sig2.taskHeaderChanged.emit(int(task_id_for_214), {'assigned_teams': True})
-        except Exception:
-            pass
-        except Exception:
-            pass
-    # Also append ICS-214 entries for both the team and associated task streams
+    # Determine which task and team from the API by searching tasks
+    # We need task_id to stamp the team in the task_teams array
+    task_id_for_214 = None
+    team_id_for_signals = None
     try:
-        from utils import incident_context as _ic
-        from modules.ics214 import services as _ics
-        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
-        inc = _ic.get_active_incident_id()
-        if inc:
-            # Build display status
-            disp = {
-                "enroute": "En Route",
-                "arrival": "On Scene",
-                "on scene": "On Scene",
-                "rtb": "RTB",
-            }.get(key, str(status_key).title())
-            text = f"Team status changed to {disp}"
-            streams = _ics.list_streams(str(inc))
-            # Team stream
-            if 'team_id' in locals() and team_id is not None:
-                team_stream = None
-                for s in streams:
-                    sec = getattr(s, 'section', None) or ''
-                    name = getattr(s, 'name', '')
-                    if (f'"ref": "team:{int(team_id)}"' in str(sec)) or (name.strip() == f"Team {int(team_id)}"):
-                        team_stream = s; break
-                if team_stream is None:
-                    section = '{"category": "team", "ref": "team:%d", "label": "Team %d"}' % (int(team_id), int(team_id))
-                    team_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Team {int(team_id)}", section=section, kind="team"))
-                _ics.add_entry(str(inc), getattr(team_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
-            # Task stream (if known)
-            if 'task_id_for_214' in locals() and task_id_for_214 is not None:
-                task_stream = None
-                for s in streams:
-                    sec = getattr(s, 'section', None) or ''
-                    name = getattr(s, 'name', '')
-                    if (f'"ref": "task:{int(task_id_for_214)}"' in str(sec)) or (name.strip() == f"Task {int(task_id_for_214)}"):
-                        task_stream = s; break
-                if task_stream is None:
-                    section = '{"category": "task", "ref": "task:%d", "label": "Task %d"}' % (int(task_id_for_214), int(task_id_for_214))
-                    task_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Task {int(task_id_for_214)}", section=section, kind="task"))
-                _ics.add_entry(str(inc), getattr(task_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
+        tasks = _client().get(f"{_base()}/tasks")
+        for task in tasks:
+            for tt in task.get("task_teams") or []:
+                if tt.get("id") == tt_id:
+                    task_id_for_214 = int(task["int_id"])
+                    team_id_for_signals = tt.get("team_id")
+                    break
+            if task_id_for_214 is not None:
+                break
     except Exception:
         pass
+
+    if task_id_for_214 is not None:
+        try:
+            _client().patch(
+                f"{_base()}/tasks/{task_id_for_214}/teams/{tt_id}/status",
+                json={"status_key": key},
+            )
+        except Exception:
+            pass
+
+    # Qt signals
+    try:
+        if team_id_for_signals is not None:
+            from utils.app_signals import app_signals
+            app_signals.teamStatusChanged.emit(int(team_id_for_signals))
+    except Exception:
+        pass
+    try:
+        if task_id_for_214 is not None:
+            from utils.app_signals import app_signals as _sig2
+            _sig2.taskHeaderChanged.emit(int(task_id_for_214), {'assigned_teams': True})
+    except Exception:
+        pass
+
+    # ICS-214 entries
+    try:
+        from modules.ics214 import services as _ics
+        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
+        inc = incident_context.get_active_incident_id()
+        if inc:
+            disp = _TEAM_STATUS_DISPLAY.get(key, str(status_key).title())
+            text = f"Team status changed to {disp}"
+            uid = _active_user_id()
+            if team_id_for_signals is not None:
+                _ics214_auto_entry(str(inc), category="team", ref_id=int(team_id_for_signals), text=text,
+                                   ics=_ics, EntryCreate=_EntryCreate, StreamCreate=_StreamCreate, actor_user_id=uid)
+            if task_id_for_214 is not None:
+                _ics214_auto_entry(str(inc), category="task", ref_id=int(task_id_for_214), text=text,
+                                   ics=_ics, EntryCreate=_EntryCreate, StreamCreate=_StreamCreate, actor_user_id=uid)
+    except Exception as exc:
+        _log.warning("ICS-214 auto-log failed for team assignment status: %s", exc, exc_info=True)
 
 
 def set_team_status(team_id: int, status_key: str) -> None:
-    """Persist team-level status and stamp timeline for current assignment.
-
-    Updates teams.status/status_updated, and if the team is currently assigned,
-    stamps the appropriate time_* on a task_teams row for auditing.
-    """
+    """Update team status via API, then fire ICS-214 entries and Qt signals."""
     key = str(status_key).strip().lower()
-    from datetime import datetime
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    display = {
-        "enroute": "En Route",
-        "on scene": "On Scene",
-        "arrival": "On Scene",
-        "rtb": "RTB",
-    }.get(key, str(status_key).title())
-    col_map = {
-        "assigned": "time_assigned",
-        "briefed": "time_briefed",
-        "enroute": "time_enroute",
-        "arrival": "time_arrived",
-        "on scene": "time_arrived",
-        "find": "time_discovery",
-        "discovery": "time_discovery",
-        "complete": "time_complete",
-        "returning": "time_cleared",
-        "rtb": "time_cleared",
-    }
-    with _connect() as con:
-        _ensure_teams_status_columns(con)
-        _ensure_teams_current_task_column(con)
-        con.execute(
-            "UPDATE teams SET status=?, status_updated=? WHERE id=?",
-            (display, now, int(team_id)),
-        )
-        row = con.execute(
-            "SELECT current_task_id FROM teams WHERE id=?",
-            (int(team_id),),
-        ).fetchone()
-        task_id = int(row[0]) if row and row[0] is not None else None
-        # Clear current task when setting team Available
-        if key in {"available", "avail", "free", "unassigned"}:
-            if task_id is not None:
-                try:
-                    # Stamp cleared time on latest task_teams row for this team/task
-                    tt = con.execute(
-                        "SELECT id, time_cleared FROM task_teams WHERE task_id=? AND teamid=? ORDER BY id DESC LIMIT 1",
-                        (task_id, int(team_id)),
-                    ).fetchone()
-                    if tt and (tt[1] is None or str(tt[1]).strip() == ""):
-                        con.execute("UPDATE task_teams SET time_cleared=? WHERE id=?", (now, int(tt[0])))
-                except Exception:
-                    pass
-                try:
-                    con.execute("UPDATE teams SET current_task_id=NULL WHERE id=?", (int(team_id),))
-                except Exception:
-                    pass
-        if task_id and key in col_map:
-            tt = con.execute(
-                "SELECT id FROM task_teams WHERE task_id=? AND teamid=? ORDER BY id DESC LIMIT 1",
-                (task_id, int(team_id)),
-            ).fetchone()
-            if tt:
-                tt_id = int(tt[0])
-            else:
-                cur = con.execute(
-                    "INSERT INTO task_teams (task_id, teamid, is_primary) VALUES (?, ?, 0)",
-                    (task_id, int(team_id)),
-                )
-                tt_id = int(cur.lastrowid)
-            col = col_map[key]
-            con.execute(f"UPDATE task_teams SET {col}=? WHERE id=?", (now, tt_id))
-        con.commit()
-        # Notify boards that assignment list may have changed
-        try:
-            if 'task_id' in locals() and task_id is not None:
-                from utils.app_signals import app_signals as _sig2
-                _sig2.taskHeaderChanged.emit(int(task_id), {'assigned_teams': True})
-        except Exception:
-            pass
-        # Emit teamStatusChanged for UI timers
-        try:
-            from utils.app_signals import app_signals
-            app_signals.teamStatusChanged.emit(int(team_id))
-        except Exception:
-            pass
-        # Also notify task board to refresh assignments if task id known
-        try:
-            if 'task_id_for_214' in locals() and task_id_for_214 is not None:
-                from utils.app_signals import app_signals as _sig2
-                _sig2.taskHeaderChanged.emit(int(task_id_for_214), {'assigned_teams': True})
-        except Exception:
-            pass
-        except Exception:
-            pass
-    # Also append ICS-214 entries for both the team and associated task streams
     try:
-        from utils import incident_context as _ic
-        from modules.ics214 import services as _ics
-        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
-        inc = _ic.get_active_incident_id()
-        if inc:
-            disp = {
-                "enroute": "En Route",
-                "arrival": "On Scene",
-                "on scene": "On Scene",
-                "rtb": "RTB",
-            }.get(key, str(status_key).title())
-            text = f"Team status changed to {disp}"
-            streams = _ics.list_streams(str(inc))
-            # Team stream
-            team_stream = None
-            for s in streams:
-                sec = getattr(s, 'section', None) or ''
-                name = getattr(s, 'name', '')
-                if (f'"ref": "team:{int(team_id)}"' in str(sec)) or (name.strip() == f"Team {int(team_id)}"):
-                    team_stream = s; break
-            if team_stream is None:
-                section = '{"category": "team", "ref": "team:%d", "label": "Team %d"}' % (int(team_id), int(team_id))
-                team_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Team {int(team_id)}", section=section, kind="team"))
-            _ics.add_entry(str(inc), getattr(team_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
-            # Task stream if team is currently assigned
-            if 'task_id' in locals() and task_id is not None:
-                task_stream = None
-                for s in streams:
-                    sec = getattr(s, 'section', None) or ''
-                    name = getattr(s, 'name', '')
-                    if (f'"ref": "task:{int(task_id)}"' in str(sec)) or (name.strip() == f"Task {int(task_id)}"):
-                        task_stream = s; break
-                if task_stream is None:
-                    section = '{"category": "task", "ref": "task:%d", "label": "Task %d"}' % (int(task_id), int(task_id))
-                    task_stream = _ics.create_stream(_StreamCreate(incident_id=str(inc), name=f"Task {int(task_id)}", section=section, kind="task"))
-                _ics.add_entry(str(inc), getattr(task_stream, 'id'), _EntryCreate(text=text, source="auto"), autogenerated=True)
+        result = _client().patch(f"{_base()}/teams/{team_id}/status", json={"status_key": key})
+        current_task_id = result.get("current_task_id")
+    except Exception:
+        current_task_id = None
+
+    # Qt signals
+    try:
+        from utils.app_signals import app_signals
+        app_signals.teamStatusChanged.emit(int(team_id))
+    except Exception:
+        pass
+    try:
+        if current_task_id is not None:
+            from utils.app_signals import app_signals as _sig2
+            _sig2.taskHeaderChanged.emit(int(current_task_id), {'assigned_teams': True})
     except Exception:
         pass
 
-
-
-
-
-
+    # ICS-214 entries
+    try:
+        from modules.ics214 import services as _ics
+        from modules.ics214.schemas import EntryCreate as _EntryCreate, StreamCreate as _StreamCreate
+        inc = incident_context.get_active_incident_id()
+        if inc:
+            disp = _TEAM_STATUS_DISPLAY.get(key, str(status_key).title())
+            text = f"Team status changed to {disp}"
+            uid = _active_user_id()
+            _ics214_auto_entry(str(inc), category="team", ref_id=int(team_id), text=text,
+                               ics=_ics, EntryCreate=_EntryCreate, StreamCreate=_StreamCreate, actor_user_id=uid)
+            if current_task_id is not None:
+                _ics214_auto_entry(str(inc), category="task", ref_id=int(current_task_id), text=text,
+                                   ics=_ics, EntryCreate=_EntryCreate, StreamCreate=_StreamCreate, actor_user_id=uid)
+    except Exception as exc:
+        _log.warning("ICS-214 auto-log failed for team status: %s", exc, exc_info=True)
 
 
 def list_tasks_for_assignment() -> List[Dict[str, Any]]:
-    """Return a lightweight list of tasks for assignment pickers.
+    try:
+        return _client().get(f"{_base()}/tasks-for-assignment")
+    except Exception:
+        return []
 
-    Each row: id, task_id (display number), title, status, location.
-    Safe across schema variants and ordered by id.
-    """
-    with _connect() as con:
-        try:
-            rows = con.execute(
-                "SELECT id, task_id, title, status, priority, location FROM tasks ORDER BY id"
-            ).fetchall()
-        except Exception:
-            rows = []
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        try:
-            out.append(
-                {
-                    "id": int(r["id"]) if r["id"] is not None else 0,
-                    "task_id": r["task_id"],
-                    "title": r["title"],
-                    "status": _task_status_label(r["status"]) if "status" in r.keys() else "",
-                    "priority": _priority_label(r["priority"]) if "priority" in r.keys() else "",
-                    "location": r["location"] if "location" in r.keys() else "",
-                }
-            )
-        except Exception:
-            pass
-    return out
+
+def set_team_assignment_status_for_task(task_id: int, tt_id: int, status_key: str) -> None:
+    """Direct form: call when task_id is known (avoids scan)."""
+    key = str(status_key).strip().lower()
+    try:
+        _client().patch(f"{_base()}/tasks/{task_id}/teams/{tt_id}/status", json={"status_key": key})
+    except Exception:
+        pass

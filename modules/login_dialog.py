@@ -3,23 +3,11 @@
 This modal dialog is shown on startup to ensure the user selects/creates an
 incident and provides a User ID and Role for audit/documentation. Nothing else
 in the app should be accessible until this dialog is completed.
-
-Integrations with existing repo:
- - Incidents are read from the master database via simple SQL (most recent first)
-   using helpers in `models.database` where appropriate.
- - New incidents are created using the existing `NewIncidentDialog`, and then
-   registered into `data/master.db` with `models.database.insert_new_incident`.
- - Session values are stored in `utils.state.AppState`.
- - An audit helper can log the login action (see `utils.audit`).
-
-Stretch support:
- - Demo mode can be enabled (constructor flag), which relaxes validation so the
-   Continue button is always enabled and any inputs are accepted.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -37,7 +25,6 @@ from PySide6.QtWidgets import (
 )
 
 from utils.state import AppState
-from models.database import get_connection, insert_new_incident
 from modules.incidents.new_incident_dialog import NewIncidentDialog
 from utils.audit import write_audit
 from utils.session import start_session
@@ -61,7 +48,7 @@ STATIC_ROLES = [
 
 @dataclass
 class IncidentItem:
-    id: int
+    incident_id: str
     number: str
     name: str
 
@@ -69,7 +56,6 @@ class IncidentItem:
 class LoginDialog(QDialog):
     """Modal startup dialog that collects incident + user context."""
 
-    # Emit when the session is established
     sessionReady = Signal(str, str, str)  # (incident_number, user_id, role)
 
     def __init__(self, parent: QWidget | None = None, *, demo_mode: bool = False, default_incident_number: str | None = None, default_user_id: str | None = None) -> None:
@@ -79,7 +65,6 @@ class LoginDialog(QDialog):
         self._demo_mode = demo_mode
         self._default_incident_number = default_incident_number
 
-        # Widgets
         self.incident_combo = QComboBox()
         self.btn_new_incident = QPushButton("Create New Incident")
         self.user_id_edit = QLineEdit()
@@ -88,15 +73,12 @@ class LoginDialog(QDialog):
         self.role_combo = QComboBox()
         self.role_combo.addItems(STATIC_ROLES)
 
-        # Buttons
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.btn_continue = self.buttons.button(QDialogButtonBox.Ok)
         self.btn_continue.setText("Continue")
         self.btn_continue.setEnabled(False)
 
-        # Layout
         form = QFormLayout()
-        # Incidents row: dropdown + create button
         row_inc = QHBoxLayout()
         row_inc.addWidget(self.incident_combo, 1)
         row_inc.addWidget(self.btn_new_incident)
@@ -108,7 +90,6 @@ class LoginDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(self.buttons)
 
-        # Signals
         self.btn_new_incident.clicked.connect(self._on_create_new_incident)
         self.incident_combo.currentIndexChanged.connect(self._update_continue_enabled)
         self.user_id_edit.textChanged.connect(self._update_continue_enabled)
@@ -118,7 +99,6 @@ class LoginDialog(QDialog):
 
         self._incidents: List[IncidentItem] = []
         self._load_incidents()
-        # Preselect last incident when provided (startup setting)
         try:
             if self._default_incident_number:
                 idx = self.incident_combo.findData(self._default_incident_number)
@@ -128,58 +108,40 @@ class LoginDialog(QDialog):
             pass
         self._update_continue_enabled()
 
-    # ------------------------------------------------------------------
     def _wrap(self, layout: QHBoxLayout) -> QWidget:
         w = QWidget()
         w.setLayout(layout)
         return w
 
     def _load_incidents(self) -> None:
-        """Load incidents from master.db, most recent first (id desc)."""
         self.incident_combo.clear()
         self._incidents.clear()
         try:
-            con = get_connection()
-            con.row_factory = None
-            cur = con.cursor()
-            cur.execute("SELECT id, number, name FROM incidents ORDER BY id DESC")
-            rows: List[Tuple[int, str, str]] = cur.fetchall() or []
-            for _id, number, name in rows:
-                self._incidents.append(IncidentItem(id=int(_id), number=str(number), name=str(name or "")))
-            con.close()
+            from utils.api_client import api_client
+            docs = api_client.get("/api/incidents") or []
+            for doc in docs:
+                self._incidents.append(IncidentItem(
+                    incident_id=doc.get("incident_id") or doc.get("id", ""),
+                    number=str(doc.get("number", "")),
+                    name=str(doc.get("name", "")),
+                ))
         except Exception as e:
             QMessageBox.warning(self, "Database Error", f"Failed to load incidents: {e}")
             self._incidents = []
 
-        # Populate combo: show "Name - #Number"; store number as itemData
         for it in self._incidents:
             label = f"{it.name or '(unnamed)'} - #{it.number}"
             self.incident_combo.addItem(label, userData=it.number)
 
     def _on_create_new_incident(self) -> None:
-        """Open the existing NewIncidentDialog, then register in master and refresh."""
         dlg = NewIncidentDialog(self)
 
-        def _created(meta, db_path: str):
-            try:
-                # Register in master.db immediately so it appears in lists
-                insert_new_incident(
-                    number=meta.number,
-                    name=meta.name,
-                    type=meta.type,
-                    description=meta.description,
-                    icp_location=meta.location,
-                    is_training=meta.is_training,
-                )
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"Failed to register incident: {e}")
+        def _created(meta, incident_id: str):
             try:
                 write_audit("incident.create", {"number": meta.number, "name": meta.name})
             except Exception:
                 pass
-            # Always refresh after dialog
             self._load_incidents()
-            # Select the newly created incident by number if present
             idx = self.incident_combo.findData(meta.number)
             if idx >= 0:
                 self.incident_combo.setCurrentIndex(idx)
@@ -200,9 +162,7 @@ class LoginDialog(QDialog):
         )
         self.btn_continue.setEnabled(ok)
 
-    # ------------------------------------------------------------------
     def _accept(self) -> None:
-        # Read selections
         incident_number = self.incident_combo.currentData()
         user_id = self.user_id_edit.text().strip() or ""
         role = self.role_combo.currentText().strip() or ""
@@ -212,7 +172,6 @@ class LoginDialog(QDialog):
                 QMessageBox.warning(self, "Missing Info", "Please select an incident and enter User ID and Role.")
                 return
 
-        # Persist to AppState (central session holder used across repo)
         AppState.set_active_incident(incident_number)
         AppState.set_active_user_id(user_id)
         AppState.set_active_user_role(role)
@@ -225,7 +184,6 @@ class LoginDialog(QDialog):
         except Exception:
             pass
 
-        # Signal and close
         self.sessionReady.emit(str(incident_number), user_id, role)
         self.accept()
 

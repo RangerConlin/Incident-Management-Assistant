@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
     QSplitter,
 )
 
-from modules.admin.resource_types.data import READINESS_STATUSES, ResourceAssignmentRepository
+from modules.admin.resource_types.data import READINESS_STATUSES, ApiResourceAssignmentRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
 
 
@@ -413,7 +413,6 @@ class AddTeamMemberDialog(QDialog):
             pass
 
 from utils.styles import team_status_colors, TEAM_TYPE_COLORS, subscribe_theme
-from models.database import get_incident_by_number
 from utils import incident_context
 from utils.state import AppState
 from modules.operations.teams.data.team import Team
@@ -466,7 +465,7 @@ class TeamDetailBridge(QObject):
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._team: Team = Team()
-        self._resource_assignments = ResourceAssignmentRepository()
+        self._resource_assignments = ApiResourceAssignmentRepository()
         # Cached lists for QML list views
         self._personnel: list[dict[str, Any]] = []
         self._vehicles: list[dict[str, Any]] = []
@@ -1172,6 +1171,7 @@ class TeamDetailBridge(QObject):
                 except Exception:
                     pass
             # Best-effort: keep Check-In record aligned so other views remain consistent
+            person_name: str | None = None
             try:
                 from modules.logistics.checkin import repository as ci_repo
                 from modules.logistics.checkin.models import CheckInRecord, CIStatus, PersonnelStatus, Location
@@ -1183,6 +1183,7 @@ class TeamDetailBridge(QObject):
                         ident = ci_repo.get_person_identity(str(pid))
                     except Exception:
                         ident = None
+                    person_name = getattr(ident, 'name', None) or getattr(ident, 'full_name', None)
                     rec = CheckInRecord(
                         person_id=str(pid),
                         ci_status=CIStatus.CHECKED_IN,
@@ -1203,6 +1204,8 @@ class TeamDetailBridge(QObject):
                 ci_repo.save_checkin(rec)
             except Exception:
                 pass
+            label = person_name or f"#{pid}"
+            self._team_log(f"Personnel added: {label}")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to add member: {e}")
@@ -1248,6 +1251,7 @@ class TeamDetailBridge(QObject):
                 except Exception:
                     pass
                 app_signals.teamLeaderChanged.emit(int(self._team.team_id))
+            self._team_log(f"Personnel removed (ID: {int(person_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to remove member: {e}")
@@ -1260,6 +1264,14 @@ class TeamDetailBridge(QObject):
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to set medic: {e}")
+
+    def _team_log(self, text: str, source: str = "internal") -> None:
+        try:
+            if self._team.team_id:
+                from modules.operations.data.repository import ics214_log_entry
+                ics214_log_entry("team", int(self._team.team_id), text, source=source)
+        except Exception:
+            pass
 
     @Slot('QVariant')
     def addVehicle(self, vehicle_id: Any) -> None:
@@ -1276,6 +1288,7 @@ class TeamDetailBridge(QObject):
                 try:
                     set_vehicle_team(vid, int(self._team.team_id))
                 except Exception: pass
+                self._team_log(f"Vehicle assigned (ID: {vid})")
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f'Failed to add vehicle: {e}')
@@ -1286,6 +1299,7 @@ class TeamDetailBridge(QObject):
             if not self._team.team_id:
                 raise RuntimeError("No team id")
             set_vehicle_team(int(vehicle_id), None)
+            self._team_log(f"Vehicle removed (ID: {int(vehicle_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to remove vehicle: {e}")
@@ -1317,6 +1331,7 @@ class TeamDetailBridge(QObject):
                 try:
                     set_equipment_team(eid, int(self._team.team_id))
                 except Exception: pass
+                self._team_log(f"Equipment assigned (ID: {eid})")
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f'Failed to add equipment: {e}')
@@ -1327,6 +1342,7 @@ class TeamDetailBridge(QObject):
             if not self._team.team_id:
                 raise RuntimeError("No team id")
             set_equipment_team(int(eq_id), None)
+            self._team_log(f"Equipment removed (ID: {int(eq_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to remove equipment: {e}")
@@ -1338,6 +1354,7 @@ class TeamDetailBridge(QObject):
                 raise RuntimeError("No team id")
             if ac_id is not None and str(ac_id) != "":
                 set_aircraft_team(int(ac_id), int(self._team.team_id))
+                self._team_log(f"Aircraft assigned (ID: {int(ac_id)})")
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to add aircraft: {e}")
@@ -1348,6 +1365,7 @@ class TeamDetailBridge(QObject):
             if not self._team.team_id:
                 raise RuntimeError("No team id")
             set_aircraft_team(int(ac_id), None)
+            self._team_log(f"Aircraft removed (ID: {int(ac_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
             self.error.emit(f"Failed to remove aircraft: {e}")
@@ -1435,6 +1453,8 @@ class TeamDetailBridge(QObject):
             if "location" in payload:
                 value = payload.get("location")
                 self._team.location = str(value) if value not in (None, "") else None
+                if value and self._team.team_id:
+                    self._team_log(f"Location updated: {value}", source="auto")
             if "team_leader_phone" in payload:
                 value = payload.get("team_leader_phone")
                 self._team.team_leader_phone = str(value) if value not in (None, "") else None
@@ -1593,7 +1613,7 @@ class TeamDetailWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self._bridge = bridge or TeamDetailBridge(self)
-        self._resource_assignments = ResourceAssignmentRepository()
+        self._resource_assignments = ApiResourceAssignmentRepository()
         self._team_id: Optional[int] = team_id
         self._is_air: bool = False
         self._updating: bool = False
@@ -1958,8 +1978,8 @@ class TeamDetailWindow(QMainWindow):
             target = None
             for s in streams:
                 try:
-                    sec = getattr(s, 'section', None) or ''
-                    name = getattr(s, 'name', '')
+                    sec = s.get("section") or "" if isinstance(s, dict) else getattr(s, "section", "") or ""
+                    name = s.get("name") or "" if isinstance(s, dict) else getattr(s, "name", "") or ""
                     if (f'"ref": "team:{int(team_id)}"' in str(sec)) or (name.strip() == f"Team {int(team_id)}"):
                         target = s
                         break
@@ -1968,7 +1988,8 @@ class TeamDetailWindow(QMainWindow):
             if target is None:
                 section = '{"category": "team", "ref": "team:%d", "label": "Team %d"}' % (int(team_id), int(team_id))
                 target = services.create_stream(StreamCreate(incident_id=str(inc), name=f"Team {int(team_id)}", section=section, kind="team"))
-            return str(inc), getattr(target, 'id', None)
+            stream_id = target.get("id") if isinstance(target, dict) else getattr(target, "id", None)
+            return str(inc), stream_id
         except Exception:
             return None, None
 
@@ -1992,7 +2013,9 @@ class TeamDetailWindow(QMainWindow):
         for r in rows:
             it_ts = QStandardItem(self._fmt_ts(str(r.get("timestamp_utc") or "")))
             it_entry = QStandardItem(str(r.get("text") or ""))
-            it_by = QStandardItem(str(r.get("actor_user_id") or ""))
+            actor = str(r.get("actor_user_id") or "")
+            is_auto = r.get("autogenerated") or r.get("source") == "auto"
+            it_by = QStandardItem(actor if actor else ("System" if is_auto else ""))
             try:
                 it_ts.setData(str(r.get("id") or ""), Qt.UserRole)
             except Exception:
@@ -2023,21 +2046,21 @@ class TeamDetailWindow(QMainWindow):
 
     def _delete_team_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_team_ics214_stream()
+            inc, sid = self._get_team_ics214_stream()
             entry_id = self._selected_team_214_entry_id()
-            if not inc or not entry_id:
+            if not inc or not sid or not entry_id:
                 return
             if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 return
             from modules.ics214 import services
-            services.delete_entry(str(inc), str(entry_id))
+            services.delete_entry(str(inc), str(entry_id), stream_id=str(sid))
             self._load_team_ics214()
         except Exception:
             pass
 
     def _edit_team_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_team_ics214_stream()
+            inc, sid = self._get_team_ics214_stream()
             entry_id = self._selected_team_214_entry_id()
             if not inc or not entry_id:
                 return
@@ -2057,7 +2080,7 @@ class TeamDetailWindow(QMainWindow):
                 if new_txt:
                     from modules.ics214 import services
                     from modules.ics214.schemas import EntryUpdate
-                    services.update_entry(str(inc), str(entry_id), EntryUpdate(text=new_txt))
+                    services.update_entry(str(inc), str(entry_id), EntryUpdate(text=new_txt), stream_id=str(sid))
                     self._load_team_ics214()
         except Exception:
             pass

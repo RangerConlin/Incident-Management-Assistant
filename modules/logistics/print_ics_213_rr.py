@@ -5,15 +5,12 @@
 from pathlib import Path
 
 from utils import incident_storage
-
-from .models import LogisticsResourceRequest
-from .repository import with_incident_session
+from utils.api_client import api_client
 
 
-def generate_pdf(incident_id: str, request_id: int) -> tuple[str, bytes]:
+def generate_pdf(incident_id: str, request_id: str) -> tuple[str, bytes]:
     """Generate a PDF for the given ICS-213RR resource request."""
-    with with_incident_session(incident_id) as session:
-        req = session.get(LogisticsResourceRequest, request_id)
+    req = api_client.get(f"/incidents/{incident_id}/logistics/resource-requests/{request_id}") or {}
 
     paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
     if paths is None:
@@ -22,11 +19,9 @@ def generate_pdf(incident_id: str, request_id: int) -> tuple[str, bytes]:
     forms_dir.mkdir(parents=True, exist_ok=True)
     pdf_path = forms_dir / f"ics213rr_{request_id}.pdf"
 
-    values = {}
-    if req is not None:
-        values = {k: v for k, v in vars(req).items() if not k.startswith("_")}
+    values = {k: v for k, v in req.items() if not k.startswith("_")}
 
-    from modules.forms.api import export_form_unified
+    from modules.forms_creator.api import export_form_unified
 
     export_form_unified(
         "ics_213rr",

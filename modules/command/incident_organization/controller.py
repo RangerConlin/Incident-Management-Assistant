@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Iterable
 
-from .personnel_repo import PersonnelPoolRepository
+from .personnel_repo import ApiPersonnelPoolRepository
 from .models import (
     GeneratedFormSnapshot,
     OrganizationPosition,
@@ -15,7 +15,7 @@ from .models import (
     PositionAssignment,
     PositionStatusSummary,
 )
-from .repository import IncidentOrganizationRepository
+from .repository import ApiIncidentOrganizationRepository
 
 
 DEFAULT_SPAN_OF_CONTROL_LIMIT = 7
@@ -27,8 +27,8 @@ class IncidentOrganizationController:
 
     def __init__(self, incident_id: str):
         self.incident_id = str(incident_id)
-        self.repo = IncidentOrganizationRepository(self.incident_id)
-        self.personnel_repo = PersonnelPoolRepository()
+        self.repo = ApiIncidentOrganizationRepository(self.incident_id)
+        self.personnel_repo = ApiPersonnelPoolRepository()
 
     # ------------------------------------------------------------------
     def add_position(self, values: dict[str, object]) -> int:
@@ -226,6 +226,11 @@ class IncidentOrganizationController:
         self, position_id: int | None = None, *, active_only: bool = True
     ) -> list[PositionAssignment]:
         return self.repo.list_assignments(position_id, active_only=active_only)
+
+    def list_assignments_for_person(
+        self, personnel_id: str, *, active_only: bool = True
+    ) -> list[PositionAssignment]:
+        return self.repo.list_assignments_for_person(personnel_id, active_only=active_only)
 
     def list_assignment_history(self, position_id: int | None = None):
         return self.repo.list_assignment_history(position_id)

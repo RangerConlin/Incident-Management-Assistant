@@ -4,7 +4,7 @@ from typing import Optional
 
 from PySide6.QtWidgets import QWidget
 
-from modules.common.models.lookup_models import TaskTypesRepository
+from modules.common.models.lookup_models import ApiTaskTypesRepository
 
 from .base_editor import BaseTypeEditorDialog, ColumnSpec
 
@@ -20,7 +20,7 @@ class TaskTypesEditorDialog(BaseTypeEditorDialog):
         ColumnSpec("description", "Description"),
         ColumnSpec("updated_at", "Updated"),
     ]
-    repository = TaskTypesRepository
+    repository = ApiTaskTypesRepository
     has_priority_field = True
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:

@@ -65,9 +65,17 @@ _HELP_TEXTS = {
 
 def _load_catalog() -> list[dict]:
     try:
-        return json.loads(_BINDING_CATALOG_PATH.read_text(encoding="utf-8"))
+        raw = json.loads(_BINDING_CATALOG_PATH.read_text(encoding="utf-8"))
     except Exception:
         return []
+
+    if isinstance(raw, list):
+        return [entry for entry in raw if isinstance(entry, dict)]
+    if isinstance(raw, dict):
+        bindings = raw.get("bindings", [])
+        if isinstance(bindings, list):
+            return [entry for entry in bindings if isinstance(entry, dict)]
+    return []
 
 
 def _build_group_map(entries: list[dict]) -> dict[str, dict]:
@@ -85,6 +93,9 @@ def _build_group_map(entries: list[dict]) -> dict[str, dict]:
     groups: dict[str, dict] = {}
 
     for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
         path = entry.get("path", "")
         label = entry.get("label", path)
         source_type = entry.get("source_type", "")
@@ -220,7 +231,16 @@ class NewBindingDialog(QDialog):
 
         self.path_preview = QLabel()
         self.path_preview.setStyleSheet("font-family: monospace; color: #4a9eff;")
-        form.addRow("Path preview", self.path_preview)
+        form.addRow("Picker preview", self.path_preview)
+
+        self.path_edit = QLineEdit()
+        self.path_edit.setPlaceholderText("e.g. vehicles.0.vehicle_id")
+        form.addRow("Path", self.path_edit)
+
+        self.data_source_combo = QComboBox()
+        self.data_source_combo.addItem("Incident DB", "incident_db")
+        self.data_source_combo.addItem("Master DB", "master_db")
+        form.addRow("Data Source", self.data_source_combo)
 
         self.group_combo.currentIndexChanged.connect(self._refresh_field_combo)
         self.field_combo.currentIndexChanged.connect(self._refresh_path_preview)
@@ -296,11 +316,13 @@ class NewBindingDialog(QDialog):
             path = f"{group_key}.{field_suffix}" if field_suffix else group_key
 
         self.path_preview.setText(path)
+        if hasattr(self, "path_edit"):
+            self.path_edit.setText(path)
 
     def _build_path(self) -> str:
         type_key = self.type_combo.currentData()
         if type_key == "data_path":
-            return self.path_preview.text()
+            return self.path_edit.text().strip()
         elif type_key == "static":
             return ""
         elif type_key == "prompted":
@@ -327,11 +349,20 @@ class NewBindingDialog(QDialog):
             QMessageBox.warning(self, "New Binding", "Path is required for this binding type.")
             return
 
+        if type_key == "data_path" and not re.match(r"^[A-Za-z_]\w*(\.(\d+|[A-Za-z_]\w*))*$", path):
+            QMessageBox.warning(
+                self,
+                "New Binding",
+                "Data paths must use dot notation, e.g. vehicles.0.vehicle_id.",
+            )
+            return
+
         if path and path != self._edit_original_path and path in self._existing_paths:
             QMessageBox.warning(self, "New Binding", f"Path '{path}' already exists in the catalog.")
             return
 
-        entry: dict = {"path": path, "label": label, "category": category, "source_type": type_key}
+        source_type = self.data_source_combo.currentData() if type_key == "data_path" else type_key
+        entry: dict = {"path": path, "label": label, "category": category, "source_type": source_type}
 
         if type_key == "static":
             entry["static_value"] = self.static_value_edit.text()
@@ -347,12 +378,17 @@ class NewBindingDialog(QDialog):
         self.category_edit.setText(entry.get("category", ""))
 
         source_type = entry.get("source_type", "data_path")
-        idx = self.type_combo.findData(source_type)
+        type_key = "data_path" if source_type in ("incident_db", "master_db") else source_type
+        idx = self.type_combo.findData(type_key)
         if idx >= 0:
             self.type_combo.setCurrentIndex(idx)
 
         path = entry.get("path", "")
-        if source_type == "data_path" and path:
+        if type_key == "data_path" and path:
+            data_source_idx = self.data_source_combo.findData(source_type)
+            if data_source_idx >= 0:
+                self.data_source_combo.setCurrentIndex(data_source_idx)
+            self.path_edit.setText(path)
             parts = path.split(".")
             group = parts[0]
             gi = self.group_combo.findData(group)
@@ -372,14 +408,19 @@ class NewBindingDialog(QDialog):
             fi = self.field_combo.findData(suffix)
             if fi >= 0:
                 self.field_combo.setCurrentIndex(fi)
+            self.path_edit.setText(path)
 
-        elif source_type == "static":
+        elif type_key == "static":
             self.static_value_edit.setText(entry.get("static_value", ""))
-        elif source_type == "prompted":
+        elif type_key == "prompted":
             self.prompt_question_edit.setText(entry.get("prompt_text", ""))
             self.prompt_default_edit.setText(entry.get("prompt_default", ""))
-        elif source_type == "computed":
+        elif type_key == "computed":
             self.computed_path_edit.setText(path)
 
     def result_data(self) -> dict | None:
         return getattr(self, "_result", None)
+
+
+
+

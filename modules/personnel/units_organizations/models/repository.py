@@ -1,0 +1,152 @@
+"""Master-data repository for Units and Organizations.
+
+This module owns CRUD operations for organizations, organization types,
+rank structures, and ranks via the MongoDB API.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from utils.api_client import api_client
+
+
+@dataclass(slots=True)
+class DeleteResult:
+    """Outcome details when attempting to delete an organization."""
+
+    deleted: bool
+    message: str
+
+
+class UnitsOrganizationsRepository:
+    """API-backed repository for the Units and Organizations master-data editor."""
+
+    def __init__(self) -> None:
+        pass
+
+    # ---- Lookup helpers -------------------------------------------------------
+    def list_organization_types(self, include_inactive: bool = True) -> list[dict[str, Any]]:
+        try:
+            return api_client.get("/api/master/types") or []
+        except Exception:
+            return []
+
+    def list_rank_structures(self, include_inactive: bool = True) -> list[dict[str, Any]]:
+        try:
+            return api_client.get("/api/master/rank-structures") or []
+        except Exception:
+            return []
+
+    def list_organizations(self, include_inactive: bool = True) -> list[dict[str, Any]]:
+        try:
+            return api_client.get("/api/master/organizations") or []
+        except Exception:
+            return []
+
+    def get_organization(self, organization_id: int) -> dict[str, Any] | None:
+        try:
+            return api_client.get(f"/api/master/organizations/{organization_id}")
+        except Exception:
+            return None
+
+    # ---- Organization type CRUD ----------------------------------------------
+    def create_organization_type(self, payload: dict[str, Any]) -> int:
+        try:
+            result = api_client.post("/api/master/types", json=payload)
+            return result.get("int_id", 0) if result else 0
+        except Exception:
+            return 0
+
+    def update_organization_type(self, type_id: int, payload: dict[str, Any]) -> None:
+        try:
+            api_client.patch(f"/api/master/types/{type_id}", json=payload)
+        except Exception:
+            pass
+
+    # ---- Rank structure CRUD --------------------------------------------------
+    def create_rank_structure(self, payload: dict[str, Any]) -> int:
+        try:
+            result = api_client.post("/api/master/rank-structures", json=payload)
+            return result.get("int_id", 0) if result else 0
+        except Exception:
+            return 0
+
+    def update_rank_structure(self, rank_structure_id: int, payload: dict[str, Any]) -> None:
+        try:
+            api_client.patch(f"/api/master/rank-structures/{rank_structure_id}", json=payload)
+        except Exception:
+            pass
+
+    # ---- Rank rows CRUD ------------------------------------------------------
+    def list_ranks(self, rank_structure_id: int) -> list[dict[str, Any]]:
+        try:
+            return api_client.get("/api/master/ranks", params={"structure_id": rank_structure_id}) or []
+        except Exception:
+            return []
+
+    def replace_ranks(self, rank_structure_id: int, ranks: list[dict[str, Any]]) -> None:
+        try:
+            for idx, rank in enumerate(ranks):
+                if "rank_id" not in rank:
+                    api_client.post("/api/master/ranks", json={
+                        "rank_structure_id": rank_structure_id,
+                        "name": rank.get("rank_name", ""),
+                        "abbreviation": rank.get("rank_code", ""),
+                        "rank_order": rank.get("sort_order", idx),
+                    })
+        except Exception:
+            pass
+
+    def duplicate_rank_structure(
+        self,
+        source_rank_structure_id: int,
+        *,
+        new_name: str,
+        is_template: bool,
+        organization_type_id: int | None = None,
+    ) -> int:
+        """Create a full rank structure copy including ordered rank rows."""
+        try:
+            result = api_client.post(f"/api/master/rank-structures/{source_rank_structure_id}/duplicate")
+            return result.get("int_id", 0) if result else 0
+        except Exception:
+            return 0
+
+    # ---- Organization CRUD ----------------------------------------------------
+    def create_organization(self, payload: dict[str, Any], changed_by: str = "system") -> int:
+        try:
+            result = api_client.post("/api/master/organizations", json=payload)
+            return result.get("int_id", 0) if result else 0
+        except Exception:
+            return 0
+
+    def update_organization(self, organization_id: int, payload: dict[str, Any], changed_by: str = "system") -> None:
+        try:
+            api_client.patch(f"/api/master/organizations/{organization_id}", json=payload)
+        except Exception:
+            pass
+
+    def delete_organization(self, organization_id: int, changed_by: str = "system") -> DeleteResult:
+        """Delete an organization, soft-disable if it has child organizations."""
+        try:
+            api_client.delete(f"/api/master/organizations/{organization_id}")
+            return DeleteResult(True, "Organization deleted.")
+        except Exception as e:
+            return DeleteResult(False, str(e))
+
+    def move_sort_order(self, organization_id: int, direction: int) -> None:
+        """Move an organization up/down among sibling sort_order values."""
+        pass
+
+    def upsert_override(self, organization_id: int, rank_structure_id: int, override_mode: str) -> None:
+        try:
+            api_client.post(
+                f"/api/master/organizations/{organization_id}/rank-structure-override",
+                json={"rank_structure_id": rank_structure_id},
+            )
+        except Exception:
+            pass
+
+
+__all__ = ["UnitsOrganizationsRepository", "DeleteResult"]

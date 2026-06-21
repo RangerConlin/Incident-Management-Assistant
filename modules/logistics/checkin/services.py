@@ -1,26 +1,13 @@
-"""Simplified service layer for the Logistics Check-In window.
-
-The previous iteration of this module exposed a large rule engine and a
-complex roster workflow.  The Logistics team requested a leaner
-implementation that focuses on selecting master records and duplicating
-those rows into the active incident database.  This module therefore
-exposes lightweight helpers to list master records, create new entries,
-and copy them into the incident scope.  The tables are created on demand
-so tests can run against temporary SQLite files.
-"""
+"""API-backed service layer for the Logistics Check-In window."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import sqlite3
-
-from utils.db import get_incident_conn, get_master_conn
-
 
 @dataclass(frozen=True)
 class FieldSpec:
-    """Metadata describing a field exposed in the "new record" dialog."""
+    """Metadata describing a field exposed in the 'new record' dialog."""
 
     name: str
     label: str
@@ -44,78 +31,6 @@ class EntityConfig:
     autoincrement: bool = True
 
 
-_MASTER_SCHEMAS: Dict[str, str] = {
-    "personnel": """
-        CREATE TABLE IF NOT EXISTS personnel (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            rank TEXT,
-            callsign TEXT,
-            role TEXT,
-            contact TEXT,
-            unit TEXT,
-            phone TEXT,
-            email TEXT,
-            emergency_contact_name TEXT,
-            emergency_contact_phone TEXT,
-            emergency_contact_relationship TEXT
-        )
-    """,
-    "equipment": """
-        CREATE TABLE IF NOT EXISTS equipment (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            type TEXT,
-            serial_number TEXT,
-            condition TEXT,
-            condition_status TEXT,
-            resource_type_id INTEGER,
-            parent_equipment_id INTEGER,
-            kit_instance_id INTEGER,
-            contents_verified INTEGER NOT NULL DEFAULT 0,
-            notes TEXT
-        )
-    """,
-    "vehicle": """
-        CREATE TABLE IF NOT EXISTS vehicles (
-            id TEXT PRIMARY KEY,
-            vin TEXT,
-            license_plate TEXT,
-            year INTEGER,
-            make TEXT,
-            model TEXT,
-            capacity INTEGER,
-            type_id TEXT,
-            status_id TEXT NOT NULL DEFAULT 'Available',
-            resource_type_id INTEGER,
-            tags TEXT,
-            organization TEXT
-        )
-    """,
-    "aircraft": """
-        CREATE TABLE IF NOT EXISTS aircraft (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tail_number TEXT NOT NULL,
-            callsign TEXT,
-            type TEXT NOT NULL,
-            make_model TEXT,
-            capacity INTEGER,
-            status TEXT NOT NULL DEFAULT 'Available',
-            base_location TEXT,
-            current_assignment TEXT,
-            capabilities TEXT,
-            notes TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """,
-}
-
-_INCIDENT_SCHEMAS: Dict[str, str] = {
-    key: schema.replace("CREATE TABLE IF NOT EXISTS", "CREATE TABLE IF NOT EXISTS")
-    for key, schema in _MASTER_SCHEMAS.items()
-}
-
 ENTITY_CONFIG: Dict[str, EntityConfig] = {
     "personnel": EntityConfig(
         key="personnel",
@@ -138,9 +53,6 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
             FieldSpec("callsign", "Callsign"),
             FieldSpec("phone", "Phone"),
         ),
-        # Require the user to supply an explicit Personnel ID (numeric).
-        # The underlying schema remains INTEGER PRIMARY KEY AUTOINCREMENT so
-        # leaving it blank in other entry points will still auto-assign.
         id_field=FieldSpec("id", "Personnel ID", required=True, placeholder="e.g., 10001"),
         autoincrement=True,
     ),
@@ -208,7 +120,7 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
             FieldSpec("tail_number", "Tail Number", required=True),
             FieldSpec("type", "Type", required=True),
             FieldSpec("callsign", "Callsign"),
-            FieldSpec("base_location", "Base Location"),
+            FieldSpec("base", "Base Location"),
         ),
         autoincrement=True,
     ),
@@ -216,205 +128,111 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
 
 ENTITY_ORDER: Tuple[str, ...] = ("personnel", "vehicle", "equipment", "aircraft")
 
+# Master API base paths by entity type
+_MASTER_BASE: Dict[str, str] = {
+    "personnel": "/api/master/personnel",
+    "vehicle": "/api/master/vehicles",
+    "equipment": "/api/master/equipment",
+    "aircraft": "/api/master/aircraft",
+}
+
+
+def _client():
+    from utils.api_client import api_client
+    return api_client
+
+
+def _incident_base(incident_id: str) -> str:
+    return f"/api/incidents/{incident_id}/resources"
+
+
+def _incident_id() -> Optional[str]:
+    from utils import incident_context
+    return incident_context.get_active_incident_id()
+
 
 def _get_config(entity_type: str) -> EntityConfig:
     try:
         return ENTITY_CONFIG[entity_type]
-    except KeyError as exc:  # pragma: no cover - defensive
+    except KeyError as exc:
         raise ValueError(f"Unknown entity type: {entity_type}") from exc
 
 
-def _ensure_master_schema(conn: sqlite3.Connection, config: EntityConfig) -> None:
-    conn.execute(_MASTER_SCHEMAS[config.key])
-    conn.commit()
-
-
-def _ensure_incident_schema(conn: sqlite3.Connection, config: EntityConfig) -> None:
-    conn.execute(_INCIDENT_SCHEMAS[config.key])
-    conn.commit()
-
-
 def iter_entity_configs() -> Iterable[EntityConfig]:
-    """Yield entity configurations in UI order."""
-
     for key in ENTITY_ORDER:
         yield ENTITY_CONFIG[key]
 
 
 def get_entity_config(entity_type: str) -> EntityConfig:
-    """Return the configuration for ``entity_type``."""
-
     return _get_config(entity_type)
 
 
-_SEARCH_COLUMN_CACHE: Dict[str, Tuple[str, ...]] = {}
-
-
-def _search_columns(config: EntityConfig) -> Tuple[str, ...]:
-    """Return the master table columns that should be searched."""
-
-    try:
-        return _SEARCH_COLUMN_CACHE[config.key]
-    except KeyError:
-        pass
-
-    ordered: List[str] = []
-    seen: set[str] = set()
-
-    if config.id_column not in seen:
-        ordered.append(config.id_column)
-        seen.add(config.id_column)
-
-    for column_name, _ in config.display_columns:
-        if column_name not in seen:
-            ordered.append(column_name)
-            seen.add(column_name)
-
-    for field in config.form_fields:
-        if field.name not in seen:
-            ordered.append(field.name)
-            seen.add(field.name)
-
-    _SEARCH_COLUMN_CACHE[config.key] = tuple(ordered)
-    return _SEARCH_COLUMN_CACHE[config.key]
-
-
 class CheckInService:
-    """Facade that manages master and incident check-in records."""
+    """API-backed facade that manages master and incident resource check-in."""
 
-    def _rows_with_checked_flag(
-        self, config: EntityConfig, rows: Iterable[sqlite3.Row]
-    ) -> List[Dict[str, Any]]:
-        """Normalize SQLite rows and mark whether they exist in the incident DB."""
+    def _checked_in_ids(self, entity_type: str) -> set[str]:
+        incident_id = _incident_id()
+        if not incident_id:
+            return set()
+        try:
+            ids = _client().get(
+                f"{_incident_base(incident_id)}/checked-ids",
+                params={"resource_type": entity_type},
+            ) or []
+            return {str(i) for i in ids}
+        except Exception:
+            return set()
 
-        normalized = [dict(row) for row in rows]
-        if not normalized:
-            return normalized
-
-        incident_ids = self._incident_id_set(config)
-        for record in normalized:
-            identifier = record.get(config.id_column)
-            record["_checked_in"] = (
-                str(identifier) in incident_ids if identifier is not None else False
-            )
-        return normalized
+    def _mark_checked_in(self, entity_type: str, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        config = _get_config(entity_type)
+        checked = self._checked_in_ids(entity_type)
+        for r in records:
+            identifier = r.get(config.id_column)
+            r["_checked_in"] = str(identifier) in checked if identifier is not None else False
+        return records
 
     def list_master_records(self, entity_type: str) -> List[Dict[str, Any]]:
-        """Return all master records for ``entity_type`` sorted for display."""
-
-        config = _get_config(entity_type)
-        with get_master_conn() as master_conn:
-            _ensure_master_schema(master_conn, config)
-            rows = master_conn.execute(
-                f"SELECT * FROM {config.master_table} ORDER BY {config.sort_column}"
-            ).fetchall()
-        return self._rows_with_checked_flag(config, rows)
+        base = _MASTER_BASE[entity_type]
+        try:
+            records = _client().get(base) or []
+        except Exception:
+            return []
+        return self._mark_checked_in(entity_type, records)
 
     def search_master_records(
         self, entity_type: str, query: str, limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """Search master records matching ``query`` and return limited results."""
-
-        config = _get_config(entity_type)
-        trimmed = query.strip()
-        if not trimmed:
+        base = _MASTER_BASE[entity_type]
+        try:
+            records = _client().get(base, params={"search": query, "limit": limit}) or []
+        except Exception:
             return []
-
-        terms = [part.strip() for part in trimmed.split() if part.strip()]
-        if not terms:
-            return []
-
-        columns = _search_columns(config)
-        if not columns:
-            return []
-
-        where_parts: List[str] = []
-        params: List[Any] = []
-        for term in terms:
-            like = f"%{term.lower()}%"
-            clause_fragments: List[str] = []
-            for column in columns:
-                clause_fragments.append(
-                    f"LOWER(CAST(COALESCE({column}, '') AS TEXT)) LIKE ?"
-                )
-                params.append(like)
-            where_parts.append("(" + " OR ".join(clause_fragments) + ")")
-
-        where_sql = " AND ".join(where_parts)
-        limit_value = limit if isinstance(limit, int) and limit > 0 else 50
-        params.append(limit_value)
-
-        sql = (
-            f"SELECT * FROM {config.master_table} WHERE {where_sql} "
-            f"ORDER BY {config.sort_column} LIMIT ?"
-        )
-
-        with get_master_conn() as master_conn:
-            _ensure_master_schema(master_conn, config)
-            rows = master_conn.execute(sql, params).fetchall()
-        return self._rows_with_checked_flag(config, rows)
+        return self._mark_checked_in(entity_type, records)
 
     def create_master_record(self, entity_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Insert a new master record and return the stored row."""
-
         config = _get_config(entity_type)
-        columns: List[str] = []
-        values: List[Any] = []
-        supplied_id: Optional[Any] = None
+        base = _MASTER_BASE[entity_type]
 
+        # Validate required fields
         if config.id_field is not None:
             supplied = data.get(config.id_column)
-            supplied_str = supplied.strip() if isinstance(supplied, str) else supplied
+            supplied_str = supplied.strip() if isinstance(supplied, str) else str(supplied) if supplied is not None else ""
             if config.id_field.required and not supplied_str:
                 raise ValueError(f"{config.id_field.label} is required")
-            if supplied_str is not None and supplied_str != "":
-                if config.autoincrement:
-                    try:
-                        supplied_id = int(supplied_str)
-                    except (TypeError, ValueError) as exc:
-                        raise ValueError(
-                            f"Invalid identifier for {config.title}. Use a numeric ID."
-                        ) from exc
-                else:
-                    supplied_id = str(supplied_str)
-                columns.append(config.id_column)
-                values.append(supplied_id)
 
         for field in config.form_fields:
-            raw_value = data.get(field.name)
-            text_value = raw_value.strip() if isinstance(raw_value, str) else raw_value
-            if field.required:
-                if not text_value:
-                    raise ValueError(f"{field.label} is required")
-                columns.append(field.name)
-                values.append(text_value)
-            else:
-                if text_value not in (None, ""):
-                    columns.append(field.name)
-                    values.append(text_value)
+            raw = data.get(field.name)
+            text = raw.strip() if isinstance(raw, str) else raw
+            if field.required and not text:
+                raise ValueError(f"{field.label} is required")
 
-        if not columns:
-            raise ValueError("No data provided")
+        try:
+            doc = _client().post(base, json=data)
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
 
-        placeholders = ", ".join("?" for _ in columns)
-        column_list = ", ".join(columns)
-        sql = f"INSERT INTO {config.master_table} ({column_list}) VALUES ({placeholders})"
-
-        with get_master_conn() as master_conn:
-            _ensure_master_schema(master_conn, config)
-            try:
-                cur = master_conn.execute(sql, values)
-            except sqlite3.IntegrityError as exc:
-                raise ValueError(f"{config.title} already exists with that identifier") from exc
-            master_conn.commit()
-            if supplied_id is not None:
-                new_id = supplied_id
-            else:
-                new_id = cur.lastrowid
-
-        record = self._get_master_record(config, new_id)
-        record["_checked_in"] = False
-        return record
+        doc["_checked_in"] = False
+        return doc
 
     def check_in(
         self,
@@ -422,48 +240,28 @@ class CheckInService:
         record_id: Any,
         overrides: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Copy the master record into the incident database, applying overrides."""
+        incident_id = _incident_id()
+        if not incident_id:
+            raise RuntimeError("No active incident")
 
-        config = _get_config(entity_type)
-        record = self._get_master_record(config, record_id)
-        if overrides:
-            for key, value in overrides.items():
-                if key == config.id_column:
-                    continue
-                if key in record:
-                    record[key] = value
-        with get_incident_conn() as incident_conn:
-            _ensure_incident_schema(incident_conn, config)
-            # Filter to columns present in the incident table to avoid schema mismatches
-            incident_columns = {
-                row[1]
-                for row in incident_conn.execute(
-                    f"PRAGMA table_info({config.incident_table})"
-                ).fetchall()
-            }
-            filtered_columns = [c for c in record.keys() if c in incident_columns]
-            if not filtered_columns:
-                raise ValueError(
-                    f"No compatible columns to insert for {config.incident_table}"
-                )
-            values = [record[c] for c in filtered_columns]
-            placeholders = ", ".join("?" for _ in filtered_columns)
-            column_list = ", ".join(filtered_columns)
-            sql = (
-                f"INSERT OR REPLACE INTO {config.incident_table} ({column_list})"
-                f" VALUES ({placeholders})"
+        try:
+            doc = _client().post(
+                f"{_incident_base(incident_id)}/{entity_type}/{record_id}",
+                json=overrides or {},
             )
-            incident_conn.execute(sql, values)
-            incident_conn.commit()
-        record["_checked_in"] = True
-        # Ensure personnel check-ins create/update a row in incident checkins for roster views
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+
+        doc["_checked_in"] = True
+
+        # For personnel check-ins, also create a roster record
         if entity_type == "personnel":
             try:
                 from . import repository as ci_repo
                 from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
                 from datetime import datetime
                 now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
-                pid = str(record.get("id", ""))
+                pid = str(doc.get("id") or doc.get("person_id") or record_id)
                 if pid:
                     existing = None
                     try:
@@ -477,76 +275,27 @@ class CheckInService:
                             personnel_status=PersonnelStatus.AVAILABLE,
                             arrival_time=now_iso,
                             location=Location.ICP,
-                            incident_callsign=record.get("callsign"),
-                            incident_phone=record.get("phone"),
+                            incident_callsign=doc.get("callsign"),
+                            incident_phone=doc.get("phone") or doc.get("contact"),
                             team_id=None,
-                            role_on_team=record.get("role"),
+                            role_on_team=doc.get("role") or doc.get("primary_role"),
                         )
                     else:
                         rec = existing
-                        try:
-                            rec.ci_status = CIStatus.CHECKED_IN
-                        except Exception:
-                            pass
-                        try:
-                            rec.updated_at = now_iso
-                        except Exception:
-                            pass
                     try:
                         ci_repo.save_checkin(rec)
                     except Exception:
                         pass
             except Exception:
                 pass
-        return record
 
-    def _incident_id_set(self, config: EntityConfig) -> set[str]:
-        with get_incident_conn() as incident_conn:
-            _ensure_incident_schema(incident_conn, config)
-            rows = incident_conn.execute(
-                f"SELECT {config.id_column} FROM {config.incident_table}"
-            ).fetchall()
-        identifiers: set[str] = set()
-        for row in rows:
-            value = row[config.id_column]
-            if value is not None:
-                identifiers.add(str(value))
-        return identifiers
-
-    def _normalize_identifier(self, config: EntityConfig, record_id: Any) -> Any:
-        if record_id is None:
-            raise ValueError("Record identifier is required")
-        if config.autoincrement:
-            if isinstance(record_id, int):
-                return record_id
-            text = str(record_id).strip()
-            if not text:
-                raise ValueError("Record identifier is required")
-            try:
-                return int(text)
-            except ValueError as exc:
-                raise ValueError(f"Invalid identifier for {config.title}") from exc
-        return str(record_id).strip()
-
-    def _get_master_record(self, config: EntityConfig, record_id: Any) -> Dict[str, Any]:
-        normalized = self._normalize_identifier(config, record_id)
-        with get_master_conn() as master_conn:
-            _ensure_master_schema(master_conn, config)
-            row = master_conn.execute(
-                f"SELECT * FROM {config.master_table} WHERE {config.id_column} = ?",
-                (normalized,),
-            ).fetchone()
-        if row is None:
-            raise ValueError(f"{config.title} record not found")
-        return dict(row)
+        return doc
 
 
 _service: Optional[CheckInService] = None
 
 
 def get_service() -> CheckInService:
-    """Return a shared :class:`CheckInService` instance."""
-
     global _service
     if _service is None:
         _service = CheckInService()
@@ -554,8 +303,6 @@ def get_service() -> CheckInService:
 
 
 def reset_service() -> None:
-    """Reset the shared service instance (useful for tests)."""
-
     global _service
     _service = None
 

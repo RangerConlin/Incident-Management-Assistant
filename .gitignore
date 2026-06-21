@@ -61,11 +61,10 @@ Thumbs.db
 *.rej
 _tmp_*
 tmp_*
-scripts/dev
-old qml/
+# One-shot migration/seed scripts (already applied; not needed in repo)
+scripts/
 
-# Local dev scripts sandbox (ignored)
-scripts/local/**
+old qml/
 
 # Build artifacts
 dist/

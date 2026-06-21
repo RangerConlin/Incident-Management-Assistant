@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from modules._infra.base import Base
 # Import model modules so tables are registered on Base metadata
 import modules.ics214.models  # noqa: F401
-import modules.org.models  # noqa: F401
+import modules.personnel.org_models  # noqa: F401
 import modules.command.models.objectives  # noqa: F401
 
 _engine_cache: Dict[str, Any] = {}

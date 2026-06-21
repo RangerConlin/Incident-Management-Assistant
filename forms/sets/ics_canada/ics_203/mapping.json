@@ -1,0 +1,939 @@
+{
+  "description": "ICS 203 — Organization Assignment List — ICS Canada 2023",
+  "fields": [
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 DATE",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "3 TIME",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "0",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "2",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "1",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "1",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": " INCIDENT COMMAND AND STAFF Inident Cmndr/Unified Cmndrs A",
+      "source": "organization.incident_commander.name"
+    },
+    {
+      "pdf_field": "uc_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "uc_name2",
+      "source": ""
+    },
+    {
+      "pdf_field": " INCIDENT COMMAND AND STAFF Deputy",
+      "source": "organization.deputy_incident_commander.name"
+    },
+    {
+      "pdf_field": " INCIDENT COMMAND AND STAFF Safety Officer",
+      "source": "organization.safety_officer.name"
+    },
+    {
+      "pdf_field": " INCIDENT COMMAND AND STAFF Information Officer",
+      "source": "organization.public_information_officer.name"
+    },
+    {
+      "pdf_field": " INCIDENT COMMAND AND STAFF Liaison Officer",
+      "source": "organization.liaison_officer.name"
+    },
+    {
+      "pdf_field": " OPERATIONS SECTION Chief",
+      "source": "organization.incident_commander"
+    },
+    {
+      "pdf_field": " OPERATIONS SECTION Deputy",
+      "source": "organization.deputy_operations_section_chief.name"
+    },
+    {
+      "pdf_field": "rep_agency1",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_agency2",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_name2",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_agency3",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_name3",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_agency4",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_name4",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_agency5",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_name5",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_agency6",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_name6",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_agency7",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_name7",
+      "source": ""
+    },
+    {
+      "pdf_field": " PLANNING SECTION Chief",
+      "source": "organization.planning_section_chief.name"
+    },
+    {
+      "pdf_field": " PLANNING SECTION Deputy",
+      "source": "organization.deputy_planning_section_chief.name"
+    },
+    {
+      "pdf_field": " PLANNING SECTION Resources Unit",
+      "source": "organization.resources_unit_leader.name"
+    },
+    {
+      "pdf_field": " PLANNING SECTION Situation Unit",
+      "source": "organization.situation_unit_leader.name"
+    },
+    {
+      "pdf_field": " PLANNING SECTION Documentation Unit",
+      "source": "organization.documentation_unit_leader.name"
+    },
+    {
+      "pdf_field": " PLANNING SECTION Demobilization Unit",
+      "source": "organization.demobilization_unit_leader.name"
+    },
+    {
+      "pdf_field": "tech_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "tech_specialty1",
+      "source": ""
+    },
+    {
+      "pdf_field": "tech_name2",
+      "source": ""
+    },
+    {
+      "pdf_field": "tech_specialty2",
+      "source": ""
+    },
+    {
+      "pdf_field": "tech_name3",
+      "source": ""
+    },
+    {
+      "pdf_field": "tech_specialty3",
+      "source": ""
+    },
+    {
+      "pdf_field": "tech_name4",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_id1",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_director1",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_deputy1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_1_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_1_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_2_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_2_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_3_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_3_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_4_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_4_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_5_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_5_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": " LOGISTICS SECTION Chief",
+      "source": "organization.logistics_section_chief.name"
+    },
+    {
+      "pdf_field": " LOGISTICS SECTION Deputy",
+      "source": "organization.logistics_section_chief.name"
+    },
+    {
+      "pdf_field": " Dir",
+      "source": "organization.air_operations_branch_director.name"
+    },
+    {
+      "pdf_field": " AIR OPERATIONS BRANCH Air Tactical Group Sup Row1",
+      "source": "organization.air_tactical_group_supervisor.name"
+    },
+    {
+      "pdf_field": " AIR OPERATIONS BRANCH Air Tactical Group Sup Row2",
+      "source": "organization.air_support_group_supervisor.name"
+    },
+    {
+      "pdf_field": " AIR OPERATIONS BRANCH Position1",
+      "source": ""
+    },
+    {
+      "pdf_field": " AIR OPERATIONS BRANCH Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": " AIR OPERATIONS BRANCH Position2",
+      "source": ""
+    },
+    {
+      "pdf_field": " AIR OPERATIONS BRANCH Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_id1",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_director1",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_deputy1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_1_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_1_supervisor1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_2_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_2_supervisor1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_3_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_3_supervisor1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_4_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_4_supervisor1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_5_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_5_supervisor1",
+      "source": ""
+    },
+    {
+      "pdf_field": " SUPPORT BRANCH Director",
+      "source": "organization.support_branch_director.name"
+    },
+    {
+      "pdf_field": " SUPPORT BRANCH Supply Unit",
+      "source": "organization.supply_unit_leader.name"
+    },
+    {
+      "pdf_field": " SUPPORT BRANCH Facilities Unit",
+      "source": "organization.facilities_unit_leader.name"
+    },
+    {
+      "pdf_field": " SUPPORT BRANCH Ground Support Unit",
+      "source": "organization.ground_support_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Chief",
+      "source": "organization.finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Deputy",
+      "source": "organization.deputy_finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": " SERVICE BRANCH Director",
+      "source": "organization.service_branch_director.name"
+    },
+    {
+      "pdf_field": " SERVICE BRANCH Communications Unit",
+      "source": "organization.communications_unit_leader.name"
+    },
+    {
+      "pdf_field": " SERVICE BRANCH Medical Unit",
+      "source": "organization.medical_unit_leader.name"
+    },
+    {
+      "pdf_field": " SERVICE BRANCH Food Unit",
+      "source": "organization.food_unit_leader.name"
+    },
+    {
+      "pdf_field": "branch_id1",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_director1",
+      "source": ""
+    },
+    {
+      "pdf_field": "branch_deputy1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_1_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_1_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_2_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_2_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_3_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_3_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_4_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_4_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_5_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "div_5_supervisor2",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Time Unit",
+      "source": "organization.time_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Procurement Unit",
+      "source": "organization.procurement_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Compensation/Claims",
+      "source": "organization.compensation_claims_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Cost Unit",
+      "source": "organization.cost_unit_leader.name"
+    },
+    {
+      "pdf_field": "PREPARED BY (Resources Only)",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Information Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Inident Cmndr/Unified Cmndrs A",
+      "source": ""
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Inident Cmndr/Unified Cmndrs B",
+      "source": ""
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Inident Cmndr/Unified Cmndrs C",
+      "source": ""
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Liaison Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Safety Officer",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Chief",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Demobilization Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Documentation Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Name2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Name3",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Position1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Position2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Position3",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Resources Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Situation Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Technical Specialists",
+      "source": ""
+    },
+    {
+      "pdf_field": "8. LOGISTICS SECTION Chief",
+      "source": ""
+    },
+    {
+      "pdf_field": "8. LOGISTICS SECTION Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. OPERATIONS SECTION Chief",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. OPERATIONS SECTION Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text17.0",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text17.0.0",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text17.0.1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text17.1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text17.2",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Branch Director",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Division Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Division Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Division Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Division Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Division Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Group Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Group Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Group Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Group Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. BRANCH - DIVISIONS/GROUPS Division/Group Group Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Director",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Facilities Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Ground Support Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Supply Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Branch Director",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Division Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Division Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Division Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Division Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Division Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. BRANCH - DIVISIONS/GROUPS Division/Group Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Communications Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Director",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Food Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Medical Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Branch Director",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Division Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Division Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Division Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Division Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Division Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "c. BRANCH - DIVISIONS/GROUPS Division/Group Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Air Operations Br",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Air Operations Br. Dir",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Air Tactical Group Sup Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Air Tactical Group Sup Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Position1",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Position2",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "5",
+      "source": ""
+    },
+    {
+      "pdf_field": "7",
+      "source": ""
+    },
+    {
+      "pdf_field": "8",
+      "source": ""
+    },
+    {
+      "pdf_field": "9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text17",
+      "source": ""
+    },
+    {
+      "pdf_field": "a",
+      "source": ""
+    },
+    {
+      "pdf_field": "b",
+      "source": ""
+    },
+    {
+      "pdf_field": "c",
+      "source": ""
+    },
+    {
+      "pdf_field": "d",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Branch Director",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Deputy",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Division Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Division Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Group Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Division Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Group Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Division Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Division Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": " BRANCH - DIVISIONS/GROUPS Division/Group Group Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "AgencyRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Representative Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": " INCIDENT COMMAND AND STAFF Inident Cmndr/Unified Cmndrs C",
+      "source": ""
+    },
+    {
+      "pdf_field": " PLANNING SECTION Name1",
+      "source": ""
+    },
+    {
+      "pdf_field": " PLANNING SECTION Position2",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "uc_commanders",
+      "data_key": "uc_commanders",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "uc_name": "uc_name{n}"
+      }
+    },
+    {
+      "ref": "org_branches",
+      "data_key": "org_branches",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "branch_id": "branch_id{n}",
+        "branch_director": "branch_director{n}",
+        "branch_deputy": "branch_deputy{n}",
+        "div_1_name": "div_1_name{n}",
+        "div_1_supervisor": "div_1_supervisor{n}",
+        "div_2_name": "div_2_name{n}",
+        "div_2_supervisor": "div_2_supervisor{n}",
+        "div_3_name": "div_3_name{n}",
+        "div_3_supervisor": "div_3_supervisor{n}",
+        "div_4_name": "div_4_name{n}",
+        "div_4_supervisor": "div_4_supervisor{n}",
+        "div_5_name": "div_5_name{n}",
+        "div_5_supervisor": "div_5_supervisor{n}"
+      }
+    },
+    {
+      "ref": "org_agency_reps",
+      "data_key": "org_agency_reps",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "rep_agency": "rep_agency{n}",
+        "rep_name": "rep_name{n}"
+      }
+    },
+    {
+      "ref": "planning_tech_specialists",
+      "data_key": "planning_tech_specialists",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "tech_name": "tech_name{n}",
+        "tech_specialty": "tech_specialty{n}"
+      }
+    }
+  ]
+}

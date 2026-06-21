@@ -41,7 +41,6 @@ from styles import styles as app_styles
 from styles import tokens
 from utils.state import AppState
 from utils.app_signals import app_signals
-from models.database import get_incident_by_number
 
 from ..data.ems_agencies_schema import (
     EMSAgencyRepository,
@@ -303,7 +302,11 @@ class EMSAgenciesWindow(QMainWindow):
         self.table.setModel(self.model)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
+        self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
+        from utils.itemview_delegates import RowOutlineSelectionDelegate
+        self._sel_delegate = RowOutlineSelectionDelegate(self.table, QColor("#FFFFFF"))
+        self.table.setItemDelegate(self._sel_delegate)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.verticalHeader().setVisible(False)
@@ -484,8 +487,12 @@ class EMSAgenciesWindow(QMainWindow):
     def _compose_title(self) -> str:
         incident_number = AppState.get_active_incident()
         if incident_number:
-            record = get_incident_by_number(incident_number)
-            name = record.get("name") if record else None
+            try:
+                from utils.api_client import api_client
+                results = api_client.get("/api/incidents", params={"number": str(incident_number)}) or []
+                name = results[0].get("name") if results else None
+            except Exception:
+                name = None
             if name:
                 return f"EMS Agencies — {name}"
             return f"EMS Agencies — Incident {incident_number}"

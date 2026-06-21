@@ -1,87 +1,45 @@
 """Personnel certification API for UI usage.
 
-This API reads the catalog mirror from the master DB and permits editing
-of personnel certification levels and attachments. Direct catalog writes
-are blocked in production. In developer mode, tools may regenerate the
-catalog code and re-run the seeder.
+This API reads the catalog from the MongoDB master DB and permits editing
+of personnel certification levels and attachments.
 """
 
 from __future__ import annotations
 
-import sqlite3
-from typing import List, Dict, Any, Iterable
+from typing import List, Dict, Any
 
-from utils.db import get_master_conn
-from utils.sqlite_helpers import enable_foreign_keys
+from utils.api_client import api_client
 from utils.app_settings import DEV_MODE
 from modules.personnel.models.validation_profiles import PROFILES, get_profile
 
 
-def _conn() -> sqlite3.Connection:
-    conn = get_master_conn()
-    enable_foreign_keys(conn)
-    return conn
-
-
 def list_catalog(filter_text: str = "", category: str | None = None) -> List[Dict[str, Any]]:
-    """List catalog types from the DB mirror with optional filters.
-
-    Returns dicts: id, code, name, category, issuing_organization, parent_id.
-    """
-    sql = (
-        "SELECT id, code, name, category, issuing_organization, parent_certification_id AS parent_id "
-        "FROM certification_types"
-    )
-    where: list[str] = []
-    params: list[Any] = []
-    if filter_text:
-        where.append("(LOWER(code) LIKE ? OR LOWER(name) LIKE ?)")
-        needle = f"%{filter_text.lower()}%"
-        params.extend([needle, needle])
-    if category:
-        where.append("category = ?")
-        params.append(category)
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY category, code"
-
-    conn = _conn()
+    """List catalog types from the API with optional filters."""
     try:
-        cur = conn.execute(sql, params)
-        rows = cur.fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        conn.close()
+        params = {}
+        if filter_text:
+            params["search"] = filter_text
+        certs = api_client.get("/api/master/certifications/types", params=params) or []
+        if category:
+            certs = [c for c in certs if c.get("category") == category]
+        return certs
+    except Exception:
+        return []
 
 
 def list_tags_for_cert(cert_type_id: int) -> list[str]:
-    conn = _conn()
     try:
-        cur = conn.execute(
-            "SELECT tag FROM cert_tags WHERE certification_type_id = ? ORDER BY tag",
-            (int(cert_type_id),),
-        )
-        return [str(r[0]) for r in cur.fetchall()]
-    finally:
-        conn.close()
+        return api_client.get(f"/api/master/certifications/types/{cert_type_id}/tags") or []
+    except Exception:
+        return []
 
 
 def list_personnel_certs(personnel_id: int) -> List[Dict[str, Any]]:
-    """Return the person's certifications, joined to catalog mirror."""
-    sql = (
-        "SELECT pc.certification_type_id AS id, ct.code, ct.name, ct.category, "
-        "pc.level, pc.attachment_url "
-        "FROM personnel_certifications pc "
-        "JOIN certification_types ct ON ct.id = pc.certification_type_id "
-        "WHERE pc.personnel_id = ? "
-        "ORDER BY ct.category, ct.code"
-    )
-    conn = _conn()
+    """Return the person's certifications from the API."""
     try:
-        cur = conn.execute(sql, (int(personnel_id),))
-        return [dict(row) for row in cur.fetchall()]
-    finally:
-        conn.close()
+        return api_client.get(f"/api/master/certifications/personnel/{personnel_id}") or []
+    except Exception:
+        return []
 
 
 def set_personnel_cert(
@@ -90,43 +48,22 @@ def set_personnel_cert(
     level: int,
     attachment_url: str | None,
 ) -> None:
-    """Insert or update a person's certification record."""
-    conn = _conn()
+    """Insert or update a person's certification record via API."""
     try:
-        # Enforce valid range 0..3
         lvl = max(0, min(3, int(level)))
-        # If row exists, update; otherwise insert
-        cur = conn.execute(
-            "SELECT id FROM personnel_certifications WHERE personnel_id = ? AND certification_type_id = ?",
-            (int(personnel_id), int(cert_type_id)),
+        api_client.post(
+            f"/api/master/certifications/personnel/{personnel_id}/{cert_type_id}",
+            json={"level": lvl, "attachment_url": attachment_url},
         )
-        row = cur.fetchone()
-        if row:
-            conn.execute(
-                "UPDATE personnel_certifications SET level = ?, attachment_url = ? WHERE id = ?",
-                (lvl, attachment_url, int(row[0])),
-            )
-        else:
-            conn.execute(
-                "INSERT INTO personnel_certifications (personnel_id, certification_type_id, level, attachment_url) "
-                "VALUES (?, ?, ?, ?)",
-                (int(personnel_id), int(cert_type_id), lvl, attachment_url),
-            )
-        conn.commit()
-    finally:
-        conn.close()
+    except Exception:
+        pass
 
 
 def delete_personnel_cert(personnel_id: int, cert_type_id: int) -> None:
-    conn = _conn()
     try:
-        conn.execute(
-            "DELETE FROM personnel_certifications WHERE personnel_id = ? AND certification_type_id = ?",
-            (int(personnel_id), int(cert_type_id)),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+        api_client.delete(f"/api/master/certifications/personnel/{personnel_id}/{cert_type_id}")
+    except Exception:
+        pass
 
 
 def list_profiles() -> list[dict]:

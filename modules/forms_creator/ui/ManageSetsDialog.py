@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from modules.forms.form_set_registry import FormSetRegistry
+from modules.forms_creator.form_set_registry import FormSetRegistry
 from .dialogs.NewFormSetDialog import NewFormSetDialog
 
 

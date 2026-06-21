@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..data.hazard_type_repository import HazardTypeRepository
+from ..data.hazard_type_repository import ApiHazardTypeRepository
 from ..models.hazard_type_models import (
     HAZARD_CATEGORIES,
     HAZARD_LIKELIHOODS,
@@ -178,7 +178,7 @@ class HazardTypeEditorWindow(QDialog):
 
     def __init__(
         self,
-        repository: HazardTypeRepository,
+        repository: ApiHazardTypeRepository,
         hazard_type: Optional[HazardType] = None,
         parent: Optional[QWidget] = None,
     ) -> None:

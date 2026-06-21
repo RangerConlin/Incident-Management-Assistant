@@ -1,0 +1,3 @@
+PySide6
+pymongo>=4.6
+# sarapp-db installed from data/ via: pip install -e ../data

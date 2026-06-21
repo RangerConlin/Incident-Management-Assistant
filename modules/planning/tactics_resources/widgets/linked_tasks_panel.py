@@ -118,27 +118,21 @@ class LinkedTasksPanel(QWidget):
             self._table.item(row, 0).setData(Qt.UserRole, (link.id, link.task_id))
 
     def _fetch_task_info(self, task_id: int) -> dict:
-        """Get task data directly from the incident DB."""
+        """Get task data from the API."""
         try:
-            import sqlite3 as _sq
-            from utils.incident_context import get_active_incident_db_path
-            db_path = self._db_path or str(get_active_incident_db_path())
-            conn = _sq.connect(db_path)
-            conn.row_factory = _sq.Row
-            row = conn.execute(
-                "SELECT task_id, title, category, status, priority FROM tasks WHERE id=?",
-                (int(task_id),)
-            ).fetchone()
-            conn.close()
-            if row:
-                pri_map = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
-                pri = row["priority"]
+            from utils.api_client import api_client
+            from utils.incident_context import get_active_incident_id
+            iid = get_active_incident_id()
+            if not iid:
+                return {}
+            doc = api_client.get(f"/api/incidents/{iid}/operations/tasks/{task_id}")
+            if doc:
                 return {
-                    "title": row["title"] or "",
-                    "category": row["category"] or "",
+                    "title": doc.get("title", ""),
+                    "category": doc.get("category", ""),
                     "team": "",
-                    "status": row["status"] or "",
-                    "priority": pri_map.get(int(pri), str(pri)) if pri is not None else "",
+                    "status": doc.get("status", ""),
+                    "priority": doc.get("priority", ""),
                 }
         except Exception:
             pass
@@ -272,24 +266,19 @@ class _LinkTaskDialog(QDialog):
         search_text = self._search_edit.text().strip().lower()
         self._task_table.setRowCount(0)
         try:
-            import sqlite3 as _sq
-            from utils.incident_context import get_active_incident_db_path
-            db_path = self._db_path or str(get_active_incident_db_path())
-            conn = _sq.connect(db_path)
-            conn.row_factory = _sq.Row
-            rows = conn.execute(
-                "SELECT id, task_id, title, status, priority FROM tasks ORDER BY id DESC LIMIT 500"
-            ).fetchall()
-            conn.close()
+            from utils.api_client import api_client
+            from utils.incident_context import get_active_incident_id
+            iid = get_active_incident_id()
+            if not iid:
+                return
+            rows = api_client.get(f"/api/incidents/{iid}/operations/tasks") or []
         except Exception:
             return
-        priority_map = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
         for r in rows:
-            tid = r["task_id"] or f"T-{r['id']}"
-            title = r["title"] or ""
-            status = r["status"] or ""
-            pri_raw = r["priority"]
-            priority = priority_map.get(int(pri_raw), str(pri_raw)) if pri_raw is not None else ""
+            tid = r.get("task_id") or f"T-{r.get('id', '')}"
+            title = r.get("title", "")
+            status = r.get("status", "")
+            priority = r.get("priority", "")
             if search_text and search_text not in str(tid).lower() and search_text not in title.lower():
                 continue
             row_idx = self._task_table.rowCount()
@@ -298,7 +287,7 @@ class _LinkTaskDialog(QDialog):
             self._task_table.setItem(row_idx, 1, QTableWidgetItem(title))
             self._task_table.setItem(row_idx, 2, QTableWidgetItem(status))
             self._task_table.setItem(row_idx, 3, QTableWidgetItem(priority))
-            self._task_table.item(row_idx, 0).setData(Qt.UserRole, r["id"])
+            self._task_table.item(row_idx, 0).setData(Qt.UserRole, r.get("id"))
 
     def _link_selected(self) -> None:
         # If task list available, use selection

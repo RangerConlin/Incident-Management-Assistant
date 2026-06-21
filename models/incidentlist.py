@@ -7,9 +7,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtCore import QSortFilterProxyModel, QObject, Signal, Slot, QModelIndex
 from PySide6.QtWidgets import QMessageBox
-import os, sqlite3
 
-from utils import incident_storage
 from types import SimpleNamespace
 from typing import List, Any
 import logging
@@ -18,82 +16,31 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["IncidentListModel", "IncidentProxyModel", "IncidentController"]
 
-# ---------------- Helpers (DB) ---------------- #
-
-def _abs_master_db_path() -> str:
-    return str(incident_storage.master_db_path())
-
-def _table_exists(cur, name: str) -> bool:
-    cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?;", (name,))
-    return cur.fetchone() is not None
-
-def _cols(cur, table: str) -> set:
-    cur.execute(f"PRAGMA table_info({table});")
-    return {row[1] for row in cur.fetchall()}
 
 def load_incidents_from_master() -> List[SimpleNamespace]:
-    """Load incident rows from the master.db file."""
-    db_path = _abs_master_db_path()
+    """Load incidents from MongoDB via the API."""
     rows: List[SimpleNamespace] = []
-    con = None
     try:
-        if not os.path.exists(db_path):
-            print(f"[incidentlist] DB not found: {db_path}")
-            return rows
-
-        con = sqlite3.connect(db_path)
-        con.row_factory = sqlite3.Row
-        cur = con.cursor()
-
-        table = "incidents" if _table_exists(cur, "incidents") else ("missions" if _table_exists(cur, "missions") else None)
-        if not table:
-            print("[incidentlist] Neither 'incidents' nor 'missions' table exists.")
-            return rows
-
-        cset = _cols(cur, table)
-        def col(name, fallback=None, alias=None):
-            chosen = name if name in cset else (fallback if fallback in cset else None)
-            if chosen:
-                return chosen if alias is None else f"{chosen} AS {alias}"
-            safe_alias = alias or name
-            return f"NULL AS {safe_alias}"
-
-        select_sql = f"""
-            SELECT
-                {col('id')},
-                {col('number')},
-                {col('name')},
-                {col('type')},
-                {col('status')},
-                {col('start_time', 'start')},
-                {col('end_time', 'end')},
-                {col('is_training', 'training', alias='is_training')},
-                {col('icp_location', 'icp')},
-                {col('description')},
-                {col('search_area', 'area', alias='search_area')}
-            FROM {table}
-            ORDER BY id DESC
-        """
-        try:
-            cur.execute(select_sql)
-        except sqlite3.OperationalError as e:
-            print(f"[incidentlist] Fallback SELECT due to {e}")
-            cur.execute(f"SELECT * FROM {table} ORDER BY id DESC")
-
-        for r in cur.fetchall():
-            rows.append(SimpleNamespace(**{k: r[k] for k in r.keys()}))
-
-        print(f"[incidentlist] Loaded {len(rows)} row(s) from '{table}' in {db_path}")
-        return rows
+        from utils.api_client import api_client
+        docs = api_client.get("/api/incidents") or []
+        for doc in docs:
+            rows.append(SimpleNamespace(
+                id=doc.get("incident_id") or doc.get("id", ""),
+                number=doc.get("number", ""),
+                name=doc.get("name", ""),
+                type=doc.get("type", ""),
+                status=doc.get("status", ""),
+                start_time=doc.get("created_at"),
+                end_time=None,
+                is_training=bool(doc.get("is_training", False)),
+                icp_location=doc.get("icp_location", ""),
+                description=doc.get("description", ""),
+                search_area=None,
+            ))
     except Exception as e:
-        print(f"[incidentlist] ERROR loading incidents: {e}")
-        return rows
-    finally:
-        try:
-            if con:
-                con.close()
-        except Exception:
-            pass
+        logger.warning("Failed to load incidents from API: %s", e)
+    return rows
+
 
 # ---------------- Base list model ---------------- #
 
@@ -333,8 +280,6 @@ class IncidentController(QObject):
     @Slot(int)
     def loadIncidentByRow(self, row):
         print("DEBUG: loadIncidentByRow(int) called:", row, flush=True)
-        # If you store a proxy on the controller (e.g., self._proxy = proxy),
-        # you can use it here. Otherwise just no-op with a warning.
         proxy = getattr(self, "_proxy", None)
         if proxy is None:
             print("DEBUG: no stored proxy on controller", flush=True)
@@ -348,7 +293,6 @@ class IncidentController(QObject):
         if not number:
             print("DEBUG: empty number; ignoring", flush=True)
             return
-        # Instrument and emit
         print(f"[controller] loadIncident: resolved row=-1 → number={number}")
         self.incidentselected.emit(str(number))
         print(f"[controller] emitted incidentselected({number})")
@@ -380,7 +324,6 @@ class IncidentController(QObject):
             else:
                 number = src_model.data(src_index, role)
 
-            # Instrumentation: print resolution and emit
             print(f"[controller] loadIncident: resolved row={row} → number={number}")
             self.incidentselected.emit(str(number))
             print(f"[controller] emitted incidentselected({number})")
@@ -400,13 +343,11 @@ class IncidentController(QObject):
             if self.model is None or self.proxy is None:
                 print("[IncidentController] deleteIncident: model/proxy not set")
                 return
-            # Map row to source index
             pidx: QModelIndex = self.proxy.index(int(row), 0)
             sidx: QModelIndex = self.proxy.mapToSource(pidx)
             if not sidx.isValid():
                 print("[IncidentController] deleteIncident: invalid source index")
                 return
-            # Extract number and name from source model
             role_number = _role_id(self.model, b"number")
             role_name = _role_id(self.model, b"name")
             number = self.model.data(sidx, role_number)
@@ -415,51 +356,17 @@ class IncidentController(QObject):
                 print("[IncidentController] deleteIncident: no number resolved")
                 return
 
-            # Confirm with user
             resp = QMessageBox.question(
                 None,
                 "Delete Incident",
-                f"Delete incident '{name}' (#{number})?\n\nThis will remove it from the list and delete its incident database.",
+                f"Delete incident '{name}' (#{number})?\n\nThis cannot be undone.",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
             if resp != QMessageBox.Yes:
                 return
 
-            # Delete from master.db
-            db_path = _abs_master_db_path()
-            con = sqlite3.connect(db_path)
-            cur = con.cursor()
-            try:
-                cur.execute("DELETE FROM incidents WHERE number = ?", (str(number),))
-                con.commit()
-            finally:
-                con.close()
-
-            # Delete incident folder when possible
-            try:
-                paths = incident_storage.resolve_incident_paths_by_identifier(str(number))
-                if paths and paths.incident_folder.exists():
-                    import shutil
-                    shutil.rmtree(paths.incident_folder)
-            except Exception as e:
-                print(f"[IncidentController] Warning: failed to delete incident folder: {e}")
-
-            # If the deleted incident was the active one, clear app/session state
-            try:
-                from utils.state import AppState
-                active = AppState.get_active_incident()
-                if str(active) == str(number):
-                    AppState.set_active_incident(None)
-                    try:
-                        from utils import incident_context
-                        incident_context.set_active_incident(None)  # type: ignore[arg-type]
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-            # Refresh model
+            QMessageBox.information(None, "Not Supported", "Incident deletion via this panel is not yet supported in the MongoDB version.")
             self.model.refresh()
         except Exception as e:
             import traceback
@@ -489,7 +396,6 @@ class IncidentController(QObject):
 
     @Slot('QVariant')
     def setTrainingFilter(self, v) -> None:
-        # Accept bool/str/int (0=All, 1=Only Training, 2=Only Real)
         if isinstance(v, int):
             mapped = None if v == 0 else (True if v == 1 else False)
             self.proxy.setTrainingFilter(mapped)

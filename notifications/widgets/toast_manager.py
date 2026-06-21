@@ -26,16 +26,59 @@ class _ToastItem(QFrame):
         title = str(payload.get("title") or "")
         message = str(payload.get("message") or "")
         severity = str(payload.get("severity") or "info")
+        category = str(payload.get("category") or "operational")
         mode = str(payload.get("toast_mode") or "auto")
         duration = int(payload.get("toast_duration_ms") or default_duration)
 
-        # Basic layout
+        _SEVERITY_BG = {
+            "informational": "rgba(40, 40, 40, 0.08)",
+            "routine":       "rgba(80, 80, 80, 0.10)",
+            "priority":      "rgba(217, 169, 56, 0.16)",
+            "emergency":     "rgba(217, 56, 56, 0.14)",
+        }
+        _SEVERITY_ACCENT = {
+            "informational": "#444444",
+            "routine":       "#888888",
+            "priority":      "#D9A938",
+            "emergency":     "#D93838",
+        }
+        _CATEGORY_LABEL = {
+            "operations":     ("OPS",   "#3879D9"),
+            "communications": ("COMMS", "#38A8D9"),
+            "safety":         ("SAFETY","#D9A938"),
+            "logistics":      ("LOG",   "#8A38D9"),
+            "planning":       ("PLAN",  "#38D978"),
+            "administrative": ("ADMIN", "#888888"),
+            "system":         ("SYS",   "#888888"),
+        }
+
+        bg = _SEVERITY_BG.get(severity, _SEVERITY_BG["info"])
+        accent = _SEVERITY_ACCENT.get(severity, _SEVERITY_ACCENT["info"])
+        cat_text, cat_color = _CATEGORY_LABEL.get(category, ("", "#888"))
+
+        self.setStyleSheet(
+            f"QFrame#ToastItem {{ border-radius: 6px; border-left: 3px solid {accent};"
+            f" border-top: 1px solid palette(dark); border-right: 1px solid palette(dark);"
+            f" border-bottom: 1px solid palette(dark); background: {bg}; }}"
+            " QPushButton#toastClose { border: none; background: transparent; }"
+            " QPushButton#toastClose:hover { background: rgba(0,0,0,0.10); }"
+        )
+
         vbox = QVBoxLayout(self)
-        vbox.setContentsMargins(12, 10, 12, 10)
-        vbox.setSpacing(6)
+        vbox.setContentsMargins(12, 8, 8, 8)
+        vbox.setSpacing(4)
 
         row = QHBoxLayout()
-        row.setSpacing(8)
+        row.setSpacing(6)
+
+        if cat_text and category != "operations":
+            cat_lbl = QLabel(cat_text)
+            cat_lbl.setStyleSheet(
+                f"color: {cat_color}; font-size: 10px; font-weight: 700;"
+                " padding: 1px 4px; border-radius: 3px;"
+                f" border: 1px solid {cat_color};"
+            )
+            row.addWidget(cat_lbl, 0)
 
         title_lbl = QLabel(title)
         f = QFont()
@@ -57,21 +100,6 @@ class _ToastItem(QFrame):
             msg_lbl.setWordWrap(True)
             msg_lbl.setObjectName("toastMessage")
             vbox.addWidget(msg_lbl)
-
-        # Severity-based styling via objectName + dynamic property
-        self.setProperty("severity", severity)
-        self.setStyleSheet(
-            """
-            QFrame#ToastItem { border-radius: 6px; border: 1px solid palette(dark); }
-            QFrame#ToastItem[severity="info"] { background: rgba(56, 121, 217, 0.10); }
-            QFrame#ToastItem[severity="success"] { background: rgba(56, 217, 120, 0.12); }
-            QFrame#ToastItem[severity="warning"] { background: rgba(217, 169, 56, 0.14); }
-            QFrame#ToastItem[severity="error"] { background: rgba(217, 56, 56, 0.12); }
-            QPushButton#toastClose { border: none; background: transparent; }
-            QPushButton#toastClose:hover { background: rgba(0,0,0,0.08); }
-            QLabel#toastTitle { margin-right: 6px; }
-            """
-        )
 
         # Opacity effect for fade in/out
         self._opacity_effect = QGraphicsOpacityEffect(self)

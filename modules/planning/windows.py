@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 __all__ = [
     "get_dashboard_panel",
     "get_approvals_panel",
+    "get_demobilization_panel",
     "get_iap_builder_panel",
     "get_op_manager_panel",
     "get_meetings_panel",
@@ -34,6 +35,14 @@ def get_approvals_panel(incident_id: object | None = None) -> QWidget:
         "Pending Approvals",
         f"Approvals queue - incident: {incident_id}",
     )
+
+
+def get_demobilization_panel(incident_id: object | None = None) -> QWidget:
+    """Return the demobilization planning panel."""
+    from modules.planning.demobilization.panel import make_demobilization_panel
+
+    incident_key = str(incident_id) if incident_id is not None else None
+    return make_demobilization_panel(incident_id=incident_key)
 
 
 def get_op_manager_panel(incident_id: object | None = None) -> QWidget:

@@ -1470,7 +1470,12 @@ class VehicleInventoryPanel(QWidget):
         self.table_view.setModel(self.model)
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table_view.setAlternatingRowColors(True)
+        self.table_view.setAlternatingRowColors(False)
+        self.table_view.setStyleSheet("QTableView { selection-background-color: transparent; }")
+        from utils.itemview_delegates import RowOutlineSelectionDelegate
+        from PySide6.QtGui import QColor as _QColor
+        self._sel_delegate = RowOutlineSelectionDelegate(self.table_view, _QColor("#FFFFFF"))
+        self.table_view.setItemDelegate(self._sel_delegate)
         self.table_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table_view.setSortingEnabled(False)
         self.table_view.verticalHeader().setVisible(False)
@@ -2077,23 +2082,23 @@ class VehicleInventoryPanel(QWidget):
                 self.splitter.setOrientation(orientation)
 
 
-class VehicleInventoryDialog(QDialog):
-    """Modal dialog wrapper embedding :class:`VehicleInventoryPanel`."""
+class VehicleInventoryDialog(QWidget):
+    """Modeless window wrapping :class:`VehicleInventoryPanel`."""
 
     def __init__(
         self,
         parent: QWidget | None = None,
         repository: VehicleRepository | None = None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, Qt.Window)
         self.setWindowTitle("Vehicle Inventory")
+        self.resize(1100, 680)
 
         self._panel = VehicleInventoryPanel(parent=self, repository=repository)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._panel)
-        self.adjustSize()
 
     @property
     def panel(self) -> VehicleInventoryPanel:

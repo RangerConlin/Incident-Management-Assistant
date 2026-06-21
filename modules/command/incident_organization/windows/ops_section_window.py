@@ -8,7 +8,6 @@ Resources are currently treated as single resources (teams); task force
 and strike team scaffolding is present for future expansion.
 """
 
-import sqlite3
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
@@ -63,15 +62,9 @@ _DEFAULT_RESOURCE_KINDS: list[str] = [
 def _load_resource_kind_options() -> list[str]:
     """Return resource type names from the master library, falling back to defaults."""
     try:
-        from modules.admin.resource_types.data.resource_type_repository import (
-            ResourceTypeRepository,
-        )
-        repo = ResourceTypeRepository()
-        with repo._connect() as conn:
-            rows = conn.execute(
-                "SELECT name FROM resource_types WHERE is_active=1 ORDER BY name"
-            ).fetchall()
-        names = [str(r["name"]) for r in rows if r["name"]]
+        from utils.api_client import api_client
+        rows = api_client.get("/api/resource-types") or []
+        names = [r.get("name", "") for r in rows if r.get("name") and r.get("is_active", True)]
         return names if names else _DEFAULT_RESOURCE_KINDS
     except Exception:
         return _DEFAULT_RESOURCE_KINDS
@@ -96,56 +89,26 @@ _RESOURCE_TYPE_LABELS = {
 # ---------------------------------------------------------------------------
 
 class _TeamsAccess:
-    """Thin query layer for teams stored in the incident operational database."""
+    """Thin query layer for teams via the SARApp API."""
 
-    def _connect(self) -> sqlite3.Connection:
-        path = incident_context.get_active_incident_db_path()
-        con = sqlite3.connect(str(path))
-        con.row_factory = sqlite3.Row
-        self._ensure_unit_column(con)
-        return con
-
-    def _ensure_unit_column(self, con: sqlite3.Connection) -> None:
-        cols = {r[1] for r in con.execute("PRAGMA table_info(teams)").fetchall()}
-        additions = []
-        if "operational_unit_id" not in cols:
-            additions.append("ALTER TABLE teams ADD COLUMN operational_unit_id INTEGER")
-        if "ics_resource_kind" not in cols:
-            additions.append("ALTER TABLE teams ADD COLUMN ics_resource_kind TEXT")
-        if "resource_kind" not in cols:
-            additions.append("ALTER TABLE teams ADD COLUMN resource_kind TEXT")
-        for stmt in additions:
-            try:
-                con.execute(stmt)
-            except Exception:
-                pass
-        if additions:
-            try:
-                con.commit()
-            except Exception:
-                pass
+    def _incident_id(self) -> str | None:
+        iid = incident_context.get_active_incident_id()
+        return str(iid) if iid else None
 
     def list_all_teams(self) -> list[dict]:
-        """Return all teams regardless of unit assignment."""
         try:
-            with self._connect() as con:
-                rows = con.execute(
-                    "SELECT id, name, callsign, status, operational_unit_id "
-                    "FROM teams ORDER BY name"
-                ).fetchall()
-            return [dict(r) for r in rows]
+            from utils.api_client import api_client
+            iid = self._incident_id()
+            if not iid:
+                return []
+            return api_client.get(f"/api/incidents/{iid}/operations/teams") or []
         except Exception:
             return []
 
     def list_teams_for_unit(self, unit_id: int) -> list[dict]:
         try:
-            with self._connect() as con:
-                rows = con.execute(
-                    "SELECT id, name, status, team_type, ics_resource_kind, resource_kind "
-                    "FROM teams WHERE operational_unit_id=? ORDER BY name",
-                    (unit_id,),
-                ).fetchall()
-            return [dict(r) for r in rows]
+            teams = self.list_all_teams()
+            return [t for t in teams if t.get("operational_unit_id") == unit_id]
         except Exception:
             return []
 
@@ -156,18 +119,24 @@ class _TeamsAccess:
         ics_resource_kind: str,
         resource_kind: str,
     ) -> None:
-        with self._connect() as con:
-            con.execute(
-                "UPDATE teams SET operational_unit_id=?, ics_resource_kind=?, resource_kind=? WHERE id=?",
-                (unit_id, ics_resource_kind, resource_kind or None, team_id),
-            )
+        from utils.api_client import api_client
+        iid = self._incident_id()
+        if not iid:
+            return
+        api_client.patch(
+            f"/api/incidents/{iid}/operations/teams/{team_id}",
+            json={"operational_unit_id": unit_id, "ics_resource_kind": ics_resource_kind, "resource_kind": resource_kind or None},
+        )
 
     def unassign_from_unit(self, team_id: int) -> None:
-        with self._connect() as con:
-            con.execute(
-                "UPDATE teams SET operational_unit_id=NULL WHERE id=?",
-                (team_id,),
-            )
+        from utils.api_client import api_client
+        iid = self._incident_id()
+        if not iid:
+            return
+        api_client.patch(
+            f"/api/incidents/{iid}/operations/teams/{team_id}",
+            json={"operational_unit_id": None},
+        )
 
 
 # ---------------------------------------------------------------------------

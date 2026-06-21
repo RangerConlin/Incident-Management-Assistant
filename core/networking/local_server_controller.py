@@ -33,9 +33,9 @@ class PortUnavailableError(LocalServerError):
 class LocalServerController:
     """Start, stop, and probe the local incident server process.
 
-    The desktop app launches the server as a child process instead of importing and
-    running it in the Qt process. That keeps the UI responsive and leaves a clean
-    seam for future packaging to swap ``sarapp_server.py`` for a bundled executable.
+    The desktop app launches the server as a child process instead of importing
+    and running it in the Qt process. That keeps the UI responsive and leaves a
+    clean seam for future packaging to swap sarapp_server.py for a bundled exe.
     """
 
     def __init__(self, host: str = DEFAULT_SERVER_HOST, port: int = DEFAULT_SERVER_PORT):
@@ -73,9 +73,9 @@ class LocalServerController:
 
     def start(self) -> None:
         """Start the local server unless one is already available."""
+        print(f"[LocalServerController] start() called — checking {self.base_url}{HEALTH_PATH}")
         if self.is_running():
-            # A SARApp server was started outside this desktop process. We may use it,
-            # but ownership stays false so app shutdown will not terminate it.
+            print("[LocalServerController] server already running — reusing")
             self.started_by_this_app = False
             return
 
@@ -86,42 +86,50 @@ class LocalServerController:
             )
 
         script = self._server_script()
+        print(f"[LocalServerController] script path: {script} exists={script.exists()}")
         if not script.exists():
             raise LocalServerError(f"Local server script was not found: {script}")
 
         command = [
             sys.executable,
             str(script),
-            "--host",
-            self.host,
-            "--port",
-            str(self.port),
-            "--name",
-            self.server_name,
+            "--host", self.host,
+            "--port", str(self.port),
+            "--name", self.server_name,
         ]
+        print(f"[LocalServerController] spawning: {' '.join(command)}")
         try:
-            # stdout/stderr are suppressed here to avoid a hidden child console from
-            # filling pipes during normal GUI use. Packaging can redirect to a log file.
             self.process = subprocess.Popen(
                 command,
                 cwd=str(script.parent),
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
         except OSError as exc:
             raise LocalServerError(f"Unable to start local SARApp server: {exc}") from exc
         self.started_by_this_app = True
+        print(f"[LocalServerController] spawned PID {self.process.pid}")
 
     def wait_until_ready(self, timeout_seconds: float = 10.0) -> bool:
         """Poll /health until the server is ready or the timeout expires."""
+        print(f"[LocalServerController] waiting up to {timeout_seconds}s for {self.base_url}{HEALTH_PATH}")
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
             if self.process is not None and self.process.poll() is not None:
+                stdout = self.process.stdout.read().decode(errors="replace") if self.process.stdout else ""
+                stderr = self.process.stderr.read().decode(errors="replace") if self.process.stderr else ""
+                print(f"[LocalServerController] server process exited (rc={self.process.returncode})")
+                if stdout:
+                    print(f"[LocalServerController] stdout:\n{stdout[:2000]}")
+                if stderr:
+                    print(f"[LocalServerController] stderr:\n{stderr[:2000]}")
                 return False
             if self.is_running():
+                print("[LocalServerController] /health responded — server ready")
                 return True
             time.sleep(0.15)
+        print("[LocalServerController] timed out waiting for server")
         return False
 
     def stop(self) -> None:

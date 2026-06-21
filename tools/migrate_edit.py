@@ -1,5 +1,5 @@
 import sys,re
-p = r"modules/personnel_role_management/units_organizations/models/repository.py"
+p = r"modules/personnel/units_organizations/models/repository.py"
 s = open(p,'r',encoding='utf-8').read()
 s = re.sub(r"^\s*CREATE INDEX IF NOT EXISTS idx_ranks_structure_sort ON ranks\(rank_structure_id, sort_order\);\r?\n","", s, flags=re.M)
 m = re.search(r"conn\.executescript\(\s*\"\"\".*?\"\"\"\s*\)\s*", s, re.S)

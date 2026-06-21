@@ -38,9 +38,9 @@ class ResourceGapService:
         if self._assignment_repo is None:
             try:
                 from modules.admin.resource_types.data.resource_assignment_repository import (
-                    ResourceAssignmentRepository,
+                    ApiResourceAssignmentRepository,
                 )
-                self._assignment_repo = ResourceAssignmentRepository()
+                self._assignment_repo = ApiResourceAssignmentRepository()
             except Exception:
                 self._assignment_repo = None
         return self._assignment_repo
@@ -49,9 +49,9 @@ class ResourceGapService:
         if self._resource_type_repo is None:
             try:
                 from modules.admin.resource_types.data.resource_type_repository import (
-                    ResourceTypeRepository,
+                    ApiResourceTypeRepository,
                 )
-                self._resource_type_repo = ResourceTypeRepository()
+                self._resource_type_repo = ApiResourceTypeRepository()
             except Exception:
                 self._resource_type_repo = None
         return self._resource_type_repo

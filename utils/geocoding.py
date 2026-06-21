@@ -157,4 +157,67 @@ def _geocode_opencage(addr: str, cfg: dict) -> Optional[GeocodeResult]:
     return GeocodeResult(address=str(disp), latitude=lat, longitude=lon)
 
 
-__all__ = ["GeocodeResult", "geocode_address"]
+def reverse_geocode_coordinates(latitude: float, longitude: float) -> Optional[GeocodeResult]:
+    cfg = _load_config()
+    provider = str(cfg.get("provider") or "").lower().strip() or "census"
+    if provider == "opencage":
+        result = _reverse_geocode_opencage(latitude, longitude, cfg)
+        if result is not None:
+            return result
+    return _reverse_geocode_nominatim(latitude, longitude, cfg)
+
+
+def _reverse_geocode_nominatim(latitude: float, longitude: float, cfg: dict) -> Optional[GeocodeResult]:
+    try:
+        import httpx
+    except Exception:
+        raise RuntimeError("httpx is not installed. Install with: pip install httpx")
+
+    base_url = cfg.get("reverse_base_url") or "https://nominatim.openstreetmap.org/reverse"
+    user_agent = (
+        cfg.get("user_agent")
+        or "IncidentMgmtAssistant/0.1 (set user_agent in settings/geocoding_config.json with contact)"
+    )
+    params = {"lat": latitude, "lon": longitude, "format": "jsonv2"}
+    try:
+        with httpx.Client(headers={"User-Agent": user_agent}, timeout=httpx.Timeout(8.0)) as client:
+            resp = client.get(base_url, params=params)
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+    except Exception:
+        return None
+    disp = data.get("display_name") if isinstance(data, dict) else None
+    if not disp:
+        return None
+    return GeocodeResult(address=str(disp), latitude=float(latitude), longitude=float(longitude))
+
+
+def _reverse_geocode_opencage(latitude: float, longitude: float, cfg: dict) -> Optional[GeocodeResult]:
+    key = cfg.get("api_key")
+    if not key:
+        return None
+    try:
+        import httpx
+    except Exception:
+        raise RuntimeError("httpx is not installed. Install with: pip install httpx")
+    base_url = "https://api.opencagedata.com/geocode/v1/json"
+    params = {"q": f"{latitude},{longitude}", "key": key, "limit": 1}
+    try:
+        with httpx.Client(timeout=httpx.Timeout(8.0)) as client:
+            resp = client.get(base_url, params=params)
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+    except Exception:
+        return None
+    results = data.get("results") or []
+    if not results:
+        return None
+    disp = results[0].get("formatted")
+    if not disp:
+        return None
+    return GeocodeResult(address=str(disp), latitude=float(latitude), longitude=float(longitude))
+
+
+__all__ = ["GeocodeResult", "geocode_address", "reverse_geocode_coordinates"]

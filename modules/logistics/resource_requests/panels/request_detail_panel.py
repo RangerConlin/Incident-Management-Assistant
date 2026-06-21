@@ -284,7 +284,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         )
         if not ok:
             return
-        self.service.update_fulfillment(latest["id"], status, note=values["note"], eta_utc=values["eta_utc"])
+        self.service.update_fulfillment(latest["id"], status, note=values["note"], eta_utc=values["eta_utc"], request_id=self.current_request_id)
         self.load_request(self.current_request_id)
 
     def _print_ics(self) -> None:

@@ -51,9 +51,11 @@ class ApprovalWorkflowPanel(QWidget):
     def set_message(self, message: dict[str, Any] | None) -> None:
         self.message = message
         status = (message or {}).get("status", "")
+        step_order = list(APPROVAL_STEPS)
+        reached = step_order.index(status) if status in step_order else -1
         lines = []
-        for step in APPROVAL_STEPS:
-            marker = "✓" if step == "Created" or step == status or (status == "Submitted for Review" and step == "Under Review") else "○"
+        for i, step in enumerate(step_order):
+            marker = "✓" if i <= reached else "○"
             lines.append(f"{marker} {step}")
         self.steps.setText("\n".join(lines))
         if not message or not message.get("id"):
@@ -151,12 +153,12 @@ class MessageEditor(QWidget):
         layout.addWidget(self.next_update_edit)
         buttons = QHBoxLayout()
         actions = [
-            ("Save Draft", "Draft"),
-            ("Submit for Review", "Submitted for Review"),
-            ("Approve", "Approved"),
-            ("Return for Revision", "Returned for Revision"),
-            ("Publish / Release", "Published"),
-            ("Archive", "Archived"),
+            ("Save Draft",           "Draft"),
+            ("Submit for Approval",  "Pending Approval"),
+            ("Return for Revision",  "Returned for Revision"),
+            ("Approve",              "Approved"),
+            ("Publish / Release",    "Published"),
+            ("Flag Corrections",     "Needs Corrections"),
         ]
         for label, status in actions:
             button = QPushButton(label)

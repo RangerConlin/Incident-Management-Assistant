@@ -1,229 +1,192 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Literal, Optional
 
-# Master lookups -------------------------------------------------------------
+from pydantic import BaseModel, Field, model_validator
 
-class VendorRead(BaseModel):
+
+FuelType = Literal["Gasoline", "Diesel", "Jet-A", "100LL"]
+ForecastStatus = Literal["Draft", "Submitted", "Approved", "Rejected", "Returned for Information", "Archived"]
+ExpenseStatus = Literal["Draft", "Submitted", "Approved", "Denied", "Returned for Information", "Paid/Reimbursed", "Closed", "Cancelled"]
+
+
+class FuelPriceProfileCreate(BaseModel):
+    operational_period_id: Optional[str] = None
+    gasoline_price: float = Field(ge=0)
+    diesel_price: float = Field(ge=0)
+    jet_a_price: float = Field(ge=0)
+    aviation_100ll_price: float = Field(ge=0)
+    location_note: Optional[str] = None
+    source_note: Optional[str] = None
+    entered_by: Optional[str] = None
+    effective_at: datetime
+    is_active: bool = False
+
+
+class FuelPriceProfileRead(FuelPriceProfileCreate):
     id: int
-    name: str
-    contacts_json: Optional[str] = None
-    payment_terms: Optional[str] = None
+    entered_at: datetime
+
+
+class FinanceForecastCreate(BaseModel):
+    operational_period_id: Optional[str] = None
+    forecast_name: str
+    forecast_type: str = "Fuel"
+    category: str = "Fuel"
     notes: Optional[str] = None
+    created_by: Optional[str] = None
 
 
-class LaborRateRead(BaseModel):
+class FinanceForecastRead(FinanceForecastCreate):
     id: int
-    title: str
-    rate_per_hour: float
-    overtime_mult: float = 1.5
-    effective_from: date
-    effective_to: Optional[date] = None
-
-
-class EquipmentRateRead(BaseModel):
-    id: int
-    type: str
-    rate_per_hour: float
-    rate_per_day: float
-    effective_from: date
-    effective_to: Optional[date] = None
-
-
-class AccountRead(BaseModel):
-    id: int
-    code: str
-    name: str
-    category: str
-
-
-# Time Unit -----------------------------------------------------------------
-
-class TimeEntryBase(BaseModel):
-    person_id: int
-    role: str
-    op_period: str
-    date: date
-    hours_worked: float
-    overtime_hours: float = 0
-    labor_rate_id: int
-    equipment_id: Optional[int] = None
-    notes: Optional[str] = None
-
-
-class TimeEntryCreate(TimeEntryBase):
-    pass
-
-
-class TimeEntryUpdate(BaseModel):
-    hours_worked: Optional[float] = None
-    overtime_hours: Optional[float] = None
-    labor_rate_id: Optional[int] = None
-    equipment_id: Optional[int] = None
-    notes: Optional[str] = None
-    status: Optional[str] = None
-
-
-class TimeEntryRead(TimeEntryBase):
-    id: int
-    status: str
-    approved_by: Optional[int] = None
+    status: ForecastStatus
+    total_estimated_cost: float
+    total_estimated_gallons: float
+    created_at: datetime
+    submitted_at: Optional[datetime] = None
+    approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
 
 
-# Procurement ---------------------------------------------------------------
-
-class RequisitionCreate(BaseModel):
-    req_number: str
-    requestor_id: int
-    date: date
-    description: str
-    amount_est: float
-    approval_chain_id: Optional[int] = None
-
-
-class RequisitionRead(RequisitionCreate):
-    id: int
-    status: str
-
-
-class POCreate(BaseModel):
-    po_number: str
-    vendor_id: int
-    req_id: int
-    date: date
-    amount_auth: float
-
-
-class PORead(POCreate):
-    id: int
-    status: str
-
-
-class ReceiptCreate(BaseModel):
-    po_id: int
-    date: date
-    qty: float
-    amount: float
+class FuelForecastLineCreate(BaseModel):
+    resource_type: Literal["Vehicle", "Aircraft", "Generator", "Equipment", "Other"]
+    resource_id: Optional[str] = None
+    resource_name: str
+    fuel_type: FuelType
+    quantity: int = Field(ge=1, default=1)
+    estimated_miles_per_resource: Optional[float] = Field(default=None, ge=0)
+    estimated_mpg: Optional[float] = Field(default=None, gt=0)
+    estimated_hours: Optional[float] = Field(default=None, ge=0)
+    gallons_per_hour: Optional[float] = Field(default=None, gt=0)
+    fuel_price: float = Field(ge=0)
+    linked_task_id: Optional[str] = None
     notes: Optional[str] = None
 
+    @model_validator(mode="after")
+    def validate_usage_inputs(self) -> "FuelForecastLineCreate":
+        has_miles = self.estimated_miles_per_resource is not None and self.estimated_mpg is not None
+        has_hours = self.estimated_hours is not None and self.gallons_per_hour is not None
+        if not has_miles and not has_hours:
+            raise ValueError("Provide either miles + MPG or hours + gallons/hour.")
+        return self
 
-class ReceiptRead(ReceiptCreate):
+
+class FuelForecastLineRead(FuelForecastLineCreate):
     id: int
+    forecast_id: int
+    estimated_total_miles: float
+    estimated_gallons: float
+    estimated_cost: float
 
 
-class InvoiceCreate(BaseModel):
-    po_id: int
-    vendor_invoice_no: str
-    date: date
-    amount: float
-
-
-class InvoiceUpdate(BaseModel):
-    status: Optional[str] = None
-    amount: Optional[float] = None
-
-
-class InvoiceRead(InvoiceCreate):
-    id: int
-    status: str
-
-
-# Cost Unit -----------------------------------------------------------------
-
-class CostEntryCreate(BaseModel):
-    date: date
-    account_id: int
-    description: str
-    amount: float
-    source: str
-    ref_table: Optional[str] = None
-    ref_id: Optional[int] = None
-
-
-class CostEntryRead(CostEntryCreate):
-    id: int
-
-
-class DailyCostFinalizeRequest(BaseModel):
-    date: date
+class FundingSourceCreate(BaseModel):
+    name: str
+    code: Optional[str] = None
+    type: str = "Unknown"
+    agency: Optional[str] = None
+    starting_balance: Optional[float] = None
+    current_balance: Optional[float] = None
     notes: Optional[str] = None
+    is_active: bool = True
 
 
-class BudgetCreate(BaseModel):
-    account_id: int
-    amount_budgeted: float
-    notes: Optional[str] = None
-
-
-class BudgetRead(BudgetCreate):
+class FundingSourceRead(FundingSourceCreate):
     id: int
 
 
-# Claims --------------------------------------------------------------------
-
-class ClaimBase(BaseModel):
-    claim_type: str
-    claimant_id: int
-    date_reported: date
+class FinanceExpenseCreate(BaseModel):
+    operational_period_id: Optional[str] = None
+    category: str
+    subcategory: Optional[str] = None
     description: str
-    amount_est: float
-    attachments_json: Optional[str] = None
+    vendor: Optional[str] = None
+    expense_datetime: datetime
+    amount_subtotal: float = Field(ge=0)
+    amount_tax: float = Field(default=0, ge=0)
+    amount_tip: float = Field(default=0, ge=0)
+    payment_method: Optional[str] = None
+    funding_source_id: Optional[int] = None
+    entered_by: Optional[str] = None
+    notes: Optional[str] = None
+    linked_forecast_id: Optional[int] = None
+    receipt_attached: bool = False
 
 
-class ClaimCreate(ClaimBase):
-    pass
+class FinanceExpenseUpdate(BaseModel):
+    status: Optional[ExpenseStatus] = None
+    approved_by: Optional[str] = None
+    notes: Optional[str] = None
+    receipt_attached: Optional[bool] = None
 
 
-class ClaimUpdate(BaseModel):
-    description: Optional[str] = None
-    amount_est: Optional[float] = None
-    status: Optional[str] = None
-    attachments_json: Optional[str] = None
-
-
-class ClaimRead(ClaimBase):
+class FinanceExpenseRead(FinanceExpenseCreate):
     id: int
-    status: str
+    expense_number: str
+    amount_total: float
+    status: ExpenseStatus
+    entered_at: datetime
+    submitted_at: Optional[datetime] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
 
 
-# Approvals & Audit ---------------------------------------------------------
-
-class ApprovalAction(BaseModel):
-    step: str
+class ApprovalRecordCreate(BaseModel):
+    record_type: str
+    record_id: int
+    approver_id: Optional[str] = None
+    approver_role: Optional[str] = None
     action: str
     comments: Optional[str] = None
 
 
-class ApprovalRecordRead(BaseModel):
+class ApprovalRecordRead(ApprovalRecordCreate):
     id: int
-    entity: str
-    entity_id: int
-    step: str
-    actor_id: int
-    action: str
     timestamp: datetime
-    comments: Optional[str] = None
 
 
-# Reports / Exports ---------------------------------------------------------
+class AttachmentCreate(BaseModel):
+    record_type: str
+    record_id: int
+    filename: str
+    file_path: str
+    file_type: Optional[str] = None
+    attachment_type: str = "Receipt"
+    uploaded_by: Optional[str] = None
+    notes: Optional[str] = None
 
-class ReportRequest(BaseModel):
-    report_type: str
-    date: Optional[date] = None
+
+class AttachmentRead(AttachmentCreate):
+    id: int
+    uploaded_at: datetime
 
 
-class ExportArtifactRead(BaseModel):
-    path: str
-    created_at: datetime
+class FinanceDashboardSnapshot(BaseModel):
+    total_forecast_cost: float
+    total_actual_cost: float
+    fuel_forecast_cost: float
+    fuel_actual_cost: float
+    pending_approvals: int
+    missing_receipts: int
+    forecast_count: int
+    expense_count: int
 
 
-# Permissions ---------------------------------------------------------------
+class FuelReportRow(BaseModel):
+    forecast_name: str
+    resource_name: str
+    fuel_type: str
+    estimated_gallons: float
+    estimated_cost: float
+    actual_cost: float
+    variance: float
 
-class PermissionOut(BaseModel):
-    can_edit: bool = False
-    can_approve: bool = False
-    can_finalize: bool = False
-    can_export: bool = False
+
+class PendingApprovalRow(BaseModel):
+    record_type: str
+    record_id: int
+    description: str
+    amount: float
+    submitted_at: Optional[datetime] = None
+    status: str

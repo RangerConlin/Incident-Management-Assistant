@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Iterable, List, Optional, Set
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
@@ -17,10 +18,29 @@ from ..models import (
 
 
 PRIORITY_PALETTE = {
-    PRIORITY_EMERGENCY: (QColor("#FDECEA"), QColor("#7A1E1E")),
-    PRIORITY_PRIORITY: (QColor("#FFF4E5"), QColor("#6A4B00")),
-    PRIORITY_ROUTINE: (QColor("#EEF2FF"), QColor("#1F2937")),
+    PRIORITY_EMERGENCY: (QColor("#6b0000"), QColor("#ff8080")),
+    PRIORITY_PRIORITY:  (QColor("#5a3000"), QColor("#ffb347")),
+    # Routine: no override — let the table's alternating row colors apply
 }
+
+
+def _fmt_timestamp(iso_str: str, use_utc: bool = False) -> str:
+    """Parse an ISO-8601 timestamp and return a human-readable string with TZ label."""
+    if not iso_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            # Treat naive strings as local time
+            dt = dt.astimezone()
+        if use_utc:
+            dt = dt.astimezone(timezone.utc)
+        else:
+            dt = dt.astimezone()
+        tz_label = dt.strftime("%Z") or "Local"
+        return dt.strftime(f"%b %d %Y  %H:%M:%S  {tz_label}")
+    except (ValueError, TypeError):
+        return iso_str
 
 
 class CommsLogTableModel(QAbstractTableModel):
@@ -80,20 +100,20 @@ class CommsLogTableModel(QAbstractTableModel):
             return self._display_value(entry, column)
         if role == Qt.ToolTipRole:
             return self._tooltip_value(entry, column)
-        if role == Qt.BackgroundRole:
-            bg, _ = PRIORITY_PALETTE.get(entry.priority, (None, None))
-            if bg is not None:
+        palette_entry = PRIORITY_PALETTE.get(entry.priority)
+        if palette_entry:
+            bg, fg = palette_entry
+            if role == Qt.BackgroundRole:
                 return QBrush(bg)
-        if role == Qt.ForegroundRole:
-            _, fg = PRIORITY_PALETTE.get(entry.priority, (None, None))
-            if fg is not None:
+            if role == Qt.ForegroundRole:
                 return QBrush(fg)
         return None
 
     # Helpers ----------------------------------------------------------
     def _display_value(self, entry: CommsLogEntry, column: int) -> str:
         if column == 0:
-            return entry.ts_utc if self._use_utc else entry.ts_local
+            raw = entry.ts_utc if self._use_utc else entry.ts_local
+            return _fmt_timestamp(raw, use_utc=self._use_utc)
         if column == 1:
             return entry.priority
         if column == 2:
@@ -175,7 +195,7 @@ class CommsLogTableView(QTableView):
     """Table view wrapper with sensible defaults."""
 
     # Remove display of the "Notification" column from default view
-    DEFAULT_VISIBLE_COLUMNS: Set[str] = {"Timestamp", "From", "To", "Message"}
+    DEFAULT_VISIBLE_COLUMNS: Set[str] = {"Timestamp", "Priority", "Channel/Resource", "From", "To", "Message"}
     _HIDDEN_COLUMNS: Set[str] = {"Notification"}
 
     def __init__(self, parent=None):

@@ -131,9 +131,10 @@ class TaskDetailWindow(QWidget):
 
         # Container for the collapsible top half of the splitter
         _top_widget = QWidget(self)
+        self._top_widget = _top_widget
         _top_layout = QVBoxLayout(_top_widget)
-        _top_layout.setContentsMargins(6, 6, 6, 4)
-        _top_layout.setSpacing(4)
+        _top_layout.setContentsMargins(14, 14, 14, 10)
+        _top_layout.setSpacing(8)
 
         # --- Lookups and Top Controls ---
         try:
@@ -155,37 +156,17 @@ class TaskDetailWindow(QWidget):
             "types_by_cat": dict(TASK_TYPES_BY_CATEGORY),
         }
 
-        _status_bg_light = {
-            "draft": "#e9ecef",
-            "planned": "#ce93d8",
-            "assigned": "#bfe1ff",
-            "in progress": "#a8e0ea",
-            "complete": "#bfe6c3",
-            "completed": "#bfe6c3",
-            "cancelled": "#f5b7b1",
-        }
-        _status_bg_dark = {
-            "draft": "#2e3340",
-            "planned": "#4a2d5a",
-            "assigned": "#1e3d5c",
-            "in progress": "#1a4a52",
-            "complete": "#1a3d28",
-            "completed": "#1a3d28",
-            "cancelled": "#4a1e1e",
-        }
-        from utils.styles import THEME_NAME as _tn
-        self._status_bg_colors = _status_bg_dark if _tn == "dark" else _status_bg_light
-
         self._loading_header = False
         self._header_field_cache: Dict[str, str] = {}
 
         # Top controls in a grid: Category, Type, Priority, Status, Task ID
-        top_container = QWidget(self)
+        top_container = QWidget(_top_widget)
+        self._top_container = top_container
         top_grid = QGridLayout(top_container)
         try:
             top_grid.setContentsMargins(0, 0, 0, 0)
-            top_grid.setHorizontalSpacing(8)
-            top_grid.setVerticalSpacing(4)
+            top_grid.setHorizontalSpacing(12)
+            top_grid.setVerticalSpacing(6)
         except Exception:
             pass
 
@@ -245,11 +226,12 @@ class TaskDetailWindow(QWidget):
             pass
 
         # Primary Team (read-only) 2x2 grid, above Title/Location/Assignment
-        primary_container = QWidget(self)
+        primary_container = QWidget(_top_widget)
+        self._primary_container = primary_container
         primary_v = QVBoxLayout(primary_container)
         try:
-            primary_v.setContentsMargins(0, 0, 0, 0)
-            primary_v.setSpacing(6)
+            primary_v.setContentsMargins(0, 2, 0, 2)
+            primary_v.setSpacing(8)
         except Exception:
             pass
         hdr_row = QHBoxLayout()
@@ -286,6 +268,10 @@ class TaskDetailWindow(QWidget):
 
         # Title/Location/Assignment stacked vertically + Save/Cancel
         stack = QVBoxLayout()
+        try:
+            stack.setSpacing(8)
+        except Exception:
+            pass
         self._title_edit = QLineEdit(self); self._title_edit.setPlaceholderText("Title")
         self._location_edit = QLineEdit(self); self._location_edit.setPlaceholderText("Location")
         # Removed redundant Category/Type read-only display between Location and Assignment
@@ -298,6 +284,10 @@ class TaskDetailWindow(QWidget):
                 pass
         for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Assignment", self._assignment_edit)]:
             row = QVBoxLayout()
+            try:
+                row.setSpacing(4)
+            except Exception:
+                pass
             _lbl = QLabel(lab)
             try:
                 _lbl.setStyleSheet("font-weight: 600;")
@@ -313,7 +303,8 @@ class TaskDetailWindow(QWidget):
         # Narrative Quick Entry (always visible, above tabs)
         nar_quick_top = QHBoxLayout()
         try:
-            nar_quick_top.setContentsMargins(0, 0, 0, 0)
+            nar_quick_top.setContentsMargins(0, 4, 0, 0)
+            nar_quick_top.setSpacing(8)
         except Exception:
             pass
         self._nar_entry_top = QTextEdit(self)
@@ -364,6 +355,19 @@ class TaskDetailWindow(QWidget):
         _top_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         _top_scroll.setWidget(_top_widget)
         _top_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        try:
+            _top_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+            _top_scroll.viewport().setAutoFillBackground(False)
+        except Exception:
+            pass
+        try:
+            self._apply_top_surface_transparency()
+        except Exception:
+            pass
+        try:
+            self._apply_input_surface_style()
+        except Exception:
+            pass
 
         self._splitter = QSplitter(Qt.Vertical, self)
         self._splitter.setHandleWidth(6)
@@ -476,7 +480,8 @@ class TaskDetailWindow(QWidget):
             plan_layout.setContentsMargins(0, 0, 0, 0)
         except Exception:
             pass
-        plan_row = QHBoxLayout()
+        plan_row_widget = QWidget(plan_content)
+        plan_row = QHBoxLayout(plan_row_widget)
         try:
             plan_row.setContentsMargins(0, 0, 0, 0)
         except Exception:
@@ -490,18 +495,19 @@ class TaskDetailWindow(QWidget):
         self._plan_refresh_btn.clicked.connect(self._load_planning)
         self._plan_link_btn = QPushButton("Link Task", plan_content)
         self._plan_link_btn.clicked.connect(self._link_task_to_strategy)
-        plan_row.addWidget(QLabel("Objective:"))
+        plan_row.addWidget(QLabel("Objective:", plan_row_widget))
         plan_row.addWidget(self._plan_obj_cb, 2)
-        plan_row.addWidget(QLabel("Strategy:"))
+        plan_row.addWidget(QLabel("Strategy:", plan_row_widget))
         plan_row.addWidget(self._plan_strat_cb, 2)
         plan_row.addWidget(self._plan_refresh_btn)
         plan_row.addWidget(self._plan_link_btn)
-        # objectives row intentionally not added to layout
+        # Objectives controls are currently disabled in this surface; keep them hidden.
+        plan_row_widget.hide()
 
         self._plan_headers = ["LinkId", "Objective", "Strategy", "Remove"]
         self._plan_links_model = QStandardItemModel(0, len(self._plan_headers), self)
         self._plan_links_model.setHorizontalHeaderLabels(self._plan_headers)
-        self._plan_links_table = QTableView(self)
+        self._plan_links_table = QTableView(plan_content)
         self._plan_links_table.setModel(self._plan_links_model)
         self._plan_links_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._plan_links_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -523,14 +529,10 @@ class TaskDetailWindow(QWidget):
             self._plan_btn_delegate.clicked.connect(self._on_plan_remove_clicked)
         except Exception:
             pass
-        # plan_links_table intentionally not added to layout (objectives section removed)
+        # Objective links table is currently disabled in this surface; keep it hidden.
+        self._plan_links_table.hide()
         # Defer adding the Planning tab until the very end so it appears on the far right
         self._planning_content = plan_content
-        # Load data when the window is constructed
-        try:
-            self._load_planning()
-        except Exception:
-            pass
 
         # Teams tab
         teams_content = QWidget(self)
@@ -922,9 +924,9 @@ class TaskDetailWindow(QWidget):
                     # Persist selection via repository
                     it = model.item(index.row(), 0)
                     row_id = it.data(_Qt.UserRole)
-                    from modules.operations.taskings.repository import update_task_comm
+                    from modules.operations.taskings.repository import update_task_comm_for_task
                     if row_id is not None:
-                        update_task_comm(int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
+                        update_task_comm_for_task(int(self._task_id), int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
                     # Trigger reload to refresh read-only columns
                     self._parent_w.load_comms()
                 except Exception:
@@ -952,9 +954,9 @@ class TaskDetailWindow(QWidget):
                     # Persist via repository
                     it = model.item(index.row(), 0)
                     row_id = it.data(_Qt.UserRole)
-                    from modules.operations.taskings.repository import update_task_comm
+                    from modules.operations.taskings.repository import update_task_comm_for_task
                     if row_id is not None:
-                        update_task_comm(int(row_id), function=value)
+                        update_task_comm_for_task(int(self._task_id), int(row_id), function=value)
                     # Update display
                     model.setData(index, value, _Qt.DisplayRole)
                 except Exception:
@@ -1012,8 +1014,8 @@ class TaskDetailWindow(QWidget):
                 row_id = it.data(Qt.UserRole)
                 if row_id is None:
                     return
-                from modules.operations.taskings.repository import remove_task_comm
-                remove_task_comm(int(row_id))
+                from modules.operations.taskings.repository import remove_task_comm_for_task
+                remove_task_comm_for_task(int(self._task_id), int(row_id))
             except Exception as e:
                 try:
                     QMessageBox.warning(self, "Remove Channel", f"Could not remove row: {e}")
@@ -1182,8 +1184,8 @@ class TaskDetailWindow(QWidget):
             self._tlog_field = QLineEdit(); self._tlog_field.setPlaceholderText("Field filter...")
             self._tlog_from = QLineEdit(); self._tlog_from.setPlaceholderText("From (YYYY-MM-DD)")
             self._tlog_to = QLineEdit(); self._tlog_to.setPlaceholderText("To (YYYY-MM-DD)")
-            self._btn_tlog_refresh = QPushButton("Refresh"); self._btn_tlog_export = QPushButton("Export CSV")
-            for w in (self._tlog_search, self._tlog_field, self._tlog_from, self._tlog_to, self._btn_tlog_refresh, self._btn_tlog_export): tlog_bar.addWidget(w)
+            self._btn_tlog_refresh = QPushButton("Refresh"); self._btn_tlog_export = QPushButton("Export CSV"); self._btn_tlog_export_214 = QPushButton("Export ICS-214")
+            for w in (self._tlog_search, self._tlog_field, self._tlog_from, self._tlog_to, self._btn_tlog_refresh, self._btn_tlog_export, self._btn_tlog_export_214): tlog_bar.addWidget(w)
             tlog_bar.addStretch(1); tlog_layout.addLayout(tlog_bar)
             self._tbl_tlog = QTableView(self)
             self._model_tlog = QStandardItemModel(0, 5, self)
@@ -1221,6 +1223,7 @@ class TaskDetailWindow(QWidget):
             # Actions
             self._btn_tlog_refresh.clicked.connect(self._load_task_log)
             self._btn_tlog_export.clicked.connect(self._export_task_log)
+            self._btn_tlog_export_214.clicked.connect(self._export_task_log_214)
             self._tlog_search.returnPressed.connect(self._load_task_log)
             self._tlog_field.returnPressed.connect(self._load_task_log)
             self._tlog_from.returnPressed.connect(self._load_task_log)
@@ -1242,8 +1245,7 @@ class TaskDetailWindow(QWidget):
                         continue
             except Exception:
                 pass
-            # Initial load
-            self._load_ics214(); self._load_task_log(); self._load_team_log()
+            # Initial load deferred to _initial_load via QTimer
         except Exception:
             pass
         # Wire attachment actions
@@ -1288,14 +1290,50 @@ class TaskDetailWindow(QWidget):
             pass
 
         # Initial data load
-        self._load_header()
-        self.load_narrative()
         try:
-            self.load_vehicles()
+            from utils.app_signals import app_signals
+            app_signals.teamStatusChanged.connect(self._on_team_updates)
+            app_signals.teamAssetsChanged.connect(self._on_team_updates)
         except Exception:
             pass
         try:
-            self.load_assignment()
+            self._wire_debrief_tab()
+        except Exception:
+            pass
+        # Defer all data loads so the window paints before any API calls fire
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._initial_load)
+
+    def _status_background_color(self, status: str | None) -> str:
+        key = str(status or "").strip().lower()
+        aliases = {
+            "completed": "complete",
+            "in-progress": "in progress",
+        }
+        key = aliases.get(key, key)
+        try:
+            from utils.styles import task_status_colors, get_palette
+
+            style = task_status_colors().get(key)
+            if style:
+                bg = style.get("bg")
+                if hasattr(bg, "color"):
+                    color = bg.color()
+                    if isinstance(color, QColor) and color.isValid():
+                        return color.name()
+            palette = get_palette()
+            fallback = palette.get("bg")
+            if isinstance(fallback, QColor) and fallback.isValid():
+                return fallback.name()
+        except Exception:
+            pass
+        return "#ffffff"
+
+    def _initial_load(self) -> None:
+        """Load all data after the window is shown (deferred from __init__)."""
+        self._load_header()
+        try:
+            self.load_narrative()
         except Exception:
             pass
         try:
@@ -1311,32 +1349,37 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         try:
-            self._wire_debrief_tab()
             self.load_debriefs()
-        except Exception:
-            pass
-        try:
-            from utils.app_signals import app_signals
-            app_signals.teamStatusChanged.connect(self._on_team_updates)
-            app_signals.teamAssetsChanged.connect(self._on_team_updates)
         except Exception:
             pass
         try:
             self.load_vehicles()
         except Exception:
             pass
-        # Auto-refresh vehicles when team status/assets change
         try:
-            from utils.app_signals import app_signals
-            app_signals.teamStatusChanged.connect(self._on_team_updates)
-            app_signals.teamAssetsChanged.connect(self._on_team_updates)
+            self.load_assignment()
         except Exception:
             pass
-        self.adjustSize()
-
-    def _status_background_color(self, status: str | None) -> str:
-        key = str(status or "").strip().lower()
-        return self._status_bg_colors.get(key, "#ffffff")
+        try:
+            self._load_planning()
+        except Exception:
+            pass
+        try:
+            self._load_ics214()
+        except Exception:
+            pass
+        try:
+            self._load_task_log()
+        except Exception:
+            pass
+        try:
+            self._load_team_log()
+        except Exception:
+            pass
+        try:
+            self.adjustSize()
+        except Exception:
+            pass
 
     def _apply_status_background(self, status: str | None) -> None:
         try:
@@ -1349,11 +1392,104 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
             try:
+                fg = "#111111" if color.lightness() > 150 else "#ffffff"
+                self._stat.setStyleSheet(
+                    "QComboBox {"
+                    f" background-color: {color.name()};"
+                    f" color: {fg};"
+                    " font-weight: 600;"
+                    " border: 1px solid rgba(0, 0, 0, 0.28);"
+                    " border-radius: 4px;"
+                    " padding: 4px 6px;"
+                    "}"
+                    " QComboBox::drop-down { border: none; }"
+                )
+            except Exception:
+                pass
+            try:
                 self.update()
             except Exception:
                 pass
         except Exception:
             pass
+
+    def _apply_top_surface_transparency(self) -> None:
+        for widget_name in ("_top_widget", "_top_container", "_primary_container"):
+            widget = getattr(self, widget_name, None)
+            if widget is None:
+                continue
+            try:
+                widget.setAttribute(Qt.WA_StyledBackground, False)
+            except Exception:
+                pass
+            try:
+                widget.setAutoFillBackground(False)
+            except Exception:
+                pass
+            try:
+                widget.setStyleSheet("background: transparent;")
+            except Exception:
+                pass
+
+    def _apply_input_surface_style(self) -> None:
+        # Keep editable controls readable when the window itself is tinted by status.
+        try:
+            from utils.styles import get_palette
+
+            pal = get_palette()
+            ctrl_bg = pal.get("ctrl_bg", pal.get("bg"))
+            fg = pal.get("fg", QColor("#111111"))
+            border = pal.get("ctrl_border", pal.get("muted", QColor("#666666")))
+            focus = pal.get("ctrl_focus", pal.get("accent", QColor("#4a90e2")))
+            readonly_bg = pal.get("bg_raised", pal.get("bg"))
+            muted_fg = pal.get("fg_muted", pal.get("muted", fg))
+
+            def _name(value: object, fallback: str) -> str:
+                return value.name() if isinstance(value, QColor) and value.isValid() else fallback
+
+            surface_style = (
+                "QLineEdit, QTextEdit, QComboBox {"
+                f" background-color: {_name(ctrl_bg, '#ffffff')};"
+                f" color: {_name(fg, '#111111')};"
+                f" border: 1px solid {_name(border, '#666666')};"
+                " border-radius: 4px;"
+                " padding: 4px 6px;"
+                "}"
+                " QTextEdit { padding: 6px; }"
+                f" QLineEdit:focus, QTextEdit:focus, QComboBox:focus {{ border: 1px solid {_name(focus, '#4a90e2')}; }}"
+                f" QLineEdit:read-only {{ background-color: {_name(readonly_bg, '#f0f0f0')}; color: {_name(muted_fg, '#666666')}; }}"
+                " QComboBox::drop-down { border: none; }"
+                f" QComboBox QAbstractItemView {{ background-color: {_name(readonly_bg, '#f0f0f0')}; color: {_name(fg, '#111111')}; }}"
+            )
+        except Exception:
+            surface_style = (
+                "QLineEdit, QTextEdit, QComboBox {"
+                " background-color: #ffffff;"
+                " color: #111111;"
+                " border: 1px solid #666666;"
+                " border-radius: 4px;"
+                " padding: 4px 6px;"
+                "}"
+                " QTextEdit { padding: 6px; }"
+                " QComboBox::drop-down { border: none; }"
+            )
+        for widget in (
+            getattr(self, "_cat", None),
+            getattr(self, "_typ", None),
+            getattr(self, "_prio", None),
+            getattr(self, "_stat", None),
+            getattr(self, "_task_id_edit", None),
+            getattr(self, "_title_edit", None),
+            getattr(self, "_location_edit", None),
+            getattr(self, "_assignment_edit", None),
+            getattr(self, "_nar_entry_top", None),
+        ):
+            if widget is None:
+                continue
+            try:
+                widget.setStyleSheet(surface_style)
+            except Exception:
+                pass
 
     def _normalize_header_value(self, field: str, value: Any) -> str:
         text = '' if value is None else str(value).strip()
@@ -2095,19 +2231,46 @@ class TaskDetailWindow(QWidget):
             self._model_tlog.appendRow([QStandardItem(str(ts)), QStandardItem(str(field)), QStandardItem(str(old)), QStandardItem(str(new)), QStandardItem(str(by))])
 
     def _export_task_log(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Task Log", f"task_{self._task_id}_log.csv", "CSV Files (*.csv)"
+        )
+        if not path:
+            return
         try:
             from modules.operations.taskings.repository import export_audit_csv
-            p = export_audit_csv(
-                int(self._task_id),
+            result = export_audit_csv(
+                task_id=int(self._task_id),
+                output_path=path,
                 search=str(self._tlog_search.text() or ""),
                 date_from=str(self._tlog_from.text() or "") or None,
                 date_to=str(self._tlog_to.text() or "") or None,
                 field_filter=str(self._tlog_field.text() or ""),
             )
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Task Log Export", f"Saved CSV to:\n{p}")
-        except Exception:
-            pass
+            QMessageBox.information(self, "Task Log Export", f"Saved to:\n{result}")
+        except Exception as exc:
+            QMessageBox.warning(self, "Task Log Export", f"Export failed:\n{exc}")
+
+    def _export_task_log_214(self) -> None:
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Task Log as ICS-214", f"task_{self._task_id}_214.pdf", "PDF Files (*.pdf)"
+        )
+        if not path:
+            return
+        try:
+            from modules.operations.taskings.repository import export_audit_as_214
+            result = export_audit_as_214(
+                task_id=int(self._task_id),
+                output_path=path,
+                search=str(self._tlog_search.text() or ""),
+                date_from=str(self._tlog_from.text() or "") or None,
+                date_to=str(self._tlog_to.text() or "") or None,
+                field_filter=str(self._tlog_field.text() or ""),
+            )
+            QMessageBox.information(self, "ICS-214 Export", f"Saved to:\n{result}")
+        except Exception as exc:
+            QMessageBox.warning(self, "ICS-214 Export", f"Export failed:\n{exc}")
 
     def _load_team_log(self) -> None:
         try:
@@ -2119,8 +2282,26 @@ class TaskDetailWindow(QWidget):
             self._model_teamlog.removeRows(0, self._model_teamlog.rowCount())
         except Exception:
             pass
+        _status_fields = [
+            ("time_assigned", "Assigned"),
+            ("time_briefed", "Briefed"),
+            ("time_enroute", "En Route"),
+            ("time_arrived", "On Scene"),
+            ("time_discovery", "Discovery"),
+            ("time_complete", "Complete"),
+            ("time_cleared", "RTB / Cleared"),
+        ]
+        events: list = []
         for r in rows:
-            self._model_teamlog.appendRow([QStandardItem(_fmt_ts(str(r.get("timestamp") or ""))), QStandardItem(str(r.get("team") or "")), QStandardItem(str(r.get("status") or ""))])
+            team_name = str(r.get("team_name") or r.get("team_id") or "")
+            for field, label in _status_fields:
+                ts_raw = r.get(field)
+                if ts_raw:
+                    events.append((_fmt_ts(str(ts_raw)), team_name, label, str(ts_raw)))
+        # Sort by raw timestamp ascending so the log reads chronologically
+        events.sort(key=lambda e: e[3])
+        for ts, team, status, _ in events:
+            self._model_teamlog.appendRow([QStandardItem(ts), QStandardItem(team), QStandardItem(status)])
 
     def _open_full_ics214(self) -> None:
         try:
@@ -2229,22 +2410,22 @@ class TaskDetailWindow(QWidget):
 
     def _delete_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_ops_214_stream()
+            inc, sid = self._get_ops_214_stream()
             entry_id = self._selected_214_entry_id()
-            if not inc or not entry_id:
+            if not inc or not sid or not entry_id:
                 return
             from PySide6.QtWidgets import QMessageBox
             if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 return
             from modules.ics214 import services
-            services.delete_entry(inc, entry_id)
+            services.delete_entry(inc, entry_id, stream_id=sid)
             self._load_ics214()
         except Exception:
             pass
 
     def _edit_ics214_entry(self) -> None:
         try:
-            inc, _sid = self._get_ops_214_stream()
+            inc, sid = self._get_ops_214_stream()
             entry_id = self._selected_214_entry_id()
             if not inc or not entry_id:
                 return
@@ -2264,7 +2445,7 @@ class TaskDetailWindow(QWidget):
                 if new_txt:
                     from modules.ics214 import services
                     from modules.ics214.schemas import EntryUpdate
-                    services.update_entry(inc, entry_id, EntryUpdate(text=new_txt))
+                    services.update_entry(inc, entry_id, EntryUpdate(text=new_txt), stream_id=sid)
                     self._load_ics214()
         except Exception:
             pass
@@ -2669,29 +2850,8 @@ class TaskDetailWindow(QWidget):
 
     # --- Planning / Objectives linkage ---------------------------------
     def _load_planning(self) -> None:
-        """Populate objectives, strategies and current links for this task."""
-        try:
-            from modules._infra.repository import with_incident_session
-            from modules.command.models.objectives import ObjectiveRepository, ObjectiveFilters
-            from utils import incident_context
-            incident_id = incident_context.get_active_incident_id()
-            if not incident_id:
-                return
-            with with_incident_session(str(incident_id)) as session:
-                repo = ObjectiveRepository(session, str(incident_id))
-                # Load objectives into combo (store id in UserRole)
-                objectives = repo.list_objectives(ObjectiveFilters())
-                self._plan_obj_cb.blockSignals(True)
-                self._plan_obj_cb.clear()
-                for o in objectives:
-                    self._plan_obj_cb.addItem(f"{o.code} - {o.text}", o.id)
-                self._plan_obj_cb.blockSignals(False)
-                # Build strategies for selected objective
-                self._on_plan_obj_changed(repo)
-                # Load existing links for this task
-                links = repo.list_links_for_task(int(self._task_id))
-        except Exception:
-            links = []
+        """Populate objectives/strategies — deferred until planning module migrated to MongoDB."""
+        links = []
         try:
             self._plan_links_model.removeRows(0, self._plan_links_model.rowCount())
         except Exception:
@@ -2708,66 +2868,16 @@ class TaskDetailWindow(QWidget):
             self._plan_links_model.appendRow([it_id, it_obj, it_strat, it_rm])
 
     def _on_plan_obj_changed(self, repo=None) -> None:
-        try:
-            if repo is None:
-                from modules._infra.repository import with_incident_session
-                from modules.command.models.objectives import ObjectiveRepository
-                from utils import incident_context
-                incident_id = incident_context.get_active_incident_id()
-                if not incident_id:
-                    return
-                with with_incident_session(str(incident_id)) as session:
-                    repo = ObjectiveRepository(session, str(incident_id))
-            obj_id = int(self._plan_obj_cb.currentData()) if self._plan_obj_cb.count() else None
-            self._plan_strat_cb.clear()
-            if obj_id is None:
-                return
-            strategies = repo.list_strategies(int(obj_id))
-            for s in strategies:
-                self._plan_strat_cb.addItem(s.text, s.id)
-        except Exception:
-            pass
+        """Deferred until planning module migrated to MongoDB."""
+        pass
 
     def _link_task_to_strategy(self) -> None:
-        try:
-            from modules._infra.repository import with_incident_session
-            from modules.command.models.objectives import ObjectiveRepository
-            from utils import incident_context
-            incident_id = incident_context.get_active_incident_id()
-            if not incident_id:
-                return
-            obj_id = int(self._plan_obj_cb.currentData()) if self._plan_obj_cb.count() else None
-            strat_id = int(self._plan_strat_cb.currentData()) if self._plan_strat_cb.count() else None
-            if obj_id is None or strat_id is None:
-                return
-            with with_incident_session(str(incident_id)) as session:
-                repo = ObjectiveRepository(session, str(incident_id))
-                repo.link_task(int(obj_id), int(strat_id), int(self._task_id))
-            self._load_planning()
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Planning", f"Failed to link: {e}")
-            except Exception:
-                pass
+        """Deferred until planning module fully migrated to MongoDB."""
+        pass
 
     def _on_plan_remove_clicked(self, index):
-        try:
-            link_id = index.data(Qt.UserRole)
-            if link_id is None:
-                # Try first column hidden id
-                link_id = int(self._plan_links_model.item(index.row(), 0).text())
-            from modules._infra.repository import with_incident_session
-            from modules.command.models.objectives import ObjectiveRepository
-            from utils import incident_context
-            incident_id = incident_context.get_active_incident_id()
-            if not incident_id:
-                return
-            with with_incident_session(str(incident_id)) as session:
-                repo = ObjectiveRepository(session, str(incident_id))
-                repo.unlink_task(int(link_id))
-            self._load_planning()
-        except Exception:
-            pass
+        """Deferred until planning module fully migrated to MongoDB."""
+        pass
 
     # --- Personnel Ops ---
     def load_personnel(self) -> None:
@@ -4308,8 +4418,8 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 return
             new_val = item.text().strip()
-            from modules.operations.taskings.repository import update_sortie_id
-            update_sortie_id(int(tt_id), str(new_val) if new_val else None)
+            from modules.operations.taskings.repository import update_sortie_id_for_task
+            update_sortie_id_for_task(int(self._task_id), int(tt_id), str(new_val) if new_val else None)
         except Exception:
             pass
         finally:

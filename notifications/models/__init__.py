@@ -1,4 +1,9 @@
-from .notification import Notification, Severity, ToastMode
-from .schema_sql import ensure_master_schema, ensure_mission_schema
+from .notification import (
+    Notification, Severity, ToastMode, Category,
+    CATEGORY_DEFAULTS, CATEGORY_TOAST_THRESHOLDS, SEVERITY_OVERRIDES, SEVERITY_RANK,
+)
 
-__all__ = ["Notification", "Severity", "ToastMode", "ensure_master_schema", "ensure_mission_schema"]
+__all__ = [
+    "Notification", "Severity", "ToastMode", "Category",
+    "CATEGORY_DEFAULTS", "CATEGORY_TOAST_THRESHOLDS", "SEVERITY_OVERRIDES", "SEVERITY_RANK",
+]

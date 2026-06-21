@@ -6,7 +6,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, QStringListModel, QTimer, Signal
 from PySide6.QtWidgets import QCompleter, QHBoxLayout, QLineEdit, QWidget
 
-from ..data.hazard_type_repository import HazardTypeRepository
+from ..data.hazard_type_repository import ApiHazardTypeRepository
 from ..models.hazard_type_models import HazardTypeSearchResult
 
 
@@ -18,11 +18,11 @@ class HazardTypeSearchBox(QWidget):
 
     def __init__(
         self,
-        repository: Optional[HazardTypeRepository] = None,
+        repository: Optional[ApiHazardTypeRepository] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self.repository = repository or HazardTypeRepository()
+        self.repository = repository or ApiHazardTypeRepository()
         self._hazard_type_id: Optional[int] = None
         self._results: list[HazardTypeSearchResult] = []
         self._display_to_result: dict[str, HazardTypeSearchResult] = {}

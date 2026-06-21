@@ -1,342 +1,253 @@
-"""Business logic for ICS-214 module."""
+"""Business logic for ICS-214 module (MongoDB-backed via SARApp API)."""
 from __future__ import annotations
 
-import hashlib
-import logging
-import uuid
-from datetime import datetime
-from pathlib import Path
 from typing import Dict, Any, List
 
-from sqlalchemy import select, text
+from .schemas import EntryCreate, EntryUpdate, StreamCreate, StreamUpdate, ExportRequest
 
-from .models import (
-    ICS214Stream,
-    ICS214Entry,
-    ICS214IngestRule,
-    ICS214Export,
-)
-from .schemas import EntryCreate, StreamCreate, StreamUpdate, ExportRequest
-from modules._infra.repository import with_incident_session
-from .ws import manager as ws_manager
 
-# Permission stubs ------------------------------------------------------------
+def _client():
+    from utils.api_client import api_client
+    return api_client
 
-def can_read(user_id: str, stream: ICS214Stream) -> bool:
-    return True
 
-def can_write(user_id: str, stream: ICS214Stream) -> bool:
+def can_read(user_id: str, stream) -> bool:
     return True
 
 
-logger = logging.getLogger(__name__)
+def can_write(user_id: str, stream) -> bool:
+    return True
+
 
 # Stream CRUD ----------------------------------------------------------------
 
-def create_stream(data: StreamCreate) -> ICS214Stream:
-    with with_incident_session(data.incident_id) as session:
-        stream = ICS214Stream(id=str(uuid.uuid4()), **data.model_dump())
-        session.add(stream)
-        session.flush()
-        return stream
+def create_stream(data: StreamCreate):
+    return _client().post(
+        f"/api/incidents/{data.incident_id}/ics214/streams",
+        json=data.model_dump(),
+    )
 
 
-def list_streams(incident_id: str) -> List[ICS214Stream]:
-    with with_incident_session(incident_id) as session:
-        result = session.execute(select(ICS214Stream)).scalars().all()
-        return result
+def list_streams(incident_id: str) -> List[Dict[str, Any]]:
+    return _client().get(f"/api/incidents/{incident_id}/ics214/streams")
 
 
 def list_subject_options(incident_id: str) -> Dict[str, List[Dict[str, Any]]]:
-    """Return available log subjects grouped by category for the incident."""
-
-    options: Dict[str, List[Dict[str, Any]]] = {
-        "team": [],
-        "individual": [],
-        "section": [],
-        "facility": [],
-    }
-    with with_incident_session(incident_id) as session:
-        try:
-            rows = (
-                session.execute(
-                    text(
-                        """
-                        SELECT id,
-                               COALESCE(NULLIF(name, ''), NULLIF(callsign, ''), 'Team ' || id) AS label,
-                               NULLIF(callsign, '') AS callsign,
-                               NULLIF(role, '') AS role
-                        FROM teams
-                        ORDER BY label COLLATE NOCASE
-                        """
-                    )
-                )
-                .mappings()
-                .all()
-            )
-            for row in rows:
-                description_parts = [
-                    part
-                    for part in (row.get("role"), row.get("callsign"))
-                    if part
-                ]
-                options["team"].append(
-                    {
-                        "ref": f"team:{row['id']}",
-                        "label": row["label"],
-                        "description": " â€” ".join(description_parts),
-                    }
-                )
-        except Exception as exc:  # pragma: no cover - optional data
-            logger.debug("Failed to load teams for ICS-214 subjects: %s", exc)
-
-        try:
-            rows = (
-                session.execute(
-                    text(
-                        """
-                        SELECT id,
-                               COALESCE(NULLIF(name, ''), 'Personnel ' || id) AS label,
-                               NULLIF(role, '') AS role,
-                               NULLIF(callsign, '') AS callsign
-                        FROM personnel
-                        ORDER BY label COLLATE NOCASE
-                        """
-                    )
-                )
-                .mappings()
-                .all()
-            )
-            for row in rows:
-                description_parts = [
-                    part
-                    for part in (row.get("role"), row.get("callsign"))
-                    if part
-                ]
-                options["individual"].append(
-                    {
-                        "ref": f"individual:{row['id']}",
-                        "label": row["label"],
-                        "description": " â€” ".join(description_parts),
-                    }
-                )
-        except Exception as exc:  # pragma: no cover - optional data
-            logger.debug("Failed to load personnel for ICS-214 subjects: %s", exc)
-
-        try:
-            rows = (
-                session.execute(
-                    text(
-                        """
-                        SELECT id,
-                               NULLIF(title, '') AS title,
-                               NULLIF(node_type, '') AS node_type,
-                               order_index
-                        FROM org_structures
-                        ORDER BY order_index, title COLLATE NOCASE
-                        """
-                    )
-                )
-                .mappings()
-                .all()
-            )
-            for row in rows:
-                title = row.get("title")
-                if not title:
-                    continue
-                description = row.get("node_type") or ""
-                options["section"].append(
-                    {
-                        "ref": f"section:{row['id']}",
-                        "label": title,
-                        "description": description,
-                    }
-                )
-        except Exception as exc:  # pragma: no cover - optional data
-            logger.debug("Failed to load org structure for ICS-214 subjects: %s", exc)
-
-        try:
-            rows = (
-                session.execute(
-                    text(
-                        """
-                        SELECT id,
-                               COALESCE(NULLIF(name, ''), 'Facility ' || id) AS label,
-                               NULLIF(type, '') AS type,
-                               NULLIF(level, '') AS level,
-                               NULLIF(notes, '') AS notes,
-                               COALESCE(is_24_7, 0) AS is_24_7
-                        FROM aid_stations
-                        ORDER BY label COLLATE NOCASE
-                        """
-                    )
-                )
-                .mappings()
-                .all()
-            )
-            for row in rows:
-                description_parts = []
-                if row.get("type"):
-                    description_parts.append(row["type"])
-                if row.get("level"):
-                    description_parts.append(row["level"])
-                if row.get("is_24_7"):
-                    description_parts.append("24/7")
-                if row.get("notes"):
-                    description_parts.append(row["notes"])
-                options["facility"].append(
-                    {
-                        "ref": f"facility:aid_station:{row['id']}",
-                        "label": row["label"],
-                        "description": " â€” ".join(description_parts),
-                    }
-                )
-        except Exception as exc:  # pragma: no cover - optional data
-            logger.debug("Failed to load facilities for ICS-214 subjects: %s", exc)
-
-    return options
+    try:
+        return _client().get(f"/api/incidents/{incident_id}/ics214/subject-options")
+    except Exception:
+        return {"team": [], "individual": [], "section": [], "facility": []}
 
 
-def update_stream(incident_id: str, stream_id: str, data: StreamUpdate) -> ICS214Stream | None:
-    with with_incident_session(incident_id) as session:
-        stream = session.get(ICS214Stream, stream_id)
-        if not stream:
-            return None
-        for field, value in data.model_dump(exclude_unset=True).items():
-            setattr(stream, field, value)
-        session.add(stream)
-        session.flush()
-        return stream
-
-# Entries ---------------------------------------------------------------------
-
-def _entry_to_dict(entry: ICS214Entry) -> Dict[str, Any]:
-    return {
-        "id": entry.id,
-        "stream_id": entry.stream_id,
-        "timestamp_utc": entry.timestamp_utc.isoformat(timespec="seconds"),
-        "text": entry.text,
-        "source": entry.source,
-        "actor_user_id": entry.actor_user_id,
-        "autogenerated": entry.autogenerated,
-        "critical_flag": entry.critical_flag,
-        "idempotency_hash": entry.idempotency_hash,
-        "tags": entry.tags or [],
-    }
+def update_stream(incident_id: str, stream_id: str, data: StreamUpdate):
+    return _client().put(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}",
+        json=data.model_dump(exclude_unset=True),
+    )
 
 
-def add_entry(incident_id: str, stream_id: str, data: EntryCreate, autogenerated: bool = False, id_hash: str | None = None) -> Dict[str, Any]:
-    with with_incident_session(incident_id) as session:
-        stream = session.get(ICS214Stream, stream_id)
-        if not stream:
-            raise ValueError("Stream not found")
-        timestamp = data.timestamp_utc or datetime.utcnow()
-        if not id_hash:
-            hash_input = f"manual:{uuid.uuid4()}".encode()
-            id_hash = hashlib.sha256(hash_input).hexdigest()
-        entry = ICS214Entry(
-            id=str(uuid.uuid4()),
-            stream_id=stream_id,
-            timestamp_utc=timestamp,
-            text=data.text,
-            source=data.source,
-            actor_user_id=data.actor_user_id,
-            critical_flag=data.critical_flag,
-            tags=data.tags,
-            autogenerated=autogenerated,
-            idempotency_hash=id_hash,
-        )
-        session.add(entry)
-        session.flush()
-        payload = _entry_to_dict(entry)
-    ws_manager.broadcast(stream_id, payload)
-    return payload
+# Entries --------------------------------------------------------------------
+
+def add_entry(
+    incident_id: str,
+    stream_id: str,
+    data: EntryCreate,
+    autogenerated: bool = False,
+    id_hash: str | None = None,
+) -> Dict[str, Any]:
+    params: Dict[str, Any] = {"autogenerated": autogenerated}
+    if id_hash:
+        params["idempotency_hash"] = id_hash
+
+    payload = data.model_dump()
+    if payload.get("timestamp_utc") and not isinstance(payload["timestamp_utc"], str):
+        payload["timestamp_utc"] = payload["timestamp_utc"].isoformat(timespec="seconds")
+
+    return _client().post(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/entries",
+        json=payload,
+        params=params,
+    )
 
 
 def list_entries(incident_id: str, stream_id: str) -> List[Dict[str, Any]]:
-    with with_incident_session(incident_id) as session:
-        result = session.execute(
-            select(ICS214Entry).where(ICS214Entry.stream_id == stream_id).order_by(ICS214Entry.timestamp_utc)
-        ).scalars().all()
-        return [_entry_to_dict(e) for e in result]
+    return _client().get(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/entries"
+    )
 
 
-def update_entry(incident_id: str, entry_id: str, data: "EntryUpdate") -> Dict[str, Any] | None:
-    from .schemas import EntryUpdate
+def update_entry(incident_id: str, entry_id: str, data: "EntryUpdate", stream_id: str | None = None) -> Dict[str, Any] | None:
     if not isinstance(data, EntryUpdate):
         data = EntryUpdate(**(data or {}))
-    with with_incident_session(incident_id) as session:
-        entry = session.get(ICS214Entry, entry_id)
-        if not entry:
-            return None
-        payload = data.model_dump(exclude_unset=True)
-        for k, v in payload.items():
-            if hasattr(entry, k):
-                setattr(entry, k, v)
-        session.add(entry)
-        session.flush()
-        return _entry_to_dict(entry)
+    if not stream_id:
+        raise ValueError("stream_id is required for update_entry")
+    return _client().put(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/entries/{entry_id}",
+        json=data.model_dump(exclude_unset=True),
+    )
 
 
-def delete_entry(incident_id: str, entry_id: str) -> bool:
-    with with_incident_session(incident_id) as session:
-        entry = session.get(ICS214Entry, entry_id)
-        if not entry:
-            return False
-        session.delete(entry)
-        session.flush()
+def delete_entry(incident_id: str, entry_id: str, stream_id: str | None = None) -> bool:
+    if not stream_id:
+        raise ValueError("stream_id is required for delete_entry")
+    try:
+        _client().delete(
+            f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/entries/{entry_id}",
+        )
         return True
+    except Exception:
+        return False
+
 
 # Event ingestion -------------------------------------------------------------
 
 def ingest_event_to_entries(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     incident_id = event["incident_id"]
-    topic = event["topic"]
-    created: List[Dict[str, Any]] = []
-    with with_incident_session(incident_id) as session:
-        rules = session.execute(
-            select(ICS214IngestRule).where(ICS214IngestRule.topic == topic, ICS214IngestRule.enabled == True)
-        ).scalars().all()
-    for rule in rules:
-        text = rule.template.format(**event.get("payload", {}))
-        hash_input = (event["event_id"] + rule.stream_id).encode()
-        id_hash = hashlib.sha256(hash_input).hexdigest()
-        try:
-            created.append(
-                add_entry(
-                    incident_id,
-                    rule.stream_id,
-                    EntryCreate(text=text, source="auto"),
-                    autogenerated=True,
-                    id_hash=id_hash,
-                )
-            )
-        except Exception:
-            # Duplicate entry hash -> ignore
-            continue
-    return created
+    result = _client().post(
+        f"/api/incidents/{incident_id}/ics214/ingest-event",
+        json=event,
+    )
+    return result.get("created", [])
+
 
 # Export ---------------------------------------------------------------------
 
-def export_stream(incident_id: str, stream_id: str, options: ExportRequest) -> ICS214Export:
-    entries = list_entries(incident_id, stream_id)
-    if not options.include_auto:
-        entries = [e for e in entries if not e["autogenerated"]]
-    base_dir = Path("data") / "uploads" / "ics214" / incident_id
-    base_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{stream_id}_{int(datetime.utcnow().timestamp())}.pdf"
-    file_path = base_dir / filename
-    from modules.forms.api import export_form_unified
+def export_stream(incident_id: str, stream_id: str, options: ExportRequest):
+    """Generate and save a PDF export of the stream as a proper ICS-214 form."""
+    import uuid
+    from datetime import datetime, timezone
+    from pathlib import Path
 
-    export_form_unified(
-        "ics_214",
-        file_path,
-        values={"entries": entries},
-        context={"incident_id": incident_id},
+    # Fetch entries, excluding internal composition notes from the printed form
+    entries = _client().get(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/entries",
+        params={"exclude_internal": True},
+    )
+    if not options.include_auto:
+        entries = [e for e in entries if not e.get("autogenerated")]
+
+    # Fetch stream metadata for header fields
+    stream = _client().get(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}"
     )
 
-    with with_incident_session(incident_id) as session:
-        exp = ICS214Export(id=str(uuid.uuid4()), stream_id=stream_id, file_path=str(file_path))
-        session.add(exp)
-        session.flush()
-        return exp
+    # Fetch incident metadata for header
+    incident_name = ""
+    op_date_from = op_date_to = op_time_from = op_time_to = ""
+    try:
+        inc = _client().get(f"/api/incidents/{incident_id}/ic-overview")
+        incident_name = inc.get("incident_name") or inc.get("name") or incident_id
+    except Exception:
+        incident_name = incident_id
+
+    try:
+        op = _client().get(f"/api/incidents/{incident_id}/operational-periods/active")
+        if op:
+            def _fmt_dt(iso: str, fmt: str) -> str:
+                try:
+                    return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime(fmt)
+                except Exception:
+                    return iso or ""
+            op_date_from = _fmt_dt(op.get("date_from") or "", "%m/%d/%Y")
+            op_date_to   = _fmt_dt(op.get("date_to")   or "", "%m/%d/%Y")
+            op_time_from = _fmt_dt(op.get("time_from") or op.get("date_from") or "", "%H%MZ")
+            op_time_to   = _fmt_dt(op.get("time_to")   or op.get("date_to")   or "", "%H%MZ")
+    except Exception:
+        pass
+
+    # Build resources list from stream metadata
+    resources = []
+    try:
+        import json as _json
+        section = stream.get("section") or "{}"
+        sec_data = _json.loads(section) if isinstance(section, str) else section
+        team_id = None
+        ref = sec_data.get("ref", "")
+        if ref.startswith("team:"):
+            team_id = ref.split(":", 1)[1]
+        if team_id:
+            teams = _client().get(f"/api/incidents/{incident_id}/operations/teams")
+            for t in (teams or []):
+                if str(t.get("int_id")) == str(team_id):
+                    for m in (t.get("members") or []):
+                        resources.append({
+                            "name": m.get("name") or m.get("full_name") or "",
+                            "ics_position": m.get("role") or m.get("ics_position") or "",
+                            "home_agency": m.get("agency") or m.get("home_agency") or "",
+                        })
+                    break
+    except Exception:
+        pass
+
+    # Prepared-by info from active user
+    prepared_name = prepared_title = ""
+    try:
+        from utils.state import AppState
+        uid = AppState.get_active_user_id()
+        role = AppState.get_active_role()
+        prepared_name = str(uid or "")
+        prepared_title = str(role or "")
+    except Exception:
+        pass
+
+    prepared_dt = datetime.now(timezone.utc).strftime("%m/%d/%Y %H%MZ")
+
+    # Unit name from stream name
+    unit_name = stream.get("name") or ""
+
+    base_dir = Path("data") / "uploads" / "ics214" / incident_id
+    base_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"ICS214_{stream_id}_{int(datetime.now(timezone.utc).timestamp())}.pdf"
+    file_path = base_dir / filename
+
+    _ASSETS = Path(__file__).parent / "assets"
+    from modules.forms_creator.pdf_filler.pdf_filler import PDFFiller
+    from modules.forms_creator.form_set_registry import FormSetRegistry
+    filler = PDFFiller(_ASSETS / "ics214_mapping.json")
+    registry = FormSetRegistry()
+    form_def = registry.get_form_definition("ics_214")
+    form_row_groups = form_def.row_groups if form_def else []
+
+    formatted_entries = []
+    for e in entries:
+        ts_raw = e.get("timestamp_utc") or e.get("timestamp") or ""
+        try:
+            ts_dt = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+            ts_display = ts_dt.strftime("%m/%d %H%MZ")
+        except Exception:
+            ts_display = str(ts_raw)[:14]
+        formatted_entries.append({
+            "timestamp_display": ts_display,
+            "text": e.get("text") or e.get("activity") or "",
+        })
+
+    data = {
+        "incident": {"name": incident_name},
+        "op_period": {
+            "date_from": op_date_from,
+            "date_to": op_date_to,
+            "time_from": op_time_from,
+            "time_to": op_time_to,
+        },
+        "unit": {"name": unit_name, "ics_position": "", "home_agency": ""},
+        "resources": resources,
+        "entries": formatted_entries,
+        "prepared": {
+            "name": prepared_name,
+            "title": prepared_title,
+            "dt": prepared_dt,
+        },
+    }
+    filler.fill(data, _ASSETS / "ics214_page1.pdf", file_path, form_row_groups=form_row_groups)
+
+    class _ExportResult:
+        def __init__(self, id_, file_path_, created_at_):
+            self.id = id_
+            self.file_path = str(file_path_)
+            self.created_at = created_at_
+
+    return _ExportResult(
+        id_=str(uuid.uuid4()),
+        file_path_=file_path,
+        created_at_=datetime.now(timezone.utc),
+    )

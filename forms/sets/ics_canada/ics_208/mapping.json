@@ -1,0 +1,87 @@
+{
+  "description": "ICS 208 — Safety Message / Plan — ICS Canada 2023",
+  "fields": [
+    {
+      "pdf_field": "3 INCIDENT NAME",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "Date from",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Date to",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "Time from",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Time to",
+      "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": "3 INCIDENT NAME",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "Date from",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Date to",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "Time from",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Time to",
+      "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": " SAFETY MESSAGE",
+      "source": ""
+    },
+    {
+      "pdf_field": "Yes",
+      "source": ""
+    },
+    {
+      "pdf_field": "No",
+      "source": ""
+    },
+    {
+      "pdf_field": "Approved Site Safety Plan(s) Located At:",
+      "source": ""
+    },
+    {
+      "pdf_field": "PREPARED BY (Name and Position)",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Date/Time:",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Text15",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "3. SAFETY MESSAGE",
+      "source": ""
+    },
+    {
+      "pdf_field": "3",
+      "source": ""
+    }
+  ]
+}

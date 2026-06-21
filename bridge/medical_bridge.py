@@ -1,24 +1,13 @@
-"""Bridge layer exposing ICS 206 data to QML.
-
-The bridge is responsible for CRUD operations against the incident specific
-SQLite database as well as importing reference data from the read only
-``data/master.db`` catalogue.  All returned values are plain Python objects so
-that they can be serialised to JSON and consumed directly by QML.
-"""
+"""Bridge layer exposing ICS 206 data to Qt widgets."""
 from __future__ import annotations
 
-import sqlite3
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Mapping, Sequence
 
 from PySide6.QtCore import QObject, Signal
-
+from modules.medical.data.mongo_access import get_incident_db, get_master_db, strip_mongo_id
+from utils.incident_context import get_active_incident_id
 from utils.state import AppState
-from utils import incident_storage
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 TABLE_FIELDS: Dict[str, Sequence[str]] = {
     "aid_stations": ["id", "op_period", "name", "type", "level", "is_24_7", "notes"],
@@ -71,28 +60,31 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
     ],
 }
 
-MASTER_DB = incident_storage.master_db_path()
-
-# ---------------------------------------------------------------------------
+COLLECTIONS = {
+    "aid_stations": "ics_206_aid_stations",
+    "ambulance_services": "ics_206_ambulance_services",
+    "hospitals": "ics_206_hospitals",
+    "air_ambulance": "ics_206_air_ambulance",
+    "medical_comms": "ics_206_medical_comms",
+    "procedures": "ics_206_procedures",
+    "ics206_signatures": "ics_206_signatures",
+}
 
 
 class MedicalBridge(QObject):
-    """SQLite helper used by :class:`modules.medical.panels.ics206_panel.ICS206Panel`."""
+    """MongoDB helper used by :class:`modules.medical.panels.ics206_panel.ICS206Panel`."""
 
     data_changed = Signal(str)
     toast = Signal(str)
 
-    # ------------------------------------------------------------------
-    def _incident_path(self) -> Path:
+    def _incident_id(self) -> str:
+        incident_id = get_active_incident_id()
+        if incident_id:
+            return str(incident_id)
         inc = AppState.get_active_incident()
-        if not inc:
-            raise RuntimeError("No active incident selected")
-        paths = incident_storage.resolve_incident_paths_by_identifier(str(inc))
-        if paths is None:
-            meta = incident_storage.infer_incident_metadata(str(inc))
-            paths = incident_storage.get_incident_paths(incident_number=meta.get("incident_number") or inc, incident_name=meta.get("name") or inc, incident_id=meta.get("incident_id") or inc)
-            incident_storage.ensure_incident_structure(paths, meta)
-        return paths.incident_db
+        if inc:
+            return str(inc)
+        raise RuntimeError("No active incident selected")
 
     def _op_period(self) -> int:
         op = AppState.get_active_op_period()
@@ -100,316 +92,269 @@ class MedicalBridge(QObject):
             raise RuntimeError("No active operational period selected")
         return int(op)
 
-    def _connect(self) -> sqlite3.Connection:
-        con = sqlite3.connect(str(self._incident_path()))
-        con.row_factory = sqlite3.Row
-        return con
+    def _db(self):
+        return get_incident_db(self._incident_id())
 
-    def _connect_master(self) -> sqlite3.Connection:
-        con = sqlite3.connect(str(MASTER_DB))
-        con.row_factory = sqlite3.Row
-        return con
+    def _master_db(self):
+        return get_master_db()
 
-    # ------------------------------------------------------------------
+    def _collection(self, table: str):
+        return self._db()[COLLECTIONS[table]]
+
+    def _now(self) -> str:
+        return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
     def ensure_ics206_tables(self) -> None:
-        """Create required tables if missing in the incident DB."""
-        with self._connect() as con:
-            con.execute(
-                """
-                CREATE TABLE IF NOT EXISTS aid_stations (
-                    id INTEGER PRIMARY KEY,
-                    op_period INTEGER NOT NULL,
-                    name TEXT,
-                    type TEXT,
-                    level TEXT,
-                    is_24_7 INTEGER DEFAULT 0,
-                    notes TEXT
-                )
-                """
-            )
-            con.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ambulance_services (
-                    id INTEGER PRIMARY KEY,
-                    op_period INTEGER NOT NULL,
-                    name TEXT,
-                    type TEXT,
-                    phone TEXT,
-                    location TEXT,
-                    notes TEXT
-                )
-                """
-            )
-            con.execute(
-                """
-                CREATE TABLE IF NOT EXISTS hospitals (
-                    id INTEGER PRIMARY KEY,
-                    op_period INTEGER NOT NULL,
-                    name TEXT,
-                    address TEXT,
-                    phone TEXT,
-                    helipad INTEGER DEFAULT 0,
-                    burn_center INTEGER DEFAULT 0,
-                    level TEXT,
-                    notes TEXT
-                )
-                """
-            )
-            con.execute(
-                """
-                CREATE TABLE IF NOT EXISTS air_ambulance (
-                    id INTEGER PRIMARY KEY,
-                    op_period INTEGER NOT NULL,
-                    name TEXT,
-                    phone TEXT,
-                    base TEXT,
-                    contact TEXT,
-                    notes TEXT
-                )
-                """
-            )
-            con.execute(
-                """
-                CREATE TABLE IF NOT EXISTS procedures (
-                    id INTEGER PRIMARY KEY,
-                    op_period INTEGER NOT NULL UNIQUE,
-                    content TEXT
-                )
-                """
-            )
-            con.execute(
-                """
-                CREATE TABLE IF NOT EXISTS medical_comms (
-                    id INTEGER PRIMARY KEY,
-                    op_period INTEGER NOT NULL,
-                    channel TEXT,
-                    function TEXT,
-                    frequency TEXT,
-                    mode TEXT,
-                    notes TEXT
-                )
-                """
-            )
-            con.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ics206_signatures (
-                    id INTEGER PRIMARY KEY,
-                    op_period INTEGER NOT NULL UNIQUE,
-                    prepared_by TEXT,
-                    position TEXT,
-                    approved_by TEXT,
-                    date TEXT
-                )
-                """
-            )
-            con.commit()
+        """Verify Mongo indexes for the active incident."""
+        db = self._db()
+        incident_id = self._incident_id()
+        for table in (
+            "aid_stations",
+            "ambulance_services",
+            "hospitals",
+            "air_ambulance",
+            "medical_comms",
+        ):
+            col = db[COLLECTIONS[table]]
+            col.create_index([("incident_id", 1), ("op_period", 1)])
+            col.create_index([("id", 1)], unique=True)
+            col.create_index([("deleted", 1)])
+        db[COLLECTIONS["procedures"]].create_index(
+            [("incident_id", 1), ("op_period", 1)], unique=True
+        )
+        db[COLLECTIONS["ics206_signatures"]].create_index(
+            [("incident_id", 1), ("op_period", 1)], unique=True
+        )
+        # Touch the database so connection issues surface during panel startup.
+        db.command("ping")
+        if not incident_id:
+            raise RuntimeError("No active incident selected")
 
-    # ------------------------------------------------------------------
-    # Generic CRUD helpers
-    # ------------------------------------------------------------------
-    def _rows_to_dicts(self, rows: Iterable[sqlite3.Row]) -> List[Dict[str, Any]]:
-        return [dict(r) for r in rows]
+    def _base_query(self, op_period: int | None = None) -> dict[str, Any]:
+        return {
+            "incident_id": self._incident_id(),
+            "op_period": self._op_period() if op_period is None else int(op_period),
+            "deleted": {"$ne": True},
+        }
+
+    def _next_id(self, table: str) -> int:
+        row = self._collection(table).find_one(sort=[("id", -1)], projection={"id": 1})
+        return int(row["id"]) + 1 if row and row.get("id") is not None else 1
+
+    def _clean_doc(self, table: str, document: Mapping[str, Any]) -> dict[str, Any]:
+        fields = TABLE_FIELDS[table]
+        return {field: document.get(field) for field in fields}
 
     def list_table(self, table: str) -> List[Dict[str, Any]]:
-        fields = ",".join(TABLE_FIELDS[table])
-        op = self._op_period()
-        with self._connect() as con:
-            cur = con.execute(
-                f"SELECT {fields} FROM {table} WHERE op_period=? ORDER BY id", (op,)
-            )
-            return self._rows_to_dicts(cur.fetchall())
+        rows = self._collection(table).find(self._base_query()).sort("id", 1)
+        return [self._clean_doc(table, strip_mongo_id(row) or {}) for row in rows]
 
     def add_record(self, table: str, data: Dict[str, Any]) -> int:
-        cols = [c for c in TABLE_FIELDS[table] if c not in ("id", "op_period")]
-        placeholders = ",".join(["?"] * len(cols))
-        sql = f"INSERT INTO {table} (op_period, {', '.join(cols)}) VALUES (?, {placeholders})"
-        params = [self._op_period()] + [data.get(c) for c in cols]
-        with self._connect() as con:
-            cur = con.execute(sql, params)
-            con.commit()
-            self.data_changed.emit(table)
-            return int(cur.lastrowid)
+        now = self._now()
+        row_id = self._next_id(table)
+        fields = [c for c in TABLE_FIELDS[table] if c not in ("id", "op_period")]
+        doc = {
+            "id": row_id,
+            "incident_id": self._incident_id(),
+            "op_period": self._op_period(),
+            "deleted": False,
+            "created_at": now,
+            "updated_at": now,
+        }
+        doc.update({field: data.get(field) for field in fields})
+        self._collection(table).insert_one(doc)
+        self.data_changed.emit(table)
+        return row_id
 
     def update_record(self, table: str, id_value: int, data: Dict[str, Any]) -> bool:
-        cols = [c for c in data.keys() if c in TABLE_FIELDS[table] and c not in ("id", "op_period")]
-        if not cols:
+        updates = {
+            key: value
+            for key, value in data.items()
+            if key in TABLE_FIELDS[table] and key not in ("id", "op_period")
+        }
+        if not updates:
             return False
-        set_clause = ", ".join([f"{c}=?" for c in cols])
-        sql = f"UPDATE {table} SET {set_clause} WHERE id=?"
-        params = [data.get(c) for c in cols] + [id_value]
-        with self._connect() as con:
-            con.execute(sql, params)
-            con.commit()
-            self.data_changed.emit(table)
-            return True
+        updates["updated_at"] = self._now()
+        result = self._collection(table).update_one(
+            {"id": int(id_value), "incident_id": self._incident_id()},
+            {"$set": updates},
+        )
+        self.data_changed.emit(table)
+        return result.matched_count > 0
 
     def delete_record(self, table: str, id_value: int) -> bool:
-        with self._connect() as con:
-            con.execute(f"DELETE FROM {table} WHERE id=?", (id_value,))
-            con.commit()
-            self.data_changed.emit(table)
-            return True
+        result = self._collection(table).update_one(
+            {"id": int(id_value), "incident_id": self._incident_id()},
+            {"$set": {"deleted": True, "updated_at": self._now()}},
+        )
+        self.data_changed.emit(table)
+        return result.matched_count > 0
 
-    # ------------------------------------------------------------------
-    # Table specific helpers
-    # ------------------------------------------------------------------
     def get_procedures(self) -> str:
-        op = self._op_period()
-        with self._connect() as con:
-            cur = con.execute(
-                "SELECT content FROM procedures WHERE op_period=?", (op,)
-            )
-            row = cur.fetchone()
-            return row["content"] if row else ""
+        row = self._collection("procedures").find_one(self._base_query())
+        return str(row.get("content") or "") if row else ""
 
     def save_procedures(self, text: str) -> None:
-        op = self._op_period()
-        with self._connect() as con:
-            con.execute(
-                """
-                INSERT INTO procedures (op_period, content)
-                VALUES (?, ?)
-                ON CONFLICT(op_period) DO UPDATE SET content=excluded.content
-                """,
-                (op, text),
-            )
-            con.commit()
-            self.data_changed.emit("procedures")
+        self._collection("procedures").update_one(
+            {"incident_id": self._incident_id(), "op_period": self._op_period()},
+            {
+                "$set": {
+                    "content": text,
+                    "deleted": False,
+                    "updated_at": self._now(),
+                },
+                "$setOnInsert": {
+                    "id": self._next_id("procedures"),
+                    "created_at": self._now(),
+                },
+            },
+            upsert=True,
+        )
+        self.data_changed.emit("procedures")
 
     def get_signatures(self) -> Dict[str, Any]:
-        op = self._op_period()
-        with self._connect() as con:
-            cur = con.execute(
-                "SELECT prepared_by, position, approved_by, date FROM ics206_signatures WHERE op_period=?",
-                (op,),
-            )
-            row = cur.fetchone()
-            return dict(row) if row else {}
+        row = self._collection("ics206_signatures").find_one(self._base_query())
+        if not row:
+            return {}
+        return {
+            "prepared_by": row.get("prepared_by"),
+            "position": row.get("position"),
+            "approved_by": row.get("approved_by"),
+            "date": row.get("date"),
+        }
 
     def save_signatures(self, data: Dict[str, Any]) -> None:
-        op = self._op_period()
-        with self._connect() as con:
-            con.execute(
-                """
-                INSERT INTO ics206_signatures (op_period, prepared_by, position, approved_by, date)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(op_period) DO UPDATE SET
-                    prepared_by=excluded.prepared_by,
-                    position=excluded.position,
-                    approved_by=excluded.approved_by,
-                    date=excluded.date
-                """,
-                (
-                    op,
-                    data.get("prepared_by"),
-                    data.get("position"),
-                    data.get("approved_by"),
-                    data.get("date"),
-                ),
-            )
-            con.commit()
-            self.data_changed.emit("ics206_signatures")
+        now = self._now()
+        self._collection("ics206_signatures").update_one(
+            {"incident_id": self._incident_id(), "op_period": self._op_period()},
+            {
+                "$set": {
+                    "prepared_by": data.get("prepared_by"),
+                    "position": data.get("position"),
+                    "approved_by": data.get("approved_by"),
+                    "date": data.get("date"),
+                    "deleted": False,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"id": self._next_id("ics206_signatures"), "created_at": now},
+            },
+            upsert=True,
+        )
+        self.data_changed.emit("ics206_signatures")
 
-    # ------------------------------------------------------------------
+    def _import_master_rows(self, collection: str, query: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        rows = self._master_db()[collection].find(query or {"deleted": {"$ne": True}})
+        return [strip_mongo_id(row) or {} for row in rows]
+
     def import_aid_stations(self) -> int:
-        op = self._op_period()
-        with self._connect_master() as mcon, self._connect() as con:
-            cur = mcon.execute(
-                "SELECT name, type, phone, notes FROM ems"
+        rows = self._import_master_rows("ems_agencies", {"type": "Medical Aid", "is_active": {"$ne": False}})
+        for row in rows:
+            self.add_record(
+                "aid_stations",
+                {
+                    "name": row.get("name"),
+                    "type": row.get("type"),
+                    "level": "",
+                    "is_24_7": 0,
+                    "notes": row.get("notes"),
+                },
             )
-            rows = cur.fetchall()
-            for r in rows:
-                con.execute(
-                    "INSERT INTO aid_stations (op_period, name, type, level, is_24_7, notes) VALUES (?,?,?,?,?,?)",
-                    (op, r["name"], r["type"], "", 0, r["notes"]),
-                )
-            con.commit()
-            self.data_changed.emit("aid_stations")
-            return len(rows)
+        return len(rows)
 
     def import_ambulance_services(self) -> int:
-        op = self._op_period()
-        with self._connect_master() as mcon, self._connect() as con:
-            cur = mcon.execute(
-                "SELECT name, type, phone, address, notes FROM ems"
+        rows = self._import_master_rows(
+            "ems_agencies",
+            {"type": {"$in": ["Ambulance", "Air Ambulance"]}, "is_active": {"$ne": False}},
+        )
+        for row in rows:
+            self.add_record(
+                "ambulance_services",
+                {
+                    "name": row.get("name"),
+                    "type": row.get("type"),
+                    "phone": row.get("phone"),
+                    "location": row.get("address"),
+                    "notes": row.get("notes"),
+                },
             )
-            rows = cur.fetchall()
-            for r in rows:
-                con.execute(
-                    "INSERT INTO ambulance_services (op_period, name, type, phone, location, notes) VALUES (?,?,?,?,?,?)",
-                    (op, r["name"], r["type"], r["phone"], r["address"], r["notes"]),
-                )
-            con.commit()
-            self.data_changed.emit("ambulance_services")
-            return len(rows)
+        return len(rows)
 
     def import_hospitals(self) -> int:
-        op = self._op_period()
-        with self._connect_master() as mcon, self._connect() as con:
-            cur = mcon.execute(
-                "SELECT name, address, phone, notes FROM hospitals"
+        rows = self._import_master_rows("hospitals", {"deleted": {"$ne": True}})
+        for row in rows:
+            self.add_record(
+                "hospitals",
+                {
+                    "name": row.get("name"),
+                    "address": row.get("address"),
+                    "phone": row.get("phone") or row.get("phone_er") or row.get("phone_switchboard"),
+                    "helipad": 1 if row.get("helipad") else 0,
+                    "burn_center": 1 if row.get("burn_center") else 0,
+                    "level": row.get("trauma_level") or row.get("level") or "",
+                    "notes": row.get("notes"),
+                },
             )
-            rows = cur.fetchall()
-            for r in rows:
-                con.execute(
-                    "INSERT INTO hospitals (op_period, name, address, phone, helipad, burn_center, level, notes) VALUES (?,?,?,?,?,?,?,?)",
-                    (op, r["name"], r["address"], r["phone"], 0, 0, "", r["notes"]),
-                )
-            con.commit()
-            self.data_changed.emit("hospitals")
-            return len(rows)
+        return len(rows)
 
     def import_air_ambulance(self) -> int:
-        op = self._op_period()
-        with self._connect_master() as mcon, self._connect() as con:
-            cur = mcon.execute(
-                "SELECT name, phone, address, contact, notes FROM ems"
+        rows = self._import_master_rows("ems_agencies", {"type": "Air Ambulance", "is_active": {"$ne": False}})
+        for row in rows:
+            self.add_record(
+                "air_ambulance",
+                {
+                    "name": row.get("name"),
+                    "phone": row.get("phone"),
+                    "base": row.get("address"),
+                    "contact": row.get("contact") or row.get("contact_name"),
+                    "notes": row.get("notes"),
+                },
             )
-            rows = cur.fetchall()
-            for r in rows:
-                con.execute(
-                    "INSERT INTO air_ambulance (op_period, name, phone, base, contact, notes) VALUES (?,?,?,?,?,?)",
-                    (op, r["name"], r["phone"], r["address"], r["contact"], r["notes"]),
-                )
-            con.commit()
-            self.data_changed.emit("air_ambulance")
-            return len(rows)
+        return len(rows)
 
     def import_medical_comms(self) -> int:
-        op = self._op_period()
-        with self._connect_master() as mcon, self._connect() as con:
-            cur = mcon.execute(
-                "SELECT alpha_tag, function, freq_rx, mode, notes FROM comms_resources"
+        rows = self._import_master_rows("radio_channels", {"deleted": {"$ne": True}})
+        for row in rows:
+            self.add_record(
+                "medical_comms",
+                {
+                    "channel": row.get("alpha_tag") or row.get("channel_name"),
+                    "function": row.get("function"),
+                    "frequency": row.get("freq_rx") or row.get("frequency"),
+                    "mode": row.get("mode"),
+                    "notes": row.get("notes"),
+                },
             )
-            rows = cur.fetchall()
-            for r in rows:
-                con.execute(
-                    "INSERT INTO medical_comms (op_period, channel, function, frequency, mode, notes) VALUES (?,?,?,?,?,?)",
-                    (op, r["alpha_tag"], r["function"], r["freq_rx"], r["mode"], r["notes"]),
-                )
-            con.commit()
-            self.data_changed.emit("medical_comms")
-            return len(rows)
+        return len(rows)
 
-    # ------------------------------------------------------------------
     def duplicate_last_op(self) -> bool:
-        """Copy data from the most recent previous operational period."""
         cur_op = self._op_period()
-        with self._connect() as con:
-            cur = con.execute(
-                "SELECT MAX(op_period) FROM aid_stations WHERE op_period < ?", (cur_op,)
-            )
-            row = cur.fetchone()
-            if not row or row[0] is None:
-                return False
-            prev = int(row[0])
-            for table, fields in TABLE_FIELDS.items():
-                cols = [c for c in fields if c not in ("id", "op_period")]
-                col_str = ", ".join(cols)
-                con.execute(
-                    f"INSERT INTO {table} (op_period, {col_str}) SELECT ?, {col_str} FROM {table} WHERE op_period=?",
-                    (cur_op, prev),
+        row = self._collection("aid_stations").find_one(
+            {
+                "incident_id": self._incident_id(),
+                "op_period": {"$lt": cur_op},
+                "deleted": {"$ne": True},
+            },
+            sort=[("op_period", -1)],
+        )
+        if not row:
+            return False
+        prev = int(row["op_period"])
+        now = self._now()
+        for table, fields in TABLE_FIELDS.items():
+            for source in self._collection(table).find(
+                {"incident_id": self._incident_id(), "op_period": prev, "deleted": {"$ne": True}}
+            ):
+                doc = {field: source.get(field) for field in fields if field not in ("id", "op_period")}
+                doc.update(
+                    {
+                        "id": self._next_id(table),
+                        "incident_id": self._incident_id(),
+                        "op_period": cur_op,
+                        "deleted": False,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
                 )
-            con.commit()
-            self.data_changed.emit("all")
-            return True
+                self._collection(table).insert_one(doc)
+        self.data_changed.emit("all")
+        return True

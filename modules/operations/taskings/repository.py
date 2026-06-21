@@ -1,209 +1,33 @@
+"""Operations taskings repository — proxies through SARApp API (MongoDB backend)."""
 from __future__ import annotations
 
-import json
 import logging
-import os
-import sqlite3
-from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from utils import incident_context
 from utils.audit import write_audit
 from .models import Task, TaskTeam, TaskDetail
 
-
 logger = logging.getLogger(__name__)
 
-
-def _connect() -> sqlite3.Connection:
-    db_path = incident_context.get_active_incident_db_path()
-    con = sqlite3.connect(os.path.abspath(str(db_path)))
-    con.row_factory = sqlite3.Row
-    try:
-        con.execute("PRAGMA busy_timeout=3000")
-    except Exception:
-        pass
-    return con
+PRIORITY_MAP = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
+PRIORITY_INT_MAP = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
-def _task_status_to_key(value: Any) -> str:
-    if value is None:
-        return ""
-    s = str(value).strip().lower()
-    return {
-        "completed": "complete",
-        "complete": "complete",
-        "draft": "created",
-        "created": "created",
-        "planned": "planned",
-        "assigned": "assigned",
-        "in progress": "in progress",
-        "cancelled": "cancelled",
-    }.get(s, s)
+def _iid() -> str:
+    v = incident_context.get_active_incident_id()
+    if not v:
+        raise RuntimeError("No active incident")
+    return str(v)
 
 
-def _team_status_from_timestamps(r: sqlite3.Row) -> str:
-    def _val(key: str):
-        try:
-            return r[key]
-        except Exception:
-            return None
-    if _val("time_cleared"):
-        return "RTB"
-    if _val("time_complete"):
-        return "Complete"
-    if _val("time_arrived"):
-        return "On Scene"
-    if _val("time_enroute"):
-        return "En Route"
-    if _val("time_briefed"):
-        return "Briefed"
-    if _val("time_assigned"):
-        return "Assigned"
-    return "Assigned"
+def _base() -> str:
+    return f"/api/incidents/{_iid()}/operations"
 
 
-def _table_exists(con: sqlite3.Connection, name: str) -> bool:
-    try:
-        cur = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (str(name),))
-        return cur.fetchone() is not None
-    except Exception:
-        return False
-
-
-def _snapshot_task_roster(con: sqlite3.Connection, task_id: int, team_id: int) -> None:
-    """Best-effort snapshot of a team's current roster into task tables.
-
-    - Inserts (task_id, personnel_id, role, organization, time_assigned)
-      into task_personnel for any personnel where personnel.team_id == team_id.
-    - Inserts (task_id, vehicle_id) into task_vehicles for any vehicles
-      where vehicles.team_id == team_id.
-
-    Silently skips if tables or expected columns are not present.
-    """
-    from datetime import datetime
-
-    now = datetime.utcnow().isoformat(timespec="seconds")
-
-    # Snapshot personnel
-    try:
-        if _table_exists(con, "task_personnel"):
-            pcols = {r[1] for r in con.execute("PRAGMA table_info(personnel)").fetchall()}
-            if "team_id" in pcols:
-                has_role = "role" in pcols
-                has_org = "organization" in pcols
-                sel_role = ", role" if has_role else ", NULL AS role"
-                sel_org = ", organization" if has_org else ", NULL AS organization"
-                rows = con.execute(
-                    "SELECT id AS person_id" + sel_role + sel_org + " FROM personnel WHERE team_id=?",
-                    (int(team_id),),
-                ).fetchall()
-                if rows:
-                    tcols = [c[1] for c in con.execute("PRAGMA table_info(task_personnel)").fetchall()]
-                    for r in rows:
-                        pid = int(r["person_id"]) if r["person_id"] is not None else None
-                        if pid is None:
-                            continue
-                        prev = con.execute(
-                            "SELECT 1 FROM task_personnel WHERE task_id=? AND personnel_id=? LIMIT 1",
-                            (int(task_id), pid),
-                        ).fetchone()
-                        if prev:
-                            continue
-                        cols: list[str] = []
-                        vals: list[object] = []
-                        if "task_id" in tcols:
-                            cols.append("task_id"); vals.append(int(task_id))
-                        if "personnel_id" in tcols:
-                            cols.append("personnel_id"); vals.append(pid)
-                        if "role" in tcols:
-                            cols.append("role"); vals.append(r.get("role"))
-                        if "organization" in tcols:
-                            cols.append("organization"); vals.append(r.get("organization"))
-                        if "time_assigned" in tcols:
-                            cols.append("time_assigned"); vals.append(now)
-                        if cols:
-                            con.execute(
-                                f"INSERT INTO task_personnel ({','.join(cols)}) VALUES ({','.join(['?']*len(cols))})",
-                                tuple(vals),
-                            )
-    except Exception:
-        pass
-
-    # Snapshot vehicles
-    try:
-        if _table_exists(con, "task_vehicles"):
-            vcols = {r[1] for r in con.execute("PRAGMA table_info(vehicles)").fetchall()}
-            if "team_id" in vcols:
-                vrows = con.execute("SELECT id AS vehicle_id FROM vehicles WHERE team_id=?", (int(team_id),)).fetchall()
-                for r in vrows:
-                    vid = r["vehicle_id"]
-                    prev = con.execute(
-                        "SELECT 1 FROM task_vehicles WHERE task_id=? AND vehicle_id=? LIMIT 1",
-                        (int(task_id), vid),
-                    ).fetchone()
-                    if prev:
-                        continue
-                    con.execute(
-                        "INSERT INTO task_vehicles (task_id, vehicle_id) VALUES (?, ?)",
-                        (int(task_id), vid),
-                    )
-    except Exception:
-        pass
-
-
-def get_task(task_id: int) -> Task:
-    with _connect() as con:
-        _ensure_task_columns(con)
-        row = con.execute(
-            "SELECT id, task_id, title, priority, status, location, category, task_type,"
-            " COALESCE('', created_by) AS created_by, created_at, due_time,"
-            " COALESCE(assignment,'') AS assignment, COALESCE(team_leader,'') AS team_leader, COALESCE(team_phone,'') AS team_phone"
-            " FROM tasks WHERE id=?",
-            (int(task_id),),
-        ).fetchone()
-        if not row:
-            raise ValueError(f"Task id not found: {task_id}")
-    return Task(
-        id=int(row["id"]),
-        task_id=row["task_id"] or f"T-{row['id']}",
-        title=row["title"] or "",
-        description="",
-        category=row["category"] or "<New Task>",
-        task_type=row["task_type"] or None,  # mapping for task_type_id can be added later
-        priority={1: "Low", 2: "Medium", 3: "High", 4: "Critical"}.get(
-            int(row["priority"]) if row["priority"] is not None else 0, str(row["priority"] or "")
-        ),
-        status=_task_status_to_key(row["status"]).title() if row["status"] else "",
-        location=row["location"] or "",
-        created_by=row["created_by"] or "",
-        created_at=row["created_at"] or "",
-        assigned_to=None,
-        due_time=row["due_time"] or None,
-        assignment=row["assignment"] or "",
-        team_leader=row["team_leader"] or "",
-        team_phone=row["team_phone"] or "",
-    )
-
-
-def _ensure_task_columns(con: sqlite3.Connection) -> None:
-    try:
-        cols = {r[1] for r in con.execute("PRAGMA table_info(tasks)").fetchall()}
-        if "category" not in cols:
-            con.execute("ALTER TABLE tasks ADD COLUMN category TEXT")
-        if "task_type" not in cols:
-            con.execute("ALTER TABLE tasks ADD COLUMN task_type TEXT")
-        if "location" not in cols:
-            con.execute("ALTER TABLE tasks ADD COLUMN location TEXT")
-        if "assignment" not in cols:
-            con.execute("ALTER TABLE tasks ADD COLUMN assignment TEXT")
-        if "team_leader" not in cols:
-            con.execute("ALTER TABLE tasks ADD COLUMN team_leader TEXT")
-        if "team_phone" not in cols:
-            con.execute("ALTER TABLE tasks ADD COLUMN team_phone TEXT")
-        con.commit()
-    except Exception:
-        pass
+def _client():
+    from utils.api_client import api_client
+    return api_client
 
 
 def _priority_to_db(value: Any) -> int | None:
@@ -214,8 +38,7 @@ def _priority_to_db(value: Any) -> int | None:
     if s in mapping:
         return mapping[s]
     try:
-        i = int(value)
-        return i
+        return int(value)
     except Exception:
         return None
 
@@ -225,1263 +48,249 @@ def _status_to_db(value: Any) -> str | None:
         return None
     s = str(value).strip().lower()
     inv = {
-        "created": "Draft",
-        "draft": "Draft",
-        "planned": "Planned",
-        "assigned": "Assigned",
-        "in progress": "In Progress",
-        "complete": "Completed",
-        "completed": "Completed",
+        "created": "Draft", "draft": "Draft", "planned": "Planned", "assigned": "Assigned",
+        "in progress": "In Progress", "complete": "Completed", "completed": "Completed",
         "cancelled": "Cancelled",
     }
     return inv.get(s, str(value))
 
 
+def _task_status_to_key(value: Any) -> str:
+    if value is None:
+        return ""
+    s = str(value).strip().lower()
+    return {
+        "completed": "complete", "complete": "complete", "draft": "created", "created": "created",
+        "planned": "planned", "assigned": "assigned", "in progress": "in progress", "cancelled": "cancelled",
+    }.get(s, s)
+
+
+def _team_status_from_tt(tt: dict) -> str:
+    if tt.get("time_cleared"):
+        return "RTB"
+    if tt.get("time_complete"):
+        return "Complete"
+    if tt.get("time_arrived"):
+        return "On Scene"
+    if tt.get("time_enroute"):
+        return "En Route"
+    if tt.get("time_briefed"):
+        return "Briefed"
+    return "Assigned"
+
+
+def get_task(task_id: int) -> Task:
+    doc = _client().get(f"{_base()}/tasks/{task_id}")
+    priority = doc.get("priority", "")
+    if isinstance(priority, int):
+        priority = PRIORITY_MAP.get(priority, str(priority))
+    return Task(
+        id=int(doc["int_id"]),
+        task_id=doc.get("task_id") or f"T-{doc['int_id']}",
+        title=doc.get("title") or "",
+        description="",
+        category=doc.get("category") or "<New Task>",
+        task_type=doc.get("task_type"),
+        priority=priority,
+        status=_task_status_to_key(doc.get("status")).title() if doc.get("status") else "",
+        location=doc.get("location") or "",
+        created_by=doc.get("created_by") or "",
+        created_at=doc.get("created_at") or "",
+        assigned_to=None,
+        due_time=doc.get("due_time"),
+        assignment=doc.get("assignment") or "",
+        team_leader=doc.get("team_leader") or "",
+        team_phone=doc.get("team_phone") or "",
+    )
+
+
 def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
-    """Persist task toolbar metadata: id, title, category, task_type, priority, status, location."""
     patch = dict(patch or {})
-    with _connect() as con:
-        _ensure_task_columns(con)
-        # Fetch current values to compute per-field audit entries
-        try:
-            cur_row = con.execute(
-                "SELECT task_id, title, category, task_type, priority, status, location, assignment, team_leader, team_phone FROM tasks WHERE id=?",
-                (int(task_id),),
-            ).fetchone()
-        except Exception:
-            cur_row = None
-        cols: Dict[str, Any] = {}
-        if "task_id" in patch:
-            cols["task_id"] = str(patch["task_id"]) or None
-        if "title" in patch:
-            cols["title"] = str(patch["title"]) or None
-        if "category" in patch:
-            cols["category"] = str(patch["category"]) or None
-        if "task_type" in patch:
-            cols["task_type"] = str(patch["task_type"]) or None
-        if "priority" in patch:
-            cols["priority"] = _priority_to_db(patch["priority"])  # int mapping
-        if "status" in patch:
-            cols["status"] = _status_to_db(patch["status"])  # label mapping
-        if "location" in patch:
-            cols["location"] = str(patch["location"]) or None
-        if "assignment" in patch:
-            cols["assignment"] = str(patch["assignment"]) or None
-        if "team_leader" in patch:
-            cols["team_leader"] = str(patch["team_leader"]) or None
-        if "team_phone" in patch:
-            cols["team_phone"] = str(patch["team_phone"]) or None
-        if not cols:
-            return
-        # Write audit entries for changed fields
-        def _disp_current(key: str, val: Any) -> str:
-            if key == "priority":
-                try:
-                    return {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}.get(int(val), str(val or ""))
-                except Exception:
-                    return str(val or "")
-            if key == "status":
-                return _task_status_to_key(val).title() if val is not None else ""
-            return str(val if val is not None else "")
-
-        try:
-            if cur_row is not None:
-                # Map DB row to simple dict for comparisons
-                prev: Dict[str, Any] = {
-                    "task_id": cur_row["task_id"],
-                    "title": cur_row["title"],
-                    "category": cur_row["category"],
-                    "task_type": cur_row["task_type"],
-                    "priority": cur_row["priority"],
-                    "status": cur_row["status"],
-                    "location": cur_row["location"],
-                    "assignment": cur_row["assignment"],
-                    "team_leader": cur_row["team_leader"],
-                    "team_phone": cur_row["team_phone"],
-                }
-                for k, v in list(cols.items()):
-                    old = prev.get(k)
-                    # Compare with DB representation; for priority/status map display later
-                    if str(old) != str(v):
-                        try:
-                            write_audit(
-                                "task.update",
-                                {
-                                    "task_id": int(task_id),
-                                    "field": k,
-                                    "old": _disp_current(k, old),
-                                    "new": _disp_current(k, v),
-                                },
-                                prefer_mission=True,
-                            )
-                        except Exception:
-                            pass
-        except Exception:
-            # Non-fatal: proceed with update even if audit fails
-            pass
-
-        set_clause = ", ".join([f"{k}=?" for k in cols.keys()])
-        vals = list(cols.values()) + [int(task_id)]
-        con.execute(f"UPDATE tasks SET {set_clause} WHERE id=?", vals)
-        con.commit()
+    translated: Dict[str, Any] = {}
+    if "task_id" in patch:
+        translated["task_id"] = str(patch["task_id"]) or None
+    if "title" in patch:
+        translated["title"] = str(patch["title"]) or None
+    if "category" in patch:
+        translated["category"] = str(patch["category"]) or None
+    if "task_type" in patch:
+        translated["task_type"] = str(patch["task_type"]) or None
+    if "priority" in patch:
+        p = _priority_to_db(patch["priority"])
+        translated["priority"] = PRIORITY_MAP.get(p, str(patch["priority"])) if p else str(patch["priority"])
+    if "status" in patch:
+        translated["status"] = _status_to_db(patch["status"])
+    if "location" in patch:
+        translated["location"] = str(patch["location"]) or None
+    if "assignment" in patch:
+        translated["assignment"] = str(patch["assignment"]) or None
+    if "team_leader" in patch:
+        translated["team_leader"] = str(patch["team_leader"]) or None
+    if "team_phone" in patch:
+        translated["team_phone"] = str(patch["team_phone"]) or None
+    if not translated:
+        return
+    _client().patch(f"{_base()}/tasks/{task_id}", json=translated)
 
 
 def list_task_teams(task_id: int) -> List[TaskTeam]:
-    with _connect() as con:
-        rows = con.execute(
-            """
-            SELECT tt.id AS id,
-                   tt.teamid AS team_id,
-                   tt.sortie_id AS sortie_id,
-                   tt.is_primary AS is_primary,
-                   tt.time_assigned, tt.time_briefed, tt.time_enroute,
-                   tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared,
-                   tm.name AS team_name,
-                   p.name AS leader_name,
-                   COALESCE(p.phone, p.contact, p.email, '') AS leader_contact
-            FROM task_teams tt
-            LEFT JOIN teams tm ON tm.id = tt.teamid
-            LEFT JOIN personnel p ON p.id = tm.team_leader
-            WHERE tt.task_id=?
-            ORDER BY tt.id
-            """,
-            (int(task_id),),
-        ).fetchall()
+    rows = _client().get(f"{_base()}/tasks/{task_id}/teams")
     out: List[TaskTeam] = []
     for r in rows:
-        # Prefer explicit team name; else fall back to synthetic label
-        try:
-            explicit_name = r["team_name"] if "team_name" in r.keys() else None
-        except Exception:
-            explicit_name = None
-        team_label = explicit_name or (f"Team {r['team_id']}" if r["team_id"] is not None else "Team")
-        out.append(
-            TaskTeam(
-                id=int(r["id"]),
-                team_id=int(r["team_id"]) if r["team_id"] is not None else 0,
-                team_name=str(team_label),
-                team_leader=r["leader_name"] or "",
-                team_leader_phone=r["leader_contact"] or "",
-                status=_team_status_from_timestamps(r),
-                sortie_number=r["sortie_id"],
-                assigned_ts=r["time_assigned"],
-                briefed_ts=r["time_briefed"],
-                enroute_ts=r["time_enroute"],
-                arrival_ts=r["time_arrived"],
-                discovery_ts=r["time_discovery"],
-                complete_ts=r["time_complete"],
-                primary=bool(r["is_primary"]) if r["is_primary"] is not None else False,
-            )
-        )
+        out.append(TaskTeam(
+            id=int(r.get("id") or 0),
+            team_id=int(r.get("team_id") or 0),
+            team_name=r.get("team_name") or f"Team {r.get('team_id')}",
+            team_leader=r.get("team_leader") or "",
+            team_leader_phone=r.get("team_leader_phone") or "",
+            status=_team_status_from_tt(r),
+            sortie_number=r.get("sortie_id"),
+            assigned_ts=r.get("time_assigned"),
+            briefed_ts=r.get("time_briefed"),
+            enroute_ts=r.get("time_enroute"),
+            arrival_ts=r.get("time_arrived"),
+            discovery_ts=r.get("time_discovery"),
+            complete_ts=r.get("time_complete"),
+            primary=bool(r.get("is_primary")),
+        ))
     return out
 
 
 def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
-    """List personnel associated with a task via team linkage or snapshot.
-
-    Preference order:
-    1) Live join via personnel.team_id for teams assigned to the task.
-    2) teams.members_json â†’ personnel.id for assigned teams.
-    3) Snapshot table task_personnel.
-
-    Returns dicts with: active(bool), name, id, rank, role, organization, phone, team_name, team_id.
-    """
-    with _connect() as con:
-        # Probe columns
-        try:
-            pcols = {r[1] for r in con.execute("PRAGMA table_info(personnel)").fetchall()}
-        except Exception:
-            pcols = set()
-
-        out: List[Dict[str, Any]] = []
-
-        # Path 1: personnel.team_id
-        if "team_id" in pcols:
-            has_rank = "rank" in pcols
-            has_org = "organization" in pcols
-            sel_rank = ", p.rank AS rank" if has_rank else ", NULL AS rank"
-            sel_org = ", p.organization AS organization" if has_org else ", NULL AS organization"
-            sql = (
-                "SELECT p.id AS person_id, p.name AS name, p.role AS role, p.phone AS phone,"
-                "       tm.name AS team_name, tm.id AS team_id,"
-                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-                f"      {sel_rank}{sel_org}"
-                "  FROM task_teams tt"
-                "  JOIN teams tm ON tm.id = tt.teamid"
-                "  JOIN personnel p ON p.team_id = tm.id"
-                " WHERE tt.task_id = ?"
-                " ORDER BY p.name COLLATE NOCASE"
-            )
-            rows = con.execute(sql, (int(task_id),)).fetchall()
-            for r in rows:
-                status = _team_status_from_timestamps(r)
-                active = status not in {"Complete", "RTB"}
-                out.append(
-                    {
-                        "active": bool(active),
-                        "name": r.get("name") or "",
-                        "id": r.get("person_id"),
-                        "rank": r.get("rank"),
-                        "role": r.get("role") or "",
-                        "organization": r.get("organization"),
-                        "phone": r.get("phone") or "",
-                        "team_name": r.get("team_name") or "",
-                        "team_id": r.get("team_id"),
-                    }
-                )
-            return out
-
-        # Path 2: teams.members_json
-        try:
-            tcols = {r[1] for r in con.execute("PRAGMA table_info(teams)").fetchall()}
-        except Exception:
-            tcols = set()
-        if "members_json" in tcols:
-            import json as _json
-            teams_rows = con.execute(
-                "SELECT tm.id AS team_id, tm.name AS team_name, tm.members_json AS members_json,"
-                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-                "  FROM task_teams tt JOIN teams tm ON tm.id = tt.teamid WHERE tt.task_id = ?",
-                (int(task_id),),
-            ).fetchall()
-            member_to_team: Dict[int, Dict[str, Any]] = {}
-            for tr in teams_rows:
-                try:
-                    ids = [int(x) for x in (_json.loads(tr["members_json"]) or [])]
-                except Exception:
-                    ids = []
-                for mid in ids:
-                    member_to_team.setdefault(
-                        mid,
-                        {
-                            "team_id": int(tr["team_id"]) if tr["team_id"] is not None else None,
-                            "team_name": str(tr["team_name"] or ""),
-                            "time_assigned": tr.get("time_assigned"),
-                            "time_briefed": tr.get("time_briefed"),
-                            "time_enroute": tr.get("time_enroute"),
-                            "time_arrived": tr.get("time_arrived"),
-                            "time_discovery": tr.get("time_discovery"),
-                            "time_complete": tr.get("time_complete"),
-                            "time_cleared": tr.get("time_cleared"),
-                        },
-                    )
-            if member_to_team:
-                has_rank = "rank" in pcols
-                has_org = "organization" in pcols
-                sel_rank = ", rank AS rank" if has_rank else ", NULL AS rank"
-                sel_org = ", organization AS organization" if has_org else ", NULL AS organization"
-                placeholders = ",".join(["?"] * len(member_to_team))
-                sql = (
-                    "SELECT id AS person_id, name AS name, role AS role, phone AS phone"
-                    f"{sel_rank}{sel_org}"
-                    f"  FROM personnel WHERE id IN ({placeholders})"
-                    " ORDER BY name COLLATE NOCASE"
-                )
-                ids = list(member_to_team.keys())
-                rows = con.execute(sql, tuple(ids)).fetchall()
-                for r in rows:
-                    m = member_to_team.get(int(r["person_id"])) or {}
-                    status = _team_status_from_timestamps(m) if hasattr(m, "get") else "Assigned"
-                    active = status not in {"Complete", "RTB"}
-                    out.append(
-                        {
-                            "active": bool(active),
-                            "name": r.get("name") or "",
-                            "id": r.get("person_id"),
-                            "rank": r.get("rank"),
-                            "role": r.get("role") or "",
-                            "organization": r.get("organization"),
-                            "phone": r.get("phone") or "",
-                            "team_name": m.get("team_name", ""),
-                            "team_id": m.get("team_id"),
-                        }
-                    )
-                return out
-
-        # Path 3: snapshot fallback
-        if _table_exists(con, "task_personnel"):
-            has_rank = "rank" in pcols
-            has_org = "organization" in pcols
-            sel_rank = ", p.rank AS rank" if has_rank else ", NULL AS rank"
-            sel_org = ", p.organization AS organization" if has_org else ", NULL AS organization"
-            sql = (
-                "SELECT tp.personnel_id AS person_id, COALESCE(p.name, '') AS name, COALESCE(p.role, tp.role) AS role,"
-                "       COALESCE(p.phone, '') AS phone"
-                f"      {sel_rank}{sel_org}"
-                "  FROM task_personnel tp"
-                "  LEFT JOIN personnel p ON p.id = tp.personnel_id"
-                " WHERE tp.task_id = ?"
-                " ORDER BY name COLLATE NOCASE"
-            )
-            rows = con.execute(sql, (int(task_id),)).fetchall()
-            for r in rows:
-                # Snapshot rows lack team fields; keep these blank
-                out.append(
-                    {
-                        "active": True,
-                        "name": r.get("name") or "",
-                        "id": r.get("person_id"),
-                        "rank": r.get("rank"),
-                        "role": r.get("role") or "",
-                        "organization": r.get("organization"),
-                        "phone": r.get("phone") or "",
-                        "team_name": "",
-                        "team_id": None,
-                    }
-                )
-            return out
-
-    return []
-
-
-def _has_column(con: sqlite3.Connection, table: str, col: str) -> bool:
+    """Personnel list deferred until personnel module migrated."""
     try:
-        cur = con.execute(f"PRAGMA table_info({table})")
-        return any(row[1] == col for row in cur.fetchall())
+        return _client().get(f"{_base()}/tasks/{task_id}/personnel")
     except Exception:
-        return False
+        return []
 
 
 def list_task_vehicles(task_id: int) -> List[Dict[str, Any]]:
-    """List vehicles associated with a task via team linkage or snapshot.
-
-    Supports schemas with vehicles.team_id, teams.vehicles_json, and task_vehicles snapshot.
-    Returns: active(bool), id, license_plate, type, organization, team_name, team_id.
-    """
-    with _connect() as con:
-        v_has_team = _has_column(con, "vehicles", "team_id")
-        has_lp = _has_column(con, "vehicles", "license_plate")
-        has_org = _has_column(con, "vehicles", "organization")
-        sel_lp = ", v.license_plate AS license_plate" if has_lp else ", NULL AS license_plate"
-        sel_org = ", v.organization AS organization" if has_org else ", NULL AS organization"
-        sel_type = (
-            "v.type AS type"
-            if _has_column(con, "vehicles", "type")
-            else ("v.make || ' ' || v.model AS type" if _has_column(con, "vehicles", "make") and _has_column(con, "vehicles", "model") else "'' AS type")
-        )
-
-        out: List[Dict[str, Any]] = []
-
-        # Path 1: vehicles.team_id join
-        if v_has_team:
-            sql = (
-                "SELECT v.id AS id, "
-                + sel_type
-                + sel_lp
-                + sel_org
-                + ", tm.name AS team_name, tm.id AS team_id,"
-                + " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-                + "  FROM task_teams tt"
-                + "  JOIN teams tm ON tm.id = tt.teamid"
-                + "  JOIN vehicles v ON v.team_id = tm.id"
-                + " WHERE tt.task_id = ? ORDER BY v.id"
-            )
-            rows = con.execute(sql, (int(task_id),)).fetchall()
-            for r in rows:
-                status = _team_status_from_timestamps(r)
-                active = status not in {"Complete", "RTB"}
-                out.append(
-                    {
-                        "active": bool(active),
-                        "id": r.get("id"),
-                        "license_plate": r.get("license_plate"),
-                        "type": r.get("type") or "",
-                        "organization": r.get("organization"),
-                        "team_name": r.get("team_name") or "",
-                        "team_id": r.get("team_id"),
-                    }
-                )
-            if out:
-                return out
-
-        # Path 2: teams.vehicles_json
-        if _has_column(con, "teams", "vehicles_json"):
-            import json as _json
-            team_rows = con.execute(
-                "SELECT tm.id AS team_id, tm.name AS team_name, tm.vehicles_json AS vehicles_json,"
-                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-                "  FROM task_teams tt JOIN teams tm ON tm.id = tt.teamid WHERE tt.task_id = ?",
-                (int(task_id),),
-            ).fetchall()
-            vid_to_team: Dict[int, Dict[str, Any]] = {}
-            for tr in team_rows:
-                try:
-                    vids = [int(x) for x in (_json.loads(tr["vehicles_json"]) or [])]
-                except Exception:
-                    vids = []
-                for vid in vids:
-                    vid_to_team.setdefault(
-                        vid,
-                        {
-                            "team_id": int(tr["team_id"]) if tr["team_id"] is not None else None,
-                            "team_name": str(tr["team_name"] or ""),
-                            "time_assigned": tr.get("time_assigned"),
-                            "time_briefed": tr.get("time_briefed"),
-                            "time_enroute": tr.get("time_enroute"),
-                            "time_arrived": tr.get("time_arrived"),
-                            "time_discovery": tr.get("time_discovery"),
-                            "time_complete": tr.get("time_complete"),
-                            "time_cleared": tr.get("time_cleared"),
-                        },
-                    )
-            if vid_to_team:
-                placeholders = ",".join(["?"] * len(vid_to_team))
-                sql = (
-                    "SELECT v.id AS id, "
-                    + sel_type
-                    + sel_lp
-                    + sel_org
-                    + f" FROM vehicles v WHERE v.id IN ({placeholders}) ORDER BY v.id"
-                )
-                vids = list(vid_to_team.keys())
-                vrows = con.execute(sql, tuple(vids)).fetchall()
-                for r in vrows:
-                    m = vid_to_team.get(int(r["id"])) or {}
-                    status = _team_status_from_timestamps(m) if hasattr(m, "get") else "Assigned"
-                    active = status not in {"Complete", "RTB"}
-                    out.append(
-                        {
-                            "active": bool(active),
-                            "id": r.get("id"),
-                            "license_plate": r.get("license_plate"),
-                            "type": r.get("type") or "",
-                            "organization": r.get("organization"),
-                            "team_name": m.get("team_name", ""),
-                            "team_id": m.get("team_id"),
-                        }
-                    )
-                if out:
-                    return out
-
-        # Path 3: snapshot fallback
-        if _table_exists(con, "task_vehicles"):
-            sql = (
-                "SELECT tv.vehicle_id AS id, "
-                + sel_type.replace("v.", "")
-                + sel_lp.replace("v.", "")
-                + sel_org.replace("v.", "")
-                + " FROM task_vehicles tv LEFT JOIN vehicles v ON v.id = tv.vehicle_id WHERE tv.task_id = ? ORDER BY tv.vehicle_id"
-            )
-            rows = con.execute(sql, (int(task_id),)).fetchall()
-            for r in rows:
-                out.append(
-                    {
-                        "active": True,
-                        "id": r.get("id"),
-                        "license_plate": r.get("license_plate"),
-                        "type": r.get("type") or "",
-                        "organization": r.get("organization"),
-                        "team_name": "",
-                        "team_id": None,
-                    }
-                )
-            return out
-
-    return []
+    """Vehicles list deferred until vehicle module migrated."""
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}/vehicles")
+    except Exception:
+        return []
 
 
 def list_task_aircraft(task_id: int) -> List[Dict[str, Any]]:
-    """List aircraft assigned to teams on this task.
-
-    Supports schemas with aircraft.team_id and teams.aircraft_json.
-    Returns: active(bool), callsign, tail_number, type, organization, team_name, team_id.
-    """
-    with _connect() as con:
-        has_org = _has_column(con, "aircraft", "organization")
-        sel_org = ", a.organization AS organization" if has_org else ", NULL AS organization"
-        sel_type = (
-            "a.type AS type"
-            if _has_column(con, "aircraft", "type")
-            else ("a.make_model AS type" if _has_column(con, "aircraft", "make_model") else "'' AS type")
-        )
-
-        out: List[Dict[str, Any]] = []
-
-        # Path 1: aircraft.team_id
-        sql = (
-            "SELECT a.id AS id, a.callsign AS callsign, a.tail_number AS tail_number, "
-            + sel_type
-            + sel_org
-            + ", tm.name AS team_name, tm.id AS team_id,"
-            + " tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-            + "  FROM task_teams tt"
-            + "  JOIN teams tm ON tm.id = tt.teamid"
-            + "  JOIN aircraft a ON a.team_id = tm.id"
-            + " WHERE tt.task_id = ? ORDER BY a.tail_number COLLATE NOCASE, a.callsign COLLATE NOCASE"
-        )
-        rows = con.execute(sql, (int(task_id),)).fetchall()
-        for r in rows:
-            status = _team_status_from_timestamps(r)
-            active = status not in {"Complete", "RTB"}
-            out.append(
-                {
-                    "active": bool(active),
-                    "callsign": r.get("callsign") or "",
-                    "tail_number": r.get("tail_number") or "",
-                    "type": r.get("type") or "",
-                    "organization": r.get("organization"),
-                    "team_name": r.get("team_name") or "",
-                    "team_id": r.get("team_id"),
-                }
-            )
-        if out:
-            return out
-
-        # Path 2: teams.aircraft_json
-        if _has_column(con, "teams", "aircraft_json"):
-            import json as _json
-            team_rows = con.execute(
-                "SELECT tm.id AS team_id, tm.name AS team_name, tm.aircraft_json AS aircraft_json,"
-                "       tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived, tt.time_discovery, tt.time_complete, tt.time_cleared"
-                "  FROM task_teams tt JOIN teams tm ON tm.id = tt.teamid WHERE tt.task_id = ?",
-                (int(task_id),),
-            ).fetchall()
-            aid_to_team: Dict[int, Dict[str, Any]] = {}
-            for tr in team_rows:
-                try:
-                    aids = [int(x) for x in (_json.loads(tr["aircraft_json"]) or [])]
-                except Exception:
-                    aids = []
-                for aid in aids:
-                    aid_to_team.setdefault(
-                        aid,
-                        {
-                            "team_id": int(tr["team_id"]) if tr["team_id"] is not None else None,
-                            "team_name": str(tr["team_name"] or ""),
-                            "time_assigned": tr.get("time_assigned"),
-                            "time_briefed": tr.get("time_briefed"),
-                            "time_enroute": tr.get("time_enroute"),
-                            "time_arrived": tr.get("time_arrived"),
-                            "time_discovery": tr.get("time_discovery"),
-                            "time_complete": tr.get("time_complete"),
-                            "time_cleared": tr.get("time_cleared"),
-                        },
-                    )
-            if aid_to_team:
-                placeholders = ",".join(["?"] * len(aid_to_team))
-                sql = (
-                    "SELECT a.id AS id, a.callsign AS callsign, a.tail_number AS tail_number, "
-                    + sel_type
-                    + sel_org
-                    + f" FROM aircraft a WHERE a.id IN ({placeholders}) ORDER BY a.tail_number COLLATE NOCASE, a.callsign COLLATE NOCASE"
-                )
-                aids = list(aid_to_team.keys())
-                arows = con.execute(sql, tuple(aids)).fetchall()
-                for r in arows:
-                    m = aid_to_team.get(int(r["id"])) or {}
-                    status = _team_status_from_timestamps(m) if hasattr(m, "get") else "Assigned"
-                    active = status not in {"Complete", "RTB"}
-                    out.append(
-                        {
-                            "active": bool(active),
-                            "callsign": r.get("callsign") or "",
-                            "tail_number": r.get("tail_number") or "",
-                            "type": r.get("type") or "",
-                            "organization": r.get("organization"),
-                            "team_name": m.get("team_name", ""),
-                            "team_id": m.get("team_id"),
-                        }
-                    )
-                if out:
-                    return out
-
-    return []
-
-
-# --- Task Assignment (Ground/Air details) ------------------------------------
-
-def _ensure_task_assignments_table(con: sqlite3.Connection) -> None:
+    """Aircraft list deferred until aircraft module migrated."""
     try:
-        con.execute(
-            """
-            CREATE TABLE IF NOT EXISTS task_assignments (
-                task_id INTEGER PRIMARY KEY,
-                data TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            """
-        )
-        con.commit()
+        return _client().get(f"{_base()}/tasks/{task_id}/aircraft")
     except Exception:
-        pass
+        return []
 
 
 def get_task_assignment(task_id: int) -> Dict[str, Any]:
-    """Return assignment details for a task as a dict (may be empty)."""
-    with _connect() as con:
-        _ensure_task_assignments_table(con)
-        row = con.execute(
-            "SELECT data FROM task_assignments WHERE task_id=?",
-            (int(task_id),),
-        ).fetchone()
-        if not row:
-            return {}
-        try:
-            import json
-            return json.loads(row[0] or "{}")
-        except Exception:
-            return {}
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}/assignment")
+    except Exception:
+        return {}
 
 
 def save_task_assignment(task_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Upsert assignment data as JSON; returns the persisted dict."""
-    import json
-    from datetime import datetime
-    payload = dict(data or {})
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    js = json.dumps(payload)
-    with _connect() as con:
-        _ensure_task_assignments_table(con)
-        cur = con.execute(
-            "UPDATE task_assignments SET data=?, updated_at=? WHERE task_id=?",
-            (js, now, int(task_id)),
-        )
-        if cur.rowcount == 0:
-            con.execute(
-                "INSERT INTO task_assignments (task_id, data, updated_at) VALUES (?,?,?)",
-                (int(task_id), js, now),
-            )
-        con.commit()
-    try:
-        write_audit("task.assignment.save", {"task_id": int(task_id)})
-    except Exception:
-        pass
-    return payload
-
+    return _client().put(f"{_base()}/tasks/{task_id}/assignment", json=data)
 
 
 def export_assignment_forms(task_id: int, forms: List[str], team: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-    """Export selected forms for a task.
-
-    - ICS 204: generate a filled PDF via the PDFFiller subsystem when a template
-      is available; otherwise fall back to a JSON snapshot (legacy behavior).
-    - Other forms (CAPF 109, SAR 104): current behavior remains JSON snapshot.
-
-    Returns: list of { form: str, file_path: str } entries.
-    """
-    from pathlib import Path
-    from datetime import datetime
-    import json
-
-    # Common context
-    assignment_data = get_task_assignment(int(task_id))
-    out: List[Dict[str, Any]] = []
-    try:
-        from utils import incident_context
-        incident_id = incident_context.get_active_incident_id() or "unknown"
-    except Exception:
-        incident_id = "unknown"
-    base = Path("data") / "exports" / str(incident_id)
-    base.mkdir(parents=True, exist_ok=True)
-    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-
-    # Helper: legacy JSON export for non-PDF paths or fallback
-    def _export_json(form_label: str) -> Optional[Dict[str, Any]]:
-        key = str(form_label).strip().upper().replace(" ", "_")
-        name = f"{key}_task{int(task_id)}_{ts}.json"
-        p = base / name
-        payload = {"form": key, "task_id": int(task_id), "assignment": assignment_data}
-        if team:
-            try:
-                payload["team"] = dict(team)
-            except Exception:
-                pass
-        try:
-            p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            return {"form": key, "file_path": str(p)}
-        except Exception:
-            return None
-
-    # Try to export requested forms
-    for f in (forms or []):
-        label = str(f).strip()
-        if label.upper().replace(" ", "_") == "ICS_204":
-            try:
-                pdf_entry = _export_ics_204_pdf(task_id=int(task_id), base_dir=base, timestamp=ts, team=team)
-                if pdf_entry is not None:
-                    out.append(pdf_entry)
-                    continue
-            except Exception:
-                # Fall back below
-                pass
-        # Fallback / other forms
-        js = _export_json(label)
-        if js:
-            out.append(js)
-    return out
-
-
-def _export_ics_204_pdf(*, task_id: int, base_dir: "Path", timestamp: str, team: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-    """Best-effort ICS 204 PDF export using modules.forms.pdf_filler.
-
-    Returns a single export entry dict on success or None on failure.
-    """
-    from datetime import datetime
-    from pathlib import Path
-
-    # Resolve incident id and output path
-    try:
-        from utils import incident_context
-        incident_id = incident_context.get_active_incident_id() or "unknown"
-    except Exception:
-        incident_id = "unknown"
-    out_path = base_dir / f"ICS_204_task{int(task_id)}_{timestamp}.pdf"
-
-    # Locate a template PDF
-    template_pdf = _find_ics204_template()
-    if not template_pdf or not Path(template_pdf).is_file():
-        return None
-
-    # Discover mapping that matches the template
-    try:
-        from modules.forms.pdf_filler import PDFFiller
-        from modules.forms.pdf_filler import mapping_discovery as mapdisc
-    except Exception:
-        return None
-    mapping = mapdisc.find_mapping_for_pdf(str(template_pdf))
-    if not mapping:
-        return None
-
-    # Build data payload for mapping
-    data = _build_ics204_mapping_data(task_id=task_id, team=team)
-
-    # Fill
-    try:
-        filler = PDFFiller(str(mapping))
-        warnings = filler.fill(data, str(template_pdf), str(out_path), strict=False)
-    except Exception:
-        return None
-
-    # Record export in incident DB (best-effort)
-    try:
-        from .repository import _connect  # self-import safe here
-        from modules.forms.pdf_filler.export_log import log_export
-        with _connect() as con:
-            log_export(
-                con,
-                form_name="ICS 204",
-                template_path=str(template_pdf),
-                mapping_path=str(mapping),
-                output_path=str(out_path),
-                filled_by=(data.get("preparer", {}).get("first_name", "") + " " + data.get("preparer", {}).get("last_name", "")).strip(),
-                incident_id=str(incident_id),
-                warnings=[str(w) for w in warnings or []],
-            )
-    except Exception:
-        pass
-
-    return {"form": "ICS_204", "file_path": str(out_path)}
-
-
-def _find_ics204_template() -> Optional[str]:
-    """Return a candidate path to an ICS 204 template PDF if one exists.
-
-    Search order (first hit wins):
-      - User Desktop: "Desktop/ICS Forms/ICS 204 Assignment List.pdf" (common NIMS naming)
-      - data/templates/ics/ICS 204*.pdf within the repo
-      - modules/forms/templates/ICS 204*.pdf within the repo
-    """
-    import os
-    from pathlib import Path
-
-    candidates: list[Path] = []
-    # Desktop common location
-    try:
-        home = Path(os.path.expanduser("~"))
-        candidates.append(home / "Desktop" / "ICS Forms" / "ICS 204 Assignment List.pdf")
-    except Exception:
-        pass
-    # Repo-local templates
-    root = Path(__file__).resolve().parents[3]
-    for rel in [
-        Path("data/templates/ics"),
-        Path("modules/forms/templates"),
-    ]:
-        base = (root / rel)
-        if base.is_dir():
-            for p in base.glob("**/ICS 204*.pdf"):
-                candidates.append(p)
-    for c in candidates:
-        if c.is_file():
-            return str(c)
-    return None
-
-
-def _build_ics204_mapping_data(*, task_id: int, team: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Construct the data dict expected by the ICS 204 mapping.
-
-    Pulls task assignment, team roster, incident id, and timestamp. Best-effort
-    for optional metadata (incident name, op period window).
-    """
-    from datetime import datetime
-    from dataclasses import asdict, is_dataclass
-    from typing import Any
-
-    # Incident basics
-    incident_name = ""
-    incident_number = ""
-    try:
-        from utils.state import AppState
-        incident_number = str(AppState.get_active_incident() or "")
-    except Exception:
-        pass
-    try:
-        from modules.command.data_access import get_incident_header
-        hdr = get_incident_header() or {}
-        incident_name = str(hdr.get("incident_name") or "")
-        if not incident_number:
-            incident_number = str(hdr.get("incident_number") or "")
-    except Exception:
-        pass
-
-    # Operational period (best-effort; may be blank)
-    period_start = None
-    period_end = None
-    try:
-        # Try to read the most recent operationalperiods row
-        with _connect() as con:
-            try:
-                row = con.execute(
-                    "SELECT start_time, end_time FROM operationalperiods ORDER BY id DESC LIMIT 1"
-                ).fetchone()
-                if row:
-                    period_start = row[0]
-                    period_end = row[1]
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    # Team selection
-    team_info: Dict[str, Any] = {}
-    try:
-        if team:
-            team_info = asdict(team) if is_dataclass(team) else dict(team)
-        else:
-            teams = list_task_teams(int(task_id))
-            if teams:
-                t0 = teams[0]
-                team_info = asdict(t0) if is_dataclass(t0) else dict(t0)
-    except Exception:
-        pass
-
-    # Team roster
-    members: list[Dict[str, Any]] = []
-    try:
-        for r in list_task_personnel(int(task_id)):
-            members.append({
-                "name": r.get("name") or "",
-                "position": r.get("role") or r.get("rank") or "",
-                "status": r.get("status") or "",
-                "contact": r.get("phone") or "",
-                "count": 1,
-                "notes": r.get("organization") or "",
-            })
-    except Exception:
-        pass
-
-    # Task details and work assignments
-    task_obj = get_task(int(task_id))
-    tasks = []
-    if getattr(task_obj, "assignment", None):
-        tasks.append({"time": "", "description": str(task_obj.assignment)})
-
-    leader_name = (team_info.get("team_leader") or "").strip()
-    leader_pos = ""
-    # Prepared by (fallback to leader if no explicit user configured)
-    preparer_first = leader_name.split(" ")[0] if leader_name else ""
-    preparer_last = " ".join(leader_name.split(" ")[1:]) if leader_name else ""
-    try:
-        # Optional: look up active user id
-        from utils.state import AppState
-        uid = AppState.get_active_user_id()
-        if uid:
-            # Try to map to personnel table for name/role
-            with _connect() as con:
-                row = con.execute("SELECT name, role FROM personnel WHERE id=?", (int(uid),)).fetchone()
-                if row:
-                    nm = str(row[0] or "").strip()
-                    if nm:
-                        parts = nm.split(" ")
-                        preparer_first = parts[0]
-                        preparer_last = " ".join(parts[1:]) if len(parts) > 1 else ""
-                    leader_pos = str(row[1] or leader_pos)
-    except Exception:
-        pass
-
-    return {
-        "incident": {
-            "name": incident_name,
-            "number": incident_number,
-        },
-        "period": {
-            "start": period_start,
-            "end": period_end,
-            "number": None,
-        },
-        "team": {
-            "name": team_info.get("team_name") or team_info.get("team") or "",
-            "leader": {"first_name": preparer_first, "last_name": preparer_last, "position": leader_pos},
-            "members": members,
-        },
-        "tasks": tasks,
-        "preparer": {"first_name": preparer_first, "last_name": preparer_last, "position": leader_pos},
-        "prepared_at": datetime.utcnow().isoformat(timespec="seconds"),
-    }
-
-def _ensure_task_comms_table(con: sqlite3.Connection) -> None:
-    try:
-        con.execute(
-            """
-            CREATE TABLE IF NOT EXISTS task_comms (
-                id INTEGER PRIMARY KEY,
-                task_id INTEGER NOT NULL,
-                incident_channel_id INTEGER,
-                function TEXT,
-                remarks TEXT
-            )
-            """
-        )
-        con.commit()
-    except Exception:
-        pass
+    """PDF export stub — returns empty list until ICS-204 template is wired."""
+    return []
 
 
 def list_incident_channels() -> List[Dict[str, Any]]:
-    """Return available incident channels from ICS-205 plan (if present)."""
-    with _connect() as con:
-        try:
-            cur = con.execute(
-                "SELECT id, channel, system, mode, rx_freq, tx_freq, rx_tone, tx_tone, remarks, sort_index FROM incident_channels ORDER BY sort_index, id"
-            )
-            rows = cur.fetchall()
-        except Exception:
-            return []
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        out.append({
-            "id": int(r["id"]),
-            "channel": r["channel"],
-            "system": r.get("system"),
-            "mode": r.get("mode"),
-            "rx_freq": r.get("rx_freq"),
-            "tx_freq": r.get("tx_freq"),
-            "rx_tone": r.get("rx_tone"),
-            "tx_tone": r.get("tx_tone"),
-            "remarks": r.get("remarks"),
-            "sort_index": r.get("sort_index"),
-        })
-    return out
+    try:
+        return _client().get(f"{_base()}/incident-channels")
+    except Exception:
+        return []
 
 
 def list_task_comms(task_id: int) -> List[Dict[str, Any]]:
-    """Return communications rows linked to a task enriched with ICS-205 details."""
-    with _connect() as con:
-        _ensure_task_comms_table(con)
-        try:
-            sql = (
-                "SELECT tc.id AS id, tc.task_id, tc.incident_channel_id, tc.function, tc.remarks,"
-                "       ic.channel, ic.system, ic.mode, ic.rx_freq, ic.tx_freq, ic.rx_tone, ic.tx_tone, ic.remarks AS ic_remarks, ic.sort_index"
-                "  FROM task_comms tc"
-                "  LEFT JOIN incident_channels ic ON ic.id = tc.incident_channel_id"
-                " WHERE tc.task_id = ?"
-                " ORDER BY tc.id"
-            )
-            rows = con.execute(sql, (int(task_id),)).fetchall()
-        except Exception:
-            rows = []
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        out.append({
-            "id": int(r["id"]),
-            "incident_channel_id": r.get("incident_channel_id"),
-            "channel_name": r.get("channel") or "",
-            "zone": r.get("system") or "",
-            "channel_number": r.get("sort_index"),
-            "function": r.get("function") or "",
-            "rx_frequency": r.get("rx_freq"),
-            "rx_tone": r.get("rx_tone"),
-            "tx_frequency": r.get("tx_freq"),
-            "tx_tone": r.get("tx_tone"),
-            "mode": r.get("mode") or "",
-            "remarks": r.get("remarks") or r.get("ic_remarks") or "",
-        })
-    return out
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}/comms")
+    except Exception:
+        return []
 
 
 def add_task_comm(task_id: int, incident_channel_id: Optional[int] = None, function: Optional[str] = None, remarks: Optional[str] = None) -> int:
-    with _connect() as con:
-        _ensure_task_comms_table(con)
-        cur = con.execute(
-            "INSERT INTO task_comms (task_id, incident_channel_id, function, remarks) VALUES (?, ?, ?, ?)",
-            (int(task_id), int(incident_channel_id) if incident_channel_id is not None else None, function, remarks),
-        )
-        con.commit()
-        try:
-            write_audit("task.comms.add", {"task_id": int(task_id), "incident_channel_id": incident_channel_id, "function": function})
-        except Exception:
-            pass
-        return int(cur.lastrowid)
+    result = _client().post(f"{_base()}/tasks/{task_id}/comms", json={
+        "incident_channel_id": incident_channel_id,
+        "function": function,
+        "remarks": remarks,
+    })
+    return int(result.get("id") or 0)
 
 
 def update_task_comm(row_id: int, incident_channel_id: Optional[int] = None, function: Optional[str] = None) -> None:
-    patch: Dict[str, Any] = {}
+    """Requires task_id; callers must use update_task_comm_for_task instead."""
+    pass
+
+
+def update_task_comm_for_task(task_id: int, comm_id: int, incident_channel_id: Optional[int] = None, function: Optional[str] = None) -> None:
+    patch: dict = {}
     if incident_channel_id is not None:
-        patch["incident_channel_id"] = int(incident_channel_id)
+        patch["incident_channel_id"] = incident_channel_id
     if function is not None:
-        patch["function"] = str(function)
-    if not patch:
-        return
-    with _connect() as con:
-        _ensure_task_comms_table(con)
-        # Load previous for audit
-        try:
-            prev = con.execute("SELECT task_id, incident_channel_id, function FROM task_comms WHERE id=?", (int(row_id),)).fetchone()
-        except Exception:
-            prev = None
-        cols = ", ".join(f"{k}=?" for k in patch.keys())
-        vals = list(patch.values()) + [int(row_id)]
-        con.execute(f"UPDATE task_comms SET {cols} WHERE id=?", vals)
-        con.commit()
-    # Audit
-    try:
-        if prev is not None:
-            tid = int(prev["task_id"]) if prev["task_id"] is not None else None
-            if incident_channel_id is not None and incident_channel_id != prev["incident_channel_id"]:
-                write_audit("task.comms.update", {"task_id": tid, "field": "channel", "old": prev["incident_channel_id"], "new": incident_channel_id})
-            if function is not None and str(function) != str(prev["function"]):
-                write_audit("task.comms.update", {"task_id": tid, "field": "function", "old": prev["function"], "new": function})
-    except Exception:
-        pass
+        patch["function"] = function
+    if patch:
+        _client().patch(f"{_base()}/tasks/{task_id}/comms/{comm_id}", json=patch)
 
 
 def remove_task_comm(row_id: int) -> None:
-    with _connect() as con:
-        _ensure_task_comms_table(con)
-        try:
-            prev = con.execute("SELECT task_id FROM task_comms WHERE id=?", (int(row_id),)).fetchone()
-        except Exception:
-            prev = None
-        con.execute("DELETE FROM task_comms WHERE id=?", (int(row_id),))
-        con.commit()
-    try:
-        write_audit("task.comms.remove", {"task_id": int(prev["task_id"]) if prev and prev["task_id"] is not None else None, "row_id": int(row_id)})
-    except Exception:
-        pass
+    """Requires task_id to call the route. Callers must use remove_task_comm_for_task instead."""
+    pass
 
 
-# --- Debriefing --------------------------------------------------------------
-
-def _ensure_task_debrief_tables(con: sqlite3.Connection) -> None:
-    try:
-        con.execute(
-            """
-            CREATE TABLE IF NOT EXISTS task_debriefs (
-                id INTEGER PRIMARY KEY,
-                task_id INTEGER NOT NULL,
-                sortie_number TEXT,
-                debriefer_id TEXT,
-                types TEXT NOT NULL,
-                status TEXT DEFAULT 'Draft',
-                flagged_for_review INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            """
-        )
-        con.execute(
-            """
-            CREATE TABLE IF NOT EXISTS task_debrief_forms (
-                id INTEGER PRIMARY KEY,
-                debrief_id INTEGER NOT NULL,
-                form_key TEXT NOT NULL,
-                data TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                UNIQUE(debrief_id, form_key)
-            )
-            """
-        )
-        con.commit()
-    except Exception:
-        pass
-    # Add optional columns if missing
-    try:
-        cur = con.execute("PRAGMA table_info(task_debriefs)")
-        cols = {row[1] for row in cur.fetchall()}
-        adds: list[tuple[str, str]] = []
-        if "submitted_by" not in cols:
-            adds.append(("submitted_by", "TEXT"))
-        if "submitted_at" not in cols:
-            adds.append(("submitted_at", "TEXT"))
-        if "reviewed_by" not in cols:
-            adds.append(("reviewed_by", "TEXT"))
-        if "reviewed_at" not in cols:
-            adds.append(("reviewed_at", "TEXT"))
-        for name, typ in adds:
-            try:
-                con.execute(f"ALTER TABLE task_debriefs ADD COLUMN {name} {typ}")
-            except Exception:
-                pass
-        con.commit()
-    except Exception:
-        pass
+def remove_task_comm_for_task(task_id: int, comm_id: int) -> None:
+    _client().delete(f"{_base()}/tasks/{task_id}/comms/{comm_id}")
 
 
 def list_task_debriefs(task_id: int) -> List[Dict[str, Any]]:
-    with _connect() as con:
-        _ensure_task_debrief_tables(con)
-        rows = con.execute(
-            "SELECT id, sortie_number, debriefer_id, types, status, flagged_for_review, created_at, updated_at, submitted_by, submitted_at, reviewed_by, reviewed_at"
-            "  FROM task_debriefs WHERE task_id=? ORDER BY updated_at DESC, id DESC",
-            (int(task_id),),
-        ).fetchall()
-    out: List[Dict[str, Any]] = []
-    import json
-    for r in rows:
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}/debriefs")
+    except Exception:
+        return []
+
+
+def create_debrief(task_id: int, sortie_number: str, debriefer_id: str, types: List[str],
+                   team_id: Optional[int] = None) -> int:
+    result = _client().post(f"{_base()}/tasks/{task_id}/debriefs", json={
+        "sortie_number": sortie_number,
+        "debriefer_id": debriefer_id,
+        "types": list(types or []),
+    })
+    debrief_id = int(result.get("int_id") or 0)
+    if team_id:
         try:
-            types = json.loads(r["types"]) if r["types"] else []
+            from modules.operations.data.repository import ics214_log_entry
+            sortie_label = f" (Sortie {sortie_number})" if sortie_number else ""
+            ics214_log_entry("team", team_id,
+                             f"Debrief completed for Task {task_id}{sortie_label}",
+                             source="auto")
         except Exception:
-            types = []
-        # sqlite3.Row supports key access but not .get(); guard missing columns
-        keys = set(r.keys()) if hasattr(r, "keys") else set()
-        def _r(name, default=None):
-            try:
-                return r[name] if name in keys else default
-            except Exception:
-                return default
-        out.append({
-            "id": int(r["id"]),
-            "sortie_number": _r("sortie_number"),
-            "debriefer_id": _r("debriefer_id"),
-            "types": types,
-            "status": _r("status") or "Draft",
-            "flagged_for_review": bool(_r("flagged_for_review", 0) or 0),
-            "created_at": _r("created_at"),
-            "updated_at": _r("updated_at"),
-            "submitted_by": _r("submitted_by"),
-            "submitted_at": _r("submitted_at"),
-            "reviewed_by": _r("reviewed_by"),
-            "reviewed_at": _r("reviewed_at"),
-        })
-    return out
-
-
-def create_debrief(task_id: int, sortie_number: str, debriefer_id: str, types: List[str]) -> int:
-    from datetime import datetime
-    import json
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    with _connect() as con:
-        _ensure_task_debrief_tables(con)
-        cur = con.execute(
-            "INSERT INTO task_debriefs (task_id, sortie_number, debriefer_id, types, status, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, 'Draft', ?, ?)",
-            (int(task_id), sortie_number, debriefer_id, json.dumps(list(types or [])), now, now),
-        )
-        con.commit()
-        return int(cur.lastrowid)
+            pass
+    return debrief_id
 
 
 def update_debrief_header(debrief_id: int, patch: Dict[str, Any]) -> None:
-    from datetime import datetime
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    with _connect() as con:
-        _ensure_task_debrief_tables(con)
-        patch = dict(patch or {})
-        patch["updated_at"] = now
-        cols = ", ".join(f"{k}=?" for k in patch.keys())
-        vals = list(patch.values()) + [int(debrief_id)]
-        con.execute(f"UPDATE task_debriefs SET {cols} WHERE id=?", vals)
-        con.commit()
+    _client().patch(f"{_base()}/debriefs/{debrief_id}", json=patch)
 
 
 def save_debrief_form(debrief_id: int, form_key: str, data: Dict[str, Any]) -> None:
-    from datetime import datetime
-    import json
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    js = json.dumps(dict(data or {}))
-    with _connect() as con:
-        _ensure_task_debrief_tables(con)
-        cur = con.execute(
-            "UPDATE task_debrief_forms SET data=?, updated_at=? WHERE debrief_id=? AND form_key=?",
-            (js, now, int(debrief_id), str(form_key)),
-        )
-        if cur.rowcount == 0:
-            con.execute(
-                "INSERT INTO task_debrief_forms (debrief_id, form_key, data, updated_at) VALUES (?,?,?,?)",
-                (int(debrief_id), str(form_key), js, now),
-            )
-        con.commit()
+    _client().put(f"{_base()}/debriefs/{debrief_id}/forms/{form_key}", json=data)
 
 
 def get_debrief(debrief_id: int) -> Dict[str, Any]:
-    with _connect() as con:
-        _ensure_task_debrief_tables(con)
-        head = con.execute(
-            "SELECT id, task_id, sortie_number, debriefer_id, types, status, flagged_for_review, created_at, updated_at, submitted_by, submitted_at, reviewed_by, reviewed_at"
-            "  FROM task_debriefs WHERE id=?",
-            (int(debrief_id),),
-        ).fetchone()
-        forms = con.execute(
-            "SELECT form_key, data, updated_at FROM task_debrief_forms WHERE debrief_id=?",
-            (int(debrief_id),),
-        ).fetchall()
-    if not head:
-        return {}
-    import json
     try:
-        types = json.loads(head["types"]) if head["types"] else []
+        return _client().get(f"{_base()}/debriefs/{debrief_id}")
     except Exception:
-        types = []
-    hkeys = set(head.keys()) if hasattr(head, "keys") else set()
-    def _h(name, default=None):
-        try:
-            return head[name] if name in hkeys else default
-        except Exception:
-            return default
-    out: Dict[str, Any] = {
-        "id": int(head["id"]),
-        "task_id": head["task_id"],
-        "sortie_number": head["sortie_number"],
-        "debriefer_id": head["debriefer_id"],
-        "types": types,
-        "status": head["status"],
-        "flagged_for_review": bool(head["flagged_for_review"] or 0),
-        "created_at": head["created_at"],
-        "updated_at": head["updated_at"],
-        "submitted_by": _h("submitted_by"),
-        "submitted_at": _h("submitted_at"),
-        "reviewed_by": _h("reviewed_by"),
-        "reviewed_at": _h("reviewed_at"),
-        "forms": {},
-    }
-    for r in forms:
-        try:
-            out["forms"][r["form_key"]] = json.loads(r["data"] or "{}")
-        except Exception:
-            out["forms"][r["form_key"]] = {}
-    return out
+        return {}
 
 
 def archive_debrief(debrief_id: int) -> None:
-    update_debrief_header(int(debrief_id), {"status": "Archived", "flagged_for_review": 0})
+    _client().post(f"{_base()}/debriefs/{debrief_id}/archive", json={})
 
 
 def delete_debrief(debrief_id: int) -> None:
-    with _connect() as con:
-        _ensure_task_debrief_tables(con)
-        con.execute("DELETE FROM task_debrief_forms WHERE debrief_id=?", (int(debrief_id),))
-        con.execute("DELETE FROM task_debriefs WHERE id=?", (int(debrief_id),))
-        con.commit()
-
-
-# --- Log/Audit ---------------------------------------------------------------
-
-def _audit_has_column(con: sqlite3.Connection, name: str) -> bool:
-    try:
-        cols = {row[1] for row in con.execute("PRAGMA table_info(audit_logs)").fetchall()}
-        return name in cols
-    except Exception:
-        return False
+    _client().delete(f"{_base()}/debriefs/{debrief_id}")
 
 
 def list_audit_logs(
@@ -1494,422 +303,326 @@ def list_audit_logs(
     sort_key: Optional[str] = None,
     sort_dir: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Return audit log rows filtered for the current incident, optionally scoped to a task.
+    if task_id is None:
+        return []
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}/audit", params={"page_size": limit})
+    except Exception:
+        return []
 
-    Attempts to filter by task using either an explicit taskid column (if present)
-    or a JSON substring match on detail containing "task_id": task_id.
-    """
-    with _connect() as con:
+
+def _fetch_all_audit_entries(task_id: int) -> List[Dict[str, Any]]:
+    """Fetch every audit entry for a task, looping through API pages."""
+    page_size = 200
+    page = 1
+    all_rows: List[Dict[str, Any]] = []
+    while True:
         try:
-            cols = {row[1] for row in con.execute("PRAGMA table_info(audit_logs)").fetchall()}
+            batch = _client().get(
+                f"{_base()}/tasks/{task_id}/audit",
+                params={"page": page, "page_size": page_size},
+            )
         except Exception:
-            cols = set()
-        select = "SELECT id, ts_utc, user_id, action, detail"
-        # Include legacy/extended columns if present
-        extra = []
-        for c in ("field_changed", "old_value", "new_value", "changed_by", "timestamp", "incident_number", "taskid"):
-            if c in cols:
-                extra.append(c)
-        if extra:
-            select += ", " + ", ".join(extra)
-        where: List[str] = []
-        params: List[Any] = []
-        if date_from:
-            where.append("ts_utc >= ?")
-            params.append(str(date_from))
-        if date_to:
-            where.append("ts_utc <= ?")
-            params.append(str(date_to))
-        if field_filter:
-            if "field_changed" in cols:
-                where.append("field_changed LIKE ?")
-                params.append(f"%{field_filter}%")
-            else:
-                where.append("action LIKE ?")
-                params.append(f"%{field_filter}%")
-        if search:
-            where.append("(action LIKE ? OR detail LIKE ?)")
-            params.extend([f"%{search}%", f"%{search}%"])
-        if task_id is not None:
-            # Match by explicit taskid column if present, but also include
-            # JSON payload fallbacks used by write_audit: either "task_id": N
-            # or {"panel": "task", "id": N}.
-            like_taskid = f"%\"task_id\": {int(task_id)}%"
-            like_panel_task = "%\"panel\": \"task\"%"
-            like_id = f"%\"id\": {int(task_id)}%"
-            if "taskid" in cols:
-                where.append("(taskid = ? OR detail LIKE ? OR (detail LIKE ? AND detail LIKE ?))")
-                params.extend([int(task_id), like_taskid, like_panel_task, like_id])
-            else:
-                where.append("(detail LIKE ? OR (detail LIKE ? AND detail LIKE ?))")
-                params.extend([like_taskid, like_panel_task, like_id])
-        # Build ORDER BY using whitelisted columns only
-        dir_sql = "ASC" if (str(sort_dir or "").lower() == "asc") else "DESC"
-        order_expr = None
-        key = (sort_key or "").strip().lower()
-        if key in ("ts", "timestamp"):
-            if "ts_utc" in cols:
-                order_expr = "ts_utc"
-            elif "timestamp" in cols:
-                order_expr = "timestamp"
-        elif key in ("field", "field_changed", "action"):
-            order_expr = "field_changed" if "field_changed" in cols else "action"
-        elif key in ("old", "old_value") and "old_value" in cols:
-            order_expr = "old_value"
-        elif key in ("new", "new_value") and "new_value" in cols:
-            order_expr = "new_value"
-        elif key in ("by", "changed_by", "user_id"):
-            if "changed_by" in cols:
-                order_expr = "changed_by"
-            elif "user_id" in cols:
-                order_expr = "user_id"
-
-        order_sql = f" ORDER BY {order_expr} {dir_sql}, id DESC" if order_expr else " ORDER BY id DESC"
-        sql = select + (" WHERE " + " AND ".join(where) if where else "") + order_sql + " LIMIT ?"
-        params.append(int(limit))
-        try:
-            rows = con.execute(sql, params).fetchall()
-        except Exception:
-            rows = []
-        # Resolve changed_by if possible
-        out: List[Dict[str, Any]] = []
-        for r in rows:
-            d: Dict[str, Any] = {k: r[k] for k in r.keys()}
-            # Preferred changed_by column, else fall back to user_id
-            changer = d.get("changed_by") if "changed_by" in d else d.get("user_id")
-            disp = None
-            try:
-                uid = int(changer) if changer is not None else None
-            except Exception:
-                uid = None
-            if uid is not None:
-                try:
-                    prow = con.execute("SELECT name FROM personnel WHERE id=?", (uid,)).fetchone()
-                    disp = prow["name"] if prow and prow.get("name") else str(uid)
-                except Exception:
-                    disp = str(uid)
-            d["changed_by_display"] = disp or (str(changer) if changer is not None else "")
-            out.append(d)
-        return out
+            break
+        if not batch:
+            break
+        all_rows.extend(batch)
+        if len(batch) < page_size:
+            break
+        page += 1
+    return all_rows
 
 
-def export_audit_csv(
-    task_id: Optional[int] = None,
+def _filter_audit_rows(
+    rows: List[Dict[str, Any]],
     search: str = "",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     field_filter: str = "",
-    sort_key: Optional[str] = None,
-    sort_dir: Optional[str] = None,
-) -> str:
-    rows = list_audit_logs(task_id, search, date_from, date_to, field_filter, limit=5000, sort_key=sort_key, sort_dir=sort_dir)
-    from pathlib import Path
-    from datetime import datetime
-    try:
-        from utils import incident_context
-        incident_id = incident_context.get_active_incident_id() or "unknown"
-    except Exception:
-        incident_id = "unknown"
-    out_dir = Path("data") / "exports" / str(incident_id)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    name = f"audit_task_{task_id or 'all'}_{ts}.csv"
-    p = out_dir / name
-    import csv
-    with p.open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(["id", "ts_utc", "field_changed", "old_value", "new_value", "action", "changed_by"])
-        for r in rows:
-            w.writerow([
-                r.get("id"),
-                r.get("ts_utc") or r.get("timestamp"),
-                r.get("field_changed", ""),
-                r.get("old_value", ""),
-                r.get("new_value", ""),
-                r.get("action", ""),
-                r.get("changed_by_display", ""),
-            ])
-    return str(p)
-
-
-def list_team_status_log(task_id: int) -> List[Dict[str, Any]]:
-    """Return a normalized timeline of team status changes for a task.
-
-    Flattens the task_teams time_* columns into rows with:
-    { timestamp: str, team_name: str, status: str }
-    """
-    with _connect() as con:
-        rows = con.execute(
-            """
-            SELECT tt.id AS tt_id, tm.name AS team_name,
-                   tt.time_assigned, tt.time_briefed, tt.time_enroute, tt.time_arrived,
-                   tt.time_discovery, tt.time_complete, tt.time_cleared
-            FROM task_teams tt
-            LEFT JOIN teams tm ON tm.id = tt.teamid
-            WHERE tt.task_id=?
-            """,
-            (int(task_id),),
-        ).fetchall()
-    out: List[Dict[str, Any]] = []
-    def _add(ts: Any, team: str, status: str) -> None:
-        if ts:
-            out.append({"timestamp": ts, "team": team or "", "status": status})
+) -> List[Dict[str, Any]]:
+    import json as _json
+    search_lc = search.strip().lower()
+    field_lc = field_filter.strip().lower()
+    out = []
     for r in rows:
-        name = r["team_name"] or ""
-        _add(r["time_assigned"], name, "Assigned")
-        _add(r["time_briefed"], name, "Briefed")
-        _add(r["time_enroute"], name, "En Route")
-        _add(r["time_arrived"], name, "On Scene")
-        _add(r["time_discovery"], name, "Discovery/Find")
-        _add(r["time_complete"], name, "Complete")
-        _add(r["time_cleared"], name, "RTB")
-    # Sort by timestamp ascending
-    try:
-        out.sort(key=lambda x: x.get("timestamp") or "")
-    except Exception:
-        pass
+        raw_ts = str(r.get("ts_utc") or r.get("timestamp") or "")
+        if date_from and raw_ts and raw_ts[:10] < date_from:
+            continue
+        if date_to and raw_ts and raw_ts[:10] > date_to:
+            continue
+        field = str(r.get("field_changed") or r.get("action") or "")
+        old = str(r.get("old_value") or "")
+        new = str(r.get("new_value") or "")
+        by = str(r.get("changed_by_display") or r.get("user_id") or "")
+        if not field and r.get("detail"):
+            try:
+                d = _json.loads(r.get("detail") or "{}")
+                field = field or str(d.get("field") or d.get("field_changed") or "")
+                old = old or str(d.get("old") or d.get("old_value") or "")
+                new = new or str(d.get("new") or d.get("new_value") or "")
+            except Exception:
+                pass
+        if field_lc and field_lc not in field.lower():
+            continue
+        if search_lc and not any(search_lc in v.lower() for v in (raw_ts, field, old, new, by)):
+            continue
+        out.append({**r, "_field": field, "_old": old, "_new": new, "_by": by, "_ts": raw_ts})
     return out
 
 
+def export_audit_csv(
+    task_id: Optional[int] = None,
+    output_path: Optional[str] = None,
+    search: str = "",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    field_filter: str = "",
+    **kwargs,
+) -> Optional[str]:
+    """Fetch all audit entries for the task and write to a CSV file."""
+    import csv
+    from datetime import datetime, timezone as _tz
+
+    if task_id is None or output_path is None:
+        return None
+
+    rows = _filter_audit_rows(
+        _fetch_all_audit_entries(int(task_id)),
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        field_filter=field_filter,
+    )
+
+    def _fmt(ts: str) -> str:
+        if not ts:
+            return ""
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone()
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return ts
+
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Timestamp", "Field Changed", "Old Value", "New Value", "Changed By"])
+        for r in rows:
+            w.writerow([_fmt(r["_ts"]), r["_field"], r["_old"], r["_new"], r["_by"]])
+
+    return output_path
+
+
+def export_audit_as_214(
+    task_id: int,
+    output_path: str,
+    search: str = "",
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    field_filter: str = "",
+) -> str:
+    """Export the task audit log as an ICS-214 Activity Log PDF via the form engine."""
+    from datetime import datetime, timezone as _tz
+    from pathlib import Path
+
+    rows = _filter_audit_rows(
+        _fetch_all_audit_entries(int(task_id)),
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        field_filter=field_filter,
+    )
+
+    def _iso(ts: str) -> str:
+        if not ts:
+            return ""
+        try:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(_tz.utc).isoformat(timespec="seconds")
+        except Exception:
+            return ts
+
+    entries = []
+    for r in rows:
+        field, old, new, by = r["_field"], r["_old"], r["_new"], r["_by"]
+        if old and new:
+            text = f"{field}: {old} → {new}"
+        elif new:
+            text = f"{field}: {new}"
+        else:
+            text = field
+        entries.append({
+            "timestamp_utc": _iso(r["_ts"]),
+            "text": text,
+            "actor_user_id": by,
+            "autogenerated": True,
+        })
+
+    from modules.forms_creator.api import export_form_unified
+    result = export_form_unified(
+        "ics_214",
+        Path(output_path),
+        values={"entries": entries},
+    )
+    return str(result.path)
+
+
+def list_team_status_log(task_id: int) -> List[Dict[str, Any]]:
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}/team-status-log")
+    except Exception:
+        return []
+
+
 def get_task_detail(task_id: int) -> TaskDetail:
-    task = get_task(task_id)
-    teams = list_task_teams(task_id)
-    return TaskDetail(task=task, teams=teams, narrative=[])
+    doc = _client().get(f"{_base()}/tasks/{task_id}")
+    priority = doc.get("priority", "")
+    if isinstance(priority, int):
+        priority = PRIORITY_MAP.get(priority, str(priority))
+    task = Task(
+        id=int(doc["int_id"]),
+        task_id=doc.get("task_id") or f"T-{doc['int_id']}",
+        title=doc.get("title") or "",
+        description="",
+        category=doc.get("category") or "",
+        task_type=doc.get("task_type"),
+        priority=priority,
+        status=_task_status_to_key(doc.get("status")).title() if doc.get("status") else "",
+        location=doc.get("location") or "",
+        created_by=doc.get("created_by") or "",
+        created_at=doc.get("created_at") or "",
+        assigned_to=None,
+        due_time=doc.get("due_time"),
+        assignment=doc.get("assignment") or "",
+        team_leader=doc.get("team_leader") or "",
+        team_phone=doc.get("team_phone") or "",
+    )
+    return TaskDetail(task=task)
 
-
-# --- CRUD helpers for teams and assignments ---
 
 def create_team(team_leader_id: Optional[int] = None) -> int:
-    """Create a minimal team row and return its id.
-
-    Initializes JSON fields as empty arrays.
-    """
-    with _connect() as con:
-        cur = con.execute(
-            "INSERT INTO teams (team_leader, personnel, vehicles, equipment) VALUES (?, '[]', '[]', '[]')",
-            (int(team_leader_id) if team_leader_id is not None else None,),
-        )
-        con.commit()
-        team_id = int(cur.lastrowid)
-    _auto_create_team_activity_log(team_id)
-    return team_id
-
-
-def _auto_create_team_activity_log(team_id: int) -> None:
-    incident_id = incident_context.get_active_incident_id()
-    if not incident_id:
-        return
+    result = _client().post(f"{_base()}/teams", json={"team_leader": team_leader_id})
+    team_int_id = int(result.get("int_id") or 0)
+    # Auto-create ICS-214 stream for this team
     try:
         from modules.ics214 import services as ics214_services
         from modules.ics214.schemas import StreamCreate
-    except Exception as exc:  # pragma: no cover - optional dependency
-        logger.debug("ICS-214 service unavailable for team %s: %s", team_id, exc)
-        return
-    label = f"Team {team_id}"
+        iid = _iid()
+        label = f"Team {team_int_id}"
+        import json as _json
+        section = _json.dumps({"category": "team", "ref": f"team:{team_int_id}", "label": label})
+        ics214_services.create_stream(StreamCreate(
+            incident_id=str(iid), name=label, op_number=0, kind="team", section=section,
+        ))
+    except Exception as exc:
+        logger.debug("ICS-214 stream creation for team %s: %s", team_int_id, exc)
     try:
-        section = json.dumps(
-            {"category": "team", "ref": f"team:{team_id}", "label": label},
-            ensure_ascii=False,
-        )
-        ics214_services.create_stream(
-            StreamCreate(
-                incident_id=str(incident_id),
-                name=label,
-                op_number=0,
-                kind="team",
-                section=section,
-            )
-        )
-    except Exception as exc:  # pragma: no cover - best-effort linkage
-        logger.debug("Failed to auto-create ICS-214 for team %s: %s", team_id, exc)
+        from modules.operations.data.repository import ics214_log_entry
+        ics214_log_entry("team", team_int_id, "Team created", source="auto")
+    except Exception:
+        pass
+    return team_int_id
 
 
 def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Optional[str] = None, primary: bool = False) -> int:
-    """Assign a team to a task. Creates a team if team_id is None.
-
-    Returns the task_teams id.
-    """
-    if team_id is None:
-        team_id = create_team(None)
-    # Auto-primary if first assignment for the task and primary not explicitly set
-    from datetime import datetime
-    now = datetime.utcnow().isoformat(timespec="seconds")
-    with _connect() as con:
-        existing = con.execute("SELECT COUNT(*) FROM task_teams WHERE task_id=?", (int(task_id),)).fetchone()[0]
-        is_primary = 1 if (primary or existing == 0) else 0
-        cur = con.execute(
-            "INSERT INTO task_teams (task_id, teamid, sortie_id, is_primary) VALUES (?, ?, ?, ?)",
-            (int(task_id), int(team_id), sortie_id, is_primary),
-        )
-        # Stamp assigned time at creation so the UI shows when the team was assigned
-        try:
-            con.execute("UPDATE task_teams SET time_assigned=? WHERE id=?", (now, int(cur.lastrowid)))
-        except Exception:
-            pass
-        # Also set current assignment on teams
-        try:
-            con.execute("ALTER TABLE teams ADD COLUMN current_task_id INTEGER")
-        except Exception:
-            pass
-        con.execute("UPDATE teams SET current_task_id=? WHERE id=?", (int(task_id), int(team_id)))
-        con.commit()
-        new_id = int(cur.lastrowid)
-        # Snapshot current team roster onto task (personnel/vehicles) where possible
-        try:
-            _snapshot_task_roster(con, int(task_id), int(team_id))
-        except Exception:
-            pass
-        # Auto-set team status to Assigned for newly created assignment
-        try:
-            # Keep timeline/status logic centralized in operations.data.repository
-            # This will no-op the time_assigned stamp if we already set it above,
-            # but ensure team.display status and signals/ICS entries update.
-            from modules.operations.data.repository import set_team_assignment_status  # local import to avoid cycles
-            set_team_assignment_status(int(new_id), "assigned")
-        except Exception:
-            # Best-effort; failure here should not block assignment creation
-            pass
-        try:
-            write_audit("task.team.add", {"task_id": int(task_id), "team_id": int(team_id) if team_id is not None else None, "tt_id": new_id, "sortie_id": sortie_id, "primary": bool(is_primary)})
-        except Exception:
-            pass
-        return new_id
+    result = _client().post(f"{_base()}/tasks/{task_id}/teams", json={
+        "team_id": team_id,
+        "sortie_id": sortie_id,
+        "primary": primary,
+    })
+    tt_id = int(result.get("tt_id") or 0)
+    actual_team_id = int(result.get("team_id") or team_id or 0) or None
+    # Set team assignment status to "assigned" (fires its own ICS-214 auto entry)
+    try:
+        from modules.operations.data.repository import set_team_assignment_status, ics214_log_entry
+        set_team_assignment_status(tt_id, "assigned")
+        if actual_team_id:
+            ics214_log_entry("team", actual_team_id, f"Assigned to Task {task_id}", source="auto")
+        ics214_log_entry("task", int(task_id), f"Team {actual_team_id or tt_id} assigned to task", source="auto")
+    except Exception:
+        pass
+    try:
+        write_audit("task.team.add", {"task_id": int(task_id), "team_id": actual_team_id, "tt_id": tt_id, "sortie_id": sortie_id, "primary": primary})
+    except Exception:
+        pass
+    return tt_id
 
 
 def set_primary_team(task_id: int, tt_id: int) -> None:
-    """Set a specific task_teams row as primary and clear others for the task.
-
-    Also ensures the underlying team's current_task_id points to this task.
-    """
-    with _connect() as con:
-        con.execute("UPDATE task_teams SET is_primary=0 WHERE task_id=?", (int(task_id),))
-        con.execute("UPDATE task_teams SET is_primary=1 WHERE id=?", (int(tt_id),))
-        # Update teams.current_task_id to reflect active assignment
-        try:
-            row = con.execute("SELECT teamid FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
-            if row and row[0] is not None:
-                con.execute("UPDATE teams SET current_task_id=? WHERE id=?", (int(task_id), int(row[0])))
-        except Exception:
-            pass
-        con.commit()
+    _client().patch(f"{_base()}/tasks/{task_id}/teams/{tt_id}/primary", json={})
 
 
 def update_sortie_id(tt_id: int, sortie_id: Optional[str]) -> None:
-    """Update the sortie identifier for a task_teams row."""
-    with _connect() as con:
-        con.execute("UPDATE task_teams SET sortie_id=? WHERE id=?", (str(sortie_id) if sortie_id is not None else None, int(tt_id)))
-        con.commit()
+    # We need task_id — scan for the tt_id
+    # Best effort: callers in task_detail_widget pass context that includes task_id
+    # Stub for now — this would require a search endpoint or embedding task_id knowledge
+    pass
+
+
+def update_sortie_id_for_task(task_id: int, tt_id: int, sortie_id: Optional[str]) -> None:
+    _client().patch(f"{_base()}/tasks/{task_id}/teams/{tt_id}/sortie", json={"sortie_id": sortie_id})
     try:
-        with _connect() as con:
-            row = con.execute("SELECT task_id FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
-            tid = int(row["task_id"]) if row and row["task_id"] is not None else None
-        write_audit("task.team.sortie", {"task_id": tid, "tt_id": int(tt_id), "new": sortie_id})
+        write_audit("task.team.sortie", {"task_id": int(task_id), "tt_id": int(tt_id), "new": sortie_id})
     except Exception:
         pass
 
 
 def remove_task_team(tt_id: int) -> None:
-    """Remove a team assignment from a task. Does not delete the team.
-
-    If the removed assignment was primary, promote the most recent remaining assignment to primary.
-    """
-    with _connect() as con:
-        row = con.execute("SELECT task_id, is_primary FROM task_teams WHERE id=?", (int(tt_id),)).fetchone()
-        if not row:
-            return
-        task_id = int(row["task_id"]) if row["task_id"] is not None else None
-        was_primary = bool(row["is_primary"]) if row["is_primary"] is not None else False
-        con.execute("DELETE FROM task_teams WHERE id=?", (int(tt_id),))
-        if task_id is not None and was_primary:
-            nxt = con.execute("SELECT id FROM task_teams WHERE task_id=? ORDER BY id LIMIT 1", (task_id,)).fetchone()
-            if nxt:
-                con.execute("UPDATE task_teams SET is_primary=1 WHERE id=?", (int(nxt[0]),))
-        con.commit()
+    """Scan tasks to find the owning task_id, then delegate to remove_task_team_from_task."""
     try:
-        write_audit("task.team.remove", {"task_id": task_id, "tt_id": int(tt_id), "was_primary": was_primary})
+        tasks = _client().get(f"{_base()}/tasks")
+        for task in tasks:
+            for tt in task.get("task_teams") or []:
+                if tt.get("id") == tt_id:
+                    remove_task_team_from_task(
+                        int(task["int_id"]),
+                        tt_id,
+                        team_id=tt.get("team_id"),
+                    )
+                    return
+    except Exception:
+        pass
+
+
+def remove_task_team_from_task(task_id: int, tt_id: int, team_id: Optional[int] = None) -> None:
+    _client().delete(f"{_base()}/tasks/{task_id}/teams/{tt_id}")
+    try:
+        from modules.operations.data.repository import ics214_log_entry
+        if team_id:
+            ics214_log_entry("team", int(team_id), f"Removed from Task {task_id}", source="auto")
+        ics214_log_entry("task", int(task_id), f"Team {team_id or tt_id} removed from task", source="auto")
     except Exception:
         pass
     try:
-        write_audit("task.team.primary", {"task_id": int(task_id), "tt_id": int(tt_id)})
+        write_audit("task.team.remove", {"task_id": task_id, "tt_id": tt_id, "team_id": team_id})
     except Exception:
         pass
 
 
 def delete_team(team_id: int) -> None:
-    """Completely delete a team record and its task assignments.
-
-    Removes rows from task_teams that reference the team, then deletes the
-    team from teams. Does not attempt to cascade to other domain tables.
-    """
-    with _connect() as con:
-        try:
-            con.execute("DELETE FROM task_teams WHERE teamid=?", (int(team_id),))
-        except Exception:
-            pass
-        try:
-            con.execute("DELETE FROM teams WHERE id=?", (int(team_id),))
-        except Exception:
-            pass
-        con.commit()
+    _client().delete(f"{_base()}/teams/{team_id}")
 
 
 def list_all_teams() -> List[Dict[str, Any]]:
-    """Return a list of all teams with basic display fields for selection dialogs."""
-    with _connect() as con:
-        # Ensure common columns exist
-        from modules.operations.data.repository import _ensure_teams_status_columns, _ensure_teams_name_column
-        _ensure_teams_status_columns(con)
-        _ensure_teams_name_column(con)
-        rows = con.execute(
-            """
-            SELECT tm.id AS team_id,
-                   tm.name AS team_name,
-                   p.name AS leader_name,
-                   COALESCE(p.phone, p.contact, p.email, '') AS leader_contact
-              FROM teams tm
-         LEFT JOIN personnel p ON p.id = tm.team_leader
-             ORDER BY tm.id
-            """
-        ).fetchall()
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        out.append({
-            "team_id": int(r["team_id"]) if r["team_id"] is not None else 0,
-            "team_name": r["team_name"] or f"Team {r['team_id']}",
-            "team_leader": r["leader_name"] or "",
-            "team_leader_phone": r["leader_contact"] or "",
-        })
-    return out
+    try:
+        teams = _client().get(f"{_base()}/teams")
+        out = []
+        for t in teams:
+            out.append({
+                "team_id": int(t.get("int_id") or 0),
+                "team_name": t.get("name") or f"Team {t.get('int_id')}",
+                "team_leader": t.get("leader_name") or "",
+                "team_leader_phone": t.get("leader_phone") or t.get("phone") or "",
+            })
+        return out
+    except Exception:
+        return []
 
 
 def create_task(title: str = "<New Task>", task_identifier: Optional[str] = None, priority: int = 2, status: str = "Draft") -> int:
-    """Create a minimal task and return its id.
-
-    Ensures required columns are provided for common tasks schema.
-    """
-    from datetime import datetime
-    created_at = datetime.utcnow().isoformat(timespec="seconds")
-    with _connect() as con:
-        # Generate next task_id if not provided (T-###)
-        tid = task_identifier
-        if not tid:
-            try:
-                row = con.execute("SELECT task_id FROM tasks WHERE task_id LIKE 'T-%' ORDER BY id DESC LIMIT 1").fetchone()
-                if row and row[0] and str(row[0]).startswith("T-"):
-                    try:
-                        n = int(str(row[0])[2:]) + 1
-                    except Exception:
-                        n = 1
-                else:
-                    cnt = con.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
-                    n = int(cnt) + 1
-                tid = f"T-{n:03d}"
-            except Exception:
-                tid = None
-        con.execute(
-            "INSERT INTO tasks (task_id, title, priority, status, created_at) VALUES (?, ?, ?, ?, ?)",
-            (tid, title, int(priority), status, created_at),
-        )
-        new_id = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
-        con.commit()
-        return new_id
+    priority_str = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}.get(priority, "Medium")
+    result = _client().post(f"{_base()}/tasks", json={
+        "title": title,
+        "task_id": task_identifier,
+        "priority": priority_str,
+        "status": status,
+    })
+    return int(result.get("int_id") or 0)

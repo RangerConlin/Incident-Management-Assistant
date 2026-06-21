@@ -89,4 +89,27 @@ class MasterRepository:
             return _map_row(dict(row)) if row else None
 
 
-__all__ = ["MasterRepository"]
+class ApiMasterRepository:
+    """MasterRepository backed by the SARApp API (MongoDB)."""
+
+    def list_channels(self, filters: Dict[str, Any] | None = None) -> List[Dict[str, Any]]:
+        from utils.api_client import api_client
+        params = {}
+        if filters:
+            if filters.get("search"):
+                params["search"] = filters["search"]
+            if filters.get("band"):
+                params["band"] = filters["band"]
+            if filters.get("mode"):
+                params["mode"] = filters["mode"]
+        return api_client.get("/api/comms/master-channels", params=params or None)
+
+    def get_channel(self, channel_id: int) -> Dict[str, Any] | None:
+        from utils.api_client import api_client
+        try:
+            return api_client.get(f"/api/comms/master-channels/{channel_id}")
+        except Exception:
+            return None
+
+
+__all__ = ["MasterRepository", "ApiMasterRepository"]

@@ -41,7 +41,7 @@ from PySide6QtAds import (
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"
@@ -49,13 +49,11 @@ DEBUG_ROLE = "Incident Commander"
 
 
 from utils.state import AppState
-from models.database import get_incident_by_number, get_all_incident_types
 from bridge.settings_bridge import SettingsBridge
 from utils.settingsmanager import SettingsManager
 from bridge.catalog_bridge import CatalogBridge
 from bridge.incident_bridge import IncidentBridge
 from models.sqlite_table_model import SqliteTableModel
-import sqlite3
 # 'os' imported earlier for env setup
 from utils.theme_manager import ThemeManager
 from bridge.theme_bridge import ThemeBridge
@@ -66,14 +64,6 @@ from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
 from ui.settings import SettingsWindow
 from utils.profile_manager import profile_manager, ProfileMeta
-
-from core.networking import (
-    ConnectionManager,
-    DEFAULT_SERVER_PORT,
-    LocalServerController,
-    LocalServerError,
-    PortUnavailableError,
-)
 
 try:
     from modules.ui_customization import (
@@ -95,6 +85,9 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("pymongo").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Development mode toggle (prevents NameError later);
@@ -146,43 +139,22 @@ class _WindowSizeTitleFilter(QObject):
         return False
 
 
+def _get_incident_by_number(number: str | None) -> dict | None:
+    """Look up a single incident by its number via the API. Returns None on miss."""
+    if not number:
+        return None
+    try:
+        from utils.api_client import api_client
+        results = api_client.get("/api/incidents", params={"number": str(number)}) or []
+        return results[0] if results else None
+    except Exception:
+        return None
+
+
 @lru_cache(maxsize=1)
 def _incident_type_sets() -> tuple[set[str], set[str]]:
-    """Return sets of planned and SAR incident type names (lowercased)."""
-    planned: set[str] = set()
-    sar: set[str] = set()
-    try:
-        rows = get_all_incident_types()
-    except Exception:
-        rows = []
-    for row in rows:
-        try:
-            _, name, *_rest = row
-        except Exception:
-            continue
-        if not name:
-            continue
-        lowered = str(name).strip().lower()
-        if not lowered:
-            continue
-        is_planned = False
-        try:
-            if len(row) > 3:
-                raw_flag = row[3]
-                if isinstance(raw_flag, str):
-                    is_planned = bool(int(raw_flag))
-                else:
-                    is_planned = bool(raw_flag)
-        except Exception:
-            try:
-                is_planned = bool(row[3])
-            except Exception:
-                is_planned = False
-        if is_planned:
-            planned.add(lowered)
-        if any(token in lowered for token in ("missing", "sar", "search", "elt")):
-            sar.add(lowered)
-    return planned, sar
+    """Return empty sets — classification falls through to keyword detection."""
+    return set(), set()
 
 
 def _classify_incident_category(incident: Optional[dict]) -> Optional[str]:
@@ -224,147 +196,13 @@ def _classify_incident_category(incident: Optional[dict]) -> Optional[str]:
     return "disaster"
 
 
-
-def _show_connection_fallback_dialog(parent=None) -> str:
-    """Ask the user how SARApp should continue when no server is reachable."""
-    dialog = QMessageBox(parent)
-    dialog.setIcon(QMessageBox.Warning)
-    dialog.setWindowTitle("SARApp Connection")
-    dialog.setText(
-        "No SARApp server was found on the local network, and the cloud server "
-        "is unavailable.\n\nWhat would you like to do?"
-    )
-    start_button = dialog.addButton("Start Local Incident Server", QMessageBox.AcceptRole)
-    offline_button = dialog.addButton("Work Offline", QMessageBox.DestructiveRole)
-    retry_button = dialog.addButton("Retry Connection", QMessageBox.ActionRole)
-    manual_button = dialog.addButton("Manual Server Address", QMessageBox.ActionRole)
-    exit_button = dialog.addButton("Exit", QMessageBox.RejectRole)
-    dialog.setDefaultButton(start_button)
-    dialog.exec()
-    clicked = dialog.clickedButton()
-    if clicked == start_button:
-        return "start_local"
-    if clicked == offline_button:
-        return "offline"
-    if clicked == retry_button:
-        return "retry"
-    if clicked == manual_button:
-        return "manual"
-    if clicked == exit_button:
-        return "exit"
-    return "exit"
-
-
-def _parse_manual_server_address(raw: str) -> tuple[str, int]:
-    """Parse a fallback dialog address as host, host:port, or URL."""
-    from urllib.parse import urlparse
-
-    value = raw.strip()
-    if not value:
-        raise ValueError("Enter a server host or address.")
-    parsed = urlparse(value if "://" in value else f"//{value}")
-    host = parsed.hostname or value
-    port = parsed.port or DEFAULT_SERVER_PORT
-    if not host.strip():
-        raise ValueError("Enter a server host or address.")
-    return host.strip(), int(port)
-
-
-def _prompt_manual_connection(connection_manager: ConnectionManager) -> bool:
-    """Prompt for a server address and connect through ConnectionManager."""
-    text, accepted = QInputDialog.getText(
-        None,
-        "Manual Server Address",
-        f"Enter SARApp server host or host:port (default port {DEFAULT_SERVER_PORT}):",
-    )
-    if not accepted:
-        return False
-    try:
-        host, port = _parse_manual_server_address(text)
-    except ValueError as exc:
-        QMessageBox.warning(None, "Invalid Server Address", str(exc))
-        return False
-    if connection_manager.connect_manual(host, port):
-        return True
-    QMessageBox.warning(
-        None,
-        "Connection Failed",
-        f"SARApp could not verify a compatible server at {host}:{port}.",
-    )
-    return False
-
-
-def _start_local_server_from_fallback(
-    connection_manager: ConnectionManager,
-    local_server_controller: LocalServerController,
-) -> bool:
-    """Start or reuse the local server, then connect the desktop client to it."""
-    try:
-        local_server_controller.start()
-    except PortUnavailableError as exc:
-        QMessageBox.critical(None, "Local Server Port Unavailable", str(exc))
-        return False
-    except LocalServerError as exc:
-        QMessageBox.critical(None, "Local Server Failed", str(exc))
-        return False
-
-    if not local_server_controller.wait_until_ready(timeout_seconds=10.0):
-        QMessageBox.critical(
-            None,
-            "Local Server Not Ready",
-            "SARApp started the local server process, but /health did not become "
-            "available before the startup timeout.",
-        )
-        return False
-
-    if connection_manager.connect_manual(local_server_controller.host, local_server_controller.port):
-        return True
-    QMessageBox.critical(
-        None,
-        "Local Connection Failed",
-        "The local server is running, but SARApp could not connect to it.",
-    )
-    return False
-
-
-def _resolve_startup_connection(
-    connection_manager: ConnectionManager,
-    local_server_controller: LocalServerController,
-) -> bool:
-    """Run startup discovery/cloud checks and show the expanded fallback loop."""
-    if connection_manager.connect_startup():
-        return True
-
-    while True:
-        choice = _show_connection_fallback_dialog()
-        if choice == "start_local":
-            if _start_local_server_from_fallback(connection_manager, local_server_controller):
-                return True
-        elif choice == "offline":
-            connection_manager.work_offline()
-            return True
-        elif choice == "retry":
-            # Retry deliberately reuses ConnectionManager so LAN/cloud/offline state stays centralized.
-            if connection_manager.connect_startup():
-                return True
-            QMessageBox.information(
-                None,
-                "No Server Found",
-                "SARApp still could not find a LAN server or reach the configured cloud server.",
-            )
-        elif choice == "manual":
-            if _prompt_manual_connection(connection_manager):
-                return True
-        else:
-            return False
-
 # ===== Part 2: Main Window & Physical Menus (visible UI only) ===============
 class MainWindow(QMainWindow):
     """
     Menu-first structure. Every visible menu item has a corresponding handler method,
     and ALL handlers follow the same pattern:
       - import module
-      - incident_id = getattr(self, "current_incident_id", None)
+      - incident_id = AppState.get_active_incident()
       - panel = module.get_*_panel(incident_id)
       - self._open_dock_widget(panel, title="...")
     Placeholders are fine if a real module/factory doesn't exist yet.
@@ -441,13 +279,17 @@ class MainWindow(QMainWindow):
         self.active_incident_label = QLabel()
         self.update_active_incident_label()
 
+        # Connection status line — sits below the incident label in Mission Status dock
+        self.connection_status_label = QLabel()
+        self._wire_connection_status_label()
+
         # Title includes active incident (if any)
         active_number = AppState.get_active_incident()
         user_id = AppState.get_active_user_id()
         user_role = AppState.get_active_user_role()
         suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
         if active_number:
-            incident = get_incident_by_number(active_number)
+            incident = _get_incident_by_number(active_number)
             if incident:
                 title = f"SARApp - {incident['number']} | {incident['name']}{suffix}"
             else:
@@ -640,6 +482,7 @@ class MainWindow(QMainWindow):
             pass
 
         self._init_notifications()
+        self._init_status_bar()
 
     # ----- Part 2.A: Physical Menu Builder ----------------------------------
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
@@ -799,21 +642,21 @@ class MainWindow(QMainWindow):
 
         # ----- Edit -----
         m_edit = mb.addMenu("Edit")
-        self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
-        self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
+        self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
         self._add_action(m_edit, "Canned Communication Entries", None, "edit.canned_comm_entries")
-        self._add_action(m_edit, "Personnel", None, "edit.personnel")
+        self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
+        self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
+        self._add_action(m_edit, "Equipment", None, "edit.equipment")
+        self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
+        self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
+        self._add_action(m_edit, "Personnel", None, "edit.personnel")
+        self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
+        self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
         self._add_action(m_edit, "Team Types", None, "edit.team_types")
-        self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
-        self._add_action(m_edit, "Aircraft", None, "edit.aircraft")
-        self._add_action(m_edit, "Equipment", None, "edit.equipment")
-        self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
-        self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
-        self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
-        self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Units and Organizations", None, "edit.units_organizations")
+        self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
 
         # ----- View (moved under Menu) -----
         m_view = m_menu.addMenu("View")
@@ -879,8 +722,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_plan, "Planning Dashboard", "Ctrl+Alt+D", "planning.glance")
         self._add_action(m_plan, "Planning Unit Log ICS-214", None, "planning.unit_log")
         m_plan.addSeparator()
-        self._add_action(m_plan, "Pending Approvals", None, "planning.approvals")
         self._add_action(m_plan, "Operational Period Manager", None, "planning.op_manager")
+        self._add_action(m_plan, "Demobilization Planner", None, "planning.demobilization")
         self._add_action(m_plan, "Meeting Planner", None, "planning.meetings")
         self._add_action(m_plan, "Situation Report", None, "planning.sitrep")
         m_plan.addSeparator()
@@ -915,22 +758,28 @@ class MainWindow(QMainWindow):
         self._add_action(m_comms, "Communications Dashboard", None, "comms.traffic_log")
         self._add_action(m_comms, "Communications Unit Log ICS-214", None, "comms.unit_log")
         m_comms.addSeparator()
-        self._add_action(m_comms, "Communications Plan (ICS-205)", None, "comms.205")
+        self._add_action(m_comms, "Communications Plan ICS-205", None, "comms.205")
         self._add_action(m_comms, "Communications Log (ICS-309)", None, "comms.log_board")
-        self._add_action(m_comms, "Communications Quick Entry", None, "comms.quick_entry")
-        self._add_action(m_comms, "Messaging", None, "comms.chat")
+        self._add_action(m_comms, "Log & Entry", None, "comms.log_entry")
+        self._add_action(m_comms, "Quick Entry", None, "comms.quick_entry")
+        self._add_action(m_comms, "Chat Messaging", None, "comms.chat")
         self._add_action(m_comms, "ICS 213 Messages", None, "comms.213")
+        m_comms.addSeparator()
+        self._add_action(m_comms, "Notification Feed", None, "comms.notifications")
+        self._add_action(m_comms, "Notification Settings", None, "comms.notification_settings")
 
 
         # ----- Intel -----
         m_intel = mb.addMenu("Intel")
-        self._add_action(m_intel, "Intel — Dashboard", None, "intel.dashboard")
+        self._add_action(m_intel, "Intel Dashboard", None, "intel.dashboard")
         self._add_action(m_intel, "Intel Unit Log ICS-214", None, "intel.unit_log")
         m_intel.addSeparator()
-        # Expose the data-centric Intel window under a clear non-dashboard label
-        self._add_action(m_intel, "Intel — Data Manager", None, "intel.data_manager")
-        self._add_action(m_intel, "Clue Log", None, "intel.clue_log")
-        self._add_action(m_intel, "Add Clue", None, "intel.add_clue")
+        self._add_action(m_intel, "Subjects", None, "intel.subjects")
+        self._add_action(m_intel, "Leads", None, "intel.leads")
+        self._add_action(m_intel, "Intel Items", None, "intel.items")
+        self._add_action(m_intel, "Assessments", None, "intel.assessments")
+        self._add_action(m_intel, "Intel Log", None, "intel.log")
+        self._add_action(m_intel, "Forms", None, "intel.forms")
 
         # ----- Medical & Safety -----
         m_med = mb.addMenu("Medical && Safety")
@@ -940,7 +789,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Medical Plan ICS 206", None, "medical.206")
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
-        self._add_action(m_med, "CAP ORM", None, "safety.caporm")
+        self._add_action(m_med, "CAP ORM CAPF-160", None, "safety.caporm")
+        self._add_action(m_med, "Safety Incident Reports (IWI)", None, "safety.iwi")
         m_med.addSeparator()
         self._add_weather_menu_items(m_med, prefix="safety.weather")
         # ----- Liaison -----
@@ -952,14 +802,15 @@ class MainWindow(QMainWindow):
 
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
-        # Public Information dashboard (widget-based)
-        self._add_action(m_pub, "Public Information", None, "public.dashboard")
-        # Public Affairs — Dashboard entry
-        self._add_action(m_pub, "Public Affairs Dashboard", None, "public.affairs_dashboard")
+        self._add_action(m_pub, "Public Information Dashboard", None, "public.dashboard")
         self._add_action(m_pub, "Public Information Unit Log ICS-214", None, "public.unit_log")
         m_pub.addSeparator()
-        self._add_action(m_pub, "Media Releases", None, "public.media_releases")
-        self._add_action(m_pub, "Public Inquiries", None, "public.inquiries")
+        self._add_action(m_pub, "Messages / Releases", None, "public.media_releases")
+        self._add_action(m_pub, "Rumor / Misinformation", None, "public.misinformation")
+        self._add_action(m_pub, "Media Log", None, "public.inquiries")
+        self._add_action(m_pub, "Talking Points", None, "public.talking_points")
+        self._add_action(m_pub, "Letterhead / Templates", None, "public.templates")
+        self._add_action(m_pub, "Distribution Log", None, "public.distribution")
 
         # ----- Finance/Admin -----
         m_fin = mb.addMenu("Finance/Admin")
@@ -987,12 +838,12 @@ class MainWindow(QMainWindow):
         self._add_action(plan_menu, "External Messaging", None, "planned.promotions")
         self._add_action(plan_menu, "Vendors && Permits", None, "planned.vendors")
         self._add_action(plan_menu, "Public Safety", None, "planned.safety")
-        self._add_action(plan_menu, "Tasking && Assignments", None, "planned.tasking")
+        self._add_action(plan_menu, "Quick Assignments", None, "planned.tasking")
         self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
 
         init_menu = m_tool.addMenu("Initial Response")
-        self._add_action(init_menu, "Hasty Tools", None, "toolkit.initial.hasty")
-        self._add_action(init_menu, "Reflex Taskings", None, "toolkit.initial.reflex")
+        self._add_action(init_menu, "Initial Information", None, "toolkit.initial.overview")
+        self._add_action(init_menu, "Early Tasking", None, "toolkit.initial.hasty")
 
         # ----- Reference Library & Forms -----
         m_reference = self.menuBar().addMenu("Reference Library")
@@ -1058,7 +909,7 @@ class MainWindow(QMainWindow):
         # ----- Debug -----
         self.menuDebug = self.menuBar().addMenu("Debug")
         act = QAction("Print Active Incident", self)
-        act.triggered.connect(lambda: print(f"[debug] MainWindow current_incident_id={getattr(self,'current_incident_id',None)}; AppState={AppState.get_active_incident()}"))
+        act.triggered.connect(lambda: print(f"[debug] active incident={AppState.get_active_incident()!r}"))
         self.menuDebug.addAction(act)
 
         # Quick way to add sample docks to play with ADS
@@ -1114,13 +965,13 @@ class MainWindow(QMainWindow):
         """Enable/disable toolkit menu entries based on incident type."""
         try:
             if incident is None:
-                incident_id = getattr(self, "current_incident_id", None)
+                incident_id = AppState.get_active_incident()
                 if incident_id:
-                    incident = get_incident_by_number(incident_id)
+                    incident = _get_incident_by_number(incident_id)
                 else:
                     incident_number = AppState.get_active_incident()
                     incident = (
-                        get_incident_by_number(incident_number)
+                        _get_incident_by_number(incident_number)
                         if incident_number
                         else None
                     )
@@ -1134,13 +985,12 @@ class MainWindow(QMainWindow):
             "toolkit.disaster.damage": category == "disaster",
             "toolkit.disaster.urban_interview": category == "disaster",
             "toolkit.disaster.photos": category == "disaster",
-            "planned.promotions": category == "planned",
-            "planned.vendors": category == "planned",
-            "planned.safety": category == "planned",
-            "planned.tasking": category == "planned",
-            "planned.health_sanitation": category == "planned",
+            "planned.promotions": True,
+            "planned.vendors": True,
+            "planned.safety": True,
+            "planned.tasking": True,
+            "planned.health_sanitation": True,
             "toolkit.initial.hasty": category in {"sar", "disaster"},
-            "toolkit.initial.reflex": category in {"sar", "disaster"},
         }
         if category is None:
             for key in enabled:
@@ -1194,6 +1044,7 @@ class MainWindow(QMainWindow):
             "planning.glance": self.open_planning_glance,
             "planning.approvals": self.open_planning_approvals,
             "planning.op_manager": self.open_planning_op_manager,
+            "planning.demobilization": self.open_planning_demobilization,
             "planning.meetings": self.open_planning_meetings,
             "planning.sitrep": self.open_planning_sitrep,
             "planning.tactics_planner": self.open_tactics_resources_planner,
@@ -1228,17 +1079,22 @@ class MainWindow(QMainWindow):
             "comms.unit_log": self.open_comms_unit_log,
             "comms.traffic_log": self.open_comms_traffic_log,
             "comms.log_board": self.open_comms_log_board,
+            "comms.log_entry": self.open_comms_log_entry,
             "comms.quick_entry": self.open_comms_quick_entry,
             "comms.chat": self.open_comms_chat,
             "comms.213": self.open_comms_213,
             "comms.205": self.open_comms_205,
+            "comms.notifications": self.open_notifications_panel,
 
             # ----- Intel -----
             "intel.unit_log": self.open_intel_unit_log,
-            "intel.dashboard": self.open_intel_dashboard,
-            "intel.data_manager": self.open_intel_data_manager,
-            "intel.clue_log": self.open_intel_clue_log,
-            "intel.add_clue": self.open_intel_add_clue,
+            "intel.dashboard": lambda: self.open_intel_module(tab="dashboard"),
+            "intel.subjects": lambda: self.open_intel_module(tab="subjects"),
+            "intel.leads": lambda: self.open_intel_module(tab="leads"),
+            "intel.items": lambda: self.open_intel_module(tab="items"),
+            "intel.assessments": lambda: self.open_intel_module(tab="assessments"),
+            "intel.log": lambda: self.open_intel_module(tab="log"),
+            "intel.forms": lambda: self.open_intel_module(tab="forms"),
 
             # ----- Medical & Safety -----
             "medical.unit_log": self.open_medical_unit_log,
@@ -1247,6 +1103,7 @@ class MainWindow(QMainWindow):
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
             "safety.caporm": self.open_safety_caporm,
+            "safety.iwi": self.open_safety_iwi,
 
             "safety.weather.summary": self.open_weather_safety_summary,
             "safety.weather.current": self.open_weather_current_forecast,
@@ -1263,11 +1120,14 @@ class MainWindow(QMainWindow):
             "liaison.requests": self.open_liaison_requests,
 
             # ----- Public Information -----
-            "public.dashboard": self.open_public_dashboard,
-            "public.unit_log": self.open_public_unit_log,
-            "public.media_releases": self.open_public_media_releases,
-            "public.inquiries": self.open_public_inquiries,
-            "public.affairs_dashboard": self.open_public_affairs_dashboard,
+            "public.dashboard":       self.open_public_dashboard,
+            "public.unit_log":        self.open_public_unit_log,
+            "public.media_releases":  self.open_public_media_releases,
+            "public.misinformation":  self.open_public_misinformation,
+            "public.inquiries":       self.open_public_inquiries,
+            "public.talking_points":  self.open_public_talking_points,
+            "public.templates":       self.open_public_templates,
+            "public.distribution":    self.open_public_distribution,
 
             # ----- Finance/Admin -----
             "finance.dashboard": self.open_finance_admin_dashboard,
@@ -1288,12 +1148,12 @@ class MainWindow(QMainWindow):
             "planned.safety": self.open_planned_safety,
             "planned.tasking": self.open_planned_tasking,
             "planned.health_sanitation": self.open_planned_health_sanitation,
+            "toolkit.initial.overview": self.open_toolkit_initial_overview,
             "toolkit.initial.hasty": self.open_toolkit_initial_hasty,
-            "toolkit.initial.reflex": self.open_toolkit_initial_reflex,
 
             # ----- Reference Library & Forms -----
             "library": self.open_reference_library,
-            "forms.creator": self.open_forms_creator,
+
             "help.user_guide": self.open_help_user_guide,
 
             # ----- Help -----
@@ -1318,44 +1178,21 @@ class MainWindow(QMainWindow):
         dlg.created.connect(self._on_incident_created)
         dlg.show()
 
-    def _on_incident_created(self, meta, db_path: str) -> None:
+    def _on_incident_created(self, meta, incident_id: str) -> None:
         """Handle mission creation from the New Incident dialog."""
-        # 1) Register in master.db so it shows up in selectors
-        try:
-            from models.database import insert_new_incident, get_incident_by_number
-            # Avoid duplicate records if one already exists
-            if not get_incident_by_number(meta.number):
-                insert_new_incident(
-                    number=meta.number,
-                    name=meta.name,
-                    type=meta.type,
-                    description=meta.description,
-                    icp_location=meta.location,
-                    is_training=meta.is_training,
-                )
-        except Exception as e:
-            logger.exception("Failed to register incident in master.db: %s", e)
-            QMessageBox.warning(
-                self,
-                "Database Error",
-                f"Mission database created but failed to register in master.db:\n{e}",
-            )
-
-        # 2) Set as the active incident immediately
+        # Set as the active incident immediately
         try:
             from utils import incident_context
-            self.current_incident_id = meta.number
             AppState.set_active_incident(meta.number)
             incident_context.set_active_incident(str(meta.number))
             self.update_title_with_active_incident()
         except Exception:
             logger.exception("Failed to set active incident context")
 
-        # 3) Notify user (after attempting registration + activation)
         QMessageBox.information(
             self,
             "Mission Created",
-            f"Mission '{meta.name}' created and activated.\nDB path: {db_path}",
+            f"Mission '{meta.name}' created and activated.",
         )
 
         # 4) If the incident selection window is open, refresh it and select
@@ -1373,7 +1210,6 @@ class MainWindow(QMainWindow):
         from ui_bootstrap.incident_select_bootstrap import show_incident_selector
         def _apply_active(number: int) -> None:
             print(f"[main] on_select callback received: {number}")
-            self.current_incident_id = number
             AppState.set_active_incident(number)
             self.update_title_with_active_incident()
 
@@ -1416,8 +1252,11 @@ class MainWindow(QMainWindow):
     def open_edit_hospitals(self) -> None:
         from modules.medical.hospitals import HospitalManagerDialog
 
-        dialog = HospitalManagerDialog(parent=self)
-        dialog.exec()
+        win = HospitalManagerDialog(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_canned_comm_entries(self) -> None:
         # Use the QtWidgets-based window under root panels
@@ -1444,32 +1283,22 @@ class MainWindow(QMainWindow):
     def open_edit_personnel(self) -> None:
         from ui.personnel import PersonnelInventoryWindow
 
-        dialog = PersonnelInventoryWindow(parent=self)
-        dialog.exec()
+        win = PersonnelInventoryWindow(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_objectives(self) -> None:
         try:
-            from types import SimpleNamespace
-            import os
-            from modules.planning.widgets.objectives_editor import (
-                show_objectives_editor,
-            )
-
-            data_dir = os.environ.get("CHECKIN_DATA_DIR", "data")
-            state = SimpleNamespace(data_dir=data_dir)
-            editor = show_objectives_editor(state)
+            from modules.planning.widgets.objectives_editor import show_objectives_editor
+            editor = show_objectives_editor(None)
             self._register_child_window(editor)
-            try:
-                editor.raise_()
-                editor.activateWindow()
-            except Exception:
-                pass
-        except Exception as e:
-            try:
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.critical(self, "Objectives", f"Failed to open Objectives Editor:\n{e}")
-            except Exception:
-                print(f"[main] Failed to open Objectives Editor: {e}")
+            editor.raise_()
+            editor.activateWindow()
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Objectives", f"Failed to open Objectives Editor:\n{exc}")
 
     def open_edit_task_types(self) -> None:
         from modules.common.widgets.type_editors.task_types_editor import (
@@ -1497,8 +1326,11 @@ class MainWindow(QMainWindow):
         from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
             VehicleInventoryDialog,
         )
-        dialog = VehicleInventoryDialog(parent=self)
-        dialog.exec()
+        win = VehicleInventoryDialog(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_aircraft(self) -> None:
         from modules.logistics.aircraft.panels.aircraft_inventory_window import (
@@ -1506,7 +1338,10 @@ class MainWindow(QMainWindow):
         )
 
         dialog = AircraftInventoryWindow(parent=self)
-        dialog.exec()
+        self._register_child_window(dialog)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def open_edit_equipment(self) -> None:
         try:
@@ -1515,8 +1350,11 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Equipment Panel Error", f"Unable to load Equipment panel.\n{exc}")
             return
-        panel = EquipmentEditPanel(db_path="data/master.db")
-        self._open_dock_widget(panel, title="Equipment")
+        win = EquipmentEditPanel(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_resource_types(self) -> None:
         """Open the Resource Type Library from the Edit menu.
@@ -1552,27 +1390,35 @@ class MainWindow(QMainWindow):
         open_hazard_type_library(parent=self)
 
     def open_edit_comms_resources(self) -> None:
-        # Open new QWidget-based Comms Resource Editor (dock-friendly)
         try:
             from panels.comms_resource_editor import CommsResourceEditor
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Load Failed", f"Unable to load Comms Resource Editor: {e}")
             return
-        panel = CommsResourceEditor()
-        self._open_dock_widget(panel, title="Communications Resources (ICS-217)")
+        win = CommsResourceEditor(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def open_edit_safety_templates(self) -> None:
-        from modules import safety
-
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = safety.get_215A_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
+        """Open the Safety Analysis Library on the Scenario Templates tab."""
+        try:
+            from modules.admin.hazard_types.windows import open_hazard_type_library
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Safety Analysis Library",
+                f"Unable to load Safety Analysis Library.\n{exc}",
+            )
+            return
+        open_hazard_type_library(parent=self, tab=1)
 
     def open_edit_units_organizations(self) -> None:
         """Open the master-data Units and Organizations editor panel."""
         try:
-            from modules.personnel_role_management.units_organizations import (
+            from modules.personnel.units_organizations import (
                 UnitsOrganizationsPanel,
             )
         except Exception as exc:
@@ -1583,13 +1429,16 @@ class MainWindow(QMainWindow):
             )
             return
 
-        panel = UnitsOrganizationsPanel(parent=self)
-        self._open_dock_widget(panel, title="Units and Organizations")
+        win = UnitsOrganizationsPanel(parent=self)
+        self._register_child_window(win)
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:command",
@@ -1600,9 +1449,9 @@ class MainWindow(QMainWindow):
 
     def open_command_incident_dashboard(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_incident_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Command Dashboard", preferred_size=(900, 700))
+        self._open_panel(panel, title="Incident Command Dashboard", preferred_size=(900, 700))
 
     def open_command_incident_overview(self) -> None:
         # Replace placeholder with real Incident Overview panel (widgets only)
@@ -1612,42 +1461,42 @@ class MainWindow(QMainWindow):
                 create_command_incident_overview_panel,
             )
             widget = create_command_incident_overview_panel(self.dock_manager, getattr(self, "app_context", None))
-            self._open_dock_widget(widget, title=IncidentOverviewPanel.panel_title)
+            self._open_panel(widget, title=IncidentOverviewPanel.panel_title)
         except Exception:
             # Fallback to legacy placeholder if import fails
             from modules import command
-            incident_id = getattr(self, "current_incident_id", None)
+            incident_id = AppState.get_active_incident()
             panel = command.get_incident_overview_panel(incident_id)
-            self._open_dock_widget(panel, title="Incident Overview")
+            self._open_panel(panel, title="Incident Overview")
 
     def open_command_iap(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_iap_builder_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Action Plan Builder")
+        self._open_panel(panel, title="Incident Action Plan Builder")
 
     def open_command_objectives(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_objectives_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Objectives (ICS 202)")
+        self._open_panel(panel, title="Incident Objectives (ICS 202)")
 
     def open_command_staff_org(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_staff_org_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Organization")
+        self._open_panel(panel, title="Incident Organization")
 
     def open_command_sitrep(self) -> None:
         from modules import command
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = command.get_sitrep_panel(incident_id)
-        self._open_dock_widget(panel, title="Situation Report (ICS 209)")
+        self._open_panel(panel, title="Situation Report (ICS 209)")
 
 # --- 4.4 Planning --------------------------------------------------------
     def open_planning_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:planning",
@@ -1676,31 +1525,40 @@ class MainWindow(QMainWindow):
             widget.setAutoRefresh(30000)
         except Exception:
             pass
-        self._open_dock_widget(widget, title="Planning — At-a-Glance")
+        self._open_panel(widget, title="Planning — At-a-Glance")
 
     def open_planning_approvals(self) -> None:
-        from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = planning.get_approvals_panel(incident_id)
-        self._open_dock_widget(panel, title="Pending Approvals")
+        from modules.approvals.panels.approval_inbox_panel import ApprovalInboxPanel
+        incident_id = AppState.get_active_incident()
+        personnel_id = str(AppState.get_active_user_id() or "")
+        panel = ApprovalInboxPanel(incident_id=incident_id, personnel_id=personnel_id)
+        panel.load()
+        panel.item_activated.connect(self._on_approval_item_activated)
+        self._open_panel(panel, title="Pending Approvals")
 
     def open_planning_op_manager(self) -> None:
         from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = planning.get_op_manager_panel(incident_id)
-        self._open_dock_widget(panel, title="Operational Period Manager")
+        self._open_panel(panel, title="Operational Period Manager")
+
+    def open_planning_demobilization(self) -> None:
+        from modules import planning
+        incident_id = AppState.get_active_incident()
+        panel = planning.get_demobilization_panel(incident_id)
+        self._open_panel(panel, title="Demobilization Planner")
 
     def open_planning_meetings(self) -> None:
         from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = planning.get_meetings_panel(incident_id)
-        self._open_dock_widget(panel, title="Meeting Planner")
+        self._open_panel(panel, title="Meeting Planner")
 
     def open_planning_sitrep(self) -> None:
         from modules import planning
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = planning.get_sitrep_panel(incident_id)
-        self._open_dock_widget(panel, title="Situation Report")
+        self._open_panel(panel, title="Situation Report")
 
     def open_tactics_resources_planner(self) -> None:
         try:
@@ -1715,7 +1573,7 @@ class MainWindow(QMainWindow):
         """Open the dockable Weather Safety summary page."""
         from modules.intel.weather.pages.weather_summary_page import WeatherSummaryPage
         panel = WeatherSummaryPage(self)
-        self._open_dock_widget(panel, title="Weather Safety")
+        self._open_panel(panel, title="Weather Safety")
 
     def open_weather_timeline(self) -> None:
         """Open the standalone Weather Timeline window."""
@@ -1771,7 +1629,7 @@ class MainWindow(QMainWindow):
         window.raise_()
     def open_operations_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:operations",
@@ -1793,14 +1651,13 @@ class MainWindow(QMainWindow):
 
         widget: OpsGlanceWidget = make_ops_glance_widget(self)
         self._wire_ops_glance(widget)
-        self._open_dock_widget(widget, title="Operations — Dashboard")
+        self._open_panel(widget, title="Operations — Dashboard")
 
     # ---- Ops Glance data wiring ----
     def _wire_ops_glance(self, w) -> None:
         from utils.app_signals import app_signals
         from utils.state import AppState
         from utils import incident_context
-        import sqlite3
         from datetime import datetime, timedelta, timezone
 
         # Button/signal wiring
@@ -1891,99 +1748,65 @@ class MainWindow(QMainWindow):
             now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
             w.set_context(str(op), now_text, str(role))
 
-            # Open DB
-            try:
-                db_path = incident_context.get_active_incident_db_path()
-                con = sqlite3.connect(str(db_path))
-                con.row_factory = sqlite3.Row
-            except Exception as exc:
-                print(f"[warn] ops dashboard DB open failed: {exc}")
-                return
+            from utils.api_client import api_client
+            iid = str(active_id)
 
-            # KPIs
-            k_active = k_due = k_assigned = k_available = k_blocking = k_new_debriefs = 0
+            # KPIs via tasks API
+            k_active = k_due = k_assigned = k_available = k_blocking = 0
             try:
-                rows = con.execute("SELECT id, status, due_time FROM tasks").fetchall()
-                def _norm(s):
-                    key = (s or '').strip().lower()
-                    return {
-                        'completed': 'complete',
-                        'complete': 'complete',
-                        'cancelled': 'cancelled',
-                        'draft': 'created',
-                        'created': 'created',
-                        'planned': 'planned',
-                        'assigned': 'assigned',
-                        'in progress': 'in progress',
-                    }.get(key, key)
-                open_rows = [r for r in rows if _norm(r['status']) not in {'complete', 'cancelled'}]
-                k_active = len(open_rows)
-                now = datetime.now(timezone.utc)
-                in2h = now + timedelta(hours=2)
+                all_tasks = api_client.get(f"/api/incidents/{iid}/operations/tasks") or []
+                closed = {"complete", "completed", "cancelled", "canceled"}
                 def _parse(dtstr):
                     try:
                         dt = datetime.fromisoformat(str(dtstr))
                         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
                     except Exception:
                         return None
-                k_due = sum(1 for r in open_rows if (p:=_parse(r['due_time'])) and now <= p <= in2h)
+                open_tasks = [t for t in all_tasks if (t.get("status") or "").strip().lower() not in closed]
+                k_active = len(open_tasks)
+                now = datetime.now(timezone.utc)
+                in2h = now + timedelta(hours=2)
+                k_due = sum(1 for t in open_tasks if (p := _parse(t.get("due_time"))) and now <= p <= in2h)
             except Exception:
-                pass
+                open_tasks = []
 
-            # Teams snapshot + counts + blocking
+            # Teams snapshot via API
             try:
-                from modules.operations.data.repository import fetch_team_assignment_rows
-                teams = fetch_team_assignment_rows() or []
-                # KPI semantics: assigned <-> has a current task; available <-> no current task
+                teams = api_client.get(f"/api/incidents/{iid}/teams") or []
                 def _has_task(t):
-                    tid = t.get('task_id')
-                    try:
-                        return int(tid) > 0
-                    except Exception:
-                        return bool(tid)
+                    return bool(t.get("task_id") or t.get("assignment"))
                 k_assigned = sum(1 for t in teams if _has_task(t))
                 k_available = sum(1 for t in teams if not _has_task(t))
-                k_blocking = sum(1 for t in teams if t.get('needs_attention') or t.get('emergency_flag'))
-                # Update Team Snapshot display
+                k_blocking = sum(1 for t in teams if t.get("needs_assistance") or t.get("emergency"))
                 w.update_team_snapshot([
                     {
-                        'name': t.get('name') or t.get('sortie') or 'Team',
-                        'status': str(t.get('status') or '').title(),
-                        'assigned': t.get('assignment') or '',
-                        'leader': t.get('leader') or '',
-                        'last_checkin_at': t.get('last_checkin_at') or t.get('last_updated') or '',
+                        "name": t.get("team_name") or "Team",
+                        "status": str(t.get("status") or "").title(),
+                        "assigned": t.get("assignment") or "",
+                        "leader": t.get("leader") or "",
+                        "last_checkin_at": t.get("last_checkin_ts") or "",
                     }
                     for t in teams[:6]
                 ])
             except Exception as exc:
-                print(f"[warn] fetch_team_assignment_rows failed: {exc}")
-
-            # New Debriefs
-            try:
-                row = con.execute(
-                    "SELECT COUNT(*) AS c FROM task_debriefs WHERE COALESCE(status,'')='Submitted' AND (reviewed_at IS NULL OR TRIM(reviewed_at)='')"
-                ).fetchone()
-                k_new_debriefs = int(row[0]) if row and row[0] is not None else 0
-            except Exception:
-                k_new_debriefs = 0
+                print(f"[warn] teams API failed: {exc}")
 
             w.update_kpis({
-                'active_tasks': k_active,
-                'due_2h': k_due,
-                'teams_assigned': k_assigned,
-                'teams_available': k_available,
-                'blocking_issues': k_blocking,
-                'new_debriefs': k_new_debriefs,
+                "active_tasks": k_active,
+                "due_2h": k_due,
+                "teams_assigned": k_assigned,
+                "teams_available": k_available,
+                "blocking_issues": k_blocking,
+                "new_debriefs": 0,
             })
 
-            # Alerts (last 30 min) from audit logs
+            # Alerts (last 30 min) via API
             try:
-                from modules.operations.taskings.repository import list_audit_logs
+                audit_rows = api_client.get(f"/api/incidents/{iid}/audit-log", params={"limit": 100}) or []
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
-                rows = list_audit_logs(limit=100)
                 alerts = []
-                for r in rows:
-                    ts = r.get('ts_utc') or r.get('timestamp') or ''
+                for r in audit_rows:
+                    ts = r.get("ts_utc") or r.get("timestamp") or ""
                     try:
                         dt = datetime.fromisoformat(str(ts)) if ts else None
                         if dt and dt.tzinfo is None:
@@ -1991,77 +1814,50 @@ class MainWindow(QMainWindow):
                     except Exception:
                         dt = None
                     if dt is not None and dt >= cutoff:
-                        msg = r.get('action') or 'Audit'
-                        who = r.get('changed_by_display') or ''
+                        msg = r.get("action") or "Audit"
+                        who = r.get("changed_by_display") or ""
                         if who:
                             msg = f"{msg} — {who}"
-                        alerts.append({'id': r.get('id'), 'ts': ts[-8:] if ts else '', 'message': msg})
+                        alerts.append({"id": r.get("id"), "ts": ts[-8:] if ts else "", "message": msg})
                 w.update_alerts(alerts[:8])
             except Exception as exc:
-                print(f"[warn] list_audit_logs failed: {exc}")
+                print(f"[warn] audit-log API failed: {exc}")
 
-            # Top Tasks (simple heuristic: open tasks by priority desc, soonest due)
+            # Top Tasks (open, sorted by priority desc then soonest due)
             try:
-                rows = con.execute(
-                    "SELECT id, title, priority, status, COALESCE(assignment,'') AS assignment, COALESCE(due_time,'') AS due_time FROM tasks"
-                ).fetchall()
-                def _norm2(s):
-                    key = (s or '').strip().lower()
-                    return key not in {'completed','complete','cancelled'}
                 def _prio(v):
-                    try:
-                        return int(v)
-                    except Exception:
-                        return 0
+                    try: return int(v)
+                    except Exception: return 0
                 def _due_val(v):
                     try:
                         dt = datetime.fromisoformat(str(v)) if v else None
-                        if dt is None:
-                            return datetime.max.replace(tzinfo=None)
-                        return dt
+                        return dt or datetime.max.replace(tzinfo=None)
                     except Exception:
                         return datetime.max.replace(tzinfo=None)
-                open_rows = [r for r in rows if _norm2(r['status'])]
-                open_rows.sort(key=lambda r: (-_prio(r['priority']), _due_val(r['due_time'])))
-                tasks = []
-                for r in open_rows[:5]:
-                    tasks.append({
-                        'id': int(r['id']),
-                        'title': r['title'] or '(untitled)',
-                        'assignee': r['assignment'] or '',
-                        'due': (str(r['due_time']) or '')[-5:] if r['due_time'] else '',
-                        'priority': r['priority'],
-                        'status': (r['status'] or ''),
-                    })
-                w.update_top_tasks(tasks)
+                sorted_tasks = sorted(open_tasks, key=lambda t: (-_prio(t.get("priority")), _due_val(t.get("due_time"))))
+                w.update_top_tasks([
+                    {
+                        "id": t.get("task_id") or t.get("id", ""),
+                        "title": t.get("title") or "(untitled)",
+                        "assignee": t.get("assignment") or "",
+                        "due": (str(t.get("due_time") or ""))[-5:],
+                        "priority": t.get("priority"),
+                        "status": t.get("status") or "",
+                    }
+                    for t in sorted_tasks[:5]
+                ])
             except Exception as exc:
-                print(f"[warn] top tasks query failed: {exc}")
+                print(f"[warn] top tasks failed: {exc}")
 
-            # Comms snapshot from ICS-205
+            # Comms snapshot via API
             try:
-                from modules.operations.taskings.repository import list_incident_channels
-                ch = list_incident_channels() or []
-                channels = []
-                for c in ch[:5]:
-                    # Handle both dicts and sqlite3.Row
-                    if hasattr(c, 'keys'):
-                        name = (c['channel'] if 'channel' in c.keys() else c['channel_name']) if c else 'Channel'
-                        role = ''
-                        for key in ('function','mode','system'):
-                            if key in c.keys() and c[key]:
-                                role = c[key]; break
-                    else:
-                        name = c.get('channel') or c.get('channel_name') or 'Channel'
-                        role = c.get('function') or c.get('mode') or (c.get('system') or '')
-                    channels.append({'name': name, 'role': role or '', 'status': 'OK'})
-                w.update_comms_snapshot(channels)
+                channels = api_client.get(f"/api/incidents/{iid}/channels") or []
+                w.update_comms_snapshot([
+                    {"name": c.get("name") or "", "role": c.get("function") or c.get("mode") or "", "status": "OK"}
+                    for c in channels[:5]
+                ])
             except Exception as exc:
-                print(f"[warn] comms list failed: {exc}")
-
-            try:
-                con.close()
-            except Exception:
-                pass
+                print(f"[warn] comms API failed: {exc}")
 
         # Initial refresh and subscriptions
         _refresh()
@@ -2081,7 +1877,7 @@ class MainWindow(QMainWindow):
             pass
 
     def open_operations_section_org(self) -> None:
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         if not incident_id:
             QMessageBox.warning(self, "Operations Section Organization", "No active incident.")
             return
@@ -2099,9 +1895,9 @@ class MainWindow(QMainWindow):
 
     def open_operations_team_assignments(self) -> None:
         from modules import operations
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = operations.get_team_assignments_panel(incident_id)
-        self._open_dock_widget(panel, title="Team Assignments")
+        self._open_panel(panel, title="Team Assignments")
 
     def open_operations_team_status(self) -> None:
 
@@ -2141,7 +1937,7 @@ class MainWindow(QMainWindow):
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:logistics",
@@ -2173,7 +1969,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         # Show as a docked, modeless panel for consistency with app UX
-        self._open_dock_widget(widget, title="Logistics Dashboard")
+        self._open_panel(widget, title="Logistics Dashboard")
 
     def _wire_logistics_dashboard(self, w) -> None:
         """Attach handlers and simple refresh that updates header context.
@@ -2256,32 +2052,32 @@ class MainWindow(QMainWindow):
 
     def open_logistics_211(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_checkin_panel(incident_id)
-        self._open_dock_widget(panel, title="Check-In (ICS-211)")
+        self._open_panel(panel, title="Check-In (ICS-211)")
 
     def open_logistics_requests(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_requests_panel(incident_id)
-        self._open_dock_widget(panel, title="Resource Requests")
+        self._open_panel(panel, title="Resource Requests")
 
     def open_logistics_resource_status(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_resource_status_board_panel(incident_id)
-        self._open_dock_widget(panel, title="Resource Status Board")
+        self._open_panel(panel, title="Resource Status Board")
 
     def open_logistics_213rr(self) -> None:
         from modules import logistics
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = logistics.get_213rr_panel(incident_id)
-        self._open_dock_widget(panel, title="Resource Request (ICS-213RR)")
+        self._open_panel(panel, title="Resource Request (ICS-213RR)")
 
 # --- 4.7 Communications --------------------------------------------------
     def open_comms_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:communications",
@@ -2293,25 +2089,30 @@ class MainWindow(QMainWindow):
     def open_comms_traffic_log(self) -> None:
         from modules.communications.panels import MessageLogPanel
 
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=incident_id)
-        self._open_dock_widget(panel, title="Communications Dashboard")
+        self._open_panel(panel, title="Communications Dashboard")
 
     def open_comms_chat(self) -> None:
         from modules.communications.panels import MessageLogPanel
 
         # TODO: incident-specific scoping for communications panels
-        _incident_id = getattr(self, "current_incident_id", None)
+        _incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=_incident_id)
-        self._open_dock_widget(panel, title="Messaging")
+        self._open_panel(panel, title="Messaging")
 
     def open_comms_213(self) -> None:
         from modules.communications.panels import MessageLogPanel
 
         # TODO: incident-specific scoping for communications panels
-        _incident_id = getattr(self, "current_incident_id", None)
+        _incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=_incident_id)
-        self._open_dock_widget(panel, title="ICS 213 Messages")
+        self._open_panel(panel, title="ICS 213 Messages")
+
+    def open_notifications_panel(self) -> None:
+        from notifications.panels.notifications_panel import get_notifications_panel
+        panel = get_notifications_panel(parent=self)
+        self._open_dock_widget(panel, title="Notification Feed", preferred_size=(480, 600))
 
     def open_comms_205(self) -> None:
         # Open standalone ICS-205 window (Widgets only, non-dockable)
@@ -2327,15 +2128,22 @@ class MainWindow(QMainWindow):
         # Dockable table-focused log board
         from modules.communications.traffic_log import create_log_board_window
 
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = create_log_board_window(self, incident_id=incident_id)
-        self._open_dock_widget(panel, title="Communications Log Board")
+        self._open_panel(panel, title="Communications Log Board")
+
+    def open_comms_log_entry(self) -> None:
+        from modules.communications.traffic_log import create_log_entry_window
+
+        incident_id = AppState.get_active_incident()
+        window = create_log_entry_window(self, incident_id=str(incident_id) if incident_id else None)
+        self._open_panel(window, title="Log & Entry")
 
     def open_comms_quick_entry(self) -> None:
         # Dockable quick entry panel
         from modules.communications.traffic_log import create_quick_entry_window
 
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = create_quick_entry_window(self, incident_id=incident_id)
         self._open_dock_widget(panel, title="New Communications Entry")
 
@@ -2343,6 +2151,8 @@ class MainWindow(QMainWindow):
         if window is None:
             return
         try:
+            if window in self._child_windows:
+                return
             self._child_windows.append(window)
         except Exception:
             self._child_windows = [window]
@@ -2361,7 +2171,7 @@ class MainWindow(QMainWindow):
 # --- 4.8 Intel -----------------------------------------------------------
     def open_intel_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:intel",
@@ -2370,85 +2180,19 @@ class MainWindow(QMainWindow):
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Intelligence", preferred_size=(950, 600))
 
-    def open_intel_dashboard(self) -> None:
-        """Open the Intel — Dashboard (modeless) using the new QWidget."""
-        try:
-            from modules.intel.panels.inteldashboard import (
-                make_intel_dashboard,
-                IntelDashboardWidget,
-            )
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Intel — Dashboard", f"Widget unavailable.\n{e}")
-            except Exception:
-                print(f"[warn] IntelDashboardWidget unavailable: {e}")
-            return
-
-        widget: IntelDashboardWidget = make_intel_dashboard(self)
-        self._wire_intel_dashboard(widget)
-        try:
-            widget.setAutoRefresh(15000)
-        except Exception:
-            pass
-        self._open_dock_widget(widget, title="Intel — Dashboard")
-
-    def _wire_intel_dashboard(self, w) -> None:
-        """Attach a simple refresher to keep header/overlay up to date."""
-        from utils.state import AppState
-        from utils import incident_context
-        from datetime import datetime
-
-        def _refresh() -> None:
-            try:
-                active_id = incident_context.get_active_incident_id()
-                w.setIncidentOverlayVisible(False if active_id else True)
-            except Exception:
-                w.setIncidentOverlayVisible(True)
-                return
-
-            try:
-                op = AppState.get_active_op_period() or "—"
-            except Exception:
-                op = "—"
-            try:
-                role = AppState.get_active_user_role() or "—"
-            except Exception:
-                role = "—"
-            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
-            try:
-                w.set_context(str(op), now_text, str(role))
-            except Exception:
-                pass
-
-        try:
-            w.refreshRequested.connect(lambda: _refresh())
-        except Exception:
-            pass
-        _refresh()
-
-    def open_intel_data_manager(self) -> None:
-        """Open the primary data-centric Intel window (non-dashboard)."""
-        from modules import intel
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = intel.get_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Intel — Data Manager")
-
-    def open_intel_clue_log(self) -> None:
-        from modules import intel
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = intel.get_clue_log_panel(incident_id)
-        self._open_dock_widget(panel, title="Clue Log (SAR-134)")
-
-    def open_intel_add_clue(self) -> None:
-        from modules import intel
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = intel.get_add_clue_panel(incident_id)
-        self._open_dock_widget(panel, title="Add Clue (SAR-135)")
+    def open_intel_module(self, tab: str | None = None) -> None:
+        """Open (or raise) the Intel module window, optionally to a specific tab."""
+        from modules.intel import open_intel_window
+        open_intel_window(
+            incident_id=AppState.get_active_incident(),
+            tab=tab,
+            parent=self,
+        )
 
 # --- 4.9 Medical & Safety -----------------------------------------------
     def open_medical_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:medical",
@@ -2459,7 +2203,7 @@ class MainWindow(QMainWindow):
 
     def open_safety_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:safety",
@@ -2470,31 +2214,38 @@ class MainWindow(QMainWindow):
 
     def open_medical_206(self) -> None:
         from modules import medical
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = medical.get_206_panel(incident_id)
-        self._open_dock_widget(panel, title="Medical Plan (ICS-206)")
+        self._open_panel(panel, title="Medical Plan (ICS-206)")
 
     def open_safety_208(self) -> None:
         from modules import safety
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = safety.get_208_panel(incident_id)
-        self._open_dock_widget(panel, title="Safety Message (ICS-208)")
+        self._open_panel(panel, title="Safety Message (ICS-208)")
 
     def open_safety_215A(self) -> None:
         from modules import safety
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = safety.get_215A_panel(incident_id)
-        self._open_dock_widget(panel, title="Incident Safety Analysis (ICS-215A)")
+        self._open_panel(panel, title="Incident Safety Analysis (ICS-215A)")
 
     def open_safety_caporm(self) -> None:
         from modules import safety
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = safety.get_caporm_panel(incident_id)
-        self._open_dock_widget(panel, title="CAP ORM")
+        self._open_panel(panel, title="CAP ORM")
+
+    def open_safety_iwi(self) -> None:
+        from modules import safety
+        incident_id = AppState.get_active_incident()
+        panel = safety.get_iwi_panel(incident_id)
+        self._open_panel(panel, title="Safety Incident Reports")
+
 # --- 4.10 Liaison --------------------------------------------------------
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:liaison",
@@ -2505,26 +2256,21 @@ class MainWindow(QMainWindow):
 
     def open_liaison_agencies(self) -> None:
         from modules import liaison
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = liaison.get_agencies_panel(incident_id)
-        self._open_dock_widget(panel, title="Agency Directory")
+        self._open_panel(panel, title="Agency Directory")
 
     def open_liaison_requests(self) -> None:
         from modules import liaison
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = liaison.get_requests_panel(incident_id)
-        self._open_dock_widget(panel, title="External Coordination")
+        self._open_panel(panel, title="External Coordination")
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_dashboard(self) -> None:
         from modules import public_information
         from utils.state import AppState
-        incident_id = getattr(self, "current_incident_id", None)
-        if not incident_id:
-            try:
-                incident_id = AppState.get_active_incident()
-            except Exception:
-                incident_id = None
+        incident_id = AppState.get_active_incident()
         try:
             uid = AppState.get_active_user_id()
         except Exception:
@@ -2534,12 +2280,11 @@ class MainWindow(QMainWindow):
         except Exception:
             role = None
         current_user = {"id": uid, "roles": ([] if not role else [role])}
-        panel = public_information.get_public_info_panel(incident_id, current_user)
-        self._open_dock_widget(panel, title="Public Information")
+        public_information.open_pio_window(incident_id, current_user, parent=self)
 
     def open_public_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:public_information",
@@ -2550,86 +2295,33 @@ class MainWindow(QMainWindow):
 
     def open_public_media_releases(self) -> None:
         from modules import public_information
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = public_information.get_media_releases_panel(incident_id)
-        self._open_dock_widget(panel, title="Media Releases")
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Messages / Releases", parent=self)
+
+    def open_public_misinformation(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Rumor / Misinformation", parent=self)
 
     def open_public_inquiries(self) -> None:
         from modules import public_information
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = public_information.get_inquiries_panel(incident_id)
-        self._open_dock_widget(panel, title="Public Inquiries")
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Media Log", parent=self)
 
-    def open_public_affairs_dashboard(self) -> None:
-        """Create/show the Public Affairs — Dashboard as a modeless widget.
+    def open_public_talking_points(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Talking Points", parent=self)
 
-        Wires basic context/overlay refresh and starts auto-refresh at 15s.
-        """
-        try:
-            from modules.publicaffairs.panels.padashboard import (
-                make_public_affairs_dashboard,
-                PublicAffairsDashboardWidget,
-            )
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Public Affairs — Dashboard", f"Widget unavailable.\n{e}")
-            except Exception:
-                print(f"[warn] PublicAffairsDashboardWidget unavailable: {e}")
-            return
+    def open_public_templates(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Letterhead / Templates", parent=self)
 
-        # Reuse a single instance; raise if already open
-        existing = getattr(self, "_public_affairs_dashboard", None)
-        if existing is not None and getattr(existing, "isVisible", lambda: False)():
-            try:
-                existing.raise_()
-                existing.activateWindow()
-            except Exception:
-                pass
-            return
-
-        w: PublicAffairsDashboardWidget = make_public_affairs_dashboard(self)
-        w.setWindowTitle("Public Affairs — Dashboard")
-
-        # Lightweight refresh that sets context and overlay only
-        def _refresh() -> None:
-            try:
-                from utils import incident_context
-                active_id = incident_context.get_active_incident_id()
-                w.setIncidentOverlayVisible(False if active_id else True)
-            except Exception:
-                w.setIncidentOverlayVisible(True)
-            try:
-                from utils.state import AppState
-                from datetime import datetime
-                op = AppState.get_active_op_period() or "—"
-                role = AppState.get_active_user_role() or "—"
-                now_text = datetime.now().strftime("%H:%M")
-                w.set_context(str(op), now_text, str(role))
-            except Exception:
-                pass
-
-        # Wire refresh and kick off timer
-        try:
-            w.refreshRequested.connect(_refresh)
-            _refresh()
-            w.setAutoRefresh(15000)
-        except Exception:
-            pass
-
-        # Keep reference to avoid GC
-        self._public_affairs_dashboard = w
-        def _clear_ref(*_):
-            try:
-                setattr(self, "_public_affairs_dashboard", None)
-            except Exception:
-                pass
-        try:
-            w.destroyed.connect(_clear_ref)
-        except Exception:
-            pass
-
-        w.setAttribute(Qt.WA_DeleteOnClose, True)
-        w.show()
+    def open_public_distribution(self) -> None:
+        from modules import public_information
+        from utils.state import AppState
+        public_information.open_pio_window(AppState.get_active_incident(), tab="Distribution Log", parent=self)
 
 # --- 4.12 Finance/Admin --------------------------------------------------
     def open_finance_admin_dashboard(self) -> None:
@@ -2646,15 +2338,17 @@ class MainWindow(QMainWindow):
                 print(f"[warn] FinanceAdminDashboardWidget unavailable: {e}")
             return
 
-        widget: FinanceAdminDashboardWidget = make_finance_admin_dashboard(self)
+        widget: FinanceAdminDashboardWidget = make_finance_admin_dashboard()
+        widget.setWindowTitle("Finance/Admin — Dashboard")
+        widget.setWindowFlags(Qt.Window)
+        widget.resize(1000, 800)
         # Wire signals and a basic refresh function (time/role/overlay + placeholders)
         self._wire_finance_admin_dashboard(widget)
         try:
             widget.setAutoRefresh(15000)
         except Exception:
             pass
-        # Show as a docked, modeless panel
-        self._open_dock_widget(widget, title="Finance/Admin — Dashboard")
+        widget.show()
 
     def _wire_finance_admin_dashboard(self, w) -> None:
         """Attach handlers and simple refresh that updates context and placeholders."""
@@ -2780,7 +2474,7 @@ class MainWindow(QMainWindow):
         _refresh()
     def open_finance_unit_log(self) -> None:
         from modules import ics214
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
             "default_log_for_type": "section",
             "default_log_for_ref": "section:finance_admin",
@@ -2791,151 +2485,207 @@ class MainWindow(QMainWindow):
 
     def open_finance_time(self) -> None:
         from modules import finance
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = finance.get_time_panel(incident_id)
-        self._open_dock_widget(panel, title="Time Tracking")
+        self._open_panel(panel, title="Time Tracking")
 
     def open_finance_procurement(self) -> None:
         from modules import finance
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = finance.get_procurement_panel(incident_id)
-        self._open_dock_widget(panel, title="Expenses && Procurement")
+        self._open_panel(panel, title="Expenses && Procurement")
 
     def open_finance_summary(self) -> None:
         from modules import finance
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = finance.get_summary_panel(incident_id)
-        self._open_dock_widget(panel, title="Cost Summary")
+        self._open_panel(panel, title="Cost Summary")
 
 # --- 4.13 Toolkits -------------------------------------------------------
     def open_toolkit_sar_missing_person(self) -> None:
         from modules.sartoolkit import sar
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = sar.get_missing_person_panel(incident_id)
-        self._open_dock_widget(panel, title="Missing Person Toolkit")
+        self._open_panel(panel, title="Missing Person Toolkit")
 
     def open_toolkit_sar_pod(self) -> None:
         from modules.sartoolkit import sar
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = sar.get_pod_panel(incident_id)
-        self._open_dock_widget(panel, title="POD Calculator")
+        self._open_panel(panel, title="POD Calculator")
 
     def open_toolkit_disaster_damage(self) -> None:
         from modules.disasterresponse import disaster
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = disaster.get_damage_panel(incident_id)
-        self._open_dock_widget(panel, title="Damage Assessment")
+        self._open_panel(panel, title="Damage Assessment")
 
     def open_toolkit_disaster_urban_interview(self) -> None:
         from modules.disasterresponse import disaster
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = disaster.get_urban_interview_panel(incident_id)
-        self._open_dock_widget(panel, title="Urban Interview Log")
+        self._open_panel(panel, title="Urban Interview Log")
 
     def open_toolkit_disaster_photos(self) -> None:
         from modules.disasterresponse import disaster
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = disaster.get_photos_panel(incident_id)
-        self._open_dock_widget(panel, title="Damage Photos")
+        self._open_panel(panel, title="Damage Photos")
 
 
     def open_toolkit_projection_dashboard(self) -> None:
         from modules import projection_dashboard
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = projection_dashboard.get_projection_dashboard_panel(incident_id)
-        self._open_dock_widget(panel, title="Projection Dashboard")
+        self._open_panel(panel, title="Projection Dashboard")
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_promotions_panel(incident_id)
-        self._open_dock_widget(panel, title="External Messaging")
+        self._open_panel(panel, title="External Messaging")
 
     def open_planned_vendors(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_vendors_panel(incident_id)
-        self._open_dock_widget(panel, title="Vendors && Permits")
+        self._open_panel(panel, title="Vendors && Permits")
 
     def open_planned_safety(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_safety_panel(incident_id)
-        self._open_dock_widget(panel, title="Public Safety")
+        self._open_panel(panel, title="Public Safety")
 
     def open_planned_tasking(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_tasking_panel(incident_id)
-        self._open_dock_widget(panel, title="Tasking && Assignments")
+        self._open_panel(panel, title="Tasking && Assignments")
 
     def open_planned_health_sanitation(self) -> None:
         from modules import plannedtoolkit
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
-        self._open_dock_widget(panel, title="Health && Sanitation")
+        self._open_panel(panel, title="Health && Sanitation")
 
     def open_toolkit_initial_hasty(self) -> None:
         from modules.initialresponse import initial
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = initial.get_hasty_panel(incident_id)
-        self._open_dock_widget(panel, title="Hasty Tools")
+        self._open_panel(panel, title="Early Tasking", preferred_size=(1000, 800))
 
-    def open_toolkit_initial_reflex(self) -> None:
+    def open_toolkit_initial_overview(self) -> None:
         from modules.initialresponse import initial
-        incident_id = getattr(self, "current_incident_id", None)
-        panel = initial.get_reflex_panel(incident_id)
-        self._open_dock_widget(panel, title="Reflex Taskings")
+        incident_id = AppState.get_active_incident()
+        panel = initial.get_initialresponse_panel(incident_id)
+        self._open_panel(panel, title="Initial Information", preferred_size=(1000, 800))
 
 # --- 4.14 Reference Library (Forms) -----------------------------------
     def open_reference_library(self) -> None:
         from modules import referencelibrary
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_library_panel()
-        self._open_dock_widget(panel, title="Reference Library")
-
-    def open_forms_creator(self) -> None:
-        try:
-            from modules.forms_creator.ui.HubWindow import HubWindow as FormsCreatorWindow
-        except Exception as exc:
-            logger.exception("Failed to open Form Creator: %s", exc)
-            QMessageBox.critical(
-                self,
-                "Form Creator Error",
-                f"Unable to open the Form Creator.\n{exc}",
-            )
-            return
-
-        window = FormsCreatorWindow(parent=self)
-        try:
-            window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        except Exception:
-            pass
-        window.show()
-
-        if not hasattr(self, "_forms_creator_windows"):
-            self._forms_creator_windows: list[QMainWindow] = []
-        self._forms_creator_windows.append(window)
-
-        def _cleanup() -> None:
-            if hasattr(self, "_forms_creator_windows") and window in self._forms_creator_windows:
-                self._forms_creator_windows.remove(window)
-
-        window.destroyed.connect(lambda _=None: _cleanup())
+        self._open_panel(panel, title="Reference Library")
 
     def open_help_user_guide(self) -> None:
         from modules import referencelibrary
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_user_guide_panel(incident_id)
-        self._open_dock_widget(panel, title="User Guide")
+        self._open_panel(panel, title="User Guide")
 
 # --- 4.15 Help -----------------------------------------------------------
     def open_help_about(self) -> None:
         from modules import referencelibrary
-        incident_id = getattr(self, "current_incident_id", None)
+        incident_id = AppState.get_active_incident()
         panel = referencelibrary.get_about_panel(incident_id)
-        self._open_dock_widget(panel, title="About SARApp")
+        self._open_panel(panel, title="About SARApp")
 
 # ===== Part 5: Shared Windows, Helpers & Utilities =======================
+    def _open_panel(self, widget: QWidget, title: str, preferred_size: tuple[int, int] | None = None) -> None:
+        """Open widget as a plain floating OS window — no ADS docking, no snap behaviour."""
+        widget.setWindowTitle(title)
+        widget.setWindowFlag(Qt.WindowType.Window, True)
+        try:
+            widget.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        except Exception:
+            pass
+        if preferred_size:
+            try:
+                widget.resize(preferred_size[0], preferred_size[1])
+            except Exception:
+                pass
+        else:
+            try:
+                widget.resize(900, 650)
+            except Exception:
+                pass
+
+        # Cascading placement: each window opens offset from the previous one
+        try:
+            geo = self.geometry()
+            screen = self.screen().availableGeometry() if self.screen() else geo
+            step = 32
+            if not hasattr(self, "_panel_cascade_index"):
+                self._panel_cascade_index = 0
+            offset = self._panel_cascade_index * step
+            # Reset cascade when the next window would clip off the bottom-right of the screen
+            max_x = screen.x() + screen.width() - widget.width() - step
+            max_y = screen.y() + screen.height() - widget.height() - step
+            base_x = geo.x() + (geo.width() - widget.width()) // 2
+            base_y = geo.y() + (geo.height() - widget.height()) // 2
+            if base_x + offset > max_x or base_y + offset > max_y:
+                self._panel_cascade_index = 0
+                offset = 0
+            widget.move(base_x + offset, base_y + offset)
+            self._panel_cascade_index += 1
+        except Exception:
+            pass
+
+        widget.show()
+        try:
+            widget.raise_()
+            widget.activateWindow()
+        except Exception:
+            pass
+
+        if not hasattr(self, "_panel_windows"):
+            self._panel_windows: list[QWidget] = []
+        self._panel_windows.append(widget)
+
+        def _cleanup() -> None:
+            if hasattr(self, "_panel_windows") and widget in self._panel_windows:
+                self._panel_windows.remove(widget)
+
+        widget.destroyed.connect(lambda _=None: _cleanup())
+
+    def _open_standalone_widget(self, widget: QWidget, title: str, preferred_size: tuple[int, int] | None = None) -> None:
+        widget.setWindowTitle(title)
+        try:
+            widget.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        except Exception:
+            pass
+        if preferred_size:
+            try:
+                widget.resize(preferred_size[0], preferred_size[1])
+            except Exception:
+                pass
+        widget.show()
+        try:
+            widget.raise_()
+            widget.activateWindow()
+        except Exception:
+            pass
+
+        if not hasattr(self, "_standalone_widgets"):
+            self._standalone_widgets: list[QWidget] = []
+        self._standalone_widgets.append(widget)
+
+        def _cleanup() -> None:
+            if hasattr(self, "_standalone_widgets") and widget in self._standalone_widgets:
+                self._standalone_widgets.remove(widget)
+
+        widget.destroyed.connect(lambda _=None: _cleanup())
+
     def _open_dock_widget(self, widget: QWidget, title: str, float_on_open: bool | None = True, preferred_size: tuple[int, int] | None = None) -> None:
         """Embed widget in an ADS dock panel.
         By default, menu-launched panels open floating (undocked). Use float_on_open=False to dock.
@@ -2988,62 +2738,6 @@ class MainWindow(QMainWindow):
 
 
 
-    def _resolve_master_table(self, base_name: str) -> str | None:
-        """Resolve a master.db table name for a given Window base name.
-        Uses sqlite_master to confirm existence and tries sensible mappings,
-        including canonical names from master_catalog where applicable.
-        """
-        # List all tables from master.db
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-        tables: set[str] = set()
-        try:
-            con = sqlite3.connect(db_path)
-            cur = con.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = {r[0] for r in cur.fetchall()}
-            con.close()
-        except Exception as e:
-            print(f"[main] _resolve_master_table: unable to read tables: {e}")
-            return None
-
-        # Canonical known mappings
-        canonical = {
-            "Personnel": "personnel",
-            "Vehicles": "vehicles",
-            "Aircraft": "aircraft",
-            "Equipment": "equipment",
-            "CommsResources": "comms_resources",
-            "Objectives": "incident_objectives",
-            "Certifications": "certification_types",
-            "TeamTypes": "team_types",
-            "TaskTypes": "task_types",
-            "CannedCommEntries": "canned_comm_entries",
-            "Ems": "ems",
-            "Hospitals": "hospitals",
-            "SafetyTemplates": "safety_templates",
-        }
-
-        # 1) Try canonical mapping
-        tbl = canonical.get(base_name)
-        if tbl and tbl in tables:
-            return tbl
-
-        # 2) Try snake_case of base name
-        import re
-        snake = re.sub(r"(?<!^)([A-Z])", r"_\1", base_name).lower()
-        if snake in tables:
-            return snake
-
-        # 3) Try simple lowercase/plural checks
-        low = base_name.lower()
-        if low in tables:
-            return low
-        if f"{low}s" in tables:
-            return f"{low}s"
-
-        # 4) Nothing matched
-        return None
-
     def closeEvent(self, event) -> None:  # type: ignore[override]
         # Save perspectives via QSettings to match ADS API
         try:
@@ -3071,6 +2765,7 @@ class MainWindow(QMainWindow):
         status_layout = QVBoxLayout(status_container)
         status_layout.setContentsMargins(8, 8, 8, 8)
         status_layout.addWidget(self.active_incident_label)
+        status_layout.addWidget(self.connection_status_label)
         # Make Mission Status the central area so other docks can dock around the window
         status_dock = CDockWidget(self.dock_manager, "Mission Status")
         status_dock.setWidget(status_container)
@@ -3244,7 +2939,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Customization", f"Failed to open layout manager: {exc}")
             return
-        self._open_dock_widget(panel, title="Layout Templates", float_on_open=True)
+        self._open_panel(panel, title="Layout Templates")
 
     def open_customization_dashboard_designer(self) -> None:
         if get_dashboard_designer_panel is None:
@@ -3255,7 +2950,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Customization", f"Failed to open dashboard designer: {exc}")
             return
-        self._open_dock_widget(panel, title="Dashboard Designer", float_on_open=True)
+        self._open_panel(panel, title="Dashboard Designer")
 
     def open_customization_theme_editor(self) -> None:
         if get_theme_editor_panel is None:
@@ -3266,7 +2961,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.warning(self, "Customization", f"Failed to open theme designer: {exc}")
             return
-        self._open_dock_widget(panel, title="Theme Designer", float_on_open=True)
+        self._open_panel(panel, title="Theme Designer")
 
     def export_customizations_bundle(self) -> None:
         if not self.customization_repo:
@@ -3512,96 +3207,115 @@ class MainWindow(QMainWindow):
                 pass
 
 
-    def update_title_with_active_incident(self):
-        """Refresh window title when active incident changes."""
-        incident_number = AppState.get_active_incident()
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident_number:
-            incident = get_incident_by_number(incident_number)
-            if incident:
-                suffix = ""
-                if user_id or user_role:
-                    suffix = f"  •  User: {user_id or ''} ({user_role or ''})"
-                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
-        else:
-            suffix = ""
-            if user_id or user_role:
-                suffix = f"  •  User: {user_id or ''} ({user_role or ''})"
-            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
-
-        # Also update the active incident label so it stays in sync with the title
-        if hasattr(self, "update_active_incident_label"):
-            self.update_active_incident_label()
-
-        # Instrumentation
-        print(
-            f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, "
-            f"self.current_incident_id={getattr(self,'current_incident_id',None)}"
-        )
-
-    def update_active_incident_label(self):
-        """Update the active incident debug label with the current incident details."""
-        # Determine the incident number via current_incident_id or AppState
-        incident_id = getattr(self, "current_incident_id", None)
-        if incident_id:
-            incident = get_incident_by_number(incident_id)
-        else:
-            incident_number = AppState.get_active_incident()
-            incident = get_incident_by_number(incident_number) if incident_number else None
-
-        # Construct the display text based on the result
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident:
-            text = (
-                f"Incident: {incident['number']} | {incident['name']}  •  "
-                f"User: {user_id or '-'}  •  Role: {user_role or '-'}"
-            )
-        else:
-            text = f"Incident: None  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
-
-        # Normalize no-incident text
+    def _wire_connection_status_label(self) -> None:
+        """Register as a ConnectionManager listener and set the initial label text."""
         try:
-            if 'Incident: None' in text:
-                text = text.replace('Incident: None', 'Incident: No Incident Loaded', 1)
+            app = QApplication.instance()
+            manager = app.property("sarapp_connection_manager") if app else None
+            if manager is not None:
+                manager.add_listener(self._on_connection_snapshot)
+                self._on_connection_snapshot(manager.snapshot)
+            else:
+                self.connection_status_label.setText("Connection: —")
         except Exception:
-            pass
+            self.connection_status_label.setText("Connection: —")
 
-        # Normalize no-incident text
+    def _on_connection_snapshot(self, snapshot) -> None:
+        """Update the connection status label from a ConnectionSnapshot (any thread)."""
         try:
-            if 'Incident: None' in text:
-                text = text.replace('Incident: None', 'Incident: No Incident Loaded', 1)
-        except Exception:
-            pass
-
-        # Update the label if it exists (e.g. if the debug panel was created)
-        if hasattr(self, "active_incident_label"):
-            self.active_incident_label.setText(text)
-        try:
-            self._refresh_toolkit_menu_gates(incident)
+            from core.networking.server_info import ConnectionState
+            _STATE_LABELS = {
+                ConnectionState.DISCONNECTED: "Disconnected",
+                ConnectionState.DISCOVERING: "Discovering…",
+                ConnectionState.CONNECTING: "Connecting…",
+                ConnectionState.CONNECTED_LAN: "Connected (LAN)",
+                ConnectionState.CONNECTED_CLOUD: "Connected (Cloud)",
+                ConnectionState.OFFLINE: "Offline Mode",
+            }
+            state_text = _STATE_LABELS.get(snapshot.state, snapshot.state.value.replace("_", " ").title())
+            server = snapshot.server
+            if server and snapshot.state in {ConnectionState.CONNECTED_LAN, ConnectionState.CONNECTED_CLOUD}:
+                detail = f" — {server.server_name} ({server.host}:{server.port})"
+            else:
+                detail = f" — {snapshot.message}" if snapshot.message else ""
+            text = f"Connection: {state_text}{detail}"
+            # Qt widgets must be updated on the main thread.
+            QTimer.singleShot(0, lambda: self.connection_status_label.setText(text))
         except Exception:
             pass
 
     def _init_notifications(self) -> None:
-        self._toast_widget = None
+        from notifications.widgets.toast_manager import ToastManager
+        from notifications.services.sound_player import SoundPlayer
+        toast = ToastManager(parent=self)
+        toast.show()
+        self._toast_widget = toast
+
+        notifier = get_notifier()
+        notifier.showToast.connect(toast.enqueue)
+
+        # Apply persisted sound and threshold settings
+        player = SoundPlayer.instance()
+        sm = getattr(self, "settings_manager", None)
+        if sm is not None:
+            from notifications.services.sound_player import CATEGORIES, SEVERITIES, settings_key
+            for cat in CATEGORIES:
+                for sev in SEVERITIES:
+                    val = sm.get(settings_key(cat, sev))
+                    if val is not None:
+                        player.set_sound(cat, sev, val or None)
+                threshold = sm.get(f"notification.threshold.{cat}")
+                if threshold:
+                    notifier.set_threshold(cat, threshold)
+            try:
+                player.set_volume(int(sm.get("volume", 75) or 75))
+            except Exception:
+                pass
+
+    def _on_approval_item_activated(self, entity_type: str, entity_id: str) -> None:
+        """Route an inbox click to the relevant module panel."""
+        _routes = {
+            "ics_205": "comms.205",
+            "ics_206": "medical.206",
+            "iwi_report": "safety.iwi",
+            "iap": "command.iap",
+        }
+        key = _routes.get(entity_type)
+        if key:
+            self.open_module(key)
+
+    def _init_status_bar(self) -> None:
+        from ui.status_bar import AppStatusBar
+        bar = AppStatusBar(self)
+        self.setStatusBar(bar)
+        self._app_status_bar = bar
+
+        # Wire connection status
+        try:
+            app = QApplication.instance()
+            manager = app.property("sarapp_connection_manager") if app else None
+            if manager is not None:
+                manager.add_listener(bar.on_connection_snapshot)
+                bar.on_connection_snapshot(manager.snapshot)
+        except Exception:
+            pass
+
+        # Clicking the approvals indicator opens the inbox panel
+        bar.approval_indicator_clicked.connect(self.open_planning_approvals)
+
+        # Clicking the messages indicator opens the comms traffic log
+        bar.messages_indicator_clicked.connect(self.open_comms_traffic_log)
+
+        bar.start()
 
     def resizeEvent(self, event):  # noqa: N802
         super().resizeEvent(event)
         tw = getattr(self, "_toast_widget", None)
-        if not tw or not hasattr(tw, "setGeometry"):
-            return
-        try:
-            tw.setGeometry(self.width() - tw.width(), 0, tw.width(), self.height())
-            root = getattr(tw, "rootObject", lambda: None)()
-            if root is not None:
-                try:
-                    root.setProperty("width", tw.width())
-                    root.setProperty("height", tw.height())
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        if tw is not None:
+            try:
+                tw.reflow()
+            except Exception:
+                pass
 
     def open_home_dashboard(self) -> None:
         from ui.dashboard.home_dashboard import HomeDashboard
@@ -3665,6 +3379,39 @@ class MainWindow(QMainWindow):
             except Exception:
                 return 0
 
+    def update_title_with_active_incident(self) -> None:
+        """Refresh window title and incident label when active incident changes."""
+        incident_number = AppState.get_active_incident()
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
+        if incident_number:
+            incident = _get_incident_by_number(incident_number)
+            if incident:
+                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
+            else:
+                self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
+        else:
+            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
+        self.update_active_incident_label()
+
+    def update_active_incident_label(self) -> None:
+        """Update the status label and menu gates with the current incident."""
+        incident_id = AppState.get_active_incident()
+        incident = _get_incident_by_number(incident_id) if incident_id else None
+        user_id = AppState.get_active_user_id()
+        user_role = AppState.get_active_user_role()
+        if incident:
+            text = f"Incident: {incident['number']} | {incident['name']}  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+        else:
+            text = f"Incident: No Incident Loaded  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+        if hasattr(self, "active_incident_label"):
+            self.active_incident_label.setText(text)
+        try:
+            self._refresh_toolkit_menu_gates(incident)
+        except Exception:
+            pass
+
 
 # Lightweight widget used by the Widgets submenu for simple metrics
 class MetricWidget(QWidget):
@@ -3705,117 +3452,150 @@ class MetricWidget(QWidget):
             except Exception:
                 return 0
 
-    def _resolve_master_table(self, base_name: str) -> str | None:
-        """Resolve a master.db table name for a given Window base name.
-        Uses sqlite_master to confirm existence and tries sensible mappings,
-        including canonical names from master_catalog where applicable.
-        """
-        # List all tables from master.db
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "master.db")
-        tables: set[str] = set()
-        try:
-            con = sqlite3.connect(db_path)
-            cur = con.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = {r[0] for r in cur.fetchall()}
-            con.close()
-        except Exception as e:
-            print(f"[main] _resolve_master_table: unable to read tables: {e}")
-            return None
 
-        # Canonical known mappings
-        canonical = {
-            "Personnel": "personnel",
-            "Vehicles": "vehicles",
-            "Aircraft": "aircraft",
-            "Equipment": "equipment",
-            "CommsResources": "comms_resources",
-            "Objectives": "incident_objectives",
-            "Certifications": "certification_types",
-            "TeamTypes": "team_types",
-            "TaskTypes": "task_types",
-            "CannedCommEntries": "canned_comm_entries",
-            "Ems": "ems",
-            "Hospitals": "hospitals",
-            "SafetyTemplates": "safety_templates",
-        }
 
-        # 1) Try canonical mapping
-        tbl = canonical.get(base_name)
-        if tbl and tbl in tables:
-            return tbl
+def _show_connection_fallback_dialog() -> str:
+    """Ask the user how SARApp should continue when no server is reachable."""
+    dialog = QMessageBox()
+    dialog.setIcon(QMessageBox.Warning)
+    dialog.setWindowTitle("SARApp Connection")
+    dialog.setText(
+        "No SARApp server was found on the local network, and the cloud server "
+        "is unavailable.\n\nWhat would you like to do?"
+    )
+    start_button = dialog.addButton("Start Local Incident Server", QMessageBox.AcceptRole)
+    retry_button = dialog.addButton("Retry Connection", QMessageBox.ActionRole)
+    manual_button = dialog.addButton("Manual Server Address", QMessageBox.ActionRole)
+    exit_button = dialog.addButton("Exit", QMessageBox.RejectRole)
+    dialog.setDefaultButton(start_button)
+    dialog.exec()
+    clicked = dialog.clickedButton()
+    if clicked == start_button:
+        return "start_local"
+    if clicked == retry_button:
+        return "retry"
+    if clicked == manual_button:
+        return "manual"
+    return "exit"
 
-        # 2) Try snake_case of base name
-        import re
-        snake = re.sub(r"(?<!^)([A-Z])", r"_\1", base_name).lower()
-        if snake in tables:
-            return snake
 
-        # 3) Try simple lowercase/plural checks
-        low = base_name.lower()
-        if low in tables:
-            return low
-        if f"{low}s" in tables:
-            return f"{low}s"
+def _parse_manual_server_address(raw: str, default_port: int) -> tuple:
+    from urllib.parse import urlparse
+    value = raw.strip()
+    if not value:
+        raise ValueError("Enter a server host or address.")
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    host = parsed.hostname or value
+    port = parsed.port or default_port
+    if not str(host).strip():
+        raise ValueError("Enter a server host or address.")
+    return str(host).strip(), int(port)
 
-        # 4) Nothing matched
+
+def _initialize_connectivity(app: QApplication) -> object | None:
+    """Run SARApp's launch connectivity workflow before showing the main window.
+
+    Connectivity is intentionally centralized in ``ConnectionManager`` so UI,
+    incident modules, and future sync code can read one state object without
+    knowing whether the app reached a LAN server, cloud endpoint, or Offline Mode.
+    """
+    if str(os.getenv("SARAPP_CONNECTIVITY_DISABLED", "")).strip().lower() in {"1", "true", "yes", "on"}:
+        logger.info("SARApp connectivity startup workflow disabled by environment")
         return None
 
+    try:
+        from core.networking import (
+            ConnectionManager,
+            ConnectionState,
+            DEFAULT_SERVER_PORT,
+            LocalServerController,
+            LocalServerError,
+            PortUnavailableError,
+        )
+    except Exception as exc:
+        logger.warning("Connectivity framework unavailable: %s", exc)
+        return None
 
-    def update_title_with_active_incident(self):
-        """Refresh window title when active incident changes."""
-        incident_number = AppState.get_active_incident()
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident_number:
-            incident = get_incident_by_number(incident_number)
-            if incident:
-                suffix = ""
-                if user_id or user_role:
-                    suffix = f" — User: {user_id or ''} ({user_role or ''})"
-                self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
-        else:
-            suffix = ""
-            if user_id or user_role:
-                suffix = f" — User: {user_id or ''} ({user_role or ''})"
-            self.setWindowTitle(f"SARApp - No Incident Loaded{suffix}")
+    # Cloud server URL — update this if the VPS address changes.
+    # Long-term: move this to the Settings UI (Menu → Settings → Connection).
+    _HARDCODED_CLOUD_URL = "http://srv1707346.hstgr.cloud:8765"
+    cloud_url = os.getenv("SARAPP_CLOUD_URL") or _HARDCODED_CLOUD_URL
+    manager = ConnectionManager(cloud_url=cloud_url)
+    local_controller = LocalServerController()
 
-        # Also update the active incident label so it stays in sync with the title
-        # (this will only have an effect if the debug panel has been created)
-        if hasattr(self, "update_active_incident_label"):
-            self.update_active_incident_label()
+    # Keep launch delay short: one broadcast interval is enough to catch an
+    # already-running server, and manual connection remains a fallback later.
+    snapshot = manager.startup_connect(discovery_timeout_seconds=2.5)
 
-        # Instrumentation
-        print(f"[main] update_title_with_active_incident: AppState={AppState.get_active_incident()}, self.current_incident_id={getattr(self,'current_incident_id',None)}")
+    while snapshot.state == ConnectionState.DISCONNECTED:
+        choice = _show_connection_fallback_dialog()
 
-    def update_active_incident_label(self):
-        """
-        Update the active incident debug label with the current incident details.
+        if choice == "start_local":
+            try:
+                local_controller.start()
+            except PortUnavailableError as exc:
+                QMessageBox.critical(None, "Local Server Port Unavailable", str(exc))
+                continue
+            except LocalServerError as exc:
+                QMessageBox.critical(None, "Local Server Failed", str(exc))
+                continue
 
-        If the main window has a current_incident_id attribute, use it to look up
-        the incident; otherwise fall back to whatever AppState reports as the
-        active incident. The label will show the incident number and name if
-        available, or indicate that no incident is active.
-        """
-        # Determine the incident number via current_incident_id or AppState
-        incident_id = getattr(self, "current_incident_id", None)
-        if incident_id:
-            incident = get_incident_by_number(incident_id)
-        else:
-            incident_number = AppState.get_active_incident()
-            incident = get_incident_by_number(incident_number) if incident_number else None
+            if not local_controller.wait_until_ready(timeout_seconds=15.0):
+                QMessageBox.critical(
+                    None,
+                    "Local Server Not Ready",
+                    "SARApp started the local server, but it did not become available "
+                    "before the startup timeout. Check that SARAPP_MONGO_URI is set.",
+                )
+                continue
 
-        # Construct the display text based on the result
-        user_id = AppState.get_active_user_id()
-        user_role = AppState.get_active_user_role()
-        if incident:
-            text = f"Incident: {incident['number']} | {incident['name']}  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
-        else:
-            text = f"Incident: None  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+            snapshot = manager.connect_manual(local_controller.host, local_controller.port)
+            if not snapshot.is_connected:
+                QMessageBox.critical(
+                    None,
+                    "Local Connection Failed",
+                    "The local server is running but SARApp could not connect to it.",
+                )
 
-        # Update the label if it exists (e.g. if the debug panel was created)
-        if hasattr(self, "active_incident_label"):
-            self.active_incident_label.setText(text)
+        elif choice == "retry":
+            snapshot = manager.startup_connect(discovery_timeout_seconds=2.5)
+            if snapshot.state == ConnectionState.DISCONNECTED:
+                QMessageBox.information(
+                    None,
+                    "No Server Found",
+                    "SARApp still could not find a LAN server or reach the configured cloud server.",
+                )
+
+        elif choice == "manual":
+            text, accepted = QInputDialog.getText(
+                None,
+                "Manual Server Address",
+                f"Enter SARApp server host or host:port (default port {DEFAULT_SERVER_PORT}):",
+            )
+            if accepted and text.strip():
+                try:
+                    host, port = _parse_manual_server_address(text, DEFAULT_SERVER_PORT)
+                except ValueError as exc:
+                    QMessageBox.warning(None, "Invalid Server Address", str(exc))
+                    continue
+                snapshot = manager.connect_manual(host, port)
+                if not snapshot.is_connected:
+                    QMessageBox.warning(
+                        None,
+                        "Connection Failed",
+                        f"SARApp could not verify a compatible server at {host}:{port}.",
+                    )
+
+        else:  # exit
+            sys.exit(0)
+
+    # Stop the local server child process when the app quits (no-op if we
+    # did not start it or if an external server was reused).
+    app.aboutToQuit.connect(local_controller.stop)
+
+    app.setProperty("sarapp_connection_manager", manager)
+    logger.info("SARApp connectivity startup state: %s", manager.snapshot.state.value)
+    return manager
 
 
 # ===== Part 6: Application Entrypoint =======================================
@@ -3850,14 +3630,26 @@ if __name__ == "__main__":
     _early_settings = SettingsManager()
 
     if DEBUG_BYPASS_LOGIN:
-        # Insert your session management or state setup here
-        # For example:
         from utils import state
         AppState.set_active_incident(DEBUG_INCIDENT_ID)
         AppState.set_active_user_id(DEBUG_USER_ID)
         AppState.set_active_user_role(DEBUG_ROLE)
         print("[debug] Login bypass enabled: loaded test credentials.")
     else:
+        # Connectivity must be established before login so the dialog can load incidents.
+        _connection_manager = _initialize_connectivity(app)
+        from utils.api_client import api_client as _api_client_pre
+        from core.networking import ConnectionState as _ConnectionState_pre
+        from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT_pre
+        if _connection_manager is not None:
+            def _on_pre_connection_changed(snapshot) -> None:
+                if snapshot.state in {_ConnectionState_pre.CONNECTED_LAN, _ConnectionState_pre.CONNECTED_CLOUD}:
+                    _api_client_pre.configure(snapshot.server.base_url)
+                elif snapshot.state == _ConnectionState_pre.OFFLINE:
+                    _api_client_pre.configure(f"http://localhost:{_DEFAULT_SERVER_PORT_pre}")
+            _connection_manager.add_listener(_on_pre_connection_changed)
+            _on_pre_connection_changed(_connection_manager.snapshot)
+
         from modules.login_dialog import LoginDialog
         try:
             _startup_mode = int(_early_settings.get('startupBehaviorIndex', 0) or 0)
@@ -3871,6 +3663,36 @@ if __name__ == "__main__":
     # Build main window after session is established
     settings_manager = _early_settings
     settings_bridge = SettingsBridge(settings_manager)
+
+    # Wire api_client to connection state so all modules talk to the right server.
+    from utils.api_client import api_client as _api_client
+    if DEBUG_BYPASS_LOGIN:
+        # Debug mode: start the local server automatically so API calls work.
+        from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
+        from core.networking import LocalServerController as _LocalServerController
+        _debug_local_controller = _LocalServerController()
+        _connection_manager = None
+        try:
+            _debug_local_controller.start()
+            ready = _debug_local_controller.wait_until_ready(timeout_seconds=15.0)
+            print(f"[debug] Local server ready: {ready} — {_debug_local_controller.base_url}")
+        except Exception as _exc:
+            print(f"[debug] Local server start failed: {_exc}")
+        app.aboutToQuit.connect(_debug_local_controller.stop)
+        _api_client.configure(f"http://localhost:{_DEFAULT_SERVER_PORT}")
+        print(f"[debug] api_client configured: http://localhost:{_DEFAULT_SERVER_PORT}")
+    elif _connection_manager is not None:
+        from core.networking import ConnectionState as _ConnectionState
+        from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
+
+        def _on_connection_changed(snapshot) -> None:
+            if snapshot.state in {_ConnectionState.CONNECTED_LAN, _ConnectionState.CONNECTED_CLOUD}:
+                _api_client.configure(snapshot.server.base_url)
+            elif snapshot.state == _ConnectionState.OFFLINE:
+                _api_client.configure(f"http://localhost:{_DEFAULT_SERVER_PORT}")
+
+        _connection_manager.add_listener(_on_connection_changed)
+        _on_connection_changed(_connection_manager.snapshot)
 
     # Initialize theme manager/bridge at app level as well
     try:
@@ -3907,22 +3729,6 @@ if __name__ == "__main__":
         _theme_manager = None  # type: ignore[assignment]
         _theme_bridge = None   # type: ignore[assignment]
 
-    # Resolve SARApp server connectivity before opening the main window. The local
-    # controller only owns processes it starts here, so it will not kill an
-    # already-running server during app shutdown.
-    connection_manager = ConnectionManager()
-    local_server_controller = LocalServerController()
-    if not _resolve_startup_connection(connection_manager, local_server_controller):
-        sys.exit(0)
-
-    def _stop_owned_local_server():
-        try:
-            local_server_controller.stop()
-        except Exception:
-            logger.exception("Failed to stop owned local SARApp server")
-
-    app.aboutToQuit.connect(_stop_owned_local_server)
-
     # Seed the certification catalog mirror on app start (idempotent)
     try:
         from modules.personnel.services.cert_seeder import sync as _cert_sync
@@ -3932,8 +3738,6 @@ if __name__ == "__main__":
         print(f"[catalog] Seeder failed: {e}")
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
-    win.connection_manager = connection_manager
-    win.local_server_controller = local_server_controller
     # Share the app-level theme objects with the window (used to inject into legacy UI contexts)
     try:
         if _theme_manager:

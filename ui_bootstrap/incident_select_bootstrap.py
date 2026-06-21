@@ -21,7 +21,6 @@ from models.incidentlist import (
     IncidentController,
     IncidentListModel,
     IncidentProxyModel,
-    load_incidents_from_master,
 )
 
 from modules.incidents.new_incident_dialog import NewIncidentDialog
@@ -47,7 +46,7 @@ def show_incident_selector(on_select: Optional[Callable[[int], None]] = None):
 
     # Base table model loading incidents from the master database
     incident_model = IncidentListModel()
-    incident_model.reload(load_incidents_from_master)
+    incident_model.reload()
 
     # Proxy model handles sorting/filtering exposed to QML
     proxy = IncidentProxyModel()
@@ -111,23 +110,7 @@ def show_incident_selector(on_select: Optional[Callable[[int], None]] = None):
     def _handle_create_requested():
         dialog = NewIncidentDialog()
 
-        def _on_created(meta, db_path: str):
-            # Register in master.db so it appears in the list
-            try:
-                from models.database import insert_new_incident, get_incident_by_number
-                if not get_incident_by_number(meta.number):
-                    insert_new_incident(
-                        number=meta.number,
-                        name=meta.name,
-                        type=meta.type,
-                        description=meta.description,
-                        icp_location=meta.location,
-                        is_training=meta.is_training,
-                    )
-            except Exception as e:
-                # Best-effort: still refresh; the user may retry
-                print(f"[bootstrap] failed to register incident in master.db: {e}")
-
+        def _on_created(meta, incident_id: str):
             # Refresh model to include new mission
             incident_model.refresh()
 

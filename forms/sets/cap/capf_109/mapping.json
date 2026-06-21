@@ -2,6 +2,445 @@
   "description": "CAPF 109 — Operational Sortie Report — Civil Air Patrol 2023",
   "fields": [
     {
+      "pdf_field": "Text1",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "Text2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text3",
+      "source": "teams.0.leader_name"
+    },
+    {
+      "pdf_field": "Text4",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "Text5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text7",
+      "source": "tasks"
+    },
+    {
+      "pdf_field": "ComboBox1",
+      "source": "teams"
+    },
+    {
+      "pdf_field": "ComboBox2",
+      "source": "vehicles.0.model"
+    },
+    {
+      "pdf_field": "Text8",
+      "source": "vehicles.0.license_plate"
+    },
+    {
+      "pdf_field": "Text9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text12",
+      "source": "tasks.0.radio_primary"
+    },
+    {
+      "pdf_field": "Text13",
+      "source": "vehicles"
+    },
+    {
+      "pdf_field": "Text14",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id1",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role1",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone1",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id2",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role2",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone2",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id3",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role3",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone3",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id4",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role4",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone4",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id5",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role5",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone5",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id6",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role6",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone6",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id7",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role7",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone7",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id8",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role8",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone8",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id9",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role9",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone9",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id10",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role10",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone10",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id11",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role11",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone11",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id12",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role12",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone12",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_id13",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_role13",
+      "source": ""
+    },
+    {
+      "pdf_field": "member_phone13",
+      "source": ""
+    },
+    {
+      "pdf_field": "assignment1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text55",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text56",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text57",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text58",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text59",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text60",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text61",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text62",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text63",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text64",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text65",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text66",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text67",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text68",
+      "source": "weather.current.local"
+    },
+    {
+      "pdf_field": "Text69",
+      "source": "weather.forecast.local"
+    },
+    {
+      "pdf_field": "Text70",
+      "source": ""
+    },
+    {
+      "pdf_field": "assignment2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text72",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text73",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text74",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text75",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text76",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text77",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox2",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox3",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox4",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox5",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox6",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox7",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox8",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox9",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox10",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox11",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox12",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox13",
+      "source": ""
+    },
+    {
+      "pdf_field": "ListBox1",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox14",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox15",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox16",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox17",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox18",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox19",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox20",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox21",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox22",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox23",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox24",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox25",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox26",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox27",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox28",
+      "source": ""
+    },
+    {
+      "pdf_field": "CheckBox29",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text78",
+      "source": ""
+    },
+    {
       "pdf_field": "Mission Number",
       "source": "incident.number"
     },
@@ -742,6 +1181,87 @@
       "pdf_field": "Team Leader",
       "source": {
         "literal": ""
+      }
+    },
+    {
+      "pdf_field": "Text21",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text54",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text71",
+      "source": ""
+    },
+    {
+      "pdf_field": "leader_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "name10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text52",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text23",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "team_members",
+      "data_key": "team_members",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "member_id": "member_id{n}",
+        "member_role": "member_role{n}",
+        "member_phone": "member_phone{n}"
+      }
+    },
+    {
+      "ref": "personnel",
+      "data_key": "personnel",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "name": "name{n}"
+      }
+    },
+    {
+      "ref": "tasks",
+      "data_key": "tasks",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "assignment": "assignment{n}",
+        "team_leader": "team_leader{n}"
+      }
+    },
+    {
+      "ref": "teams",
+      "data_key": "teams",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "leader_name": "leader_name{n}"
       }
     }
   ]

@@ -1,7 +1,8 @@
-"""SARApp Form Creator package.
+"""SARApp Forms Creator — primary form authoring and binding management tool.
 
-Unified Forms Engine is now the preferred service layer; this package remains
-available for older authoring tools during migration.
+HubWindow (ui/HubWindow.py) is the active entry point: catalog browser,
+version matrix, and graphical binding editor (MapperWindow / NewBindingDialog).
+Accessible via Developer → Forms Creator.
 """
 
 from .services.templates import FormService

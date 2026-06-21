@@ -15,6 +15,7 @@ class CanvasView(QGraphicsView):
     fieldDrawn = Signal(QRectF)
     fieldCreationAborted = Signal()
     fieldDeleteRequested = Signal(int)
+    zoomChanged = Signal(float)  # emits current zoom level after any zoom change
 
     def __init__(self, scene: QGraphicsScene | None = None, parent=None) -> None:
         super().__init__(parent)
@@ -24,7 +25,7 @@ class CanvasView(QGraphicsView):
         self.setRenderHints(self.renderHints() | QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.SmartViewportUpdate)
         self._panning = False
         self._pan_start = QPoint()
         self._zoom = 1.0
@@ -35,7 +36,13 @@ class CanvasView(QGraphicsView):
         self._space_pressed = False
 
     # ------------------------------------------------------------------
+    def drawBackground(self, painter, rect) -> None:  # noqa: N802
+        painter.fillRect(rect, Qt.GlobalColor.white)
+
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 (Qt naming convention)
+        if self._panning:
+            event.accept()
+            return
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             delta = event.angleDelta().y()
             factor = 1.2 if delta > 0 else 0.8
@@ -196,13 +203,27 @@ class CanvasView(QGraphicsView):
     # ------------------------------------------------------------------
     def reset_zoom(self) -> None:
         """Reset the view transformation to 100%."""
-
         self._zoom = 1.0
         self.resetTransform()
+
+    def zoom_step(self, factor: float) -> None:
+        """Apply a zoom step clamped to a reasonable range."""
+        new_zoom = self._zoom * factor
+        if not (0.05 <= new_zoom <= 8.0):
+            return
+        self._apply_zoom(factor)
+
+    def current_zoom(self) -> float:
+        return self._zoom
+
+    def sync_zoom_from_transform(self) -> None:
+        """Sync _zoom from the current view transform (call after fitInView)."""
+        self._zoom = self.transform().m11()
 
     def _apply_zoom(self, factor: float) -> None:
         self._zoom *= factor
         self.scale(factor, factor)
+        self.zoomChanged.emit(self._zoom)
 
     # ------------------------------------------------------------------
     def _field_item_from_graphics_item(self, item) -> FieldItem | None:
