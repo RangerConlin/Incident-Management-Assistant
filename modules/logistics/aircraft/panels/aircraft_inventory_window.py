@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..repository import AircraftRepository
+from utils.org_combo import make_org_combo
 
 STATUS_OPTIONS = ["Available", "Assigned", "Out of Service", "Standby", "In Transit"]
 TYPE_OPTIONS = ["Helicopter", "Fixed-Wing", "UAS", "Gyroplane", "Other"]
@@ -431,6 +432,9 @@ class AircraftDetailPane(QWidget):
         self.owner_edit = QLineEdit()
         self._bind_line_edit(self.owner_edit, "owner_operator")
         form.addRow("Owner/Operator:", self.owner_edit)
+        self.org_combo = make_org_combo()
+        self.org_combo.currentTextChanged.connect(lambda text: self._emit_combo("organization", text))
+        form.addRow("Organization:", self.org_combo)
         self.reg_edit = QLineEdit()
         self._bind_line_edit(self.reg_edit, "registration_exp")
         form.addRow("Reg. Exp (YYYY-MM-DD):", self.reg_edit)
@@ -593,6 +597,8 @@ class AircraftDetailPane(QWidget):
                 self.serial_edit.clear()
                 self.year_spin.setValue(self.year_spin.minimum())
                 self.owner_edit.clear()
+                self.org_combo.setCurrentIndex(-1)
+                self.org_combo.clearEditText()
                 self.reg_edit.clear()
                 self.inspection_edit.clear()
                 self.last100_edit.clear()
@@ -647,6 +653,7 @@ class AircraftDetailPane(QWidget):
             year_value = record.get("year")
             self.year_spin.setValue(int(year_value) if year_value else self.year_spin.minimum())
             self.owner_edit.setText(record.get("owner_operator", ""))
+            self.org_combo.setCurrentText(record.get("organization") or "")
             self.reg_edit.setText(record.get("registration_exp", "") or "")
             self.inspection_edit.setText(record.get("inspection_due", "") or "")
             self.last100_edit.setText(record.get("last_100hr", "") or "")
@@ -754,6 +761,11 @@ class NewAircraftDialog(QDialog):
         self.location_edit = QLineEdit()
         grid.addWidget(QLabel("Current Location"), row, 2)
         grid.addWidget(self.location_edit, row, 3)
+        row += 1
+
+        self.org_combo = make_org_combo()
+        grid.addWidget(QLabel("Organization"), row, 0)
+        grid.addWidget(self.org_combo, row, 1)
         row += 1
 
         self.fuel_combo = QComboBox()
@@ -884,6 +896,7 @@ class NewAircraftDialog(QDialog):
             "payload_kg": self.payload_spin.value(),
             "med_config": self.med_combo.currentText(),
             "notes": self.notes_edit.toPlainText().strip(),
+            "organization": self.org_combo.currentText().strip(),
         }
         try:
             record = self.repository.create_aircraft(payload)
@@ -905,6 +918,8 @@ class NewAircraftDialog(QDialog):
         self.status_combo.setCurrentIndex(0)
         self.assigned_edit.clear()
         self.location_edit.clear()
+        self.org_combo.setCurrentIndex(-1)
+        self.org_combo.clearEditText()
         self.range_spin.setValue(0)
         self.endurance_spin.setValue(0.0)
         self.cruise_spin.setValue(0)

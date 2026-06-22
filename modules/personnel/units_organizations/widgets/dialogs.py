@@ -95,7 +95,7 @@ class NewOrganizationDialog(QDialog):
             self.org_type_combo.addItem(row["name"], int(row["id"]))
 
         # Rank structures
-        self.rank_structure_combo.addItem("(None)", None)
+        self.rank_structure_combo.addItem("(Inherit from Parent)", None)
         for row in self.controller.list_rank_structures(include_inactive=True):
             self.rank_structure_combo.addItem(row["name"], int(row["id"]))
 

@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from utils.state import AppState
+from utils.org_combo import make_org_combo
 
 from modules.logistics.checkin.services import (
     ENTITY_CONFIG,
@@ -267,7 +268,7 @@ class ResourceDetailDialog(QDialog):
         self.resource_id = QLineEdit(self._row.status_item.resource_id)
         self.resource_type = QLineEdit(self._row.status_item.resource_type)
         self.name = QLineEdit(self._row.name_identifier)
-        self.organization = QLineEdit(self._row.organization)
+        self.organization = make_org_combo(self._row.organization)
         self.status = QComboBox()
         self.status.addItems(RESOURCE_STATUSES)
         self.status.setCurrentText(self._row.status_item.status)
@@ -398,7 +399,7 @@ class QuickCheckInDialog(QDialog):
         self.new_personnel_name = QLineEdit()
         self.new_personnel_callsign = QLineEdit()
         self.new_personnel_role = QLineEdit()
-        self.new_personnel_org = QLineEdit()
+        self.new_personnel_org = make_org_combo()
         form.addRow("ID", self.new_personnel_id)
         form.addRow("Name", self.new_personnel_name)
         form.addRow("Callsign", self.new_personnel_callsign)
@@ -411,7 +412,7 @@ class QuickCheckInDialog(QDialog):
         form = QFormLayout(w)
         self.new_vehicle_id = QLineEdit()
         self.new_vehicle_type = QLineEdit()
-        self.new_vehicle_org = QLineEdit()
+        self.new_vehicle_org = make_org_combo()
         self.new_vehicle_plate = QLineEdit()
         form.addRow("Vehicle ID", self.new_vehicle_id)
         form.addRow("Type", self.new_vehicle_type)
@@ -425,7 +426,7 @@ class QuickCheckInDialog(QDialog):
         self.new_equipment_tag = QLineEdit()
         self.new_equipment_name = QLineEdit()
         self.new_equipment_type = QLineEdit()
-        self.new_equipment_org = QLineEdit()
+        self.new_equipment_org = make_org_combo()
         form.addRow("Asset Tag / ID", self.new_equipment_tag)
         form.addRow("Name", self.new_equipment_name)
         form.addRow("Type", self.new_equipment_type)
@@ -438,7 +439,7 @@ class QuickCheckInDialog(QDialog):
         self.new_air_tail = QLineEdit()
         self.new_air_callsign = QLineEdit()
         self.new_air_type = QLineEdit()
-        self.new_air_org = QLineEdit()
+        self.new_air_org = make_org_combo()
         self.new_air_base = QLineEdit()
         form.addRow("Tail Number", self.new_air_tail)
         form.addRow("Callsign", self.new_air_callsign)
@@ -500,13 +501,13 @@ class QuickCheckInDialog(QDialog):
                 "name": self.new_personnel_name.text().strip(),
                 "callsign": self.new_personnel_callsign.text().strip(),
                 "role": self.new_personnel_role.text().strip(),
-                "unit": self.new_personnel_org.text().strip(),
+                "unit": self.new_personnel_org.currentText().strip(),
             }
         if entity_key == "vehicle":
             return {
                 "id": self.new_vehicle_id.text().strip(),
                 "type_id": self.new_vehicle_type.text().strip(),
-                "organization": self.new_vehicle_org.text().strip(),
+                "organization": self.new_vehicle_org.currentText().strip(),
                 "license_plate": self.new_vehicle_plate.text().strip(),
             }
         if entity_key == "equipment":
@@ -514,13 +515,13 @@ class QuickCheckInDialog(QDialog):
                 "id": self.new_equipment_tag.text().strip() or None,
                 "name": self.new_equipment_name.text().strip(),
                 "type": self.new_equipment_type.text().strip(),
-                "notes": self.new_equipment_org.text().strip(),
+                "notes": self.new_equipment_org.currentText().strip(),
             }
         return {
             "tail_number": self.new_air_tail.text().strip(),
             "callsign": self.new_air_callsign.text().strip(),
             "type": self.new_air_type.text().strip(),
-            "organization": self.new_air_org.text().strip(),
+            "organization": self.new_air_org.currentText().strip(),
             "base_location": self.new_air_base.text().strip(),
         }
 

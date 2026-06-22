@@ -118,22 +118,20 @@
         "matchAll": true
     },
     "statusboard.team.textSize": "large",
-    "statusboard.team.columns.hidden": [
-        "team_type"
-    ],
+    "statusboard.team.columns.hidden": [],
     "lastIncidentNumber": "2025-FAIR",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
-        "team_type": 24,
-        "sortie": 87,
-        "name": 123,
-        "leader": 130,
-        "contact": 103,
-        "status": 129,
-        "assignment": 123,
-        "location": 94,
-        "last_updated": 123
+        "team_type": 86,
+        "sortie": 61,
+        "name": 83,
+        "leader": 113,
+        "contact": 94,
+        "status": 125,
+        "assignment": 107,
+        "location": 163,
+        "last_updated": 55
     },
     "statusboard.task.columns.widths": {
         "assigned_teams": 116,

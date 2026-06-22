@@ -441,9 +441,9 @@ def _create_hazard_types_indexes(master_db: Database) -> None:
 def _create_vehicles_indexes(master_db: Database) -> None:
     vehicles = master_db[MasterCollections.VEHICLES]
     _ensure_index(vehicles, [("vehicle_id", ASCENDING)], unique=True)
-    _ensure_index(vehicles, [("agency", ASCENDING)])
-    _ensure_index(vehicles, [("status", ASCENDING)])
-    _ensure_index(vehicles, [("vehicle_type", ASCENDING)])
+    _ensure_index(vehicles, [("organization", ASCENDING)])
+    _ensure_index(vehicles, [("status_id", ASCENDING)])
+    _ensure_index(vehicles, [("type_id", ASCENDING)])
 
 
 def _create_aircraft_indexes(master_db: Database) -> None:

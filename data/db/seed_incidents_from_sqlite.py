@@ -69,6 +69,34 @@ def _report(name: str, inserted: int, skipped: int) -> None:
     print(f"    {name:<32} {inserted:>4} inserted  {skipped:>4} skipped")
 
 
+def _discover_incidents() -> list[tuple[str, str]]:
+    """Discover all real incident folders on disk."""
+    skipped_ids = {"demo-incident", "unassigned"}
+    incidents: list[tuple[str, str]] = []
+    for folder_path in sorted(_INCIDENTS_DIR.iterdir()):
+        if not folder_path.is_dir():
+            continue
+
+        json_path = folder_path / "incident.json"
+        db_path = folder_path / "incident.db"
+        if not json_path.exists() or not db_path.exists():
+            continue
+
+        try:
+            with open(json_path, encoding="utf-8") as f:
+                incident_json = json.load(f)
+        except Exception:
+            continue
+
+        incident_number = str(incident_json.get("incident_number") or "").strip()
+        if not incident_number or incident_number in skipped_ids:
+            continue
+
+        incidents.append((incident_number, folder_path.name))
+
+    return incidents
+
+
 def _parse_narrative_timestamp(time_str: str, base_date: str) -> str:
     """
     Reconstruct a full ISO timestamp from a bare time string (e.g. '2311')
@@ -1050,7 +1078,12 @@ def main() -> int:
 
     overall_ok = True
 
-    for inc_number, folder in INCIDENTS.items():
+    incidents = _discover_incidents()
+    if not incidents:
+        print("No incident SQLite databases found to seed.")
+        return 0
+
+    for inc_number, folder in incidents:
         folder_path = _INCIDENTS_DIR / folder
         json_path = folder_path / "incident.json"
         db_path = folder_path / "incident.db"

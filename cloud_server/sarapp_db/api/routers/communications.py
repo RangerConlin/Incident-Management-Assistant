@@ -294,6 +294,84 @@ def get_master_channel(channel_id: int):
     return _map_master_channel(doc)
 
 
+_MASTER_CHANNEL_FIELD_MAP = {
+    "name": "channel_name",
+    "function": "function",
+    "rx_freq": "freq_rx",
+    "tx_freq": "freq_tx",
+    "rx_tone": "rx_tone",
+    "tx_tone": "tx_tone",
+    "system": "system",
+    "mode": "mode",
+    "notes": "notes",
+    "line_a": "line_a",
+    "line_c": "line_c",
+}
+
+
+def _next_master_channel_id(col) -> str:
+    max_id = 0
+    for d in col.find({}, {"channel_id": 1}):
+        try:
+            n = int(str(d.get("channel_id", "0")))
+            if n > max_id:
+                max_id = n
+        except (ValueError, TypeError):
+            pass
+    return str(max_id + 1)
+
+
+@master_router.post("/master-channels")
+def create_master_channel(body: Dict[str, Any] = Body(...)):
+    col = get_master_db()[MasterCollections.RADIO_CHANNELS]
+    new_id = _next_master_channel_id(col)
+    now = _utcnow()
+    doc = {
+        "_id": str(uuid.uuid4()),
+        "channel_id": new_id,
+        "channel_name": str(body.get("name") or "").strip(),
+        "function": body.get("function"),
+        "freq_rx": body.get("rx_freq"),
+        "freq_tx": body.get("tx_freq"),
+        "rx_tone": body.get("rx_tone"),
+        "tx_tone": body.get("tx_tone"),
+        "system": body.get("system"),
+        "mode": body.get("mode") or "FM",
+        "notes": body.get("notes"),
+        "line_a": bool(body.get("line_a", False)),
+        "line_c": bool(body.get("line_c", False)),
+        "created_at": now,
+        "updated_at": now,
+    }
+    col.insert_one(doc)
+    doc.pop("_id", None)
+    return _map_master_channel(doc)
+
+
+@master_router.patch("/master-channels/{channel_id}")
+def update_master_channel(channel_id: int, patch: Dict[str, Any] = Body(...)):
+    col = get_master_db()[MasterCollections.RADIO_CHANNELS]
+    doc = col.find_one({"channel_id": str(channel_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    update: Dict[str, Any] = {"updated_at": _utcnow()}
+    for api_key, mongo_key in _MASTER_CHANNEL_FIELD_MAP.items():
+        if api_key in patch:
+            update[mongo_key] = patch[api_key]
+    col.update_one({"channel_id": str(channel_id)}, {"$set": update})
+    updated = col.find_one({"channel_id": str(channel_id)}, {"_id": 0})
+    return _map_master_channel(updated)
+
+
+@master_router.delete("/master-channels/{channel_id}")
+def delete_master_channel(channel_id: int):
+    col = get_master_db()[MasterCollections.RADIO_CHANNELS]
+    result = col.delete_one({"channel_id": str(channel_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    return {"deleted": True}
+
+
 # ===========================================================================
 # INCIDENT CHANNELS (ICS 205)
 # ===========================================================================

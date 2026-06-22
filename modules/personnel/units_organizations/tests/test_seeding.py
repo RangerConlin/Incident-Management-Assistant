@@ -1,92 +1,68 @@
 from __future__ import annotations
 
-import importlib
+from sarapp_db.api.routers import organizations as org_router
 
 
-def test_seed_types_and_templates_present(tmp_path, monkeypatch):
-    # Point data dir to a temp location before importing modules that open DBs
-    monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
+class _FakeCursor:
+    def __init__(self, docs: list[dict]) -> None:
+        self._docs = docs
 
-    # Reload connection helpers so they resolve the temp directory
-    import utils.db as udb
-    import utils.context as uctx
-    importlib.reload(udb)
-    importlib.reload(uctx)
+    def __iter__(self):
+        return iter(self._docs)
 
-    from modules.personnel.units_organizations.models.repository import (
-        UnitsOrganizationsRepository,
-    )
-
-    repo = UnitsOrganizationsRepository()
-
-    types = repo.list_organization_types(include_inactive=True)
-    names = {t["name"] for t in types}
-    assert {
-        "Air Agency",
-        "Ground SAR",
-        "Law Enforcement",
-        "Fire/Rescue",
-        "EMS",
-        "Government",
-        "Volunteer Organization",
-        "NGO",
-        "Federal",
-        "State",
-        "County",
-        "Municipal",
-        "Military",
-        "Private Contractor",
-        "Amateur Radio",
-        "Aviation Support",
-        "Communications Unit",
-        "Other",
-    }.issubset(names)
-
-    templates = repo.list_rank_structures(include_inactive=True)
-    template_names = {t["name"] for t in templates}
-    assert {
-        "Fire Department (Standard)",
-        "Law Enforcement (Standard)",
-        "EMS (Standard)",
-        "Search and Rescue (Standard)",
-        "Volunteer / NGO (Standard)",
-    }.issubset(template_names)
-
-    # Verify ranks for a known template exist
-    fd = next(t for t in templates if t["name"] == "Fire Department (Standard)")
-
-    # Use a raw connection to count ranks
-    from utils.db import get_master_conn
-
-    with get_master_conn() as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) FROM ranks WHERE rank_structure_id = ?",
-            (int(fd["id"]),),
-        ).fetchone()[0]
-        assert count >= 6  # at least several ranks seeded
+    def sort(self, *_args, **_kwargs):
+        return self
 
 
-def test_seeding_is_idempotent(tmp_path, monkeypatch):
-    monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
-    import utils.db as udb
-    import utils.context as uctx
-    importlib.reload(udb)
-    importlib.reload(uctx)
+class _FakeOrgTypesCollection:
+    """Minimal in-memory stand-in for the Mongo organization_types collection."""
 
-    from modules.personnel.units_organizations.models.repository import (
-        UnitsOrganizationsRepository,
-    )
+    def __init__(self) -> None:
+        self.docs: list[dict] = []
 
-    # First instantiation seeds
-    UnitsOrganizationsRepository()
-    # Second instantiation should not duplicate
-    UnitsOrganizationsRepository()
+    def find(self, query: dict | None = None, projection: dict | None = None):
+        return _FakeCursor(list(self.docs))
 
-    from utils.db import get_master_conn
+    def insert_one(self, doc: dict) -> None:
+        self.docs.append(dict(doc))
 
-    with get_master_conn() as conn:
-        rows = conn.execute(
-            "SELECT COUNT(*) FROM rank_structures WHERE name = ? AND is_system_template = 1",
-            ("Fire Department (Standard)",),
-        ).fetchone()[0]
-        assert rows == 1
+
+def setup_function(_fn) -> None:
+    # The seeding helper only seeds once per process; reset the guard so
+    # each test exercises a fresh collection.
+    org_router._default_types_seeded = False
+
+
+def test_seed_default_types_inserts_all_canonical_names() -> None:
+    col = _FakeOrgTypesCollection()
+
+    org_router._seed_default_types_if_needed(col)
+
+    names = {doc["name"] for doc in col.docs}
+    expected = {name for name, _description in org_router.DEFAULT_ORGANIZATION_TYPES}
+    assert names == expected
+
+
+def test_seed_default_types_is_idempotent() -> None:
+    col = _FakeOrgTypesCollection()
+
+    org_router._seed_default_types_if_needed(col)
+    count_after_first = len(col.docs)
+
+    # Reset only the in-process guard, not the collection, to simulate a
+    # second server process seeding against an already-seeded database.
+    org_router._default_types_seeded = False
+    org_router._seed_default_types_if_needed(col)
+
+    assert len(col.docs) == count_after_first
+
+
+def test_seed_default_types_preserves_existing_entries() -> None:
+    col = _FakeOrgTypesCollection()
+    col.docs.append({"int_id": 1, "name": "Air Agency", "description": "Custom override"})
+
+    org_router._seed_default_types_if_needed(col)
+
+    air_agency_docs = [doc for doc in col.docs if doc["name"] == "Air Agency"]
+    assert len(air_agency_docs) == 1
+    assert air_agency_docs[0]["description"] == "Custom override"

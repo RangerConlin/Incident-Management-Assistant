@@ -30,6 +30,7 @@ from PySide6 import QtCore, QtWidgets
 
 from modules.admin.resource_types.data import ApiResourceAssignmentRepository, ApiResourceTypeRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
+from utils.org_combo import make_org_combo
 
 # ----------------------------- Configuration ---------------------------------
 MASTER_DB_PATH = os.path.join("data", "master.db")
@@ -760,7 +761,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_role = QtWidgets.QLineEdit()
         self.txt_role.setPlaceholderText("e.g. Search Team Leader")
         self.txt_rank = QtWidgets.QLineEdit()
-        self.txt_org = QtWidgets.QLineEdit()
+        self.txt_org = make_org_combo()
         self.txt_email = QtWidgets.QLineEdit()
         self.txt_phone = QtWidgets.QLineEdit()
         self.txt_notes = QtWidgets.QLineEdit()
@@ -957,7 +958,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_callsign.setText(doc.get("callsign") or "")
         self.txt_role.setText(doc.get("primary_role") or doc.get("role") or "")
         self.txt_rank.setText(doc.get("rank") or "")
-        self.txt_org.setText(doc.get("home_unit") or doc.get("organization") or "")
+        self.txt_org.setCurrentText(doc.get("home_unit") or doc.get("organization") or "")
         self.txt_email.setText(doc.get("email") or "")
         self.txt_phone.setText(doc.get("phone") or "")
         self.txt_notes.setText(doc.get("notes") or "")
@@ -996,7 +997,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             callsign=self.txt_callsign.text().strip(),
             role=self.txt_role.text().strip(),
             rank=self.txt_rank.text().strip(),
-            organization=self.txt_org.text().strip(),
+            organization=self.txt_org.currentText().strip(),
             email=self.txt_email.text().strip(),
             phone=self.txt_phone.text().strip(),
             notes=self.txt_notes.text().strip(),
@@ -1058,7 +1059,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             "callsign": self.txt_callsign.text().strip(),
             "primary_role": self.txt_role.text().strip(),
             "rank": self.txt_rank.text().strip(),
-            "home_unit": self.txt_org.text().strip(),
+            "home_unit": self.txt_org.currentText().strip(),
             "email": self.txt_email.text().strip(),
             "phone": self.txt_phone.text().strip(),
             "notes": self.txt_notes.text().strip(),
