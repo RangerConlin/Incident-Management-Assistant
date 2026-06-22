@@ -1,3 +1,6 @@
+# Local server logs
+/logs/
+
 # Python
 __pycache__/
 *.py[cod]

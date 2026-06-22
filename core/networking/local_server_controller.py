@@ -44,6 +44,7 @@ class LocalServerController:
         self.process: Optional[subprocess.Popen] = None
         self.started_by_this_app = False
         self.server_name = DEFAULT_LOCAL_SERVER_NAME
+        self._log_file = None
 
     @property
     def base_url(self) -> str:
@@ -98,13 +99,21 @@ class LocalServerController:
             "--name", self.server_name,
         ]
         print(f"[LocalServerController] spawning: {' '.join(command)}")
+        log_dir = script.parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+        log_path = log_dir / "local_server.log"
+        # Redirect to a file instead of PIPE — nothing drains a PIPE during normal
+        # operation, so once the server's logging fills the OS pipe buffer the
+        # child blocks on write() and the whole server (including request
+        # handling) freezes.
+        self._log_file = open(log_path, "a", encoding="utf-8")
         try:
             self.process = subprocess.Popen(
                 command,
                 cwd=str(script.parent),
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=self._log_file,
+                stderr=self._log_file,
             )
         except OSError as exc:
             raise LocalServerError(f"Unable to start local SARApp server: {exc}") from exc
@@ -117,13 +126,9 @@ class LocalServerController:
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
             if self.process is not None and self.process.poll() is not None:
-                stdout = self.process.stdout.read().decode(errors="replace") if self.process.stdout else ""
-                stderr = self.process.stderr.read().decode(errors="replace") if self.process.stderr else ""
                 print(f"[LocalServerController] server process exited (rc={self.process.returncode})")
-                if stdout:
-                    print(f"[LocalServerController] stdout:\n{stdout[:2000]}")
-                if stderr:
-                    print(f"[LocalServerController] stderr:\n{stderr[:2000]}")
+                if self._log_file is not None:
+                    print(f"[LocalServerController] see log: {self._log_file.name}")
                 return False
             if self.is_running():
                 print("[LocalServerController] /health responded — server ready")
@@ -144,3 +149,6 @@ class LocalServerController:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait(timeout=5)
+        if self._log_file is not None:
+            self._log_file.close()
+            self._log_file = None
