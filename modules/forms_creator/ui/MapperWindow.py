@@ -45,7 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import NameObject, TextStringObject
+from pypdf.generic import DictionaryObject, IndirectObject, NameObject, TextStringObject
 
 from modules.forms_creator.form_set_registry import FormSetRegistry
 from modules.forms_creator.services.pdf_fields import PDFFormFieldExtractor, DetectedPDFField
@@ -56,26 +56,109 @@ _BINDING_CATALOG_PATH = Path(__file__).resolve().parents[3] / "forms" / "binding
 
 
 def _rename_pdf_fields(pdf_path: Path, rename_map: dict[str, str]) -> None:
-    """Rewrite /T annotation keys in pdf_path according to rename_map, in-place."""
+    """Rewrite PDF widget field names in pdf_path according to rename_map, in-place."""
     reader = PdfReader(str(pdf_path))
     writer = PdfWriter()
     writer.append(reader)
+
+    inherited_keys = ("/FT", "/Ff", "/V", "/DV", "/DA", "/Q", "/Opt")
+
     for page in writer.pages:
         annots = page.get("/Annots")
         if not annots:
             continue
         for ref in annots:
             obj = ref.get_object()
-            t = obj.get("/T")
-            if t is None:
+            current = _pdf_full_field_name(obj)
+            if current not in rename_map:
                 continue
-            current = t if isinstance(t, str) else t.get_object() if hasattr(t, "get_object") else str(t)
-            if current in rename_map:
-                obj[NameObject("/T")] = TextStringObject(rename_map[current])
+
+            # If the original form uses a parent field tree, copying inherited
+            # attributes and detaching the widget keeps the new name from being
+            # prefixed by the old parent path on the next extraction pass.
+            for key in inherited_keys:
+                if key not in obj:
+                    value = _pdf_resolve_inherited(obj, key)
+                    if value is not None:
+                        obj[NameObject(key)] = value
+            if "/Parent" in obj:
+                del obj[NameObject("/Parent")]
+            obj[NameObject("/T")] = TextStringObject(rename_map[current])
+
     tmp = pdf_path.with_suffix(".tmp.pdf")
     with open(tmp, "wb") as fh:
         writer.write(fh)
     tmp.replace(pdf_path)
+
+
+def _pdf_dictionary(value: object) -> DictionaryObject | None:
+    if isinstance(value, DictionaryObject):
+        return value
+    if isinstance(value, IndirectObject):
+        try:
+            resolved = value.get_object()
+        except Exception:
+            return None
+        if isinstance(resolved, DictionaryObject):
+            return resolved
+    return None
+
+
+def _pdf_text(value: object) -> str:
+    if value is None:
+        return ""
+    text = str(value)
+    return text[1:] if text.startswith("/") else text
+
+
+def _pdf_resolve_inherited(field_dict: DictionaryObject, key: str):
+    current: DictionaryObject | None = field_dict
+    visited: set[int] = set()
+    while current is not None:
+        if key in current:
+            return current[key]
+        parent = current.get("/Parent")
+        if parent is None:
+            break
+        if isinstance(parent, IndirectObject):
+            obj_id = (parent.idnum << 16) | parent.generation
+            if obj_id in visited:
+                break
+            visited.add(obj_id)
+            current = _pdf_dictionary(parent)
+        else:
+            obj_id = id(parent)
+            if obj_id in visited:
+                break
+            visited.add(obj_id)
+            current = _pdf_dictionary(parent)
+    return None
+
+
+def _pdf_full_field_name(field_dict: DictionaryObject) -> str:
+    parts: list[str] = []
+    current: DictionaryObject | None = field_dict
+    visited: set[int] = set()
+    while current is not None:
+        name = _pdf_text(current.get("/T"))
+        if name:
+            parts.append(name)
+        parent = current.get("/Parent")
+        if parent is None:
+            break
+        if isinstance(parent, IndirectObject):
+            obj_id = (parent.idnum << 16) | parent.generation
+            if obj_id in visited:
+                break
+            visited.add(obj_id)
+            current = _pdf_dictionary(parent)
+        else:
+            obj_id = id(parent)
+            if obj_id in visited:
+                break
+            visited.add(obj_id)
+            current = _pdf_dictionary(parent)
+    return ".".join(reversed(parts))
 
 _TRANSFORMS      = ["", "date_short", "time_short", "datetime_short", "upper", "lower"]
 _TRANSFORM_LABELS = ["None", "date_short", "time_short", "datetime_short", "upper", "lower"]
@@ -100,6 +183,13 @@ def _load_catalog_raw() -> dict:
 
 def _load_catalog() -> list[dict]:
     return _load_catalog_raw().get("bindings", [])
+
+
+def _array_field_prefix(array_ref: str, col_id: str) -> str:
+    """Return a PDF field prefix unique to one array source and column."""
+    raw = f"{array_ref}_{col_id}" if array_ref else col_id
+    prefix = re.sub(r"[^A-Za-z0-9_]+", "_", raw).strip("_")
+    return prefix or "array_field"
 
 
 # Prefixes whose second path segment is a meaningful sub-object (not just a dict key).
@@ -1158,7 +1248,7 @@ class MapperWindow(QMainWindow):
         self._persist_mapping()
 
     def _on_rg_map_selected(self, col_id: str) -> None:
-        """Rename the canvas-selected fields to {col_id}1, {col_id}2... and set the col_pattern."""
+        """Rename selected fields with an array-scoped prefix and set the col_pattern."""
         item = self._rg_mapped_list.currentItem()
         if not item:
             return
@@ -1177,12 +1267,18 @@ class MapperWindow(QMainWindow):
         if not selected:
             self.statusBar().showMessage("No fields selected on canvas.", 3000)
             return
-        selected.sort(key=lambda i: i.sceneBoundingRect().top())
+        selected.sort(
+            key=lambda i: (
+                round(i.sceneBoundingRect().left() / 12),
+                i.sceneBoundingRect().top(),
+            )
+        )
 
         row_offset = mapping_rg.get("row_offset", 0)
-        pattern = f"{col_id}{{n}}"
+        field_prefix = _array_field_prefix(src_id, col_id)
+        pattern = f"{field_prefix}{{n}}"
         rename_map = {
-            item.pdf_field_name: f"{col_id}{row_offset + idx + 1}"
+            item.pdf_field_name: f"{field_prefix}{row_offset + idx + 1}"
             for idx, item in enumerate(selected)
         }
 

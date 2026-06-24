@@ -10,7 +10,6 @@ for backward compatibility until they are formally decommissioned.
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -19,8 +18,59 @@ from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+
+class IntelSubjectsRepository(BaseRepository):
+    collection_name = IncidentCollections.INTEL_SUBJECTS
+
+
+class IntelLeadsRepository(BaseRepository):
+    collection_name = IncidentCollections.INTEL_LEADS
+
+
+class IntelItemsRepository(BaseRepository):
+    collection_name = IncidentCollections.INTEL_ITEMS
+
+
+class IntelAssessmentsRepository(BaseRepository):
+    collection_name = IncidentCollections.INTEL_ASSESSMENTS
+
+
+class IntelLogRepository(BaseRepository):
+    collection_name = IncidentCollections.INTEL_LOG
+    soft_deletes = False
+
+
+class IntelCluesRepository(BaseRepository):
+    collection_name = IncidentCollections.INTEL_CLUES
+    soft_deletes = False
+
+
+def _subjects_repo(incident_id: str) -> IntelSubjectsRepository:
+    return IntelSubjectsRepository(get_incident_db(incident_id))
+
+
+def _leads_repo(incident_id: str) -> IntelLeadsRepository:
+    return IntelLeadsRepository(get_incident_db(incident_id))
+
+
+def _items_repo(incident_id: str) -> IntelItemsRepository:
+    return IntelItemsRepository(get_incident_db(incident_id))
+
+
+def _assessments_repo(incident_id: str) -> IntelAssessmentsRepository:
+    return IntelAssessmentsRepository(get_incident_db(incident_id))
+
+
+def _log_repo(incident_id: str) -> IntelLogRepository:
+    return IntelLogRepository(get_incident_db(incident_id))
+
+
+def _clues_repo(incident_id: str) -> IntelCluesRepository:
+    return IntelCluesRepository(get_incident_db(incident_id))
 
 
 # ---------------------------------------------------------------------------
@@ -31,16 +81,9 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _new_id() -> str:
-    return str(uuid.uuid4())
-
-
-def _col(incident_id: str, name: str):
-    return get_incident_db(incident_id)[name]
-
-
-def _ensure_int_ids(col) -> None:
+def _ensure_int_ids(repo: BaseRepository) -> None:
     """Lazy-migrate documents that are missing int_id (numeric surrogate key)."""
+    col = repo._col
     missing = list(col.find({"int_id": {"$exists": False}}, {"_id": 1}))
     if not missing:
         return
@@ -51,17 +94,16 @@ def _ensure_int_ids(col) -> None:
         next_id += 1
 
 
-def _next_int_id(col) -> int:
-    top = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+def _next_int_id(repo: BaseRepository) -> int:
+    top = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
     return (top["int_id"] + 1) if top else 1
 
 
 def _write_log(incident_id: str, entity_type: str, entity_id: str,
                event_type: str, summary: str, actor: str = "system") -> None:
     """Append a chronological entry to the intel activity log."""
-    log_col = _col(incident_id, IncidentCollections.INTEL_LOG)
-    log_col.insert_one({
-        "_id": _new_id(),
+    log_repo = _log_repo(incident_id)
+    log_repo.insert_one({
         "incident_id": incident_id,
         "entity_type": entity_type,
         "entity_id": entity_id,
@@ -79,62 +121,54 @@ def _write_log(incident_id: str, entity_type: str, entity_id: str,
 @router.get("/incidents/{incident_id}/intel/dashboard")
 def get_intel_dashboard(incident_id: str) -> Dict[str, Any]:
     """Return summary counts and recent activity for the Intel dashboard."""
-    subjects_col = _col(incident_id, IncidentCollections.INTEL_SUBJECTS)
-    leads_col = _col(incident_id, IncidentCollections.INTEL_LEADS)
-    items_col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
-    assessments_col = _col(incident_id, IncidentCollections.INTEL_ASSESSMENTS)
-    log_col = _col(incident_id, IncidentCollections.INTEL_LOG)
+    subjects_repo = _subjects_repo(incident_id)
+    leads_repo = _leads_repo(incident_id)
+    items_repo = _items_repo(incident_id)
+    assessments_repo = _assessments_repo(incident_id)
+    log_repo = _log_repo(incident_id)
 
-    active_subjects = subjects_col.count_documents({
-        "incident_id": incident_id, "deleted": False,
+    active_subjects = subjects_repo.count({
+        "incident_id": incident_id,
         "status": {"$nin": ["Archived", "Closed"]},
-    })
-    open_leads = leads_col.count_documents({
-        "incident_id": incident_id, "deleted": False,
+    }, include_deleted=False)
+    open_leads = leads_repo.count({
+        "incident_id": incident_id,
         "status": {"$nin": ["Closed", "Rejected", "Converted"]},
-    })
-    total_items = items_col.count_documents({
-        "incident_id": incident_id, "deleted": False,
+    }, include_deleted=False)
+    total_items = items_repo.count({
+        "incident_id": incident_id,
         "status": {"$nin": ["Archived"]},
-    })
-    critical_items = items_col.count_documents({
-        "incident_id": incident_id, "deleted": False,
+    }, include_deleted=False)
+    critical_items = items_repo.count({
+        "incident_id": incident_id,
         "priority": "Critical", "status": {"$nin": ["Archived"]},
-    })
-    worsening_items = items_col.count_documents({
-        "incident_id": incident_id, "deleted": False,
+    }, include_deleted=False)
+    worsening_items = items_repo.count({
+        "incident_id": incident_id,
         "trend": "Worsening", "status": {"$nin": ["Archived"]},
-    })
-    improving_items = items_col.count_documents({
-        "incident_id": incident_id, "deleted": False,
+    }, include_deleted=False)
+    improving_items = items_repo.count({
+        "incident_id": incident_id,
         "trend": "Improving", "status": {"$nin": ["Archived"]},
-    })
-    open_assessments = assessments_col.count_documents({
-        "incident_id": incident_id, "deleted": False,
+    }, include_deleted=False)
+    open_assessments = assessments_repo.count({
+        "incident_id": incident_id,
         "status": {"$nin": ["Archived"]},
-    })
+    }, include_deleted=False)
     # 20 most recent log entries for the Recent Activity feed
-    recent = list(log_col.find(
-        {"incident_id": incident_id},
-        sort=[("logged_at", -1)],
-        limit=20,
-    ))
+    recent = log_repo.find_many({"incident_id": incident_id}, sort=[("logged_at", -1)], limit=20)
 
     # Critical items list for dashboard centre panel
-    critical_docs = list(items_col.find(
-        {"incident_id": incident_id, "deleted": False,
-         "priority": "Critical", "status": {"$nin": ["Archived"]}},
-        sort=[("updated_at", -1)],
-        limit=8,
-    ))
+    critical_docs = items_repo.find_many(
+        {"incident_id": incident_id, "priority": "Critical", "status": {"$nin": ["Archived"]}},
+        sort=[("updated_at", -1)], limit=8,
+    )
 
     # Open leads for dashboard snapshot panel (unresolved, priority order)
-    lead_docs = list(leads_col.find(
-        {"incident_id": incident_id, "deleted": False,
-         "status": {"$nin": ["Closed", "Rejected", "Converted"]}},
-        sort=[("updated_at", -1)],
-        limit=8,
-    ))
+    lead_docs = leads_repo.find_many(
+        {"incident_id": incident_id, "status": {"$nin": ["Closed", "Rejected", "Converted"]}},
+        sort=[("updated_at", -1)], limit=8,
+    )
 
     return {
         "active_subjects": active_subjects,
@@ -286,41 +320,33 @@ def list_subjects(
     status: Optional[str] = Query(None),
     include_deleted: bool = Query(False),
 ):
-    col = _col(incident_id, IncidentCollections.INTEL_SUBJECTS)
+    repo = _subjects_repo(incident_id)
     q: Dict[str, Any] = {"incident_id": incident_id}
-    if not include_deleted:
-        q["deleted"] = False
     if subject_type:
         q["subject_type"] = subject_type
     if status:
         q["status"] = status
-    docs = list(col.find(q).sort("updated_at", -1))
+    docs = repo.find_many(q, sort=[("updated_at", -1)], include_deleted=include_deleted)
     return [_map_subject(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/intel/subjects", status_code=201)
 def create_subject(incident_id: str, data: SubjectCreate):
-    col = _col(incident_id, IncidentCollections.INTEL_SUBJECTS)
-    now = _utcnow()
+    repo = _subjects_repo(incident_id)
     doc = {
-        "_id": _new_id(),
         "incident_id": incident_id,
-        "deleted": False,
-        "created_at": now,
-        "updated_at": now,
         **data.model_dump(),
     }
-    col.insert_one(doc)
-    result = col.find_one({"_id": doc["_id"]})
-    _write_log(incident_id, "subject", doc["_id"], "created",
+    saved = repo.insert_one(doc)
+    _write_log(incident_id, "subject", saved["_id"], "created",
                f"Subject created: {data.name} ({data.subject_type})", data.created_by or "system")
-    return _map_subject(result)
+    return _map_subject(saved)
 
 
 @router.get("/incidents/{incident_id}/intel/subjects/{subject_id}")
 def get_subject(incident_id: str, subject_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_SUBJECTS)
-    doc = col.find_one({"_id": subject_id, "incident_id": incident_id})
+    repo = _subjects_repo(incident_id)
+    doc = repo.find_one({"_id": subject_id, "incident_id": incident_id}, include_deleted=True)
     if not doc:
         raise HTTPException(status_code=404, detail="Subject not found")
     return _map_subject(doc)
@@ -328,15 +354,13 @@ def get_subject(incident_id: str, subject_id: str):
 
 @router.patch("/incidents/{incident_id}/intel/subjects/{subject_id}")
 def update_subject(incident_id: str, subject_id: str, data: SubjectUpdate):
-    col = _col(incident_id, IncidentCollections.INTEL_SUBJECTS)
-    updates = {**data.model_dump(exclude_unset=False), "updated_at": _utcnow()}
-    result = col.find_one_and_update(
-        {"_id": subject_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not result:
+    repo = _subjects_repo(incident_id)
+    existing = repo.find_one({"_id": subject_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Subject not found")
+    updates = data.model_dump(exclude_unset=False)
+    repo.update_one(subject_id, updates, extra_filter={"incident_id": incident_id})
+    result = repo.find_by_id(subject_id, include_deleted=True)
     _write_log(incident_id, "subject", subject_id, "updated",
                f"Subject updated: {result.get('name')}", data.created_by or "system")
     return _map_subject(result)
@@ -344,15 +368,13 @@ def update_subject(incident_id: str, subject_id: str, data: SubjectUpdate):
 
 @router.delete("/incidents/{incident_id}/intel/subjects/{subject_id}", status_code=204)
 def archive_subject(incident_id: str, subject_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_SUBJECTS)
-    result = col.find_one_and_update(
-        {"_id": subject_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "updated_at": _utcnow()}},
-    )
-    if not result:
+    repo = _subjects_repo(incident_id)
+    existing = repo.find_one({"_id": subject_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Subject not found")
+    repo.soft_delete(subject_id)
     _write_log(incident_id, "subject", subject_id, "archived",
-               f"Subject archived: {result.get('name')}")
+               f"Subject archived: {existing.get('name')}")
 
 
 # ===========================================================================
@@ -373,6 +395,7 @@ def _map_lead(doc: Dict[str, Any]) -> Dict[str, Any]:
         "priority": doc.get("priority", "Medium"),
         "status": doc.get("status", "New"),
         "assigned_to": doc.get("assigned_to"),
+        "assigned_team_id": doc.get("assigned_team_id"),
         "notes": doc.get("notes"),
         "converted_to_type": doc.get("converted_to_type"),
         "converted_to_id": doc.get("converted_to_id"),
@@ -384,11 +407,16 @@ def _map_lead(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _next_lead_number(incident_id: str) -> int:
-    col = _col(incident_id, IncidentCollections.INTEL_LEADS)
-    top = col.find_one(
+    repo = _leads_repo(incident_id)
+    top = repo.find_one(
         {"incident_id": incident_id, "lead_number": {"$exists": True}},
-        sort=[("lead_number", -1)],
+        include_deleted=True,
     )
+    docs = repo.find_many(
+        {"incident_id": incident_id, "lead_number": {"$exists": True}},
+        sort=[("lead_number", -1)], limit=1, include_deleted=True,
+    )
+    top = docs[0] if docs else None
     return (top["lead_number"] + 1) if top else 1
 
 
@@ -402,6 +430,7 @@ class LeadCreate(BaseModel):
     priority: str = "Medium"
     status: str = "New"
     assigned_to: Optional[str] = None
+    assigned_team_id: Optional[int] = None  # numeric team id for ICS-214 linkage
     notes: Optional[str] = None
     created_by: str = ""
 
@@ -416,6 +445,7 @@ class LeadUpdate(BaseModel):
     priority: Optional[str] = None
     status: Optional[str] = None
     assigned_to: Optional[str] = None
+    assigned_team_id: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -432,45 +462,37 @@ def list_leads(
     assigned_to: Optional[str] = Query(None),
     include_deleted: bool = Query(False),
 ):
-    col = _col(incident_id, IncidentCollections.INTEL_LEADS)
+    repo = _leads_repo(incident_id)
     q: Dict[str, Any] = {"incident_id": incident_id}
-    if not include_deleted:
-        q["deleted"] = False
     if status:
         q["status"] = status
     if priority:
         q["priority"] = priority
     if assigned_to:
         q["assigned_to"] = assigned_to
-    docs = list(col.find(q).sort("updated_at", -1))
+    docs = repo.find_many(q, sort=[("updated_at", -1)], include_deleted=include_deleted)
     return [_map_lead(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/intel/leads", status_code=201)
 def create_lead(incident_id: str, data: LeadCreate):
-    col = _col(incident_id, IncidentCollections.INTEL_LEADS)
-    now = _utcnow()
+    repo = _leads_repo(incident_id)
     lead_number = _next_lead_number(incident_id)
     doc = {
-        "_id": _new_id(),
         "incident_id": incident_id,
         "lead_number": lead_number,
-        "deleted": False,
-        "created_at": now,
-        "updated_at": now,
         **data.model_dump(),
     }
-    col.insert_one(doc)
-    result = col.find_one({"_id": doc["_id"]})
-    _write_log(incident_id, "lead", doc["_id"], "created",
+    saved = repo.insert_one(doc)
+    _write_log(incident_id, "lead", saved["_id"], "created",
                f"Lead #{lead_number} created: {data.title}", data.created_by or "system")
-    return _map_lead(result)
+    return _map_lead(saved)
 
 
 @router.get("/incidents/{incident_id}/intel/leads/{lead_id}")
 def get_lead(incident_id: str, lead_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_LEADS)
-    doc = col.find_one({"_id": lead_id, "incident_id": incident_id})
+    repo = _leads_repo(incident_id)
+    doc = repo.find_one({"_id": lead_id, "incident_id": incident_id}, include_deleted=True)
     if not doc:
         raise HTTPException(status_code=404, detail="Lead not found")
     return _map_lead(doc)
@@ -478,16 +500,13 @@ def get_lead(incident_id: str, lead_id: str):
 
 @router.patch("/incidents/{incident_id}/intel/leads/{lead_id}")
 def update_lead(incident_id: str, lead_id: str, data: LeadUpdate):
-    col = _col(incident_id, IncidentCollections.INTEL_LEADS)
+    repo = _leads_repo(incident_id)
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
-    updates["updated_at"] = _utcnow()
-    result = col.find_one_and_update(
-        {"_id": lead_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not result:
+    existing = repo.find_one({"_id": lead_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Lead not found")
+    repo.update_one(lead_id, updates, extra_filter={"incident_id": incident_id})
+    result = repo.find_by_id(lead_id, include_deleted=True)
     _write_log(incident_id, "lead", lead_id, "updated",
                f"Lead #{result.get('lead_number')} updated: {result.get('title')}")
     return _map_lead(result)
@@ -495,32 +514,27 @@ def update_lead(incident_id: str, lead_id: str, data: LeadUpdate):
 
 @router.delete("/incidents/{incident_id}/intel/leads/{lead_id}", status_code=204)
 def close_lead(incident_id: str, lead_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_LEADS)
-    result = col.find_one_and_update(
-        {"_id": lead_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "status": "Closed", "updated_at": _utcnow()}},
-    )
-    if not result:
+    repo = _leads_repo(incident_id)
+    existing = repo.find_one({"_id": lead_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Lead not found")
+    repo.update_one(lead_id, {"deleted": True, "status": "Closed"}, extra_filter={"incident_id": incident_id})
     _write_log(incident_id, "lead", lead_id, "closed",
-               f"Lead #{result.get('lead_number')} closed")
+               f"Lead #{existing.get('lead_number')} closed")
 
 
 @router.post("/incidents/{incident_id}/intel/leads/{lead_id}/convert")
 def convert_lead(incident_id: str, lead_id: str, data: LeadConvert):
     """Mark lead as converted; the client is responsible for creating the target record."""
-    col = _col(incident_id, IncidentCollections.INTEL_LEADS)
-    result = col.find_one_and_update(
-        {"_id": lead_id, "incident_id": incident_id},
-        {"$set": {
-            "status": "Converted",
-            "converted_to_type": data.target_type,
-            "updated_at": _utcnow(),
-        }},
-        return_document=True,
-    )
-    if not result:
+    repo = _leads_repo(incident_id)
+    existing = repo.find_one({"_id": lead_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Lead not found")
+    repo.update_one(lead_id, {
+        "status": "Converted",
+        "converted_to_type": data.target_type,
+    }, extra_filter={"incident_id": incident_id})
+    result = repo.find_by_id(lead_id, include_deleted=True)
     _write_log(incident_id, "lead", lead_id, "converted",
                f"Lead #{result.get('lead_number')} converted to {data.target_type}", data.actor)
     return _map_lead(result)
@@ -536,6 +550,7 @@ def _map_observation(obs: Dict[str, Any]) -> Dict[str, Any]:
         "observed_at": obs.get("observed_at", ""),
         "observer": obs.get("observer", ""),
         "source_team": obs.get("source_team"),
+        "source_team_id": obs.get("source_team_id"),
         "status": obs.get("status", ""),
         "severity": obs.get("severity", "Unknown"),
         "confidence": obs.get("confidence", "Unconfirmed"),
@@ -559,6 +574,7 @@ def _map_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "location_text": doc.get("location_text"),
         "linked_subject_ids": doc.get("linked_subject_ids", []),
         "linked_task_ids": doc.get("linked_task_ids", []),
+        "linked_team_ids": doc.get("linked_team_ids", []),
         "created_by": doc.get("created_by", ""),
         "created_at": doc.get("created_at", ""),
         "updated_at": doc.get("updated_at", ""),
@@ -574,6 +590,7 @@ class ObservationCreate(BaseModel):
     observed_at: Optional[str] = None  # ISO string; defaults to now
     observer: str = ""
     source_team: Optional[str] = None
+    source_team_id: Optional[int] = None  # numeric team id for ICS-214 linkage
     status: str = ""
     severity: str = "Unknown"
     confidence: str = "Unconfirmed"
@@ -588,6 +605,7 @@ class ObservationUpdate(BaseModel):
     observed_at: Optional[str] = None
     observer: Optional[str] = None
     source_team: Optional[str] = None
+    source_team_id: Optional[int] = None
     status: Optional[str] = None
     severity: Optional[str] = None
     confidence: Optional[str] = None
@@ -607,6 +625,7 @@ class IntelItemCreate(BaseModel):
     location_text: Optional[str] = None
     linked_subject_ids: List[str] = Field(default_factory=list)
     linked_task_ids: List[str] = Field(default_factory=list)
+    linked_team_ids: List[int] = Field(default_factory=list)
     notes: Optional[str] = None
     created_by: str = ""
     source_lead_id: Optional[str] = None
@@ -622,6 +641,7 @@ class IntelItemUpdate(BaseModel):
     location_text: Optional[str] = None
     linked_subject_ids: Optional[List[str]] = None
     linked_task_ids: Optional[List[str]] = None
+    linked_team_ids: Optional[List[int]] = None
     notes: Optional[str] = None
     actor: str = "system"
 
@@ -635,10 +655,8 @@ def list_items(
     trend: Optional[str] = Query(None),
     include_deleted: bool = Query(False),
 ):
-    col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
+    repo = _items_repo(incident_id)
     q: Dict[str, Any] = {"incident_id": incident_id}
-    if not include_deleted:
-        q["deleted"] = False
     if item_type:
         q["item_type"] = item_type
     if status:
@@ -647,34 +665,28 @@ def list_items(
         q["priority"] = priority
     if trend:
         q["trend"] = trend
-    docs = list(col.find(q).sort("updated_at", -1))
+    docs = repo.find_many(q, sort=[("updated_at", -1)], include_deleted=include_deleted)
     return [_map_item(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/intel/items", status_code=201)
 def create_item(incident_id: str, data: IntelItemCreate):
-    col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
-    now = _utcnow()
+    repo = _items_repo(incident_id)
     doc = {
-        "_id": _new_id(),
         "incident_id": incident_id,
-        "deleted": False,
         "observations": [],
-        "created_at": now,
-        "updated_at": now,
         **data.model_dump(),
     }
-    col.insert_one(doc)
-    result = col.find_one({"_id": doc["_id"]})
-    _write_log(incident_id, "item", doc["_id"], "created",
+    saved = repo.insert_one(doc)
+    _write_log(incident_id, "item", saved["_id"], "created",
                f"Intel Item created: {data.title} ({data.item_type})", data.created_by or "system")
-    return _map_item(result)
+    return _map_item(saved)
 
 
 @router.get("/incidents/{incident_id}/intel/items/{item_id}")
 def get_item(incident_id: str, item_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
-    doc = col.find_one({"_id": item_id, "incident_id": incident_id})
+    repo = _items_repo(incident_id)
+    doc = repo.find_one({"_id": item_id, "incident_id": incident_id}, include_deleted=True)
     if not doc:
         raise HTTPException(status_code=404, detail="Intel item not found")
     return _map_item(doc)
@@ -682,16 +694,13 @@ def get_item(incident_id: str, item_id: str):
 
 @router.patch("/incidents/{incident_id}/intel/items/{item_id}")
 def update_item(incident_id: str, item_id: str, data: IntelItemUpdate):
-    col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
+    repo = _items_repo(incident_id)
     updates = {k: v for k, v in data.model_dump().items() if v is not None and k != "actor"}
-    updates["updated_at"] = _utcnow()
-    result = col.find_one_and_update(
-        {"_id": item_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not result:
+    existing = repo.find_one({"_id": item_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Intel item not found")
+    repo.update_one(item_id, updates, extra_filter={"incident_id": incident_id})
+    result = repo.find_by_id(item_id, include_deleted=True)
     _write_log(incident_id, "item", item_id, "updated",
                f"Intel Item updated: {result.get('title')}", data.actor)
     return _map_item(result)
@@ -699,26 +708,26 @@ def update_item(incident_id: str, item_id: str, data: IntelItemUpdate):
 
 @router.delete("/incidents/{incident_id}/intel/items/{item_id}", status_code=204)
 def archive_item(incident_id: str, item_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
-    result = col.find_one_and_update(
-        {"_id": item_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "status": "Archived", "updated_at": _utcnow()}},
-    )
-    if not result:
+    repo = _items_repo(incident_id)
+    existing = repo.find_one({"_id": item_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Intel item not found")
+    repo.update_one(item_id, {"deleted": True, "status": "Archived"}, extra_filter={"incident_id": incident_id})
     _write_log(incident_id, "item", item_id, "archived",
-               f"Intel Item archived: {result.get('title')}")
+               f"Intel Item archived: {existing.get('title')}")
 
 
 @router.post("/incidents/{incident_id}/intel/items/{item_id}/observations", status_code=201)
 def add_observation(incident_id: str, item_id: str, data: ObservationCreate):
     """Append an observation to an existing intel item (items are the parent document)."""
-    col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
+    import uuid as _uuid
+    repo = _items_repo(incident_id)
     obs = {
-        "obs_id": _new_id(),
+        "obs_id": str(_uuid.uuid4()),
         "observed_at": data.observed_at or _utcnow(),
         "observer": data.observer,
         "source_team": data.source_team,
+        "source_team_id": data.source_team_id,
         "status": data.status,
         "severity": data.severity,
         "confidence": data.confidence,
@@ -727,16 +736,19 @@ def add_observation(incident_id: str, item_id: str, data: ObservationCreate):
         "location_text": data.location_text,
         "attachments": data.attachments,
     }
-    result = col.find_one_and_update(
-        {"_id": item_id, "incident_id": incident_id},
-        {
-            "$push": {"observations": obs},
-            "$set": {"updated_at": _utcnow()},
-        },
-        return_document=True,
-    )
-    if not result:
+    existing = repo.find_one({"_id": item_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Intel item not found")
+    # $push to an embedded array — not expressible via BaseRepository's
+    # generic methods, so we drop to the raw collection and broadcast
+    # ourselves, mirroring update_one's pattern.
+    repo._col.update_one(
+        {"_id": item_id, "incident_id": incident_id},
+        {"$push": {"observations": obs}, "$set": {"updated_at": _utcnow()}},
+    )
+    result = repo._col.find_one({"_id": item_id, "incident_id": incident_id})
+    if result:
+        repo._broadcast("updated", item_id, result)
     _write_log(incident_id, "item", item_id, "observation_added",
                f"Observation added to: {result.get('title')}", data.actor)
     return _map_item(result)
@@ -745,20 +757,24 @@ def add_observation(incident_id: str, item_id: str, data: ObservationCreate):
 @router.patch("/incidents/{incident_id}/intel/items/{item_id}/observations/{obs_id}")
 def update_observation(incident_id: str, item_id: str, obs_id: str, data: ObservationUpdate):
     """Update a single embedded observation by obs_id."""
-    col = _col(incident_id, IncidentCollections.INTEL_ITEMS)
+    repo = _items_repo(incident_id)
     updates = {
         f"observations.$.{k}": v
         for k, v in data.model_dump(exclude_unset=True).items()
         if v is not None
     }
     updates["updated_at"] = _utcnow()
-    result = col.find_one_and_update(
+    # Positional `$` array update — not expressible via BaseRepository's
+    # generic methods, so we drop to the raw collection and broadcast
+    # ourselves, mirroring update_one's pattern.
+    result = repo._col.find_one_and_update(
         {"_id": item_id, "incident_id": incident_id, "observations.obs_id": obs_id},
         {"$set": updates},
         return_document=True,
     )
     if not result:
         raise HTTPException(status_code=404, detail="Intel item or observation not found")
+    repo._broadcast("updated", item_id, result)
     _write_log(incident_id, "item", item_id, "observation_updated",
                f"Observation updated on: {result.get('title')}")
     return _map_item(result)
@@ -791,11 +807,12 @@ def _map_assessment(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _next_assessment_number(incident_id: str) -> int:
-    col = _col(incident_id, IncidentCollections.INTEL_ASSESSMENTS)
-    top = col.find_one(
+    repo = _assessments_repo(incident_id)
+    docs = repo.find_many(
         {"incident_id": incident_id, "assessment_number": {"$exists": True}},
-        sort=[("assessment_number", -1)],
+        sort=[("assessment_number", -1)], limit=1, include_deleted=True,
     )
+    top = docs[0] if docs else None
     return (top["assessment_number"] + 1) if top else 1
 
 
@@ -831,41 +848,33 @@ def list_assessments(
     status: Optional[str] = Query(None),
     include_deleted: bool = Query(False),
 ):
-    col = _col(incident_id, IncidentCollections.INTEL_ASSESSMENTS)
+    repo = _assessments_repo(incident_id)
     q: Dict[str, Any] = {"incident_id": incident_id}
-    if not include_deleted:
-        q["deleted"] = False
     if status:
         q["status"] = status
-    docs = list(col.find(q).sort("updated_at", -1))
+    docs = repo.find_many(q, sort=[("updated_at", -1)], include_deleted=include_deleted)
     return [_map_assessment(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/intel/assessments", status_code=201)
 def create_assessment(incident_id: str, data: AssessmentCreate):
-    col = _col(incident_id, IncidentCollections.INTEL_ASSESSMENTS)
-    now = _utcnow()
+    repo = _assessments_repo(incident_id)
     num = _next_assessment_number(incident_id)
     doc = {
-        "_id": _new_id(),
         "incident_id": incident_id,
         "assessment_number": num,
-        "deleted": False,
-        "created_at": now,
-        "updated_at": now,
         **data.model_dump(),
     }
-    col.insert_one(doc)
-    result = col.find_one({"_id": doc["_id"]})
-    _write_log(incident_id, "assessment", doc["_id"], "created",
+    saved = repo.insert_one(doc)
+    _write_log(incident_id, "assessment", saved["_id"], "created",
                f"Assessment A-{num} created: {data.title}", data.author or "system")
-    return _map_assessment(result)
+    return _map_assessment(saved)
 
 
 @router.get("/incidents/{incident_id}/intel/assessments/{assessment_id}")
 def get_assessment(incident_id: str, assessment_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_ASSESSMENTS)
-    doc = col.find_one({"_id": assessment_id, "incident_id": incident_id})
+    repo = _assessments_repo(incident_id)
+    doc = repo.find_one({"_id": assessment_id, "incident_id": incident_id}, include_deleted=True)
     if not doc:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return _map_assessment(doc)
@@ -873,18 +882,15 @@ def get_assessment(incident_id: str, assessment_id: str):
 
 @router.patch("/incidents/{incident_id}/intel/assessments/{assessment_id}")
 def update_assessment(incident_id: str, assessment_id: str, data: AssessmentUpdate):
-    col = _col(incident_id, IncidentCollections.INTEL_ASSESSMENTS)
+    repo = _assessments_repo(incident_id)
     updates = {k: v for k, v in data.model_dump().items() if v is not None and k != "actor"}
-    updates["updated_at"] = _utcnow()
     if updates.get("status") == "Published" and "published_at" not in updates:
         updates["published_at"] = _utcnow()
-    result = col.find_one_and_update(
-        {"_id": assessment_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not result:
+    existing = repo.find_one({"_id": assessment_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Assessment not found")
+    repo.update_one(assessment_id, updates, extra_filter={"incident_id": incident_id})
+    result = repo.find_by_id(assessment_id, include_deleted=True)
     _write_log(incident_id, "assessment", assessment_id, "updated",
                f"Assessment A-{result.get('assessment_number')} updated: {result.get('title')}",
                data.actor)
@@ -893,15 +899,13 @@ def update_assessment(incident_id: str, assessment_id: str, data: AssessmentUpda
 
 @router.delete("/incidents/{incident_id}/intel/assessments/{assessment_id}", status_code=204)
 def archive_assessment(incident_id: str, assessment_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_ASSESSMENTS)
-    result = col.find_one_and_update(
-        {"_id": assessment_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "status": "Archived", "updated_at": _utcnow()}},
-    )
-    if not result:
+    repo = _assessments_repo(incident_id)
+    existing = repo.find_one({"_id": assessment_id, "incident_id": incident_id}, include_deleted=True)
+    if not existing:
         raise HTTPException(status_code=404, detail="Assessment not found")
+    repo.update_one(assessment_id, {"deleted": True, "status": "Archived"}, extra_filter={"incident_id": incident_id})
     _write_log(incident_id, "assessment", assessment_id, "archived",
-               f"Assessment archived: {result.get('title')}")
+               f"Assessment archived: {existing.get('title')}")
 
 
 # ===========================================================================
@@ -917,7 +921,7 @@ def get_intel_log(
     until: Optional[str] = Query(None),
     limit: int = Query(200),
 ):
-    log_col = _col(incident_id, IncidentCollections.INTEL_LOG)
+    repo = _log_repo(incident_id)
     q: Dict[str, Any] = {"incident_id": incident_id}
     if entity_type:
         q["entity_type"] = entity_type
@@ -930,7 +934,7 @@ def get_intel_log(
         time_filter["$lte"] = until
     if time_filter:
         q["logged_at"] = time_filter
-    docs = list(log_col.find(q).sort("logged_at", -1).limit(limit))
+    docs = repo.find_many(q, sort=[("logged_at", -1)], limit=limit)
     return [
         {
             "id": d.get("_id"),
@@ -986,28 +990,26 @@ class ClueCreate(BaseModel):
 
 @router.get("/incidents/{incident_id}/intel/clues")
 def list_clues(incident_id: str):
-    col = _col(incident_id, IncidentCollections.INTEL_CLUES)
-    _ensure_int_ids(col)
-    docs = list(col.find({"incident_id": incident_id}).sort("created_at", -1))
+    repo = _clues_repo(incident_id)
+    _ensure_int_ids(repo)
+    docs = repo.find_many({"incident_id": incident_id}, sort=[("created_at", -1)])
     return [_map_clue(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/intel/clues", status_code=201)
 def add_clue(incident_id: str, data: ClueCreate):
-    col = _col(incident_id, IncidentCollections.INTEL_CLUES)
-    _ensure_int_ids(col)
-    int_id = _next_int_id(col)
-    now = _utcnow()
-    doc = {"_id": _new_id(), "int_id": int_id, "incident_id": incident_id,
-           **data.model_dump(), "created_at": now, "updated_at": now}
-    col.insert_one(doc)
-    return _map_clue(col.find_one({"int_id": int_id}))
+    repo = _clues_repo(incident_id)
+    _ensure_int_ids(repo)
+    int_id = _next_int_id(repo)
+    doc = {"int_id": int_id, "incident_id": incident_id, **data.model_dump()}
+    repo.insert_one(doc)
+    return _map_clue(repo.find_one({"int_id": int_id}))
 
 
 @router.get("/incidents/{incident_id}/intel/clues/{clue_id}")
 def get_clue(incident_id: str, clue_id: int):
-    col = _col(incident_id, IncidentCollections.INTEL_CLUES)
-    doc = col.find_one({"int_id": clue_id, "incident_id": incident_id})
+    repo = _clues_repo(incident_id)
+    doc = repo.find_one({"int_id": clue_id, "incident_id": incident_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Clue not found")
     return _map_clue(doc)
@@ -1015,21 +1017,19 @@ def get_clue(incident_id: str, clue_id: int):
 
 @router.put("/incidents/{incident_id}/intel/clues/{clue_id}")
 def update_clue(incident_id: str, clue_id: int, data: ClueCreate):
-    col = _col(incident_id, IncidentCollections.INTEL_CLUES)
-    updates = {**data.model_dump(), "updated_at": _utcnow()}
-    result = col.find_one_and_update(
-        {"int_id": clue_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not result:
+    repo = _clues_repo(incident_id)
+    existing = repo.find_one({"int_id": clue_id, "incident_id": incident_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Clue not found")
+    repo.update_one(existing["_id"], data.model_dump())
+    result = repo.find_by_id(existing["_id"])
     return _map_clue(result)
 
 
 @router.delete("/incidents/{incident_id}/intel/clues/{clue_id}", status_code=204)
 def delete_clue(incident_id: str, clue_id: int):
-    col = _col(incident_id, IncidentCollections.INTEL_CLUES)
-    result = col.delete_one({"int_id": clue_id, "incident_id": incident_id})
-    if result.deleted_count == 0:
+    repo = _clues_repo(incident_id)
+    existing = repo.find_one({"int_id": clue_id, "incident_id": incident_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Clue not found")
+    repo.delete_one(existing["_id"])

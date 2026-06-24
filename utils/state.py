@@ -13,6 +13,7 @@ class AppState:
     _active_user_id = None
     _active_user_role = None
     _active_session_id = None
+    _active_api_session_id = None
 
     @classmethod
     def set_active_incident(cls, incident_number):
@@ -52,6 +53,12 @@ class AppState:
                 app_signals.incidentChanged.emit(normalized_incident_id)
         except Exception as e:
             logger.warning("[state] failed to emit incidentChanged: %s", e)
+        # Reload IncidentCache snapshot and reconnect its WebSocket for the new incident
+        try:
+            from utils import incident_cache_loader
+            incident_cache_loader.activate_incident(normalized_incident_id)
+        except Exception as e:
+            logger.warning("[state] failed to activate IncidentCache: %s", e)
 
     @classmethod
     def get_active_incident(cls):
@@ -111,6 +118,14 @@ class AppState:
     @classmethod
     def get_active_session_id(cls):
         return cls._active_session_id
+
+    @classmethod
+    def set_active_api_session_id(cls, session_id):
+        cls._active_api_session_id = session_id
+
+    @classmethod
+    def get_active_api_session_id(cls):
+        return cls._active_api_session_id
 
     # Aliases for legacy names
     @classmethod

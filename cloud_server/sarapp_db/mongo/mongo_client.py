@@ -57,7 +57,10 @@ def get_client() -> MongoClient:
 
     uri = get_mongo_uri()
     try:
-        client: MongoClient = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        client: MongoClient = MongoClient(
+            uri,
+            serverSelectionTimeoutMS=5000,
+        )
         client.admin.command("ping")
         _client = client
         logger.info("MongoDB client connected.")

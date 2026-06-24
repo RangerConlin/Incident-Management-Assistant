@@ -10,11 +10,11 @@ Phase 5 focuses on unifying field and command operations with form workflows, re
 
 Field users can access and fill out mobile-friendly ICS forms (e.g., ICS 214, 213)
 
-Forms are tied to user, team, and incident context
+Forms are tied to user, team, and mission context
 
 Auto-fill key metadata (date, time, team, user)
 
-Submit to backend for inclusion in incident package
+Submit to backend for inclusion in mission package
 
 2. Dynamic Form Library (Form Engine Integration)
 
@@ -26,7 +26,7 @@ Submit responses synced to structured backend records
 
 3. After-Action Report (AAR) Submission
 
-At incident end, users can provide structured feedback
+At mission end, users can provide structured feedback
 
 Fielded form includes prompts for:
 
@@ -36,7 +36,7 @@ Safety issues
 
 Recommendations
 
-Submitted responses aid post-incident reviews
+Submitted responses aid post-mission reviews
 
 4. Incident Notifications & Broadcast Alerts
 
@@ -62,47 +62,47 @@ Backend Module
 
 Endpoint Needed
 
-DB Table
+Mongo Scope / Collection
 
 Fillable ICS Forms
 
 Forms / Docs
 
-GET /api/forms, POST /api/forms/submit
+GET /api/forms, incident form routes under /api/incidents/{incident_id}/forms
 
-FormResponses
+sarapp_master.form_templates, sarapp_incident_<id>.forms, form_instance_* collections
 
 Form Library Integration
 
 Forms / Reference
 
-GET /api/forms/library
+GET /api/forms, GET /api/master/reference-library routes
 
-FormTemplates
+sarapp_master.form_families, sarapp_master.form_templates, reference library storage
 
 After-Action Reports
 
-Planning
+Planning / Forms
 
-POST /api/mobile/aar
+No dedicated AAR endpoint currently exists. Use forms infrastructure for an AAR form until a first-class AAR router is added.
 
-AARs
+sarapp_incident_<id>.forms
 
 Broadcast Alerts
 
-Comms
+Comms / Notifications
 
-POST /api/command/broadcast
+No dedicated command broadcast or mobile push endpoint currently exists.
 
-Alerts
+Future notifications/alerts collection
 
 Resource Viewer
 
 Reference Library
 
-GET /api/mobile/resources
+GET /api/master/reference-library routes
 
-ReferenceFiles
+Reference library records and stored files
 
 📲 UI & Navigation Changes
 
@@ -155,3 +155,4 @@ Backend sync & testing
 15–17
 
 Final QA, usability checks, packaging
+

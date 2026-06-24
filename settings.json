@@ -126,17 +126,18 @@
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
         "team_type": 24,
-        "sortie": 87,
-        "name": 123,
+        "sortie": 53,
+        "name": 91,
         "leader": 130,
         "contact": 103,
         "status": 129,
         "assignment": 123,
         "location": 94,
-        "last_updated": 123
+        "last_updated": 57
     },
     "statusboard.task.columns.widths": {
         "assigned_teams": 116,
-        "number": 156
+        "number": 156,
+        "name": 131
     }
 }

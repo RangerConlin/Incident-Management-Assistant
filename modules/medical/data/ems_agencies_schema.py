@@ -13,10 +13,8 @@ from .mongo_access import get_master_db, strip_mongo_id
 logger = logging.getLogger(__name__)
 
 EMS_AGENCY_TYPES: tuple[str, ...] = (
-    "Ambulance",
-    "Hospital",
+    "Ground Ambulance",
     "Air Ambulance",
-    "Medical Aid",
     "Other",
 )
 
@@ -323,21 +321,21 @@ def _merge_group(groups: list[set[int]], new_ids: set[int]) -> None:
 
 
 def map_agencies_to_sections(rows: Sequence[Mapping[str, Any]]) -> Dict[str, List[Mapping[str, Any]]]:
-    """Partition agencies into ICS-206 sections."""
+    """Partition EMS agencies (ground/air ambulance services) into ICS-206 sections.
+
+    Hospitals are managed separately via the Hospital Manager and are not part
+    of this catalogue.
+    """
     sections: Dict[str, List[Mapping[str, Any]]] = {
         "Ambulance Services / Air Ambulance": [],
-        "Hospitals": [],
-        "Medical Aid Stations": [],
         "Other": [],
     }
     for row in rows:
         r_type = str(row.get("type") or "").strip()
-        if r_type in {"Ambulance", "Air Ambulance"}:
+        # "Ambulance" is accepted for backward compatibility with records
+        # created before the type was renamed to "Ground Ambulance".
+        if r_type in {"Ground Ambulance", "Ambulance", "Air Ambulance"}:
             key = "Ambulance Services / Air Ambulance"
-        elif r_type == "Hospital":
-            key = "Hospitals"
-        elif r_type == "Medical Aid":
-            key = "Medical Aid Stations"
         else:
             key = "Other"
         sections[key].append(dict(row))

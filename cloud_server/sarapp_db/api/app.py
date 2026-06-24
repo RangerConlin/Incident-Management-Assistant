@@ -160,4 +160,7 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import canned_comm_entries
     app.include_router(canned_comm_entries.router, prefix="/api/master/canned-comm-entries", tags=["communications"])
 
+    from sarapp_db.api.routers import incident_stream
+    app.include_router(incident_stream.router, prefix="/api", tags=["incident-cache"])
+
     return app

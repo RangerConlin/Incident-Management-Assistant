@@ -60,47 +60,47 @@ Backend Module
 
 Endpoint Needed
 
-DB Table
+Mongo Scope / Collection
 
 Map Dashboard
 
-Tracking
+GIS / Operations
 
-GET /api/command/map
+GET /api/incidents/{incident_id}/operations/team-assignment-rows, GIS routes under /api/incidents/{incident_id}/gis when map layers are needed
 
-LocationLogs, Teams
+sarapp_incident_<id>.teams, sarapp_incident_<id>.spatial_features, sarapp_incident_<id>.spatial_feature_links
 
 Task Status Board
 
-Planning / Ops
+Operations
 
-GET /api/command/tasks-status
+GET /api/incidents/{incident_id}/operations/task-rows, GET /api/incidents/{incident_id}/tasks/summary
 
-Tasks
+sarapp_incident_<id>.tasks
 
 Messaging Console
 
-Comms
+Communications
 
-POST /api/command/message
+Use existing comms routers under /api/incidents/{incident_id}/comms-log and related message routes; command broadcast API still to be defined
 
-Messages
+sarapp_incident_<id>.communications_log, sarapp_incident_<id>.ics_213_messages
 
 Personnel Tracker
 
-Personnel
+Check-In / Incident Resources
 
-GET /api/command/personnel-status
+GET /api/incidents/{incident_id}/checkin/roster, GET /api/incidents/{incident_id}/resources?resource_type=personnel
 
-Users, CheckIns
+sarapp_incident_<id>.checkins, sarapp_incident_<id>.check_in_out
 
 Team Assignment Tool
 
-Planning
+Operations / GIS
 
-POST /api/command/assign-sector
+POST /api/incidents/{incident_id}/operations/tasks/{task_id}/teams, PATCH /api/incidents/{incident_id}/operations/tasks/{task_id}/assignment
 
-Tasks, MapZones
+sarapp_incident_<id>.tasks, sarapp_incident_<id>.teams
 
 🧭 UI & Navigation (Command Side)
 
@@ -153,3 +153,5 @@ Backend integration and linking to Phase 2–3 mobile features
 15–17
 
 Final QA, bug fixes, and command UI cleanup
+
+

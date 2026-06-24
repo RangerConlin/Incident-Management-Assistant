@@ -1879,24 +1879,20 @@ class VehicleInventoryPanel(QWidget):
         }
 
         self.export_button.setEnabled(False)
-        if QFutureWatcher is None:
-            try:
-                result = self._perform_export(params)
-            except Exception as exc:  # pragma: no cover - runtime dependent
-                self.export_button.setEnabled(True)
-                self._show_toast("Export failed", str(exc), severity="error")
-                QMessageBox.critical(self, "Export failed", str(exc))
-                return
-
-            self.export_button.setEnabled(True)
-            self._handle_export_result(result)
+        if QFutureWatcher is not None and hasattr(QtConcurrent, "run"):
+            watcher = QFutureWatcher(self)
+            future = QtConcurrent.run(self._perform_export, params)
+            watcher.setFuture(future)
+            watcher.finished.connect(lambda: self._on_export_finished(watcher))
+            self._export_watcher = watcher
             return
 
-        watcher = QFutureWatcher(self)
-        future = QtConcurrent.run(self._perform_export, params)
-        watcher.setFuture(future)
-        watcher.finished.connect(lambda: self._on_export_finished(watcher))
-        self._export_watcher = watcher
+        worker = _ExportWorkerThread(self._perform_export, params, parent=self)
+        worker.completed.connect(self._on_export_finished)
+        worker.failed.connect(self._on_export_failed)
+        worker.finished.connect(lambda: self._on_export_worker_finished(worker))
+        self._export_worker = worker
+        worker.start()
 
     @staticmethod
     def _perform_export(params: dict[str, Any]) -> dict[str, Any]:

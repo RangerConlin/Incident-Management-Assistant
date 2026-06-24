@@ -76,47 +76,47 @@ Backend Module
 
 Endpoint Needed
 
-DB Table
+Mongo Scope / Collection
 
 Smart Auto-Fill Engine
 
 Forms
 
-GET /api/forms/suggest
+No current suggestion endpoint. Existing forms routers and binding data can provide source data for a future /api/forms/suggest route.
 
-N/A (dynamic)
+sarapp_master.form_templates, sarapp_incident_<id>.forms, incident profile, teams, tasks
 
 AI Assistant API
 
 System Help
 
-POST /api/ai/query
+No current AI assistant endpoint.
 
-—
+Future AI/help service; should read documented schemas and selected incident context
 
 Routing Suggestions
 
-Ops / Mapping
+Operations / GIS
 
-GET /api/tasks/route
+No current routing endpoint. Future route service should use GIS routes/layers and operations task locations.
 
-Tasks, Routes
+sarapp_incident_<id>.tasks, spatial_features, spatial_feature_links, hazards
 
 Task Reprioritization
 
-Planning
+Operations / Command
 
-GET /api/tasks/alerts
+GET /api/incidents/{incident_id}/alerts provides current alert basis; predictive reprioritization endpoint is future work.
 
-Tasks
+sarapp_incident_<id>.tasks, teams
 
 Incident Summary Builder
 
 Docs / Logs
 
-GET /api/incident/summary
+No current summary endpoint. Future summary should aggregate current module routers and form/log collections.
 
-Logs, Tasks
+sarapp_incident_<id>.communications_log, ics_214_logs, unit_logs, tasks, teams, hazards, forms
 
 🧭 UI & Navigation Additions
 
@@ -165,3 +165,4 @@ Backend wiring + optional LLM setup
 16–17
 
 Final polish and QA
+

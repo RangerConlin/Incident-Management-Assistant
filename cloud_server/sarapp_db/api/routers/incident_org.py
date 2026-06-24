@@ -1,7 +1,6 @@
 """FastAPI router — incident organization (ICS 203) CRUD."""
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
@@ -10,24 +9,62 @@ from pydantic import BaseModel
 
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 
-def _db(incident_id: str):
-    return get_incident_db(incident_id)
+class OrgPositionsRepository(BaseRepository):
+    collection_name = IncidentCollections.ORG_POSITIONS
+    soft_deletes = False
+
+
+class OrgTemplatesRepository(BaseRepository):
+    collection_name = IncidentCollections.ORG_TEMPLATES
+    soft_deletes = False
+
+
+class OrgAssignmentsRepository(BaseRepository):
+    collection_name = IncidentCollections.ORG_ASSIGNMENTS
+    soft_deletes = False
+
+
+class OrgHistoryRepository(BaseRepository):
+    collection_name = IncidentCollections.ORG_HISTORY
+    soft_deletes = False
+
+
+class OrgSnapshotsRepository(BaseRepository):
+    collection_name = IncidentCollections.ORG_SNAPSHOTS
+    soft_deletes = False
+
+
+def _positions_repo(incident_id: str) -> OrgPositionsRepository:
+    return OrgPositionsRepository(get_incident_db(incident_id))
+
+
+def _templates_repo(incident_id: str) -> OrgTemplatesRepository:
+    return OrgTemplatesRepository(get_incident_db(incident_id))
+
+
+def _assignments_repo(incident_id: str) -> OrgAssignmentsRepository:
+    return OrgAssignmentsRepository(get_incident_db(incident_id))
+
+
+def _history_repo(incident_id: str) -> OrgHistoryRepository:
+    return OrgHistoryRepository(get_incident_db(incident_id))
+
+
+def _snapshots_repo(incident_id: str) -> OrgSnapshotsRepository:
+    return OrgSnapshotsRepository(get_incident_db(incident_id))
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _new_id() -> str:
-    return str(uuid.uuid4())
-
-
-def _next_int_id(col, id_field: str) -> int:
-    docs = list(col.find({}, {id_field: 1}))
+def _next_int_id(repo: BaseRepository, id_field: str) -> int:
+    docs = repo.find_many({}, sort=None)
     ids = [doc[id_field] for doc in docs if isinstance(doc.get(id_field), int)]
     return max(ids, default=0) + 1
 
@@ -82,26 +119,24 @@ def _pos_to_dict(doc: dict) -> dict[str, Any]:
 
 @router.get("/{incident_id}/org/positions")
 def list_positions(incident_id: str, include_inactive: bool = False) -> list[dict[str, Any]]:
-    col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
+    repo = _positions_repo(incident_id)
     filt: dict[str, Any] = {"incident_id": incident_id}
     if not include_inactive:
         filt["status"] = "active"
-    docs = list(col.find(filt).sort([
+    docs = repo.find_many(filt, sort=[
         ("parent_position_id", 1),
         ("sort_order", 1),
         ("title", 1),
-    ]))
+    ])
     return [_pos_to_dict(d) for d in docs]
 
 
 @router.post("/{incident_id}/org/positions", status_code=201)
 def upsert_position(incident_id: str, body: UpsertPositionRequest) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
-    now = _utc_now()
+    repo = _positions_repo(incident_id)
     if body.position_id is None:
-        pid = _next_int_id(col, "position_id")
+        pid = _next_int_id(repo, "position_id")
         doc = {
-            "_id": _new_id(),
             "position_id": pid,
             "incident_id": incident_id,
             "title": body.title.strip(),
@@ -114,36 +149,31 @@ def upsert_position(incident_id: str, body: UpsertPositionRequest) -> dict[str, 
             "status": body.status or "active",
             "sort_order": body.sort_order,
             "notes": body.notes,
-            "created_at": now,
-            "updated_at": now,
         }
-        col.insert_one(doc)
+        repo.insert_one(doc)
         return {"position_id": pid}
-    result = col.update_one(
-        {"incident_id": incident_id, "position_id": body.position_id},
-        {"$set": {
-            "title": body.title.strip(),
-            "classification": body.classification.strip() or "position",
-            "parent_position_id": body.parent_position_id,
-            "operational_period": body.operational_period,
-            "required_qualifications": [q.strip() for q in body.required_qualifications if q.strip()],
-            "is_critical": body.is_critical,
-            "is_custom": body.is_custom,
-            "status": body.status or "active",
-            "sort_order": body.sort_order,
-            "notes": body.notes,
-            "updated_at": now,
-        }},
-    )
-    if result.matched_count == 0:
+    existing = repo.find_one({"incident_id": incident_id, "position_id": body.position_id})
+    if not existing:
         raise HTTPException(404, f"Position {body.position_id} not found")
+    repo.update_one(existing["_id"], {
+        "title": body.title.strip(),
+        "classification": body.classification.strip() or "position",
+        "parent_position_id": body.parent_position_id,
+        "operational_period": body.operational_period,
+        "required_qualifications": [q.strip() for q in body.required_qualifications if q.strip()],
+        "is_critical": body.is_critical,
+        "is_custom": body.is_custom,
+        "status": body.status or "active",
+        "sort_order": body.sort_order,
+        "notes": body.notes,
+    })
     return {"position_id": body.position_id}
 
 
 @router.get("/{incident_id}/org/positions/{position_id}")
 def get_position(incident_id: str, position_id: int) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
-    doc = col.find_one({"incident_id": incident_id, "position_id": position_id})
+    repo = _positions_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "position_id": position_id})
     if not doc:
         raise HTTPException(404, f"Position {position_id} not found")
     return _pos_to_dict(doc)
@@ -151,25 +181,21 @@ def get_position(incident_id: str, position_id: int) -> dict[str, Any]:
 
 @router.patch("/{incident_id}/org/positions/{position_id}/move")
 def move_position(incident_id: str, position_id: int, body: MovePositionRequest) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
-    result = col.update_one(
-        {"incident_id": incident_id, "position_id": position_id},
-        {"$set": {"parent_position_id": body.parent_position_id, "updated_at": _utc_now()}},
-    )
-    if result.matched_count == 0:
+    repo = _positions_repo(incident_id)
+    existing = repo.find_one({"incident_id": incident_id, "position_id": position_id})
+    if not existing:
         raise HTTPException(404, f"Position {position_id} not found")
+    repo.update_one(existing["_id"], {"parent_position_id": body.parent_position_id})
     return {"ok": True}
 
 
 @router.delete("/{incident_id}/org/positions/{position_id}")
 def deactivate_position(incident_id: str, position_id: int) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
-    result = col.update_one(
-        {"incident_id": incident_id, "position_id": position_id},
-        {"$set": {"status": "inactive", "updated_at": _utc_now()}},
-    )
-    if result.matched_count == 0:
+    repo = _positions_repo(incident_id)
+    existing = repo.find_one({"incident_id": incident_id, "position_id": position_id})
+    if not existing:
         raise HTTPException(404, f"Position {position_id} not found")
+    repo.update_one(existing["_id"], {"status": "inactive"})
     return {"ok": True}
 
 
@@ -178,13 +204,11 @@ def replace_requirements(
     incident_id: str, position_id: int, body: ReplaceRequirementsRequest
 ) -> dict[str, Any]:
     clean = [q.strip() for q in body.qualifications if q.strip()]
-    col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
-    result = col.update_one(
-        {"incident_id": incident_id, "position_id": position_id},
-        {"$set": {"required_qualifications": clean, "updated_at": _utc_now()}},
-    )
-    if result.matched_count == 0:
+    repo = _positions_repo(incident_id)
+    existing = repo.find_one({"incident_id": incident_id, "position_id": position_id})
+    if not existing:
         raise HTTPException(404, f"Position {position_id} not found")
+    repo.update_one(existing["_id"], {"required_qualifications": clean})
     return {"ok": True}
 
 
@@ -197,12 +221,13 @@ def list_units(
     incident_id: str,
     classifications: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
+    repo = _positions_repo(incident_id)
     default_classifications = {"branch", "division", "group", "staging_area"}
     cls_set = set(classifications.split(",")) if classifications else default_classifications
-    docs = list(col.find(
+    docs = repo.find_many(
         {"incident_id": incident_id, "status": "active", "classification": {"$in": list(cls_set)}},
-    ).sort([("sort_order", 1), ("title", 1)]))
+        sort=[("sort_order", 1), ("title", 1)],
+    )
     return [_pos_to_dict(d) for d in docs]
 
 
@@ -256,15 +281,15 @@ def _builtin_templates() -> list[dict[str, Any]]:
 
 @router.get("/{incident_id}/org/templates")
 def list_templates(incident_id: str) -> list[dict[str, Any]]:
-    col = _db(incident_id)[IncidentCollections.ORG_TEMPLATES]
-    custom = [_template_to_dict(d) for d in col.find({"incident_id": incident_id})]
+    repo = _templates_repo(incident_id)
+    custom = [_template_to_dict(d) for d in repo.find_many({"incident_id": incident_id})]
     return _builtin_templates() + custom
 
 
 @router.get("/{incident_id}/org/templates/by-name")
 def get_template_by_name(incident_id: str, name: str) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.ORG_TEMPLATES]
-    doc = col.find_one({"incident_id": incident_id, "name": name})
+    repo = _templates_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "name": name})
     if doc:
         return _template_to_dict(doc)
     for t in _builtin_templates():
@@ -275,11 +300,10 @@ def get_template_by_name(incident_id: str, name: str) -> dict[str, Any]:
 
 @router.post("/{incident_id}/org/templates", status_code=201)
 def save_template(incident_id: str, body: SaveTemplateRequest) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.ORG_TEMPLATES]
+    repo = _templates_repo(incident_id)
     if body.template_id is None or body.template_id < 0:
-        tid = _next_int_id(col, "template_id")
-        col.insert_one({
-            "_id": _new_id(),
+        tid = _next_int_id(repo, "template_id")
+        repo.insert_one({
             "template_id": tid,
             "incident_id": incident_id,
             "name": body.name,
@@ -287,20 +311,17 @@ def save_template(incident_id: str, body: SaveTemplateRequest) -> dict[str, Any]
             "payload": body.payload,
         })
         return {"template_id": tid}
-    result = col.update_one(
-        {"incident_id": incident_id, "template_id": body.template_id},
-        {"$set": {"name": body.name, "description": body.description, "payload": body.payload}},
-    )
-    if result.matched_count == 0:
+    existing = repo.find_one({"incident_id": incident_id, "template_id": body.template_id})
+    if not existing:
         raise HTTPException(404, f"Template {body.template_id} not found")
+    repo.update_one(existing["_id"], {"name": body.name, "description": body.description, "payload": body.payload})
     return {"template_id": body.template_id}
 
 
 @router.post("/{incident_id}/org/templates/apply", status_code=201)
 def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list[int]:
     """Create missing positions from a template payload; return position IDs."""
-    pos_col = _db(incident_id)[IncidentCollections.ORG_POSITIONS]
-    now = _utc_now()
+    pos_repo = _positions_repo(incident_id)
     key_to_id: dict[str, int] = {}
     applied_ids: list[int] = []
     for index, raw in enumerate(body.payload):
@@ -326,7 +347,7 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
         if isinstance(qualifications, str):
             qualifications = [q.strip() for q in qualifications.split(",") if q.strip()]
         # Idempotent: find existing active position with same title+classification+parent
-        existing = pos_col.find_one({
+        existing = pos_repo.find_one({
             "incident_id": incident_id,
             "title": title,
             "classification": classification,
@@ -336,9 +357,8 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
         if existing:
             pid = existing["position_id"]
         else:
-            pid = _next_int_id(pos_col, "position_id")
-            pos_col.insert_one({
-                "_id": _new_id(),
+            pid = _next_int_id(pos_repo, "position_id")
+            pos_repo.insert_one({
                 "position_id": pid,
                 "incident_id": incident_id,
                 "title": title,
@@ -351,8 +371,6 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
                 "status": status,
                 "sort_order": int(raw.get("sort_order", 0) or 0),
                 "notes": raw.get("notes"),
-                "created_at": now,
-                "updated_at": now,
             })
         key_to_id[key] = pid
         applied_ids.append(pid)
@@ -412,13 +430,12 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
     atype = (body.assignment_type or "primary").lower().strip()
     if atype not in _VALID_ASSIGNMENT_TYPES:
         raise HTTPException(400, f"Invalid assignment type: {body.assignment_type}")
-    asgn_col = _db(incident_id)[IncidentCollections.ORG_ASSIGNMENTS]
-    hist_col = _db(incident_id)[IncidentCollections.ORG_HISTORY]
+    asgn_repo = _assignments_repo(incident_id)
+    hist_repo = _history_repo(incident_id)
     now = _utc_now()
     start = body.start_time or now
-    aid = _next_int_id(asgn_col, "assignment_id")
-    asgn_col.insert_one({
-        "_id": _new_id(),
+    aid = _next_int_id(asgn_repo, "assignment_id")
+    asgn_repo.insert_one({
         "assignment_id": aid,
         "incident_id": incident_id,
         "position_id": body.position_id,
@@ -430,12 +447,9 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
         "operational_period": body.operational_period,
         "assigned_by": body.assigned_by,
         "notes": body.notes,
-        "created_at": now,
-        "updated_at": now,
     })
-    hid = _next_int_id(hist_col, "history_id")
-    hist_col.insert_one({
-        "_id": _new_id(),
+    hid = _next_int_id(hist_repo, "history_id")
+    hist_repo.insert_one({
         "history_id": hid,
         "incident_id": incident_id,
         "assignment_id": aid,
@@ -448,31 +462,24 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
         "operational_period": body.operational_period,
         "changed_by": body.assigned_by,
         "notes": body.notes,
-        "created_at": now,
     })
     return {"assignment_id": aid}
 
 
 @router.patch("/{incident_id}/org/assignments/{assignment_id}/end")
 def end_assignment(incident_id: str, assignment_id: int, body: EndAssignmentRequest) -> dict[str, Any]:
-    asgn_col = _db(incident_id)[IncidentCollections.ORG_ASSIGNMENTS]
-    hist_col = _db(incident_id)[IncidentCollections.ORG_HISTORY]
-    doc = asgn_col.find_one({"incident_id": incident_id, "assignment_id": assignment_id})
+    asgn_repo = _assignments_repo(incident_id)
+    hist_repo = _history_repo(incident_id)
+    doc = asgn_repo.find_one({"incident_id": incident_id, "assignment_id": assignment_id})
     if not doc:
         return {"ok": True}
-    now = _utc_now()
-    effective = body.end_time or now
-    asgn_col.update_one(
-        {"incident_id": incident_id, "assignment_id": assignment_id},
-        {"$set": {
-            "end_time": effective,
-            "updated_at": now,
-            **({"notes": body.notes} if body.notes else {}),
-        }},
-    )
-    hid = _next_int_id(hist_col, "history_id")
-    hist_col.insert_one({
-        "_id": _new_id(),
+    effective = body.end_time or _utc_now()
+    updates: dict[str, Any] = {"end_time": effective}
+    if body.notes:
+        updates["notes"] = body.notes
+    asgn_repo.update_one(doc["_id"], updates)
+    hid = _next_int_id(hist_repo, "history_id")
+    hist_repo.insert_one({
         "history_id": hid,
         "incident_id": incident_id,
         "assignment_id": assignment_id,
@@ -485,7 +492,6 @@ def end_assignment(incident_id: str, assignment_id: int, body: EndAssignmentRequ
         "operational_period": doc.get("operational_period"),
         "changed_by": body.changed_by,
         "notes": body.notes,
-        "created_at": now,
     })
     return {"ok": True}
 
@@ -496,13 +502,13 @@ def list_assignments(
     position_id: Optional[int] = None,
     active_only: bool = True,
 ) -> list[dict[str, Any]]:
-    col = _db(incident_id)[IncidentCollections.ORG_ASSIGNMENTS]
+    repo = _assignments_repo(incident_id)
     filt: dict[str, Any] = {"incident_id": incident_id}
     if position_id is not None:
         filt["position_id"] = position_id
     if active_only:
         filt["end_time"] = None
-    docs = list(col.find(filt).sort([("position_id", 1), ("start_time", 1), ("assignment_id", 1)]))
+    docs = repo.find_many(filt, sort=[("position_id", 1), ("start_time", 1), ("assignment_id", 1)])
     return [_assignment_to_dict(d) for d in docs]
 
 
@@ -512,11 +518,11 @@ def list_assignments_for_person(
     personnel_id: str,
     active_only: bool = True,
 ) -> list[dict[str, Any]]:
-    col = _db(incident_id)[IncidentCollections.ORG_ASSIGNMENTS]
+    repo = _assignments_repo(incident_id)
     filt: dict[str, Any] = {"incident_id": incident_id, "personnel_id": personnel_id}
     if active_only:
         filt["end_time"] = None
-    docs = list(col.find(filt).sort([("position_id", 1), ("start_time", 1)]))
+    docs = repo.find_many(filt, sort=[("position_id", 1), ("start_time", 1)])
     return [_assignment_to_dict(d) for d in docs]
 
 
@@ -524,11 +530,11 @@ def list_assignments_for_person(
 def list_assignment_history(
     incident_id: str, position_id: Optional[int] = None
 ) -> list[dict[str, Any]]:
-    col = _db(incident_id)[IncidentCollections.ORG_HISTORY]
+    repo = _history_repo(incident_id)
     filt: dict[str, Any] = {"incident_id": incident_id}
     if position_id is not None:
         filt["position_id"] = position_id
-    docs = list(col.find(filt).sort([("created_at", 1), ("history_id", 1)]))
+    docs = repo.find_many(filt, sort=[("created_at", 1), ("history_id", 1)])
     return [
         {
             "id": d["history_id"],
@@ -563,10 +569,9 @@ class SaveSnapshotRequest(BaseModel):
 
 @router.post("/{incident_id}/org/snapshots", status_code=201)
 def save_snapshot(incident_id: str, body: SaveSnapshotRequest) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.ORG_SNAPSHOTS]
-    sid = _next_int_id(col, "snapshot_id")
-    col.insert_one({
-        "_id": _new_id(),
+    repo = _snapshots_repo(incident_id)
+    sid = _next_int_id(repo, "snapshot_id")
+    repo.insert_one({
         "snapshot_id": sid,
         "incident_id": incident_id,
         "form_type": body.form_type,

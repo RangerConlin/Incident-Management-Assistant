@@ -1090,17 +1090,6 @@ class TaskDetailWindow(QWidget):
             pass
         deb_v.addWidget(self._deb_table, 2)
 
-        # Editor container (hidden until selection)
-        self._deb_editor = QWidget(self)
-        self._deb_editor.setVisible(False)
-        self._deb_editor_v = QVBoxLayout(self._deb_editor)
-        try:
-            self._deb_editor_v.setContentsMargins(6, 6, 6, 6)
-            self._deb_editor_v.setSpacing(6)
-        except Exception:
-            pass
-        deb_v.addWidget(self._deb_editor, 3)
-
         tabs.addTab(deb_content, "Debriefing")
         tabs.addTab(QLabel("Log - coming soon"), "Log")
         # Attachments/Forms tab
@@ -1717,7 +1706,19 @@ class TaskDetailWindow(QWidget):
 
     def _on_team_updates(self, *_args) -> None:
         try:
+            self.load_teams()
+        except Exception:
+            pass
+        try:
+            self.load_personnel()
+        except Exception:
+            pass
+        try:
             self.load_vehicles()
+        except Exception:
+            pass
+        try:
+            self._load_header()
         except Exception:
             pass
 
@@ -3452,6 +3453,7 @@ class TaskDetailWindow(QWidget):
             self._deb_table.selectionModel().selectionChanged.connect(lambda *_: self._on_debrief_selection_changed())
         except Exception:
             pass
+        self._on_debrief_selection_changed()
 
     def _debrief_type_labels(self) -> Dict[str, str]:
         return {
@@ -3481,7 +3483,7 @@ class TaskDetailWindow(QWidget):
         self._deb_model.removeRows(0, self._deb_model.rowCount())
         labels = self._debrief_type_labels()
         for r in rows:
-            rid = int(r.get("id") or 0)
+            rid = int(r.get("int_id") or r.get("id") or 0)
             sortie = str(r.get("sortie_number") or "")
             debriefer = str(r.get("debriefer_id") or "")
             types_keys = list(r.get("types") or [])
@@ -3499,6 +3501,13 @@ class TaskDetailWindow(QWidget):
                 QStandardItem(updated),
             ]
             row[0].setData(rid, Qt.EditRole)
+            try:
+                status_colors = {"Draft": "#888", "Submitted": "#d9a200", "Reviewed": "#2e9e3f", "Archived": "#666"}
+                color = status_colors.get(status, "#888")
+                from PySide6.QtGui import QColor, QBrush
+                row[4].setForeground(QBrush(QColor(color)))
+            except Exception:
+                pass
             self._deb_model.appendRow(row)
         try:
             self._deb_table.setColumnHidden(0, True)
@@ -3514,6 +3523,7 @@ class TaskDetailWindow(QWidget):
                 self._deb_info.setText(f"Task {int(self._task_id)} - Debriefs: {count}")
         except Exception:
             pass
+        self._on_debrief_selection_changed()
 
     def _selected_debrief_row(self) -> int:
         try:
@@ -3532,9 +3542,26 @@ class TaskDetailWindow(QWidget):
             return None
 
     def _on_debrief_selection_changed(self) -> None:
-        # No auto-open; editor launches on double-click
+        # Editor launches on double-click; here we just gate the toolbar buttons
+        # by the selected debrief's status so users can't submit/review/archive
+        # out of order.
+        r = self._selected_debrief_row()
+        if r < 0:
+            for b in (self._deb_submit_btn, self._deb_mark_rev_btn, self._deb_archive_btn, self._deb_delete_btn):
+                try:
+                    b.setEnabled(False)
+                except Exception:
+                    pass
+            return
         try:
-            self._deb_editor.setVisible(False)
+            status = str(self._deb_model.item(r, 4).text() or "Draft")
+        except Exception:
+            status = "Draft"
+        try:
+            self._deb_submit_btn.setEnabled(status == "Draft")
+            self._deb_mark_rev_btn.setEnabled(status == "Submitted")
+            self._deb_archive_btn.setEnabled(status in ("Submitted", "Reviewed"))
+            self._deb_delete_btn.setEnabled(status != "Archived")
         except Exception:
             pass
 
@@ -3713,7 +3740,7 @@ class TaskDetailWindow(QWidget):
         dlg = QDialog(self)
         try:
             dlg.setWindowTitle(f"Debrief Editor - ID {debrief_id}")
-            dlg.adjustSize()
+            dlg.resize(900, 700)
         except Exception:
             pass
         dlgl = QVBoxLayout(dlg)
@@ -3724,49 +3751,16 @@ class TaskDetailWindow(QWidget):
             head_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         except Exception:
             pass
-
-    def _teams_dev_delete(self) -> None:
-        """Dev-only: Permanently delete the selected team record and its assignments."""
-        try:
-            r = self._selected_team_row()
-            if r < 0:
-                return
-            from modules.operations.taskings.repository import list_task_teams
-            rows = list_task_teams(int(self._task_id)) or []
-            # Extract team_id and name for confirmation
-            team_id = None
-            team_name = ""
-            try:
-                team_id = int(rows[r].team_id)
-                team_name = str(rows[r].team_name or "")
-            except Exception:
-                try:
-                    v = (_to_variant(rows[r]) or {})
-                    team_id = int(v.get('team_id')) if v.get('team_id') is not None else None
-                    team_name = str(v.get('team_name') or "")
-                except Exception:
-                    team_id = None
-            if team_id is None:
-                return
-            from PySide6.QtWidgets import QMessageBox
-            resp = QMessageBox.warning(
-                self,
-                "Confirm Delete Team",
-                f"This will permanently delete team ID {team_id} ({team_name}) and remove all its task assignments.\nThis action cannot be undone.\n\nContinue",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            if resp != QMessageBox.Yes:
-                return
-            from modules.operations.taskings.repository import delete_team
-            delete_team(int(team_id))
-            # Refresh lists
-            self.load_teams()
-        except Exception:
-            pass
+        status_val = str(d.get("status") or "Draft")
+        is_locked = status_val in ("Reviewed", "Archived")
         sortie_edit = QLineEdit(head_box); sortie_edit.setText(str(d.get("sortie_number") or ""))
         deb_edit = QLineEdit(head_box); deb_edit.setText(str(d.get("debriefer_id") or ""))
-        status_lbl = QLabel(str(d.get("status") or "Draft"), head_box)
+        status_lbl = QLabel(status_val, head_box)
+        try:
+            status_colors = {"Draft": "#888", "Submitted": "#d9a200", "Reviewed": "#2e9e3f", "Archived": "#666"}
+            status_lbl.setStyleSheet(f"color: {status_colors.get(status_val, '#888')}; font-weight: bold;")
+        except Exception:
+            pass
         flag_cb = QCheckBox("Flag for Planning Review", head_box); flag_cb.setChecked(bool(d.get("flagged_for_review") or False))
         types_disp = ", ".join(self._debrief_type_labels().get(k, k) for k in list(d.get("types") or []))
         types_lbl = QLabel(types_disp, head_box)
@@ -3793,9 +3787,25 @@ class TaskDetailWindow(QWidget):
                     pass
         head_save.clicked.connect(_save_header)
         head_btn_row.addStretch(1); head_btn_row.addWidget(head_save)
+        if is_locked:
+            try:
+                sortie_edit.setReadOnly(True)
+                deb_edit.setReadOnly(True)
+                flag_cb.setEnabled(False)
+                head_save.setEnabled(False)
+                head_save.setToolTip(f"Debrief is {status_val} and locked from editing")
+            except Exception:
+                pass
         head_wrap = QVBoxLayout(); head_wrap.addWidget(head_box); head_wrap.addLayout(head_btn_row)
         head_container = QWidget(dlg); head_container.setLayout(head_wrap)
         dlgl.addWidget(head_container)
+        if is_locked:
+            lock_lbl = QLabel(f"This debrief is {status_val.lower()} and is read-only.", dlg)
+            try:
+                lock_lbl.setStyleSheet("color: #b00; font-style: italic;")
+            except Exception:
+                pass
+            dlgl.addWidget(lock_lbl)
 
         # Forms tabs
         forms_tabs = QTabWidget(dlg)
@@ -3837,8 +3847,18 @@ class TaskDetailWindow(QWidget):
             build_fn(w, lay, widgets)
             data = ((d.get("forms") or {}).get(key)) or {}
             _populate(widgets, data)
+            if is_locked:
+                for fw in widgets.values():
+                    try:
+                        if isinstance(fw, (QLineEdit, QTextEdit)):
+                            fw.setReadOnly(True)
+                        else:
+                            fw.setEnabled(False)
+                    except Exception:
+                        pass
             btn_row = QHBoxLayout()
             save_btn = QPushButton("Save", w)
+            save_btn.setEnabled(not is_locked)
             def _save_this_form():
                 try:
                     from modules.operations.taskings.repository import save_debrief_form, update_debrief_header
@@ -3977,6 +3997,9 @@ class TaskDetailWindow(QWidget):
             elif key == "air_general": _add_form_tab(title, key, _build_air_general)
             elif key == "air_sar": _add_form_tab(title, key, _build_air_sar)
 
+        # References tab: linked clues and subjects (always present, not type-bound)
+        self._build_debrief_references_tab(forms_tabs, dlg, debrief_id, d, is_locked)
+
         dlgl.addWidget(forms_tabs, 1)
         footer = QDialogButtonBox(QDialogButtonBox.Close, parent=dlg)
         try:
@@ -3990,296 +4013,322 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
 
-    def _open_debrief_editor(self, debrief_id: int) -> None:
+    def _build_debrief_references_tab(self, forms_tabs: QTabWidget, dlg: QWidget, debrief_id: int,
+                                       d: Dict[str, Any], is_locked: bool) -> None:
+        """Adds a 'Clues & Subjects' tab for linking intel items/subjects to a debrief."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QListWidget, QListWidgetItem
+
         try:
-            from modules.operations.taskings.repository import get_debrief, update_debrief_header
+            from utils import incident_context
+            incident_id = incident_context.get_active_incident_id()
         except Exception:
+            incident_id = None
+
+        page = QWidget(forms_tabs)
+        page_v = QVBoxLayout(page)
+
+        if not incident_id:
+            page_v.addWidget(QLabel("No active incident; cannot link clues or subjects.", page))
+            forms_tabs.addTab(page, "Clues & Subjects")
             return
-        d = {}
+
         try:
-            d = get_debrief(int(debrief_id)) or {}
+            from modules.intel.repositories.intel_items_repo import IntelItemsRepository
+            from modules.intel.repositories.subjects_repo import SubjectsRepository
+            from modules.intel.models.intel_items import IntelItem
+            from modules.intel.models.subjects import Subject, SUBJECT_TYPES, SubjectType
         except Exception:
-            d = {}
-        self._deb_editor.setVisible(True)
-        # Clear old editor
-        while True:
-            item = self._deb_editor_v.takeAt(0)
-            if not item:
-                break
-            w = item.widget()
-            if w is not None:
-                try:
-                    w.deleteLater()
-                except Exception:
-                    pass
-        # Header
-        head_box = QWidget(self._deb_editor); head_form = QFormLayout(head_box)
-        try:
-            head_form.setContentsMargins(0,0,0,0)
-        except Exception:
-            pass
-        sortie_edit = QLineEdit(head_box); sortie_edit.setText(str(d.get("sortie_number") or ""))
-        deb_edit = QLineEdit(head_box); deb_edit.setText(str(d.get("debriefer_id") or ""))
-        status_lbl = QLabel(str(d.get("status") or "Draft"), head_box)
-        flag_cb = QCheckBox("Flag for Planning Review", head_box); flag_cb.setChecked(bool(d.get("flagged_for_review") or False))
-        types_disp = ", ".join(self._debrief_type_labels().get(k, k) for k in list(d.get("types") or []))
-        types_lbl = QLabel(types_disp, head_box)
-        head_form.addRow("Sortie Number", sortie_edit)
-        head_form.addRow("Debriefer ID", deb_edit)
-        head_form.addRow("Types", types_lbl)
-        head_form.addRow("Status", status_lbl)
-        head_form.addRow("Flag", flag_cb)
-        head_btn_row = QHBoxLayout()
-        head_save = QPushButton("Save Header", head_box)
-        def _save_header():
-            patch = {
-                "sortie_number": sortie_edit.text().strip(),
-                "debriefer_id": deb_edit.text().strip(),
-                "flagged_for_review": 1 if flag_cb.isChecked() else 0,
-            }
+            page_v.addWidget(QLabel("Intel module is unavailable.", page))
+            forms_tabs.addTab(page, "Clues & Subjects")
+            return
+
+        items_repo = IntelItemsRepository(incident_id)
+        subjects_repo = SubjectsRepository(incident_id)
+
+        clue_ids: List[str] = list(d.get("linked_clue_ids") or [])
+        subject_ids: List[str] = list(d.get("linked_subject_ids") or [])
+
+        def _persist():
             try:
-                update_debrief_header(int(debrief_id), patch)
-                self.load_debriefs()
+                from modules.operations.taskings.repository import update_debrief_header
+                update_debrief_header(int(debrief_id), {
+                    "linked_clue_ids": clue_ids,
+                    "linked_subject_ids": subject_ids,
+                })
             except Exception as e:
                 try:
-                    QMessageBox.warning(self, "Debrief", f"Could not save header: {e}")
+                    QMessageBox.warning(self, "Debrief", f"Could not save references: {e}")
                 except Exception:
                     pass
-        head_save.clicked.connect(_save_header)
-        head_btn_row.addStretch(1); head_btn_row.addWidget(head_save)
-        head_wrap = QVBoxLayout(); head_wrap.addWidget(head_box); head_wrap.addLayout(head_btn_row)
-        head_container = QWidget(self._deb_editor); head_container.setLayout(head_wrap)
-        self._deb_editor_v.addWidget(head_container)
 
-        # Forms tabs
-        forms_tabs = QTabWidget(self._deb_editor)
-        self._deb_form_widgets: Dict[str, Dict[str, QWidget]] = {}
+        # --- Clues group ---
+        clues_box = QWidget(page)
+        clues_v = QVBoxLayout(clues_box)
+        clues_v.addWidget(QLabel("Linked Clues", clues_box))
+        clue_list = QListWidget(clues_box)
 
-        # --- Form builders ---
-        def _add_form_tab(title: str, key: str, build_fn):
-            w = QWidget(forms_tabs)
-            lay = QFormLayout()
-            try:
-                w.setLayout(lay)
-            except Exception:
-                pass
-            try:
-                lay.setLabelAlignment(Qt.AlignLeft)
-            except Exception:
-                pass
-            widgets: Dict[str, QWidget] = {}
-            build_fn(w, lay, widgets)
-            self._deb_form_widgets[key] = widgets
-            # Populate from stored data
-            data = ((d.get("forms") or {}).get(key)) or {}
-            self._populate_form_widgets(widgets, data)
-            # Save button per form
-            btn_row = QHBoxLayout()
-            save_btn = QPushButton("Save", w)
-            save_btn.clicked.connect(lambda _=None, k=key: self._save_debrief_form(int(debrief_id), k))
-            btn_row.addStretch(1); btn_row.addWidget(save_btn)
-            wrap = QVBoxLayout(); wrap.addWidget(w); wrap.addLayout(btn_row)
-            cont = QWidget(forms_tabs); cont.setLayout(wrap)
-            forms_tabs.addTab(cont, title)
-
-        # Helpers
-        def _time_edit(parent: QWidget) -> QLineEdit:
-            e = QLineEdit(parent)
-            try:
-                re = QRegularExpression(r"^(:[01][0-9]|2[0-3]):[0-5][0-9]$")
-                e.setValidator(QRegularExpressionValidator(re, e))
-                e.setPlaceholderText("HH:MM")
-            except Exception:
-                pass
-            return e
-
-        def _combo(parent: QWidget, items: List[str]) -> QComboBox:
-            cb = QComboBox(parent); cb.addItems(list(items))
-            return cb
-
-        # Ground (SAR)
-        def _build_ground(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
-            def _t(key, label):
-                te = QTextEdit(parent); te.setPlaceholderText(label)
-                te.setFixedHeight(60)
-                widgets[key] = te; lay.addRow(label, te)
-            _t("assignment_summary", "Assignment Summary")
-            _t("efforts", "Describe Search Efforts in Assignment")
-            _t("unable", "Describe Portions Unable to Search")
-            _t("clues", "Describe Clues/Tracks/Signs or any Interviews")
-            _t("hazards", "Describe any Hazards or Problems Encountered")
-            _t("suggestions", "Suggestions for Further Search Efforts In or Near Assignment")
-            te_in = _time_edit(parent); widgets["time_entered"] = te_in; lay.addRow("Time Entered", te_in)
-            te_out = _time_edit(parent); widgets["time_exited"] = te_out; lay.addRow("Time Exited", te_out)
-            ts = QLineEdit(parent); ts.setReadOnly(True); widgets["time_spent"] = ts; lay.addRow("Time Spent (hh:mm)", ts)
-            def _recalc():
+        def _refresh_clue_list():
+            clue_list.clear()
+            for cid in clue_ids:
                 try:
-                    t1 = te_in.text().strip()
-                    t2 = te_out.text().strip()
-                    if ":" in t1 and ":" in t2:
-                        h1, m1 = [int(x) for x in t1.split(":", 1)]
-                        h2, m2 = [int(x) for x in t2.split(":", 1)]
-                        mins = (h2*60+m2) - (h1*60+m1)
-                        if mins < 0:
-                            mins += 24*60
-                        widgets["time_spent"].setText(f"{mins//60:02d}:{mins%60:02d}")
+                    item = items_repo.get(cid)
+                    label = item.title if item else f"(missing clue {cid})"
                 except Exception:
-                    pass
+                    label = f"(error loading {cid})"
+                lw_item = QListWidgetItem(label)
+                lw_item.setData(Qt.UserRole, cid)
+                clue_list.addItem(lw_item)
+
+        _refresh_clue_list()
+        clues_v.addWidget(clue_list)
+        clue_btns = QHBoxLayout()
+        btn_add_clue = QPushButton("Add Existing...", clues_box)
+        btn_new_clue = QPushButton("New Clue...", clues_box)
+        btn_remove_clue = QPushButton("Remove", clues_box)
+        for b in (btn_add_clue, btn_new_clue, btn_remove_clue):
+            clue_btns.addWidget(b)
+        clue_btns.addStretch(1)
+        clues_v.addLayout(clue_btns)
+
+        def _pick_existing_clue():
             try:
-                te_in.textChanged.connect(_recalc)
-                te_out.textChanged.connect(_recalc)
+                existing = items_repo.list(item_type="Clue")
+            except Exception:
+                existing = []
+            choices = [c for c in existing if c.id not in clue_ids]
+            if not choices:
+                QMessageBox.information(dlg, "Add Clue", "No other clues available to link.")
+                return
+            pick = QDialog(dlg)
+            pick.setWindowTitle("Select Clue")
+            pv = QVBoxLayout(pick)
+            plist = QListWidget(pick)
+            for c in choices:
+                pi = QListWidgetItem(c.title)
+                pi.setData(Qt.UserRole, c.id)
+                plist.addItem(pi)
+            pv.addWidget(plist)
+            pbtns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=pick)
+            pv.addWidget(pbtns)
+            pbtns.accepted.connect(pick.accept)
+            pbtns.rejected.connect(pick.reject)
+            if pick.exec() == QDialog.Accepted:
+                row = plist.currentRow()
+                if row >= 0:
+                    clue_ids.append(plist.item(row).data(Qt.UserRole))
+                    _refresh_clue_list()
+                    _persist()
+
+        def _create_new_clue():
+            cdlg = QDialog(dlg)
+            cdlg.setWindowTitle("New Clue")
+            cv = QFormLayout(cdlg)
+            title_edit = QLineEdit(cdlg)
+            notes_edit = QTextEdit(cdlg); notes_edit.setFixedHeight(80)
+            loc_edit = QLineEdit(cdlg)
+            cv.addRow("Title", title_edit)
+            cv.addRow("Location", loc_edit)
+            cv.addRow("Notes", notes_edit)
+            cbtns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=cdlg)
+            cv.addRow(cbtns)
+            cbtns.accepted.connect(cdlg.accept)
+            cbtns.rejected.connect(cdlg.reject)
+            if cdlg.exec() == QDialog.Accepted:
+                title = title_edit.text().strip()
+                if not title:
+                    return
+                new_item = IntelItem(
+                    id="", incident_id=incident_id, item_type="Clue", title=title,
+                    location_text=loc_edit.text().strip() or None,
+                    notes=notes_edit.toPlainText().strip() or None,
+                )
+                created = items_repo.create(new_item)
+                if created:
+                    clue_ids.append(created.id)
+                    _refresh_clue_list()
+                    _persist()
+                else:
+                    QMessageBox.warning(dlg, "New Clue", "Could not create clue.")
+
+        def _remove_clue():
+            row = clue_list.currentRow()
+            if row < 0:
+                return
+            cid = clue_list.item(row).data(Qt.UserRole)
+            try:
+                clue_ids.remove(cid)
+            except ValueError:
+                pass
+            _refresh_clue_list()
+            _persist()
+
+        btn_add_clue.clicked.connect(_pick_existing_clue)
+        btn_new_clue.clicked.connect(_create_new_clue)
+        btn_remove_clue.clicked.connect(_remove_clue)
+        if is_locked:
+            for b in (btn_add_clue, btn_new_clue, btn_remove_clue):
+                b.setEnabled(False)
+        page_v.addWidget(clues_box)
+
+        # --- Subjects group ---
+        subjects_box = QWidget(page)
+        subjects_v = QVBoxLayout(subjects_box)
+        subjects_v.addWidget(QLabel("Linked Subjects (interviewees, contacts, etc.)", subjects_box))
+        subject_list = QListWidget(subjects_box)
+
+        def _refresh_subject_list():
+            subject_list.clear()
+            for sid in subject_ids:
+                try:
+                    s = subjects_repo.get(sid)
+                    label = f"{s.name} ({s.subject_type})" if s else f"(missing subject {sid})"
+                except Exception:
+                    label = f"(error loading {sid})"
+                lw_item = QListWidgetItem(label)
+                lw_item.setData(Qt.UserRole, sid)
+                subject_list.addItem(lw_item)
+
+        _refresh_subject_list()
+        subjects_v.addWidget(subject_list)
+        subject_btns = QHBoxLayout()
+        btn_add_subject = QPushButton("Add Existing...", subjects_box)
+        btn_new_subject = QPushButton("New Subject...", subjects_box)
+        btn_remove_subject = QPushButton("Remove", subjects_box)
+        for b in (btn_add_subject, btn_new_subject, btn_remove_subject):
+            subject_btns.addWidget(b)
+        subject_btns.addStretch(1)
+        subjects_v.addLayout(subject_btns)
+
+        def _pick_existing_subject():
+            try:
+                existing = subjects_repo.list()
+            except Exception:
+                existing = []
+            choices = [s for s in existing if s.id not in subject_ids]
+            if not choices:
+                QMessageBox.information(dlg, "Add Subject", "No other subjects available to link.")
+                return
+            pick = QDialog(dlg)
+            pick.setWindowTitle("Select Subject")
+            pv = QVBoxLayout(pick)
+            plist = QListWidget(pick)
+            for s in choices:
+                pi = QListWidgetItem(f"{s.name} ({s.subject_type})")
+                pi.setData(Qt.UserRole, s.id)
+                plist.addItem(pi)
+            pv.addWidget(plist)
+            pbtns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=pick)
+            pv.addWidget(pbtns)
+            pbtns.accepted.connect(pick.accept)
+            pbtns.rejected.connect(pick.reject)
+            if pick.exec() == QDialog.Accepted:
+                row = plist.currentRow()
+                if row >= 0:
+                    subject_ids.append(plist.item(row).data(Qt.UserRole))
+                    _refresh_subject_list()
+                    _persist()
+
+        def _create_new_subject():
+            cdlg = QDialog(dlg)
+            cdlg.setWindowTitle("New Subject")
+            cv = QFormLayout(cdlg)
+            name_edit = QLineEdit(cdlg)
+            type_combo = QComboBox(cdlg); type_combo.addItems(list(SUBJECT_TYPES))
+            try:
+                type_combo.setCurrentText(SubjectType.CONTACT)
             except Exception:
                 pass
-            # Conditions
-            lay.addRow(QLabel("Conditions"))
-            widgets["clouds"] = _combo(parent, ["", "Clear", "Scattered", "Broken", "Overcast"]); lay.addRow("Clouds", widgets["clouds"])
-            widgets["precipitation"] = _combo(parent, ["", "None", "Rain", "Scattered", "Snow"]); lay.addRow("Precipitation", widgets["precipitation"])
-            widgets["light"] = _combo(parent, ["", "Bright", "Dull", "Near Dark", "Night"]); lay.addRow("Light Conditions", widgets["light"])
-            widgets["visibility"] = _combo(parent, ["", "> 10 Miles", "> 5 Miles", "> 1 Mile", "< 1 Mile"]); lay.addRow("Visibility", widgets["visibility"])
-            widgets["terrain"] = _combo(parent, ["", "Flat", "Rolling Hills", "Rugged Hills", "Mtns"]); lay.addRow("Terrain", widgets["terrain"])
-            widgets["ground_cover"] = _combo(parent, ["", "Open", "Moderate", "Heavy", "Other"]); lay.addRow("Ground Cover", widgets["ground_cover"])
-            widgets["wind_speed"] = _combo(parent, ["", "Calm", "< 10 mph", "< 20 mph", "< 30 mph"]); lay.addRow("Wind Speed", widgets["wind_speed"])
-            # Attachments (booleans)
-            lay.addRow(QLabel("Attachments"))
-            for key, lab in [
-                ("map", "Debriefing Maps"),
-                ("brief", "Original Briefing Document"),
-                ("supp", "Supplemental Debriefing Forms"),
-                ("interviews", "Interview Log"),
-                ("other", "Other"),
-            ]:
-                cb = QCheckBox(lab, parent); widgets[f"att_{key}"] = cb; lay.addRow("", cb)
-
-        # Area Search Supplement
-        def _build_area(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
-            for key, lab in [
-                ("num_searchers", "Number of Searchers"),
-                ("time_spent", "Time Spent Searching"),
-                ("search_speed", "Search Speed"),
-                ("area_size", "Area Size (Actually Searched)"),
-                ("spacing", "Spacing"),
-                ("visibility_distance", "Visibility Distance"),
-                ("visibility_how", "How was Visibility Distance Determined"),
-                ("skipped_types", "Types of Areas Skipped Over"),
-                ("direction_pattern", "Describe the Direction and Pattern of your Search"),
-                ("comments", "Comments for Additional Area Searching of this Assignment"),
-            ]:
-                if key in ("comments", "direction_pattern", "visibility_distance", "visibility_how", "skipped_types"):
-                    w = QTextEdit(parent); w.setFixedHeight(60)
+            dob_edit = QLineEdit(cdlg); dob_edit.setPlaceholderText("YYYY-MM-DD")
+            phone_edit = QLineEdit(cdlg)
+            notes_edit = QTextEdit(cdlg); notes_edit.setFixedHeight(80)
+            cv.addRow("Name", name_edit)
+            cv.addRow("Type", type_combo)
+            cv.addRow("DOB", dob_edit)
+            cv.addRow("Phone", phone_edit)
+            cv.addRow("Notes", notes_edit)
+            cbtns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=cdlg)
+            cv.addRow(cbtns)
+            cbtns.accepted.connect(cdlg.accept)
+            cbtns.rejected.connect(cdlg.reject)
+            if cdlg.exec() == QDialog.Accepted:
+                name = name_edit.text().strip()
+                if not name:
+                    return
+                new_subject = Subject(
+                    id="", incident_id=incident_id, subject_type=type_combo.currentText(), name=name,
+                    dob=dob_edit.text().strip() or None,
+                    phone=phone_edit.text().strip() or None,
+                    notes=notes_edit.toPlainText().strip() or None,
+                )
+                created = subjects_repo.create(new_subject)
+                if created:
+                    subject_ids.append(created.id)
+                    _refresh_subject_list()
+                    _persist()
                 else:
-                    w = QLineEdit(parent)
-                w.setPlaceholderText(lab)
-                widgets[key] = w; lay.addRow(lab, w)
+                    QMessageBox.warning(dlg, "New Subject", "Could not create subject.")
 
-        # Tracking Team Supplement
-        def _build_tracking(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
-            for key, lab in [
-                ("likelihood_tracks", "Discuss Likelihood of Finding Tracks or Sign on the Trails"),
-                ("existing_traps", "Describe the Location and Nature of Existing Track Traps"),
-                ("erase_traps", "Did You Erase Any Track Traps"),
-                ("new_traps", "Did You Create Any New Track Traps"),
-                ("route_tracks", "Describe the Route Taken by Any Tracks You Followed"),
-                ("why_discontinue", "Why Did You Discontinue Following These Tracks"),
-            ]:
-                w = QTextEdit(parent); w.setFixedHeight(60)
-                w.setPlaceholderText(lab)
-                widgets[key] = w; lay.addRow(lab, w)
-            # Attachments booleans
-            lay.addRow(QLabel("Attachments"))
-            widgets["att_individual_sketches"] = QCheckBox("Individual Track Sketches Attached", parent); lay.addRow("", widgets["att_individual_sketches"])
-            widgets["att_trap_summary"] = QCheckBox("Track Trap Summary Sketches Attached", parent); lay.addRow("", widgets["att_trap_summary"])
+        def _remove_subject():
+            row = subject_list.currentRow()
+            if row < 0:
+                return
+            sid = subject_list.item(row).data(Qt.UserRole)
+            try:
+                subject_ids.remove(sid)
+            except ValueError:
+                pass
+            _refresh_subject_list()
+            _persist()
 
-        # Hasty Search Supplement
-        def _build_hasty(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
-            for key, lab in [
-                ("visibility", "Visibility During Search (Day/Dusk/Night/Other)"),
-                ("attract", "Describe Your Efforts to Attract a Responsive Subject"),
-                ("hear", "Describe Ability to Hear a Response (Background Noise)"),
-                ("trail_cond", "Describe the Trail Conditions"),
-                ("offtrail_cond", "Describe the Off-Trail Conditions"),
-                ("map_accuracy", "Does the Map Accurately Reflect the Trails"),
-                ("features", "Did You Locate Features That Would Likely Contain the Subject"),
-                ("tracking_cond", "How Are the Tracking Conditions"),
-                ("hazards_attract", "Describe any Hazards or Attractions You Found"),
-            ]:
-                w = QTextEdit(parent); w.setFixedHeight(60)
-                w.setPlaceholderText(lab)
-                widgets[key] = w; lay.addRow(lab, w)
+        btn_add_subject.clicked.connect(_pick_existing_subject)
+        btn_new_subject.clicked.connect(_create_new_subject)
+        btn_remove_subject.clicked.connect(_remove_subject)
+        if is_locked:
+            for b in (btn_add_subject, btn_new_subject, btn_remove_subject):
+                b.setEnabled(False)
+        page_v.addWidget(subjects_box)
 
-        # Air (General)
-        def _build_air_general(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
-            def _add(key, lab):
-                w = QTextEdit(parent) if key in ("summary", "results", "weather", "remarks") else QLineEdit(parent)
-                if isinstance(w, QTextEdit):
-                    w.setFixedHeight(60)
-                w.setPlaceholderText(lab)
-                widgets[key] = w; lay.addRow(lab, w)
-            for k, l in [
-                ("flight_plan_closed", "Flight Plan Closed (Yes/No)"),
-                ("atd", "ATD"), ("ata", "ATA"),
-                ("hobbs_start", "Hobbs Start"), ("hobbs_end", "Hobbs End"), ("hobbs_to_from", "Hobbs To/From"), ("hobbs_in_area", "Hobbs in Area"), ("hobbs_total", "Hobbs Total"),
-                ("tach_start", "Tach Start"), ("tach_end", "Tach End"),
-                ("fuel_used_gal", "Fuel Used (Gal)"), ("oil_used_qt", "Oil Used (Qt)"), ("fuel_oil_cost", "Fuel & Oil Cost"), ("receipt_no", "Receipt #"),
-                ("summary", "Summary"), ("results", "Results/Deliverables"), ("weather", "Weather Conditions"), ("remarks", "Remarks"),
-            ]:
-                _add(k, l)
-            widgets["sortie_effectiveness"] = _combo(parent, ["", "Successful", "Marginal", "Unsuccessful", "Not Flown", "Not Required"]); lay.addRow("Sortie Effectiveness", widgets["sortie_effectiveness"])
-            widgets["reason_not_success"] = _combo(parent, ["", "Weather", "Crew Unavailable", "Aircraft Maintenance", "Customer Cancellation", "Equipment Failure", "Other"]); lay.addRow("Reason (if not successful)", widgets["reason_not_success"])
-            lay.addRow(QLabel("Attachments/Documentation"))
-            for key, lab in [
-                ("capf104a", "CAPF 104A SAR"),
-                ("capf104b", "CAPF 104B Recon Summary"),
-                ("ics214", "ICS 214 Unit Log"),
-                ("receipts", "Receipts"),
-                ("aif_orm", "AIF ORM Matrix"),
-            ]:
-                cb = QCheckBox(lab, parent); widgets[f"att_{key}"] = cb; lay.addRow("", cb)
+        forms_tabs.addTab(page, "Clues & Subjects")
 
-        # Air (SAR Worksheet)
-        def _build_air_sar(parent: QWidget, lay: QFormLayout, widgets: Dict[str, QWidget]):
-            lay.addRow(QLabel("Search Area"))
-            for key, lab in [
-                ("name", "Name"), ("grid", "Grid"),
-                ("nw", "NW Corner (Lat/Long)"), ("ne", "NE Corner (Lat/Long)"),
-                ("sw", "SW Corner (Lat/Long)"), ("se", "SE Corner (Lat/Long)"),
-            ]:
-                widgets[f"area_{key}"] = QLineEdit(parent); widgets[f"area_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"area_{key}"])
-            lay.addRow(QLabel("Sortie Search Actual"))
-            for key, lab in [
-                ("pattern", "Search Pattern"), ("visibility_nm", "Search Visibility (NM)"), ("altitude_agl", "Search Altitude (AGL)"), ("speed_kts", "Search Speed (Knots)"), ("track_spacing_nm", "Track Spacing (NM)"),
-            ]:
-                widgets[f"act_{key}"] = QLineEdit(parent); widgets[f"act_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"act_{key}"])
-            widgets["act_terrain"] = _combo(parent, ["", "Flat", "Rolling Hills", "Rugged Hills", "Mountainous"]); lay.addRow("Terrain", widgets["act_terrain"])
-            widgets["act_cover"] = _combo(parent, ["", "Open", "Moderate", "Heavy", "Light Snow", "Heavy Snow"]); lay.addRow("Cover", widgets["act_cover"])
-            widgets["act_turbulence"] = _combo(parent, ["", "Light", "Moderate", "Heavy"]); lay.addRow("Turbulence", widgets["act_turbulence"])
-            for key, lab in [
-                ("pod", "Probability of Detection"),
-                ("time_to_search", "Time to Search Area"), ("time_started", "Time Started Search"), ("time_ended", "Time Ended Search"), ("time_in_area", "Time in Search Area"), ("time_from_area", "Time from Search Area"), ("total_sortie_time", "Total Sortie Time"),
-            ]:
-                widgets[f"act_{key}"] = QLineEdit(parent); widgets[f"act_{key}"].setPlaceholderText(lab); lay.addRow(lab, widgets[f"act_{key}"])
-            lay.addRow(QLabel("Crew Remarks and Notes"))
-            widgets["remarks_effectiveness"] = _combo(parent, ["", "Excellent", "Good", "Fair", "Poor"]); lay.addRow("Effectiveness", widgets["remarks_effectiveness"])
-            widgets["remarks_visibility"] = _combo(parent, ["", "Excellent", "Good", "Fair", "Poor"]); lay.addRow("Visibility", widgets["remarks_visibility"])
-
-        # Build tabs according to selected types
-        types_keys = list(d.get("types") or [])
-        labels = self._debrief_type_labels()
-        for key in types_keys:
-            title = labels.get(key, key)
-            if key == "ground":
-                _add_form_tab(title, key, _build_ground)
-            elif key == "area":
-                _add_form_tab(title, key, _build_area)
-            elif key == "tracking":
-                _add_form_tab(title, key, _build_tracking)
-            elif key == "hasty":
-                _add_form_tab(title, key, _build_hasty)
-            elif key == "air_general":
-                _add_form_tab(title, key, _build_air_general)
-            elif key == "air_sar":
-                _add_form_tab(title, key, _build_air_sar)
-
-        self._deb_editor_v.addWidget(forms_tabs)
+    def _teams_dev_delete(self) -> None:
+        """Dev-only: Permanently delete the selected team record and its assignments."""
+        try:
+            r = self._selected_team_row()
+            if r < 0:
+                return
+            from modules.operations.taskings.repository import list_task_teams
+            rows = list_task_teams(int(self._task_id)) or []
+            # Extract team_id and name for confirmation
+            team_id = None
+            team_name = ""
+            try:
+                team_id = int(rows[r].team_id)
+                team_name = str(rows[r].team_name or "")
+            except Exception:
+                try:
+                    v = (_to_variant(rows[r]) or {})
+                    team_id = int(v.get('team_id')) if v.get('team_id') is not None else None
+                    team_name = str(v.get('team_name') or "")
+                except Exception:
+                    team_id = None
+            if team_id is None:
+                return
+            from PySide6.QtWidgets import QMessageBox
+            resp = QMessageBox.warning(
+                self,
+                "Confirm Delete Team",
+                f"This will permanently delete team ID {team_id} ({team_name}) and remove all its task assignments.\nThis action cannot be undone.\n\nContinue",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if resp != QMessageBox.Yes:
+                return
+            from modules.operations.taskings.repository import delete_team
+            delete_team(int(team_id))
+            # Refresh lists
+            self.load_teams()
+        except Exception:
+            pass
 
     def _populate_form_widgets(self, widgets: Dict[str, QWidget], data: Dict[str, Any]) -> None:
         for k, w in widgets.items():
@@ -4318,28 +4367,6 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
         return out
-
-    def _save_debrief_form(self, debrief_id: int, form_key: str) -> None:
-        try:
-            from modules.operations.taskings.repository import save_debrief_form, update_debrief_header
-        except Exception:
-            return
-        widgets = (self._deb_form_widgets or {}).get(form_key) or {}
-        data = self._gather_form_widgets(widgets)
-        try:
-            save_debrief_form(int(debrief_id), str(form_key), dict(data))
-            # Flag for review when saved
-            update_debrief_header(int(debrief_id), {"flagged_for_review": 1})
-            self.load_debriefs()
-            try:
-                QMessageBox.information(self, "Debrief", "Saved.")
-            except Exception:
-                pass
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Debrief", f"Could not save: {e}")
-            except Exception:
-                pass
 
     def _submit_selected_debrief(self) -> None:
         did = self._selected_debrief_id()

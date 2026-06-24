@@ -8,12 +8,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QSizePolicy,
     QSpacerItem,
     QStatusBar,
     QTableWidget,
+    QTableWidgetItem,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -34,9 +36,11 @@ class WeatherTimelineWindow(QMainWindow):
         self.resize(1300, 720)
         self.api = WeatherApiManager.instance()
         self.api.dataUpdated.connect(self._handle_data)
-        self._stations = stations or []
+        self._stations: List[str] = list(stations or [])
         self._setup_ui()
         self._load_state()
+        if self._stations:
+            self.api.request_metar(self._stations)
 
     def _setup_ui(self) -> None:
         toolbar = QToolBar("Timeline Toolbar", self)
@@ -98,27 +102,84 @@ class WeatherTimelineWindow(QMainWindow):
         QWidget.setTabOrder(self.sun_toggle, self.table)
 
     def _handle_data(self, payload: dict) -> None:
-        self.table.setRowCount(0)
-        self.status_bar.showMessage("Timeline data pending live feed.")
+        metar = payload.get("metar") or {}
+        rows = [
+            (station, reading)
+            for station, reading in metar.items()
+            if not self._stations or station in self._stations
+        ]
+        self.table.setRowCount(len(rows))
+        for row, (station, reading) in enumerate(rows):
+            decoded = reading.get("decoded") or {}
+            temp = decoded.get("temp")
+            wdir = decoded.get("wdir")
+            wspd = decoded.get("wspd")
+            wind = f"{wdir}@{wspd}kt" if wdir is not None and wspd is not None else ""
+            precip = decoded.get("wxString") or ""
+            issued = reading.get("issued") or station
+            self.table.setItem(row, 0, QTableWidgetItem(str(issued)))
+            self.table.setItem(row, 1, QTableWidgetItem(f"{temp}°C" if temp is not None else ""))
+            self.table.setItem(row, 2, QTableWidgetItem(wind))
+            self.table.setItem(row, 3, QTableWidgetItem(str(precip)))
+        if rows:
+            self.status_bar.showMessage(f"Timeline updated — {len(rows)} station(s).")
+        else:
+            self.status_bar.showMessage("No data yet for tracked stations.")
 
     def _load_state(self) -> None:
-        geometry = weather_settings().value("geom/WeatherTimelineWindow")
+        store = weather_settings()
+        geometry = store.value("geom/WeatherTimelineWindow")
         if geometry:
             self.restoreGeometry(geometry)
+        if not self._stations:
+            saved = store.value("timeline/stations")
+            if saved:
+                self._stations = [s for s in str(saved).split(",") if s]
+
+    def _save_stations(self) -> None:
+        weather_settings().set_value("timeline/stations", ",".join(self._stations))
 
     def closeEvent(self, event) -> None:  # noqa: D401
         weather_settings().set_value("geom/WeatherTimelineWindow", self.saveGeometry())
         super().closeEvent(event)
 
-    # Placeholder slots
     def _add_station(self) -> None:
-        self.status_bar.showMessage("Add station not yet implemented.")
+        code, ok = QInputDialog.getText(self, "Add Station", "ICAO station code:")
+        if not ok or not code.strip():
+            return
+        code = code.strip().upper()
+        if code in self._stations:
+            self.status_bar.showMessage(f"{code} is already tracked.")
+            return
+        self._stations.append(code)
+        self._save_stations()
+        self.api.request_metar(self._stations)
+        self.status_bar.showMessage(f"Added station {code}.")
 
     def _remove_station(self) -> None:
-        self.status_bar.showMessage("Remove station not yet implemented.")
+        if not self._stations:
+            self.status_bar.showMessage("No stations to remove.")
+            return
+        code, ok = QInputDialog.getItem(
+            self, "Remove Station", "Station to remove:", self._stations, editable=False
+        )
+        if not ok or not code:
+            return
+        self._stations.remove(code)
+        self._save_stations()
+        self.table.setRowCount(0)
+        self.status_bar.showMessage(f"Removed station {code}.")
 
     def _change_interval(self) -> None:
-        self.status_bar.showMessage("Interval change not yet implemented.")
+        current = int(weather_settings().value("timeline/interval_minutes", 10) or 10)
+        minutes, ok = QInputDialog.getInt(
+            self, "Polling Interval", "Refresh interval (minutes):", current, 1, 120
+        )
+        if not ok:
+            return
+        weather_settings().set_value("timeline/interval_minutes", minutes)
+        self.api.configure_polling(minutes)
+        self.status_bar.showMessage(f"Polling interval set to {minutes} minute(s).")
 
     def _export_png(self) -> None:
         self.status_bar.showMessage("Export pending implementation.")

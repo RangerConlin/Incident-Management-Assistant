@@ -169,6 +169,29 @@ class ApprovalService:
             actor_id, resolved_role = self._resolve_actor(step.role)
             step.resolved_actor_id = actor_id
             step.resolved_role = resolved_role
+            self._notify_actor(step, actor_id)
+
+    def _notify_actor(self, step: StepInstance, actor_id: Optional[str]) -> None:
+        """Alert the current user when an approval step activates for them."""
+        if not actor_id:
+            return
+        try:
+            from utils.state import AppState
+            if str(AppState.get_active_user_id() or "") != str(actor_id):
+                return
+            from notifications.services import get_notifier
+            from notifications.models import Notification
+            get_notifier().notify(Notification(
+                title="Approval needed",
+                message=f"{step.label} is awaiting your approval.",
+                severity="priority",
+                category="administrative",
+                source="Approvals",
+                entity_type="approval_step",
+                entity_id=step.step_id,
+            ))
+        except Exception:
+            pass
 
     def _resolve_actor(self, role: str) -> tuple[Optional[str], Optional[str]]:
         from modules.command.incident_organization.controller import IncidentOrganizationController

@@ -8,7 +8,6 @@ those source modules are cut over.
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -17,9 +16,92 @@ from pydantic import BaseModel
 
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
+from sarapp_db.mongo.repository import BaseRepository
 
 master_router = APIRouter()
 incident_router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Repositories
+#
+# Master form catalog collections are keyed by sequential `int_id`; incident
+# form instances/links/exports/revisions/audit are keyed by app-defined
+# string ids (e.g. instance_id) or have no single-document identity at all
+# (audit/revisions are append-only logs). None carry BaseRepository's
+# `deleted` semantics, so soft_deletes is disabled throughout.
+# ---------------------------------------------------------------------------
+
+class FormFamiliesRepository(BaseRepository):
+    collection_name = MasterCollections.FORM_FAMILIES
+    soft_deletes = False
+
+
+class FormTemplatesRepository(BaseRepository):
+    collection_name = MasterCollections.FORM_TEMPLATES
+    soft_deletes = False
+
+
+class FormTemplateVersionsRepository(BaseRepository):
+    collection_name = MasterCollections.FORM_TEMPLATE_VERSIONS
+    soft_deletes = False
+
+
+class FormInstancesRepository(BaseRepository):
+    collection_name = IncidentCollections.FORMS
+    soft_deletes = False
+
+
+class FormInstanceAuditRepository(BaseRepository):
+    collection_name = IncidentCollections.FORM_INSTANCE_AUDIT
+    soft_deletes = False
+
+
+class FormInstanceLinksRepository(BaseRepository):
+    collection_name = IncidentCollections.FORM_INSTANCE_LINKS
+    soft_deletes = False
+
+
+class FormInstanceRevisionsRepository(BaseRepository):
+    collection_name = IncidentCollections.FORM_INSTANCE_REVISIONS
+    soft_deletes = False
+
+
+class FormInstanceExportsRepository(BaseRepository):
+    collection_name = IncidentCollections.FORM_INSTANCE_EXPORTS
+    soft_deletes = False
+
+
+def _families_repo() -> FormFamiliesRepository:
+    return FormFamiliesRepository(get_master_db())
+
+
+def _templates_repo() -> FormTemplatesRepository:
+    return FormTemplatesRepository(get_master_db())
+
+
+def _versions_repo() -> FormTemplateVersionsRepository:
+    return FormTemplateVersionsRepository(get_master_db())
+
+
+def _instances_repo(incident_id: str) -> FormInstancesRepository:
+    return FormInstancesRepository(get_incident_db(incident_id))
+
+
+def _instance_audit_repo(incident_id: str) -> FormInstanceAuditRepository:
+    return FormInstanceAuditRepository(get_incident_db(incident_id))
+
+
+def _instance_links_repo(incident_id: str) -> FormInstanceLinksRepository:
+    return FormInstanceLinksRepository(get_incident_db(incident_id))
+
+
+def _instance_revisions_repo(incident_id: str) -> FormInstanceRevisionsRepository:
+    return FormInstanceRevisionsRepository(get_incident_db(incident_id))
+
+
+def _instance_exports_repo(incident_id: str) -> FormInstanceExportsRepository:
+    return FormInstanceExportsRepository(get_incident_db(incident_id))
 
 
 # ---------------------------------------------------------------------------
@@ -30,11 +112,8 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _new_id() -> str:
-    return str(uuid.uuid4())
-
-
-def _ensure_int_ids(col) -> None:
+def _ensure_int_ids(repo: BaseRepository) -> None:
+    col = repo._col
     missing = list(col.find({"int_id": {"$exists": False}}, {"_id": 1}))
     if not missing:
         return
@@ -45,8 +124,8 @@ def _ensure_int_ids(col) -> None:
         next_id += 1
 
 
-def _next_int_id(col) -> int:
-    top = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+def _next_int_id(repo: BaseRepository) -> int:
+    top = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
     return (top["int_id"] + 1) if top else 1
 
 
@@ -126,8 +205,8 @@ def _instance_int_id(instance_id: str, incident_id: str) -> Optional[int]:
     return None
 
 
-def _next_instance_id(col, incident_id: str) -> str:
-    all_ids = [d.get("instance_id", "") for d in col.find({"incident_id": incident_id}, {"instance_id": 1})]
+def _next_instance_id(repo: FormInstancesRepository, incident_id: str) -> str:
+    all_ids = [d.get("instance_id", "") for d in repo.find_many({"incident_id": incident_id})]
     marker = f"{incident_id}-FORM-"
     max_n = max(
         (int(iid[len(marker):]) for iid in all_ids if isinstance(iid, str) and iid.startswith(marker)),
@@ -190,8 +269,8 @@ def _map_instance(doc: Dict[str, Any], incident_id: str, include_values: bool = 
 
 @master_router.get("/families")
 def list_families(code: Optional[str] = None, category: Optional[str] = None, active: Optional[bool] = None):
-    col = get_master_db()[MasterCollections.FORM_FAMILIES]
-    _ensure_int_ids(col)
+    repo = _families_repo()
+    _ensure_int_ids(repo)
     query: Dict[str, Any] = {}
     if code:
         query["code"] = code
@@ -199,18 +278,18 @@ def list_families(code: Optional[str] = None, category: Optional[str] = None, ac
         query["category"] = category
     if active is not None:
         query["is_active"] = active
-    docs = list(col.find(query, {"_id": 0}).sort("code", 1))
+    docs = repo.find_many(query, sort=[("code", 1)])
+    for d in docs:
+        d.pop("_id", None)
     return [_map_family(d) for d in docs]
 
 
 @master_router.post("/families", status_code=201)
 def create_family(body: Dict[str, Any] = Body(...)):
-    col = get_master_db()[MasterCollections.FORM_FAMILIES]
-    _ensure_int_ids(col)
-    now = _utcnow()
-    int_id = _next_int_id(col)
+    repo = _families_repo()
+    _ensure_int_ids(repo)
+    int_id = _next_int_id(repo)
     doc = {
-        "_id": _new_id(),
         "int_id": int_id,
         "code": body["code"],
         "title": body["title"],
@@ -218,19 +297,20 @@ def create_family(body: Dict[str, Any] = Body(...)):
         "category": body.get("category"),
         "default_agency": body.get("default_agency"),
         "is_active": bool(body.get("is_active", True)),
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
-    return _map_family(col.find_one({"int_id": int_id}, {"_id": 0}))
+    repo.insert_one(doc)
+    saved = repo.find_one({"int_id": int_id})
+    saved.pop("_id", None)
+    return _map_family(saved)
 
 
 @master_router.get("/families/{code}")
 def get_family_by_code(code: str):
-    col = get_master_db()[MasterCollections.FORM_FAMILIES]
-    doc = col.find_one({"code": code}, {"_id": 0})
+    repo = _families_repo()
+    doc = repo.find_one({"code": code})
     if not doc:
         raise HTTPException(status_code=404, detail="Form family not found")
+    doc.pop("_id", None)
     return _map_family(doc)
 
 
@@ -246,9 +326,9 @@ def list_templates(
     status: Optional[str] = None,
     active_only: bool = False,
 ):
-    tmpl_col = get_master_db()[MasterCollections.FORM_TEMPLATES]
-    fam_col = get_master_db()[MasterCollections.FORM_FAMILIES]
-    _ensure_int_ids(tmpl_col)
+    tmpl_repo = _templates_repo()
+    fam_repo = _families_repo()
+    _ensure_int_ids(tmpl_repo)
     query: Dict[str, Any] = {}
     if agency:
         query["agency"] = agency
@@ -259,16 +339,21 @@ def list_templates(
     if active_only:
         query["status"] = "active"
     if family_code:
-        fam = fam_col.find_one({"code": family_code}, {"int_id": 1})
+        fam = fam_repo.find_one({"code": family_code})
         if not fam:
             return []
         query["family_int_id"] = fam["int_id"]
         if active_only:
-            fam_active = fam_col.find_one({"code": family_code, "is_active": True})
+            fam_active = fam_repo.find_one({"code": family_code, "is_active": True})
             if not fam_active:
                 return []
-    docs = list(tmpl_col.find(query, {"_id": 0}).sort([("family_int_id", 1), ("agency", 1), ("code", 1)]))
-    family_map = {d["int_id"]: d for d in fam_col.find({}, {"_id": 0})}
+    docs = tmpl_repo.find_many(query, sort=[("family_int_id", 1), ("agency", 1), ("code", 1)])
+    for d in docs:
+        d.pop("_id", None)
+    family_docs = fam_repo.find_many({})
+    for d in family_docs:
+        d.pop("_id", None)
+    family_map = {d["int_id"]: d for d in family_docs}
     results = []
     for d in docs:
         row = _map_template(d)
@@ -282,12 +367,10 @@ def list_templates(
 
 @master_router.post("/templates", status_code=201)
 def create_template(body: Dict[str, Any] = Body(...)):
-    tmpl_col = get_master_db()[MasterCollections.FORM_TEMPLATES]
-    _ensure_int_ids(tmpl_col)
-    now = _utcnow()
-    int_id = _next_int_id(tmpl_col)
+    tmpl_repo = _templates_repo()
+    _ensure_int_ids(tmpl_repo)
+    int_id = _next_int_id(tmpl_repo)
     doc = {
-        "_id": _new_id(),
         "int_id": int_id,
         "family_int_id": body["family_id"],
         "agency": body.get("agency", ""),
@@ -300,34 +383,37 @@ def create_template(body: Dict[str, Any] = Body(...)):
         "compatibility": body.get("compatibility", {}),
         "tags": body.get("tags", []),
         "created_by": body.get("created_by"),
-        "created_at": now,
-        "updated_at": now,
     }
-    tmpl_col.insert_one(doc)
-    return _map_template(tmpl_col.find_one({"int_id": int_id}, {"_id": 0}))
+    tmpl_repo.insert_one(doc)
+    saved = tmpl_repo.find_one({"int_id": int_id})
+    saved.pop("_id", None)
+    return _map_template(saved)
 
 
 @master_router.get("/templates/{template_id}")
 def get_template(template_id: int):
-    tmpl_col = get_master_db()[MasterCollections.FORM_TEMPLATES]
-    ver_col = get_master_db()[MasterCollections.FORM_TEMPLATE_VERSIONS]
-    doc = tmpl_col.find_one({"int_id": template_id}, {"_id": 0})
+    tmpl_repo = _templates_repo()
+    ver_repo = _versions_repo()
+    doc = tmpl_repo.find_one({"int_id": template_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Template not found")
+    doc.pop("_id", None)
     result = _map_template(doc)
     if doc.get("current_version_int_id"):
-        ver = ver_col.find_one({"int_id": doc["current_version_int_id"]}, {"_id": 0})
+        ver = ver_repo.find_one({"int_id": doc["current_version_int_id"]})
         if ver:
+            ver.pop("_id", None)
             result["current_version"] = _map_version(ver)
     return result
 
 
 @master_router.patch("/templates/{template_id}/retire")
 def retire_template(template_id: int, user_id: Optional[str] = None):
-    tmpl_col = get_master_db()[MasterCollections.FORM_TEMPLATES]
-    result = tmpl_col.update_one({"int_id": template_id}, {"$set": {"status": "retired", "updated_at": _utcnow()}})
-    if result.matched_count == 0:
+    tmpl_repo = _templates_repo()
+    doc = tmpl_repo.find_one({"int_id": template_id})
+    if not doc:
         raise HTTPException(status_code=404, detail="Template not found")
+    tmpl_repo.update_one(doc["_id"], {"status": "retired"})
 
 
 # ===========================================================================
@@ -336,44 +422,52 @@ def retire_template(template_id: int, user_id: Optional[str] = None):
 
 @master_router.get("/templates/{template_id}/versions/current")
 def get_current_version(template_id: int):
-    tmpl_col = get_master_db()[MasterCollections.FORM_TEMPLATES]
-    ver_col = get_master_db()[MasterCollections.FORM_TEMPLATE_VERSIONS]
-    tmpl = tmpl_col.find_one({"int_id": template_id}, {"_id": 0})
+    tmpl_repo = _templates_repo()
+    ver_repo = _versions_repo()
+    tmpl = tmpl_repo.find_one({"int_id": template_id})
     if not tmpl or not tmpl.get("current_version_int_id"):
         raise HTTPException(status_code=404, detail="No current version found")
-    ver = ver_col.find_one({"int_id": tmpl["current_version_int_id"]}, {"_id": 0})
+    ver = ver_repo.find_one({"int_id": tmpl["current_version_int_id"]})
     if not ver:
         raise HTTPException(status_code=404, detail="Version not found")
+    ver.pop("_id", None)
     return _map_version(ver)
 
 
 @master_router.get("/templates/{template_id}/versions")
 def list_template_versions(template_id: int):
-    ver_col = get_master_db()[MasterCollections.FORM_TEMPLATE_VERSIONS]
-    _ensure_int_ids(ver_col)
-    docs = list(ver_col.find({"template_int_id": template_id}, {"_id": 0}).sort("version_number", 1))
+    ver_repo = _versions_repo()
+    _ensure_int_ids(ver_repo)
+    docs = ver_repo.find_many({"template_int_id": template_id}, sort=[("version_number", 1)])
+    for d in docs:
+        d.pop("_id", None)
     return [_map_version(d) for d in docs]
 
 
 @master_router.get("/templates/{template_id}/versions/{version_id}")
 def get_template_version(template_id: int, version_id: int):
-    ver_col = get_master_db()[MasterCollections.FORM_TEMPLATE_VERSIONS]
-    doc = ver_col.find_one({"template_int_id": template_id, "int_id": version_id}, {"_id": 0})
+    ver_repo = _versions_repo()
+    doc = ver_repo.find_one({"template_int_id": template_id, "int_id": version_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Version not found")
+    doc.pop("_id", None)
     return _map_version(doc)
 
 
 @master_router.post("/templates/{template_id}/versions", status_code=201)
 def create_template_version(template_id: int, body: Dict[str, Any] = Body(...)):
-    tmpl_col = get_master_db()[MasterCollections.FORM_TEMPLATES]
-    ver_col = get_master_db()[MasterCollections.FORM_TEMPLATE_VERSIONS]
-    _ensure_int_ids(ver_col)
+    tmpl_repo = _templates_repo()
+    ver_repo = _versions_repo()
+    _ensure_int_ids(ver_repo)
     now = _utcnow()
-    int_id = _next_int_id(ver_col)
-    ver_col.update_many({"template_int_id": template_id}, {"$set": {"is_current": False}})
+    int_id = _next_int_id(ver_repo)
+    # Bulk flip-off of is_current across all of this template's versions is
+    # not expressible via BaseRepository's per-document API; drop to the raw
+    # collection and broadcast each affected doc, mirroring update_one.
+    ver_repo._col.update_many({"template_int_id": template_id}, {"$set": {"is_current": False}})
+    for d in ver_repo._col.find({"template_int_id": template_id}):
+        ver_repo._broadcast("updated", d["_id"], d)
     doc = {
-        "_id": _new_id(),
         "int_id": int_id,
         "template_int_id": template_id,
         "version_number": body["version_number"],
@@ -392,9 +486,13 @@ def create_template_version(template_id: int, body: Dict[str, Any] = Body(...)):
         "created_at": now,
         "is_current": True,
     }
-    ver_col.insert_one(doc)
-    tmpl_col.update_one({"int_id": template_id}, {"$set": {"current_version_int_id": int_id, "updated_at": now}})
-    return _map_version(ver_col.find_one({"int_id": int_id}, {"_id": 0}))
+    ver_repo.insert_one(doc)
+    tmpl_doc = tmpl_repo.find_one({"int_id": template_id})
+    if tmpl_doc:
+        tmpl_repo.update_one(tmpl_doc["_id"], {"current_version_int_id": int_id})
+    saved = ver_repo.find_one({"int_id": int_id})
+    saved.pop("_id", None)
+    return _map_version(saved)
 
 
 # ===========================================================================
@@ -410,12 +508,14 @@ def list_instances(
     linked_module: Optional[str] = None,
     linked_record_id: Optional[str] = None,
 ):
-    col = get_incident_db(incident_id)[IncidentCollections.FORMS]
+    repo = _instances_repo(incident_id)
     query: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     for field, val in [("agency", agency), ("status", status), ("operational_period_id", operational_period_id), ("linked_module", linked_module), ("linked_record_id", linked_record_id)]:
         if val:
             query[field] = val
-    docs = list(col.find(query, {"_id": 0}).sort("updated_at", -1))
+    docs = repo.find_many(query, sort=[("updated_at", -1)])
+    for d in docs:
+        d.pop("_id", None)
     return [_map_instance(d, incident_id) for d in docs]
 
 
@@ -436,13 +536,11 @@ class CreateInstanceRequest(BaseModel):
 
 @incident_router.post("/incidents/{incident_id}/forms", status_code=201)
 def create_instance(incident_id: str, body: CreateInstanceRequest):
-    col = get_incident_db(incident_id)[IncidentCollections.FORMS]
-    audit_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_AUDIT]
-    links_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_LINKS]
-    now = _utcnow()
-    instance_id = _next_instance_id(col, incident_id)
+    repo = _instances_repo(incident_id)
+    audit_repo = _instance_audit_repo(incident_id)
+    links_repo = _instance_links_repo(incident_id)
+    instance_id = _next_instance_id(repo, incident_id)
     doc = {
-        "_id": _new_id(),
         "instance_id": instance_id,
         "incident_id": incident_id,
         "family_id": body.family_id,
@@ -456,9 +554,7 @@ def create_instance(incident_id: str, body: CreateInstanceRequest):
         "status": body.status,
         "revision_number": body.revision_number,
         "created_by": body.created_by,
-        "created_at": now,
         "updated_by": body.created_by,
-        "updated_at": now,
         "finalized_by": None,
         "finalized_at": None,
         "exported_pdf_path": None,
@@ -466,27 +562,25 @@ def create_instance(incident_id: str, body: CreateInstanceRequest):
         "values": {},
         "deleted": False,
     }
-    col.insert_one(doc)
-    rev_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_REVISIONS]
-    _write_instance_audit(audit_col, instance_id, None, "created", None, {"status": "draft"}, body.created_by, {})
-    _write_instance_revision(col, rev_col, instance_id, incident_id, body.revision_number, "created", body.created_by)
+    repo.insert_one(doc)
+    rev_repo = _instance_revisions_repo(incident_id)
+    _write_instance_audit(audit_repo, instance_id, None, "created", None, {"status": "draft"}, body.created_by, {})
+    _write_instance_revision(repo, rev_repo, instance_id, incident_id, body.revision_number, "created", body.created_by)
     if body.linked_module and body.linked_record_id:
-        links_col.insert_one({
-            "_id": _new_id(),
+        links_repo.insert_one({
             "instance_id": instance_id,
             "linked_module": body.linked_module,
             "linked_record_id": body.linked_record_id,
             "relationship_type": "source",
             "created_by": body.created_by,
-            "created_at": now,
         })
-    saved = col.find_one({"instance_id": instance_id}, {"_id": 0})
+    saved = repo.find_one({"instance_id": instance_id})
+    saved.pop("_id", None)
     return _map_instance(saved, incident_id, include_values=True)
 
 
-def _write_instance_audit(col, instance_id: str, field_key: Optional[str], action: str, old_value: Any, new_value: Any, user_id: Optional[str], details: Dict[str, Any]) -> None:
-    col.insert_one({
-        "_id": _new_id(),
+def _write_instance_audit(repo: FormInstanceAuditRepository, instance_id: str, field_key: Optional[str], action: str, old_value: Any, new_value: Any, user_id: Optional[str], details: Dict[str, Any]) -> None:
+    repo.insert_one({
         "instance_id": instance_id,
         "field_key": field_key,
         "action": action,
@@ -498,32 +592,42 @@ def _write_instance_audit(col, instance_id: str, field_key: Optional[str], actio
     })
 
 
-def _write_instance_revision(forms_col, rev_col, instance_id: str, incident_id: str, revision_number: int, summary: str, user_id: Optional[str]) -> None:
-    doc = forms_col.find_one({"instance_id": instance_id}, {"_id": 0})
+def _write_instance_revision(forms_repo: FormInstancesRepository, rev_repo: FormInstanceRevisionsRepository, instance_id: str, incident_id: str, revision_number: int, summary: str, user_id: Optional[str]) -> None:
+    doc = forms_repo.find_one({"instance_id": instance_id})
     if not doc:
         return
-    rev_col.update_one(
+    doc_copy = dict(doc)
+    doc_copy.pop("_id", None)
+    # Idempotent upsert keyed on a compound (instance_id, revision_number)
+    # pair rather than `_id`, using $setOnInsert so re-saving the same
+    # revision number is a no-op — not expressible via BaseRepository's
+    # generic methods, so we drop to the raw collection and broadcast
+    # ourselves, mirroring update_one's pattern.
+    rev_repo._col.update_one(
         {"instance_id": instance_id, "revision_number": revision_number},
         {"$setOnInsert": {
-            "_id": _new_id(),
             "instance_id": instance_id,
             "revision_number": revision_number,
-            "snapshot": doc,
+            "snapshot": doc_copy,
             "change_summary": summary,
             "created_by": user_id,
             "created_at": _utcnow(),
         }},
         upsert=True,
     )
+    saved = rev_repo._col.find_one({"instance_id": instance_id, "revision_number": revision_number})
+    if saved:
+        rev_repo._broadcast("created", saved["_id"], saved)
 
 
 @incident_router.get("/incidents/{incident_id}/forms/{instance_id}")
 def get_instance(incident_id: str, instance_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.FORMS]
+    repo = _instances_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    doc = col.find_one({"instance_id": compound_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Form instance not found")
+    doc.pop("_id", None)
     return _map_instance(doc, incident_id, include_values=True)
 
 
@@ -535,16 +639,15 @@ class UpsertValuesRequest(BaseModel):
 
 @incident_router.patch("/incidents/{incident_id}/forms/{instance_id}/values")
 def upsert_values(incident_id: str, instance_id: int, body: UpsertValuesRequest):
-    col = get_incident_db(incident_id)[IncidentCollections.FORMS]
-    audit_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_AUDIT]
-    rev_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_REVISIONS]
+    repo = _instances_repo(incident_id)
+    audit_repo = _instance_audit_repo(incident_id)
+    rev_repo = _instance_revisions_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    doc = col.find_one({"instance_id": compound_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Form instance not found")
     if doc.get("status") == "finalized":
         raise HTTPException(status_code=422, detail="finalized form cannot be edited unless reopened")
-    now = _utcnow()
     existing_values = doc.get("values") or {}
     value_updates: Dict[str, Any] = {}
     for key, payload in body.updates.items():
@@ -564,17 +667,17 @@ def upsert_values(incident_id: str, instance_id: int, body: UpsertValuesRequest)
             "is_overridden": bool(payload.get("is_overridden", False)),
             "override_reason": payload.get("override_reason"),
             "updated_by": body.user_id,
-            "updated_at": now,
+            "updated_at": _utcnow(),
         }
         value_updates[f"values.{key}"] = new_vdoc
-        _write_instance_audit(audit_col, compound_id, key, "value_updated", old_vdoc or None, payload, body.user_id, {"source_type": payload.get("source_type", "manual")})
+        _write_instance_audit(audit_repo, compound_id, key, "value_updated", old_vdoc or None, payload, body.user_id, {"source_type": payload.get("source_type", "manual")})
     new_revision = int(doc.get("revision_number", 1)) + 1
     value_updates["revision_number"] = new_revision
     value_updates["updated_by"] = body.user_id
-    value_updates["updated_at"] = now
-    col.update_one({"instance_id": compound_id}, {"$set": value_updates})
-    _write_instance_revision(col, rev_col, compound_id, incident_id, new_revision, "values saved", body.user_id)
-    updated = col.find_one({"instance_id": compound_id}, {"_id": 0})
+    repo.update_one(doc["_id"], value_updates)
+    _write_instance_revision(repo, rev_repo, compound_id, incident_id, new_revision, "values saved", body.user_id)
+    updated = repo.find_by_id(doc["_id"])
+    updated.pop("_id", None)
     return _map_instance(updated, incident_id, include_values=True)
 
 
@@ -584,23 +687,24 @@ class FinalizeRequest(BaseModel):
 
 @incident_router.post("/incidents/{incident_id}/forms/{instance_id}/finalize")
 def finalize_instance(incident_id: str, instance_id: int, body: FinalizeRequest):
-    col = get_incident_db(incident_id)[IncidentCollections.FORMS]
-    audit_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_AUDIT]
-    rev_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_REVISIONS]
+    repo = _instances_repo(incident_id)
+    audit_repo = _instance_audit_repo(incident_id)
+    rev_repo = _instance_revisions_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    doc = col.find_one({"instance_id": compound_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Form instance not found")
     if doc.get("status") == "finalized":
+        doc.pop("_id", None)
         return _map_instance(doc, incident_id, include_values=True)
-    now = _utcnow()
     new_revision = int(doc.get("revision_number", 1)) + 1
     lock_updates = {f"values.{k}.is_locked": True for k in (doc.get("values") or {})}
-    updates = {"status": "finalized", "finalized_by": body.user_id, "finalized_at": now, "updated_by": body.user_id, "updated_at": now, "revision_number": new_revision, **lock_updates}
-    col.update_one({"instance_id": compound_id}, {"$set": updates})
-    _write_instance_audit(audit_col, compound_id, None, "finalized", None, {"status": "finalized"}, body.user_id, {})
-    _write_instance_revision(col, rev_col, compound_id, incident_id, new_revision, "finalized", body.user_id)
-    updated = col.find_one({"instance_id": compound_id}, {"_id": 0})
+    updates = {"status": "finalized", "finalized_by": body.user_id, "finalized_at": _utcnow(), "updated_by": body.user_id, "revision_number": new_revision, **lock_updates}
+    repo.update_one(doc["_id"], updates)
+    _write_instance_audit(audit_repo, compound_id, None, "finalized", None, {"status": "finalized"}, body.user_id, {})
+    _write_instance_revision(repo, rev_repo, compound_id, incident_id, new_revision, "finalized", body.user_id)
+    updated = repo.find_by_id(doc["_id"])
+    updated.pop("_id", None)
     return _map_instance(updated, incident_id, include_values=True)
 
 
@@ -611,62 +715,64 @@ class ReopenRequest(BaseModel):
 
 @incident_router.post("/incidents/{incident_id}/forms/{instance_id}/reopen")
 def reopen_instance(incident_id: str, instance_id: int, body: ReopenRequest):
-    col = get_incident_db(incident_id)[IncidentCollections.FORMS]
-    audit_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_AUDIT]
-    rev_col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_REVISIONS]
+    repo = _instances_repo(incident_id)
+    audit_repo = _instance_audit_repo(incident_id)
+    rev_repo = _instance_revisions_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    doc = col.find_one({"instance_id": compound_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Form instance not found")
-    now = _utcnow()
     new_revision = int(doc.get("revision_number", 1)) + 1
-    col.update_one({"instance_id": compound_id}, {"$set": {"status": "draft", "finalized_by": None, "finalized_at": None, "updated_by": body.user_id, "updated_at": now, "revision_number": new_revision}})
-    _write_instance_audit(audit_col, compound_id, None, "reopened", None, {"status": "draft"}, body.user_id, {"reason": body.reason})
-    _write_instance_revision(col, rev_col, compound_id, incident_id, new_revision, "reopened", body.user_id)
-    updated = col.find_one({"instance_id": compound_id}, {"_id": 0})
+    repo.update_one(doc["_id"], {"status": "draft", "finalized_by": None, "finalized_at": None, "updated_by": body.user_id, "revision_number": new_revision})
+    _write_instance_audit(audit_repo, compound_id, None, "reopened", None, {"status": "draft"}, body.user_id, {"reason": body.reason})
+    _write_instance_revision(repo, rev_repo, compound_id, incident_id, new_revision, "reopened", body.user_id)
+    updated = repo.find_by_id(doc["_id"])
+    updated.pop("_id", None)
     return _map_instance(updated, incident_id, include_values=True)
 
 
 @incident_router.patch("/incidents/{incident_id}/forms/{instance_id}/exported-pdf")
 def set_exported_pdf(incident_id: str, instance_id: int, path: str, user_id: Optional[str] = None):
-    col = get_incident_db(incident_id)[IncidentCollections.FORMS]
+    repo = _instances_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    result = col.update_one({"instance_id": compound_id}, {"$set": {"exported_pdf_path": path, "updated_by": user_id, "updated_at": _utcnow()}})
-    if result.matched_count == 0:
+    doc = repo.find_one({"instance_id": compound_id})
+    if not doc:
         raise HTTPException(status_code=404, detail="Form instance not found")
+    repo.update_one(doc["_id"], {"exported_pdf_path": path, "updated_by": user_id})
 
 
 @incident_router.post("/incidents/{incident_id}/forms/{instance_id}/exports", status_code=201)
 def create_export_record(incident_id: str, instance_id: int, body: Dict[str, Any] = Body(...)):
-    col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_EXPORTS]
+    repo = _instance_exports_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    now = _utcnow()
     doc = {
-        "_id": _new_id(),
         "instance_id": compound_id,
         "export_type": body["export_type"],
         "export_path": body["export_path"],
         "template_version_id": body["template_version_id"],
         "revision_number": body["revision_number"],
         "created_by": body.get("created_by"),
-        "created_at": now,
         "checksum": body.get("checksum"),
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return {**doc, "_id": None, "id": None}
 
 
 @incident_router.get("/incidents/{incident_id}/forms/{instance_id}/revisions")
 def list_revisions(incident_id: str, instance_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_REVISIONS]
+    repo = _instance_revisions_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    docs = list(col.find({"instance_id": compound_id}, {"_id": 0}).sort("revision_number", 1))
+    docs = repo.find_many({"instance_id": compound_id}, sort=[("revision_number", 1)])
+    for d in docs:
+        d.pop("_id", None)
     return docs
 
 
 @incident_router.get("/incidents/{incident_id}/forms/{instance_id}/audit")
 def list_audit(incident_id: str, instance_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.FORM_INSTANCE_AUDIT]
+    repo = _instance_audit_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    docs = list(col.find({"instance_id": compound_id}, {"_id": 0}).sort([("timestamp", 1), ("_id", 1)]))
+    docs = repo.find_many({"instance_id": compound_id}, sort=[("timestamp", 1), ("_id", 1)])
+    for d in docs:
+        d.pop("_id", None)
     return docs

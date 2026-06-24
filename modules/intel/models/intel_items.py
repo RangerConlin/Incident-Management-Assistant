@@ -140,5 +140,7 @@ class IntelItem:
             "trend": self.trend,
             "location_text": self.location_text,
             "notes": self.notes,
+            "linked_subject_ids": self.linked_subject_ids,
+            "linked_task_ids": self.linked_task_ids,
             "linked_team_ids": self.linked_team_ids,
         }

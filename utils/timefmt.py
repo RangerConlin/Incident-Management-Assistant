@@ -132,9 +132,51 @@ def to_datetime(value: Any) -> Optional[datetime]:
     return _coerce_datetime(value)
 
 
+_TZ_ABBR_MAP = {
+    'Eastern Standard Time': 'EST',
+    'Eastern Daylight Time': 'EDT',
+    'Central Standard Time': 'CST',
+    'Central Daylight Time': 'CDT',
+    'Mountain Standard Time': 'MST',
+    'Mountain Daylight Time': 'MDT',
+    'Pacific Standard Time': 'PST',
+    'Pacific Daylight Time': 'PDT',
+    'Alaska Standard Time': 'AKST',
+    'Alaska Daylight Time': 'AKDT',
+    'Hawaii-Aleutian Standard Time': 'HST',
+    'Hawaii-Aleutian Daylight Time': 'HDT',
+    'Atlantic Standard Time': 'AST',
+    'Atlantic Daylight Time': 'ADT',
+    'Newfoundland Standard Time': 'NST',
+    'Newfoundland Daylight Time': 'NDT',
+    'Greenwich Mean Time': 'GMT',
+    'Coordinated Universal Time': 'UTC',
+}
+
+
+def abbreviate_tz_name(name: str) -> str:
+    """Map a verbose timezone name (e.g. Windows' "Eastern Standard Time") to its abbreviation (EST).
+
+    Already-abbreviated names (EST, UTC, GMT) pass through unchanged.
+    """
+
+    name = (name or '').strip()
+    if not name:
+        return ''
+    upper = name.upper()
+    if upper in {'UTC', 'GMT'}:
+        return upper
+    if name in _TZ_ABBR_MAP:
+        return _TZ_ABBR_MAP[name]
+    parts = [w for w in name.replace('-', ' ').split() if w]
+    abbr = ''.join(p[0].upper() for p in parts)
+    return abbr if 2 <= len(abbr) <= 5 else name
+
+
 __all__ = [
     "humanize_relative",
     "format_local_hhmm",
     "minutes_since",
     "to_datetime",
+    "abbreviate_tz_name",
 ]

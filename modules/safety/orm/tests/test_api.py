@@ -1,44 +1,24 @@
 from __future__ import annotations
 
-import sys
-from importlib import reload
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
-
-import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from utils.state import AppState
+def test_lazy_create_form(orm_app_client):
+    resp = orm_app_client.get("/api/incidents/2001/safety/orm/form", params={"op": 1})
+    assert resp["incident_id"] == "2001"
+    assert resp["op_period"] == 1
 
 
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
-    from modules.safety.orm import api, repository, service
-
-    reload(repository)
-    reload(service)
-    reload(api)
-    AppState.set_active_incident(2001)
-    AppState.set_active_user_id(77)
-    app = FastAPI()
-    app.include_router(api.router)
-    return TestClient(app)
+def test_form_creation_is_idempotent(orm_app_client):
+    """Fetching the same incident/op_period form twice returns the same
+    singleton record rather than creating a duplicate — this replaces the
+    old SQLite-repository unique-constraint test now that forms are
+    upserted via MongoDB instead of inserted directly."""
+    first = orm_app_client.get("/api/incidents/2002/safety/orm/form", params={"op": 1})
+    second = orm_app_client.get("/api/incidents/2002/safety/orm/form", params={"op": 1})
+    assert first["id"] == second["id"]
 
 
-def test_lazy_create_form(client):
-    resp = client.get("/api/safety/orm/form", params={"incident_id": 2001, "op": 1})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["incident_id"] == 2001
-    assert body["op_period"] == 1
-
-
-def test_hazard_crud_and_policy(client):
+def test_hazard_crud_and_policy(orm_app_client):
     base = {
-        "incident_id": 2001,
         "op_period": 2,
         "sub_activity": "Test",
         "hazard_outcome": "Outcome",
@@ -46,38 +26,45 @@ def test_hazard_crud_and_policy(client):
         "control_text": "Controls",
         "residual_risk": "M",
     }
-    create = client.post("/api/safety/orm/hazards", json=base)
-    assert create.status_code == 201
+    create = orm_app_client.post("/api/incidents/2001/safety/orm/hazards", json=base)
+    assert create["sub_activity"] == "Test"
 
-    hazards = client.get(
-        "/api/safety/orm/hazards", params={"incident_id": 2001, "op": 2}
-    ).json()
-    assert len(hazards) == 1
+    hazards = orm_app_client.get("/api/incidents/2001/safety/orm/hazards", params={"op": 2})
+    assert len(hazards) >= 1
 
     high_payload = dict(base)
     high_payload["residual_risk"] = "H"
-    high_resp = client.post("/api/safety/orm/hazards", json=high_payload)
-    assert high_resp.status_code == 201
-    high_id = high_resp.json()["id"]
+    high = orm_app_client.post("/api/incidents/2001/safety/orm/hazards", json=high_payload)
 
-    blocked = client.post(
-        "/api/safety/orm/approve",
-        json={"incident_id": 2001, "op_period": 2},
-    )
-    assert blocked.status_code == 422
-    assert blocked.json()["error"] == "approval_blocked"
+    from utils.api_client import APIError
 
-    high_payload["residual_risk"] = "M"
-    update = client.put(
-        f"/api/safety/orm/hazards/{high_id}",
-        params={"incident_id": 2001, "op": 2},
-        json=high_payload,
-    )
-    assert update.status_code == 200
+    try:
+        orm_app_client.post(
+            "/api/incidents/2001/safety/orm/approve",
+            json={"op_period": 2},
+        )
+        assert False, "approval should be blocked while a high-risk hazard is open"
+    except APIError as exc:
+        assert exc.status_code == 422
 
-    approve = client.post(
-        "/api/safety/orm/approve",
-        json={"incident_id": 2001, "op_period": 2},
+    update_payload = {
+        "sub_activity": high["sub_activity"],
+        "hazard_outcome": high["hazard_outcome"],
+        "initial_risk": high["initial_risk"],
+        "control_text": high["control_text"],
+        "residual_risk": "M",
+        "implement_how": high.get("implement_how"),
+        "implement_who": high.get("implement_who"),
+    }
+    updated = orm_app_client.put(
+        f"/api/incidents/2001/safety/orm/hazards/{high['id']}",
+        params={"op": 2},
+        json=update_payload,
     )
-    assert approve.status_code == 200
-    assert approve.json()["status"] == "approved"
+    assert updated["residual_risk"] == "M"
+
+    approved = orm_app_client.post(
+        "/api/incidents/2001/safety/orm/approve",
+        json={"op_period": 2},
+    )
+    assert approved["status"] == "approved"

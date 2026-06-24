@@ -22,6 +22,15 @@ from PySide6.QtWidgets import (
 
 from utils.styles import team_status_colors, task_status_colors, get_palette, subscribe_theme
 
+
+def _settings() -> QSettings:
+    # Bare QSettings() relies on QCoreApplication's organization/application
+    # name being set elsewhere, which nothing in this app does — on Windows
+    # that means the native registry backend silently fails to round-trip
+    # values. Pass identity explicitly so persistence actually works,
+    # independent of whatever (if anything) sets it app-wide.
+    return QSettings("SARApp", "ProjectionDashboard")
+
 # Use incident DB repositories for source data (no fake seed data here)
 try:  # pragma: no cover - repos may be unavailable in some test contexts
     from modules.operations.data.repository import (
@@ -207,7 +216,7 @@ class TeamBoard(QFrame):
             return
         self._widths_applied = True
         try:
-            widths = QSettings().value(self._settings_group(), [])
+            widths = _settings().value(self._settings_group(), [])
             if isinstance(widths, str):
                 widths = [part for part in widths.split(",") if part]
             if not isinstance(widths, list):
@@ -227,7 +236,7 @@ class TeamBoard(QFrame):
                 self.table.columnWidth(index)
                 for index in range(self.table.columnCount() - 1)
             ]
-            QSettings().setValue(self._settings_group(), widths)
+            _settings().setValue(self._settings_group(), widths)
         except Exception:
             pass
 

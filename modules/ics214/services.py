@@ -46,6 +46,13 @@ def update_stream(incident_id: str, stream_id: str, data: StreamUpdate):
     )
 
 
+def set_stream_status(incident_id: str, stream_id: str, status: str) -> Dict[str, Any]:
+    return _client().patch(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/status",
+        json={"status": status},
+    )
+
+
 # Entries --------------------------------------------------------------------
 
 def add_entry(
@@ -100,6 +107,13 @@ def delete_entry(incident_id: str, entry_id: str, stream_id: str | None = None) 
 
 
 # Event ingestion -------------------------------------------------------------
+
+def add_ingest_rule(incident_id: str, stream_id: str, topic: str, template: str, enabled: bool = True) -> Dict[str, Any]:
+    return _client().post(
+        f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/ingest-rules",
+        json={"topic": topic, "template": template, "enabled": enabled},
+    )
+
 
 def ingest_event_to_entries(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     incident_id = event["incident_id"]

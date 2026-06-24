@@ -195,7 +195,7 @@ class PDFFiller:
 
         # --- col_patterns path (mapper-driven arrays) ---
         col_patterns = rg.get("col_patterns")
-        if col_patterns:
+        if col_patterns or rg.get("row_fields"):
             return self._fill_col_patterns_group(
                 rg, data, page0_field_values, warnings
             )
@@ -405,27 +405,53 @@ class PDFFiller:
         field_values: dict[str, Any],
         warnings: list[str],
     ) -> list[str]:
-        """Fill PDF fields driven by col_patterns (mapper-assigned arrays)."""
+        """Fill fixed PDF rows from an array source."""
         import re as _re
 
         data_key: str = rg.get("data_key", rg.get("ref", ""))
         col_patterns: dict[str, str] = rg.get("col_patterns", {})
+        row_fields: list[dict[str, Any]] = rg.get("row_fields", [])
         col_checkboxes: set[str] = set(rg.get("col_checkboxes", []))
         rows_per_page: list[int] = rg.get("rows_per_page", [1])
         max_rows: int = rows_per_page[0] if rows_per_page else 1
         row_offset: int = rg.get("row_offset", 0)
 
-        rows: list[dict[str, Any]] = data.get(data_key) or []
+        rows = self._lookup_path(data, data_key) if data_key else []
+        if rows is None:
+            rows = []
+        if not isinstance(rows, list):
+            warnings.append(f"row_group '{rg.get('ref', data_key)}' expected list data at '{data_key}'")
+            return warnings
+
+        def row_value(row: dict[str, Any], source_key: str) -> Any:
+            if not source_key:
+                return None
+            return self._lookup_path(row, source_key)
 
         for row_idx, row in enumerate(rows[row_offset:row_offset + max_rows]):
+            if not isinstance(row, dict):
+                warnings.append(f"row_group '{rg.get('ref', data_key)}' skipped non-object row {row_idx + 1}")
+                continue
             n = row_offset + row_idx + 1  # 1-based, accounting for offset
             for col_id, pattern in col_patterns.items():
                 if not pattern:
                     continue
                 field_name = _re.sub(r"\{n\}", str(n), pattern, flags=_re.IGNORECASE)
-                value = row.get(col_id)
+                value = row_value(row, col_id)
                 if col_id in col_checkboxes:
                     field_values[field_name] = "X" if value else ""
+                else:
+                    field_values[field_name] = "" if value is None else str(value)
+            for fdef in row_fields:
+                if int(fdef.get("row", 0)) != n:
+                    continue
+                field_name = str(fdef.get("pdf_field") or "")
+                if not field_name:
+                    continue
+                source_key = str(fdef.get("source_key") or "")
+                value = row_value(row, source_key)
+                if fdef.get("checkbox"):
+                    field_values[field_name] = self._checkbox_value(value, fdef)
                 else:
                     field_values[field_name] = "" if value is None else str(value)
 

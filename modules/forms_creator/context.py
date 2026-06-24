@@ -111,6 +111,7 @@ class FormDataContext:
         data["narrative"]       = []
         data["meetings"]        = self._build_meetings(inc_id)
         data["subject"]         = {"name": "", "sex": "", "dob": "", "race": "", "lkp_place": "", "lkp_time": ""}
+        data["debrief"]         = self._empty_debrief_shape()
 
         data["aircraft"]        = self._build_aircraft()
         data["personnel"]       = self._build_personnel()
@@ -319,6 +320,90 @@ class FormDataContext:
             return _get(f"/api/incidents/{inc_id}/meetings") or []
         except Exception:
             return []
+
+    # ------------------------------------------------------------------
+    # Debrief (single record — selected at form-generation time)
+    # ------------------------------------------------------------------
+
+    _DEBRIEF_TYPE_KEYS = ("ground", "area", "tracking", "hasty", "air_general", "air_sar")
+
+    @classmethod
+    def _empty_debrief_shape(cls) -> dict[str, Any]:
+        """Default empty shape so debrief.* paths always resolve, even with
+        no debrief selected for this form-fill run."""
+        shape: dict[str, Any] = {
+            "sortie_number": "",
+            "debriefer_id": "",
+            "status": "",
+            "flagged_for_review": False,
+            "types": "",
+            "created_at": "",
+            "updated_at": "",
+            "linked_clue_ids": [],
+            "linked_subject_ids": [],
+            "linked_clues_summary": "",
+            "linked_subjects_summary": "",
+        }
+        for tk in cls._DEBRIEF_TYPE_KEYS:
+            shape[tk] = {}
+        return shape
+
+    def build_debrief(self, debrief_id: int, incident_id: str | None = None) -> dict[str, Any]:
+        """Build the flattened data for a single debrief record, for use as
+        ``extra_data={"debrief": ...}`` when generating a debrief-derived form."""
+        inc_id = incident_id or incident_context.get_active_incident_id()
+        result = self._empty_debrief_shape()
+        if not inc_id:
+            return result
+        try:
+            doc = _get(f"/api/incidents/{inc_id}/operations/debriefs/{debrief_id}") or {}
+        except Exception:
+            doc = {}
+        if not doc:
+            return result
+
+        result["sortie_number"] = doc.get("sortie_number") or ""
+        result["debriefer_id"] = doc.get("debriefer_id") or ""
+        result["status"] = doc.get("status") or "Draft"
+        result["flagged_for_review"] = bool(doc.get("flagged_for_review"))
+        result["types"] = ", ".join(doc.get("types") or [])
+        result["created_at"] = doc.get("created_at") or ""
+        result["updated_at"] = doc.get("updated_at") or ""
+
+        forms = doc.get("forms") or {}
+        for tk in self._DEBRIEF_TYPE_KEYS:
+            result[tk] = dict(forms.get(tk) or {})
+
+        clue_ids = list(doc.get("linked_clue_ids") or [])
+        subject_ids = list(doc.get("linked_subject_ids") or [])
+        result["linked_clue_ids"] = clue_ids
+        result["linked_subject_ids"] = subject_ids
+
+        try:
+            from modules.intel.repositories.intel_items_repo import IntelItemsRepository
+            items_repo = IntelItemsRepository(inc_id)
+            titles = []
+            for cid in clue_ids:
+                item = items_repo.get(cid)
+                if item:
+                    titles.append(item.title)
+            result["linked_clues_summary"] = "; ".join(titles)
+        except Exception:
+            pass
+
+        try:
+            from modules.intel.repositories.subjects_repo import SubjectsRepository
+            subjects_repo = SubjectsRepository(inc_id)
+            names = []
+            for sid in subject_ids:
+                s = subjects_repo.get(sid)
+                if s:
+                    names.append(f"{s.name} ({s.subject_type})")
+            result["linked_subjects_summary"] = "; ".join(names)
+        except Exception:
+            pass
+
+        return result
 
     # ------------------------------------------------------------------
     # Aircraft (master)

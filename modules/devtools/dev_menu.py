@@ -1,8 +1,12 @@
 """Developer utilities menu attachment."""
 
+import os
+import subprocess
+import sys
+
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QMessageBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QMessageBox, QInputDialog, QLineEdit, QTextEdit
 
 from .panels.template_debug_panel import TemplateDebugPanel
 from .panels.profile_manager_panel import ProfileManagerPanel
@@ -113,3 +117,64 @@ def attach_dev_menu(main_window):
 
     act_seed.triggered.connect(_run_seed)
     dev_menu.addAction(act_seed)
+
+    # Sync Local -> Cloud MongoDB
+    act_cloud_sync = QAction("Sync Local -> Cloud…", main_window)
+
+    def _run_cloud_sync():
+        cloud_uri = os.environ.get("SARAPP_CLOUD_MONGO_URI", "").strip()
+        if not cloud_uri:
+            cloud_uri, ok = QInputDialog.getText(
+                main_window,
+                "Sync Local -> Cloud",
+                "Cloud MongoDB URI (set SARAPP_CLOUD_MONGO_URI to skip this prompt):",
+                QLineEdit.Normal,
+            )
+            if not ok or not cloud_uri.strip():
+                return
+            cloud_uri = cloud_uri.strip()
+
+        confirm = QMessageBox.warning(
+            main_window,
+            "Sync Local -> Cloud",
+            "This will REPLACE every master and incident database on the cloud "
+            "server with the local copy. Existing cloud-only data will be lost.\n\n"
+            "Continue?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        script_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "data", "db", "sync_local_to_cloud.py",
+        )
+        env = os.environ.copy()
+        env["SARAPP_CLOUD_MONGO_URI"] = cloud_uri
+
+        try:
+            result = subprocess.run(
+                [sys.executable, script_path],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            output = result.stdout + ("\n" + result.stderr if result.stderr else "")
+        except Exception as e:
+            output = f"Failed to run sync script: {e}"
+
+        dlg = QDialog(main_window)
+        dlg.setWindowTitle("Sync Local -> Cloud — Result")
+        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        v = QVBoxLayout(dlg)
+        text = QTextEdit(dlg)
+        text.setReadOnly(True)
+        text.setPlainText(output)
+        v.addWidget(text)
+        dlg.resize(700, 500)
+        dlg.exec()
+
+    act_cloud_sync.triggered.connect(_run_cloud_sync)
+    dev_menu.addAction(act_cloud_sync)

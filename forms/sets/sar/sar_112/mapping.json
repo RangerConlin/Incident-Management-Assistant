@@ -1,0 +1,18 @@
+{
+  "description": "SAR 112 - Area Search Debrief (Ground Supplement)",
+  "fields": [
+    { "pdf_field": "1 INCIDENT NAME", "source": "incident.name" },
+    { "pdf_field": "2 OPERATIONAL PERIOD", "source": "op_period.number" },
+    { "pdf_field": "3ASSIGNMENT NUMBER", "source": { "first_of": ["debrief.sortie_number", "tasks.0.task_id"] } },
+    { "pdf_field": "4 NUMBER OF SEARCHERS", "source": "debrief.area.num_searchers" },
+    { "pdf_field": "5 TIME SPENT SEARCHING", "source": "debrief.area.time_spent" },
+    { "pdf_field": "6 SEARCH SPEED", "source": "debrief.area.search_speed" },
+    { "pdf_field": "7 AREA SIZE ACTUALLY SEARCHED", "source": "debrief.area.area_size" },
+    { "pdf_field": "8 SPACING", "source": "debrief.area.spacing" },
+    { "pdf_field": "9 VISIBILITY DISTANCE", "source": "debrief.area.visibility_distance" },
+    { "pdf_field": "10 HOW WAS VISIBILITY DISTANCE DETERMINEDRow1", "source": "debrief.area.visibility_how" },
+    { "pdf_field": "11 TYPES OF AREAS SKIPPED OVER IE HEAVY BRUSH WETLANDS CLIFFSRow1", "source": "debrief.area.skipped_types" },
+    { "pdf_field": "12 DESCRIBE THE DIRECTION AND PATTERN OF YOUR SEARCHRow1", "source": "debrief.area.direction_pattern" },
+    { "pdf_field": "13 COMMENTS FOR ADDITIONAL AREA SEARCHING OF THIS ASSIGNMENTRow1", "source": "debrief.area.comments" }
+  ]
+}

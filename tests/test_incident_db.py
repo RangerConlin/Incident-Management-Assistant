@@ -129,35 +129,47 @@ def test_create_incident_database_initializes_template_schema(incident_data_dir:
 
 
 def test_fresh_incident_supports_team_task_and_assignment_creation(incident_data_dir: Path) -> None:
+    """Teams/tasks/task-team assignments are MongoDB-backed via the SARApp API
+    (modules/operations/teams/data/repository.py, modules/operations/taskings/
+    repository.py) — they don't live in the per-incident SQLite database
+    `create_incident_database` scaffolds. Verify through the real API
+    in-process instead of querying SQLite tables that this data never
+    touches.
+    """
+    import os
+
+    os.environ.setdefault("SARAPP_MONGO_URI", "mongodb://localhost:27017")
+    from sarapp_db.api.app import create_app
+    from utils.api_client import api_client, DEFAULT_BASE_URL
+
     incident_number = "INC-OPS-001"
-    db_path = create_incident_database(incident_number)
+    create_incident_database(incident_number)
     AppState.set_active_incident(incident_number)
 
-    team = team_repository.save_team(Team(name="Alpha", team_type="GT"))
-    assert team.team_id is not None
+    app = create_app()
+    api_client.configure_test_transport(app)
+    try:
+        team = team_repository.save_team(Team(name="Alpha", team_type="GT"))
+        assert team.team_id is not None
 
-    task_id = task_repository.create_task(title="Search Sector Alpha")
-    assert task_id > 0
+        task_id = task_repository.create_task(title="Search Sector Alpha")
+        assert task_id > 0
 
-    task_team_id = task_repository.add_task_team(task_id, team.team_id, "S-001", True)
-    assert task_team_id > 0
+        task_team_id = task_repository.add_task_team(task_id, team.team_id, "S-001", True)
+        assert task_team_id > 0
 
-    with sqlite3.connect(db_path) as conn:
-        team_row = conn.execute(
-            "SELECT id, name, team_type, current_task_id FROM teams WHERE id=?",
-            (team.team_id,),
-        ).fetchone()
-        task_row = conn.execute(
-            "SELECT id, task_id, title, status FROM tasks WHERE id=?",
-            (task_id,),
-        ).fetchone()
-        link_row = conn.execute(
-            "SELECT task_id, teamid, sortie_id, is_primary FROM task_teams WHERE id=?",
-            (task_team_id,),
-        ).fetchone()
+        fetched_team = team_repository.get_team(team.team_id)
+        assert fetched_team.name == "Alpha"
+        assert fetched_team.team_type == "GT"
 
-    assert team_row == (team.team_id, "Alpha", "GT", task_id)
-    assert task_row[0] == task_id
-    assert task_row[2] == "Search Sector Alpha"
-    assert task_row[3] == "Draft"
-    assert link_row == (task_id, team.team_id, "S-001", 1)
+        fetched_task = task_repository.get_task(task_id)
+        assert fetched_task.title == "Search Sector Alpha"
+        assert fetched_task.status == "Created"  # "Draft" normalizes to the "Created" status key
+
+        teams_on_task = task_repository.list_task_teams(task_id)
+        assert len(teams_on_task) == 1
+        assert teams_on_task[0].team_id == team.team_id
+        assert teams_on_task[0].sortie_number == "S-001"
+        assert teams_on_task[0].primary is True
+    finally:
+        api_client.configure(DEFAULT_BASE_URL)

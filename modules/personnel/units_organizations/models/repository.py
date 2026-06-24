@@ -10,6 +10,8 @@ from typing import Any
 
 from utils.api_client import api_client
 
+from .seed_data import seed_if_needed
+
 
 @dataclass(slots=True)
 class DeleteResult:
@@ -23,7 +25,7 @@ class UnitsOrganizationsRepository:
     """API-backed repository for the Units and Organizations master-data editor."""
 
     def __init__(self) -> None:
-        pass
+        seed_if_needed()
 
     # ---- Lookup helpers -------------------------------------------------------
     def list_organization_types(self, include_inactive: bool = True) -> list[dict[str, Any]]:
@@ -81,20 +83,40 @@ class UnitsOrganizationsRepository:
     # ---- Rank rows CRUD ------------------------------------------------------
     def list_ranks(self, rank_structure_id: int) -> list[dict[str, Any]]:
         try:
-            return api_client.get("/api/master/ranks", params={"structure_id": rank_structure_id}) or []
+            docs = api_client.get("/api/master/ranks", params={"structure_id": rank_structure_id}) or []
         except Exception:
             return []
+        # Translate the API's storage field names back to the names the
+        # rank-editing UI (widgets/dialogs.py) expects.
+        return [
+            {
+                "rank_id": d.get("int_id"),
+                "rank_structure_id": d.get("rank_structure_id"),
+                "rank_code": d.get("abbreviation", ""),
+                "rank_name": d.get("name", ""),
+                "sort_order": d.get("rank_order", 0),
+            }
+            for d in docs
+        ]
 
     def replace_ranks(self, rank_structure_id: int, ranks: list[dict[str, Any]]) -> None:
+        """Replace the full set of ranks for a structure with `ranks`.
+
+        There is no bulk-replace endpoint, so this deletes the structure's
+        existing ranks first, then recreates them from the given list —
+        matching "replace" semantics rather than appending to what's there.
+        """
         try:
+            existing = api_client.get("/api/master/ranks", params={"structure_id": rank_structure_id}) or []
+            for doc in existing:
+                api_client.delete(f"/api/master/ranks/{doc['int_id']}")
             for idx, rank in enumerate(ranks):
-                if "rank_id" not in rank:
-                    api_client.post("/api/master/ranks", json={
-                        "rank_structure_id": rank_structure_id,
-                        "name": rank.get("rank_name", ""),
-                        "abbreviation": rank.get("rank_code", ""),
-                        "rank_order": rank.get("sort_order", idx),
-                    })
+                api_client.post("/api/master/ranks", json={
+                    "rank_structure_id": rank_structure_id,
+                    "name": rank.get("rank_name", ""),
+                    "abbreviation": rank.get("rank_code", ""),
+                    "rank_order": rank.get("sort_order", idx),
+                })
         except Exception:
             pass
 

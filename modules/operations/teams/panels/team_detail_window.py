@@ -466,6 +466,8 @@ class TeamDetailBridge(QObject):
         super().__init__(parent)
         self._team: Team = Team()
         self._resource_assignments = ApiResourceAssignmentRepository()
+        self._selected_member_id: int | None = None
+        self._member_detail_dialog: QDialog | None = None
         # Cached lists for QML list views
         self._personnel: list[dict[str, Any]] = []
         self._vehicles: list[dict[str, Any]] = []
@@ -576,11 +578,6 @@ class TeamDetailBridge(QObject):
             self._refresh_assets()
             self._auto_set_pilot()
             self.teamChanged.emit()
-            try:
-                team_repo.save_team(self._team)
-                self._emit_incident_refresh()
-            except Exception:
-                pass
             self.statusChanged.emit(self._team.status)
         except Exception as e:
             self.error.emit(f"Failed to load team: {e}")
@@ -864,9 +861,31 @@ class TeamDetailBridge(QObject):
                         return str(r.get("name") or f"#{pid}")
                 except Exception:
                     continue
-            return " - ".join([p for p in [callsign or "(unknown)", tail, status] if p])
+            return f"#{pid}"
         except Exception:
             return ""
+
+    @Slot('QVariant')
+    def setSelectedMember(self, person_id: Any) -> None:
+        try:
+            self._selected_member_id = int(person_id) if person_id not in (None, "") else None
+        except (TypeError, ValueError):
+            self._selected_member_id = None
+
+    @Slot()
+    def openSelectedMember(self) -> None:
+        try:
+            if self._selected_member_id is None:
+                self.error.emit("No personnel selected")
+                return
+            from ui.personnel import PersonnelDetailDialog
+
+            dialog = PersonnelDetailDialog(None, personnel_id=str(self._selected_member_id))
+            self._member_detail_dialog = dialog
+            dialog.finished.connect(lambda *_: setattr(self, "_member_detail_dialog", None))
+            dialog.open()
+        except Exception as e:
+            self.error.emit(f"Failed to open personnel detail: {e}")
 
     @Slot(result='QVariant')
     def teamRoleOptions(self) -> list[str]:
@@ -905,46 +924,14 @@ class TeamDetailBridge(QObject):
             people: list[dict[str, Any]] = []
             if members_ids:
                 try:
-                    from models.queries import get_db_connection as _dbc
-                    conn = _dbc()
-                    cols = {r[1] for r in conn.execute("PRAGMA table_info(personnel)").fetchall()}
-                    want = ['id','name','role','phone']
-                    if 'callsign' in cols: want.append('callsign')
-                    if 'rank' in cols: want.append('rank')
-                    if 'organization' in cols: want.append('organization')
-                    if 'is_medic' in cols: want.append('is_medic')
-                    col_list = ", ".join(want)
-                    placeholders = ",".join(["?"]*len(members_ids))
-                    rows = {}
-                    if members_ids:
-                        cur = conn.execute(f"SELECT {col_list} FROM personnel WHERE id IN ({placeholders})", tuple(members_ids))
-                        for row in cur.fetchall():
-                            d = dict(row)
-                            rows[str(d.get('id'))] = d
+                    from modules.logistics.checkin import repository as ci_repo
                 except Exception:
-                    rows = {}
+                    ci_repo = None
                 for pid in members_ids:
                     base = None
-                    try:
-                        rec = rows.get(str(pid)) if 'rows' in locals() else None
-                        if rec:
-                            base = {
-                                'id': int(pid),
-                                'name': rec.get('name'),
-                                'role': rec.get('role'),
-                                'phone': rec.get('phone'),
-                                'callsign': rec.get('callsign') if 'callsign' in rec else None,
-                                'identifier': rec.get('callsign') if 'callsign' in rec else None,
-                                'rank': rec.get('rank') if 'rank' in rec else None,
-                                'organization': rec.get('organization') if 'organization' in rec else None,
-                                'is_medic': rec.get('is_medic') if 'is_medic' in rec else None,
-                            }
-                    except Exception:
-                        base = None
                     if base is None:
                         try:
-                            from modules.logistics.checkin import repository as ci_repo
-                            ident = ci_repo.get_person_identity(str(pid))
+                            ident = ci_repo.get_person_identity(str(pid)) if ci_repo else None
                         except Exception:
                             ident = None
                         if ident:
@@ -953,6 +940,26 @@ class TeamDetailBridge(QObject):
                                 'role': getattr(ident,'primary_role', None), 'phone': getattr(ident,'phone', None),
                                 'callsign': getattr(ident,'callsign', None), 'identifier': getattr(ident,'callsign', None) or None,
                                 'rank': None, 'organization': getattr(ident,'home_unit', None), 'is_medic': None,
+                            }
+                    if base is None and ci_repo is not None:
+                        finder = getattr(ci_repo, "find_personnel_by_id", None)
+                        if not callable(finder):
+                            finder = None
+                        try:
+                            rec = finder(str(pid)) if finder else None
+                        except Exception:
+                            rec = None
+                        if rec:
+                            base = {
+                                'id': int(pid),
+                                'name': rec.get('name'),
+                                'role': rec.get('role'),
+                                'phone': rec.get('phone'),
+                                'callsign': rec.get('callsign'),
+                                'identifier': rec.get('callsign') or rec.get('identifier'),
+                                'rank': rec.get('rank'),
+                                'organization': rec.get('organization'),
+                                'is_medic': rec.get('is_medic'),
                             }
                     if base is None:
                         base = {'id': int(pid), 'name': f'Personnel {pid}', 'role': None, 'phone': None, 'callsign': None, 'identifier': None, 'rank': None, 'organization': None, 'is_medic': None}
@@ -981,7 +988,8 @@ class TeamDetailBridge(QObject):
                     enriched.append(rec)
                 self._personnel = enriched
             except Exception:
-                pass            # Vehicles from team JSON when present
+                pass
+            # Vehicles from team JSON when present
             veh_ids = [str(v) for v in (getattr(self._team,'vehicles',[]) or [])]
             if veh_ids:
                 try:
@@ -1108,17 +1116,40 @@ class TeamDetailBridge(QObject):
         if not self._team.team_id:
             return
         try:
-            with team_repo._incident_connect() as con:  # type: ignore[attr-defined]
-                try:
-                    con.execute(
-                        "UPDATE teams SET needs_attention=? WHERE id=?",
-                        (1 if active else 0, int(self._team.team_id)),
-                    )
-                    con.commit()
-                except Exception:
-                    pass
+            team_repo.set_team_needs_attention(int(self._team.team_id), bool(active))
         except Exception:
             pass
+
+    def _save_team_best_effort(self) -> None:
+        try:
+            team_repo.save_team(self._team)
+        except Exception:
+            pass
+
+    def _append_team_list_value(self, attr_name: str, value: Any, *, numeric: bool = False) -> bool:
+        try:
+            normalized = int(value) if numeric else str(value)
+        except (TypeError, ValueError):
+            return False
+        values = list(getattr(self._team, attr_name, []) or [])
+        if str(normalized) in [str(item) for item in values]:
+            return False
+        values.append(normalized)
+        setattr(self._team, attr_name, values)
+        return True
+
+    def _remove_team_list_value(self, attr_name: str, value: Any) -> bool:
+        values = list(getattr(self._team, attr_name, []) or [])
+        filtered = [item for item in values if str(item) != str(value)]
+        if len(filtered) == len(values):
+            return False
+        setattr(self._team, attr_name, filtered)
+        return True
+
+    def _team_list_contains(self, attr_name: str, value: Any) -> bool:
+        values = list(getattr(self._team, attr_name, []) or [])
+        needle = str(value)
+        return any(str(item) == needle for item in values)
 
     def _emit_incident_refresh(self) -> None:
         try:
@@ -1162,14 +1193,8 @@ class TeamDetailBridge(QObject):
             except Exception:
                 pass
             # Update team.members list
-            members = list(getattr(self._team, 'members', []) or [])
-            if pid not in members:
-                members.append(pid)
-                self._team.members = members
-                try:
-                    team_repo.save_team(self._team)
-                except Exception:
-                    pass
+            if self._append_team_list_value("members", pid, numeric=True):
+                self._save_team_best_effort()
             # Best-effort: keep Check-In record aligned so other views remain consistent
             person_name: str | None = None
             try:
@@ -1218,7 +1243,10 @@ class TeamDetailBridge(QObject):
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
+            if not self._team_list_contains("members", int(person_id)):
+                raise RuntimeError(f"Personnel {int(person_id)} is not assigned to this team")
             set_person_team(int(person_id), None)
+            removed_from_list = self._remove_team_list_value("members", int(person_id))
             # Also sync Check-In record to clear team assignment
             try:
                 from modules.logistics.checkin import repository as ci_repo
@@ -1239,9 +1267,11 @@ class TeamDetailBridge(QObject):
             except Exception:
                 pass
             # Clear leader if removing current leader
+            cleared_leader = False
             if self._team.team_leader_id == int(person_id):
                 set_team_leader(int(self._team.team_id), None)
                 self._team.team_leader_id = None
+                cleared_leader = True
                 try:
                     set_team_leader_phone(int(self._team.team_id), None)
                 except Exception:
@@ -1251,6 +1281,8 @@ class TeamDetailBridge(QObject):
                 except Exception:
                     pass
                 app_signals.teamLeaderChanged.emit(int(self._team.team_id))
+            if removed_from_list or cleared_leader:
+                self._save_team_best_effort()
             self._team_log(f"Personnel removed (ID: {int(person_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1280,11 +1312,8 @@ class TeamDetailBridge(QObject):
                 raise RuntimeError('No team id')
             if vehicle_id is not None and str(vehicle_id) != '':
                 vid = int(vehicle_id)
-                lst = list(getattr(self._team,'vehicles',[]) or [])
-                if str(vid) not in [str(x) for x in lst]:
-                    lst.append(str(vid)); self._team.vehicles = lst
-                    try: team_repo.save_team(self._team)
-                    except Exception: pass
+                if self._append_team_list_value("vehicles", vid):
+                    self._save_team_best_effort()
                 try:
                     set_vehicle_team(vid, int(self._team.team_id))
                 except Exception: pass
@@ -1298,7 +1327,11 @@ class TeamDetailBridge(QObject):
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
+            if not self._team_list_contains("vehicles", vehicle_id):
+                raise RuntimeError(f"Vehicle {int(vehicle_id)} is not assigned to this team")
             set_vehicle_team(int(vehicle_id), None)
+            if self._remove_team_list_value("vehicles", vehicle_id):
+                self._save_team_best_effort()
             self._team_log(f"Vehicle removed (ID: {int(vehicle_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1323,11 +1356,8 @@ class TeamDetailBridge(QObject):
                 raise RuntimeError('No team id')
             if eq_id is not None and str(eq_id) != '':
                 eid = int(eq_id)
-                lst = list(getattr(self._team,'equipment',[]) or [])
-                if str(eid) not in [str(x) for x in lst]:
-                    lst.append(str(eid)); self._team.equipment = lst
-                    try: team_repo.save_team(self._team)
-                    except Exception: pass
+                if self._append_team_list_value("equipment", eid):
+                    self._save_team_best_effort()
                 try:
                     set_equipment_team(eid, int(self._team.team_id))
                 except Exception: pass
@@ -1341,7 +1371,11 @@ class TeamDetailBridge(QObject):
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
+            if not self._team_list_contains("equipment", eq_id):
+                raise RuntimeError(f"Equipment {int(eq_id)} is not assigned to this team")
             set_equipment_team(int(eq_id), None)
+            if self._remove_team_list_value("equipment", eq_id):
+                self._save_team_best_effort()
             self._team_log(f"Equipment removed (ID: {int(eq_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1353,6 +1387,8 @@ class TeamDetailBridge(QObject):
             if not self._team.team_id:
                 raise RuntimeError("No team id")
             if ac_id is not None and str(ac_id) != "":
+                if self._append_team_list_value("aircraft", ac_id):
+                    self._save_team_best_effort()
                 set_aircraft_team(int(ac_id), int(self._team.team_id))
                 self._team_log(f"Aircraft assigned (ID: {int(ac_id)})")
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
@@ -1364,7 +1400,11 @@ class TeamDetailBridge(QObject):
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
+            if not self._team_list_contains("aircraft", ac_id):
+                raise RuntimeError(f"Aircraft {int(ac_id)} is not assigned to this team")
             set_aircraft_team(int(ac_id), None)
+            if self._remove_team_list_value("aircraft", ac_id):
+                self._save_team_best_effort()
             self._team_log(f"Aircraft removed (ID: {int(ac_id)})")
             app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1385,6 +1425,10 @@ class TeamDetailBridge(QObject):
                     continue
             if ac_id is not None and str(ac_id) != "":
                 set_aircraft_team(int(ac_id), tid)
+                self._team.aircraft = [str(ac_id)]
+            else:
+                self._team.aircraft = []
+            self._save_team_best_effort()
             app_signals.teamAssetsChanged.emit(tid)
         except Exception as e:
             self.error.emit(f"Failed to set aircraft: {e}")
@@ -1392,27 +1436,45 @@ class TeamDetailBridge(QObject):
     @Slot(int)
     def linkTask(self, task_id: int) -> None:
         try:
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            from modules.operations.taskings.repository import add_task_team
+
+            add_task_team(int(task_id), int(self._team.team_id))
             self._team.current_task_id = int(task_id)
             self.teamChanged.emit()
-            try:
-                team_repo.save_team(self._team)
-                self._emit_incident_refresh()
-            except Exception:
-                pass
+            self._emit_incident_refresh()
         except Exception as e:
             self.error.emit(f"Failed to link task: {e}")
 
     @Slot(int)
     def unlinkTask(self, task_id: int) -> None:
         try:
-            if self._team.current_task_id == int(task_id):
+            if not self._team.team_id:
+                raise RuntimeError("No team id")
+            from modules.operations.taskings.repository import list_task_teams, remove_task_team_from_task
+
+            removed = False
+            for task_team in list_task_teams(int(task_id)):
+                try:
+                    row_team_id = int(getattr(task_team, "team_id"))
+                    row_id = int(getattr(task_team, "id"))
+                except (TypeError, ValueError):
+                    continue
+                if row_team_id == int(self._team.team_id):
+                    remove_task_team_from_task(int(task_id), row_id, team_id=row_team_id)
+                    removed = True
+                    break
+            if not removed:
+                team_repo.set_team_current_task(int(self._team.team_id), None)
+            try:
+                current_task_id = int(self._team.current_task_id) if self._team.current_task_id is not None else None
+            except (TypeError, ValueError):
+                current_task_id = None
+            if current_task_id == int(task_id):
                 self._team.current_task_id = None
                 self.teamChanged.emit()
-            try:
-                team_repo.save_team(self._team)
-                self._emit_incident_refresh()
-            except Exception:
-                pass
+            self._emit_incident_refresh()
         except Exception as e:
             self.error.emit(f"Failed to unlink task: {e}")
 
@@ -1527,6 +1589,7 @@ class TeamDetailBridge(QObject):
                 set_person_team(int(person_id), int(self._team.team_id))
             except Exception:
                 pass
+            self._append_team_list_value("members", person_id, numeric=True)
             # Persist leader on team row and refresh badge
             set_team_leader(int(self._team.team_id), int(person_id))
             self._team.team_leader_id = int(person_id)
@@ -3060,6 +3123,17 @@ class TeamDetailWindow(QMainWindow):
 
     def _on_member_selection_changed(self) -> None:
         has_selection = bool(self._personnel_table.selectionModel().selectedRows())
+        selected_person_id = None
+        if has_selection:
+            try:
+                row = self._personnel_table.selectionModel().selectedRows()[0].row()
+                item = self._personnel_table.item(row, 0)
+                selected_person_id = item.data(Qt.UserRole) if item is not None else None
+            except Exception:
+                selected_person_id = None
+        setter = getattr(self._bridge, "setSelectedMember", None)
+        if callable(setter):
+            setter(selected_person_id)
         handler = getattr(self._bridge, "openSelectedMember", None)
         self._member_detail_button.setEnabled(bool(has_selection and callable(handler)))
 
@@ -3074,11 +3148,16 @@ class TeamDetailWindow(QMainWindow):
         if person_id is None:
             return
         menu = QMenu(self)
-        label = "" if self._is_air else "Set as Leader"
+        label = "Set as PIC" if self._is_air else "Set as Leader"
         menu.addAction(label, lambda: self._bridge.setLeader(person_id))
         if not self._is_air and self._personnel_medic_column is not None:
             widget = self._personnel_table.cellWidget(row, self._personnel_medic_column)
-            is_medic = bool(widget.isChecked()) if isinstance(widget, QCheckBox) else False
+            medic_box = None
+            if isinstance(widget, QCheckBox):
+                medic_box = widget
+            elif isinstance(widget, QWidget):
+                medic_box = widget.findChild(QCheckBox)
+            is_medic = bool(medic_box.isChecked()) if medic_box is not None else False
             toggle_text = "Unset Medic" if is_medic else "Mark as Medic"
             menu.addAction(
                 toggle_text,

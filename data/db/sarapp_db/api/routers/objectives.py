@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
-import uuid
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -12,21 +10,39 @@ from pydantic import BaseModel
 from sarapp_db.mongo.mongo_client import get_client
 from sarapp_db.mongo.database_manager import get_incident_db_name
 from sarapp_db.mongo.collection_names import IncidentCollections
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 
-def _col(incident_id: str):
-    client = get_client()
-    return client[get_incident_db_name(incident_id)][IncidentCollections.INCIDENT_OBJECTIVES]
+class ObjectivesRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_OBJECTIVES
 
 
-def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+class StrategiesRepository(BaseRepository):
+    collection_name = IncidentCollections.STRATEGIES
+    soft_deletes = False
 
 
-def _new_id() -> str:
-    return str(uuid.uuid4())
+class StrategyTaskLinksRepository(BaseRepository):
+    collection_name = IncidentCollections.OBJECTIVE_STRATEGIES_TASK_LINKS
+    soft_deletes = False
+
+
+def _incident_db(incident_id: str):
+    return get_client()[get_incident_db_name(incident_id)]
+
+
+def _objectives_repo(incident_id: str) -> ObjectivesRepository:
+    return ObjectivesRepository(_incident_db(incident_id))
+
+
+def _strategies_repo(incident_id: str) -> StrategiesRepository:
+    return StrategiesRepository(_incident_db(incident_id))
+
+
+def _task_links_repo(incident_id: str) -> StrategyTaskLinksRepository:
+    return StrategyTaskLinksRepository(_incident_db(incident_id))
 
 
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
@@ -81,7 +97,9 @@ def list_objectives(
         ]})
 
     query = {"$and": conditions} if len(conditions) > 1 else conditions[0]
-    docs = list(_col(incident_id).find(query).sort([("display_order", 1), ("created_at", 1)]))
+    docs = _objectives_repo(incident_id).find_many(
+        query, sort=[("display_order", 1), ("created_at", 1)], include_deleted=True,
+    )
     return [_normalize(d) for d in docs]
 
 
@@ -103,13 +121,11 @@ class CreateObjectiveRequest(BaseModel):
 
 @router.post("", status_code=201)
 def create_objective(body: CreateObjectiveRequest) -> dict[str, Any]:
-    col = _col(body.incident_id)
-    count = col.count_documents({"incident_id": body.incident_id, "deleted": False})
+    repo = _objectives_repo(body.incident_id)
+    count = repo.count({"incident_id": body.incident_id})
     code = f"OBJ-{count + 1}"
     display_order = body.display_order if body.display_order is not None else count
-    now = _utcnow()
     doc: dict[str, Any] = {
-        "_id": _new_id(),
         "incident_id": body.incident_id,
         "code": code,
         "text": body.text,
@@ -123,11 +139,8 @@ def create_objective(body: CreateObjectiveRequest) -> dict[str, Any]:
         "narrative": None,
         "created_by": body.created_by,
         "updated_by": body.created_by,
-        "created_at": now,
-        "updated_at": now,
-        "deleted": False,
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _normalize(doc)
 
 
@@ -140,13 +153,9 @@ class ReorderRequest(BaseModel):
 
 @router.post("/reorder")
 def reorder_objectives(incident_id: str, body: ReorderRequest) -> dict[str, Any]:
-    col = _col(incident_id)
-    now = _utcnow()
+    repo = _objectives_repo(incident_id)
     for position, obj_id in enumerate(body.ids):
-        col.update_one(
-            {"_id": obj_id, "incident_id": incident_id},
-            {"$set": {"display_order": position, "updated_at": now}},
-        )
+        repo.update_one(obj_id, {"display_order": position}, extra_filter={"incident_id": incident_id})
     return {"ok": True}
 
 
@@ -155,7 +164,7 @@ def reorder_objectives(incident_id: str, body: ReorderRequest) -> dict[str, Any]
 
 @router.get("/{objective_id}")
 def get_objective(objective_id: str, incident_id: str) -> dict[str, Any]:
-    doc = _col(incident_id).find_one({"_id": objective_id, "deleted": False})
+    doc = _objectives_repo(incident_id).find_by_id(objective_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Objective not found")
     return _normalize(doc)
@@ -181,31 +190,21 @@ def update_objective(
     incident_id: str,
     body: UpdateObjectiveRequest,
 ) -> dict[str, Any]:
-    updates: dict[str, Any] = {"updated_at": _utcnow()}
+    updates: dict[str, Any] = {}
     for field in ("text", "priority", "status", "owner_section", "tags", "op_period_id", "narrative", "updated_by"):
         val = getattr(body, field)
         if val is not None:
             updates[field] = val
-    col = _col(incident_id)
-    result = col.update_one({"_id": objective_id, "deleted": False}, {"$set": updates})
-    if result.matched_count == 0:
+    repo = _objectives_repo(incident_id)
+    matched = repo.update_one(objective_id, updates)
+    if not matched:
         raise HTTPException(status_code=404, detail="Objective not found")
-    doc = col.find_one({"_id": objective_id})
+    doc = repo.find_by_id(objective_id)
     return _normalize(doc) if doc else {}
 
 
 # ------------------------------------------------------------------
 # Strategies
-
-def _strategies_col(incident_id: str):
-    client = get_client()
-    return client[get_incident_db_name(incident_id)][IncidentCollections.STRATEGIES]
-
-
-def _strategy_links_col(incident_id: str):
-    client = get_client()
-    return client[get_incident_db_name(incident_id)][IncidentCollections.OBJECTIVE_STRATEGIES_TASK_LINKS]
-
 
 class CreateStrategyRequest(BaseModel):
     objective_id: str
@@ -221,20 +220,15 @@ def add_strategy(
     incident_id: str,
     body: CreateStrategyRequest,
 ) -> dict[str, Any]:
-    col = _strategies_col(incident_id)
-    now = _utcnow()
     doc: dict[str, Any] = {
-        "_id": _new_id(),
         "incident_id": incident_id,
         "objective_id": objective_id,
         "title": body.title,
         "description": body.description,
         "status": body.status,
         "created_by": body.created_by,
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
+    doc = _strategies_repo(incident_id).insert_one(doc)
     doc.pop("_id", None)
     return doc
 
@@ -253,19 +247,16 @@ def update_strategy(
     incident_id: str,
     body: UpdateStrategyRequest,
 ) -> dict[str, Any]:
-    updates: dict[str, Any] = {"updated_at": _utcnow()}
+    updates: dict[str, Any] = {}
     for field in ("title", "description", "status", "updated_by"):
         val = getattr(body, field)
         if val is not None:
             updates[field] = val
-    col = _strategies_col(incident_id)
-    result = col.update_one(
-        {"_id": strategy_id, "objective_id": objective_id},
-        {"$set": updates},
-    )
-    if result.matched_count == 0:
+    repo = _strategies_repo(incident_id)
+    matched = repo.update_one(strategy_id, updates, extra_filter={"objective_id": objective_id})
+    if not matched:
         raise HTTPException(status_code=404, detail="Strategy not found")
-    doc = col.find_one({"_id": strategy_id})
+    doc = repo.find_by_id(strategy_id)
     if doc:
         doc.pop("_id", None)
     return doc or {}
@@ -273,12 +264,11 @@ def update_strategy(
 
 @router.delete("/{objective_id}/strategies/{strategy_id}", status_code=204)
 def delete_strategy(objective_id: str, strategy_id: str, incident_id: str) -> None:
-    col = _strategies_col(incident_id)
-    result = col.delete_one({"_id": strategy_id, "objective_id": objective_id})
-    if result.deleted_count == 0:
+    deleted = _strategies_repo(incident_id).delete_one(strategy_id, extra_filter={"objective_id": objective_id})
+    if not deleted:
         raise HTTPException(status_code=404, detail="Strategy not found")
     # Also delete any task links for this strategy
-    _strategy_links_col(incident_id).delete_many({"strategy_id": strategy_id})
+    _task_links_repo(incident_id).delete_many({"strategy_id": strategy_id})
 
 
 # ------------------------------------------------------------------
@@ -295,17 +285,13 @@ def link_task(
     incident_id: str,
     body: LinkTaskRequest,
 ) -> dict[str, Any]:
-    col = _strategy_links_col(incident_id)
-    now = _utcnow()
     doc: dict[str, Any] = {
-        "_id": _new_id(),
         "incident_id": incident_id,
         "objective_id": objective_id,
         "strategy_id": strategy_id,
         "task_id": body.task_id,
-        "created_at": now,
     }
-    col.insert_one(doc)
+    doc = _task_links_repo(incident_id).insert_one(doc)
     doc.pop("_id", None)
     return doc
 
@@ -317,13 +303,12 @@ def unlink_task(
     task_id: int,
     incident_id: str,
 ) -> None:
-    col = _strategy_links_col(incident_id)
-    result = col.delete_one({
+    deleted = _task_links_repo(incident_id).delete_many({
         "objective_id": objective_id,
         "strategy_id": strategy_id,
         "task_id": task_id,
     })
-    if result.deleted_count == 0:
+    if deleted == 0:
         raise HTTPException(status_code=404, detail="Task link not found")
 
 
@@ -332,7 +317,4 @@ def unlink_task(
 
 @router.delete("/{objective_id}", status_code=204)
 def delete_objective(objective_id: str, incident_id: str) -> None:
-    _col(incident_id).update_one(
-        {"_id": objective_id},
-        {"$set": {"deleted": True, "updated_at": _utcnow()}},
-    )
+    _objectives_repo(incident_id).soft_delete(objective_id)

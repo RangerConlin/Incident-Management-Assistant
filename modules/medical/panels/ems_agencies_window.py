@@ -501,10 +501,8 @@ class EMSAgenciesWindow(QMainWindow):
     def _type_chip_colors(self, value: Any) -> tuple[QColor | None, QColor | None]:
         palette = app_styles.get_palette()
         base = palette["accent"]
-        if str(value) == "Hospital":
+        if str(value) == "Air Ambulance":
             base = palette["success"]
-        elif str(value) == "Medical Aid":
-            base = palette["warning"]
         fg = palette["bg"]
         return QColor(base), QColor(fg)
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -12,9 +11,84 @@ from pydantic import BaseModel
 
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
+from sarapp_db.mongo.repository import BaseRepository
 
 master_router = APIRouter()
 incident_router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Repositories
+#
+# All collections here are keyed by app-defined string ids (channel_id,
+# comms_id, preset_id) rather than `_id`, and none carry a `deleted` field
+# with BaseRepository semantics — `deleted` is instead a plain boolean flag
+# managed entirely by these handlers (soft-delete-by-convention, not via
+# BaseRepository.soft_delete). soft_deletes is therefore disabled everywhere
+# so find/count don't inject an extra filter.
+# ---------------------------------------------------------------------------
+
+class RadioChannelsRepository(BaseRepository):
+    collection_name = MasterCollections.RADIO_CHANNELS
+    soft_deletes = False
+
+
+class IncidentChannelsRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_CHANNELS
+    soft_deletes = False
+
+
+class CommunicationsLogRepository(BaseRepository):
+    collection_name = IncidentCollections.COMMUNICATIONS_LOG
+    soft_deletes = False
+
+
+class CommsLogAuditRepository(BaseRepository):
+    collection_name = IncidentCollections.COMMS_LOG_AUDIT
+    soft_deletes = False
+
+
+class CommsLogFiltersRepository(BaseRepository):
+    collection_name = IncidentCollections.COMMS_LOG_FILTERS
+    soft_deletes = False
+
+
+class TeamsRepository(BaseRepository):
+    collection_name = IncidentCollections.TEAMS
+    soft_deletes = False
+
+
+class IncidentPersonnelRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_PERSONNEL
+    soft_deletes = False
+
+
+def _radio_channels_repo() -> RadioChannelsRepository:
+    return RadioChannelsRepository(get_master_db())
+
+
+def _incident_channels_repo(incident_id: str) -> IncidentChannelsRepository:
+    return IncidentChannelsRepository(get_incident_db(incident_id))
+
+
+def _comms_log_repo(incident_id: str) -> CommunicationsLogRepository:
+    return CommunicationsLogRepository(get_incident_db(incident_id))
+
+
+def _comms_audit_repo(incident_id: str) -> CommsLogAuditRepository:
+    return CommsLogAuditRepository(get_incident_db(incident_id))
+
+
+def _comms_filters_repo(incident_id: str) -> CommsLogFiltersRepository:
+    return CommsLogFiltersRepository(get_incident_db(incident_id))
+
+
+def _teams_repo(incident_id: str) -> TeamsRepository:
+    return TeamsRepository(get_incident_db(incident_id))
+
+
+def _incident_personnel_repo(incident_id: str) -> IncidentPersonnelRepository:
+    return IncidentPersonnelRepository(get_incident_db(incident_id))
 
 
 # ---------------------------------------------------------------------------
@@ -143,8 +217,8 @@ def _map_incident_channel(doc: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _next_channel_id(col, incident_id: str) -> str:
-    all_ids = [d.get("channel_id", "") for d in col.find({"incident_id": incident_id}, {"channel_id": 1})]
+def _next_channel_id(repo: IncidentChannelsRepository, incident_id: str) -> str:
+    all_ids = [d.get("channel_id", "") for d in repo.find_many({"incident_id": incident_id})]
     max_n = 0
     marker = f"{incident_id}-CH-"
     for cid in all_ids:
@@ -231,8 +305,8 @@ def _map_comms_entry(doc: Dict[str, Any], incident_id: str) -> Dict[str, Any]:
     }
 
 
-def _next_comms_id(col, incident_id: str) -> str:
-    all_ids = [d.get("comms_id", "") for d in col.find({"incident_id": incident_id}, {"comms_id": 1})]
+def _next_comms_id(repo: CommunicationsLogRepository, incident_id: str) -> str:
+    all_ids = [d.get("comms_id", "") for d in repo.find_many({"incident_id": incident_id})]
     max_n = 0
     marker = f"{incident_id}-COMMS-"
     for cid in all_ids:
@@ -246,14 +320,13 @@ def _next_comms_id(col, incident_id: str) -> str:
     return f"{marker}{max_n + 1}"
 
 
-def _next_preset_id(col, user_id: str) -> int:
-    all_docs = list(col.find({"user_id": user_id}, {"preset_id": 1}))
+def _next_preset_id(repo: CommsLogFiltersRepository, user_id: str) -> int:
+    all_docs = repo.find_many({"user_id": user_id})
     return max((d.get("preset_id", 0) for d in all_docs), default=0) + 1
 
 
-def _write_audit(col, comms_id: str, action: str, changed_by: Optional[str], payload: Dict[str, Any]) -> None:
-    col.insert_one({
-        "_id": str(uuid.uuid4()),
+def _write_audit(repo: CommsLogAuditRepository, comms_id: str, action: str, changed_by: Optional[str], payload: Dict[str, Any]) -> None:
+    repo.insert_one({
         "comms_id": comms_id,
         "action": action,
         "changed_by": changed_by,
@@ -272,8 +345,10 @@ def list_master_channels(
     band: Optional[str] = None,
     mode: Optional[str] = None,
 ):
-    col = get_master_db()[MasterCollections.RADIO_CHANNELS]
-    docs = list(col.find({}, {"_id": 0}))
+    repo = _radio_channels_repo()
+    docs = repo.find_many({})
+    for d in docs:
+        d.pop("_id", None)
     results = [_map_master_channel(d) for d in docs]
     if search:
         s = search.lower()
@@ -287,11 +362,88 @@ def list_master_channels(
 
 @master_router.get("/master-channels/{channel_id}")
 def get_master_channel(channel_id: int):
-    col = get_master_db()[MasterCollections.RADIO_CHANNELS]
-    doc = col.find_one({"channel_id": str(channel_id)}, {"_id": 0})
+    repo = _radio_channels_repo()
+    doc = repo.find_one({"channel_id": str(channel_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Channel not found")
+    doc.pop("_id", None)
     return _map_master_channel(doc)
+
+
+_MASTER_CHANNEL_FIELD_MAP = {
+    "name": "channel_name",
+    "function": "function",
+    "rx_freq": "freq_rx",
+    "tx_freq": "freq_tx",
+    "rx_tone": "rx_tone",
+    "tx_tone": "tx_tone",
+    "system": "system",
+    "mode": "mode",
+    "notes": "notes",
+    "line_a": "line_a",
+    "line_c": "line_c",
+}
+
+
+def _next_master_channel_id(repo: RadioChannelsRepository) -> str:
+    max_id = 0
+    for d in repo.find_many({}):
+        try:
+            n = int(str(d.get("channel_id", "0")))
+            if n > max_id:
+                max_id = n
+        except (ValueError, TypeError):
+            pass
+    return str(max_id + 1)
+
+
+@master_router.post("/master-channels")
+def create_master_channel(body: Dict[str, Any] = Body(...)):
+    repo = _radio_channels_repo()
+    new_id = _next_master_channel_id(repo)
+    doc = {
+        "channel_id": new_id,
+        "channel_name": str(body.get("name") or "").strip(),
+        "function": body.get("function"),
+        "freq_rx": body.get("rx_freq"),
+        "freq_tx": body.get("tx_freq"),
+        "rx_tone": body.get("rx_tone"),
+        "tx_tone": body.get("tx_tone"),
+        "system": body.get("system"),
+        "mode": body.get("mode") or "FM",
+        "notes": body.get("notes"),
+        "line_a": bool(body.get("line_a", False)),
+        "line_c": bool(body.get("line_c", False)),
+    }
+    doc = repo.insert_one(doc)
+    doc.pop("_id", None)
+    return _map_master_channel(doc)
+
+
+@master_router.patch("/master-channels/{channel_id}")
+def update_master_channel(channel_id: int, patch: Dict[str, Any] = Body(...)):
+    repo = _radio_channels_repo()
+    doc = repo.find_one({"channel_id": str(channel_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    update: Dict[str, Any] = {}
+    for api_key, mongo_key in _MASTER_CHANNEL_FIELD_MAP.items():
+        if api_key in patch:
+            update[mongo_key] = patch[api_key]
+    repo.update_one(doc["_id"], update)
+    updated = repo.find_by_id(doc["_id"])
+    updated.pop("_id", None)
+    return _map_master_channel(updated)
+
+
+@master_router.delete("/master-channels/{channel_id}")
+def delete_master_channel(channel_id: int):
+    repo = _radio_channels_repo()
+    doc = repo.find_one({"channel_id": str(channel_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    repo.delete_one(doc["_id"])
+    return {"deleted": True}
 
 
 # ===========================================================================
@@ -303,10 +455,13 @@ def get_master_channel(channel_id: int):
 
 @incident_router.get("/incidents/{incident_id}/channels-plan/validate")
 def validate_channels_plan(incident_id: str):
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
-    docs = list(col.find(
-        {"incident_id": incident_id, "deleted": {"$ne": True}}, {"_id": 0}
-    ).sort([("sort_index", 1), ("channel_id", 1)]))
+    repo = _incident_channels_repo(incident_id)
+    docs = repo.find_many(
+        {"incident_id": incident_id, "deleted": {"$ne": True}},
+        sort=[("sort_index", 1), ("channel_id", 1)],
+    )
+    for d in docs:
+        d.pop("_id", None)
     rows = [_map_incident_channel(d) for d in docs]
     messages = []
     for i, a in enumerate(rows):
@@ -339,10 +494,13 @@ def validate_channels_plan(incident_id: str):
 
 @incident_router.get("/incidents/{incident_id}/channels-plan/preview")
 def preview_channels_plan(incident_id: str):
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
-    docs = list(col.find(
-        {"incident_id": incident_id, "deleted": {"$ne": True}}, {"_id": 0}
-    ).sort([("sort_index", 1), ("channel_id", 1)]))
+    repo = _incident_channels_repo(incident_id)
+    docs = repo.find_many(
+        {"incident_id": incident_id, "deleted": {"$ne": True}},
+        sort=[("sort_index", 1), ("channel_id", 1)],
+    )
+    for d in docs:
+        d.pop("_id", None)
     rows = [_map_incident_channel(d) for d in docs]
     preview = []
     for r in rows:
@@ -367,10 +525,13 @@ def preview_channels_plan(incident_id: str):
 
 @incident_router.get("/incidents/{incident_id}/channels-plan")
 def list_channels_plan(incident_id: str):
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
-    docs = list(col.find(
-        {"incident_id": incident_id, "deleted": {"$ne": True}}, {"_id": 0}
-    ).sort([("sort_index", 1), ("channel_id", 1)]))
+    repo = _incident_channels_repo(incident_id)
+    docs = repo.find_many(
+        {"incident_id": incident_id, "deleted": {"$ne": True}},
+        sort=[("sort_index", 1), ("channel_id", 1)],
+    )
+    for d in docs:
+        d.pop("_id", None)
     return [_map_incident_channel(d) for d in docs]
 
 
@@ -383,7 +544,7 @@ class AddFromMasterRequest(BaseModel):
 def add_channel_from_master(incident_id: str, body: AddFromMasterRequest):
     master_row = body.master_row
     defaults = body.defaults or {}
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
+    repo = _incident_channels_repo(incident_id)
     rx_freq = master_row.get("rx_freq")
     tx_freq = master_row.get("tx_freq")
     band = _infer_band(rx_freq or tx_freq)
@@ -397,10 +558,8 @@ def add_channel_from_master(incident_id: str, body: AddFromMasterRequest):
             offset = float(tx_freq) - float(rx_freq)
         except Exception:
             pass
-    now = _utcnow()
-    channel_id = _next_channel_id(col, incident_id)
+    channel_id = _next_channel_id(repo, incident_id)
     doc = {
-        "_id": str(uuid.uuid4()),
         "channel_id": channel_id,
         "incident_id": incident_id,
         "master_id": str(master_row.get("id")) if master_row.get("id") is not None else None,
@@ -426,45 +585,45 @@ def add_channel_from_master(incident_id: str, body: AddFromMasterRequest):
         "include_on_205": bool(defaults.get("include_on_205", True)),
         "remarks": defaults.get("remarks"),
         "sort_index": int(defaults.get("sort_index", 1000)),
-        "created_at": now,
-        "updated_at": now,
         "deleted": False,
     }
-    col.insert_one(doc)
-    saved = col.find_one({"channel_id": channel_id}, {"_id": 0})
-    return _map_incident_channel(saved)
+    doc = repo.insert_one(doc)
+    doc.pop("_id", None)
+    return _map_incident_channel(doc)
 
 
 @incident_router.get("/incidents/{incident_id}/channels-plan/{row_id}")
 def get_channel_plan_row(incident_id: str, row_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
+    repo = _incident_channels_repo(incident_id)
     channel_id = f"{incident_id}-CH-{row_id}"
-    doc = col.find_one({"channel_id": channel_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"channel_id": channel_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Channel not found")
+    doc.pop("_id", None)
     return _map_incident_channel(doc)
 
 
 @incident_router.put("/incidents/{incident_id}/channels-plan/{row_id}")
 def update_channel_plan_row(incident_id: str, row_id: int, patch: Dict[str, Any] = Body(...)):
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
+    repo = _incident_channels_repo(incident_id)
     channel_id = f"{incident_id}-CH-{row_id}"
-    update = dict(patch)
-    update["updated_at"] = _utcnow()
-    result = col.update_one({"channel_id": channel_id}, {"$set": update})
-    if result.matched_count == 0:
+    existing = repo.find_one({"channel_id": channel_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Channel not found")
-    doc = col.find_one({"channel_id": channel_id}, {"_id": 0})
+    repo.update_one(existing["_id"], dict(patch))
+    doc = repo.find_by_id(existing["_id"])
+    doc.pop("_id", None)
     return _map_incident_channel(doc)
 
 
 @incident_router.delete("/incidents/{incident_id}/channels-plan/{row_id}", status_code=204)
 def delete_channel_plan_row(incident_id: str, row_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
+    repo = _incident_channels_repo(incident_id)
     channel_id = f"{incident_id}-CH-{row_id}"
-    result = col.update_one({"channel_id": channel_id}, {"$set": {"deleted": True, "updated_at": _utcnow()}})
-    if result.matched_count == 0:
+    existing = repo.find_one({"channel_id": channel_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Channel not found")
+    repo.update_one(existing["_id"], {"deleted": True})
 
 
 class ReorderRequest(BaseModel):
@@ -473,14 +632,14 @@ class ReorderRequest(BaseModel):
 
 @incident_router.patch("/incidents/{incident_id}/channels-plan/{row_id}/reorder")
 def reorder_channel(incident_id: str, row_id: int, body: ReorderRequest):
-    col = get_incident_db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
+    repo = _incident_channels_repo(incident_id)
     channel_id = f"{incident_id}-CH-{row_id}"
-    doc = col.find_one({"channel_id": channel_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"channel_id": channel_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Channel not found")
     delta = -1 if body.direction == "up" else 1
     new_index = int(doc.get("sort_index", 1000)) + delta
-    col.update_one({"channel_id": channel_id}, {"$set": {"sort_index": new_index, "updated_at": _utcnow()}})
+    repo.update_one(doc["_id"], {"sort_index": new_index})
 
 
 # ===========================================================================
@@ -489,10 +648,12 @@ def reorder_channel(incident_id: str, row_id: int, body: ReorderRequest):
 
 @incident_router.get("/incidents/{incident_id}/comms-log/contacts")
 def list_comms_contacts(incident_id: str):
-    db = get_incident_db(incident_id)
+    teams_repo = _teams_repo(incident_id)
+    personnel_repo = _incident_personnel_repo(incident_id)
     suggestions: List[Dict[str, Any]] = []
 
-    for doc in db[IncidentCollections.TEAMS].find({"incident_id": incident_id, "deleted": {"$ne": True}}, {"_id": 0}):
+    for doc in teams_repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}}):
+        doc.pop("_id", None)
         team_id_str = doc.get("team_id", "")
         int_id = _parse_ref_id(team_id_str, "-TEAM-")
         name = doc.get("name") or doc.get("team_name") or ""
@@ -502,7 +663,8 @@ def list_comms_contacts(incident_id: str):
         secondary = " / ".join([v for v in alias_values if v != display])
         suggestions.append({"type": "team", "id": int_id, "primary": display, "secondary": secondary, "aliases": alias_values})
 
-    for doc in db[IncidentCollections.INCIDENT_PERSONNEL].find({"incident_id": incident_id, "deleted": {"$ne": True}}, {"_id": 0}):
+    for doc in personnel_repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}}):
+        doc.pop("_id", None)
         p_id_str = doc.get("personnel_id", "")
         int_id = _parse_ref_id(p_id_str, "-PERSON-")
         name = doc.get("name") or ""
@@ -519,8 +681,11 @@ def list_comms_contacts(incident_id: str):
 def list_filter_presets(incident_id: str, user_id: Optional[str] = None):
     if not user_id:
         return []
-    col = get_incident_db(incident_id)[IncidentCollections.COMMS_LOG_FILTERS]
-    return list(col.find({"user_id": user_id}, {"_id": 0}).sort("name", 1))
+    repo = _comms_filters_repo(incident_id)
+    docs = repo.find_many({"user_id": user_id}, sort=[("name", 1)])
+    for d in docs:
+        d.pop("_id", None)
+    return docs
 
 
 class FilterPresetRequest(BaseModel):
@@ -534,42 +699,45 @@ class FilterPresetRequest(BaseModel):
 def save_filter_preset(incident_id: str, body: FilterPresetRequest):
     if not body.user_id:
         raise HTTPException(status_code=422, detail="user_id is required")
-    col = get_incident_db(incident_id)[IncidentCollections.COMMS_LOG_FILTERS]
-    now = _utcnow()
+    repo = _comms_filters_repo(incident_id)
     if body.preset_id is None:
-        preset_id = _next_preset_id(col, body.user_id)
-        col.insert_one({
-            "_id": str(uuid.uuid4()),
+        preset_id = _next_preset_id(repo, body.user_id)
+        repo.insert_one({
             "preset_id": preset_id,
             "incident_id": incident_id,
             "name": body.name,
             "user_id": body.user_id,
             "filters": body.filters,
-            "created_at": now,
-            "updated_at": now,
         })
     else:
         preset_id = body.preset_id
-        col.update_one(
-            {"preset_id": body.preset_id, "user_id": body.user_id},
-            {"$set": {"name": body.name, "filters": body.filters, "updated_at": now}},
-        )
-    return col.find_one({"preset_id": preset_id, "user_id": body.user_id}, {"_id": 0})
+        existing = repo.find_one({"preset_id": body.preset_id, "user_id": body.user_id})
+        if existing:
+            repo.update_one(existing["_id"], {"name": body.name, "filters": body.filters})
+    doc = repo.find_one({"preset_id": preset_id, "user_id": body.user_id})
+    if doc:
+        doc.pop("_id", None)
+    return doc
 
 
 @incident_router.delete("/incidents/{incident_id}/comms-log-filters/{preset_id}", status_code=204)
 def delete_filter_preset(incident_id: str, preset_id: int, user_id: Optional[str] = None):
     if not user_id:
         raise HTTPException(status_code=422, detail="user_id is required")
-    col = get_incident_db(incident_id)[IncidentCollections.COMMS_LOG_FILTERS]
-    col.delete_one({"preset_id": preset_id, "user_id": user_id})
+    repo = _comms_filters_repo(incident_id)
+    existing = repo.find_one({"preset_id": preset_id, "user_id": user_id})
+    if existing:
+        repo.delete_one(existing["_id"])
 
 
 @incident_router.get("/incidents/{incident_id}/comms-log/{entry_id}/audit")
 def list_comms_audit(incident_id: str, entry_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.COMMS_LOG_AUDIT]
+    repo = _comms_audit_repo(incident_id)
     comms_id = f"{incident_id}-COMMS-{entry_id}"
-    return list(col.find({"comms_id": comms_id}, {"_id": 0}).sort("changed_at", -1))
+    docs = repo.find_many({"comms_id": comms_id}, sort=[("changed_at", -1)])
+    for d in docs:
+        d.pop("_id", None)
+    return docs
 
 
 @incident_router.get("/incidents/{incident_id}/comms-log")
@@ -587,7 +755,7 @@ def list_comms_log(
     limit: Optional[int] = None,
     offset: int = 0,
 ):
-    col = get_incident_db(incident_id)[IncidentCollections.COMMUNICATIONS_LOG]
+    repo = _comms_log_repo(incident_id)
     query: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     if start_ts_utc and end_ts_utc:
         query["ts_utc"] = {"$gte": start_ts_utc, "$lte": end_ts_utc}
@@ -614,12 +782,10 @@ def list_comms_log(
     _valid_order_fields = {"ts_utc", "ts_local", "priority", "resource_label", "created_at"}
     sort_field = order_by if order_by in _valid_order_fields else "ts_utc"
     sort_dir = -1 if order_desc else 1
-    cursor = col.find(query, {"_id": 0}).sort(sort_field, sort_dir)
-    if offset:
-        cursor = cursor.skip(offset)
-    if limit is not None:
-        cursor = cursor.limit(limit)
-    return [_map_comms_entry(d, incident_id) for d in cursor]
+    docs = repo.find_many(query, sort=[(sort_field, sort_dir)], skip=offset or 0, limit=limit or 0)
+    for d in docs:
+        d.pop("_id", None)
+    return [_map_comms_entry(d, incident_id) for d in docs]
 
 
 class CommsLogEntryRequest(BaseModel):
@@ -653,12 +819,11 @@ class CommsLogEntryRequest(BaseModel):
 
 @incident_router.post("/incidents/{incident_id}/comms-log", status_code=201)
 def add_comms_log_entry(incident_id: str, body: CommsLogEntryRequest):
-    col = get_incident_db(incident_id)[IncidentCollections.COMMUNICATIONS_LOG]
-    audit_col = get_incident_db(incident_id)[IncidentCollections.COMMS_LOG_AUDIT]
+    repo = _comms_log_repo(incident_id)
+    audit_repo = _comms_audit_repo(incident_id)
     now = _utcnow()
-    comms_id = _next_comms_id(col, incident_id)
+    comms_id = _next_comms_id(repo, incident_id)
     doc = {
-        "_id": str(uuid.uuid4()),
         "comms_id": comms_id,
         "incident_id": incident_id,
         "ts_utc": body.ts_utc or now,
@@ -687,32 +852,31 @@ def add_comms_log_entry(incident_id: str, body: CommsLogEntryRequest):
         "geotag_lon": body.geotag_lon,
         "notification_level": body.notification_level,
         "is_status_update": body.is_status_update,
-        "created_at": now,
-        "updated_at": now,
         "deleted": False,
     }
-    col.insert_one(doc)
-    saved = col.find_one({"comms_id": comms_id}, {"_id": 0})
-    _write_audit(audit_col, comms_id, "create", body.operator_user_id, {"message": body.message})
+    saved = repo.insert_one(doc)
+    saved.pop("_id", None)
+    _write_audit(audit_repo, comms_id, "create", body.operator_user_id, {"message": body.message})
     return _map_comms_entry(saved, incident_id)
 
 
 @incident_router.get("/incidents/{incident_id}/comms-log/{entry_id}")
 def get_comms_log_entry(incident_id: str, entry_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.COMMUNICATIONS_LOG]
+    repo = _comms_log_repo(incident_id)
     comms_id = f"{incident_id}-COMMS-{entry_id}"
-    doc = col.find_one({"comms_id": comms_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"comms_id": comms_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Entry not found")
+    doc.pop("_id", None)
     return _map_comms_entry(doc, incident_id)
 
 
 @incident_router.patch("/incidents/{incident_id}/comms-log/{entry_id}")
 def update_comms_log_entry(incident_id: str, entry_id: int, patch: Dict[str, Any] = Body(...)):
-    col = get_incident_db(incident_id)[IncidentCollections.COMMUNICATIONS_LOG]
-    audit_col = get_incident_db(incident_id)[IncidentCollections.COMMS_LOG_AUDIT]
+    repo = _comms_log_repo(incident_id)
+    audit_repo = _comms_audit_repo(incident_id)
     comms_id = f"{incident_id}-COMMS-{entry_id}"
-    doc = col.find_one({"comms_id": comms_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"comms_id": comms_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Entry not found")
     update = dict(patch)
@@ -724,21 +888,21 @@ def update_comms_log_entry(incident_id: str, entry_id: int, patch: Dict[str, Any
         update["team_id"] = f"{incident_id}-TEAM-{update['team_id']}"
     if "task_id" in update and update["task_id"] is not None:
         update["task_id"] = f"{incident_id}-TASK-{update['task_id']}"
-    update["updated_at"] = _utcnow()
-    col.update_one({"comms_id": comms_id}, {"$set": update})
-    updated = col.find_one({"comms_id": comms_id}, {"_id": 0})
+    repo.update_one(doc["_id"], update)
+    updated = repo.find_by_id(doc["_id"])
+    updated.pop("_id", None)
     changed_by = patch.get("operator_user_id") or doc.get("operator_user_id")
-    _write_audit(audit_col, comms_id, "update", changed_by, patch)
+    _write_audit(audit_repo, comms_id, "update", changed_by, patch)
     return _map_comms_entry(updated, incident_id)
 
 
 @incident_router.delete("/incidents/{incident_id}/comms-log/{entry_id}", status_code=204)
 def delete_comms_log_entry(incident_id: str, entry_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.COMMUNICATIONS_LOG]
-    audit_col = get_incident_db(incident_id)[IncidentCollections.COMMS_LOG_AUDIT]
+    repo = _comms_log_repo(incident_id)
+    audit_repo = _comms_audit_repo(incident_id)
     comms_id = f"{incident_id}-COMMS-{entry_id}"
-    doc = col.find_one({"comms_id": comms_id, "deleted": {"$ne": True}}, {"_id": 0})
+    doc = repo.find_one({"comms_id": comms_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Entry not found")
-    col.update_one({"comms_id": comms_id}, {"$set": {"deleted": True, "updated_at": _utcnow()}})
-    _write_audit(audit_col, comms_id, "delete", doc.get("operator_user_id"), {})
+    repo.update_one(doc["_id"], {"deleted": True})
+    _write_audit(audit_repo, comms_id, "delete", doc.get("operator_user_id"), {})

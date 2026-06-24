@@ -20,7 +20,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BASE_URL = "http://localhost:8765"
+DEFAULT_BASE_URL = "http://localhost:8765"
+_DEFAULT_BASE_URL = DEFAULT_BASE_URL
 _TIMEOUT_SECONDS = 10
 
 
@@ -65,6 +66,28 @@ class _APIClient:
         self._client = self._make_client()
         logger.debug("API client configured: %s", self._base_url)
 
+    def configure_test_transport(self, app: Any) -> None:
+        """Route requests in-process to an ASGI app instead of over the network.
+
+        Test-only: lets modules that call api_client be tested against the real
+        FastAPI app (e.g. sarapp_db.api.app.create_app()) without a server
+        process actually listening on a port. Call configure(...) afterward to
+        point back at a real server.
+
+        Uses Starlette's TestClient rather than a plain httpx.Client +
+        ASGITransport: httpx's ASGITransport is async-only, but api_client is
+        a sync client throughout the app; TestClient wraps the same transport
+        with a background event-loop portal so synchronous calls work.
+        """
+        from starlette.testclient import TestClient
+
+        try:
+            self._client.close()
+        except Exception:
+            pass
+        self._base_url = "http://testserver"
+        self._client = TestClient(app, base_url=self._base_url)
+
     @property
     def base_url(self) -> str:
         return self._base_url
@@ -79,8 +102,8 @@ class _APIClient:
     def post(self, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
         return self._send("POST", path, json=json, params=params)
 
-    def put(self, path: str, *, json: Any = None) -> Any:
-        return self._send("PUT", path, json=json)
+    def put(self, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
+        return self._send("PUT", path, json=json, params=params)
 
     def patch(self, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
         return self._send("PATCH", path, json=json, params=params)

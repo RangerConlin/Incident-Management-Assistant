@@ -15,6 +15,7 @@ from ..models import (
     PRIORITY_PRIORITY,
     PRIORITY_ROUTINE,
 )
+from utils.timefmt import abbreviate_tz_name
 
 
 PRIORITY_PALETTE = {
@@ -37,7 +38,7 @@ def _fmt_timestamp(iso_str: str, use_utc: bool = False) -> str:
             dt = dt.astimezone(timezone.utc)
         else:
             dt = dt.astimezone()
-        tz_label = dt.strftime("%Z") or "Local"
+        tz_label = abbreviate_tz_name(dt.strftime("%Z")) or "Local"
         return dt.strftime(f"%b %d %Y  %H:%M:%S  {tz_label}")
     except (ValueError, TypeError):
         return iso_str

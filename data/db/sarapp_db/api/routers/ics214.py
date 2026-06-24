@@ -15,9 +15,26 @@ from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections
-from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.database_manager import get_incident_db, get_incident_db_name
+from sarapp_db.mongo.mongo_client import get_client
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Repository
+# ---------------------------------------------------------------------------
+
+class Ics214StreamsRepository(BaseRepository):
+    collection_name = IncidentCollections.ICS_214_LOGS
+    # Streams have no `deleted` field; they are never soft- or hard-deleted
+    # via this router (only closed/opened via status).
+    soft_deletes = False
+
+
+def _streams_repo(incident_id: str) -> Ics214StreamsRepository:
+    return Ics214StreamsRepository(get_incident_db(incident_id))
 
 
 # ---------------------------------------------------------------------------
@@ -32,10 +49,6 @@ def _new_id() -> str:
     return str(uuid.uuid4())
 
 
-def _col(incident_id: str):
-    return get_incident_db(incident_id)[IncidentCollections.ICS_214_LOGS]
-
-
 def _map_stream(doc: Dict[str, Any], include_entries: bool = False) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "id": doc.get("stream_id") or doc.get("_id", ""),
@@ -44,6 +57,8 @@ def _map_stream(doc: Dict[str, Any], include_entries: bool = False) -> Dict[str,
         "op_number": doc.get("op_number", 0),
         "kind": doc.get("kind"),
         "section": doc.get("section"),
+        "status": doc.get("status", "open"),
+        "closed_at": doc.get("closed_at"),
         "created_at": doc.get("created_at", ""),
         "updated_at": doc.get("updated_at", ""),
     }
@@ -88,16 +103,15 @@ class StreamUpdate(BaseModel):
 
 @router.get("/incidents/{incident_id}/ics214/streams")
 def list_streams(incident_id: str):
-    col = _col(incident_id)
-    docs = list(col.find({"incident_id": incident_id}, {"entries": 0}).sort("created_at", 1))
+    repo = _streams_repo(incident_id)
+    docs = repo._col.find({"incident_id": incident_id}, {"entries": 0}).sort("created_at", 1)
     return [_map_stream(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/ics214/streams", status_code=201)
 def create_stream(incident_id: str, data: StreamCreate):
-    col = _col(incident_id)
+    repo = _streams_repo(incident_id)
     stream_id = _new_id()
-    now = _utcnow()
     doc = {
         "_id": stream_id,
         "stream_id": stream_id,
@@ -106,18 +120,17 @@ def create_stream(incident_id: str, data: StreamCreate):
         "op_number": data.op_number,
         "kind": data.kind,
         "section": data.section,
-        "created_at": now,
-        "updated_at": now,
+        "status": "open",
         "entries": [],
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _map_stream(doc)
 
 
 @router.get("/incidents/{incident_id}/ics214/streams/{stream_id}")
 def get_stream(incident_id: str, stream_id: str):
-    col = _col(incident_id)
-    doc = col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    repo = _streams_repo(incident_id)
+    doc = repo.find_one({"stream_id": stream_id, "incident_id": incident_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Stream not found")
     return _map_stream(doc, include_entries=True)
@@ -125,20 +138,36 @@ def get_stream(incident_id: str, stream_id: str):
 
 @router.put("/incidents/{incident_id}/ics214/streams/{stream_id}")
 def update_stream(incident_id: str, stream_id: str, data: StreamUpdate):
-    col = _col(incident_id)
-    updates: Dict[str, Any] = {"updated_at": _utcnow()}
+    repo = _streams_repo(incident_id)
+    updates: Dict[str, Any] = {}
     for field in ("name", "op_number", "kind", "section"):
         val = getattr(data, field, None)
         if val is not None:
             updates[field] = val
-    result = col.find_one_and_update(
-        {"stream_id": stream_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-        projection={"entries": 0},
-    )
-    if not result:
+    doc = repo.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if not doc:
         raise HTTPException(status_code=404, detail="Stream not found")
+    repo.update_one(doc["_id"], updates, extra_filter={"incident_id": incident_id})
+    result = repo.find_by_id(doc["_id"])
+    return _map_stream(result)
+
+
+class StreamStatusUpdate(BaseModel):
+    status: str
+
+
+@router.patch("/incidents/{incident_id}/ics214/streams/{stream_id}/status")
+def set_stream_status(incident_id: str, stream_id: str, data: StreamStatusUpdate):
+    if data.status not in ("open", "closed"):
+        raise HTTPException(status_code=400, detail="status must be 'open' or 'closed'")
+    repo = _streams_repo(incident_id)
+    doc = repo.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Stream not found")
+    updates: Dict[str, Any] = {"status": data.status}
+    updates["closed_at"] = _utcnow() if data.status == "closed" else None
+    repo.update_one(doc["_id"], updates, extra_filter={"incident_id": incident_id})
+    result = repo.find_by_id(doc["_id"])
     return _map_stream(result)
 
 
@@ -163,8 +192,8 @@ class EntryUpdate(BaseModel):
 
 @router.get("/incidents/{incident_id}/ics214/streams/{stream_id}/entries")
 def list_entries(incident_id: str, stream_id: str, exclude_internal: bool = False):
-    col = _col(incident_id)
-    doc = col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries": 1})
+    repo = _streams_repo(incident_id)
+    doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries": 1})
     if not doc:
         raise HTTPException(status_code=404, detail="Stream not found")
     entries = sorted(doc.get("entries") or [], key=lambda e: e.get("timestamp_utc", ""))
@@ -175,8 +204,8 @@ def list_entries(incident_id: str, stream_id: str, exclude_internal: bool = Fals
 
 @router.post("/incidents/{incident_id}/ics214/streams/{stream_id}/entries", status_code=201)
 def add_entry(incident_id: str, stream_id: str, data: EntryCreate, autogenerated: bool = False, idempotency_hash: Optional[str] = None):
-    col = _col(incident_id)
-    doc = col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries.idempotency_hash": 1})
+    repo = _streams_repo(incident_id)
+    doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries.idempotency_hash": 1})
     if not doc:
         raise HTTPException(status_code=404, detail="Stream not found")
 
@@ -189,7 +218,7 @@ def add_entry(incident_id: str, stream_id: str, data: EntryCreate, autogenerated
     existing_hashes = {e.get("idempotency_hash") for e in (doc.get("entries") or [])}
     if idempotency_hash in existing_hashes:
         # Return the existing entry
-        full = col.find_one({"stream_id": stream_id}, {"entries": 1})
+        full = repo._col.find_one({"stream_id": stream_id}, {"entries": 1})
         for e in (full or {}).get("entries", []):
             if e.get("idempotency_hash") == idempotency_hash:
                 return _map_entry(e)
@@ -207,17 +236,20 @@ def add_entry(incident_id: str, stream_id: str, data: EntryCreate, autogenerated
         "idempotency_hash": idempotency_hash,
         "tags": data.tags or [],
     }
-    col.update_one(
+    repo._col.update_one(
         {"stream_id": stream_id, "incident_id": incident_id},
         {"$push": {"entries": entry}, "$set": {"updated_at": _utcnow()}},
     )
+    updated_doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if updated_doc:
+        repo._broadcast("updated", updated_doc["_id"], updated_doc)
     return _map_entry(entry)
 
 
 @router.put("/incidents/{incident_id}/ics214/streams/{stream_id}/entries/{entry_id}")
 def update_entry(incident_id: str, stream_id: str, entry_id: str, data: EntryUpdate):
-    col = _col(incident_id)
-    doc = col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries": 1})
+    repo = _streams_repo(incident_id)
+    doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries": 1})
     if not doc:
         raise HTTPException(status_code=404, detail="Stream not found")
 
@@ -235,9 +267,11 @@ def update_entry(incident_id: str, stream_id: str, entry_id: str, data: EntryUpd
         updates[f"entries.{idx}.tags"] = data.tags
     updates["updated_at"] = _utcnow()
 
-    col.update_one({"stream_id": stream_id, "incident_id": incident_id}, {"$set": updates})
-    updated_doc = col.find_one({"stream_id": stream_id}, {"entries": 1})
-    updated_entries = updated_doc.get("entries") or []
+    repo._col.update_one({"stream_id": stream_id, "incident_id": incident_id}, {"$set": updates})
+    updated_doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if updated_doc:
+        repo._broadcast("updated", updated_doc["_id"], updated_doc)
+    updated_entries = (updated_doc or {}).get("entries") or []
     entry = next((e for e in updated_entries if e.get("id") == entry_id), None)
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found after update")
@@ -246,13 +280,16 @@ def update_entry(incident_id: str, stream_id: str, entry_id: str, data: EntryUpd
 
 @router.delete("/incidents/{incident_id}/ics214/streams/{stream_id}/entries/{entry_id}", status_code=204)
 def delete_entry(incident_id: str, stream_id: str, entry_id: str):
-    col = _col(incident_id)
-    result = col.update_one(
+    repo = _streams_repo(incident_id)
+    result = repo._col.update_one(
         {"stream_id": stream_id, "incident_id": incident_id},
         {"$pull": {"entries": {"id": entry_id}}, "$set": {"updated_at": _utcnow()}},
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Stream not found")
+    updated_doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if updated_doc:
+        repo._broadcast("updated", updated_doc["_id"], updated_doc)
 
 
 # ===========================================================================
@@ -267,11 +304,11 @@ class IngestRuleCreate(BaseModel):
 
 @router.get("/incidents/{incident_id}/ics214/ingest-rules")
 def list_ingest_rules(incident_id: str, stream_id: Optional[str] = None):
-    col = _col(incident_id)
+    repo = _streams_repo(incident_id)
     query: Dict[str, Any] = {"incident_id": incident_id}
     if stream_id:
         query["stream_id"] = stream_id
-    docs = list(col.find(query, {"ingest_rules": 1, "stream_id": 1}))
+    docs = list(repo._col.find(query, {"ingest_rules": 1, "stream_id": 1}))
     result = []
     for d in docs:
         sid = d.get("stream_id", "")
@@ -282,7 +319,7 @@ def list_ingest_rules(incident_id: str, stream_id: Optional[str] = None):
 
 @router.post("/incidents/{incident_id}/ics214/streams/{stream_id}/ingest-rules", status_code=201)
 def add_ingest_rule(incident_id: str, stream_id: str, data: IngestRuleCreate):
-    col = _col(incident_id)
+    repo = _streams_repo(incident_id)
     rule = {
         "id": _new_id(),
         "stream_id": stream_id,
@@ -290,19 +327,22 @@ def add_ingest_rule(incident_id: str, stream_id: str, data: IngestRuleCreate):
         "template": data.template,
         "enabled": data.enabled,
     }
-    col.update_one(
+    repo._col.update_one(
         {"stream_id": stream_id, "incident_id": incident_id},
         {"$push": {"ingest_rules": rule}},
     )
+    updated_doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if updated_doc:
+        repo._broadcast("updated", updated_doc["_id"], updated_doc)
     return rule
 
 
 @router.post("/incidents/{incident_id}/ics214/ingest-event")
 def ingest_event(incident_id: str, event: Dict[str, Any] = Body(...)):
-    col = _col(incident_id)
+    repo = _streams_repo(incident_id)
     topic = event.get("topic", "")
     created = []
-    docs = list(col.find({"incident_id": incident_id}, {"stream_id": 1, "ingest_rules": 1, "entries.idempotency_hash": 1}))
+    docs = list(repo._col.find({"incident_id": incident_id}, {"stream_id": 1, "ingest_rules": 1, "entries.idempotency_hash": 1}))
     for doc in docs:
         stream_id = doc.get("stream_id", "")
         for rule in (doc.get("ingest_rules") or []):
@@ -329,10 +369,13 @@ def ingest_event(incident_id: str, event: Dict[str, Any] = Body(...)):
                 "idempotency_hash": id_hash,
                 "tags": [],
             }
-            col.update_one(
+            repo._col.update_one(
                 {"stream_id": stream_id, "incident_id": incident_id},
                 {"$push": {"entries": entry}, "$set": {"updated_at": _utcnow()}},
             )
+            updated_doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+            if updated_doc:
+                repo._broadcast("updated", updated_doc["_id"], updated_doc)
             created.append(_map_entry(entry))
     return {"created": created}
 
@@ -367,10 +410,10 @@ class MobileLogEntryCreate(BaseModel):
     tags: List[str] = Field(default_factory=list)
 
 
-def _get_or_create_team_stream(col, incident_id: str, team_id: int) -> Dict[str, Any]:
+def _get_or_create_team_stream(repo: Ics214StreamsRepository, incident_id: str, team_id: int) -> Dict[str, Any]:
     """Find the ICS-214 stream for a team, creating it if it doesn't exist."""
     stream_name = f"Team {team_id}"
-    doc = col.find_one(
+    doc = repo._col.find_one(
         {
             "incident_id": incident_id,
             "$or": [
@@ -384,22 +427,18 @@ def _get_or_create_team_stream(col, incident_id: str, team_id: int) -> Dict[str,
         return doc
 
     import json as _json
-    stream_id = _new_id()
-    now = _utcnow()
     section = _json.dumps({"category": "team", "ref": f"team:{team_id}", "label": stream_name})
     new_doc = {
-        "_id": stream_id,
-        "stream_id": stream_id,
+        "stream_id": _new_id(),
         "incident_id": incident_id,
         "name": stream_name,
         "op_number": 0,
         "kind": "team",
         "section": section,
-        "created_at": now,
-        "updated_at": now,
         "entries": [],
     }
-    col.insert_one(new_doc)
+    new_doc["_id"] = new_doc["stream_id"]
+    new_doc = repo.insert_one(new_doc)
     return new_doc
 
 
@@ -410,8 +449,8 @@ def mobile_add_team_log_entry(incident_id: str, team_id: int, data: MobileLogEnt
     The stream is created automatically if it doesn't exist yet.
     The entry is tagged source='mobile' so desktop clients can identify it.
     """
-    col = _col(incident_id)
-    stream = _get_or_create_team_stream(col, incident_id, team_id)
+    repo = _streams_repo(incident_id)
+    stream = _get_or_create_team_stream(repo, incident_id, team_id)
     stream_id = stream["stream_id"]
 
     ts = data.timestamp_utc or _utcnow()
@@ -420,7 +459,7 @@ def mobile_add_team_log_entry(incident_id: str, team_id: int, data: MobileLogEnt
 
     existing_hashes = {e.get("idempotency_hash") for e in (stream.get("entries") or [])}
     if idempotency_hash in existing_hashes:
-        full = col.find_one({"stream_id": stream_id}, {"entries": 1})
+        full = repo._col.find_one({"stream_id": stream_id}, {"entries": 1})
         for e in (full or {}).get("entries", []):
             if e.get("idempotency_hash") == idempotency_hash:
                 return _map_entry(e)
@@ -437,10 +476,13 @@ def mobile_add_team_log_entry(incident_id: str, team_id: int, data: MobileLogEnt
         "idempotency_hash": idempotency_hash,
         "tags": data.tags or [],
     }
-    col.update_one(
+    repo._col.update_one(
         {"stream_id": stream_id, "incident_id": incident_id},
         {"$push": {"entries": entry}, "$set": {"updated_at": _utcnow()}},
     )
+    updated_doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if updated_doc:
+        repo._broadcast("updated", updated_doc["_id"], updated_doc)
     return _map_entry(entry)
 
 
@@ -452,11 +494,11 @@ def mobile_get_team_log(incident_id: str, team_id: int, since: Optional[str] = N
     - Optional `since` param (ISO timestamp) returns only entries after that time,
       useful for polling/delta sync on the mobile side.
     """
-    col = _col(incident_id)
-    stream = _get_or_create_team_stream(col, incident_id, team_id)
+    repo = _streams_repo(incident_id)
+    stream = _get_or_create_team_stream(repo, incident_id, team_id)
     stream_id = stream["stream_id"]
 
-    full = col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries": 1})
+    full = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id}, {"entries": 1})
     entries = sorted(
         (full or {}).get("entries") or [],
         key=lambda e: e.get("timestamp_utc", ""),
@@ -474,13 +516,16 @@ def mobile_get_team_log(incident_id: str, team_id: int, since: Optional[str] = N
 )
 def mobile_delete_team_log_entry(incident_id: str, team_id: int, entry_id: str):
     """Delete a log entry by id.  Only the entry's author should call this."""
-    col = _col(incident_id)
-    stream = _get_or_create_team_stream(col, incident_id, team_id)
+    repo = _streams_repo(incident_id)
+    stream = _get_or_create_team_stream(repo, incident_id, team_id)
     stream_id = stream["stream_id"]
-    col.update_one(
+    repo._col.update_one(
         {"stream_id": stream_id, "incident_id": incident_id},
         {"$pull": {"entries": {"id": entry_id}}, "$set": {"updated_at": _utcnow()}},
     )
+    updated_doc = repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if updated_doc:
+        repo._broadcast("updated", updated_doc["_id"], updated_doc)
 
 
 class MobileNarrativeCreate(BaseModel):
@@ -488,6 +533,14 @@ class MobileNarrativeCreate(BaseModel):
     actor_user_id: Optional[str] = None
     timestamp_utc: Optional[str] = None
     critical_flag: bool = False
+
+
+class _TasksRepository(BaseRepository):
+    collection_name = IncidentCollections.OPERATIONS_TASKS
+
+
+def _tasks_repo(incident_id: str) -> _TasksRepository:
+    return _TasksRepository(get_client()[get_incident_db_name(incident_id)])
 
 
 @router.post(
@@ -504,10 +557,7 @@ def mobile_add_task_narrative(
     automatically mirrored to the team's ICS-214 stream so it appears on the
     formal 214 form.
     """
-    from sarapp_db.mongo.client import get_db
-    from sarapp_db.mongo.collection_names import IncidentCollections
-
-    tasks_col = get_db(f"sarapp_incident_{incident_id}")[IncidentCollections.OPERATIONS_TASKS]
+    tasks_repo = _tasks_repo(incident_id)
     ts = data.timestamp_utc or _utcnow()
     narrative_entry = {
         "id": _new_id(),
@@ -519,17 +569,20 @@ def mobile_add_task_narrative(
         "critical": data.critical_flag,
         "source": "mobile",
     }
-    result = tasks_col.find_one_and_update(
+    result = tasks_repo._col.find_one_and_update(
         {"int_id": task_id},
         {"$push": {"narrative": narrative_entry}},
         projection={"int_id": 1, "title": 1},
     )
     if not result:
         raise HTTPException(status_code=404, detail="Task not found")
+    updated_task = tasks_repo._col.find_one({"int_id": task_id})
+    if updated_task:
+        tasks_repo._broadcast("updated", updated_task["_id"], updated_task)
 
     # Mirror to team's ICS-214 stream
-    ics_col = _col(incident_id)
-    stream = _get_or_create_team_stream(ics_col, incident_id, team_id)
+    ics_repo = _streams_repo(incident_id)
+    stream = _get_or_create_team_stream(ics_repo, incident_id, team_id)
     stream_id = stream["stream_id"]
     critical_tag = " [CRITICAL]" if data.critical_flag else ""
     task_label = result.get("title") or f"Task {task_id}"
@@ -548,8 +601,11 @@ def mobile_add_task_narrative(
         "idempotency_hash": idempotency_hash,
         "tags": ["narrative", f"task:{task_id}"],
     }
-    ics_col.update_one(
+    ics_repo._col.update_one(
         {"stream_id": stream_id, "incident_id": incident_id},
         {"$push": {"entries": ics_entry}, "$set": {"updated_at": _utcnow()}},
     )
+    updated_stream = ics_repo._col.find_one({"stream_id": stream_id, "incident_id": incident_id})
+    if updated_stream:
+        ics_repo._broadcast("updated", updated_stream["_id"], updated_stream)
     return {**narrative_entry, "ics214_entry_id": ics_entry["id"]}

@@ -1,0 +1,8 @@
+{
+  "description": "SAR 119 - Debriefing Supplement (generic continuation sheet)",
+  "fields": [
+    { "pdf_field": "1 INCIDENT NAME", "source": "incident.name" },
+    { "pdf_field": "2 OPERATIONAL PERIOD", "source": "op_period.number" },
+    { "pdf_field": "3ASSIGNMENT NUMBER", "source": { "first_of": ["debrief.sortie_number", "tasks.0.task_id"] } }
+  ]
+}

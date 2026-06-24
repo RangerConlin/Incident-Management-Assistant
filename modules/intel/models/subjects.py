@@ -153,4 +153,6 @@ class Subject:
             "reliability": self.reliability,
             "initial_report": self.initial_report,
             "notes": self.notes,
+            "linked_item_ids": self.linked_item_ids,
+            "linked_task_ids": self.linked_task_ids,
         }

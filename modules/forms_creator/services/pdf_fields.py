@@ -134,8 +134,7 @@ class PDFFormFieldExtractor:
                 if template_type is None:
                     continue
 
-                name_value = _resolve_inherited(field_dict, "/T")
-                field_name = _normalise_text(name_value) or ""
+                field_name = _resolve_full_field_name(field_dict)
 
                 required = bool(flags & FieldFlag.REQUIRED)
                 default_raw = _resolve_inherited(field_dict, "/V")
@@ -224,6 +223,45 @@ def _resolve_inherited(field_dict: DictionaryObject, key: str):
         else:
             break
     return None
+
+
+def _resolve_full_field_name(field_dict: DictionaryObject) -> str:
+    """Return the full AcroForm field name for a widget/field dictionary.
+
+    ``/T`` is a partial field name, not an inheritable property.  A widget may
+    be a child of nested field dictionaries such as ``personnel`` -> ``name``
+    -> ``1``.  Reading only the nearest ``/T`` collapses those fields to
+    duplicate leaf names like ``1``.
+    """
+
+    parts: list[str] = []
+    current: DictionaryObject | None = field_dict
+    visited: set[int] = set()
+
+    while current is not None:
+        name = _normalise_text(current.get("/T"))
+        if name:
+            parts.append(name)
+
+        parent = current.get("/Parent")
+        if parent is None:
+            break
+        if isinstance(parent, IndirectObject):
+            obj_id = (parent.idnum << 16) | parent.generation
+            if obj_id in visited:
+                break
+            visited.add(obj_id)
+            current = _get_dictionary(parent)
+        elif isinstance(parent, DictionaryObject):
+            obj_id = id(parent)
+            if obj_id in visited:
+                break
+            visited.add(obj_id)
+            current = parent
+        else:
+            break
+
+    return ".".join(reversed(parts))
 
 
 def _extract_rect(value: object) -> tuple[float, float, float, float] | None:

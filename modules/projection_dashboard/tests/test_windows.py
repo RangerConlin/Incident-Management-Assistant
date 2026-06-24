@@ -20,7 +20,10 @@ def qt_app() -> QApplication:
 
 
 def test_team_board_initializes_with_saved_widths(qt_app: QApplication) -> None:
-    QSettings().setValue(
+    # Must match the explicitly-scoped QSettings("SARApp", "ProjectionDashboard")
+    # the widget itself uses (see windows.py's _settings() helper) — a bare
+    # QSettings() here would write somewhere the widget never reads from.
+    QSettings("SARApp", "ProjectionDashboard").setValue(
         "projection_dashboard/ProjectionTeamBoard/column_widths",
         [180, 190, 200, 210, 220],
     )

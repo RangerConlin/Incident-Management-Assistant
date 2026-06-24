@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import socket
 import threading
+import time
 import uuid
 from typing import Any
 
@@ -84,6 +85,20 @@ class SARAppServerManager:
             daemon=True,
         )
         self._thread.start()
+
+        # Wait for uvicorn to actually finish binding before returning, and
+        # resolve the real bound port — when port=0 was requested (let the OS
+        # pick a free port), the caller-supplied value never reflects what
+        # actually got bound.
+        deadline = time.monotonic() + 5.0
+        while not getattr(self._server, "started", False) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        try:
+            actual_port = self._server.servers[0].sockets[0].getsockname()[1]
+            self.port = actual_port
+            self.server_info.port = actual_port
+        except Exception:
+            pass
 
         if self.discovery_enabled:
             self._broadcaster.server_info = self.server_info

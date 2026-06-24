@@ -29,15 +29,16 @@ PALETTE: Dict[str, str] = {
     "error":        "#d32f2f",
 
     # Window specific surfaces from the semantic palette for legacy widgets.
-    # Lightness ladder (lightest -> darkest): bg_window > dock_tab_bg > bg_raised > bg_panel,
+    # Lightness ladder (lightest -> darkest): bg_window > dock_tab_bg > bg_raised >
+    # menu_bar_bg > bg_panel, with a slight cool tint to soften pure-gray contrast,
     # mirroring the dark profile's darkest -> lightest ladder in reverse.
-    "bg_window":    "#D1D1D1",
-    "bg_panel":     "#A8A8A8",
-    "menu_bar_bg":  "#B5B5B5",
-    "bg_raised":    "#BEBEBE",
-    "fg_primary":   "#0F0F0F",
+    "bg_window":    "#E4E4E4",
+    "bg_panel":     "#B8B8BC",
+    "menu_bar_bg":  "#C2C2C6",
+    "bg_raised":    "#CACACE",
+    "fg_primary":   "#1A1A1A",
     "fg_muted":     "#5A5F6A",
-    "dock_tab_bg":  "#C6C6C6",
+    "dock_tab_bg":  "#D6D6DA",
 
     # Additional semantic accents used by reports and specialty panels.
     "accent_alt":   "#27AE60",
@@ -45,18 +46,18 @@ PALETTE: Dict[str, str] = {
     "info":         "#338EDA",
 
     # Control states for button chrome, hover rings, focus outlines, and dividers.
-    "ctrl_bg":      "#E9E9E9",
-    "ctrl_border":  "#D5D8DE",
-    "ctrl_hover":   "#DDE1E6",
+    "ctrl_bg":      "#EFEFF1",
+    "ctrl_border":  "#D8DADD",
+    "ctrl_hover":   "#E3E5E8",
     "ctrl_focus":   "#2F80ED",
-    "divider":      "#D5D8DE",
+    "divider":      "#D8DADD",
 
     # Buttons
-    "btn_bg":       "#E9E9E9",
-    "btn_border":   "#D5D8DE",
-    "btn_hover":    "#DDE1E6",
+    "btn_bg":       "#EFEFF1",
+    "btn_border":   "#D8DADD",
+    "btn_hover":    "#E3E5E8",
     "btn_focus":    "#2F80ED",
-    "btn_disabled": "#C8CBCF",
+    "btn_disabled": "#D2D4D7",
     "btn_checked":  "#2F80ED",
 }
 
@@ -95,31 +96,31 @@ SURFACE: Dict[str, str] = {
 # Team status colours for Qt table rows and other widgets.  These map the
 # lowercase workflow statuses used throughout the operations module.
 TEAM_STATUS: Dict[str, Dict[str, str]] = {
-    "aol":              {"bg": "#085ec7", "fg": "#e0e0e0"},
-    "arrival":          {"bg": "#17c4eb", "fg": "#333333"},
-    "assigned":         {"bg": "#ffeb3b", "fg": "#333333"},
-    "available":        {"bg": "#388e3c", "fg": "#ffffff"},
-    "break":            {"bg": "#9c27b0", "fg": "#333333"},
-    "briefed":          {"bg": "#ffeb3b", "fg": "#333333"},
-    "crew rest":        {"bg": "#9c27b0", "fg": "#333333"},
-    "enroute":          {"bg": "#ffeb3b", "fg": "#333333"},
-    "out of service":   {"bg": "#d32f2f", "fg": "#333333"},
-    "report writing":   {"bg": "#ce93d8", "fg": "#333333"},
-    "returning":        {"bg": "#0288d1", "fg": "#e1e1e1"},
-    "tol":              {"bg": "#085ec7", "fg": "#e0e0e0"},
-    "wheels down":      {"bg": "#0288d1", "fg": "#e1e1e1"},
-    "post incident":    {"bg": "#ce93d8", "fg": "#333333"},
-    "find":             {"bg": "#ffa000", "fg": "#333333"},
-    "complete":         {"bg": "#386a3c", "fg": "#333333"},
+    "aol":              {"bg": "#1565C0", "fg": "#ffffff"},
+    "arrival":          {"bg": "#00B8D4", "fg": "#1a1a1a"},
+    "assigned":         {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "available":        {"bg": "#43A047", "fg": "#ffffff"},
+    "break":            {"bg": "#AB47BC", "fg": "#ffffff"},
+    "briefed":          {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "crew rest":        {"bg": "#AB47BC", "fg": "#ffffff"},
+    "enroute":          {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "out of service":   {"bg": "#E53935", "fg": "#ffffff"},
+    "report writing":   {"bg": "#CE93D8", "fg": "#1a1a1a"},
+    "returning":        {"bg": "#0288D1", "fg": "#ffffff"},
+    "tol":              {"bg": "#1565C0", "fg": "#ffffff"},
+    "wheels down":      {"bg": "#0288D1", "fg": "#ffffff"},
+    "post incident":    {"bg": "#CE93D8", "fg": "#1a1a1a"},
+    "find":             {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "complete":         {"bg": "#2E7D32", "fg": "#ffffff"},
 }
 
 TASK_STATUS: Dict[str, Dict[str, str]] = {
-    "created":          {"bg": "#6e7b8b", "fg": "#333333"},
-    "planned":          {"bg": "#ce93d8", "fg": "#333333"},
-    "assigned":         {"bg": "#ffeb3b", "fg": "#333333"},
-    "in progress":      {"bg": "#17c4e8", "fg": "#333333"},
-    "complete":         {"bg": "#386a3c", "fg": "#333333"},
-    "cancelled":        {"bg": "#d32f2f", "fg": "#333333"},
+    "created":          {"bg": "#90A4AE", "fg": "#1a1a1a"},
+    "planned":          {"bg": "#CE93D8", "fg": "#1a1a1a"},
+    "assigned":         {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "in progress":      {"bg": "#00ACC1", "fg": "#ffffff"},
+    "complete":         {"bg": "#2E7D32", "fg": "#ffffff"},
+    "cancelled":        {"bg": "#E53935", "fg": "#ffffff"},
 }
 
 TEAM_TYPE_COLORS: Dict[str, str] = {

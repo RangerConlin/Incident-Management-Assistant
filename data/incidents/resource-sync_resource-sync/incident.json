@@ -1,0 +1,12 @@
+{
+  "incident_id": null,
+  "incident_number": "resource-sync",
+  "name": "resource-sync",
+  "status": "Active",
+  "type": "",
+  "created_at": null,
+  "updated_at": null,
+  "incident_db_path": "incident.db",
+  "spatial_db_path": "spatial.db",
+  "folder_version": 1
+}

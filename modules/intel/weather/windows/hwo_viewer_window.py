@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -33,6 +34,7 @@ class HwoViewerWindow(QMainWindow):
         self.resize(900, 700)
         self.api = WeatherApiManager.instance()
         self.api.dataUpdated.connect(self._handle_data)
+        self._last_find_term = ""
         self._setup_ui()
         self._load_state()
 
@@ -83,7 +85,21 @@ class HwoViewerWindow(QMainWindow):
         self.body.copy()
 
     def _find_in_text(self) -> None:
-        self.status_bar.showMessage("Find not yet implemented")
+        text, ok = QInputDialog.getText(self, "Find", "Find in HWO text:", text=self._last_find_term)
+        if not ok or not text:
+            return
+        self._last_find_term = text
+        found = self.body.find(text)
+        if not found:
+            # Wrap around: move cursor to start and try again.
+            cursor = self.body.textCursor()
+            cursor.movePosition(cursor.MoveOperation.Start)
+            self.body.setTextCursor(cursor)
+            found = self.body.find(text)
+        if found:
+            self.status_bar.showMessage(f"Found: {text}")
+        else:
+            self.status_bar.showMessage(f"'{text}' not found")
 
     def _open_browser(self) -> None:
         self.status_bar.showMessage("Open in browser pending configuration")

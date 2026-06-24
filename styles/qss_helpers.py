@@ -196,6 +196,26 @@ def global_qss(tokens: dict) -> str:
             color: {tokens['fg_primary']};
             background: transparent;
         }}
+        QCheckBox::indicator, QRadioButton::indicator {{
+            width: 14px;
+            height: 14px;
+            background: {tokens['ctrl_bg']};
+            border: 1px solid {tokens['ctrl_border']};
+        }}
+        QCheckBox::indicator:hover, QRadioButton::indicator:hover {{
+            border: 1px solid {tokens['ctrl_focus']};
+        }}
+        QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
+            background: {tokens['ctrl_focus']};
+            border: 1px solid {tokens['ctrl_focus']};
+        }}
+        QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{
+            background: {tokens['bg_raised']};
+            border: 1px solid {tokens['divider']};
+        }}
+        QRadioButton::indicator {{
+            border-radius: 7px;
+        }}
         QAbstractItemView {{
             background: {tokens['bg_panel']};
             color: {tokens['fg_primary']};

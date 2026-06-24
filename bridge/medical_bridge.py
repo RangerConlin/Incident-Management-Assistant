@@ -264,7 +264,7 @@ class MedicalBridge(QObject):
     def import_ambulance_services(self) -> int:
         rows = self._import_master_rows(
             "ems_agencies",
-            {"type": {"$in": ["Ambulance", "Air Ambulance"]}, "is_active": {"$ne": False}},
+            {"type": {"$in": ["Ground Ambulance", "Ambulance", "Air Ambulance"]}, "is_active": {"$ne": False}},
         )
         for row in rows:
             self.add_record(

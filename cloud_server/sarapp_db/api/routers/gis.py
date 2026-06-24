@@ -1,28 +1,37 @@
 """GIS spatial features router — per-incident."""
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, HTTPException
 
-from sarapp_db.mongo.db_manager import DatabaseManager
+from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
-FEATURES_COL = IncidentCollections.SPATIAL_FEATURES
-LINKS_COL = IncidentCollections.SPATIAL_FEATURE_LINKS
+
+class SpatialFeaturesRepository(BaseRepository):
+    collection_name = IncidentCollections.SPATIAL_FEATURES
+    # Keyed by sequential `int_id`, not `_id`. `deleted`/`is_archived` are
+    # plain application-managed flags here, not BaseRepository soft-deletes.
+    soft_deletes = False
 
 
-def _features(incident_id: str):
-    return DatabaseManager().get_incident_db(incident_id)[FEATURES_COL]
+class SpatialFeatureLinksRepository(BaseRepository):
+    collection_name = IncidentCollections.SPATIAL_FEATURE_LINKS
+    soft_deletes = False
 
 
-def _links(incident_id: str):
-    return DatabaseManager().get_incident_db(incident_id)[LINKS_COL]
+def _features_repo(incident_id: str) -> SpatialFeaturesRepository:
+    return SpatialFeaturesRepository(get_incident_db(incident_id))
+
+
+def _links_repo(incident_id: str) -> SpatialFeatureLinksRepository:
+    return SpatialFeatureLinksRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
@@ -84,34 +93,34 @@ def _link_out(doc: dict) -> dict:
 
 @router.get("/incidents/{incident_id}/gis/features")
 def list_features(incident_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
-    col = _features(incident_id)
-    _ensure_int_ids(col)
+    repo = _features_repo(incident_id)
+    _ensure_int_ids(repo._col)
     q: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     if not include_archived:
         q["is_archived"] = {"$ne": True}
-    docs = list(col.find(q, sort=[("created_at", 1)]))
+    docs = repo.find_many(q, sort=[("created_at", 1)])
     return [_feature_out(d) for d in docs]
 
 
 @router.get("/incidents/{incident_id}/gis/features/by-type/{feature_type}")
 def list_features_by_type(incident_id: str, feature_type: str, include_archived: bool = False) -> List[Dict[str, Any]]:
-    col = _features(incident_id)
-    _ensure_int_ids(col)
+    repo = _features_repo(incident_id)
+    _ensure_int_ids(repo._col)
     q: Dict[str, Any] = {"incident_id": incident_id, "feature_type": feature_type, "deleted": {"$ne": True}}
     if not include_archived:
         q["is_archived"] = {"$ne": True}
-    docs = list(col.find(q, sort=[("created_at", 1)]))
+    docs = repo.find_many(q, sort=[("created_at", 1)])
     return [_feature_out(d) for d in docs]
 
 
 @router.get("/incidents/{incident_id}/gis/features/by-module/{module_name}")
 def list_features_by_module(incident_id: str, module_name: str, include_archived: bool = False) -> List[Dict[str, Any]]:
-    col = _features(incident_id)
-    _ensure_int_ids(col)
+    repo = _features_repo(incident_id)
+    _ensure_int_ids(repo._col)
     q: Dict[str, Any] = {"incident_id": incident_id, "source_module": module_name, "deleted": {"$ne": True}}
     if not include_archived:
         q["is_archived"] = {"$ne": True}
-    docs = list(col.find(q, sort=[("created_at", 1)]))
+    docs = repo.find_many(q, sort=[("created_at", 1)])
     return [_feature_out(d) for d in docs]
 
 
@@ -122,23 +131,23 @@ def list_features_for_record(
     record_type: str,
     record_id: str,
 ) -> List[Dict[str, Any]]:
-    col = _features(incident_id)
-    _ensure_int_ids(col)
-    docs = list(col.find({
+    repo = _features_repo(incident_id)
+    _ensure_int_ids(repo._col)
+    docs = repo.find_many({
         "incident_id": incident_id,
         "source_module": module_name,
         "source_record_type": record_type,
         "source_record_id": record_id,
         "deleted": {"$ne": True},
-    }))
+    })
     return [_feature_out(d) for d in docs]
 
 
 @router.get("/incidents/{incident_id}/gis/features/{feature_id}")
 def get_feature(incident_id: str, feature_id: int) -> Dict[str, Any]:
-    col = _features(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": feature_id, "deleted": {"$ne": True}})
+    repo = _features_repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": feature_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Spatial feature not found")
     return _feature_out(doc)
@@ -146,12 +155,11 @@ def get_feature(incident_id: str, feature_id: int) -> Dict[str, Any]:
 
 @router.post("/incidents/{incident_id}/gis/features", status_code=201)
 def create_feature(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _features(incident_id)
-    _ensure_int_ids(col)
+    repo = _features_repo(incident_id)
+    _ensure_int_ids(repo._col)
     now = _utcnow()
-    new_id = next_int_id(col)
+    new_id = next_int_id(repo._col)
     doc = {
-        "_id": str(uuid.uuid4()),
         "int_id": new_id,
         "incident_id": incident_id,
         "feature_type": body.get("feature_type", ""),
@@ -180,19 +188,18 @@ def create_feature(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
         "layer_key": body.get("layer_key", ""),
         "style_key": body.get("style_key"),
         "created_at": body.get("created_at") or now,
-        "updated_at": now,
         "created_by": body.get("created_by"),
         "updated_by": body.get("updated_by"),
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _feature_out(doc)
 
 
 @router.patch("/incidents/{incident_id}/gis/features/{feature_id}")
 def update_feature(incident_id: str, feature_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _features(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": feature_id, "deleted": {"$ne": True}})
+    repo = _features_repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": feature_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Spatial feature not found")
     updatable = {
@@ -203,18 +210,17 @@ def update_feature(incident_id: str, feature_id: int, body: Dict[str, Any]) -> D
         "is_archived", "layer_key", "style_key", "updated_by",
     }
     upd = {k: v for k, v in body.items() if k in updatable}
-    upd["updated_at"] = _utcnow()
-    col.update_one({"int_id": feature_id, "incident_id": incident_id}, {"$set": upd})
+    repo.update_one(doc["_id"], upd)
     return get_feature(incident_id, feature_id)
 
 
 @router.patch("/incidents/{incident_id}/gis/features/{feature_id}/archive")
 def archive_feature(incident_id: str, feature_id: int, body: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
-    col = _features(incident_id)
-    col.update_one(
-        {"incident_id": incident_id, "int_id": feature_id},
-        {"$set": {"is_archived": True, "updated_at": _utcnow(), "updated_by": body.get("updated_by")}},
-    )
+    repo = _features_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": feature_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Spatial feature not found")
+    repo.update_one(doc["_id"], {"is_archived": True, "updated_by": body.get("updated_by")})
     return get_feature(incident_id, feature_id)
 
 
@@ -224,9 +230,9 @@ def archive_feature(incident_id: str, feature_id: int, body: Dict[str, Any] = Bo
 
 @router.get("/incidents/{incident_id}/gis/features/{feature_id}/links")
 def list_links_for_feature(incident_id: str, feature_id: int) -> List[Dict[str, Any]]:
-    col = _links(incident_id)
-    _ensure_int_ids(col)
-    docs = list(col.find({"incident_id": incident_id, "feature_id": feature_id, "deleted": {"$ne": True}}))
+    repo = _links_repo(incident_id)
+    _ensure_int_ids(repo._col)
+    docs = repo.find_many({"incident_id": incident_id, "feature_id": feature_id, "deleted": {"$ne": True}})
     return [_link_out(d) for d in docs]
 
 
@@ -237,32 +243,30 @@ def list_related_features(
     record_type: str,
     record_id: str,
 ) -> List[Dict[str, Any]]:
-    links_col = _links(incident_id)
-    _ensure_int_ids(links_col)
-    link_docs = list(links_col.find({
+    links_repo = _links_repo(incident_id)
+    _ensure_int_ids(links_repo._col)
+    link_docs = links_repo.find_many({
         "incident_id": incident_id,
         "linked_module": module_name,
         "linked_record_type": record_type,
         "linked_record_id": record_id,
         "deleted": {"$ne": True},
-    }))
+    })
     feature_ids = [d.get("feature_id") for d in link_docs]
     if not feature_ids:
         return []
-    features_col = _features(incident_id)
-    _ensure_int_ids(features_col)
-    docs = list(features_col.find({"incident_id": incident_id, "int_id": {"$in": feature_ids}}))
+    features_repo = _features_repo(incident_id)
+    _ensure_int_ids(features_repo._col)
+    docs = features_repo.find_many({"incident_id": incident_id, "int_id": {"$in": feature_ids}})
     return [_feature_out(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/gis/links", status_code=201)
 def create_link(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _links(incident_id)
-    _ensure_int_ids(col)
-    now = _utcnow()
-    new_id = next_int_id(col)
+    repo = _links_repo(incident_id)
+    _ensure_int_ids(repo._col)
+    new_id = next_int_id(repo._col)
     doc = {
-        "_id": str(uuid.uuid4()),
         "int_id": new_id,
         "incident_id": incident_id,
         "feature_id": int(body.get("feature_id") or 0),
@@ -270,13 +274,14 @@ def create_link(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
         "linked_record_type": str(body.get("linked_record_type") or ""),
         "linked_record_id": str(body.get("linked_record_id") or ""),
         "relationship_type": str(body.get("relationship_type") or ""),
-        "created_at": now,
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _link_out(doc)
 
 
 @router.delete("/incidents/{incident_id}/gis/links/{link_id}", status_code=204)
 def delete_link(incident_id: str, link_id: int) -> None:
-    col = _links(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": link_id}, {"$set": {"deleted": True}})
+    repo = _links_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": link_id})
+    if doc:
+        repo.update_one(doc["_id"], {"deleted": True})

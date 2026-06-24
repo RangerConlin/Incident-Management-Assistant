@@ -177,7 +177,7 @@ def _convert_detected_fields(
 def _sanitise_field_name(name: str) -> str:
     text = name.strip() or "field"
     cleaned = [
-        ch if ("a" <= ch.lower() <= "z" or ch.isdigit() or ch in {"_", "-"}) else "_"
+        ch if ("a" <= ch.lower() <= "z" or ch.isdigit() or ch in {"_", "-", "."}) else "_"
         for ch in text
     ]
     result = "".join(cleaned).strip("_")

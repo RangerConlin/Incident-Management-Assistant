@@ -1,18 +1,14 @@
-"""Safety ORM module entry point."""
+"""Safety ORM module entry point.
+
+The ORM API is served by sarapp_db.api.routers.safety (MongoDB-backed,
+registered in the main app at /api/incidents/{incident_id}/safety/orm/...).
+This module's service.py calls that API directly via api_client — there is
+no separate local FastAPI router or repository for this module.
+"""
 
 from __future__ import annotations
 
-from fastapi import FastAPI
-
-__all__ = ["register_api", "register_ui"]
-
-
-def register_api(app: FastAPI) -> None:
-    """Register FastAPI routes for the ORM module."""
-    from .api import router as orm_router
-
-    if not any(r.path.startswith("/api/safety/orm") for r in app.router.routes):
-        app.include_router(orm_router)
+__all__ = ["register_ui"]
 
 
 def register_ui(menu_registry) -> None:

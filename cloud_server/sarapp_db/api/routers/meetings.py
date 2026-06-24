@@ -2,23 +2,37 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
-from sarapp_db.mongo.db_manager import DatabaseManager
+from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
-COL = IncidentCollections.MEETINGS
+
+class MeetingsRepository(BaseRepository):
+    collection_name = IncidentCollections.MEETINGS
+    # Keyed by sequential `int_id`, not `_id`; `deleted` is a plain flag
+    # managed by these handlers, not via BaseRepository.soft_delete.
+    soft_deletes = False
 
 
-def _col(incident_id: str):
-    return DatabaseManager().get_incident_db(incident_id)[COL]
+class MeetingTemplatesRepository(BaseRepository):
+    collection_name = "meeting_templates"
+    soft_deletes = False
+
+
+def _repo(incident_id: str) -> MeetingsRepository:
+    return MeetingsRepository(get_incident_db(incident_id))
+
+
+def _templates_repo(incident_id: str) -> MeetingTemplatesRepository:
+    return MeetingTemplatesRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
@@ -116,29 +130,25 @@ def _template_out(t: dict) -> dict:
     }
 
 
-def _templates_col(incident_id: str):
-    return DatabaseManager().get_incident_db(incident_id)["meeting_templates"]
-
-
 # -------------------------------------------------------------------------
 # Template endpoints
 # -------------------------------------------------------------------------
 
 @router.get("/incidents/{incident_id}/planning/meeting-templates")
 def list_templates(incident_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
-    col = _templates_col(incident_id)
+    repo = _templates_repo(incident_id)
     q = {"active": True} if active_only else {}
-    docs = list(col.find(q, sort=[("name", 1)]))
+    docs = repo.find_many(q, sort=[("name", 1)])
     if not docs:
         _seed_templates(incident_id)
-        docs = list(col.find(q, sort=[("name", 1)]))
+        docs = repo.find_many(q, sort=[("name", 1)])
     return [_template_out(d) for d in docs]
 
 
 @router.get("/incidents/{incident_id}/planning/meeting-templates/{slug}")
 def get_template(incident_id: str, slug: str) -> Dict[str, Any]:
-    col = _templates_col(incident_id)
-    doc = col.find_one({"slug": slug})
+    repo = _templates_repo(incident_id)
+    doc = repo.find_one({"slug": slug})
     if not doc:
         raise HTTPException(status_code=404, detail=f"Meeting template not found: {slug}")
     return _template_out(doc)
@@ -146,7 +156,7 @@ def get_template(incident_id: str, slug: str) -> Dict[str, Any]:
 
 @router.put("/incidents/{incident_id}/planning/meeting-templates/{slug}")
 def upsert_template(incident_id: str, slug: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _templates_col(incident_id)
+    repo = _templates_repo(incident_id)
     upd = {
         "slug": slug,
         "name": body.get("name", slug),
@@ -160,7 +170,11 @@ def upsert_template(incident_id: str, slug: str, body: Dict[str, Any]) -> Dict[s
         "appears_on_ics230_default": bool(body.get("appears_on_ics230_default", True)),
         "active": bool(body.get("active", True)),
     }
-    col.update_one({"slug": slug}, {"$set": upd}, upsert=True)
+    existing = repo.find_one({"slug": slug})
+    if existing:
+        repo.update_one(existing["_id"], upd)
+    else:
+        repo.insert_one(upd)
     return _template_out(upd)
 
 
@@ -175,8 +189,8 @@ def list_meetings(
     include_canceled: bool = True,
     ics230_only: bool = False,
 ) -> List[Dict[str, Any]]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
     q: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     if operational_period_id is not None:
         q["operational_period_id"] = operational_period_id
@@ -185,18 +199,16 @@ def list_meetings(
         q["status"] = {"$in": ["scheduled", "ready", "completed"]}
     elif not include_canceled:
         q["status"] = {"$ne": "canceled"}
-    docs = list(col.find(q, sort=[("meeting_date", 1), ("start_time", 1), ("title", 1)]))
+    docs = repo.find_many(q, sort=[("meeting_date", 1), ("start_time", 1), ("title", 1)])
     return [_meeting_out(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/planning/meetings", status_code=201)
 def create_meeting(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    now = _utcnow()
-    new_id = next_int_id(col)
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    new_id = next_int_id(repo._col)
     doc = {
-        "_id": str(uuid.uuid4()),
         "int_id": new_id,
         "incident_id": incident_id,
         "operational_period_id": body.get("operational_period_id"),
@@ -212,34 +224,29 @@ def create_meeting(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
         "show_on_ics230": bool(body.get("show_on_ics230", True)),
         "freeform_notes": str(body.get("freeform_notes") or ""),
         "notes_log_routing_status": str(body.get("notes_log_routing_status") or "not routed"),
-        "created_at": body.get("created_at") or now,
-        "updated_at": now,
+        "created_at": body.get("created_at") or _utcnow(),
         "attendees": [],
         "checklist_items": [],
         "structured_notes": [],
     }
-    col.insert_one(doc)
-    return _meeting_out(doc)
+    saved = repo.insert_one(doc)
+    return _meeting_out(saved)
 
 
 @router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}")
 def get_meeting(incident_id: str, meeting_id: int) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Meeting not found")
+    doc = _col_get(incident_id, meeting_id)
     return _meeting_out(doc)
 
 
 @router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}")
 def update_meeting(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    upd: Dict[str, Any] = {"updated_at": _utcnow()}
+    upd: Dict[str, Any] = {}
     for field in ("title", "meeting_date", "start_time", "end_time", "location", "virtual_link",
                   "owner", "status", "freeform_notes", "notes_log_routing_status",
                   "operational_period_id", "template_id"):
@@ -247,14 +254,16 @@ def update_meeting(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> D
             upd[field] = body[field]
     if "show_on_ics230" in body:
         upd["show_on_ics230"] = bool(body["show_on_ics230"])
-    col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$set": upd})
+    repo.update_one(doc["_id"], upd)
     return get_meeting(incident_id, meeting_id)
 
 
 @router.delete("/incidents/{incident_id}/planning/meetings/{meeting_id}", status_code=204)
 def delete_meeting(incident_id: str, meeting_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": meeting_id}, {"$set": {"deleted": True}})
+    repo = _repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id})
+    if doc:
+        repo.update_one(doc["_id"], {"deleted": True})
 
 
 # -------------------------------------------------------------------------
@@ -269,15 +278,15 @@ def _next_sub_id(items: list) -> int:
 
 @router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees")
 def list_attendees(incident_id: str, meeting_id: int) -> List[Dict[str, Any]]:
-    doc = col_get(incident_id, meeting_id)
+    doc = _col_get(incident_id, meeting_id)
     return [_attendee_out(a) for a in doc.get("attendees", [])]
 
 
 @router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees", status_code=201)
 def add_attendee(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     new_id = _next_sub_id(doc.get("attendees", []))
@@ -290,15 +299,21 @@ def add_attendee(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dic
         "requirement_status": str(body.get("requirement_status") or "required"),
         "attendance_status": str(body.get("attendance_status") or "invited"),
     }
-    col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$push": {"attendees": att}})
+    # $push to an embedded array — not expressible via BaseRepository's
+    # generic methods, so we drop to the raw collection and broadcast
+    # ourselves, mirroring update_one's pattern.
+    repo._col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$push": {"attendees": att}})
+    updated = repo._col.find_one({"int_id": meeting_id, "incident_id": incident_id})
+    if updated:
+        repo._broadcast("updated", updated["_id"], updated)
     return _attendee_out(att)
 
 
 @router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees/{attendee_id}")
 def update_attendee(incident_id: str, meeting_id: int, attendee_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     attendees = doc.get("attendees", [])
@@ -307,18 +322,27 @@ def update_attendee(incident_id: str, meeting_id: int, attendee_id: int, body: D
             for field in ("display_name", "attendee_type", "role", "requirement_status", "attendance_status"):
                 if field in body:
                     attendees[i][field] = body[field]
-            col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$set": {"attendees": attendees}})
+            repo.update_one(doc["_id"], {"attendees": attendees})
             return _attendee_out(attendees[i])
     raise HTTPException(status_code=404, detail="Attendee not found")
 
 
 @router.delete("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees/{attendee_id}", status_code=204)
 def remove_attendee(incident_id: str, meeting_id: int, attendee_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one(
+    repo = _repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id})
+    if not doc:
+        return
+    # $pull from an embedded array — not expressible via BaseRepository's
+    # generic methods, so we drop to the raw collection and broadcast
+    # ourselves, mirroring update_one's pattern.
+    repo._col.update_one(
         {"incident_id": incident_id, "int_id": meeting_id},
         {"$pull": {"attendees": {"id": attendee_id}}},
     )
+    updated = repo._col.find_one({"incident_id": incident_id, "int_id": meeting_id})
+    if updated:
+        repo._broadcast("updated", updated["_id"], updated)
 
 
 # -------------------------------------------------------------------------
@@ -327,15 +351,15 @@ def remove_attendee(incident_id: str, meeting_id: int, attendee_id: int) -> None
 
 @router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist")
 def list_checklist(incident_id: str, meeting_id: int) -> List[Dict[str, Any]]:
-    doc = col_get(incident_id, meeting_id)
+    doc = _col_get(incident_id, meeting_id)
     return [_checklist_out(c) for c in doc.get("checklist_items", [])]
 
 
 @router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist", status_code=201)
 def add_checklist_item(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     new_id = _next_sub_id(doc.get("checklist_items", []))
@@ -349,15 +373,18 @@ def add_checklist_item(incident_id: str, meeting_id: int, body: Dict[str, Any]) 
         "is_not_applicable": bool(body.get("is_not_applicable", False)),
         "sort_order": int(body.get("sort_order") or 0),
     }
-    col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$push": {"checklist_items": item}})
+    repo._col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$push": {"checklist_items": item}})
+    updated = repo._col.find_one({"int_id": meeting_id, "incident_id": incident_id})
+    if updated:
+        repo._broadcast("updated", updated["_id"], updated)
     return _checklist_out(item)
 
 
 @router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist/{item_id}")
 def update_checklist_item(incident_id: str, meeting_id: int, item_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     items = doc.get("checklist_items", [])
@@ -369,7 +396,7 @@ def update_checklist_item(incident_id: str, meeting_id: int, item_id: int, body:
             for field in ("is_complete", "is_not_applicable"):
                 if field in body:
                     items[i][field] = bool(body[field])
-            col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$set": {"checklist_items": items}})
+            repo.update_one(doc["_id"], {"checklist_items": items})
             return _checklist_out(items[i])
     raise HTTPException(status_code=404, detail="Checklist item not found")
 
@@ -380,39 +407,41 @@ def update_checklist_item(incident_id: str, meeting_id: int, item_id: int, body:
 
 @router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes")
 def list_notes(incident_id: str, meeting_id: int) -> List[Dict[str, Any]]:
-    doc = col_get(incident_id, meeting_id)
+    doc = _col_get(incident_id, meeting_id)
     return [_note_out(n) for n in doc.get("structured_notes", [])]
 
 
 @router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes", status_code=201)
 def add_note(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     new_id = _next_sub_id(doc.get("structured_notes", []))
-    now = _utcnow()
     note = {
         "id": new_id,
         "meeting_id": meeting_id,
         "category": str(body.get("category") or ""),
         "text": str(body.get("text") or ""),
         "author": str(body.get("author") or ""),
-        "timestamp": body.get("timestamp") or now,
+        "timestamp": body.get("timestamp") or _utcnow(),
         "routing_status": str(body.get("routing_status") or "draft"),
         "routed_log_refs": list(body.get("routed_log_refs") or []),
         "routed_at": body.get("routed_at"),
     }
-    col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$push": {"structured_notes": note}})
+    repo._col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$push": {"structured_notes": note}})
+    updated = repo._col.find_one({"int_id": meeting_id, "incident_id": incident_id})
+    if updated:
+        repo._broadcast("updated", updated["_id"], updated)
     return _note_out(note)
 
 
 @router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes/{note_id}/route")
 def mark_note_routed(incident_id: str, meeting_id: int, note_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     notes = doc.get("structured_notes", [])
@@ -421,15 +450,15 @@ def mark_note_routed(incident_id: str, meeting_id: int, note_id: int, body: Dict
             notes[i]["routing_status"] = body.get("status", "routed")
             notes[i]["routed_log_refs"] = list(body.get("refs") or [])
             notes[i]["routed_at"] = _utcnow()
-            col.update_one({"int_id": meeting_id, "incident_id": incident_id}, {"$set": {"structured_notes": notes}})
+            repo.update_one(doc["_id"], {"structured_notes": notes})
             return _note_out(notes[i])
     raise HTTPException(status_code=404, detail="Note not found")
 
 
-def col_get(incident_id: str, meeting_id: int) -> dict:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
+def _col_get(incident_id: str, meeting_id: int) -> dict:
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return doc
@@ -442,24 +471,25 @@ def col_get(incident_id: str, meeting_id: int) -> dict:
 def _seed_templates(incident_id: str) -> None:
     try:
         from modules.planning.meetings.seeds import ICS_MEETING_TEMPLATES
-        col = _templates_col(incident_id)
+        repo = _templates_repo(incident_id)
         for t in ICS_MEETING_TEMPLATES:
-            col.update_one(
-                {"slug": t.slug},
-                {"$set": {
-                    "slug": t.slug,
-                    "name": t.name,
-                    "default_duration_minutes": int(t.default_duration_minutes),
-                    "agenda_sections": t.agenda_sections,
-                    "required_attendee_roles": t.required_attendee_roles,
-                    "optional_attendee_roles": t.optional_attendee_roles,
-                    "prep_checklist_items": t.prep_checklist_items,
-                    "agenda_checklist_items": t.agenda_checklist_items,
-                    "closeout_checklist_items": t.closeout_checklist_items,
-                    "appears_on_ics230_default": bool(t.appears_on_ics230_default),
-                    "active": bool(t.active),
-                }},
-                upsert=True,
-            )
+            payload = {
+                "slug": t.slug,
+                "name": t.name,
+                "default_duration_minutes": int(t.default_duration_minutes),
+                "agenda_sections": t.agenda_sections,
+                "required_attendee_roles": t.required_attendee_roles,
+                "optional_attendee_roles": t.optional_attendee_roles,
+                "prep_checklist_items": t.prep_checklist_items,
+                "agenda_checklist_items": t.agenda_checklist_items,
+                "closeout_checklist_items": t.closeout_checklist_items,
+                "appears_on_ics230_default": bool(t.appears_on_ics230_default),
+                "active": bool(t.active),
+            }
+            existing = repo.find_one({"slug": t.slug})
+            if existing:
+                repo.update_one(existing["_id"], payload)
+            else:
+                repo.insert_one(payload)
     except Exception:
         pass

@@ -12,7 +12,8 @@ from PySide6.QtCore import (
     Qt,
     QSortFilterProxyModel,
 )
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QIcon, QTextDocument
+from PySide6.QtPrintSupport import QPrintPreviewDialog, QPrinter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
@@ -34,6 +35,7 @@ from modules.command.models.objectives import (
     ObjectiveSummary,
 )
 from modules.command.widgets.objective_detail_dialog import ObjectiveDetailDialog
+from modules.planning.operational_periods.repository import OperationalPeriodRepository
 from utils import incident_context, timefmt
 
 
@@ -355,11 +357,71 @@ class IncidentObjectivesPanel(QWidget):
         self._detail_windows.append(dialog)
 
     def _clone_previous(self) -> None:
-        QMessageBox.information(
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            QMessageBox.warning(self, "Clone Objectives", "Select an incident to clone objectives.")
+            return
+        try:
+            op_repo = OperationalPeriodRepository(str(incident_id))
+            periods = sorted(op_repo.list_periods(), key=lambda p: p.number)
+        except Exception as exc:  # pragma: no cover - UI fallback
+            QMessageBox.critical(self, "Clone Objectives", f"Failed to load operational periods:\n{exc}")
+            return
+        if len(periods) < 2:
+            QMessageBox.information(self, "Clone Objectives", "There is no previous operational period to clone from.")
+            return
+        active = op_repo.get_active_period()
+        if active is not None:
+            earlier = [p for p in periods if p.number < active.number]
+            if not earlier:
+                QMessageBox.information(self, "Clone Objectives", "There is no operational period before the active one.")
+                return
+            target = active
+            source = earlier[-1]
+        else:
+            target = periods[-1]
+            source = periods[-2]
+
+        try:
+            objectives = ApiObjectiveRepository(str(incident_id)).list_objectives(
+                ObjectiveFilters(op_period_id=source.id)
+            )
+        except Exception as exc:  # pragma: no cover
+            QMessageBox.critical(self, "Clone Objectives", f"Failed to load source objectives:\n{exc}")
+            return
+        if not objectives:
+            QMessageBox.information(self, "Clone Objectives", f"OP {source.number} has no objectives to clone.")
+            return
+
+        confirm = QMessageBox.question(
             self,
             "Clone Objectives",
-            "Cloning from the previous operational period is not yet implemented.",
+            f"Clone {len(objectives)} objective(s) from OP {source.number} into OP {target.number}?",
         )
+        if confirm != QMessageBox.Yes:
+            return
+
+        repo = ApiObjectiveRepository(str(incident_id))
+        failures = 0
+        for objective in objectives:
+            try:
+                repo.create_objective(
+                    {
+                        "text": objective.text,
+                        "priority": objective.priority,
+                        "status": "draft",
+                        "owner_section": objective.owner_section,
+                        "op_period_id": target.id,
+                        "tags": list(objective.tags),
+                    }
+                )
+            except Exception:
+                failures += 1
+        self.reload()
+        if failures:
+            QMessageBox.warning(self, "Clone Objectives", f"Cloned with {failures} failure(s). See logs for details.")
+        else:
+            QMessageBox.information(self, "Clone Objectives", f"Cloned {len(objectives)} objective(s) into OP {target.number}.")
 
     def _prompt_reorder_help(self) -> None:
         QMessageBox.information(
@@ -404,10 +466,43 @@ class IncidentObjectivesPanel(QWidget):
             QMessageBox.critical(self, "Export", f"Export failed:\n{exc}")
 
     def _show_print_preview(self) -> None:
-        QMessageBox.information(
-            self,
-            "Print Preview",
-            "Print preview is not yet implemented for the Objectives panel.",
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            QMessageBox.warning(self, "Print Preview", "Select an incident to preview objectives.")
+            return
+        try:
+            payload = ApiObjectiveRepository(str(incident_id)).export_ics202()
+        except Exception as exc:  # pragma: no cover
+            QMessageBox.critical(self, "Print Preview", f"Failed to build preview:\n{exc}")
+            return
+
+        document = QTextDocument(self)
+        document.setHtml(self._build_preview_html(payload))
+        printer = QPrinter(QPrinter.HighResolution)
+        preview = QPrintPreviewDialog(printer, self)
+        preview.setWindowTitle("Incident Objectives — Print Preview")
+        preview.paintRequested.connect(document.print_)
+        preview.exec()
+
+    @staticmethod
+    def _build_preview_html(payload: dict) -> str:
+        rows = []
+        for obj in payload.get("objectives", []):
+            rows.append(
+                "<tr>"
+                f"<td>{obj.get('order', '')}</td>"
+                f"<td>{obj.get('code', '')}</td>"
+                f"<td>{obj.get('text', '')}</td>"
+                f"<td>{obj.get('priority', '').title()}</td>"
+                f"<td>{obj.get('status', '').title()}</td>"
+                "</tr>"
+            )
+        return (
+            "<h2>Incident Objectives (ICS-202)</h2>"
+            "<table border='1' cellspacing='0' cellpadding='4' width='100%'>"
+            "<tr><th>#</th><th>Code</th><th>Objective</th><th>Priority</th><th>Status</th></tr>"
+            + "".join(rows)
+            + "</table>"
         )
 
     def _on_double_clicked(self, index: QModelIndex) -> None:
@@ -455,11 +550,28 @@ class IncidentObjectivesPanel(QWidget):
         self.reload()
 
     def _duplicate_objective(self, proxy_index: QModelIndex) -> None:
-        QMessageBox.information(
-            self,
-            "Duplicate Objective",
-            "Objective duplication is not yet available.",
-        )
+        source_index = self._proxy.mapToSource(proxy_index)
+        objective = self._model.objective_for_row(source_index.row())
+        if not objective:
+            return
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            return
+        try:
+            ApiObjectiveRepository(str(incident_id)).create_objective(
+                {
+                    "text": f"{objective.text} (Copy)",
+                    "priority": objective.priority,
+                    "status": "draft",
+                    "owner_section": objective.owner_section,
+                    "op_period_id": objective.op_period_id,
+                    "tags": list(objective.tags),
+                }
+            )
+        except Exception as exc:  # pragma: no cover
+            QMessageBox.critical(self, "Duplicate Objective", f"Failed to duplicate objective:\n{exc}")
+            return
+        self.reload()
 
     def _persist_reorder(self, ordered_ids: List[str]) -> None:
         incident_id = incident_context.get_active_incident_id()

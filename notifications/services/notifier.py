@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import dataclasses
 import time
-from typing import List, Dict, Any
+import uuid
+from typing import List, Dict, Any, Optional
 
 from PySide6.QtCore import QObject, Signal
 
@@ -27,6 +28,7 @@ class Notifier(QObject):
     """Central service for emitting and tracking notifications."""
 
     notificationCreated = Signal(dict)
+    notificationUpdated = Signal(dict)  # emitted when read state changes
     showToast = Signal(dict)
     showBanner = Signal(dict)
     badgeCountChanged = Signal(int)
@@ -36,7 +38,6 @@ class Notifier(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._recent: List[Dict[str, Any]] = []
-        self._badge = 0
         self._throttle: Dict[tuple[str, str], float] = {}
         # Per-category toast threshold, settable at runtime from settings
         self._thresholds: Dict[str, str] = dict(CATEGORY_TOAST_THRESHOLDS)
@@ -55,7 +56,9 @@ class Notifier(QObject):
 
     def notify(self, note: Notification) -> None:
         payload = dataclasses.asdict(note)
+        payload["id"] = uuid.uuid4().hex
         payload["ts"] = int(time.time())
+        payload["read"] = False
 
         category = payload.get("category", "operations")
         severity = payload.get("severity", "routine")
@@ -86,11 +89,10 @@ class Notifier(QObject):
         if len(self._recent) > _RECENT_CAP:
             self._recent = self._recent[-_RECENT_CAP:]
 
-        self._badge += 1
         self.notificationCreated.emit(payload)
         if show_toast:
             self.showToast.emit(payload)
-        self.badgeCountChanged.emit(self._badge)
+        self._emit_badge()
 
         if play_sound:
             try:
@@ -101,9 +103,32 @@ class Notifier(QObject):
     def recent(self, limit: int = 50) -> List[Dict[str, Any]]:
         return list(reversed(self._recent[-limit:]))
 
+    def unread_count(self) -> int:
+        return sum(1 for n in self._recent if not n.get("read", False))
+
+    def mark_read(self, notification_id: str) -> None:
+        for n in self._recent:
+            if n.get("id") == notification_id and not n.get("read", False):
+                n["read"] = True
+                self.notificationUpdated.emit(n)
+                self._emit_badge()
+                return
+
+    def mark_all_read(self) -> None:
+        changed = False
+        for n in self._recent:
+            if not n.get("read", False):
+                n["read"] = True
+                changed = True
+        if changed:
+            self._emit_badge()
+
+    def _emit_badge(self) -> None:
+        self.badgeCountChanged.emit(self.unread_count())
+
+    # Backwards-compat alias — old call sites expect "clear the badge"
     def clear_badge(self) -> None:
-        self._badge = 0
-        self.badgeCountChanged.emit(0)
+        self.mark_all_read()
 
 
 get_notifier = Notifier.instance

@@ -57,7 +57,7 @@ _HELP_TEXTS = {
         "Combines or reformats other values at generation time. "
         "This type requires a developer to wire it up — flag it here so it "
         "appears in the catalog with the correct path, then implement it in "
-        "<code>modules/forms/context.py</code>.<br><br>"
+        "<code>modules/forms_creator/context.py</code>.<br><br>"
         "<b>Example:</b> joining first name + last name, or reformatting a datetime."
     ),
 }

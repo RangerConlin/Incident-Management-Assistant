@@ -394,6 +394,7 @@ def create_master_indexes(master_db: Database) -> None:
     _create_vehicles_indexes(master_db)
     _create_aircraft_indexes(master_db)
     _create_equipment_indexes(master_db)
+    _create_user_presence_indexes(master_db)
     logger.debug("Master database indexes verified: %s", master_db.name)
 
 
@@ -405,6 +406,19 @@ def _create_personnel_indexes(master_db: Database) -> None:
     _ensure_index(personnel, [("status", ASCENDING)])
     # Certifications embedded — indexed for lookup by cert type
     _ensure_index(personnel, [("certifications.certification_type_id", ASCENDING)])
+
+
+def _create_user_presence_indexes(master_db: Database) -> None:
+    users = master_db[MasterCollections.USERS]
+    _ensure_index(users, [("user_id", ASCENDING)], unique=True)
+    _ensure_index(users, [("username", ASCENDING)], unique=True)
+    _ensure_index(users, [("personnel_id", ASCENDING)])
+
+    sessions = master_db[MasterCollections.USER_SESSIONS]
+    _ensure_index(sessions, [("session_id", ASCENDING)], unique=True)
+    _ensure_index(sessions, [("ended_at", ASCENDING), ("status", ASCENDING), ("last_seen_at", DESCENDING)])
+    _ensure_index(sessions, [("incident_id", ASCENDING), ("ended_at", ASCENDING), ("last_seen_at", DESCENDING)])
+    _ensure_index(sessions, [("personnel_id", ASCENDING)])
 
 
 def _create_radio_channels_indexes(master_db: Database) -> None:

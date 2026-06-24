@@ -20,10 +20,12 @@ def test_sarapp_api_app_registers_migrated_routers() -> None:
     assert "/api/resource-types" in paths
     assert "/api/hazard-types" in paths
     assert "/api/objectives" in paths
+    assert "/api/auth/sessions" in paths
+    assert "/api/auth/sessions/active" in paths
     assert "/api/incidents/{incident_id}/org/positions" in paths
     assert "/api/lookup/task-types" in paths
     assert "/api/comms/master-channels" in paths
     assert "/api/incidents/{incident_id}/comms-log" in paths
-    assert "/api/safety/reports" in paths
-    assert "/api/safety/orm/form" in paths
+    assert "/api/incidents/{incident_id}/safety/reports" in paths
+    assert "/api/incidents/{incident_id}/safety/orm/form" in paths
     assert "/api/incidents/{incident_id}/planned/{tool}" in paths

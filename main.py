@@ -59,7 +59,7 @@ from utils.theme_manager import ThemeManager
 from bridge.theme_bridge import ThemeBridge
 from styles.qss_helpers import global_qss, ads_qss
 from utils.audit import fetch_last_audit_rows, write_audit
-from utils.session import end_session
+from utils.session import end_session, start_session
 from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
 from ui.settings import SettingsWindow
@@ -239,12 +239,17 @@ class MainWindow(QMainWindow):
                 saved_theme = "light"
             self.theme_manager = ThemeManager(app, initial_theme=saved_theme)
             self.theme_bridge = ThemeBridge(self.theme_manager.tokens())
+            # Keep the status-color theme global (styles.styles.THEME_NAME) in lockstep
+            # with ThemeManager so there is a single light/dark source of truth.
+            from styles.styles import set_theme as _set_status_theme
+            _set_status_theme(saved_theme)
             # Apply initial QSS derived from tokens
             if app is not None:
                 app.setStyleSheet(global_qss(self.theme_manager.tokens()))
             # Keep QSS and legacy UI bridge in sync with theme changes
-            self.theme_manager.themeChanged.connect(lambda _:
-                (self.theme_bridge.updateTokens(self.theme_manager.tokens()),
+            self.theme_manager.themeChanged.connect(lambda name:
+                (_set_status_theme(name),
+                 self.theme_bridge.updateTokens(self.theme_manager.tokens()),
                  app.setStyleSheet(global_qss(self.theme_manager.tokens())) if app is not None else None)
             )
             # React to settings changes (persisted toggle) to drive ThemeManager
@@ -600,6 +605,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_menu, "Open Incident", "Ctrl+O", "menu.open_incident")
         self._add_action(m_menu, "Save Incident", "Ctrl+S", "menu.save_incident")
         self._add_action(m_menu, "Settings", None, "menu.settings")
+        self._add_action(m_menu, "Notification Center", "Ctrl+Shift+N", "menu.notification_center")
         profiles_menu = m_menu.addMenu("Profiles")
         self._init_profiles_menu(profiles_menu)
         if any(
@@ -1010,6 +1016,7 @@ class MainWindow(QMainWindow):
             "menu.open_incident": self.open_menu_open_incident,
             "menu.save_incident": self.open_menu_save_incident,
             "menu.settings": self.open_menu_settings,
+            "menu.notification_center": self.open_notification_center,
             "menu.exit": self.open_menu_exit,  # special-case: still exits
 
             # ----- Edit -----
@@ -2103,6 +2110,27 @@ class MainWindow(QMainWindow):
         _incident_id = AppState.get_active_incident()
         panel = MessageLogPanel(self, incident_id=_incident_id)
         self._open_panel(panel, title="ICS 213 Messages")
+
+    def open_notification_center(self, tab: str | None = None) -> None:
+        panel = getattr(self, "_notification_center_panel", None)
+        if panel is None:
+            from notifications.panels.notification_center_panel import get_notification_center_panel
+            panel = get_notification_center_panel(parent=self)
+            self._notification_center_panel = panel
+            panel.destroyed.connect(lambda: setattr(self, "_notification_center_panel", None))
+            self._open_dock_widget(panel, title="Notification Center", preferred_size=(520, 650))
+        else:
+            try:
+                window = panel.window()
+                window.raise_()
+                window.activateWindow()
+            except Exception:
+                pass
+        if tab:
+            try:
+                panel.jump_to_tab(tab)
+            except Exception:
+                pass
 
     def open_notifications_panel(self) -> None:
         from notifications.panels.notifications_panel import get_notifications_panel
@@ -3295,11 +3323,14 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        # Clicking the approvals indicator opens the inbox panel
-        bar.approval_indicator_clicked.connect(self.open_planning_approvals)
+        # All three indicators open the unified Notification Center, jumped to the relevant tab
+        bar.approval_indicator_clicked.connect(lambda: self.open_notification_center(tab="approvals"))
+        bar.messages_indicator_clicked.connect(lambda: self.open_notification_center(tab="messages"))
+        bar.notifications_indicator_clicked.connect(lambda: self.open_notification_center(tab="activity"))
 
-        # Clicking the messages indicator opens the comms traffic log
-        bar.messages_indicator_clicked.connect(self.open_comms_traffic_log)
+        # Notification badge count is event-driven, not polled
+        notifier = get_notifier()
+        notifier.badgeCountChanged.connect(bar.set_notifications_count)
 
         bar.start()
 
@@ -3487,7 +3518,45 @@ def _parse_manual_server_address(raw: str, default_port: int) -> tuple:
     return str(host).strip(), int(port)
 
 
-def _initialize_connectivity(app: QApplication) -> object | None:
+def _start_local_offline_mode(app: QApplication, manager: object | None = None) -> bool:
+    """Start the bundled local server and route the desktop client to it."""
+    try:
+        from core.networking import ConnectionManager, LocalServerController, LocalServerError, PortUnavailableError
+        from core.networking.server_info import DEFAULT_SERVER_PORT
+        from utils.api_client import api_client
+    except Exception as exc:
+        QMessageBox.critical(None, "Offline Mode Unavailable", f"Connectivity framework unavailable: {exc}")
+        return False
+
+    local_controller = LocalServerController()
+    try:
+        local_controller.start()
+    except PortUnavailableError as exc:
+        QMessageBox.critical(None, "Local Server Port Unavailable", str(exc))
+        return False
+    except LocalServerError as exc:
+        QMessageBox.critical(None, "Local Server Failed", str(exc))
+        return False
+
+    if not local_controller.wait_until_ready(timeout_seconds=15.0):
+        QMessageBox.critical(
+            None,
+            "Local Server Not Ready",
+            "SARApp started the local server, but it did not become available before the startup timeout.",
+        )
+        return False
+
+    app.aboutToQuit.connect(local_controller.stop)
+    if manager is None:
+        manager = ConnectionManager()
+        app.setProperty("sarapp_connection_manager", manager)
+    manager.enter_offline_mode()
+    api_client.configure(f"http://localhost:{DEFAULT_SERVER_PORT}")
+    logger.info("SARApp started in explicit Offline Mode")
+    return True
+
+
+def _initialize_connectivity(app: QApplication, *, prompt_on_failure: bool = True) -> object | None:
     """Run SARApp's launch connectivity workflow before showing the main window.
 
     Connectivity is intentionally centralized in ``ConnectionManager`` so UI,
@@ -3522,35 +3591,12 @@ def _initialize_connectivity(app: QApplication) -> object | None:
     # already-running server, and manual connection remains a fallback later.
     snapshot = manager.startup_connect(discovery_timeout_seconds=2.5)
 
-    while snapshot.state == ConnectionState.DISCONNECTED:
+    while prompt_on_failure and snapshot.state == ConnectionState.DISCONNECTED:
         choice = _show_connection_fallback_dialog()
 
         if choice == "start_local":
-            try:
-                local_controller.start()
-            except PortUnavailableError as exc:
-                QMessageBox.critical(None, "Local Server Port Unavailable", str(exc))
-                continue
-            except LocalServerError as exc:
-                QMessageBox.critical(None, "Local Server Failed", str(exc))
-                continue
-
-            if not local_controller.wait_until_ready(timeout_seconds=15.0):
-                QMessageBox.critical(
-                    None,
-                    "Local Server Not Ready",
-                    "SARApp started the local server, but it did not become available "
-                    "before the startup timeout. Check that SARAPP_MONGO_URI is set.",
-                )
-                continue
-
-            snapshot = manager.connect_manual(local_controller.host, local_controller.port)
-            if not snapshot.is_connected:
-                QMessageBox.critical(
-                    None,
-                    "Local Connection Failed",
-                    "The local server is running but SARApp could not connect to it.",
-                )
+            if _start_local_offline_mode(app, manager):
+                snapshot = manager.snapshot
 
         elif choice == "retry":
             snapshot = manager.startup_connect(discovery_timeout_seconds=2.5)
@@ -3593,6 +3639,19 @@ def _initialize_connectivity(app: QApplication) -> object | None:
     return manager
 
 
+def _activate_debug_bypass(app: QApplication) -> object | None:
+    """Start local API services before selecting the debug incident."""
+    if not _start_local_offline_mode(app):
+        print("[debug] Local offline startup failed; API calls may be unavailable.")
+
+    connection_manager = app.property("sarapp_connection_manager")
+    AppState.set_active_incident(DEBUG_INCIDENT_ID)
+    AppState.set_active_user_id(DEBUG_USER_ID)
+    AppState.set_active_user_role(DEBUG_ROLE)
+    print("[debug] Login bypass enabled: loaded test credentials.")
+    return connection_manager
+
+
 # ===== Part 6: Application Entrypoint =======================================
 if __name__ == "__main__":
     import argparse
@@ -3625,14 +3684,10 @@ if __name__ == "__main__":
     _early_settings = SettingsManager()
 
     if DEBUG_BYPASS_LOGIN:
-        from utils import state
-        AppState.set_active_incident(DEBUG_INCIDENT_ID)
-        AppState.set_active_user_id(DEBUG_USER_ID)
-        AppState.set_active_user_role(DEBUG_ROLE)
-        print("[debug] Login bypass enabled: loaded test credentials.")
+        _connection_manager = _activate_debug_bypass(app)
     else:
         # Connectivity must be established before login so the dialog can load incidents.
-        _connection_manager = _initialize_connectivity(app)
+        _connection_manager = _initialize_connectivity(app, prompt_on_failure=False)
         from utils.api_client import api_client as _api_client_pre
         from core.networking import ConnectionState as _ConnectionState_pre
         from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT_pre
@@ -3651,7 +3706,26 @@ if __name__ == "__main__":
         except Exception:
             _startup_mode = 0
         _default_incident = _early_settings.get('lastIncidentNumber') if _startup_mode == 1 else None
-        login = LoginDialog(demo_mode=bool(getattr(args, 'demo', False)), default_incident_number=_default_incident)
+        _online_available = (
+            _connection_manager is not None
+            and _connection_manager.snapshot.state in {
+                _ConnectionState_pre.CONNECTED_LAN,
+                _ConnectionState_pre.CONNECTED_CLOUD,
+            }
+        )
+        login = LoginDialog(
+            demo_mode=bool(getattr(args, 'demo', False)),
+            default_incident_number=_default_incident,
+            api_available=_online_available,
+        )
+
+        def _handle_start_offline() -> None:
+            if _start_local_offline_mode(app, _connection_manager):
+                login.complete_offline_start()
+            else:
+                login.offline_start_failed()
+
+        login.startOfflineRequested.connect(_handle_start_offline)
         if login.exec() != QDialog.Accepted:
             sys.exit(0)
 
@@ -3662,20 +3736,15 @@ if __name__ == "__main__":
     # Wire api_client to connection state so all modules talk to the right server.
     from utils.api_client import api_client as _api_client
     if DEBUG_BYPASS_LOGIN:
-        # Debug mode: start the local server automatically so API calls work.
-        from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
-        from core.networking import LocalServerController as _LocalServerController
-        _debug_local_controller = _LocalServerController()
-        _connection_manager = None
-        try:
-            _debug_local_controller.start()
-            ready = _debug_local_controller.wait_until_ready(timeout_seconds=15.0)
-            print(f"[debug] Local server ready: {ready} — {_debug_local_controller.base_url}")
-        except Exception as _exc:
-            print(f"[debug] Local server start failed: {_exc}")
-        app.aboutToQuit.connect(_debug_local_controller.stop)
-        _api_client.configure(f"http://localhost:{_DEFAULT_SERVER_PORT}")
-        print(f"[debug] api_client configured: http://localhost:{_DEFAULT_SERVER_PORT}")
+        start_session(
+            DEBUG_USER_ID,
+            username=DEBUG_USER_ID,
+            display_name=DEBUG_USER_ID,
+            role=DEBUG_ROLE,
+            personnel_id=DEBUG_USER_ID,
+            incident_id=DEBUG_INCIDENT_ID,
+            mode="offline-debug",
+        )
     elif _connection_manager is not None:
         from core.networking import ConnectionState as _ConnectionState
         from core.networking.server_info import DEFAULT_SERVER_PORT as _DEFAULT_SERVER_PORT
@@ -3701,10 +3770,15 @@ if __name__ == "__main__":
         _theme_manager = ThemeManager(app, initial_theme=saved)
         _theme_bridge = ThemeBridge(_theme_manager.tokens())
         from styles.qss_helpers import global_qss as _global_qss
+        # Keep the status-color theme global (styles.styles.THEME_NAME) in lockstep
+        # with ThemeManager so there is a single light/dark source of truth.
+        from styles.styles import set_theme as _set_status_theme
+        _set_status_theme(saved)
         app.setStyleSheet(_global_qss(_theme_manager.tokens()))
         # Keep app QSS + bridge updated on theme changes
-        _theme_manager.themeChanged.connect(lambda _:
-            (_theme_bridge.updateTokens(_theme_manager.tokens()),
+        _theme_manager.themeChanged.connect(lambda name:
+            (_set_status_theme(name),
+             _theme_bridge.updateTokens(_theme_manager.tokens()),
              app.setStyleSheet(_global_qss(_theme_manager.tokens())))
         )
         # React to settings bridge updates

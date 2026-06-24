@@ -132,8 +132,6 @@ class IntelLogTab(QWidget):
             date_str = ts[:10] if ts else ""
             entity_label = e.entity_type.title() if e.entity_type else ""
             event_label = (e.event_type or "").replace("_", " ").title()
-            color = _ENTITY_COLORS.get(e.entity_type or "")
-
             cells = [time_str, date_str, entity_label, event_label, e.summary or "", e.actor or ""]
             bg = _ENTITY_ROW_BG.get(e.entity_type or "")
             row_brush = QBrush(bg) if bg else None

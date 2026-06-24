@@ -6,7 +6,6 @@ initial response phase.
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -15,8 +14,36 @@ from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+
+class InitialResponseOverviewRepository(BaseRepository):
+    collection_name = IncidentCollections.INITIAL_RESPONSE_OVERVIEW
+    soft_deletes = False
+
+
+class InitialHastyTasksRepository(BaseRepository):
+    collection_name = IncidentCollections.INITIAL_HASTY_TASKS
+    soft_deletes = False
+
+
+class InitialReflexActionsRepository(BaseRepository):
+    collection_name = IncidentCollections.INITIAL_REFLEX_ACTIONS
+    soft_deletes = False
+
+
+def _overview_repo(incident_id: str) -> InitialResponseOverviewRepository:
+    return InitialResponseOverviewRepository(get_incident_db(incident_id))
+
+
+def _hasty_repo(incident_id: str) -> InitialHastyTasksRepository:
+    return InitialHastyTasksRepository(get_incident_db(incident_id))
+
+
+def _reflex_repo(incident_id: str) -> InitialReflexActionsRepository:
+    return InitialReflexActionsRepository(get_incident_db(incident_id))
 
 
 # ---------------------------------------------------------------------------
@@ -27,11 +54,8 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _new_id() -> str:
-    return str(uuid.uuid4())
-
-
-def _ensure_int_ids(col) -> None:
+def _ensure_int_ids(repo: BaseRepository) -> None:
+    col = repo._col
     missing = list(col.find({"int_id": {"$exists": False}}, {"_id": 1}))
     if not missing:
         return
@@ -42,8 +66,8 @@ def _ensure_int_ids(col) -> None:
         next_id += 1
 
 
-def _next_int_id(col) -> int:
-    top = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+def _next_int_id(repo: BaseRepository) -> int:
+    top = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
     return (top["int_id"] + 1) if top else 1
 
 
@@ -81,10 +105,11 @@ class InitialOverviewPayload(BaseModel):
 
 @router.get("/incidents/{incident_id}/initialresponse/overview")
 def get_initial_overview(incident_id: str):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_RESPONSE_OVERVIEW]
-    doc = col.find_one({"incident_id": incident_id}, {"_id": 0})
+    repo = _overview_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id})
     if not doc:
         return _default_overview(incident_id)
+    doc.pop("_id", None)
     payload = _default_overview(incident_id)
     payload.update(doc)
     return payload
@@ -92,12 +117,17 @@ def get_initial_overview(incident_id: str):
 
 @router.put("/incidents/{incident_id}/initialresponse/overview")
 def save_initial_overview(incident_id: str, data: InitialOverviewPayload):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_RESPONSE_OVERVIEW]
+    repo = _overview_repo(incident_id)
     payload = data.model_dump()
     payload["incident_id"] = incident_id
-    payload["updated_at"] = _utcnow()
-    col.update_one({"incident_id": incident_id}, {"$set": payload}, upsert=True)
-    saved = col.find_one({"incident_id": incident_id}, {"_id": 0})
+    existing = repo.find_one({"incident_id": incident_id})
+    if existing:
+        repo.update_one(existing["_id"], payload)
+        saved = repo.find_by_id(existing["_id"])
+    else:
+        saved = repo.insert_one(payload)
+    if saved:
+        saved.pop("_id", None)
     return saved or _default_overview(incident_id)
 
 
@@ -134,20 +164,18 @@ class HastyTaskUpdate(BaseModel):
 
 @router.get("/incidents/{incident_id}/initialresponse/hasty")
 def list_hasty_tasks(incident_id: str):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_HASTY_TASKS]
-    _ensure_int_ids(col)
-    docs = list(col.find({"incident_id": incident_id}).sort("created_at", -1))
+    repo = _hasty_repo(incident_id)
+    _ensure_int_ids(repo)
+    docs = repo.find_many({"incident_id": incident_id}, sort=[("created_at", -1)])
     return [_map_hasty(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/initialresponse/hasty", status_code=201)
 def create_hasty_task(incident_id: str, data: HastyTaskCreate):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_HASTY_TASKS]
-    _ensure_int_ids(col)
-    int_id = _next_int_id(col)
-    now = _utcnow()
+    repo = _hasty_repo(incident_id)
+    _ensure_int_ids(repo)
+    int_id = _next_int_id(repo)
     doc = {
-        "_id": _new_id(),
         "int_id": int_id,
         "incident_id": incident_id,
         "area": data.area,
@@ -155,32 +183,26 @@ def create_hasty_task(incident_id: str, data: HastyTaskCreate):
         "notes": data.notes,
         "operations_task_id": data.operations_task_id,
         "logistics_request_id": data.logistics_request_id,
-        "created_at": now,
     }
-    col.insert_one(doc)
-    return _map_hasty(col.find_one({"int_id": int_id}))
+    repo.insert_one(doc)
+    return _map_hasty(repo.find_one({"int_id": int_id}))
 
 
 @router.patch("/incidents/{incident_id}/initialresponse/hasty/{task_id}")
 def update_hasty_task(incident_id: str, task_id: int, data: HastyTaskUpdate):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_HASTY_TASKS]
+    repo = _hasty_repo(incident_id)
     updates: Dict[str, Any] = {}
     if data.operations_task_id is not None:
         updates["operations_task_id"] = data.operations_task_id
     if data.logistics_request_id is not None:
         updates["logistics_request_id"] = data.logistics_request_id
-    if not updates:
-        doc = col.find_one({"int_id": task_id, "incident_id": incident_id})
-        if not doc:
-            raise HTTPException(status_code=404, detail="Hasty task not found")
-        return _map_hasty(doc)
-    result = col.find_one_and_update(
-        {"int_id": task_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not result:
+    existing = repo.find_one({"int_id": task_id, "incident_id": incident_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Hasty task not found")
+    if not updates:
+        return _map_hasty(existing)
+    repo.update_one(existing["_id"], updates)
+    result = repo.find_by_id(existing["_id"])
     return _map_hasty(result)
 
 
@@ -212,39 +234,34 @@ class ReflexNotificationUpdate(BaseModel):
 
 @router.get("/incidents/{incident_id}/initialresponse/reflex")
 def list_reflex_actions(incident_id: str):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_REFLEX_ACTIONS]
-    _ensure_int_ids(col)
-    docs = list(col.find({"incident_id": incident_id}).sort("created_at", -1))
+    repo = _reflex_repo(incident_id)
+    _ensure_int_ids(repo)
+    docs = repo.find_many({"incident_id": incident_id}, sort=[("created_at", -1)])
     return [_map_reflex(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/initialresponse/reflex", status_code=201)
 def create_reflex_action(incident_id: str, data: ReflexActionCreate):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_REFLEX_ACTIONS]
-    _ensure_int_ids(col)
-    int_id = _next_int_id(col)
-    now = _utcnow()
+    repo = _reflex_repo(incident_id)
+    _ensure_int_ids(repo)
+    int_id = _next_int_id(repo)
     doc = {
-        "_id": _new_id(),
         "int_id": int_id,
         "incident_id": incident_id,
         "trigger": data.trigger,
         "action": data.action,
         "communications_alert_id": data.communications_alert_id,
-        "created_at": now,
     }
-    col.insert_one(doc)
-    return _map_reflex(col.find_one({"int_id": int_id}))
+    repo.insert_one(doc)
+    return _map_reflex(repo.find_one({"int_id": int_id}))
 
 
 @router.patch("/incidents/{incident_id}/initialresponse/reflex/{action_id}/notification")
 def update_reflex_notification(incident_id: str, action_id: int, data: ReflexNotificationUpdate):
-    col = get_incident_db(incident_id)[IncidentCollections.INITIAL_REFLEX_ACTIONS]
-    result = col.find_one_and_update(
-        {"int_id": action_id, "incident_id": incident_id},
-        {"$set": {"communications_alert_id": data.communications_alert_id}},
-        return_document=True,
-    )
-    if not result:
+    repo = _reflex_repo(incident_id)
+    existing = repo.find_one({"int_id": action_id, "incident_id": incident_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Reflex action not found")
+    repo.update_one(existing["_id"], {"communications_alert_id": data.communications_alert_id})
+    result = repo.find_by_id(existing["_id"])
     return _map_reflex(result)

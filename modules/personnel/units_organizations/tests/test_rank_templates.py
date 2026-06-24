@@ -1,15 +1,7 @@
 from __future__ import annotations
 
-import importlib
 
-
-def test_create_and_replace_ranks(tmp_path, monkeypatch):
-    monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
-    import utils.db as udb
-    import utils.context as uctx
-    importlib.reload(udb)
-    importlib.reload(uctx)
-
+def test_create_and_replace_ranks(org_app_client):
     from modules.personnel.units_organizations.controller import (
         UnitsOrganizationsController,
     )

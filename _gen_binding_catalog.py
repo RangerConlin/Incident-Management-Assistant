@@ -171,6 +171,72 @@ for i in range(10):
             "index": i,
         })
 
+# ── SAR 104 Helpers ───────────────────────────────────────────────────────────
+SAR104_SINGLE_FIELDS = [
+    ("task.task_id", "Task — Task ID"),
+    ("task.assignment", "Task — Assignment"),
+    ("team.resource_type", "Team — Resource Type"),
+    ("team.role", "Team — Role"),
+    ("team.leader_name", "Team — Leader Name"),
+    ("team.leader_agency", "Team — Leader Agency"),
+    ("assignment.ground.previous_search_efforts", "Assignment — Previous Search Efforts"),
+    ("assignment.ground.time_allocated", "Assignment — Time Allocated"),
+    ("assignment.ground.size_of_assignment", "Assignment — Size of Assignment"),
+    ("assignment.ground.transport_instructions", "Assignment — Transport Instructions"),
+    ("radio_call", "Assignment — Radio Call"),
+    ("equipment_issued", "Assignment — Equipment Issued"),
+    ("briefer", "Assignment — Briefer"),
+    ("time_briefed", "Assignment — Time Briefed"),
+    ("time_out", "Assignment — Time Out"),
+    ("time_in", "Assignment — Time In"),
+    ("notes", "Assignment — Notes"),
+    ("additional.names", "Assignment — Additional Names"),
+    ("maps_attached", "Assignment — Maps Attached"),
+    ("debrief_attached", "Assignment — Debrief Attached"),
+]
+for path, label in SAR104_SINGLE_FIELDS:
+    entries.append({
+        "path": path,
+        "label": label,
+        "category": "SAR 104",
+        "source_type": "computed",
+        "table": None,
+        "column": path.rsplit(".", 1)[-1],
+    })
+
+for field_group, label_group in [
+    ("responsive", "Responsive"),
+    ("unresponsive", "Unresponsive"),
+    ("clues", "Clues"),
+]:
+    for level in ("high", "medium", "low"):
+        entries.append({
+            "path": f"assignment.ground.expected_pod.{field_group}.{level}",
+            "label": f"SAR 104 — Expected POD ({label_group}) {level.title()}",
+            "category": "SAR 104",
+            "source_type": "computed",
+            "table": None,
+            "column": level,
+        })
+
+for i in range(8):
+    ord_ = _ordinal(i + 1)
+    for col, label in [
+        ("member_name", "Member Name"),
+        ("member_agency", "Member Agency"),
+        ("member_medic", "Member Medic"),
+        ("member_role", "Member Role"),
+    ]:
+        entries.append({
+            "path": f"team_members.{i}.{col}",
+            "label": f"SAR 104 Team Members {i+1} ({ord_}) — {label}",
+            "category": "SAR 104 Team Members",
+            "source_type": "computed",
+            "table": None,
+            "column": col,
+            "index": i,
+        })
+
 # ── Aircraft ──────────────────────────────────────────────────────────────────
 AIRCRAFT_FIELDS = [
     ("tail_number",        "Tail Number"),

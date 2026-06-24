@@ -1,0 +1,16 @@
+{
+  "description": "SAR 115 - Tracking Team Debrief (Ground Supplement)",
+  "fields": [
+    { "pdf_field": "1 INCIDENT NAME", "source": "incident.name" },
+    { "pdf_field": "2 OPERATIONAL PERIOD", "source": "op_period.number" },
+    { "pdf_field": "3ASSIGNMENT NUMBER", "source": { "first_of": ["debrief.sortie_number", "tasks.0.task_id"] } },
+    { "pdf_field": "4DISCUSS LIKELIHOOD OF FINDING TRACKS OR SIGN ON THE TRAILSRow1", "source": "debrief.tracking.likelihood_tracks" },
+    { "pdf_field": "6 DESCRIBE THE LOCATION AND NATURE OF EXISTING TRACK TRAPSRow1", "source": "debrief.tracking.existing_traps" },
+    { "pdf_field": "7 DID YOU ERASE ANY EXISTING TRACK TRAPSRow1", "source": "debrief.tracking.erase_traps" },
+    { "pdf_field": "8 DID YOU CREATE ANY NEW TRACK TRAPSRow1", "source": "debrief.tracking.new_traps" },
+    { "pdf_field": "9 DESCRIBE THE ROUTE TAKEN BY ANY TRACKS YOU FOLLOWEDRow1", "source": "debrief.tracking.route_tracks" },
+    { "pdf_field": "10 WHY DID YOU DISCONTINUE FOLLOWING THESE TRACKSRow1", "source": "debrief.tracking.why_discontinue" },
+    { "pdf_field": "INDIVIDUAL TRACK SKETCHES ATTACHED", "source": { "key": "debrief.tracking.att_individual_sketches", "checkbox": true } },
+    { "pdf_field": "TRACK TRAP SUMMARY SKETCHES ATTACHED", "source": { "key": "debrief.tracking.att_trap_summary", "checkbox": true } }
+  ]
+}

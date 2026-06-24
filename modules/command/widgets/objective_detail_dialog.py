@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
-    QFormLayout,
-    QGroupBox,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -37,6 +38,32 @@ from modules.command.models.objectives import (
 )
 from utils import incident_context
 
+PRIORITY_COLORS = {
+    "low": "#546e7a",
+    "normal": "#1565c0",
+    "high": "#e65100",
+    "urgent": "#c62828",
+}
+
+STATUS_COLORS = {
+    "draft": "#757575",
+    "active": "#2e7d32",
+    "deferred": "#f9a825",
+    "completed": "#1565c0",
+    "cancelled": "#616161",
+}
+
+
+def _badge(text: str, color: str) -> QLabel:
+    label = QLabel(text)
+    label.setAlignment(Qt.AlignCenter)
+    label.setFixedHeight(24)
+    label.setStyleSheet(
+        f"border-radius: 12px; padding: 2px 12px; color: white; "
+        f"background: {color}; font-weight: 600;"
+    )
+    return label
+
 
 class ObjectiveDetailDialog(QDialog):
     """Qt Widgets dialog that keeps focus on strategic outcomes."""
@@ -46,16 +73,17 @@ class ObjectiveDetailDialog(QDialog):
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setModal(False)
         self.setWindowTitle("Objective Detail")
+        self.setMinimumSize(680, 560)
         self._objective_id: Optional[str] = None
         self._detail: Optional[ObjectiveDetail] = None
         self._on_saved = on_saved
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
 
-        self._header_box = self._build_header()
-        layout.addWidget(self._header_box)
+        layout.addWidget(self._build_header())
+        layout.addWidget(self._build_action_bar())
 
         self._tab_widget = QTabWidget(self)
         layout.addWidget(self._tab_widget, 1)
@@ -74,23 +102,54 @@ class ObjectiveDetailDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _build_header(self) -> QWidget:
-        container = QGroupBox("Objective")
-        form = QFormLayout(container)
-        form.setLabelAlignment(Qt.AlignRight)
-        form.setContentsMargins(12, 12, 12, 12)
-        form.setSpacing(6)
+        card = QFrame()
+        card.setFrameShape(QFrame.StyledPanel)
+        card.setStyleSheet(
+            "QFrame { background: palette(base); border: 1px solid palette(mid); border-radius: 6px; }"
+        )
+        outer = QVBoxLayout(card)
+        outer.setContentsMargins(14, 12, 14, 12)
+        outer.setSpacing(8)
 
+        title_row = QHBoxLayout()
+        title_row.setSpacing(10)
         self._code_label = QLabel("OBJ-")
+        code_font = QFont()
+        code_font.setBold(True)
+        code_font.setPointSize(code_font.pointSize() + 2)
+        self._code_label.setFont(code_font)
+        title_row.addWidget(self._code_label)
+
+        self._priority_badge = _badge("Normal", PRIORITY_COLORS["normal"])
+        self._status_badge = _badge("Draft", STATUS_COLORS["draft"])
+        title_row.addWidget(self._priority_badge)
+        title_row.addWidget(self._status_badge)
+        title_row.addStretch(1)
+
+        self._updated_label = QLabel("–")
+        self._updated_label.setStyleSheet("color: palette(mid);")
+        title_row.addWidget(self._updated_label)
+        outer.addLayout(title_row)
+
         self._objective_text = QTextEdit()
         self._objective_text.setPlaceholderText("Objective statement")
         self._objective_text.setAcceptRichText(False)
-        self._objective_text.setFixedHeight(80)
+        self._objective_text.setFixedHeight(72)
+        outer.addWidget(self._objective_text)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
 
         self._priority_combo = QComboBox()
         self._priority_combo.addItems([p.title() for p in PRIORITY_VALUES])
+        self._priority_combo.currentTextChanged.connect(self._on_priority_changed)
 
         self._status_combo = QComboBox()
         self._status_combo.addItems([s.title() for s in STATUS_VALUES])
+        self._status_combo.currentTextChanged.connect(self._on_status_changed)
 
         self._owner_edit = QLineEdit()
         self._owner_edit.setPlaceholderText("Owner or Section")
@@ -98,34 +157,59 @@ class ObjectiveDetailDialog(QDialog):
         self._tags_edit = QLineEdit()
         self._tags_edit.setPlaceholderText("Tags (comma separated)")
 
-        self._op_label = QLabel("â€“")
-        self._updated_label = QLabel("â€“")
+        self._op_label = QLabel("–")
 
-        button_row = QHBoxLayout()
+        grid.addWidget(self._field_label("Priority"), 0, 0)
+        grid.addWidget(self._priority_combo, 0, 1)
+        grid.addWidget(self._field_label("Status"), 0, 2)
+        grid.addWidget(self._status_combo, 0, 3)
+
+        grid.addWidget(self._field_label("Owner/Section"), 1, 0)
+        grid.addWidget(self._owner_edit, 1, 1)
+        grid.addWidget(self._field_label("Operational Period"), 1, 2)
+        grid.addWidget(self._op_label, 1, 3)
+
+        grid.addWidget(self._field_label("Tags"), 2, 0)
+        grid.addWidget(self._tags_edit, 2, 1, 1, 3)
+
+        outer.addLayout(grid)
+        return card
+
+    @staticmethod
+    def _field_label(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setStyleSheet("color: palette(mid); font-weight: 600;")
+        return label
+
+    def _build_action_bar(self) -> QWidget:
+        bar = QWidget()
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+
         self._save_button = QPushButton("Save")
+        self._save_button.setDefault(True)
         self._save_button.clicked.connect(self._save)
+
         self._create_task_button = QPushButton("Create Task")
         self._create_task_button.clicked.connect(self._create_task)
+
         self._history_button = QPushButton("History")
         self._history_button.clicked.connect(self._show_history)
+
         self._snippet_button = QPushButton("ICS-202 Snippet")
         self._snippet_button.clicked.connect(self._show_snippet)
-        button_row.addWidget(self._save_button)
-        button_row.addWidget(self._create_task_button)
-        button_row.addWidget(self._history_button)
-        button_row.addWidget(self._snippet_button)
-        button_row.addStretch(1)
 
-        form.addRow("Code", self._code_label)
-        form.addRow("Objective", self._objective_text)
-        form.addRow("Priority", self._priority_combo)
-        form.addRow("Status", self._status_combo)
-        form.addRow("Owner/Section", self._owner_edit)
-        form.addRow("Tags", self._tags_edit)
-        form.addRow("OP", self._op_label)
-        form.addRow("Updated", self._updated_label)
-        form.addRow(button_row)
-        return container
+        row.addWidget(self._save_button)
+        row.addWidget(self._create_task_button)
+        row.addWidget(self._history_button)
+        row.addWidget(self._snippet_button)
+        row.addStretch(1)
+
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        row.addWidget(spacer)
+        return bar
 
     def _build_strategies_tab(self) -> None:
         tab = QWidget()
@@ -140,6 +224,7 @@ class ObjectiveDetailDialog(QDialog):
         self._strategies_table.horizontalHeader().setStretchLastSection(True)
         self._strategies_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._strategies_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._strategies_table.setAlternatingRowColors(True)
 
         layout.addWidget(self._strategies_table)
 
@@ -170,6 +255,7 @@ class ObjectiveDetailDialog(QDialog):
         self._tasks_table.horizontalHeader().setStretchLastSection(True)
         self._tasks_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._tasks_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._tasks_table.setAlternatingRowColors(True)
         layout.addWidget(self._tasks_table)
 
         button_bar = QHBoxLayout()
@@ -199,6 +285,21 @@ class ObjectiveDetailDialog(QDialog):
         self._tab_widget.addTab(tab, "Log")
 
     # ------------------------------------------------------------------
+    def _on_priority_changed(self, text: str) -> None:
+        color = PRIORITY_COLORS.get(text.lower(), PRIORITY_COLORS["normal"])
+        self._priority_badge.setText(text)
+        self._priority_badge.setStyleSheet(
+            f"border-radius: 12px; padding: 2px 12px; color: white; background: {color}; font-weight: 600;"
+        )
+
+    def _on_status_changed(self, text: str) -> None:
+        color = STATUS_COLORS.get(text.lower(), STATUS_COLORS["draft"])
+        self._status_badge.setText(text)
+        self._status_badge.setStyleSheet(
+            f"border-radius: 12px; padding: 2px 12px; color: white; background: {color}; font-weight: 600;"
+        )
+
+    # ------------------------------------------------------------------
     def _refresh(self) -> None:
         incident_id = incident_context.get_active_incident_id()
         if not incident_id or self._objective_id is None:
@@ -218,10 +319,10 @@ class ObjectiveDetailDialog(QDialog):
         self._status_combo.setCurrentIndex(STATUS_VALUES.index(summary.status))
         self._owner_edit.setText(summary.owner_section or "")
         self._tags_edit.setText(", ".join(summary.tags))
-        self._op_label.setText(str(summary.op_period_id or ""))
+        self._op_label.setText(str(summary.op_period_id or "–"))
         updated_by = summary.updated_by or "Unknown"
         updated_ts = summary.updated_at.isoformat(sep=" ", timespec="seconds") if summary.updated_at else ""
-        self._updated_label.setText(f"{updated_ts} by {updated_by}")
+        self._updated_label.setText(f"Updated {updated_ts} by {updated_by}" if updated_ts else "–")
         self._narrative_edit.setPlainText(self._detail.narrative or "")
         self._populate_strategies(detail.strategies)
         self._populate_tasks()
@@ -259,7 +360,7 @@ class ObjectiveDetailDialog(QDialog):
     def _populate_history(self, history) -> None:
         self._log_list.clear()
         for entry in history:
-            label = f"{entry.ts:%Y-%m-%d %H:%M} â€“ {entry.field}: {entry.old_value or ''} â†’ {entry.new_value or ''}"
+            label = f"{entry.ts:%Y-%m-%d %H:%M} – {entry.field}: {entry.old_value or ''} → {entry.new_value or ''}"
             item = QListWidgetItem(label)
             self._log_list.addItem(item)
 

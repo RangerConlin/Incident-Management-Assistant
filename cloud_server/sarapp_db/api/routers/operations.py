@@ -130,6 +130,7 @@ def create_task(incident_id: str, body: dict[str, Any]) -> dict:
         "created_at": _now(),
         "due_time": body.get("due_time"),
         "task_teams": [],
+        "active_team_ids": [],
         "personnel": [],
         "vehicles": [],
         "aircraft": [],
@@ -174,22 +175,26 @@ def fetch_task_rows(incident_id: str) -> list[dict]:
     for doc in col.find(sort=[("int_id", 1)]):
         task_int_id = doc["int_id"]
         task_str_id = doc.get("task_id") or str(task_int_id)
-        # Find teams currently assigned to this task — supports both seeded
-        # string-keyed assigned_teams and new-style task_teams arrays.
+        # active_team_ids is maintained directly by add_task_team ($addToSet)
+        # and remove_task_team/set_team_status ($pull) — it's the team_ids
+        # currently assigned, no separate lookup needed. Tasks created before
+        # this field existed have no key at all; fall back to the older
+        # current_task_id query for those so they don't need a migration.
+        active_ids = doc.get("active_team_ids")
         assigned = []
-        for tt in (doc.get("assigned_teams") or doc.get("task_teams") or []):
-            team_ref = tt.get("team_id")
-            if team_ref is None:
-                continue
-            # Look up by string team_id (seeded) or int int_id (new-style)
-            team = (teams_col.find_one({"team_id": team_ref})
-                    if isinstance(team_ref, str)
-                    else teams_col.find_one({"int_id": team_ref}))
-            if team:
-                # Only include if team is still assigned to this task
-                cur = team.get("current_task_id")
-                if cur == task_str_id or cur == task_int_id:
-                    assigned.append(team.get("name") or tt.get("sortie_id") or f"Team {team_ref}")
+        if active_ids is not None:
+            teams_iter = teams_col.find({
+                "$or": [{"int_id": {"$in": active_ids}}, {"team_id": {"$in": active_ids}}]
+            })
+        else:
+            teams_iter = teams_col.find({"current_task_id": {"$in": [task_int_id, task_str_id]}})
+        for team in teams_iter:
+            sortie_id = None
+            for tt in reversed(doc.get("task_teams") or doc.get("assigned_teams") or []):
+                if tt.get("team_id") in (team.get("int_id"), team.get("team_id")):
+                    sortie_id = tt.get("sortie_id")
+                    break
+            assigned.append(team.get("name") or sortie_id or f"Team {team.get('int_id')}")
         priority = doc.get("priority", "")
         try:
             priority = PRIORITY_MAP.get(int(priority), str(priority))
@@ -374,6 +379,10 @@ def set_team_status(incident_id: str, team_id: int, body: dict[str, Any]) -> dic
                                 {"$set": {f"task_teams.{i}.time_cleared": now}},
                             )
                         break
+            tasks_col.update_one(
+                {"int_id": current_task_id},
+                {"$pull": {"active_team_ids": team_id}},
+            )
         updates["current_task_id"] = None
 
     elif status_key in TS_STATUS_COLS and current_task_id is not None:
@@ -445,9 +454,14 @@ def fetch_team_assignment_rows(incident_id: str) -> list[dict]:
                     if isinstance(current_task_ref, str)
                     else tasks_col.find_one({"int_id": current_task_ref}))
             if task:
-                assignment = task.get("title") or ""
+                task_number = task.get("task_id") or ""
+                task_title = task.get("title") or ""
+                if task_number and task_title:
+                    assignment = f"{task_number} - {task_title}"
+                else:
+                    assignment = task_number or task_title
                 task_location = task.get("location") or ""
-                for tt in reversed(task.get("assigned_teams") or task.get("task_teams") or []):
+                for tt in reversed(task.get("task_teams") or task.get("assigned_teams") or []):
                     ref = tt.get("team_id")
                     if ref == team_str_id or ref == team_int_id:
                         sortie_display = tt.get("sortie_id") or ""
@@ -525,8 +539,7 @@ def add_task_team(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
     # Get team info for embedding
     team = teams_col.find_one({"int_id": team_id})
     team_name = team.get("name") if team else None
-    leader_name = None
-    leader_contact = None
+    leader_name, leader_contact = _resolve_leader(incident_id, team or {})
 
     tt = {
         "id": tt_id,
@@ -544,7 +557,10 @@ def add_task_team(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
         "time_complete": None,
         "time_cleared": None,
     }
-    tasks_col.update_one({"int_id": task_id}, {"$push": {"task_teams": tt}})
+    tasks_col.update_one(
+        {"int_id": task_id},
+        {"$push": {"task_teams": tt}, "$addToSet": {"active_team_ids": team_id}},
+    )
     # Update team's current_task_id
     teams_col.update_one({"int_id": team_id}, {"$set": {"current_task_id": task_id}})
     return {"tt_id": tt_id, "team_id": team_id, **tt}
@@ -620,12 +636,18 @@ def update_sortie_id(incident_id: str, task_id: int, tt_id: int, body: dict[str,
 @router.delete("/incidents/{incident_id}/operations/tasks/{task_id}/teams/{tt_id}")
 def remove_task_team(incident_id: str, task_id: int, tt_id: int) -> dict:
     col = _tasks(incident_id)
+    teams_col = _teams(incident_id)
     task = col.find_one({"int_id": task_id})
     if not task:
         raise HTTPException(404)
     tt_list = task.get("task_teams") or []
-    was_primary = next((tt.get("is_primary", False) for tt in tt_list if tt.get("id") == tt_id), False)
-    col.update_one({"int_id": task_id}, {"$pull": {"task_teams": {"id": tt_id}}})
+    removed_tt = next((tt for tt in tt_list if tt.get("id") == tt_id), None)
+    was_primary = bool(removed_tt and removed_tt.get("is_primary", False))
+    removed_team_id = removed_tt.get("team_id") if removed_tt else None
+    pull_spec: dict[str, Any] = {"task_teams": {"id": tt_id}}
+    if removed_team_id is not None:
+        pull_spec["active_team_ids"] = removed_team_id
+    col.update_one({"int_id": task_id}, {"$pull": pull_spec})
     # If was primary and others remain, promote the first remaining
     if was_primary:
         task2 = col.find_one({"int_id": task_id})
@@ -633,6 +655,13 @@ def remove_task_team(incident_id: str, task_id: int, tt_id: int) -> dict:
         if remaining:
             col.update_one({"int_id": task_id, "task_teams.id": remaining[0]["id"]},
                            {"$set": {"task_teams.$.is_primary": True}})
+    # Clear the team's stale assignment pointer, but only if it still points
+    # here — avoids clobbering a newer assignment made after this removal.
+    if removed_team_id is not None:
+        teams_col.update_one(
+            {"int_id": removed_team_id, "current_task_id": task_id},
+            {"$set": {"current_task_id": None}},
+        )
     return {"ok": True}
 
 
@@ -765,6 +794,8 @@ def create_debrief(incident_id: str, task_id: int, body: dict[str, Any]) -> dict
         "debriefer_id": body.get("debriefer_id", ""),
         "types": body.get("types", []),
         "forms": {},
+        "linked_clue_ids": [],
+        "linked_subject_ids": [],
         "archived": False,
         "created_at": _now(),
     }

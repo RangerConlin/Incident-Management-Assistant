@@ -73,6 +73,8 @@ class MasterCollections:
     CANNED_COMM_ENTRIES = "canned_comm_entries"
 
     # Users and access
+    USERS = "users"
+    USER_SESSIONS = "user_sessions"
     USER_PROFILES = "user_profiles"
     ROLE_TEMPLATES = "role_templates"
 

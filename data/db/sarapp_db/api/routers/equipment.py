@@ -2,27 +2,29 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from sarapp_db.mongo.mongo_client import get_client
-from sarapp_db.mongo.database_manager import DB_MASTER
+from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 
-def _col():
-    return get_client()[DB_MASTER][MasterCollections.EQUIPMENT]
+class EquipmentRepository(BaseRepository):
+    collection_name = MasterCollections.EQUIPMENT
+    # Keyed by sequential `int_id`, not `_id`; no `deleted` field — hard deletes.
+    soft_deletes = False
 
 
-def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def _repo() -> EquipmentRepository:
+    return EquipmentRepository(get_master_db())
 
 
-def _ensure_int_ids(col) -> None:
+def _ensure_int_ids(repo: EquipmentRepository) -> None:
+    col = repo._col
     for doc in col.find({"int_id": {"$exists": False}}):
         max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
         next_id = (max_doc["int_id"] + 1) if max_doc else 1
@@ -41,9 +43,9 @@ def list_equipment(
     search: str = Query(""),
     limit: int = Query(200),
 ) -> list[dict[str, Any]]:
-    col = _col()
-    _ensure_int_ids(col)
-    docs = list(col.find().sort("name", 1).limit(limit))
+    repo = _repo()
+    _ensure_int_ids(repo)
+    docs = repo.find_many({}, sort=[("name", 1)], limit=limit)
     if search.strip():
         t = search.strip().lower()
         docs = [
@@ -57,7 +59,7 @@ def list_equipment(
 
 @router.get("/{equipment_id}")
 def get_equipment(equipment_id: int) -> dict[str, Any]:
-    doc = _col().find_one({"int_id": equipment_id})
+    doc = _repo().find_one({"int_id": equipment_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Equipment not found")
     return _normalize(doc)
@@ -65,21 +67,17 @@ def get_equipment(equipment_id: int) -> dict[str, Any]:
 
 @router.post("", status_code=201)
 def create_equipment(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    col = _col()
-    _ensure_int_ids(col)
+    repo = _repo()
+    _ensure_int_ids(repo)
     body.pop("_id", None)
     body.pop("int_id", None)
-    max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+    max_doc = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
     next_id = (max_doc["int_id"] + 1) if max_doc else 1
-    now = _utcnow()
     doc: dict[str, Any] = {
         "int_id": next_id,
         **body,
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
-    doc.pop("_id", None)
+    doc = repo.insert_one(doc)
     return _normalize(doc)
 
 
@@ -87,20 +85,21 @@ def create_equipment(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 def update_equipment(
     equipment_id: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    col = _col()
-    existing = col.find_one({"int_id": equipment_id})
+    repo = _repo()
+    existing = repo.find_one({"int_id": equipment_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Equipment not found")
     body.pop("int_id", None)
     body.pop("_id", None)
-    body["updated_at"] = _utcnow()
-    col.update_one({"int_id": equipment_id}, {"$set": body})
-    doc = col.find_one({"int_id": equipment_id})
+    repo.update_one(existing["_id"], body)
+    doc = repo.find_by_id(existing["_id"])
     return _normalize(doc)
 
 
 @router.delete("/{equipment_id}", status_code=204)
 def delete_equipment(equipment_id: int) -> None:
-    result = _col().delete_one({"int_id": equipment_id})
-    if result.deleted_count == 0:
+    repo = _repo()
+    existing = repo.find_one({"int_id": equipment_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Equipment not found")
+    repo.delete_one(existing["_id"])

@@ -17,6 +17,7 @@
 - Never create demo/fake data — only migrate or use data that already exists.
 - Never wire MongoDB directly into the UI — architecture is UI → API server → MongoDB.
 - `SARAPP_MONGO_URI` is never hardcoded — read from environment variable only.
+- All incident-database writes go through a `sarapp_db.mongo.repository.BaseRepository` subclass — routers must never call `insert_one`/`update_one`/`delete_one`/etc. directly on a raw collection. `BaseRepository` is the single place that stamps timestamps/ids and broadcasts the change to `IncidentCache` WebSocket clients; bypassing it silently drops both. (Note: as of 2026-06-23, no router has been retrofitted onto `BaseRepository` yet — every existing router still writes directly. New code must use it; existing routers are a tracked migration, not yet started.)
 
 ## Directory Orientation
 - `bridge/`: QObject bridges. Slot-friendly, emit signals on state changes.

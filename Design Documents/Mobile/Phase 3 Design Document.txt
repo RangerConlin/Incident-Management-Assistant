@@ -50,7 +50,7 @@ View current status of team members
 
 Show role, last check-in, last known status
 
-Pulled from incident personnel records
+Pulled from mission personnel records
 
 6. Role-Based Lockout and Access Control
 
@@ -66,47 +66,47 @@ Backend Module
 
 Endpoint Needed
 
-DB Table
+Mongo Scope / Collection
 
 Offline Sync
 
 Core Sync Engine
 
-POST /api/mobile/sync, GET /api/mobile/payload
+Not currently implemented as a mobile sync API. Use read-through caching from existing endpoints until a sync router exists.
 
-All incident tables
+All relevant sarapp_incident_<id> collections
 
 Location Updates
 
-Operations / Tracking
+Operations / GIS
 
-POST /api/mobile/location
+No dedicated mobile location endpoint currently exists. Candidate target: PATCH /api/incidents/{incident_id}/operations/teams/{team_id} with location fields, or a future GIS/location router.
 
-LocationLogs
+sarapp_incident_<id>.teams, sarapp_incident_<id>.spatial_features
 
 Notifications
 
 Comms / System
 
-POST /api/mobile/push-token, GET /api/mobile/notify
+No push-token or notification polling endpoint currently exists.
 
-PushTokens
+Future system/mobile notification collection
 
 Team Overview
 
-Personnel
+Operations
 
-GET /api/mobile/team-status
+GET /api/incidents/{incident_id}/operations/team-assignment-rows, GET /api/incidents/{incident_id}/teams
 
-Users, Teams
+sarapp_incident_<id>.teams
 
 Role Restrictions
 
 Auth / Admin
 
-GET /api/mobile/permissions
+No current mobile permissions endpoint. Server has master user profile scaffolding but no active auth router.
 
-UserRoles
+sarapp_master.user_profiles, sarapp_master.role_templates
 
 📊 UI & Navigation Overview
 
@@ -173,3 +173,4 @@ Final polish, failover testing, QA
 16–17
 
 Package and release
+

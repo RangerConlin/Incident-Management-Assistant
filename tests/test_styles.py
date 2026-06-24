@@ -90,6 +90,7 @@ def test_global_qss_focus_rule_uses_background_property() -> None:
         "fg_muted": "#050505",
         "divider": "#060606",
         "dock_tab_bg": "#070707",
+        "ctrl_bg": "#080808",
         "ctrl_border": "#080808",
         "ctrl_focus": "#090909",
         "ctrl_hover": "#101010",

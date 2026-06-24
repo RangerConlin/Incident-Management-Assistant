@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt, QDateTime
+from PySide6.QtCore import Qt, QDateTime, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -41,20 +41,22 @@ _CATEGORY_LABEL = {
 
 
 class _NotificationRow(QFrame):
+    clicked = Signal(str)  # notification id
+
     def __init__(self, payload: dict[str, Any], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self._id = str(payload.get("id") or "")
+        self._read = bool(payload.get("read", False))
+        self.setCursor(Qt.PointingHandCursor)
 
-        severity = str(payload.get("severity") or "info")
-        category = str(payload.get("category") or "operational")
-        accent = _SEVERITY_ACCENT.get(severity, _SEVERITY_ACCENT["info"])
-        bg = _SEVERITY_BG.get(severity, _SEVERITY_BG["info"])
+        severity = str(payload.get("severity") or "routine")
+        category = str(payload.get("category") or "operations")
+        accent = _SEVERITY_ACCENT.get(severity, _SEVERITY_ACCENT["routine"])
+        bg = _SEVERITY_BG.get(severity, _SEVERITY_BG["routine"])
         cat_text, cat_color = _CATEGORY_LABEL.get(category, ("", "#888888"))
 
-        self.setStyleSheet(
-            f"QFrame {{ background: {bg}22; border-left: 3px solid {accent}; "
-            f"border-radius: 4px; margin: 2px 0; }}"
-        )
+        self._apply_frame_style(accent, bg)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 6, 10, 6)
@@ -62,6 +64,12 @@ class _NotificationRow(QFrame):
 
         header = QHBoxLayout()
         header.setSpacing(8)
+
+        if not self._read:
+            dot = QLabel("●")
+            dot.setStyleSheet(f"color: {accent}; font-size: 10px;")
+            dot.setFixedWidth(12)
+            header.addWidget(dot, 0)
 
         if cat_text:
             cat_lbl = QLabel(cat_text)
@@ -73,7 +81,7 @@ class _NotificationRow(QFrame):
             header.addWidget(cat_lbl, 0)
 
         title_lbl = QLabel(str(payload.get("title") or ""))
-        title_lbl.setStyleSheet("font-weight: 600;")
+        title_lbl.setStyleSheet("font-weight: 600;" if not self._read else "font-weight: 400; color: palette(mid);")
         header.addWidget(title_lbl, 1)
 
         source = str(payload.get("source") or "")
@@ -103,6 +111,18 @@ class _NotificationRow(QFrame):
             msg_lbl.setStyleSheet("color: palette(window-text);")
             layout.addWidget(msg_lbl)
 
+    def _apply_frame_style(self, accent: str, bg: str) -> None:
+        opacity = "22" if not self._read else "0a"
+        self.setStyleSheet(
+            f"QFrame {{ background: {bg}{opacity}; border-left: 3px solid {accent}; "
+            f"border-radius: 4px; margin: 2px 0; }}"
+        )
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if self._id:
+            self.clicked.emit(self._id)
+        super().mousePressEvent(event)
+
 
 class NotificationsPanel(QWidget):
     """Dockable notification history feed."""
@@ -113,6 +133,7 @@ class NotificationsPanel(QWidget):
         self._build_ui()
 
         self.notifier.notificationCreated.connect(lambda _: self.reload())
+        self.notifier.notificationUpdated.connect(lambda _: self.reload())
         app_signals.incidentChanged.connect(lambda _: self.reload())
         self.reload()
 
@@ -132,10 +153,10 @@ class NotificationsPanel(QWidget):
         title.setStyleSheet("font-weight: 600; font-size: 13px;")
         header_layout.addWidget(title, 1)
 
-        clear_btn = QPushButton("Clear Badge")
-        clear_btn.setFixedHeight(26)
-        clear_btn.clicked.connect(self._on_clear_badge)
-        header_layout.addWidget(clear_btn)
+        mark_all_btn = QPushButton("Mark All Read")
+        mark_all_btn.setFixedHeight(26)
+        mark_all_btn.clicked.connect(self._on_mark_all_read)
+        header_layout.addWidget(mark_all_btn)
 
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setFixedHeight(26)
@@ -184,12 +205,14 @@ class NotificationsPanel(QWidget):
 
         for payload in entries:
             row = _NotificationRow(payload)
+            row.clicked.connect(self._on_row_clicked)
             self._feed_layout.insertWidget(self._feed_layout.count() - 1, row)
 
-        self.notifier.clear_badge()
+    def _on_row_clicked(self, notification_id: str) -> None:
+        self.notifier.mark_read(notification_id)
 
-    def _on_clear_badge(self) -> None:
-        self.notifier.clear_badge()
+    def _on_mark_all_read(self) -> None:
+        self.notifier.mark_all_read()
 
 
 def get_notifications_panel(parent: QWidget | None = None) -> NotificationsPanel:

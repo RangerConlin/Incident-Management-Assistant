@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
@@ -26,12 +27,26 @@ _ENTITY_COLLECTIONS: dict[str, tuple[str, str]] = {
 }
 
 
+class ApprovalInstancesRepository(BaseRepository):
+    collection_name = IncidentCollections.APPROVAL_INSTANCES
+    soft_deletes = False
+
+
+class ApprovalRecordsRepository(BaseRepository):
+    collection_name = IncidentCollections.APPROVAL_RECORDS
+    soft_deletes = False
+
+
+def _instances_repo(incident_id: str) -> ApprovalInstancesRepository:
+    return ApprovalInstancesRepository(get_incident_db(incident_id))
+
+
+def _records_repo(incident_id: str) -> ApprovalRecordsRepository:
+    return ApprovalRecordsRepository(get_incident_db(incident_id))
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-def _db(incident_id: str):
-    return get_incident_db(incident_id)
 
 
 def _strip_id(doc: dict) -> dict:
@@ -70,8 +85,8 @@ class EntityStatusRequest(BaseModel):
 
 @router.get("/{incident_id}/approvals/instances/{entity_type}/{entity_id}")
 def get_instance(incident_id: str, entity_type: str, entity_id: str) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.APPROVAL_INSTANCES]
-    doc = col.find_one({
+    repo = _instances_repo(incident_id)
+    doc = repo.find_one({
         "incident_id": incident_id,
         "entity_type": entity_type,
         "entity_id": entity_id,
@@ -85,12 +100,15 @@ def get_instance(incident_id: str, entity_type: str, entity_id: str) -> dict[str
 def upsert_instance(
     incident_id: str, entity_type: str, entity_id: str, body: dict
 ) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.APPROVAL_INSTANCES]
-    col.replace_one(
-        {"incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id},
-        {**body, "incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id},
-        upsert=True,
-    )
+    repo = _instances_repo(incident_id)
+    query = {"incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id}
+    # Atomic upsert by compound key (not by `_id`) — not expressible via
+    # BaseRepository's generic methods, so we drop to the raw collection
+    # and broadcast the change ourselves, mirroring update_one's pattern.
+    repo._col.replace_one(query, {**body, **query}, upsert=True)
+    doc = repo._col.find_one(query)
+    if doc:
+        repo._broadcast("updated", doc["_id"], doc)
     return {"ok": True}
 
 
@@ -106,13 +124,17 @@ def update_entity_status(
     if entry is None:
         raise HTTPException(400, f"Unknown entity type: {entity_type}")
     collection_name, id_field = entry
-    col = _db(incident_id)[collection_name]
-    result = col.update_one(
-        {"incident_id": incident_id, id_field: entity_id},
-        {"$set": {"approval_status": body.approval_status, "updated_at": _utc_now()}},
-    )
-    if result.matched_count == 0:
+
+    class _EntityRepository(BaseRepository):
+        pass
+
+    _EntityRepository.collection_name = collection_name
+    _EntityRepository.soft_deletes = False
+    repo = _EntityRepository(get_incident_db(incident_id))
+    existing = repo.find_one({"incident_id": incident_id, id_field: entity_id})
+    if existing is None:
         raise HTTPException(404, f"{entity_type} {entity_id} not found")
+    repo.update_one(existing["_id"], {"approval_status": body.approval_status})
     return {"ok": True}
 
 
@@ -124,8 +146,8 @@ def update_entity_status(
 def save_record(incident_id: str, body: SaveRecordRequest) -> dict[str, Any]:
     if body.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Invalid action: {body.action}")
-    col = _db(incident_id)[IncidentCollections.APPROVAL_RECORDS]
-    col.insert_one({
+    repo = _records_repo(incident_id)
+    repo.insert_one({
         "incident_id": incident_id,
         "entity_type": body.entity_type,
         "entity_id": body.entity_id,
@@ -146,11 +168,11 @@ def get_records(
     entity_type: str,
     entity_id: str,
 ) -> list[dict[str, Any]]:
-    col = _db(incident_id)[IncidentCollections.APPROVAL_RECORDS]
-    docs = list(col.find(
+    repo = _records_repo(incident_id)
+    docs = repo.find_many(
         {"incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id},
         sort=[("timestamp", 1)],
-    ))
+    )
     return [_strip_id(d) for d in docs]
 
 
@@ -161,8 +183,8 @@ def get_records(
 @router.post("/{incident_id}/approvals/pending")
 def pending_for_roles(incident_id: str, body: PendingRequest) -> list[dict[str, Any]]:
     """Return active steps where resolved_actor_id matches or role is held by this person."""
-    col = _db(incident_id)[IncidentCollections.APPROVAL_INSTANCES]
-    docs = list(col.find({"incident_id": incident_id, "status": "pending"}))
+    repo = _instances_repo(incident_id)
+    docs = repo.find_many({"incident_id": incident_id, "status": "pending"})
     results: list[dict[str, Any]] = []
     for doc in docs:
         for step in doc.get("steps", []):

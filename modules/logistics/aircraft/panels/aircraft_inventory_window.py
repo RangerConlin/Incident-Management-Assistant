@@ -411,7 +411,6 @@ class AircraftDetailPane(QWidget):
         self.tab_widget.addTab(self._build_details_tab(), "Details")
         self.tab_widget.addTab(self._build_capabilities_tab(), "Capabilities")
         self.tab_widget.addTab(self._build_maintenance_tab(), "Maintenance")
-        self.tab_widget.addTab(self._build_attachments_tab(), "Attachments")
         self.tab_widget.addTab(self._build_history_tab(), "History")
         form_layout.addWidget(self.tab_widget)
 
@@ -464,16 +463,6 @@ class AircraftDetailPane(QWidget):
         layout.addWidget(self.maintenance_list)
         add_btn = QPushButton("Add Entry")
         add_btn.clicked.connect(self._show_maintenance_placeholder)
-        layout.addWidget(add_btn)
-        return widget
-
-    def _build_attachments_tab(self) -> QWidget:
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        self.attachments_list = QListWidget()
-        layout.addWidget(self.attachments_list)
-        add_btn = QPushButton("Add Attachment…")
-        add_btn.clicked.connect(self._show_attachment_placeholder)
         layout.addWidget(add_btn)
         return widget
 
@@ -545,9 +534,6 @@ class AircraftDetailPane(QWidget):
     def _show_maintenance_placeholder(self) -> None:
         QMessageBox.information(self, "Maintenance", "Detailed maintenance tracking will be added in a later iteration.")
 
-    def _show_attachment_placeholder(self) -> None:
-        QMessageBox.information(self, "Attachments", "Attachment upload is not yet implemented.")
-
     def set_bases(self, bases: Sequence[str]) -> None:
         unique = sorted({b for b in bases if b})
         self._bases = unique
@@ -599,8 +585,6 @@ class AircraftDetailPane(QWidget):
                 self.next100_edit.clear()
                 self.maintenance_list.clear()
                 self.maintenance_list.addItem("No maintenance entries recorded.")
-                self.attachments_list.clear()
-                self.attachments_list.addItem("No attachments uploaded.")
                 self.history_list.clear()
                 self.history_list.addItem("No history yet.")
                 return
@@ -652,7 +636,6 @@ class AircraftDetailPane(QWidget):
             self.last100_edit.setText(record.get("last_100hr", "") or "")
             self.next100_edit.setText(record.get("next_100hr", "") or "")
             self._refresh_maintenance(record)
-            self._refresh_attachments(record)
             self._refresh_history(record)
         finally:
             self._updating = False
@@ -665,15 +648,6 @@ class AircraftDetailPane(QWidget):
             return
         for item in entries:
             self.maintenance_list.addItem(f"{item.get('ts', '')}: {item.get('details', '')}")
-
-    def _refresh_attachments(self, record: Dict[str, Any]) -> None:
-        self.attachments_list.clear()
-        attachments = record.get("attachments") or []
-        if not attachments:
-            self.attachments_list.addItem("No attachments uploaded.")
-            return
-        for item in attachments:
-            self.attachments_list.addItem(f"{item.get('name', 'Attachment')} ({item.get('type', '')})")
 
     def _refresh_history(self, record: Dict[str, Any]) -> None:
         self.history_list.clear()

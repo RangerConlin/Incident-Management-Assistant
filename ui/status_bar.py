@@ -22,14 +22,14 @@ _POLL_INTERVAL_MS = 30_000  # 30 seconds
 
 class AppStatusBar(QtWidgets.QStatusBar):
     """
-    Three-section bottom status bar:
+    Bottom status bar:
       Left   — connection status
-      Center — pending approvals count (clickable)
-      Right  — unread messages count (clickable)
+      Right  — notification badge, pending approvals, unread messages (all clickable)
     """
 
     approval_indicator_clicked = QtCore.Signal()
     messages_indicator_clicked = QtCore.Signal()
+    notifications_indicator_clicked = QtCore.Signal()
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -47,6 +47,14 @@ class AppStatusBar(QtWidgets.QStatusBar):
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
         )
         self.addWidget(spacer)
+
+        # Notification badge — permanent right-side, driven by Notifier signal (not polled)
+        self._notifications_btn = QtWidgets.QPushButton("\U0001F514 0")
+        self._notifications_btn.setFlat(True)
+        self._notifications_btn.setStyleSheet("color: #888888; padding: 0 8px; border: none;")
+        self._notifications_btn.setToolTip("Notifications")
+        self._notifications_btn.clicked.connect(self.notifications_indicator_clicked)
+        self.addPermanentWidget(self._notifications_btn)
 
         # Pending approvals — permanent right-side
         self._approvals_btn = QtWidgets.QPushButton("✔ —")
@@ -141,6 +149,17 @@ class AppStatusBar(QtWidgets.QStatusBar):
             self._set_messages(int(result.get("count", 0)))
         except Exception:
             self._set_messages(None)
+
+    def set_notifications_count(self, count: int) -> None:
+        if count <= 0:
+            self._notifications_btn.setText("\U0001F514 0")
+            self._notifications_btn.setStyleSheet("color: #888888; padding: 0 8px; border: none;")
+        else:
+            self._notifications_btn.setText(f"\U0001F514 {count}")
+            self._notifications_btn.setStyleSheet("color: #E65400; font-weight: bold; padding: 0 8px; border: none;")
+        self._notifications_btn.setToolTip(
+            f"{count} unread notification(s)" if count else "No unread notifications"
+        )
 
     def _set_approvals(self, count: int | None) -> None:
         if count is None:

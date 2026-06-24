@@ -14,6 +14,7 @@ Desktop-first incident management suite (ICS Command Assistant / SARApp) built w
 - **Never create demo/fake data** — only migrate or use data that already exists, however creating fake data is ok if instructed to.
 - **Never wire MongoDB directly into the UI** — architecture is UI → API server → MongoDB.
 - **`SARAPP_MONGO_URI` is never hardcoded** — read from environment variable only.
+- **All incident-database writes go through a `BaseRepository` subclass** (`data/db/sarapp_db/mongo/repository.py`) — never call `insert_one`/`update_one`/`delete_one`/etc. directly on a raw collection from a router or service. `BaseRepository` is the single place that stamps `created_at`/`updated_at`/`deleted` and broadcasts the change to `IncidentCache` WebSocket clients (`ws_hub.broadcast_change`); bypassing it silently drops both the bookkeeping and the live-update broadcast. As of 2026-06-23 this is unenforced in existing code — every router still writes directly to raw collections via a local `_col(incident_id)` helper. New/touched routers must move onto `BaseRepository`; retrofitting the rest is a tracked follow-up, not yet started.
 - **All text files must be UTF-8 (no BOM) with LF line endings** — audit with `python tools/encoding_audit.py --summary`.
 
 ---

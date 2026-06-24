@@ -7,19 +7,47 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from sarapp_db.mongo.mongo_client import get_client
-from sarapp_db.mongo.database_manager import DB_MASTER, get_incident_db_name
+from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollections
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 
-def _master():
-    return get_client()[DB_MASTER]
+class PersonnelRepository(BaseRepository):
+    collection_name = MasterCollections.PERSONNEL
+    soft_deletes = False
 
 
-def _incident(incident_id: str):
-    return get_client()[get_incident_db_name(incident_id)]
+class CheckinsRepository(BaseRepository):
+    collection_name = IncidentCollections.CHECKINS
+    soft_deletes = False
+
+
+class TeamsRepository(BaseRepository):
+    collection_name = IncidentCollections.TEAMS
+    soft_deletes = False
+
+
+class CheckinHistoryRepository(BaseRepository):
+    collection_name = IncidentCollections.CHECKIN_HISTORY
+    soft_deletes = False
+
+
+def _personnel_repo() -> PersonnelRepository:
+    return PersonnelRepository(get_master_db())
+
+
+def _checkins_repo(incident_id: str) -> CheckinsRepository:
+    return CheckinsRepository(get_incident_db(incident_id))
+
+
+def _teams_repo(incident_id: str) -> TeamsRepository:
+    return TeamsRepository(get_incident_db(incident_id))
+
+
+def _checkin_history_repo(incident_id: str) -> CheckinHistoryRepository:
+    return CheckinHistoryRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
@@ -53,9 +81,9 @@ def search_personnel(
     q: str = Query(""),
     limit: int = Query(50),
 ) -> list[dict[str, Any]]:
-    col = _master()[MasterCollections.PERSONNEL]
+    repo = _personnel_repo()
     term = (q or "").strip().lower()
-    docs = list(col.find().sort("name", 1))
+    docs = repo.find_many({}, sort=[("name", 1)])
     results = []
     for d in docs:
         if term:
@@ -77,10 +105,10 @@ def search_personnel(
 
 @router.get("/personnel/{person_id}")
 def get_person_identity(incident_id: str, person_id: str) -> dict[str, Any]:
-    col = _master()[MasterCollections.PERSONNEL]
+    repo = _personnel_repo()
     doc = (
-        col.find_one({"person_id": person_id})
-        or col.find_one({"id": person_id})
+        repo.find_one({"person_id": person_id})
+        or repo.find_one({"id": person_id})
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Person not found")
@@ -93,19 +121,19 @@ def get_person_identity(incident_id: str, person_id: str) -> dict[str, Any]:
 
 @router.get("/roles")
 def get_distinct_roles(incident_id: str) -> list[str]:
-    col = _incident(incident_id)[IncidentCollections.CHECKINS]
-    values = col.distinct("role_on_team", {"role_on_team": {"$nin": [None, ""]}})
-    master_col = _master()[MasterCollections.PERSONNEL]
+    checkins_repo = _checkins_repo(incident_id)
+    values = checkins_repo._col.distinct("role_on_team", {"role_on_team": {"$nin": [None, ""]}})
+    personnel_repo = _personnel_repo()
     for field in ("primary_role", "role"):
-        vals = master_col.distinct(field, {field: {"$nin": [None, ""]}})
+        vals = personnel_repo._col.distinct(field, {field: {"$nin": [None, ""]}})
         values.extend(vals)
     return sorted({str(v).strip() for v in values if v})
 
 
 @router.get("/teams")
 def get_distinct_teams(incident_id: str) -> list[dict[str, Any]]:
-    col = _incident(incident_id)[IncidentCollections.TEAMS]
-    docs = list(col.find({}, {"team_id": 1, "name": 1}).sort("name", 1))
+    repo = _teams_repo(incident_id)
+    docs = repo.find_many({}, sort=[("name", 1)])
     result = []
     for d in docs:
         tid = d.get("team_id") or d.get("int_id")
@@ -130,7 +158,7 @@ def fetch_roster(
     team: str = Query(""),
     include_no_show: bool = Query(False),
 ) -> list[dict[str, Any]]:
-    col = _incident(incident_id)[IncidentCollections.CHECKINS]
+    repo = _checkins_repo(incident_id)
     query: dict[str, Any] = {}
     if ci_status and ci_status != "All":
         query["ci_status"] = ci_status
@@ -141,15 +169,15 @@ def fetch_roster(
     if not include_no_show:
         query["ci_status"] = {"$ne": "NoShow"} if "ci_status" not in query else query["ci_status"]
 
-    docs = list(col.find(query).sort("updated_at", -1))
-    master_col = _master()[MasterCollections.PERSONNEL]
+    docs = repo.find_many(query, sort=[("updated_at", -1)])
+    personnel_repo = _personnel_repo()
     result = []
 
     for d in docs:
         person_id = d.get("person_id")
         identity = (
-            master_col.find_one({"person_id": person_id})
-            or master_col.find_one({"id": person_id})
+            personnel_repo.find_one({"person_id": person_id})
+            or personnel_repo.find_one({"id": person_id})
         ) if person_id else None
 
         if identity is None and person_id:
@@ -202,8 +230,8 @@ def fetch_roster(
 
 @router.get("/{person_id}")
 def fetch_checkin(incident_id: str, person_id: str) -> dict[str, Any]:
-    col = _incident(incident_id)[IncidentCollections.CHECKINS]
-    doc = col.find_one({"person_id": person_id})
+    repo = _checkins_repo(incident_id)
+    doc = repo.find_one({"person_id": person_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Check-in record not found")
     return _normalize_checkin(doc)
@@ -213,29 +241,26 @@ def fetch_checkin(incident_id: str, person_id: str) -> dict[str, Any]:
 def save_checkin(
     incident_id: str, person_id: str, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    col = _incident(incident_id)[IncidentCollections.CHECKINS]
+    repo = _checkins_repo(incident_id)
     body.pop("_id", None)
     body["person_id"] = person_id
-    now = _utcnow()
-    body.setdefault("created_at", now)
-    body["updated_at"] = now
 
     if body.get("team_id") in ("—", ""):
         body["team_id"] = None
 
-    existing = col.find_one({"person_id": person_id})
+    existing = repo.find_one({"person_id": person_id})
     if existing:
-        body.setdefault("created_at", existing.get("created_at", now))
-        col.update_one({"person_id": person_id}, {"$set": body})
+        repo.update_one(existing["_id"], body)
+        doc = repo.find_by_id(existing["_id"])
     else:
-        col.insert_one(body)
+        doc = repo.insert_one(body)
 
     # Mirror contact fields back to master personnel
     try:
-        master_col = _master()[MasterCollections.PERSONNEL]
+        personnel_repo = _personnel_repo()
         ident = (
-            master_col.find_one({"person_id": person_id})
-            or master_col.find_one({"id": person_id})
+            personnel_repo.find_one({"person_id": person_id})
+            or personnel_repo.find_one({"id": person_id})
         )
         if ident:
             updates: dict[str, Any] = {}
@@ -246,12 +271,11 @@ def save_checkin(
             if body.get("role_on_team"):
                 updates["primary_role"] = body["role_on_team"]
             if updates:
-                master_col.update_one({"_id": ident["_id"]}, {"$set": updates})
+                personnel_repo.update_one(ident["_id"], updates)
     except Exception:
         pass
 
-    doc = col.find_one({"person_id": person_id})
-    return _normalize_checkin(doc or body)
+    return _normalize_checkin(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -262,17 +286,17 @@ def save_checkin(
 def log_history(
     incident_id: str, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    col = _incident(incident_id)[IncidentCollections.CHECKIN_HISTORY]
+    repo = _checkin_history_repo(incident_id)
     body["ts"] = body.get("ts") or _utcnow()
-    col.insert_one(body)
-    body.pop("_id", None)
-    return body
+    doc = repo.insert_one(body)
+    doc.pop("_id", None)
+    return doc
 
 
 @router.get("/history/{person_id}")
 def list_history(incident_id: str, person_id: str) -> list[dict[str, Any]]:
-    col = _incident(incident_id)[IncidentCollections.CHECKIN_HISTORY]
-    docs = list(col.find({"person_id": person_id}).sort("ts", -1))
+    repo = _checkin_history_repo(incident_id)
+    docs = repo.find_many({"person_id": person_id}, sort=[("ts", -1)])
     for d in docs:
         d.pop("_id", None)
     return docs

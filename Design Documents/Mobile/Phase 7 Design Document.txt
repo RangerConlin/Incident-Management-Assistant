@@ -58,7 +58,7 @@ Admin UI to map roles across orgs:
 
 “Comms Officer (Org B)” = “Comms Lead (Unified)”
 
-Supports consistent access control in mixed incidents
+Supports consistent access control in mixed missions
 
 📁 Backend/API Additions
 
@@ -68,47 +68,47 @@ Backend Module
 
 Endpoint Needed
 
-DB Table
+Mongo Scope / Collection
 
 Multi-Agency Incidents
 
-Personnel / Auth
+Organizations / Personnel / Incident Resources
 
-POST /api/incident/join
+Current support is through master organization/personnel records and incident-scoped resources. No dedicated join endpoint currently exists.
 
-IncidentUsers
+sarapp_master.organizations, sarapp_master.personnel, sarapp_incident_<id>.incident_personnel, check_in_out
 
 Shared Ops Feed
 
-Operations / Logs
+Operations / Logs / Comms
 
-GET /api/incident/feed
+No unified feed endpoint currently exists. Candidate read model should aggregate operations, comms log, ICS 214, and status changes.
 
-SharedFeed
+sarapp_incident_<id>.tasks, communications_log, ics_214_logs, teams
 
 Messaging System
 
-Comms
+Communications
 
-POST /api/chat/send
+Use existing communications routers under /api/incidents/{incident_id}/comms-log and related message routes; cross-agency chat endpoint is future work.
 
-Messages
+sarapp_incident_<id>.communications_log, ics_213_messages
 
 Resource Viewer
 
-Planning / Ops
+Incident Resources / Operations
 
-GET /api/incident/resources
+GET /api/incidents/{incident_id}/resources, GET /api/incidents/{incident_id}/operations/teams, GET /api/incidents/{incident_id}/checkin/roster
 
-Users, Teams
+sarapp_incident_<id>.check_in_out, teams, checkins
 
 Role Mapping Tool
 
-Admin / Auth
+Organizations / Auth
 
-POST /api/roles/map, GET /api/roles
+No active auth role-mapping endpoint currently exists.
 
-RoleMappings
+sarapp_master.role_templates, sarapp_master.user_profiles, organization collections
 
 🧭 UI & Navigation
 
@@ -161,3 +161,4 @@ Backend permissions + integration testing
 14–17
 
 UI polish, documentation, QA
+

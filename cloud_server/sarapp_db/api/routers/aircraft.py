@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel
 
-from sarapp_db.mongo.mongo_client import get_client
-from sarapp_db.mongo.database_manager import DB_MASTER
+from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 
-def _col():
-    return get_client()[DB_MASTER][MasterCollections.AIRCRAFT]
+class AircraftRepository(BaseRepository):
+    collection_name = MasterCollections.AIRCRAFT
+    # Keyed by sequential `int_id`, not `_id`; no `deleted` field — hard deletes.
+    soft_deletes = False
 
 
-def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def _repo() -> AircraftRepository:
+    return AircraftRepository(get_master_db())
 
 
-def _ensure_int_ids(col) -> None:
+def _ensure_int_ids(repo: AircraftRepository) -> None:
+    col = repo._col
     for doc in col.find({"int_id": {"$exists": False}}):
         max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
         next_id = (max_doc["int_id"] + 1) if max_doc else 1
@@ -43,14 +45,14 @@ def list_aircraft(
     status: str = Query(""),
     type_filter: str = Query(""),
 ) -> list[dict[str, Any]]:
-    col = _col()
-    _ensure_int_ids(col)
+    repo = _repo()
+    _ensure_int_ids(repo)
     query: dict[str, Any] = {}
     if status:
         query["status"] = status
     if type_filter:
         query["type"] = type_filter
-    docs = list(col.find(query).sort("tail_number", 1))
+    docs = repo.find_many(query, sort=[("tail_number", 1)])
     if search.strip():
         t = search.strip().lower()
         docs = [
@@ -66,7 +68,7 @@ def list_aircraft(
 
 @router.get("/{aircraft_id}")
 def get_aircraft(aircraft_id: int) -> dict[str, Any]:
-    doc = _col().find_one({"int_id": aircraft_id})
+    doc = _repo().find_one({"int_id": aircraft_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Aircraft not found")
     return _normalize(doc)
@@ -114,20 +116,16 @@ class AircraftBody(BaseModel):
 
 @router.post("", status_code=201)
 def create_aircraft(body: AircraftBody) -> dict[str, Any]:
-    col = _col()
-    _ensure_int_ids(col)
-    max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+    repo = _repo()
+    _ensure_int_ids(repo)
+    max_doc = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
     next_id = (max_doc["int_id"] + 1) if max_doc else 1
-    now = _utcnow()
     doc: dict[str, Any] = {
         "int_id": next_id,
         **body.model_dump(),
         "tail_number": body.tail_number.strip().upper(),
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
-    doc.pop("_id", None)
+    doc = repo.insert_one(doc)
     return _normalize(doc)
 
 
@@ -135,25 +133,26 @@ def create_aircraft(body: AircraftBody) -> dict[str, Any]:
 def update_aircraft(
     aircraft_id: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    col = _col()
-    existing = col.find_one({"int_id": aircraft_id})
+    repo = _repo()
+    existing = repo.find_one({"int_id": aircraft_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Aircraft not found")
     body.pop("int_id", None)
     body.pop("_id", None)
-    body["updated_at"] = _utcnow()
     if "tail_number" in body and body["tail_number"]:
         body["tail_number"] = body["tail_number"].strip().upper()
-    col.update_one({"int_id": aircraft_id}, {"$set": body})
-    doc = col.find_one({"int_id": aircraft_id})
+    repo.update_one(existing["_id"], body)
+    doc = repo.find_by_id(existing["_id"])
     return _normalize(doc)
 
 
 @router.delete("/{aircraft_id}", status_code=204)
 def delete_aircraft(aircraft_id: int) -> None:
-    result = _col().delete_one({"int_id": aircraft_id})
-    if result.deleted_count == 0:
+    repo = _repo()
+    existing = repo.find_one({"int_id": aircraft_id})
+    if not existing:
         raise HTTPException(status_code=404, detail="Aircraft not found")
+    repo.delete_one(existing["_id"])
 
 
 class SetStatusRequest(BaseModel):
@@ -163,15 +162,16 @@ class SetStatusRequest(BaseModel):
 
 @router.patch("/{aircraft_id}/status")
 def set_aircraft_status(aircraft_id: int, body: SetStatusRequest) -> dict[str, Any]:
-    col = _col()
-    update: dict[str, Any] = {"status": body.status.strip() or "Available", "updated_at": _utcnow()}
+    repo = _repo()
+    existing = repo.find_one({"int_id": aircraft_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Aircraft not found")
+    update: dict[str, Any] = {"status": body.status.strip() or "Available"}
     if (body.status or "").lower() == "out of service":
         update["assigned_team_id"] = None
         update["assigned_team_name"] = None
-    result = col.update_one({"int_id": aircraft_id}, {"$set": update})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Aircraft not found")
-    doc = col.find_one({"int_id": aircraft_id})
+    repo.update_one(existing["_id"], update)
+    doc = repo.find_by_id(existing["_id"])
     return _normalize(doc)
 
 
@@ -182,14 +182,14 @@ class AssignTeamRequest(BaseModel):
 
 @router.patch("/{aircraft_id}/assignment")
 def set_aircraft_assignment(aircraft_id: int, body: AssignTeamRequest) -> dict[str, Any]:
-    col = _col()
+    repo = _repo()
+    existing = repo.find_one({"int_id": aircraft_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Aircraft not found")
     update: dict[str, Any] = {
         "assigned_team_id": body.team_id or None,
         "assigned_team_name": body.team_name or None,
-        "updated_at": _utcnow(),
     }
-    result = col.update_one({"int_id": aircraft_id}, {"$set": update})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Aircraft not found")
-    doc = col.find_one({"int_id": aircraft_id})
+    repo.update_one(existing["_id"], update)
+    doc = repo.find_by_id(existing["_id"])
     return _normalize(doc)

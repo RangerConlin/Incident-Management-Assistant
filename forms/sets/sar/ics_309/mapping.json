@@ -1,0 +1,397 @@
+{
+  "description": "ICS 309 — Communications Log — SAR 1",
+  "fields": [
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 DATE",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "3 INCIDENT NUMBER",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "4 OPERATOR LOCATION",
+      "source": ""
+    },
+    {
+      "pdf_field": "frequency1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local1",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label1",
+      "source": ""
+    },
+    {
+      "pdf_field": "message1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local2",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label2",
+      "source": ""
+    },
+    {
+      "pdf_field": "message2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local3",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label3",
+      "source": ""
+    },
+    {
+      "pdf_field": "message3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local4",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label4",
+      "source": ""
+    },
+    {
+      "pdf_field": "message4",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local5",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label5",
+      "source": ""
+    },
+    {
+      "pdf_field": "message5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local6",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label6",
+      "source": ""
+    },
+    {
+      "pdf_field": "message6",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local7",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label7",
+      "source": ""
+    },
+    {
+      "pdf_field": "message7",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local8",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label8",
+      "source": ""
+    },
+    {
+      "pdf_field": "message8",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local9",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label9",
+      "source": ""
+    },
+    {
+      "pdf_field": "message9",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local10",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label10",
+      "source": ""
+    },
+    {
+      "pdf_field": "message10",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local11",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label11",
+      "source": ""
+    },
+    {
+      "pdf_field": "message11",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local12",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label12",
+      "source": ""
+    },
+    {
+      "pdf_field": "message12",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local13",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label13",
+      "source": ""
+    },
+    {
+      "pdf_field": "message13",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local14",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label14",
+      "source": ""
+    },
+    {
+      "pdf_field": "message14",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local15",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label15",
+      "source": ""
+    },
+    {
+      "pdf_field": "message15",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local16",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label16",
+      "source": ""
+    },
+    {
+      "pdf_field": "message16",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local17",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label17",
+      "source": ""
+    },
+    {
+      "pdf_field": "message17",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local18",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label18",
+      "source": ""
+    },
+    {
+      "pdf_field": "message18",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local19",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label19",
+      "source": ""
+    },
+    {
+      "pdf_field": "message19",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local20",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label20",
+      "source": ""
+    },
+    {
+      "pdf_field": "message20",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local21",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label21",
+      "source": ""
+    },
+    {
+      "pdf_field": "message21",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local22",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label22",
+      "source": ""
+    },
+    {
+      "pdf_field": "message22",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local23",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label23",
+      "source": ""
+    },
+    {
+      "pdf_field": "message23",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local24",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label24",
+      "source": ""
+    },
+    {
+      "pdf_field": "message24",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local25",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label25",
+      "source": ""
+    },
+    {
+      "pdf_field": "message25",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local26",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label26",
+      "source": ""
+    },
+    {
+      "pdf_field": "message26",
+      "source": ""
+    },
+    {
+      "pdf_field": "ts_local27",
+      "source": ""
+    },
+    {
+      "pdf_field": "resource_label27",
+      "source": ""
+    },
+    {
+      "pdf_field": "message27",
+      "source": ""
+    },
+    {
+      "pdf_field": "6LOG PREPARED BY",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "operator_display_name1",
+      "source": ""
+    },
+    {
+      "pdf_field": "TIMERow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RADIO OPERATOR",
+      "source": ""
+    },
+    {
+      "pdf_field": "MESSAGERow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 FREQUENCY",
+      "source": ""
+    },
+    {
+      "pdf_field": "TEAMRow25",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "comm_log",
+      "data_key": "comm_log",
+      "overflow_mode": "repeat",
+      "rows_per_page": [
+        27
+      ],
+      "col_patterns": {
+        "ts_local": "ts_local{n}",
+        "operator_display_name": "operator_display_name{n}",
+        "message": "message{n}",
+        "frequency": "frequency{n}",
+        "resource_label": "resource_label{n}"
+      }
+    }
+  ]
+}

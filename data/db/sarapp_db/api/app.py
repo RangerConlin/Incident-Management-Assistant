@@ -55,7 +55,9 @@ def create_app(server_info_fn=None) -> FastAPI:
     # Module routers (registered as each module is cut over to MongoDB)
     # -------------------------------------------------------------------------
     from sarapp_db.api.routers import objectives
+    from sarapp_db.api.routers import auth_sessions
     app.include_router(objectives.router, prefix="/api/objectives", tags=["objectives"])
+    app.include_router(auth_sessions.router, prefix="/api/auth", tags=["auth"])
 
     from sarapp_db.api.routers import hazard_types
     app.include_router(hazard_types.router, prefix="/api/hazard-types", tags=["hazard-types"])
@@ -162,5 +164,8 @@ def create_app(server_info_fn=None) -> FastAPI:
 
     from sarapp_db.api.routers import canned_comm_entries
     app.include_router(canned_comm_entries.router, prefix="/api/master/canned-comm-entries", tags=["communications"])
+
+    from sarapp_db.api.routers import incident_stream
+    app.include_router(incident_stream.router, prefix="/api", tags=["incident-cache"])
 
     return app

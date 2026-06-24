@@ -2,35 +2,32 @@
 
 from __future__ import annotations
 
-import re
-from datetime import datetime, timezone
 from typing import Any
-import uuid
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from sarapp_db.mongo.mongo_client import get_client
-from sarapp_db.mongo.database_manager import DB_MASTER
+from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 
-def _col():
-    return get_client()[DB_MASTER][MasterCollections.HAZARD_TYPES]
+class HazardTypesRepository(BaseRepository):
+    collection_name = MasterCollections.HAZARD_TYPES
+    # Keyed by string `hazard_type_id`, not `_id`; `is_active` is a plain
+    # application flag (not a BaseRepository soft-delete marker).
+    soft_deletes = False
 
 
-def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def _repo() -> HazardTypesRepository:
+    return HazardTypesRepository(get_master_db())
 
 
-def _new_id() -> str:
-    return str(uuid.uuid4())
-
-
-def _next_int_id(col) -> int:
+def _next_int_id(repo: HazardTypesRepository) -> int:
     """Allocate the next integer hazard_type_id (max existing + 1)."""
+    col = repo._col
     max_doc = col.find_one(
         {"hazard_type_id": {"$exists": True}},
         sort=[("hazard_type_id", -1)],
@@ -53,6 +50,7 @@ def _next_int_id(col) -> int:
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     """Add computed fields the UI expects."""
     d = dict(doc)
+    d.pop("_id", None)
     ht_id_str = d.get("hazard_type_id", "")
     d["id"] = int(ht_id_str) if ht_id_str.isdigit() else None
     mitigations = d.get("mitigations") or []
@@ -112,7 +110,7 @@ def list_hazard_types(
     if risk_level and risk_level != "All":
         query["default_risk_level"] = risk_level
 
-    docs = list(_col().find(query).sort("name", 1))
+    docs = _repo().find_many(query, sort=[("name", 1)])
 
     if search_text.strip():
         t = search_text.strip().lower()
@@ -134,7 +132,7 @@ def search_hazard_types(
     if not text:
         return []
     base_query: dict[str, Any] = {} if include_inactive else {"is_active": True}
-    docs = list(_col().find(base_query).sort("name", 1))
+    docs = _repo().find_many(base_query, sort=[("name", 1)])
     results = []
     for doc in docs:
         matched_on = _search_matches(doc, text)
@@ -182,18 +180,14 @@ class SaveHazardTypeRequest(BaseModel):
 
 @router.post("", status_code=201)
 def create_hazard_type(body: SaveHazardTypeRequest) -> dict[str, Any]:
-    col = _col()
-    new_int_id = _next_int_id(col)
-    now = _utcnow()
+    repo = _repo()
+    new_int_id = _next_int_id(repo)
     doc: dict[str, Any] = {
-        "_id": _new_id(),
         "hazard_type_id": str(new_int_id),
         **body.model_dump(exclude={"created_by"}),
         "created_by": body.created_by,
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _normalize(doc)
 
 
@@ -203,8 +197,8 @@ def create_hazard_type(body: SaveHazardTypeRequest) -> dict[str, Any]:
 @router.get("/by-resource-type/{resource_type_id}")
 def get_hazards_for_resource_type(resource_type_id: int) -> list[dict[str, Any]]:
     """Return hazard types whose resource_defaults list includes this resource_type_id."""
-    col = _col()
-    docs = col.find({
+    repo = _repo()
+    docs = repo.find_many({
         "resource_defaults": {
             "$elemMatch": {"resource_type_id": resource_type_id}
         }
@@ -217,7 +211,7 @@ def get_hazards_for_resource_type(resource_type_id: int) -> list[dict[str, Any]]
 
 @router.get("/{hazard_type_id}")
 def get_hazard_type(hazard_type_id: str) -> dict[str, Any]:
-    doc = _col().find_one({"hazard_type_id": hazard_type_id})
+    doc = _repo().find_one({"hazard_type_id": hazard_type_id})
     if doc is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
     return _normalize(doc)
@@ -228,21 +222,18 @@ def get_hazard_type(hazard_type_id: str) -> dict[str, Any]:
 
 @router.put("/{hazard_type_id}")
 def save_hazard_type(hazard_type_id: str, body: SaveHazardTypeRequest) -> dict[str, Any]:
-    col = _col()
-    now = _utcnow()
-    updates = {
-        **body.model_dump(),
-        "updated_at": now,
-        "hazard_type_id": hazard_type_id,
-    }
-    existing = col.find_one({"hazard_type_id": hazard_type_id})
+    repo = _repo()
+    existing = repo.find_one({"hazard_type_id": hazard_type_id})
     if existing is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
-    updates["_id"] = existing["_id"]
-    updates.setdefault("created_at", existing.get("created_at", now))
+    updates = {
+        **body.model_dump(),
+        "hazard_type_id": hazard_type_id,
+    }
     updates.setdefault("created_by", existing.get("created_by", ""))
-    col.replace_one({"hazard_type_id": hazard_type_id}, updates)
-    return _normalize(updates)
+    repo.update_one(existing["_id"], updates)
+    doc = repo.find_by_id(existing["_id"])
+    return _normalize(doc)
 
 
 # ------------------------------------------------------------------
@@ -250,27 +241,23 @@ def save_hazard_type(hazard_type_id: str, body: SaveHazardTypeRequest) -> dict[s
 
 @router.post("/{hazard_type_id}/clone", status_code=201)
 def clone_hazard_type(hazard_type_id: str) -> dict[str, Any]:
-    col = _col()
-    original = col.find_one({"hazard_type_id": hazard_type_id})
+    repo = _repo()
+    original = repo.find_one({"hazard_type_id": hazard_type_id})
     if original is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
-    new_int_id = _next_int_id(col)
-    now = _utcnow()
+    new_int_id = _next_int_id(repo)
     base_name = original.get("name", "")
     # Generate a unique copy name
     copy_num = 1
-    while col.find_one({"name": f"{base_name} Copy {copy_num}"}):
+    while repo.find_one({"name": f"{base_name} Copy {copy_num}"}):
         copy_num += 1
-    clone = dict(original)
-    clone["_id"] = _new_id()
+    clone = {k: v for k, v in original.items() if k not in ("_id", "created_at", "updated_at")}
     clone["hazard_type_id"] = str(new_int_id)
     clone["name"] = f"{base_name} Copy {copy_num}"
     clone["display_name"] = f"{original.get('display_name', base_name)} Copy {copy_num}".strip()
-    clone["created_at"] = now
-    clone["updated_at"] = now
     clone["created_by"] = ""
     clone["updated_by"] = ""
-    col.insert_one(clone)
+    clone = repo.insert_one(clone)
     return _normalize(clone)
 
 
@@ -283,12 +270,10 @@ class SetActiveRequest(BaseModel):
 
 @router.patch("/{hazard_type_id}/active")
 def set_hazard_type_active(hazard_type_id: str, body: SetActiveRequest) -> dict[str, Any]:
-    col = _col()
-    result = col.update_one(
-        {"hazard_type_id": hazard_type_id},
-        {"$set": {"is_active": body.active, "updated_at": _utcnow()}},
-    )
-    if result.matched_count == 0:
+    repo = _repo()
+    existing = repo.find_one({"hazard_type_id": hazard_type_id})
+    if existing is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
-    doc = col.find_one({"hazard_type_id": hazard_type_id})
+    repo.update_one(existing["_id"], {"is_active": body.active})
+    doc = repo.find_by_id(existing["_id"])
     return _normalize(doc) if doc else {}

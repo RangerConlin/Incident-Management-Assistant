@@ -5,16 +5,15 @@ REPLACES the prior QML implementation. No QML imports anywhere.
 Placement: keep within your app's UI layer (NOT under backend/). For example:
   src/ui/personnel/ui_personnel.py
 
-DB: Expects SQLite at data/master.db (adjust MASTER_DB_PATH if needed).
+Data: fully MongoDB-backed via the SARApp API (utils.api_client); no direct
+SQLite access remains in this module.
 
 This file provides:
   - PersonnelInventoryWindow (main roster window with search/filters/import/export)
   - PersonnelDetailDialog (tabbed modal: Demographics, Emergency, Contact, Certifications)
-  - Csv helpers for roster and certifications
-  - Very small SQLite DAL with safe parameterized queries
+  - Csv helpers for the per-person certifications tab
 
 Notes:
-  - This is a scaffold: fields and validation hooks are provided with TODO tags.
   - Connect this window from your Edit menu: e.g., actionEditPersonnel.triggered -> open_inventory()
   - Columns are restricted to persistent master-personnel data (no incident-specific fields).
 """
@@ -22,62 +21,27 @@ from __future__ import annotations
 
 import csv
 import os
-import sqlite3
+import tempfile
 from dataclasses import dataclass, asdict
-from typing import Any, Dict, Iterable, List, Optional
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Iterable, List, Optional
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
-from modules.admin.resource_types.data import ApiResourceAssignmentRepository, ApiResourceTypeRepository
-from modules.admin.resource_types.widgets import ResourceTypeSearchBox
-
-# ----------------------------- Configuration ---------------------------------
-MASTER_DB_PATH = os.path.join("data", "master.db")
+from notifications.models import Notification
+from notifications.services import get_notifier
+from utils.edit_window_kit import (
+    ExportDialog,
+    FieldSpec,
+    ImportWizard,
+    PaginationControls,
+    run_async,
+    write_export_file,
+)
 
 
 # ----------------------------- Data Models -----------------------------------
-@dataclass
-class Personnel:
-    id: str
-    name: str
-    callsign: str = ""
-    role: str = ""
-    rank: str = ""
-    organization: str = ""
-    email: str = ""
-    phone: str = ""
-    notes: str = ""
-    photo_url: str = ""
-
-
-@dataclass
-class EmergencyInfo:
-    personnel_id: str
-    primary_name: str = ""
-    primary_relationship: str = ""
-    primary_phone: str = ""
-    secondary_name: str = ""
-    secondary_relationship: str = ""
-    secondary_phone: str = ""
-    medical: str = ""
-    blood_type: str = ""
-    insurance: str = ""
-
-
-@dataclass
-class ContactInfo:
-    personnel_id: str
-    address1: str = ""
-    address2: str = ""
-    city: str = ""
-    state: str = ""
-    zip: str = ""
-    work_phone: str = ""
-    secondary_phone: str = ""
-    pager_id: str = ""
-    notes: str = ""
-
-
 @dataclass
 class Certification:
     id: Optional[int]
@@ -89,407 +53,9 @@ class Certification:
     docs: str = ""
 
 
-# ----------------------------- SQLite DAL ------------------------------------
-class MasterDAL:
-    def __init__(self, path: str = MASTER_DB_PATH):
-        self.path = path
-        self.resource_assignments = ApiResourceAssignmentRepository()
-        self._id_is_integer = False
-        self._has_unit_column = False
-        self._has_contact_column = False
-        self._ensure_schema()
-
-    def _conn(self) -> sqlite3.Connection:
-        con = sqlite3.connect(self.path)
-        try:
-            con.execute("PRAGMA foreign_keys = ON")
-        except sqlite3.DatabaseError:
-            pass
-        return con
-
-    def _ensure_schema(self) -> None:
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        with self._conn() as con:
-            cur = con.cursor()
-            metadata = self._prepare_personnel_table(cur)
-            self._create_support_tables(cur)
-            con.commit()
-        self._id_is_integer = metadata["id_is_integer"]
-        self._has_unit_column = metadata["has_unit"]
-        self._has_contact_column = metadata["has_contact"]
-
-    # --- schema helpers -------------------------------------------------
-    def _get_table_info(self, cur: sqlite3.Cursor, table: str) -> Dict[str, tuple]:
-        try:
-            cur.execute(f"PRAGMA table_info({table})")
-        except sqlite3.DatabaseError:
-            return {}
-        rows = cur.fetchall()
-        return {row[1]: row for row in rows}
-
-    def _prepare_personnel_table(self, cur: sqlite3.Cursor) -> Dict[str, bool]:
-        info = self._get_table_info(cur, "personnel")
-        if not info:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS personnel (
-                    id TEXT PRIMARY KEY,
-                    name TEXT,
-                    callsign TEXT,
-                    role TEXT,
-                    rank TEXT,
-                    organization TEXT,
-                    email TEXT,
-                    phone TEXT,
-                    notes TEXT,
-                    photo_url TEXT
-                )
-                """
-            )
-        else:
-            if "organization" not in info:
-                cur.execute("ALTER TABLE personnel ADD COLUMN organization TEXT")
-                if "unit" in info:
-                    cur.execute(
-                        "UPDATE personnel SET organization = COALESCE(unit, '') WHERE organization IS NULL OR TRIM(organization) = ''"
-                    )
-            if "notes" not in info:
-                cur.execute("ALTER TABLE personnel ADD COLUMN notes TEXT")
-                if "contact" in info:
-                    cur.execute(
-                        "UPDATE personnel SET notes = COALESCE(contact, '') WHERE notes IS NULL OR TRIM(notes) = ''"
-                    )
-            if "photo_url" not in info:
-                cur.execute("ALTER TABLE personnel ADD COLUMN photo_url TEXT")
-            # refresh info after possible ALTER TABLE commands
-        info = self._get_table_info(cur, "personnel")
-        id_info = info.get("id")
-        id_is_integer = bool(id_info and isinstance(id_info[2], str) and "INT" in id_info[2].upper())
-        has_unit = "unit" in info
-        has_contact = "contact" in info
-        return {"id_is_integer": id_is_integer, "has_unit": has_unit, "has_contact": has_contact}
-
-    def _create_support_tables(self, cur: sqlite3.Cursor) -> None:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS emergency_info (
-                personnel_id TEXT UNIQUE,
-                primary_name TEXT,
-                primary_relationship TEXT,
-                primary_phone TEXT,
-                secondary_name TEXT,
-                secondary_relationship TEXT,
-                secondary_phone TEXT,
-                medical TEXT,
-                blood_type TEXT,
-                insurance TEXT,
-                FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS contact_info (
-                personnel_id TEXT UNIQUE,
-                address1 TEXT,
-                address2 TEXT,
-                city TEXT,
-                state TEXT,
-                zip TEXT,
-                work_phone TEXT,
-                secondary_phone TEXT,
-                pager_id TEXT,
-                notes TEXT,
-                FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS certifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                personnel_id TEXT,
-                code TEXT,
-                name TEXT,
-                level INTEGER,
-                expiration TEXT,
-                docs TEXT,
-                FOREIGN KEY(personnel_id) REFERENCES personnel(id) ON DELETE CASCADE
-            )
-            """
-        )
-
-    # --- helpers --------------------------------------------------------
-    def _prepare_personnel_id(self, personnel_id: str) -> str | int:
-        if self._id_is_integer:
-            try:
-                return int(str(personnel_id).strip())
-            except (TypeError, ValueError) as exc:
-                raise ValueError("Personnel IDs must be numeric for this database.") from exc
-        return str(personnel_id)
-
-    def normalize_personnel_id(self, personnel_id: str) -> str:
-        return str(self._prepare_personnel_id(personnel_id))
-
-    # --------- Personnel CRUD ---------
-    def list_personnel(
-        self,
-        role_filter: str = "",
-        org_filter: str = "",
-        search: str = "",
-    ) -> List[Personnel]:
-        id_expr = "CAST(id AS TEXT)" if self._id_is_integer else "id"
-        query = [
-            f"SELECT {id_expr} AS id, name, callsign, role, rank, organization, email, phone, notes, photo_url FROM personnel WHERE 1=1"
-        ]
-        params: list[str] = []
-        if role_filter and role_filter != "All Roles":
-            query.append("AND role = ?")
-            params.append(role_filter)
-        if org_filter and org_filter != "All Organizations":
-            query.append("AND organization = ?")
-            params.append(org_filter)
-        if search:
-            like = f"%{search}%"
-            query.append(
-                f"AND ({id_expr} LIKE ? OR name LIKE ? OR callsign LIKE ? OR phone LIKE ? OR email LIKE ?)"
-            )
-            params.extend([like, like, like, like, like])
-        query.append("ORDER BY name COLLATE NOCASE")
-        with self._conn() as con:
-            cur = con.execute(" ".join(query), params)
-            rows = cur.fetchall()
-        return [Personnel(*row) for row in rows]
-
-    def list_roles(self) -> List[str]:
-        with self._conn() as con:
-            cur = con.execute(
-                "SELECT DISTINCT role FROM personnel WHERE role IS NOT NULL AND TRIM(role) <> '' ORDER BY role COLLATE NOCASE"
-            )
-            return [row[0] for row in cur.fetchall() if row[0]]
-
-    def list_organizations(self) -> List[str]:
-        with self._conn() as con:
-            cur = con.execute(
-                "SELECT DISTINCT organization FROM personnel WHERE organization IS NOT NULL AND TRIM(organization) <> '' ORDER BY organization COLLATE NOCASE"
-            )
-            return [row[0] for row in cur.fetchall() if row[0]]
-
-    def upsert_personnel(self, person: Personnel) -> str:
-        db_id = self._prepare_personnel_id(person.id)
-        columns = [
-            ("id", db_id),
-            ("name", person.name),
-            ("callsign", person.callsign),
-            ("role", person.role),
-            ("rank", person.rank),
-            ("organization", person.organization),
-            ("email", person.email),
-            ("phone", person.phone),
-            ("notes", person.notes),
-            ("photo_url", person.photo_url),
-        ]
-        if self._has_unit_column:
-            columns.append(("unit", person.organization))
-        if self._has_contact_column:
-            columns.append(("contact", person.notes))
-
-        col_names = ", ".join(name for name, _ in columns)
-        placeholders = ", ".join(["?"] * len(columns))
-        assignments = ", ".join(f"{name}=excluded.{name}" for name, _ in columns if name != "id")
-        values = [value for _, value in columns]
-
-        sql = (
-            f"INSERT INTO personnel ({col_names}) VALUES ({placeholders}) "
-            f"ON CONFLICT(id) DO UPDATE SET {assignments}"
-        )
-        with self._conn() as con:
-            con.execute(sql, values)
-        return str(db_id)
-
-    def delete_personnel(self, ids: Iterable[str]) -> None:
-        ids = list(ids)
-        if not ids:
-            return
-        db_ids = [self._prepare_personnel_id(pid) for pid in ids]
-        try:
-            with self._conn() as con:
-                # Proactively clear legacy references that do not declare ON DELETE CASCADE
-                # 1) Legacy join table
-                try:
-                    con.executemany(
-                        "DELETE FROM personnel_certifications WHERE person_id=?",
-                        [(pid,) for pid in db_ids],
-                    )
-                except sqlite3.DatabaseError:
-                    # Table may not exist in some profiles; ignore if missing
-                    pass
-
-                # 2) Users association — keep user but drop link to personnel
-                try:
-                    con.executemany(
-                        "UPDATE users SET associated_personnel_id = NULL WHERE associated_personnel_id = ?",
-                        [(pid,) for pid in db_ids],
-                    )
-                except sqlite3.DatabaseError:
-                    pass
-
-                # Now delete from personnel (support tables use ON DELETE CASCADE)
-                con.executemany("DELETE FROM personnel WHERE id=?", [(pid,) for pid in db_ids])
-        except sqlite3.IntegrityError as exc:
-            # Surface a friendly message to the UI so the user understands why
-            raise ValueError(
-                "Delete blocked: one or more selected records are still referenced by other tables. "
-                "Unlink related records (assignments, users, certifications) and try again."
-            ) from exc
-
-    def get_personnel(self, pid: str) -> Optional[Personnel]:
-        id_expr = "CAST(id AS TEXT)" if self._id_is_integer else "id"
-        with self._conn() as con:
-            cur = con.execute(
-                f"SELECT {id_expr} AS id, name, callsign, role, rank, organization, email, phone, notes, photo_url FROM personnel WHERE id=?",
-                (self._prepare_personnel_id(pid),),
-            )
-            row = cur.fetchone()
-        return Personnel(*row) if row else None
-
-    # --------- Emergency / Contact ---------
-    def upsert_emergency(self, info: EmergencyInfo) -> None:
-        with self._conn() as con:
-            con.execute(
-                """
-                INSERT INTO emergency_info (
-                    personnel_id, primary_name, primary_relationship, primary_phone, secondary_name,
-                    secondary_relationship, secondary_phone, medical, blood_type, insurance
-                ) VALUES (?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(personnel_id) DO UPDATE SET
-                    primary_name=excluded.primary_name,
-                    primary_relationship=excluded.primary_relationship,
-                    primary_phone=excluded.primary_phone,
-                    secondary_name=excluded.secondary_name,
-                    secondary_relationship=excluded.secondary_relationship,
-                    secondary_phone=excluded.secondary_phone,
-                    medical=excluded.medical,
-                    blood_type=excluded.blood_type,
-                    insurance=excluded.insurance
-                """,
-                (
-                    info.personnel_id,
-                    info.primary_name,
-                    info.primary_relationship,
-                    info.primary_phone,
-                    info.secondary_name,
-                    info.secondary_relationship,
-                    info.secondary_phone,
-                    info.medical,
-                    info.blood_type,
-                    info.insurance,
-                ),
-            )
-
-    def get_emergency(self, pid: str) -> EmergencyInfo:
-        with self._conn() as con:
-            cur = con.execute("SELECT * FROM emergency_info WHERE personnel_id=?", (pid,))
-            row = cur.fetchone()
-        if row:
-            return EmergencyInfo(*row)
-        return EmergencyInfo(personnel_id=pid)
-
-    def upsert_contact(self, info: ContactInfo) -> None:
-        with self._conn() as con:
-            con.execute(
-                """
-                INSERT INTO contact_info (
-                    personnel_id, address1, address2, city, state, zip,
-                    work_phone, secondary_phone, pager_id, notes
-                ) VALUES (?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(personnel_id) DO UPDATE SET
-                    address1=excluded.address1,
-                    address2=excluded.address2,
-                    city=excluded.city,
-                    state=excluded.state,
-                    zip=excluded.zip,
-                    work_phone=excluded.work_phone,
-                    secondary_phone=excluded.secondary_phone,
-                    pager_id=excluded.pager_id,
-                    notes=excluded.notes
-                """,
-                (
-                    info.personnel_id,
-                    info.address1,
-                    info.address2,
-                    info.city,
-                    info.state,
-                    info.zip,
-                    info.work_phone,
-                    info.secondary_phone,
-                    info.pager_id,
-                    info.notes,
-                ),
-            )
-
-    def get_contact(self, pid: str) -> ContactInfo:
-        with self._conn() as con:
-            cur = con.execute("SELECT * FROM contact_info WHERE personnel_id=?", (pid,))
-            row = cur.fetchone()
-        if row:
-            return ContactInfo(*row)
-        return ContactInfo(personnel_id=pid)
-
-    # --------- Certifications ---------
-    def list_certs(self, pid: str) -> List[Certification]:
-        with self._conn() as con:
-            cur = con.execute(
-                "SELECT id, personnel_id, code, name, level, expiration, docs FROM certifications WHERE personnel_id=? ORDER BY code",
-                (pid,),
-            )
-            rows = cur.fetchall()
-        return [Certification(*row) for row in rows]
-
-    def add_cert(self, cert: Certification) -> int:
-        with self._conn() as con:
-            cur = con.execute(
-                "INSERT INTO certifications (personnel_id, code, name, level, expiration, docs) VALUES (?,?,?,?,?,?)",
-                (cert.personnel_id, cert.code, cert.name, cert.level, cert.expiration, cert.docs),
-            )
-            return int(cur.lastrowid)
-
-    def update_cert(self, cert: Certification) -> None:
-        if cert.id is None:
-            return
-        with self._conn() as con:
-            con.execute(
-                "UPDATE certifications SET code=?, name=?, level=?, expiration=?, docs=? WHERE id=?",
-                (cert.code, cert.name, cert.level, cert.expiration, cert.docs, cert.id),
-            )
-
-    def delete_cert(self, cert_ids: Iterable[int]) -> None:
-        cert_ids = [int(c) for c in cert_ids]
-        if not cert_ids:
-            return
-        with self._conn() as con:
-            con.executemany("DELETE FROM certifications WHERE id=?", [(cid,) for cid in cert_ids])
-
 
 # ----------------------------- CSV Helpers -----------------------------------
 class CsvUtil:
-    @staticmethod
-    def export_personnel(path: str, records: Iterable[Personnel]) -> None:
-        fieldnames = list(asdict(Personnel(id="", name="")).keys())
-        with open(path, "w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=fieldnames)
-            writer.writeheader()
-            for record in records:
-                writer.writerow(asdict(record))
-
-    @staticmethod
-    def import_personnel(path: str) -> List[Personnel]:
-        people: list[Personnel] = []
-        with open(path, newline="", encoding="utf-8") as handle:
-            for row in csv.DictReader(handle):
-                people.append(Personnel(**row))
-        return people
-
     @staticmethod
     def export_certifications(path: str, records: Iterable[Certification]) -> None:
         fieldnames = ["id", "personnel_id", "code", "name", "level", "expiration", "docs"]
@@ -988,51 +554,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self._local_certs = list(doc.get("certifications") or [])
         self._refresh_certs()
 
-    def _collect_personnel(self) -> Personnel:
-        pid = self.txt_id.text().strip() or self.personnel_id
-        return Personnel(
-            id=pid,
-            name=self.txt_name.text().strip(),
-            callsign=self.txt_callsign.text().strip(),
-            role=self.txt_role.text().strip(),
-            rank=self.txt_rank.text().strip(),
-            organization=self.txt_org.text().strip(),
-            email=self.txt_email.text().strip(),
-            phone=self.txt_phone.text().strip(),
-            notes=self.txt_notes.text().strip(),
-            photo_url=self._photo_path,
-        )
-
-    def _collect_emergency(self) -> EmergencyInfo:
-        pid = self.txt_id.text().strip() or self.personnel_id
-        return EmergencyInfo(
-            personnel_id=pid,
-            primary_name=self.em_primary_name.text().strip(),
-            primary_relationship=self.em_primary_rel.text().strip(),
-            primary_phone=self.em_primary_phone.text().strip(),
-            secondary_name=self.em_secondary_name.text().strip(),
-            secondary_relationship=self.em_secondary_rel.text().strip(),
-            secondary_phone=self.em_secondary_phone.text().strip(),
-            medical=self.em_medical.toPlainText().strip(),
-            blood_type=self.em_blood.currentText().strip(),
-            insurance=self.em_ins.toPlainText().strip(),
-        )
-
-    def _collect_contact(self) -> ContactInfo:
-        pid = self.txt_id.text().strip() or self.personnel_id
-        return ContactInfo(
-            personnel_id=pid,
-            address1=self.addr1.text().strip(),
-            address2=self.addr2.text().strip(),
-            city=self.city.text().strip(),
-            state=self.state.currentText().strip(),
-            zip=self.zip.text().strip(),
-            work_phone=self.work_phone.text().strip(),
-            secondary_phone=self.secondary_phone.text().strip(),
-            pager_id=self.pager.text().strip(),
-            notes=self.c_notes.toPlainText().strip(),
-        )
-
     def _refresh_certs(self) -> None:
         self.tbl_certs.setRowCount(0)
         for i, cert in enumerate(self._local_certs):
@@ -1183,118 +704,302 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
 
 
 # ----------------------------- UI: Inventory Window --------------------------
-class PersonnelInventoryWindow(QtWidgets.QMainWindow):
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Personnel Inventory")
-        self.resize(1000, 600)
+PERSONNEL_FIELDS: list[FieldSpec] = [
+    FieldSpec("name", "Name", required=True),
+    FieldSpec("callsign", "Callsign"),
+    FieldSpec("primary_role", "Role"),
+    FieldSpec("rank", "Rank"),
+    FieldSpec("home_unit", "Organization"),
+    FieldSpec("email", "Email"),
+    FieldSpec("phone", "Phone"),
+    FieldSpec("notes", "Notes"),
+]
+_PERSONNEL_FIELD_LABELS = {spec.key: spec.label for spec in PERSONNEL_FIELDS}
 
-        self.search = QtWidgets.QLineEdit()
-        self.search.setPlaceholderText("Search by name, callsign, ID, email, phone…")
+
+class PersonnelInventoryWindow(QtWidgets.QWidget):
+    """Implements ``Design Documents/edit_window_style_guide.md``: card shell,
+    header (Add/Delete/Import/Export), filter bar with empty states, pagination
+    footer, generic import wizard, and export dialog with async export."""
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        super().__init__(parent, QtCore.Qt.WindowType.Window)
+        self.setWindowTitle("Personnel Inventory")
+        self.resize(1040, 660)
+        self._notifier = get_notifier()
+        self._all_records: list[dict[str, Any]] = []
+        self._filtered_records: list[dict[str, Any]] = []
+        self._search_text = ""
+        self._page = 1
+        self._page_size = 20
+
+        self._build_ui()
+        self.refresh()
+
+    # ----- UI construction -------------------------------------------------
+    def _build_ui(self) -> None:
+        outer = QtWidgets.QVBoxLayout(self)
+        outer.setContentsMargins(12, 12, 12, 12)
+        outer.setSpacing(12)
+
+        card = QtWidgets.QFrame(self)
+        card.setObjectName("personnelCard")
+        card.setStyleSheet(
+            """
+            #personnelCard {
+                border-radius: 16px;
+                background: palette(Base);
+                border: 1px solid palette(Midlight);
+            }
+            QTableView { border: none; }
+            """
+        )
+        card_layout = QtWidgets.QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(16)
+
+        header = QtWidgets.QHBoxLayout()
+        title = QtWidgets.QLabel("Personnel Inventory")
+        title.setStyleSheet("font-size: 22px; font-weight: 700;")
+        header.addWidget(title)
+        header.addStretch(1)
+
+        self.add_button = QtWidgets.QPushButton("Add")
+        self.add_button.setIcon(self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogNewFolder))
+        self.add_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.add_button.setToolTip("Add personnel")
+        header.addWidget(self.add_button)
+
+        self.delete_button = QtWidgets.QPushButton("Delete")
+        self.delete_button.setIcon(self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_TrashIcon))
+        self.delete_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.delete_button.setEnabled(False)
+        header.addWidget(self.delete_button)
+
+        self.import_button = QtWidgets.QPushButton("Import")
+        self.import_button.setIcon(self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_ArrowDown))
+        self.import_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        header.addWidget(self.import_button)
+
+        self.export_button = QtWidgets.QPushButton("Export")
+        self.export_button.setIcon(self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogSaveButton))
+        self.export_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        header.addWidget(self.export_button)
+
+        card_layout.addLayout(header)
+
+        filter_bar = QtWidgets.QHBoxLayout()
+        filter_bar.setSpacing(12)
+        self.search_edit = QtWidgets.QLineEdit()
+        self.search_edit.setPlaceholderText("Search by name, callsign, ID, email, phone…")
+        self.search_edit.setClearButtonEnabled(True)
+        filter_bar.addWidget(self.search_edit, stretch=2)
+
+        self.reset_button = QtWidgets.QToolButton()
+        self.reset_button.setText("Reset filters")
+        self.reset_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.reset_button.setStyleSheet("QToolButton { text-decoration: underline; border: none; padding: 4px; }")
+        self.reset_button.hide()
+        filter_bar.addWidget(self.reset_button)
+        filter_bar.addStretch(1)
+        card_layout.addLayout(filter_bar)
+
+        self.error_banner = QtWidgets.QFrame()
+        self.error_banner.setStyleSheet("background: #fdecea; border-radius: 8px; border: 1px solid #f5c6cb;")
+        self.error_banner.hide()
+        error_layout = QtWidgets.QHBoxLayout(self.error_banner)
+        error_layout.setContentsMargins(12, 8, 12, 8)
+        self.error_label = QtWidgets.QLabel("Failed to load data.")
+        self.error_label.setStyleSheet("color: #b71c1c;")
+        error_layout.addWidget(self.error_label, stretch=1)
+        self.retry_button = QtWidgets.QPushButton("Retry")
+        error_layout.addWidget(self.retry_button)
+        card_layout.addWidget(self.error_banner)
 
         self._model = _PersonnelTableModel(self)
-        self._proxy = QtCore.QSortFilterProxyModel(self)
-        self._proxy.setSourceModel(self._model)
-        self._proxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
-        self._proxy.setFilterKeyColumn(-1)
-
         self.table = QtWidgets.QTableView()
-        self.table.setModel(self._proxy)
-        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.table.setSortingEnabled(True)
-        self.table.sortByColumn(1, QtCore.Qt.AscendingOrder)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
+        self.table.setModel(self._model)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(False)
         self.table.setStyleSheet("QTableView { selection-background-color: transparent; }")
         from utils.itemview_delegates import RowOutlineSelectionDelegate
-        self.table.setItemDelegate(
-            RowOutlineSelectionDelegate(self.table, self.table.palette().highlight().color())
-        )
-        self.table.doubleClicked.connect(self._on_edit)
+        self.table.setItemDelegate(RowOutlineSelectionDelegate(self.table, QtGui.QColor("#FFFFFF")))
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionsClickable(True)
+        self.table.doubleClicked.connect(self._on_edit_selected)
 
-        btn_add = QtWidgets.QPushButton("Add")
-        btn_edit = QtWidgets.QPushButton("Edit")
-        btn_delete = QtWidgets.QPushButton("Delete")
-        btn_import = QtWidgets.QPushButton("Import CSV")
-        btn_export = QtWidgets.QPushButton("Export CSV")
-        btn_refresh = QtWidgets.QPushButton("Refresh")
+        self.table_stack = QtWidgets.QStackedLayout()
+        table_container = QtWidgets.QWidget()
+        table_layout = QtWidgets.QVBoxLayout(table_container)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+        table_layout.addWidget(self.table)
+        self.table_stack.addWidget(table_container)
 
-        btn_add.clicked.connect(self._on_add)
-        btn_edit.clicked.connect(self._on_edit)
-        btn_delete.clicked.connect(self._on_delete)
-        btn_import.clicked.connect(self._on_import)
-        btn_export.clicked.connect(self._on_export)
-        btn_refresh.clicked.connect(self.refresh)
-        self.search.textChanged.connect(self._proxy.setFilterFixedString)
+        self.no_results_widget = QtWidgets.QWidget()
+        nr_layout = QtWidgets.QVBoxLayout(self.no_results_widget)
+        nr_layout.addStretch(1)
+        nr_label = QtWidgets.QLabel("No personnel match your filters.")
+        nr_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        nr_label.setStyleSheet("font-size: 16px; color: palette(Mid);")
+        nr_layout.addWidget(nr_label)
+        clear_btn = QtWidgets.QPushButton("Clear filters")
+        clear_btn.setFixedWidth(160)
+        clear_btn.clicked.connect(self._on_reset_filters)
+        nr_layout.addWidget(clear_btn, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+        nr_layout.addStretch(1)
+        self.table_stack.addWidget(self.no_results_widget)
 
-        filter_row = QtWidgets.QHBoxLayout()
-        filter_row.addWidget(QtWidgets.QLabel("Search:"))
-        filter_row.addWidget(self.search, stretch=2)
+        self.first_run_widget = QtWidgets.QWidget()
+        fr_layout = QtWidgets.QVBoxLayout(self.first_run_widget)
+        fr_layout.addStretch(1)
+        fr_label = QtWidgets.QLabel("Add your first personnel record.")
+        fr_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        fr_label.setStyleSheet("font-size: 16px; color: palette(Mid);")
+        fr_layout.addWidget(fr_label)
+        fr_btn = QtWidgets.QPushButton("Add personnel")
+        fr_btn.setFixedWidth(160)
+        fr_btn.clicked.connect(self._on_add)
+        fr_layout.addWidget(fr_btn, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+        fr_layout.addStretch(1)
+        self.table_stack.addWidget(self.first_run_widget)
 
-        btn_row = QtWidgets.QHBoxLayout()
-        btn_row.addWidget(btn_add)
-        btn_row.addWidget(btn_edit)
-        btn_row.addWidget(btn_delete)
-        btn_row.addStretch(1)
-        btn_row.addWidget(btn_import)
-        btn_row.addWidget(btn_export)
-        btn_row.addWidget(btn_refresh)
+        card_layout.addLayout(self.table_stack, stretch=1)
 
-        central = QtWidgets.QWidget()
-        self.setCentralWidget(central)
-        layout = QtWidgets.QVBoxLayout(central)
-        layout.addLayout(filter_row)
-        layout.addWidget(self.table, 1)
-        layout.addLayout(btn_row)
+        self.pagination = PaginationControls(self)
+        card_layout.addWidget(self.pagination)
 
-        self.refresh()
+        outer.addWidget(card)
 
-    # ----------------------------- Helpers ---------------------------------
+        self._debounce = QtCore.QTimer(self)
+        self._debounce.setInterval(250)
+        self._debounce.setSingleShot(True)
+        self._debounce.timeout.connect(self._apply_filters)
+        self.search_edit.textChanged.connect(self._on_search_text)
+        self.reset_button.clicked.connect(self._on_reset_filters)
+
+        self.add_button.clicked.connect(self._on_add)
+        self.delete_button.clicked.connect(self._on_delete)
+        self.import_button.clicked.connect(self._on_import)
+        self.export_button.clicked.connect(self._on_export)
+        self.retry_button.clicked.connect(self.refresh)
+
+        selection_model = self.table.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._update_buttons)
+
+        self.pagination.pageRequested.connect(self._on_page_requested)
+        self.pagination.pageSizeChanged.connect(self._on_page_size_changed)
+
+    # ----- Data loading ------------------------------------------------------
     def refresh(self) -> None:
         from utils.api_client import api_client
         try:
             records = api_client.get("/api/master/personnel") or []
-        except Exception:
-            records = []
-        self._model.set_records(records)
+        except Exception as exc:
+            self._show_error(f"Unable to load personnel: {exc}")
+            return
+        self._hide_error()
+        self._all_records = records
+        self._apply_filters()
 
+    def _apply_filters(self) -> None:
+        self._debounce.stop()
+        needle = self._search_text.strip().lower()
+        if needle:
+            keys = _PersonnelTableModel.KEYS
+            self._filtered_records = [
+                r for r in self._all_records
+                if needle in " ".join(str(r.get(k) or "") for k in keys).lower()
+            ]
+        else:
+            self._filtered_records = list(self._all_records)
+        self.reset_button.setVisible(bool(needle))
+        self._page = 1
+        self._render_page()
+
+    def _render_page(self) -> None:
+        total = len(self._filtered_records)
+        max_page = max(1, -(-total // self._page_size)) if self._page_size else 1
+        self._page = min(max(1, self._page), max_page)
+        start = (self._page - 1) * self._page_size
+        self._model.set_records(self._filtered_records[start:start + self._page_size])
+        self.pagination.update_state(total=total, page=self._page, page_size=self._page_size)
+
+        if total == 0:
+            if self._search_text.strip():
+                self.table_stack.setCurrentWidget(self.no_results_widget)
+            else:
+                self.table_stack.setCurrentWidget(self.first_run_widget)
+        else:
+            self.table_stack.setCurrentIndex(0)
+        self._update_buttons()
+
+    def _on_search_text(self, text: str) -> None:
+        self._search_text = text
+        self._debounce.start()
+
+    def _on_reset_filters(self) -> None:
+        self.search_edit.clear()
+        self._search_text = ""
+        self._apply_filters()
+
+    def _on_page_requested(self, page: int) -> None:
+        self._page = page
+        self._render_page()
+
+    def _on_page_size_changed(self, page_size: int) -> None:
+        self._page_size = page_size
+        self._page = 1
+        self._render_page()
+
+    # ----- Selection ----------------------------------------------------
     def _selected_record(self) -> Optional[dict[str, Any]]:
         idx = self.table.currentIndex()
         if not idx.isValid():
             return None
-        return self._model.record_at(self._proxy.mapToSource(idx).row())
+        return self._model.record_at(idx.row())
+
+    def _update_buttons(self) -> None:
+        self.delete_button.setEnabled(self._selected_record() is not None)
+
+    # ----- Error banner ---------------------------------------------------
+    def _show_error(self, message: str) -> None:
+        self.error_label.setText(message)
+        self.error_banner.show()
+
+    def _hide_error(self) -> None:
+        self.error_banner.hide()
 
     # ----------------------------- Slots ----------------------------------
     def _on_add(self) -> None:
         dialog = PersonnelDetailDialog(parent=self)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             self.refresh()
+            self._show_toast("Personnel saved", "Personnel record added successfully.")
 
-    def _on_edit(self) -> None:
+    def _on_edit_selected(self) -> None:
         record = self._selected_record()
-        if not record:
-            idx = self.table.currentIndex()
-            if not idx.isValid():
-                return
-            record = self._model.record_at(self._proxy.mapToSource(idx).row())
         if not record:
             return
         pid = str(record.get("id") or "")
         dialog = PersonnelDetailDialog(parent=self, personnel_id=pid)
-        dialog.exec()
-        self.refresh()
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            self.refresh()
+            self._show_toast("Personnel saved", f"'{record.get('name', '')}' updated.")
 
     def _on_delete(self) -> None:
         from utils.api_client import api_client, APIError
         record = self._selected_record()
         if not record:
-            QtWidgets.QMessageBox.information(self, "No Selection", "Select a record to delete.")
             return
         name = record.get("name") or record.get("id", "")
-        if QtWidgets.QMessageBox.question(self, "Confirm Delete", f"Delete '{name}'?") != QtWidgets.QMessageBox.Yes:
+        if QtWidgets.QMessageBox.question(
+            self, "Confirm Delete", f"Delete '{name}'? This cannot be undone."
+        ) != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         try:
             api_client.delete(f"/api/master/personnel/{record['id']}")
@@ -1302,66 +1007,80 @@ class PersonnelInventoryWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Delete Failed", str(exc))
             return
         self.refresh()
+        self._show_toast("Personnel deleted", f"'{name}' was deleted.")
 
     def _on_import(self) -> None:
         from utils.api_client import api_client
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Import Personnel", "", "CSV Files (*.csv)")
-        if not path:
-            return
-        try:
-            records = CsvUtil.import_personnel(path)
-        except (OSError, csv.Error) as exc:
-            QtWidgets.QMessageBox.critical(self, "Import Failed", str(exc))
-            return
-        imported = 0
-        skipped: list[str] = []
-        for person in records:
-            if not person.name:
-                skipped.append(person.id or "<no name>")
-                continue
-            try:
-                api_client.post("/api/master/personnel", json={
-                    "name": person.name,
-                    "callsign": person.callsign,
-                    "primary_role": person.role,
-                    "rank": person.rank,
-                    "home_unit": person.organization,
-                    "email": person.email,
-                    "phone": person.phone,
-                    "notes": person.notes,
-                })
-                imported += 1
-            except Exception as exc:
-                skipped.append(f"{person.name}: {exc}")
-        message = f"Imported {imported} personnel record(s)."
-        if skipped:
-            QtWidgets.QMessageBox.warning(self, "Import Completed With Warnings",
-                message + "\n\n" + "\n".join(skipped[:5]))
-        else:
-            QtWidgets.QMessageBox.information(self, "Import Complete", message)
-        self.refresh()
+
+        def _import_row(payload: dict[str, Any]) -> Any:
+            return api_client.post("/api/master/personnel", json=payload)
+
+        wizard = ImportWizard(fields=PERSONNEL_FIELDS, import_row=_import_row, title="Import Personnel", parent=self)
+        result = wizard.exec()
+        created = wizard.created_records()
+        errors = wizard.error_count()
+        if result == QtWidgets.QDialog.DialogCode.Accepted and (created or errors):
+            self.refresh()
+            if created and errors:
+                self._show_toast("Import complete", f"{len(created)} personnel imported with {errors} errors.", severity="warning")
+            elif created:
+                self._show_toast("Import complete", f"Imported {len(created)} personnel.")
+            elif errors:
+                self._show_toast("Import issues", "No rows were imported. Check the error report.", severity="warning")
 
     def _on_export(self) -> None:
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export Personnel", "personnel.csv", "CSV Files (*.csv)")
-        if not path:
+        selection_model = self.table.selectionModel()
+        allow_selected = bool(selection_model and selection_model.hasSelection())
+        dialog = ExportDialog(fields=PERSONNEL_FIELDS, allow_selected=allow_selected, title="Export Personnel", parent=self)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
             return
-        records = [
-            Personnel(
-                id=str(r.get("id") or ""),
-                name=r.get("name") or "",
-                callsign=r.get("callsign") or "",
-                role=r.get("primary_role") or "",
-                rank=r.get("rank") or "",
-                organization=r.get("home_unit") or "",
-                email=r.get("email") or "",
-                phone=r.get("phone") or "",
-                notes=r.get("notes") or "",
-            )
-            for r in self._model._records
-        ]
+
+        scope = dialog.selected_scope()
+        file_format = dialog.selected_format()
+        fields = dialog.selected_fields()
+
+        if scope == "selected":
+            rec = self._selected_record()
+            if rec is None:
+                QtWidgets.QMessageBox.information(self, "No selection", "Select a row to export or choose a different scope.")
+                return
+            rows = [rec]
+        elif scope == "filters":
+            rows = list(self._filtered_records)
+        else:
+            rows = list(self._all_records)
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        path = Path(tempfile.gettempdir()) / f"personnel-{scope}-{timestamp}.{file_format}"
+
+        def _task() -> dict[str, Any]:
+            write_export_file(path, rows, fields, _PERSONNEL_FIELD_LABELS, file_format)
+            return {"path": str(path), "count": len(rows)}
+
+        self.export_button.setEnabled(False)
+        run_async(self, _task, self._on_export_done, self._on_export_failed)
+
+    def _on_export_done(self, result: dict[str, Any]) -> None:
+        self.export_button.setEnabled(True)
+        message = f"{result.get('count', 0)} personnel exported. Saved to {result.get('path')}."
+        self._show_toast("Export ready", message)
+        QtWidgets.QMessageBox.information(self, "Export ready", message)
+
+    def _on_export_failed(self, message: str) -> None:
+        self.export_button.setEnabled(True)
+        self._show_toast("Export failed", message, severity="error")
+        QtWidgets.QMessageBox.critical(self, "Export failed", message)
+
+    # ----- Toast helper ------------------------------------------------------
+    def _show_toast(self, title: str, message: str, *, severity: str = "success") -> None:
         try:
-            CsvUtil.export_personnel(path, records)
-        except (OSError, csv.Error) as exc:
-            QtWidgets.QMessageBox.critical(self, "Export Failed", str(exc))
-            return
-        QtWidgets.QMessageBox.information(self, "Export Complete", f"Exported {len(records)} personnel record(s).")
+            self._notifier.notify(
+                Notification(
+                    title=title,
+                    message=message,
+                    severity=severity if severity in {"info", "success", "warning", "error"} else "info",
+                    source="Personnel",
+                )
+            )
+        except Exception:
+            pass

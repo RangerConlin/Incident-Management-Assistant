@@ -1,0 +1,251 @@
+{
+  "description": "SAR 135 — Clue Report — SAR 1",
+  "fields": [
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 DATE",
+      "source": "tasks.0.task_date"
+    },
+    {
+      "pdf_field": "3 INCIDENT NUMBER",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "clue_id1",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_time1",
+      "source": ""
+    },
+    {
+      "pdf_field": "found_by1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 NAME OF INDIVIDUAL THAT LOCATED CLUE",
+      "source": ""
+    },
+    {
+      "pdf_field": "description1",
+      "source": ""
+    },
+    {
+      "pdf_field": "description2",
+      "source": ""
+    },
+    {
+      "pdf_field": "description3",
+      "source": ""
+    },
+    {
+      "pdf_field": "description4",
+      "source": ""
+    },
+    {
+      "pdf_field": "description5",
+      "source": ""
+    },
+    {
+      "pdf_field": "description6",
+      "source": ""
+    },
+    {
+      "pdf_field": "location1",
+      "source": ""
+    },
+    {
+      "pdf_field": "location2",
+      "source": ""
+    },
+    {
+      "pdf_field": "location3",
+      "source": ""
+    },
+    {
+      "pdf_field": "location4",
+      "source": ""
+    },
+    {
+      "pdf_field": "location5",
+      "source": ""
+    },
+    {
+      "pdf_field": "URGENT REPLY NEEDED TEAM STANDING BY  TIME",
+      "source": ""
+    },
+    {
+      "pdf_field": "INFORMATION ONLY",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined",
+      "source": ""
+    },
+    {
+      "pdf_field": "COLLECT",
+      "source": ""
+    },
+    {
+      "pdf_field": "MARK AND LEAVE",
+      "source": ""
+    },
+    {
+      "pdf_field": "DISREGARD",
+      "source": ""
+    },
+    {
+      "pdf_field": "OTHER",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "CLUE  SEGMENT PROBABILITIES TO BE COMPLETED BY PLANS",
+      "source": ""
+    },
+    {
+      "pdf_field": "VERY LIKELY A GOOD CLUE",
+      "source": ""
+    },
+    {
+      "pdf_field": "PROBABLY A GOOD CLUE",
+      "source": ""
+    },
+    {
+      "pdf_field": "MAY BE A GOOD CLUE",
+      "source": ""
+    },
+    {
+      "pdf_field": "PROBABLY NOT A GOOD CLUE",
+      "source": ""
+    },
+    {
+      "pdf_field": "VERY LIKELY NOT A GOOD CLUE",
+      "source": ""
+    },
+    {
+      "pdf_field": "DONT KNOW",
+      "source": ""
+    },
+    {
+      "pdf_field": "VIRTUALLY 100 CERTAIN CLUE MEANS SUBJECT IS IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "VERY STRONG CHANCE THAT CLUE MEANS SUBJECT IS IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "STRONG CHANCE THAT CLUE MEANS SUBJECT IS IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "BETTER THAN EVEN CHANCE THAT CLUE MEANS  SUBJECT IS IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "NO INFORMATION FROM THE CLUE TO SUGGEST SUBJECT IS OR IS NOT IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "BETTER THAN EVEN CHANCE THAT CLUE MEANS SUBJECT IS NOT IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "PLANS",
+      "source": ""
+    },
+    {
+      "pdf_field": "INVESTIGATIONS",
+      "source": ""
+    },
+    {
+      "pdf_field": "DEBRIEFING",
+      "source": ""
+    },
+    {
+      "pdf_field": "STRONG CHANCE THAT CLUE MEANS SUBJECT IS NOT IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "ATTACH TO CLUE",
+      "source": ""
+    },
+    {
+      "pdf_field": "OTHER_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "VERY STRONG CHANCE THAT CLUE MEANS SUBJECT IS NOT IN THESE SEGMENTS",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "13 SEGMENT PROBABILITY LIST SEGMENTSRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "14PREPARED BY",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "15CLUE  SEGMENT PROBABLITIES PREPARED BY",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 DESCRIPTION OF CLUERow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "9 LOCATION FOUNDRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 CLUE NUMBER",
+      "source": ""
+    },
+    {
+      "pdf_field": "5DATETIME LOCATED",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 TEAM THAT LOCATED CLUE",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "clues",
+      "data_key": "clues",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {
+        "description": "description{n}",
+        "location": "location{n}",
+        "clue_id": "clue_id{n}",
+        "found_time": "found_time{n}",
+        "found_by": "found_by{n}"
+      }
+    },
+    {
+      "ref": "intel_items",
+      "data_key": "intel_items",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        1
+      ],
+      "col_patterns": {}
+    }
+  ]
+}

@@ -73,9 +73,12 @@ class UnitsOrganizationsController:
         ranks: list[dict[str, object]],
     ) -> int:
         if rank_structure_id is None:
-            payload = dict(payload)
-            payload["ranks"] = ranks
-            return int(self.repo.create_rank_structure(payload))
+            # The rank-structures API has no concept of an embedded "ranks"
+            # field — it must be created first, then ranks attached via the
+            # ranks endpoint, same as the update path below.
+            new_id = int(self.repo.create_rank_structure(payload))
+            self.repo.replace_ranks(new_id, ranks)
+            return new_id
         self.repo.update_rank_structure(rank_structure_id, payload)
         self.repo.replace_ranks(rank_structure_id, ranks)
         return int(rank_structure_id)

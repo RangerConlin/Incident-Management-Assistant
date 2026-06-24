@@ -21,6 +21,14 @@ def _incident_number() -> str | None:
     return AppState.get_active_incident()
 
 
+def _active_op_period() -> int:
+    try:
+        op_no = AppState.get_active_op_period()
+        return int(op_no) if op_no else 1
+    except Exception:
+        return 1
+
+
 def _incident_conn():
     """Return a sqlite3 connection to the active incident DB, or None."""
     try:
@@ -105,7 +113,7 @@ _OOS_STATUSES = {"out of service", "unavailable", "demobilized", "off duty"}
 def teams_getStatusSummary() -> Dict[str, int]:
     try:
         from modules.command.data_access import list_team_checkins
-        teams = list_team_checkins(1)
+        teams = list_team_checkins(_active_op_period())
         counts: Dict[str, int] = {"available": 0, "assigned": 0, "out_of_service": 0}
         for t in teams:
             s = str(t.get("status", "")).lower().strip()
@@ -124,7 +132,7 @@ def teams_getList() -> List[Dict[str, Any]]:
     """Return the full team list with status detail."""
     try:
         from modules.command.data_access import list_team_checkins
-        return list_team_checkins(1)
+        return list_team_checkins(_active_op_period())
     except Exception:
         return []
 
@@ -136,7 +144,7 @@ def teams_getList() -> List[Dict[str, Any]]:
 def tasks_getSummary_active() -> Dict[str, int]:
     try:
         from modules.command.data_access import list_task_summary
-        summary = list_task_summary(1)
+        summary = list_task_summary(_active_op_period())
         c = summary.get("counts", {})
         return {
             "draft": c.get("Draft", 0),
@@ -153,7 +161,7 @@ def tasks_getDueSoon() -> List[Dict[str, Any]]:
     """Return up to 3 tasks due soonest."""
     try:
         from modules.command.data_access import list_task_summary
-        summary = list_task_summary(1)
+        summary = list_task_summary(_active_op_period())
         return summary.get("due", [])
     except Exception:
         return []
@@ -274,7 +282,7 @@ def alerts_getAll_min_info() -> List[str]:
 def comms_getPrimaryFrequencies() -> List[str]:
     try:
         from modules.command.data_access import list_comms_channels
-        channels = list_comms_channels(1)
+        channels = list_comms_channels(_active_op_period())
         result = []
         for ch in channels[:12]:
             name = ch.get("channel") or ch.get("name") or "-"
@@ -312,7 +320,7 @@ def comms_getChannels() -> List[Dict[str, Any]]:
     """Return raw channel dicts for richer widget display."""
     try:
         from modules.command.data_access import list_comms_channels
-        return list_comms_channels(1)
+        return list_comms_channels(_active_op_period())
     except Exception:
         return []
 

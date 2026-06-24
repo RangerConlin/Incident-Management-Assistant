@@ -13,7 +13,6 @@ def _ensure_repo_packages_on_path() -> None:
     repo_root = Path(__file__).resolve().parent
     package_roots = (
         repo_root / "data" / "db",
-        repo_root / "cloud_server",
     )
     for package_root in package_roots:
         package_root_str = str(package_root)

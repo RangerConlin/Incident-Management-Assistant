@@ -58,11 +58,11 @@ UI to manage:
 
 Roles
 
-Incident-specific permissions
+Mission-specific permissions
 
 Auto-assignment rules (e.g., team joins default to Field User)
 
-Syncs with backend UserRoles logic
+Syncs with backend user profile and role template logic once an auth/permissions router exists
 
 📁 Backend/API Additions
 
@@ -72,47 +72,47 @@ Backend Module
 
 Endpoint Needed
 
-DB Table
+Mongo Scope / Collection
 
 Incident Analytics
 
-Planning / Intel
+Command / Operations / Logistics / Safety
 
-GET /api/command/analytics
+GET /api/incidents/{incident_id}/tasks/summary, GET /api/incidents/{incident_id}/logistics/counts, GET /api/incidents/{incident_id}/alerts
 
-Aggregated tables
+Aggregates over sarapp_incident_<id>.tasks, teams, resource_requests, safety collections
 
 Audit Logs
 
-Security / Admin
+Audit / Approvals / Module Revisions
 
-GET /api/audit/logs
+Use existing module audit collections where present; a consolidated /api/audit/logs endpoint is not currently implemented.
 
-AuditLogs
+sarapp_incident_<id>.audit_logs, approval_records, module-specific revision collections
 
 Export Tools
 
-Documentation
+Forms / Documentation
 
-GET /api/incident/export
+No full incident export endpoint currently exists. Existing forms/export services should be wrapped before mobile uses this.
 
-All modules
+All incident-scoped collections plus form export artifacts
 
 Interop API
 
 External
 
-GET /api/public/interop
+No current /api/public/interop endpoint. Future API should expose read-only projections from existing routers.
 
-Shared views
+Shared read models over system/master/incident databases
 
 Role Management
 
-Auth
+Auth / Admin
 
-POST /api/admin/roles
+No active auth/role-management API currently exists. Server has user profile and role template collection names only.
 
-UserRoles
+sarapp_master.user_profiles, sarapp_master.role_templates
 
 🧭 UI & Navigation
 
@@ -165,3 +165,4 @@ UI polish, backend linking, testing
 16–17
 
 Documentation, rollout package
+

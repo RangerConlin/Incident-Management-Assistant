@@ -1,8 +1,9 @@
 """Operations teams data repository — proxies through SARApp API (MongoDB backend)."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from .team import Team
 
@@ -20,6 +21,38 @@ def _client():
     return api_client
 
 
+def _parse_json_list(value: Any) -> list[Any]:
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return []
+        return list(parsed) if isinstance(parsed, list) else []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return []
+
+
+def _parse_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_int_list(value: Any) -> list[int]:
+    result: list[int] = []
+    for item in _parse_json_list(value):
+        parsed = _parse_int(item)
+        if parsed is not None:
+            result.append(parsed)
+    return result
+
+
 def get_team(team_id: int) -> Optional[Team]:
     try:
         doc = _client().get(f"{_base()}/teams/{team_id}")
@@ -34,10 +67,9 @@ def get_team(team_id: int) -> Optional[Team]:
     except Exception:
         comm_dt = None
     raw_leader = doc.get("team_leader") or doc.get("leader_personnel_id")
-    try:
-        leader_id = int(raw_leader) if raw_leader is not None else None
-    except (ValueError, TypeError):
-        leader_id = None
+    leader_id = _parse_int(raw_leader)
+    current_task_id = _parse_int(doc.get("current_task_id"))
+    members = _parse_int_list(doc.get("members_json") or doc.get("member_personnel_ids"))
     return Team(
         team_id=int(doc.get("int_id") or team_id),
         name=doc.get("name") or f"Team {team_id}",
@@ -48,10 +80,15 @@ def get_team(team_id: int) -> Optional[Team]:
         team_leader_phone=doc.get("leader_phone") or doc.get("phone"),
         notes=doc.get("notes"),
         status=doc.get("status") or "available",
-        current_task_id=doc.get("current_task_id"),
+        current_task_id=current_task_id,
         location=doc.get("location"),
+        members=members,
+        vehicles=[str(x) for x in _parse_json_list(doc.get("vehicles_json") or doc.get("vehicle_ids"))],
+        equipment=[str(x) for x in _parse_json_list(doc.get("equipment_json"))],
+        aircraft=[str(x) for x in _parse_json_list(doc.get("aircraft_json") or doc.get("aircraft_ids"))],
         team_type=doc.get("team_type") or "GT",
         readiness_status=doc.get("readiness_status") or "Unknown",
+        needs_attention=bool(doc.get("needs_attention")),
         last_comm_ts=comm_dt,
     )
 
@@ -67,8 +104,13 @@ def save_team(team: Team) -> Team:
         "notes": getattr(team, "notes", None),
         "status": getattr(team, "status", None),
         "location": getattr(team, "location", None),
+        "members_json": json.dumps(list(getattr(team, "members", []) or [])),
+        "vehicles_json": json.dumps(list(getattr(team, "vehicles", []) or [])),
+        "equipment_json": json.dumps(list(getattr(team, "equipment", []) or [])),
+        "aircraft_json": json.dumps(list(getattr(team, "aircraft", []) or [])),
         "team_type": getattr(team, "team_type", None),
         "readiness_status": getattr(team, "readiness_status", None),
+        "needs_attention": bool(getattr(team, "needs_attention", False)),
     }
     data = {k: v for k, v in data.items() if v is not None}
 
@@ -89,9 +131,17 @@ def set_team_status(team_id: int, status_key: str) -> None:
 def reset_team_comm_timer(team_id: int, when: datetime | None = None) -> None:
     ts = (when or datetime.now(timezone.utc)).isoformat(timespec="seconds")
     try:
-        _client().patch(f"{_base()}/teams/{team_id}/comm-ping", json={"ts": ts})
+        _client().patch(f"{_base()}/teams/{team_id}/comm-ping", json={"when": ts})
     except Exception:
         pass
+
+
+def set_team_needs_attention(team_id: int, active: bool) -> None:
+    _client().patch(f"{_base()}/teams/{team_id}", json={"needs_attention": bool(active)})
+
+
+def set_team_current_task(team_id: int, task_id: int | None) -> None:
+    _client().patch(f"{_base()}/teams/{team_id}", json={"current_task_id": task_id})
 
 
 def find_team_ids_by_label(label: str) -> list[int]:

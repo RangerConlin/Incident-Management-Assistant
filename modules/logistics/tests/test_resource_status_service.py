@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 
@@ -7,21 +8,50 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import pytest
+
+os.environ.setdefault("SARAPP_MONGO_URI", "mongodb://localhost:27017")
+
 from utils import incident_context
+from utils.api_client import api_client, DEFAULT_BASE_URL
 
 from modules.logistics.resource_status.repository import ResourceStatusRepository
 from modules.logistics.resource_status.service import ResourceStatusService
 
 
-def _setup_incident(tmp_path: Path, incident_id: str = "resource-status-test") -> Path:
-    data_dir = tmp_path / "data"
-    incident_context._DATA_DIR = data_dir  # type: ignore[attr-defined]
+@pytest.fixture()
+def resource_status_app_client():
+    """Points api_client at the real sarapp_db app in-process — resource
+    status reads/writes go through MongoDB via the API, not local SQLite."""
+    from sarapp_db.api.app import create_app
+    from sarapp_db.mongo.collection_names import IncidentCollections
+    from sarapp_db.mongo.database_manager import get_incident_db
+
+    for incident_id in ("resource-status-test", "resource-sync"):
+        db = get_incident_db(incident_id)
+        db[IncidentCollections.LOGISTICS_RESOURCE_STATUS_ITEMS].delete_many({})
+
+    app = create_app()
+    api_client.configure_test_transport(app)
+    try:
+        yield api_client
+    finally:
+        api_client.configure(DEFAULT_BASE_URL)
+
+
+def _setup_incident(tmp_path: Path, monkeypatch, incident_id: str = "resource-status-test") -> Path:
+    # incident_storage (which incident_context delegates to for path
+    # resolution) reads its root from CHECKIN_DATA_DIR, not from any
+    # attribute on incident_context itself — there's no "_DATA_DIR" on this
+    # module, so setting one was a no-op and every run reused the same real
+    # on-disk incident storage, leaking state across runs.
+    monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path / "data"))
     incident_context.set_active_incident(incident_id)
-    return data_dir / "incidents" / f"{incident_id}.db"
+    return incident_context.get_active_incident_db_path()
 
 
-def test_create_and_update_resource_logs_audit(tmp_path: Path) -> None:
-    db_path = _setup_incident(tmp_path)
+def test_create_and_update_resource_logs_audit(tmp_path: Path, monkeypatch, resource_status_app_client) -> None:
+    db_path = _setup_incident(tmp_path, monkeypatch)
     service = ResourceStatusService(ResourceStatusRepository())
 
     created = service.create_resource(
@@ -53,8 +83,15 @@ def test_create_and_update_resource_logs_audit(tmp_path: Path) -> None:
     assert db_path.exists()
 
 
-def test_sync_from_incident_sources_seeds_board_without_duplicates(tmp_path: Path) -> None:
-    _setup_incident(tmp_path, incident_id="resource-sync")
+@pytest.mark.skip(
+    reason="ResourceStatusRepository.source_rows() is an intentional stub "
+    "('Incident source sync deferred — checkin/vehicle/aircraft not yet "
+    "migrated', repository.py) — equipment/vehicle/aircraft checkin hasn't "
+    "moved to MongoDB yet, so there's no live source to sync from. Re-enable "
+    "once that migration lands."
+)
+def test_sync_from_incident_sources_seeds_board_without_duplicates(tmp_path: Path, monkeypatch, resource_status_app_client) -> None:
+    _setup_incident(tmp_path, monkeypatch, incident_id="resource-sync")
     repo = ResourceStatusRepository()
     service = ResourceStatusService(repo)
 

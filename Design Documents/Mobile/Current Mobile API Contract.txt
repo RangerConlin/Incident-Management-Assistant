@@ -1,0 +1,87 @@
+SARApp Mobile API Contract - Current Server Alignment
+
+Source of truth inspected:
+C:\Users\Brendan\Documents\GitHub\Incident-Management-Assistant\cloud_server
+
+Server runtime:
+- FastAPI application is created in cloud_server\sarapp_db\api\app.py
+- Cloud server listens on port 8765 by default
+- Mobile MVP hardcoded cloud base URL: http://srv1707346.hstgr.cloud:8765
+- Health check: GET /health
+- Server metadata: GET /server-info
+- Mongo URI is configured with SARAPP_MONGO_URI
+
+Current MongoDB structure:
+- sarapp_system: server/app state and incident registry
+- sarapp_master: agency-wide reference data such as personnel, certifications, organizations, vehicles, aircraft, equipment, resource types, hazard types, radio channels, templates, and user profile scaffolding
+- sarapp_incident_<incident_id>: per-incident operational data such as incident profile, teams, tasks, check-ins, check-in history, resources, comms logs, ICS forms, GIS, planning, logistics, safety, intel, approvals, and audit logs
+
+Important terminology update:
+- Use "incident", not "mission", for API contracts.
+- Current server does not expose POST /api/mobile/login or JWT/token auth.
+- Current mobile MVP should treat a successful GET /health as server connection.
+- If mobile auth is added later, it should be designed as a new server feature and documented separately.
+
+MVP mobile endpoints:
+- GET /health
+- GET /server-info
+- GET /api/incidents
+- GET /api/incidents/{incident_id}/profile
+- GET /api/incidents/{incident_id}/checkin/roles
+- GET /api/incidents/{incident_id}/checkin/teams
+- GET /api/incidents/{incident_id}/checkin/personnel/search?q={query}
+- PUT /api/incidents/{incident_id}/checkin/{person_id}
+- GET /api/incidents/{incident_id}/checkin/roster
+
+Mobile-owned responder profile:
+- Stored locally on the device using AsyncStorage.
+- Includes personal info, certifications, assigned vehicles, and assigned equipment.
+- During incident check-in, the profile is copied into the check-in request as mobile_profile_snapshot.
+- The same request also sends common roster fields such as display_name, incident_phone, incident_callsign, role_on_team, team_id, vehicles, and equipment.
+- Current target collection: sarapp_incident_<incident_id>.checkins.
+
+Field operations endpoints:
+- GET /api/incidents/{incident_id}/operations/tasks
+- GET /api/incidents/{incident_id}/operations/task-rows
+- GET /api/incidents/{incident_id}/operations/teams
+- GET /api/incidents/{incident_id}/operations/team-assignment-rows
+- PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/status
+- PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/checkin
+- GET /api/incidents/{incident_id}/operations/tasks/{task_id}/team-status-log
+
+Command overview endpoints:
+- GET /api/incidents/{incident_id}/header
+- GET /api/incidents/{incident_id}/teams
+- GET /api/incidents/{incident_id}/tasks/summary
+- GET /api/incidents/{incident_id}/channels
+- GET /api/incidents/{incident_id}/alerts
+- GET /api/incidents/{incident_id}/logistics/counts
+
+Incident resources endpoints:
+- GET /api/incidents/{incident_id}/resources
+- GET /api/incidents/{incident_id}/resources/checked-ids?resource_type=personnel
+- POST /api/incidents/{incident_id}/resources/{resource_type}/{resource_id}
+- DELETE /api/incidents/{incident_id}/resources/{resource_type}/{resource_id}
+
+Master/reference endpoints useful to mobile:
+- GET /api/master/personnel
+- GET /api/master/vehicles
+- GET /api/master/equipment
+- GET /api/master/aircraft
+- GET /api/master/certifications
+- GET /api/resource-types
+- GET /api/hazard-types
+- GET /api/lookup/task-types
+- GET /api/comms/master-channels
+- GET /api/forms
+
+Planned but not currently implemented as mobile-specific endpoints:
+- POST /api/mobile/login
+- GET /api/missions
+- POST /api/mobile/checkin
+- POST /api/mobile/sync
+- POST /api/mobile/location
+- POST /api/mobile/push-token
+- GET /api/mobile/permissions
+
+Those planned endpoints should not be used by the mobile app until matching server routers exist.

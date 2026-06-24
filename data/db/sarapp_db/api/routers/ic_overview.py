@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -11,16 +11,76 @@ from pydantic import BaseModel
 
 from sarapp_db.mongo.database_manager import get_incident_db, get_system_db
 from sarapp_db.mongo.collection_names import IncidentCollections, SystemCollections
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 
-def _db(incident_id: str):
-    return get_incident_db(incident_id)
+class SystemIncidentsRepository(BaseRepository):
+    collection_name = SystemCollections.INCIDENTS
+    soft_deletes = False
+
+
+class IncidentProfileRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_PROFILE
+    soft_deletes = False
+
+
+class TeamsRepository(BaseRepository):
+    collection_name = IncidentCollections.TEAMS
+    soft_deletes = False
+
+
+class TasksRepository(BaseRepository):
+    collection_name = IncidentCollections.TASKS
+    soft_deletes = False
+
+
+class IncidentChannelsRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_CHANNELS
+    soft_deletes = False
+
+
+class ResourceRequestsRepository(BaseRepository):
+    collection_name = IncidentCollections.RESOURCE_REQUESTS
+    soft_deletes = False
+
+
+class OperationalPeriodsRepository(BaseRepository):
+    collection_name = IncidentCollections.OPERATIONAL_PERIODS
+    soft_deletes = False
+
+
+def _system_incidents_repo() -> SystemIncidentsRepository:
+    return SystemIncidentsRepository(get_system_db())
+
+
+def _profile_repo(incident_id: str) -> IncidentProfileRepository:
+    return IncidentProfileRepository(get_incident_db(incident_id))
+
+
+def _teams_repo(incident_id: str) -> TeamsRepository:
+    return TeamsRepository(get_incident_db(incident_id))
+
+
+def _tasks_repo(incident_id: str) -> TasksRepository:
+    return TasksRepository(get_incident_db(incident_id))
+
+
+def _channels_repo(incident_id: str) -> IncidentChannelsRepository:
+    return IncidentChannelsRepository(get_incident_db(incident_id))
+
+
+def _resource_requests_repo(incident_id: str) -> ResourceRequestsRepository:
+    return ResourceRequestsRepository(get_incident_db(incident_id))
+
+
+def _op_periods_repo(incident_id: str) -> OperationalPeriodsRepository:
+    return OperationalPeriodsRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 # ---------------------------------------------------------------------------
@@ -29,13 +89,13 @@ def _utcnow() -> str:
 
 @router.get("")
 def list_incidents(status: str = "", number: str = "") -> list[dict[str, Any]]:
-    col = get_system_db()[SystemCollections.INCIDENTS]
+    repo = _system_incidents_repo()
     query: dict[str, Any] = {}
     if status:
         query["status"] = {"$regex": status, "$options": "i"}
     if number:
         query["number"] = number
-    docs = list(col.find(query).sort("created_at", -1))
+    docs = repo.find_many(query, sort=[("created_at", -1)])
     result = []
     for doc in docs:
         doc.pop("_id", None)
@@ -54,12 +114,12 @@ class CreateIncidentRequest(BaseModel):
 
 @router.post("", status_code=201)
 def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
-    sys_col = get_system_db()[SystemCollections.INCIDENTS]
-    if sys_col.find_one({"number": body.number}):
+    sys_repo = _system_incidents_repo()
+    if sys_repo.find_one({"number": body.number}):
         raise HTTPException(409, f"Incident with number '{body.number}' already exists")
     incident_id = str(uuid.uuid4())
-    now = _utcnow()
-    registry_doc = {
+    registry_fields = {
+        "_id": incident_id,
         "incident_id": incident_id,
         "number": body.number,
         "name": body.name,
@@ -68,10 +128,10 @@ def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
         "icp_location": body.icp_location,
         "is_training": body.is_training,
         "status": "active",
-        "created_at": now,
-        "updated_at": now,
     }
-    sys_col.insert_one(registry_doc)
+    registry_doc = sys_repo.insert_one(registry_fields)
+
+    now = registry_doc.get("created_at") or _utcnow()
     profile_doc = {
         "incident_id": incident_id,
         "incident_number": body.number,
@@ -82,10 +142,10 @@ def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
         "is_training": body.is_training,
         "status": "active",
         "start_time": now,
-        "created_at": now,
-        "updated_at": now,
     }
-    get_incident_db(incident_id)[IncidentCollections.INCIDENT_PROFILE].insert_one(profile_doc)
+    profile_repo = IncidentProfileRepository(get_incident_db(incident_id))
+    profile_repo.insert_one(profile_doc)
+
     registry_doc.pop("_id", None)
     registry_doc["id"] = incident_id
     return registry_doc
@@ -109,7 +169,8 @@ def _parse_dt(value: Any) -> Optional[datetime]:
 
 @router.get("/{incident_id}/profile")
 def get_profile(incident_id: str) -> dict[str, Any]:
-    doc = _db(incident_id)[IncidentCollections.INCIDENT_PROFILE].find_one({"incident_id": incident_id})
+    repo = _profile_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id})
     if not doc:
         raise HTTPException(404, f"Incident '{incident_id}' not found")
     status = doc.get("status") or ""
@@ -153,7 +214,7 @@ _PROFILE_FIELD_MAP = {
 
 @router.patch("/{incident_id}/profile")
 def patch_profile(incident_id: str, body: PatchProfileRequest) -> dict[str, Any]:
-    col = _db(incident_id)[IncidentCollections.INCIDENT_PROFILE]
+    repo = _profile_repo(incident_id)
     data = body.model_dump(exclude_none=True)
     update: dict[str, Any] = {}
     for api_field, mongo_field in _PROFILE_FIELD_MAP.items():
@@ -163,9 +224,10 @@ def patch_profile(incident_id: str, body: PatchProfileRequest) -> dict[str, Any]
         update["status"] = (data["status"] or "").lower()
     if not update:
         raise HTTPException(400, "No valid fields provided")
-    result = col.update_one({"incident_id": incident_id}, {"$set": update})
-    if result.matched_count == 0:
+    existing = repo.find_one({"incident_id": incident_id})
+    if not existing:
         raise HTTPException(404, f"Incident '{incident_id}' not found")
+    repo.update_one(existing["_id"], update)
     return {"ok": True}
 
 
@@ -175,7 +237,8 @@ def patch_profile(incident_id: str, body: PatchProfileRequest) -> dict[str, Any]
 
 @router.get("/{incident_id}/header")
 def get_header(incident_id: str) -> dict[str, Any]:
-    doc = _db(incident_id)[IncidentCollections.INCIDENT_PROFILE].find_one({"incident_id": incident_id})
+    repo = _profile_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id})
     if not doc:
         raise HTTPException(404, f"Incident '{incident_id}' not found")
     status = doc.get("status") or ""
@@ -194,12 +257,8 @@ def get_header(incident_id: str) -> dict[str, Any]:
 
 @router.get("/{incident_id}/op-periods")
 def get_op_periods(incident_id: str) -> list[int]:
-    docs = list(
-        _db(incident_id)[IncidentCollections.OPERATIONAL_PERIODS].find(
-            {"incident_id": incident_id, "deleted": {"$ne": True}},
-            {"op_number": 1},
-        )
-    )
+    repo = _op_periods_repo(incident_id)
+    docs = repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}})
     numbers: list[int] = []
     for doc in docs:
         raw = doc.get("op_number")
@@ -218,11 +277,8 @@ def get_op_periods(incident_id: str) -> list[int]:
 
 @router.get("/{incident_id}/teams")
 def list_teams(incident_id: str, op_no: int = 1) -> list[dict[str, Any]]:
-    docs = list(
-        _db(incident_id)[IncidentCollections.TEAMS].find(
-            {"incident_id": incident_id, "deleted": {"$ne": True}}
-        )
-    )
+    repo = _teams_repo(incident_id)
+    docs = repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}})
     result = []
     for doc in docs:
         last_ts = _parse_dt(doc.get("last_checkin_at"))
@@ -264,13 +320,8 @@ def _norm_task_status(val: Any) -> str:
 
 @router.get("/{incident_id}/tasks/summary")
 def task_summary(incident_id: str, op_no: int = 1) -> dict[str, Any]:
-    docs = list(
-        _db(incident_id)[IncidentCollections.TASKS].find(
-            {"incident_id": incident_id, "deleted": {"$ne": True}},
-            {"status": 1, "title": 1, "due_time": 1, "assignment": 1,
-             "task_number": 1, "task_id": 1, "assigned_teams": 1},
-        )
-    )
+    repo = _tasks_repo(incident_id)
+    docs = repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}})
     counts: Counter = Counter()
     due_items: list[dict[str, Any]] = []
     for doc in docs:
@@ -309,16 +360,14 @@ def task_summary(incident_id: str, op_no: int = 1) -> dict[str, Any]:
 
 @router.get("/{incident_id}/channels")
 def list_channels(incident_id: str) -> list[dict[str, Any]]:
-    docs = list(
-        _db(incident_id)[IncidentCollections.INCIDENT_CHANNELS]
-        .find(
-            {
-                "incident_id": incident_id,
-                "include_on_205": {"$ne": False},
-                "deleted": {"$ne": True},
-            }
-        )
-        .sort([("sort_index", 1), ("channel", 1)])
+    repo = _channels_repo(incident_id)
+    docs = repo.find_many(
+        {
+            "incident_id": incident_id,
+            "include_on_205": {"$ne": False},
+            "deleted": {"$ne": True},
+        },
+        sort=[("sort_index", 1), ("channel", 1)],
     )
     result = []
     for doc in docs:
@@ -341,12 +390,8 @@ def list_channels(incident_id: str) -> list[dict[str, Any]]:
 @router.get("/{incident_id}/logistics/counts")
 def logistics_counts(incident_id: str) -> dict[str, int]:
     try:
-        docs = list(
-            _db(incident_id)[IncidentCollections.RESOURCE_REQUESTS].find(
-                {"incident_id": incident_id},
-                {"status": 1},
-            )
-        )
+        repo = _resource_requests_repo(incident_id)
+        docs = repo.find_many({"incident_id": incident_id})
     except Exception:
         docs = []
     counts: Counter = Counter()

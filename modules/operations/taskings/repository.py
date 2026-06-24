@@ -2,11 +2,21 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict, is_dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from modules.admin.resource_types.data.resource_assignment_repository import ApiResourceAssignmentRepository
+from modules.forms_creator.engine import generate as generate_form_pdf
+from modules.operations.teams.data.repository import get_team
 from utils import incident_context
 from utils.audit import write_audit
 from .models import Task, TaskTeam, TaskDetail
+from models.queries import (
+    fetch_team_equipment,
+    fetch_team_personnel,
+    fetch_team_vehicles,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,8 +202,319 @@ def save_task_assignment(task_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def export_assignment_forms(task_id: int, forms: List[str], team: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-    """PDF export stub — returns empty list until ICS-204 template is wired."""
-    return []
+    """Export one or more assignment forms as PDFs."""
+    form_specs = {
+        "ICS 204": ("ics_204", "fema"),
+        "CAPF 109": ("capf_109", "cap"),
+        "SAR 104": ("sar_104", "sar"),
+    }
+    exports: List[Dict[str, Any]] = []
+    context = _build_assignment_export_context(task_id, team)
+
+    try:
+        from utils import incident_context as _incident_context
+        incident_id = _incident_context.get_active_incident_id() or "unknown"
+    except Exception:
+        incident_id = "unknown"
+
+    out_dir = Path("data") / "exports" / str(incident_id) / f"task_{int(task_id)}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for form_label in forms:
+        spec = form_specs.get(str(form_label).strip())
+        if not spec:
+            continue
+        form_id, form_set_id = spec
+        out_path = out_dir / f"{form_id}.pdf"
+        written = generate_form_pdf(
+            form_id,
+            out_path,
+            form_set_id=form_set_id,
+            extra_data=context,
+        )
+        exports.append(
+            {
+                "form": form_label,
+                "form_id": form_id,
+                "form_set_id": form_set_id,
+                "file_path": str(written),
+            }
+        )
+    return exports
+
+
+def _safe_text(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    return str(value).strip()
+
+
+def _task_dict(task_id: int) -> dict[str, Any]:
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}") or {}
+    except Exception:
+        return {}
+
+
+def _normalize_team_dict(team: Optional[Dict[str, Any]]) -> dict[str, Any]:
+    if not team:
+        return {}
+    if is_dataclass(team):
+        return asdict(team)
+    return dict(team)
+
+
+def _build_pod_matrix(selected: Any) -> dict[str, str]:
+    chosen = _safe_text(selected).lower()
+    return {
+        "high": "X" if chosen == "high" else "",
+        "medium": "X" if chosen == "medium" else "",
+        "low": "X" if chosen == "low" else "",
+    }
+
+
+def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]] = None) -> dict[str, Any]:
+    task_doc = _task_dict(task_id)
+    assignment = get_task_assignment(task_id) or {}
+    team_rows = list_task_teams(task_id)
+    selected_team = _normalize_team_dict(team)
+
+    team_id = None
+    for candidate in (selected_team.get("team_id"), selected_team.get("id")):
+        try:
+            if candidate not in (None, ""):
+                team_id = int(candidate)
+                break
+        except Exception:
+            continue
+
+    selected_task_team = None
+    if team_id is not None:
+        for row in team_rows:
+            try:
+                row_team_id = int(getattr(row, "team_id", None) if not isinstance(row, dict) else row.get("team_id") or 0)
+            except Exception:
+                row_team_id = None
+            if row_team_id == team_id:
+                selected_task_team = row
+                break
+    if selected_task_team is None:
+        selected_task_team = team_rows[0] if team_rows else {}
+
+    if is_dataclass(selected_task_team):
+        selected_task_team = asdict(selected_task_team)
+    elif selected_task_team is None:
+        selected_task_team = {}
+    else:
+        selected_task_team = dict(selected_task_team)
+
+    if team_id is None:
+        try:
+            fallback_team_id = selected_task_team.get("team_id") or selected_task_team.get("id")
+            if fallback_team_id not in (None, ""):
+                team_id = int(fallback_team_id)
+        except Exception:
+            team_id = None
+
+    full_team = get_team(team_id) if team_id is not None else None
+    full_team_dict = asdict(full_team) if full_team else {}
+
+    resource_type_repo = ApiResourceAssignmentRepository()
+    resource_type_id = full_team_dict.get("resource_type_id") if full_team_dict else None
+    resource_type_name = resource_type_repo.get_resource_type_name(resource_type_id)
+
+    personnel_rows = fetch_team_personnel(team_id) if team_id is not None else []
+    normalized_people: list[dict[str, Any]] = []
+    for row in personnel_rows:
+        normalized_people.append(
+            {
+                "id": row.get("id"),
+                "member_name": _safe_text(row.get("name") or row.get("identifier") or row.get("callsign")),
+                "member_agency": _safe_text(row.get("organization") or row.get("agency") or row.get("home_unit")),
+                "member_medic": bool(row.get("is_medic")),
+                "member_role": _safe_text(row.get("role")),
+            }
+        )
+
+    leader_name = _safe_text(
+        selected_task_team.get("team_leader")
+        or full_team_dict.get("team_leader_name")
+    )
+    leader_phone = _safe_text(
+        selected_task_team.get("team_leader_phone")
+        or full_team_dict.get("team_leader_phone")
+        or full_team_dict.get("phone")
+    )
+
+    if full_team_dict.get("team_leader_id") not in (None, ""):
+        leader_id = full_team_dict.get("team_leader_id")
+        for row in normalized_people:
+            try:
+                if int(row.get("id")) == int(leader_id):
+                    if not leader_name:
+                        leader_name = row["member_name"]
+                    if not leader_phone:
+                        leader_phone = _safe_text(row.get("phone"))
+                    break
+            except Exception:
+                continue
+    if not leader_name and normalized_people:
+        leader_name = normalized_people[0]["member_name"]
+    leader_agency = ""
+    for row in normalized_people:
+        if leader_name and row["member_name"] and row["member_name"].strip().lower() == leader_name.strip().lower():
+            leader_agency = row["member_agency"]
+            break
+    if not leader_agency and normalized_people:
+        leader_agency = normalized_people[0]["member_agency"]
+
+    if normalized_people:
+        leader_index = None
+        leader_id = full_team_dict.get("team_leader_id")
+        if leader_id not in (None, ""):
+            for index, row in enumerate(normalized_people):
+                try:
+                    if int(row.get("id")) == int(leader_id):
+                        leader_index = index
+                        break
+                except Exception:
+                    continue
+        if leader_index is None and leader_name:
+            for index, row in enumerate(normalized_people):
+                if row["member_name"] and row["member_name"].strip().lower() == leader_name.strip().lower():
+                    leader_index = index
+                    break
+        if leader_index not in (None, 0):
+            normalized_people = [normalized_people[leader_index]] + [
+                row for idx, row in enumerate(normalized_people) if idx != leader_index
+            ]
+
+    team_name = _safe_text(
+        selected_task_team.get("team_name")
+        or full_team_dict.get("callsign")
+        or full_team_dict.get("name")
+    )
+    if not team_name and resource_type_name:
+        team_name = resource_type_name
+
+    team_payload = {
+        "team_id": team_id,
+        "id": team_id,
+        "name": team_name,
+        "callsign": _safe_text(full_team_dict.get("callsign") or selected_task_team.get("sortie_number")),
+        "resource_type": resource_type_name or _safe_text(full_team_dict.get("team_type") or selected_task_team.get("team_type")),
+        "role": _safe_text(full_team_dict.get("role") or "Team Leader"),
+        "status": _safe_text(selected_task_team.get("status") or full_team_dict.get("status")),
+        "leader_name": leader_name,
+        "leader_agency": leader_agency,
+        "leader_phone": leader_phone,
+        "team_leader": leader_name,
+        "team_phone": leader_phone,
+        "assigned_ts": _safe_text(selected_task_team.get("assigned_ts")),
+        "briefed_ts": _safe_text(selected_task_team.get("briefed_ts")),
+        "enroute_ts": _safe_text(selected_task_team.get("enroute_ts")),
+        "arrival_ts": _safe_text(selected_task_team.get("arrival_ts")),
+        "complete_ts": _safe_text(selected_task_team.get("complete_ts")),
+    }
+
+    task_payload = {
+        "id": task_doc.get("int_id") or task_id,
+        "task_id": _safe_text(task_doc.get("task_id") or f"T-{task_id}"),
+        "title": _safe_text(task_doc.get("title")),
+        "description": _safe_text(task_doc.get("description")),
+        "location": _safe_text(task_doc.get("location")),
+        "assignment": _safe_text(task_doc.get("assignment") or assignment.get("ground", {}).get("present_search_efforts")),
+        "due_time": _safe_text(task_doc.get("due_time")),
+        "team_leader": leader_name,
+        "team_phone": leader_phone,
+        "radio_primary": _safe_text(task_doc.get("radio_primary")),
+        "radio_alternate": _safe_text(task_doc.get("radio_alternate")),
+        "radio_emergency": _safe_text(task_doc.get("radio_emergency")),
+    }
+    task_payload["radio_summary"] = "\n".join(
+        part for part in [
+            f"Primary: {task_payload['radio_primary']}" if task_payload["radio_primary"] else "",
+            f"Alternate: {task_payload['radio_alternate']}" if task_payload["radio_alternate"] else "",
+            f"Emergency: {task_payload['radio_emergency']}" if task_payload["radio_emergency"] else "",
+        ] if part
+    )
+
+    ground = dict(assignment.get("ground") or {})
+    expected_pod = dict(ground.get("expected_pod") or {})
+    assignment_payload = {
+        "ground": {
+            "previous_search_efforts": _safe_text(ground.get("previous_search_efforts")),
+            "present_search_efforts": _safe_text(ground.get("present_search_efforts")),
+            "time_allocated": _safe_text(ground.get("time_allocated")),
+            "size_of_assignment": _safe_text(ground.get("size_of_assignment")),
+            "drop_off_instructions": _safe_text(ground.get("drop_off_instructions")),
+            "pickup_instructions": _safe_text(ground.get("pickup_instructions")),
+            "transport_instructions": _safe_text(
+                ground.get("drop_off_instructions") or ground.get("pickup_instructions")
+            ),
+            "expected_pod": {
+                "responsive": _build_pod_matrix(expected_pod.get("responsive")),
+                "unresponsive": _build_pod_matrix(expected_pod.get("unresponsive")),
+                "clues": _build_pod_matrix(expected_pod.get("clues")),
+            },
+        },
+    }
+    if assignment.get("air"):
+        assignment_payload["air"] = dict(assignment.get("air") or {})
+
+    team_member_rows = normalized_people[:8]
+    additional_names = ", ".join(row["member_name"] for row in normalized_people[8:] if row.get("member_name"))
+
+    attachments = []
+    try:
+        from modules.operations.taskings.attachments import list_attachments
+        attachments = list_attachments(task_id)
+    except Exception:
+        attachments = []
+    map_files = [row.get("filename") or "" for row in attachments if "map" in _safe_text(row.get("filename")).lower()]
+    debrief_files = [
+        row.get("filename") or ""
+        for row in attachments
+        if any(term in _safe_text(row.get("filename")).lower() for term in ("debrief", "brief"))
+    ]
+    equipment_issued = []
+    try:
+        if team_id is not None:
+            equipment_issued.extend(
+                _safe_text(row.get("name") or row.get("type"))
+                for row in fetch_team_equipment(team_id)
+                if _safe_text(row.get("name") or row.get("type"))
+            )
+            equipment_issued.extend(
+                _safe_text(row.get("name") or row.get("callsign") or row.get("type"))
+                for row in fetch_team_vehicles(team_id)
+                if _safe_text(row.get("name") or row.get("callsign") or row.get("type"))
+            )
+    except Exception:
+        equipment_issued = []
+
+    return {
+        "task": task_payload,
+        "team": team_payload,
+        "assignment": assignment_payload,
+        "team_members": team_member_rows,
+        "additional": {"names": additional_names},
+        "subject": dict(assignment.get("subject") or {}) if isinstance(assignment.get("subject"), dict) else {},
+        "radio_call": task_payload.get("radio_summary") or "",
+        "previous_search_effort": assignment_payload["ground"]["previous_search_efforts"],
+        "time_allocated": assignment_payload["ground"]["time_allocated"],
+        "size_of_assignment": assignment_payload["ground"]["size_of_assignment"],
+        "transport_instructions": assignment_payload["ground"]["transport_instructions"],
+        "maps_attached": ", ".join(map_files),
+        "debrief_attached": ", ".join(debrief_files),
+        "equipment_issued": ", ".join(equipment_issued),
+        "briefer": leader_name,
+        "time_briefed": team_payload["briefed_ts"],
+        "time_out": team_payload["enroute_ts"],
+        "time_in": team_payload["complete_ts"] or team_payload["arrival_ts"],
+        "notes": task_payload["description"] or assignment_payload["ground"]["present_search_efforts"],
+        "resource_type": team_payload["resource_type"],
+    }
 
 
 def list_incident_channels() -> List[Dict[str, Any]]:

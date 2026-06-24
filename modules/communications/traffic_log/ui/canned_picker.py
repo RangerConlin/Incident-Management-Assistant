@@ -129,11 +129,20 @@ class CannedCommPickerDialog(QDialog):
         for entry in entries:
             r = self.table.rowCount()
             self.table.insertRow(r)
-            self.table.setItem(r, 0, QTableWidgetItem(entry.get("title") or ""))
+            title_item = QTableWidgetItem(entry.get("title") or "")
+            # Attach the entry itself so selection survives the user sorting
+            # the table — row position no longer matches self._entries order
+            # once sorting is enabled, but the item carries its own data.
+            title_item.setData(Qt.UserRole, entry)
+            self.table.setItem(r, 0, title_item)
             self.table.setItem(r, 1, QTableWidgetItem(entry.get("status_update") or ""))
             msg = (entry.get("message") or "").replace("\n", " ")
             self.table.setItem(r, 2, QTableWidgetItem(msg))
         self.table.setSortingEnabled(True)
+        # Qt's default sort indicator on first enable is descending, which
+        # silently reverses the alphabetical title order with no visible
+        # explanation; force a sane ascending default.
+        self.table.sortByColumn(0, Qt.AscendingOrder)
         self._on_selection()
 
     def _on_selection(self) -> None:
@@ -145,8 +154,9 @@ class CannedCommPickerDialog(QDialog):
         if not rows:
             return
         idx = rows[0].row()
-        if 0 <= idx < len(self._entries):
-            self._selected = self._entries[idx]
+        entry = self.table.item(idx, 0).data(Qt.UserRole)
+        if entry is not None:
+            self._selected = entry
         self.accept()
 
     def selected_entry(self) -> dict | None:

@@ -2,252 +2,240 @@
   "description": "SAR 104 — Search Assignment — SAR 1",
   "fields": [
     {
-      "pdf_field": "name",
-      "source": "incident"
+      "pdf_field": "incident.name",
+      "source": "incident.name"
     },
     {
-      "pdf_field": "period",
+      "pdf_field": "operational.period",
       "source": "op_period.number"
     },
     {
-      "pdf_field": "number",
-      "source": "tasks.0.task_id"
+      "pdf_field": "assignment.number",
+      "source": "task.task_id"
     },
     {
       "pdf_field": "resource_type",
-      "source": "teams.0.resource_type"
+      "source": "team.resource_type"
     },
     {
-      "pdf_field": "1",
-      "source": "teams.0.leader_name"
+      "pdf_field": "personnel.function.1",
+      "source": "team.role"
     },
     {
-      "pdf_field": "1",
-      "source": "teams.0.leader_name"
+      "pdf_field": "personnel.name.1",
+      "source": "team.leader_name"
     },
     {
-      "pdf_field": "1",
-      "source": "teams.0.leader_name"
+      "pdf_field": "personnel.agency.1",
+      "source": "team.leader_agency"
     },
     {
-      "pdf_field": "2",
+      "pdf_field": "team_members_member_medic1",
       "source": ""
     },
     {
-      "pdf_field": "2",
+      "pdf_field": "team_members_member_name1",
       "source": ""
     },
     {
-      "pdf_field": "2",
+      "pdf_field": "team_members_member_agency1",
       "source": ""
     },
     {
-      "pdf_field": "3",
+      "pdf_field": "team_members_member_medic2",
       "source": ""
     },
     {
-      "pdf_field": "3",
+      "pdf_field": "team_members_member_name2",
       "source": ""
     },
     {
-      "pdf_field": "3",
+      "pdf_field": "team_members_member_agency2",
       "source": ""
     },
     {
-      "pdf_field": "4",
+      "pdf_field": "team_members_member_medic3",
       "source": ""
     },
     {
-      "pdf_field": "4",
+      "pdf_field": "team_members_member_name3",
       "source": ""
     },
     {
-      "pdf_field": "4",
+      "pdf_field": "team_members_member_agency3",
       "source": ""
     },
     {
-      "pdf_field": "5",
+      "pdf_field": "team_members_member_medic4",
       "source": ""
     },
     {
-      "pdf_field": "5",
+      "pdf_field": "team_members_member_name4",
       "source": ""
     },
     {
-      "pdf_field": "5",
+      "pdf_field": "team_members_member_agency4",
       "source": ""
     },
     {
-      "pdf_field": "6",
+      "pdf_field": "team_members_member_medic5",
       "source": ""
     },
     {
-      "pdf_field": "6",
+      "pdf_field": "team_members_member_name5",
       "source": ""
     },
     {
-      "pdf_field": "6",
+      "pdf_field": "team_members_member_agency5",
       "source": ""
     },
     {
-      "pdf_field": "7",
+      "pdf_field": "team_members_member_medic6",
       "source": ""
     },
     {
-      "pdf_field": "7",
+      "pdf_field": "team_members_member_name6",
       "source": ""
     },
     {
-      "pdf_field": "7",
+      "pdf_field": "team_members_member_agency6",
       "source": ""
     },
     {
-      "pdf_field": "8",
+      "pdf_field": "team_members_member_medic7",
       "source": ""
     },
     {
-      "pdf_field": "8",
+      "pdf_field": "team_members_member_name7",
       "source": ""
     },
     {
-      "pdf_field": "8",
+      "pdf_field": "team_members_member_agency7",
       "source": ""
     },
     {
-      "pdf_field": "9",
+      "pdf_field": "team_members_member_medic8",
       "source": ""
     },
     {
-      "pdf_field": "9",
+      "pdf_field": "team_members_member_name8",
       "source": ""
     },
     {
-      "pdf_field": "9",
+      "pdf_field": "team_members_member_agency8",
       "source": ""
     },
     {
-      "pdf_field": "names",
-      "source": ""
+      "pdf_field": "additional.names",
+      "source": "additional.names"
     },
     {
       "pdf_field": "asgn_description",
-      "source": "tasks.0.assignment"
+      "source": "task.assignment"
     },
     {
       "pdf_field": "maps_attached",
-      "source": {
-        "literal": ""
-      }
+      "source": "maps_attached"
     },
     {
       "pdf_field": "previous_search_effort",
-      "source": {
-        "literal": ""
-      }
+      "source": "assignment.ground.previous_search_efforts"
     },
     {
       "pdf_field": "debrief_attached",
-      "source": {
-        "literal": ""
-      }
+      "source": "debrief_attached"
     },
     {
-      "pdf_field": "allocated",
-      "source": ""
+      "pdf_field": "time.allocated",
+      "source": "assignment.ground.time_allocated"
     },
     {
       "pdf_field": "size_of_assignment",
-      "source": {
-        "literal": ""
-      }
+      "source": "assignment.ground.size_of_assignment"
     },
     {
-      "pdf_field": "responsive",
-      "source": ""
+      "pdf_field": "POD.h.responsive",
+      "source": "assignment.ground.expected_pod.responsive.high"
     },
     {
-      "pdf_field": "responsive",
-      "source": ""
+      "pdf_field": "POD.m.responsive",
+      "source": "assignment.ground.expected_pod.responsive.medium"
     },
     {
-      "pdf_field": "responsive",
-      "source": ""
+      "pdf_field": "POD.l.responsive",
+      "source": "assignment.ground.expected_pod.responsive.low"
     },
     {
-      "pdf_field": "unresponsive",
-      "source": ""
+      "pdf_field": "POD.h.unresponsive",
+      "source": "assignment.ground.expected_pod.unresponsive.high"
     },
     {
-      "pdf_field": "unresponsive",
-      "source": ""
+      "pdf_field": "POD.m.unresponsive",
+      "source": "assignment.ground.expected_pod.unresponsive.medium"
     },
     {
-      "pdf_field": "unresponsive",
-      "source": ""
+      "pdf_field": "POD.l.unresponsive",
+      "source": "assignment.ground.expected_pod.unresponsive.low"
     },
     {
-      "pdf_field": "clues",
-      "source": ""
+      "pdf_field": "POD.h.clues",
+      "source": "assignment.ground.expected_pod.clues.high"
     },
     {
-      "pdf_field": "clues",
-      "source": ""
+      "pdf_field": "POD.m.clues",
+      "source": "assignment.ground.expected_pod.clues.medium"
     },
     {
-      "pdf_field": "clues",
-      "source": ""
+      "pdf_field": "POD.l.clues",
+      "source": "assignment.ground.expected_pod.clues.low"
     },
     {
       "pdf_field": "transport_instructions",
-      "source": {
-        "literal": ""
-      }
+      "source": "assignment.ground.transport_instructions"
     },
     {
       "pdf_field": "radio_call",
-      "source": "teams.0.name"
+      "source": "radio_call"
     },
     {
-      "pdf_field": "command",
-      "source": ""
+      "pdf_field": "freq.command",
+      "source": "channels.0.rx_freq"
     },
     {
-      "pdf_field": "command",
-      "source": ""
+      "pdf_field": "chan_desc.command",
+      "source": "channels.0.function"
     },
     {
-      "pdf_field": "command",
-      "source": ""
+      "pdf_field": "chan.command",
+      "source": "channels.0.name"
     },
     {
-      "pdf_field": "tactical",
-      "source": ""
+      "pdf_field": "freq.tactical",
+      "source": "channels.1.rx_freq"
     },
     {
-      "pdf_field": "tactical",
-      "source": ""
+      "pdf_field": "chan_desc.tactical",
+      "source": "channels.1.function"
     },
     {
-      "pdf_field": "tactical",
-      "source": ""
+      "pdf_field": "chan.tactical",
+      "source": "channels.1.name"
     },
     {
       "pdf_field": "other_radio_chan",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.2.name"
     },
     {
-      "pdf_field": "other",
-      "source": ""
+      "pdf_field": "freq.other",
+      "source": "channels.2.rx_freq"
     },
     {
-      "pdf_field": "other",
-      "source": ""
+      "pdf_field": "chan_desc.other",
+      "source": "channels.2.function"
     },
     {
-      "pdf_field": "other",
-      "source": ""
+      "pdf_field": "chan.other",
+      "source": "channels.2.name"
     },
     {
       "pdf_field": "prepared_by",
@@ -269,435 +257,113 @@
     },
     {
       "pdf_field": "equipment_issued",
-      "source": {
-        "literal": ""
-      }
+      "source": "equipment_issued"
     },
     {
       "pdf_field": "briefer",
-      "source": {
-        "literal": ""
-      }
+      "source": "briefer"
     },
     {
       "pdf_field": "time_briefed",
-      "source": {
-        "literal": ""
-      }
+      "source": "time_briefed"
     },
     {
       "pdf_field": "time_out",
-      "source": {
-        "literal": ""
-      }
+      "source": "time_out"
     },
     {
       "pdf_field": "time_in",
-      "source": {
-        "literal": ""
-      }
+      "source": "time_in"
     },
     {
       "pdf_field": "notes",
-      "source": {
-        "literal": ""
-      }
+      "source": "notes"
     },
     {
       "pdf_field": "POD",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "POD.h",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.h.clues",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.h.responsive",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.h.unresponsive",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "POD.l",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.l.clues",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.l.responsive",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.l.unresponsive",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "POD.m",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.m.clues",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.m.responsive",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "POD.m.unresponsive",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "additional.names",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "assignment.number",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "chan.command",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "chan.other",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "chan.tactical",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "chan_desc.command",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "chan_desc.other",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "chan_desc.tactical",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "freq.command",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "freq.other",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "freq.tactical",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "incident",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "incident.name",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "operational",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "operational.period",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "personnel",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "personnel.agency",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.1",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.2",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.3",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.4",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.5",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.6",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.7",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.8",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.agency.9",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "personnel.function",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.1",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.2",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.3",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.4",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.5",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.6",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.7",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.8",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.function.9",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "personnel.name",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.1",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.2",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.3",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.4",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.5",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.6",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.7",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.8",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "personnel.name.9",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "time",
-      "source": {
-        "literal": ""
-      }
-    },
-    {
-      "pdf_field": "time.allocated",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "additional",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "assignment",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "chan",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "chan_desc",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
     },
     {
       "pdf_field": "freq",
-      "source": {
-        "literal": ""
-      }
+      "source": ""
+    },
+    {
+      "pdf_field": "personnel.function.4",
+      "source": "team_members.3.member_role"
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "team_members",
+      "data_key": "team_members",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        8
+      ],
+      "col_patterns": {
+        "member_agency": "team_members_member_agency{n}",
+        "member_medic": "team_members_member_medic{n}",
+        "member_name": "team_members_member_name{n}"
+      },
+      "col_checkboxes": [
+        "member_medic"
+      ]
     }
   ]
 }

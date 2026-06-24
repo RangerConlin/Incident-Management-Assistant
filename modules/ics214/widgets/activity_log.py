@@ -1361,7 +1361,7 @@ class Ics214ActivityLogPanel(QWidget):
             unit_or_resource=subject_label
             or getattr(stream, "section", None)
             or "",
-            status="OPEN",
+            status=str(getattr(stream, "status", "open") or "open").upper(),
             identifier=stream.id,
             incident_id=stream.incident_id,
             stream_id=stream.id,
@@ -1708,10 +1708,11 @@ class Ics214ActivityLogPanel(QWidget):
         notes = header.notes or "—"
         self.header_notes.setText(f"Notes: {notes}")
         has_stream = bool(header.stream_id)
-        self.quick_frame.setEnabled(has_stream)
-        self.edit_header_btn.setEnabled(has_stream)
-        self.close_log_btn.setEnabled(False)
-        self.reopen_btn.setEnabled(False)
+        is_closed = (header.status or "").upper() == "CLOSED"
+        self.quick_frame.setEnabled(has_stream and not is_closed)
+        self.edit_header_btn.setEnabled(has_stream and not is_closed)
+        self.close_log_btn.setEnabled(has_stream and not is_closed)
+        self.reopen_btn.setEnabled(has_stream and is_closed)
         self._update_print_button_state()
 
     def _update_print_button_state(self) -> None:
@@ -1994,18 +1995,30 @@ class Ics214ActivityLogPanel(QWidget):
         self._update_review_button()
 
     def _close_log(self) -> None:
-        QMessageBox.information(
+        if not self.incident_id or not self.header.stream_id:
+            return
+        if QMessageBox.question(
             self,
-            "Not implemented",
-            "Closing logs is not yet implemented.",
-        )
+            "Close Log",
+            "Close this log? No further entries can be added until it is re-opened.",
+        ) != QMessageBox.Yes:
+            return
+        self._set_stream_status("closed")
 
     def _reopen_log(self) -> None:
-        QMessageBox.information(
-            self,
-            "Not implemented",
-            "Log reopening is not yet implemented.",
-        )
+        if not self.incident_id or not self.header.stream_id:
+            return
+        self._set_stream_status("open")
+
+    def _set_stream_status(self, status: str) -> None:
+        try:
+            self.services.set_stream_status(self.incident_id, self.header.stream_id, status)
+        except Exception as exc:
+            logger.exception("Failed to set log status to %s: %s", status, exc)
+            QMessageBox.warning(self, "Log Status", f"Failed to update log status:\n{exc}")
+            return
+        self.header.status = status.upper()
+        self._update_header_card()
 
     def _edit_header(self) -> None:
         if not self.header.stream_id or not self.incident_id:

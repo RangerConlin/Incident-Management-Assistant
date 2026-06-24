@@ -1,0 +1,17 @@
+{
+  "description": "SAR 116 - Hasty Search Debrief (Ground Supplement)",
+  "fields": [
+    { "pdf_field": "1 INCIDENT NAME", "source": "incident.name" },
+    { "pdf_field": "2 OPERATIONAL PERIOD", "source": "op_period.number" },
+    { "pdf_field": "3ASSIGNMENT NUMBER", "source": { "first_of": ["debrief.sortie_number", "tasks.0.task_id"] } },
+    { "pdf_field": "4 VISIBILITY DURING SEARCH DAY DUSK NIGHT OTHERRow1", "source": "debrief.hasty.visibility" },
+    { "pdf_field": "5 DESCRIBE YOUR EFFORTS TO ATTRACT A RESPONSIVE SUBJECTRow1", "source": "debrief.hasty.attract" },
+    { "pdf_field": "6 DESCRIBE ABILITY TO HEAR A RESPONSE BACKGROUND NOISERow1", "source": "debrief.hasty.hear" },
+    { "pdf_field": "7 DESCRIBE THE TRAIL CONDITIONSRow1", "source": "debrief.hasty.trail_cond" },
+    { "pdf_field": "8 DESCRIBE OFFTRAIL CONDITIONSRow1", "source": "debrief.hasty.offtrail_cond" },
+    { "pdf_field": "9 DOES THE MAP ACCURATELY REFLECT THE TRAILSRow1", "source": "debrief.hasty.map_accuracy" },
+    { "pdf_field": "10 DID YOU LOCATE FEATURES THAT WOULD LIKELY CONTAIN THE SUBJECTRow1", "source": "debrief.hasty.features" },
+    { "pdf_field": "11 HOW ARE THE TRACKING CONDITIONSRow1", "source": "debrief.hasty.tracking_cond" },
+    { "pdf_field": "12 DESCRIBE ANY HAZARDS OR ATTRACTIONS YOU FOUNDRow1", "source": "debrief.hasty.hazards_attract" }
+  ]
+}

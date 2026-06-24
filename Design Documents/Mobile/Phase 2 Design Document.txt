@@ -104,47 +104,47 @@ Backend Module
 
 Endpoint Needed
 
-DB Table
+Mongo Scope / Collection
 
 Task Viewer
 
-Planning / ICS 204
+Operations / ICS 204
 
-GET /api/mobile/tasks
+GET /api/incidents/{incident_id}/operations/tasks, GET /api/incidents/{incident_id}/operations/task-rows
 
-Tasks
+sarapp_incident_<id>.tasks
 
 Comms Plan Viewer
 
-Comms / ICS 205
+Communications / ICS 205
 
-GET /api/mobile/comms-plan
+GET /api/incidents/{incident_id}/channels, GET /api/comms/master-channels
 
-CommsChannels
+sarapp_incident_<id>.incident_channels, sarapp_master.radio_channels
 
 Med Plan Viewer
 
-Safety / ICS 206
+Safety / Medical / ICS 206
 
-GET /api/mobile/med-plan
+Use existing safety/medical/forms routers; mobile-specific read model still to be defined
 
-MedPlan
+sarapp_incident_<id>.ics_206_* collections, sarapp_incident_<id>.forms
 
 Message Inbox
 
 Comms
 
-GET /api/mobile/messages
+Use existing communications routers under /api/incidents/{incident_id}/comms-log and related message routes; mobile inbox read model still to be defined
 
-Messages
+sarapp_incident_<id>.communications_log, sarapp_incident_<id>.ics_213_messages
 
 Incident Overview
 
-Planning
+Command / Incident Overview
 
-GET /api/mobile/incident-overview
+GET /api/incidents/{incident_id}/header, GET /api/incidents/{incident_id}/tasks/summary, GET /api/incidents/{incident_id}/alerts, GET /api/incidents/{incident_id}/logistics/counts
 
-Users, Teams, CheckIns
+sarapp_incident_<id>.incident_profile, teams, tasks, resource_requests
 
 📊 UI & Navigation Overview
 
@@ -177,3 +177,4 @@ Task
 11–12 Testing, polish, bug fixes
 
 13–14 Package new version for distribution
+

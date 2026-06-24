@@ -11,7 +11,8 @@ dependencies = [
     "sqlmodel>=0.0.8",
     "pypdf",
     "PyYAML",
-    "openpyxl"
+    "openpyxl",
+    "websocket-client"
 ]
 
 

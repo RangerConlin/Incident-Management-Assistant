@@ -33,6 +33,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
 )
 
+from utils.styles import get_palette, subscribe_theme
+
 
 class _KpiPill(QFrame):
     def __init__(self, label_text: str, parent: Optional[QWidget] = None) -> None:
@@ -124,6 +126,7 @@ class LogisticsDashboardWidget(QWidget):
 
         self._build_ui()
         self._apply_styles()
+        subscribe_theme(self, lambda *_: self._apply_styles())
 
     # --------------------- UI Construction ---------------------
     def _build_ui(self) -> None:
@@ -338,31 +341,40 @@ class LogisticsDashboardWidget(QWidget):
         self._stack.setCurrentIndex(1)
 
     def _apply_styles(self) -> None:
+        pal = get_palette()
+        bg_raised = pal.get("bg_raised", pal["bg_panel"]).name()
+        ctrl_border = pal.get("ctrl_border", pal["divider"]).name()
+        fg_muted = pal.get("fg_muted", pal["muted"]).name()
+        ctrl_bg = pal.get("ctrl_bg", pal["bg_panel"]).name()
+        success = pal.get("success", pal.get("accent_alt")).name()
+        warning = pal.get("warning").name()
+        danger = pal.get("danger", pal.get("error")).name()
+
         self.setStyleSheet(
-            """
-            QLabel#title { font-size: 18px; font-weight: 600; }
-            QLabel#pill_value { font-size: 20px; font-weight: 600; }
-            QLabel#pill_label { font-size: 11px; color: #555; }
-            QFrame[pill="true"] {
-                background: white;
+            f"""
+            QLabel#title {{ font-size: 18px; font-weight: 600; }}
+            QLabel#pill_value {{ font-size: 20px; font-weight: 600; }}
+            QLabel#pill_label {{ font-size: 11px; color: {fg_muted}; }}
+            QFrame[pill="true"] {{
+                background: {bg_raised};
                 border-radius: 12px;
-                border: 1px solid #dcdcdc;
-            }
-            QGroupBox { font-weight: 600; }
-            QGroupBox::title { subcontrol-origin: margin; left: 6px; padding: 2px 4px; }
-            QListWidget { background: #fafafa; }
-            QLabel#overlay_label { color: #666; font-size: 14px; }
+                border: 1px solid {ctrl_border};
+            }}
+            QGroupBox {{ font-weight: 600; }}
+            QGroupBox::title {{ subcontrol-origin: margin; left: 6px; padding: 2px 4px; }}
+            QListWidget {{ background: {ctrl_bg}; }}
+            QLabel#overlay_label {{ color: {fg_muted}; font-size: 14px; }}
 
             /* Badges */
-            QFrame[badge="true"] {
-                border: 1px solid #dcdcdc;
+            QFrame[badge="true"] {{
+                border: 1px solid {ctrl_border};
                 border-radius: 10px;
-                background: #ffffff;
-            }
-            QFrame[badge="true"][state="ok"] QLabel#badge_dot { color: #1a7f37; }
-            QFrame[badge="true"][state="low"] QLabel#badge_dot { color: #b54708; }
-            QFrame[badge="true"][state="tight"] QLabel#badge_dot { color: #b42318; }
-            QLabel#badge_text { font-size: 12px; }
+                background: {bg_raised};
+            }}
+            QFrame[badge="true"][state="ok"] QLabel#badge_dot {{ color: {success}; }}
+            QFrame[badge="true"][state="low"] QLabel#badge_dot {{ color: {warning}; }}
+            QFrame[badge="true"][state="tight"] QLabel#badge_dot {{ color: {danger}; }}
+            QLabel#badge_text {{ font-size: 12px; }}
             """
         )
 
