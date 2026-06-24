@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from modules.admin.resource_types.data import ApiResourceAssignmentRepository, ApiResourceTypeRepository
 from modules.admin.resource_types.widgets import ResourceTypeSearchBox
+from utils.org_combo import make_org_combo
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +52,28 @@ def _client():
     return api_client
 
 
+def _id_sort_key(record: dict[str, Any]) -> tuple[int, Any]:
+    """Sort vehicle ids numerically when possible, falling back to text.
+
+    Vehicle ids may now be a legacy auto-assigned int or an arbitrary
+    user-typed string, so a plain ``r.get("id")`` key raises ``TypeError``
+    when the list mixes both types. The leading group flag keeps numeric
+    and text ids from ever being compared against each other directly.
+    """
+    value = record.get("id")
+    if value is None:
+        return (1, "")
+    if isinstance(value, int):
+        return (0, value)
+    text = str(value)
+    if text.isdigit():
+        return (0, int(text))
+    return (1, text.lower())
+
+
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
-    d["id"] = d.get("id") or d.get("int_id")
+    d["id"] = d.get("id") or d.get("vehicle_id")
     tags = d.get("tags")
     if isinstance(tags, str):
         d["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
@@ -139,8 +159,9 @@ class VehicleRepository:
             "capacity": lambda r: r.get("capacity") or 0,
             "type": lambda r: (r.get("type_id") or "").lower(),
             "status": lambda r: (r.get("status_id") or "").lower(),
+            "id": _id_sort_key,
         }
-        key_fn = sort_map.get(sort_key, lambda r: r.get("id") or 0)
+        key_fn = sort_map.get(sort_key, _id_sort_key)
         records.sort(key=key_fn, reverse=reverse)
 
         total = len(records)
@@ -162,6 +183,7 @@ class VehicleRepository:
         else:
             tags_str = str(tags) if tags else ""
         body = {
+            "id": payload.get("id") or None,
             "vin": payload.get("vin") or "",
             "license_plate": payload.get("license_plate") or "",
             "year": payload.get("year"),
@@ -184,6 +206,7 @@ class VehicleRepository:
         else:
             tags_str = str(tags) if tags else ""
         body = {
+            "id": payload.get("id") or None,
             "vin": payload.get("vin") or "",
             "license_plate": payload.get("license_plate") or "",
             "year": payload.get("year"),
@@ -209,20 +232,20 @@ class VehicleEditDialog(QDialog):
 
     def __init__(
         self,
-        vehicle_id: int | None = None,
+        vehicle_id: int | str | None = None,
         repository: Optional[VehicleRepository] = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self._repository = repository or VehicleRepository()
-        self._vehicle_id: int | None = None
+        self._vehicle_id: int | str | None = None
         self._current_record: dict[str, Any] | None = None
         self._vehicle_types: list[dict[str, Any]] = []
         self._statuses: list[dict[str, Any]] = []
         self._references_loaded = False
         self._pending_vehicle_load = False
 
-        self.id_value_label: QLabel
+        self.id_edit: QLineEdit
         self.license_plate_edit: QLineEdit
         self.vin_edit: QLineEdit
         self.year_edit: QLineEdit
@@ -232,6 +255,7 @@ class VehicleEditDialog(QDialog):
         self.type_combo: QComboBox
         self.status_combo: QComboBox
         self.resource_type_search: ResourceTypeSearchBox
+        self.org_combo: QComboBox
         self.tags_edit: QLineEdit
         self.save_button: QPushButton
         self.cancel_button: QPushButton
@@ -255,21 +279,21 @@ class VehicleEditDialog(QDialog):
         form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         main_layout.addLayout(form_layout)
 
-        id_caption = QLabel("ID:")
-        self.id_value_label = QLabel("New")
-        self.id_value_label.setAccessibleName("Vehicle identifier")
-        form_layout.addRow(id_caption, self.id_value_label)
+        id_caption = QLabel("Vehicle ID:")
+        self.id_edit = QLineEdit()
+        self.id_edit.setAccessibleName("Vehicle identifier / reference number")
+        self.id_edit.setPlaceholderText("Auto-assigned if left blank")
+        id_caption.setBuddy(self.id_edit)
+        form_layout.addRow(id_caption, self.id_edit)
 
         self.license_plate_edit = QLineEdit()
         self.license_plate_edit.setAccessibleName("License plate")
-        self.license_plate_edit.setPlaceholderText("Required")
         license_label = QLabel("License Plate:")
         license_label.setBuddy(self.license_plate_edit)
         form_layout.addRow(license_label, self.license_plate_edit)
 
         self.vin_edit = QLineEdit()
         self.vin_edit.setAccessibleName("Vehicle identification number")
-        self.vin_edit.setPlaceholderText("Required")
         vin_label = QLabel("VIN:")
         vin_label.setBuddy(self.vin_edit)
         form_layout.addRow(vin_label, self.vin_edit)
@@ -329,6 +353,12 @@ class VehicleEditDialog(QDialog):
         self.resource_type_search.setAccessibleName("Vehicle resource type")
         form_layout.addRow(QLabel("Resource Type:"), self.resource_type_search)
 
+        self.org_combo = make_org_combo()
+        self.org_combo.setAccessibleName("Vehicle organization")
+        org_label = QLabel("Organization:")
+        org_label.setBuddy(self.org_combo)
+        form_layout.addRow(org_label, self.org_combo)
+
         self.tags_edit = QLineEdit()
         self.tags_edit.setAccessibleName("Vehicle tags")
         self.tags_edit.setPlaceholderText("tag1, tag2")
@@ -351,6 +381,7 @@ class VehicleEditDialog(QDialog):
         self.save_button.clicked.connect(self.on_save_clicked)
         self.cancel_button.clicked.connect(self.reject)
 
+        self.setTabOrder(self.id_edit, self.license_plate_edit)
         self.setTabOrder(self.license_plate_edit, self.vin_edit)
         self.setTabOrder(self.vin_edit, self.year_edit)
         self.setTabOrder(self.year_edit, self.make_edit)
@@ -359,7 +390,8 @@ class VehicleEditDialog(QDialog):
         self.setTabOrder(self.capacity_spin, self.type_combo)
         self.setTabOrder(self.type_combo, self.status_combo)
         self.setTabOrder(self.status_combo, self.resource_type_search.line_edit)
-        self.setTabOrder(self.resource_type_search.line_edit, self.tags_edit)
+        self.setTabOrder(self.resource_type_search.line_edit, self.org_combo)
+        self.setTabOrder(self.org_combo, self.tags_edit)
         self.setTabOrder(self.tags_edit, self.save_button)
         self.setTabOrder(self.save_button, self.cancel_button)
 
@@ -436,7 +468,7 @@ class VehicleEditDialog(QDialog):
             combo.addItem(label, entry_id)
         combo.setCurrentIndex(0)
 
-    def _load_vehicle(self, vehicle_id: int) -> None:
+    def _load_vehicle(self, vehicle_id: int | str) -> None:
         """Fetch a vehicle record and populate the form."""
 
         try:
@@ -459,9 +491,7 @@ class VehicleEditDialog(QDialog):
 
         self._current_record = record
         self._vehicle_id = record.get("id", self._vehicle_id)
-        self.id_value_label.setText(
-            "New" if self._vehicle_id is None else str(self._vehicle_id)
-        )
+        self.id_edit.setText("" if self._vehicle_id is None else str(self._vehicle_id))
         self._update_window_title()
 
         self.license_plate_edit.setText(record.get("license_plate", "") or "")
@@ -493,6 +523,8 @@ class VehicleEditDialog(QDialog):
             tags_text = tags or ""
         self.tags_edit.setText(tags_text)
 
+        self.org_combo.setCurrentText(record.get("organization") or "")
+
     def _select_combo_value(self, combo: QComboBox, value: Any) -> None:
         if value is None:
             combo.setCurrentIndex(0)
@@ -516,6 +548,7 @@ class VehicleEditDialog(QDialog):
     def clear_form(self) -> None:
         """Reset all user-editable fields to their defaults."""
 
+        self.id_edit.clear()
         self.license_plate_edit.clear()
         self.vin_edit.clear()
         self.year_edit.clear()
@@ -527,20 +560,22 @@ class VehicleEditDialog(QDialog):
         if self.status_combo.count():
             self.status_combo.setCurrentIndex(0)
         self.resource_type_search.clear()
+        self.org_combo.setCurrentIndex(-1)
+        self.org_combo.clearEditText()
         self.tags_edit.clear()
         self._current_record = None
 
-    def set_vehicle_id(self, vehicle_id: int | None) -> None:
+    def set_vehicle_id(self, vehicle_id: int | str | None) -> None:
         """Change the active vehicle being edited."""
 
         self._vehicle_id = vehicle_id
         self._pending_vehicle_load = vehicle_id is not None
 
         if vehicle_id is None:
-            self.id_value_label.setText("New")
+            self.id_edit.clear()
             self.clear_form()
         else:
-            self.id_value_label.setText(str(vehicle_id))
+            self.id_edit.setText(str(vehicle_id))
             if self._references_loaded:
                 self._pending_vehicle_load = False
                 self._load_vehicle(vehicle_id)
@@ -551,7 +586,7 @@ class VehicleEditDialog(QDialog):
         if self._vehicle_id is None:
             self.setWindowTitle("Add Vehicle")
         else:
-            self.setWindowTitle(f"Edit Vehicle #{self._vehicle_id}")
+            self.setWindowTitle(f"Edit Vehicle {self._vehicle_id}")
 
     def _update_save_button_state(self) -> None:
         self.save_button.setEnabled(self._references_loaded)
@@ -562,6 +597,7 @@ class VehicleEditDialog(QDialog):
     def collect_payload(self) -> dict[str, Any]:
         """Collect the current form values into a database payload."""
 
+        ref_id = self.id_edit.text().strip()
         license_plate = self.license_plate_edit.text().strip()
         vin = self.vin_edit.text().strip()
 
@@ -583,6 +619,7 @@ class VehicleEditDialog(QDialog):
         ]
 
         payload = {
+            "id": ref_id or None,
             "license_plate": license_plate,
             "vin": vin,
             "year": year_value,
@@ -593,32 +630,19 @@ class VehicleEditDialog(QDialog):
             "status_id": self.status_combo.currentData(),
             "resource_type_id": self.resource_type_search.resource_type_id,
             "tags": tags,
-            "organization": (
-                self._current_record.get("organization")
-                if self._current_record
-                else None
-            ),
+            "organization": self.org_combo.currentText().strip(),
         }
         return payload
 
     def validate_payload(self, payload: dict[str, Any]) -> tuple[bool, Optional[str]]:
-        """Validate required fields and data ranges before saving."""
+        """Validate the vehicle ID and any fields that have a value entered."""
 
-        if not payload.get("license_plate"):
-            return False, "License plate is required."
-        if not payload.get("vin"):
-            return False, "VIN is required."
+        if self._vehicle_id is not None and not payload.get("id"):
+            return False, "Vehicle ID is required."
 
         year_value = payload.get("year")
         if year_value is not None and not (1900 <= year_value <= 2100):
             return False, "Year must be between 1900 and 2100."
-
-        type_id = payload.get("type_id")
-        if type_id is None or (isinstance(type_id, str) and not type_id.strip()):
-            return False, "Please select a vehicle type."
-        status_id = payload.get("status_id")
-        if status_id is None or (isinstance(status_id, str) and not status_id.strip()):
-            return False, "Please select a vehicle status."
 
         return True, None
 
@@ -651,10 +675,13 @@ class VehicleEditDialog(QDialog):
             if self._vehicle_id is None:
                 response = self._repository.create_vehicle(payload)
                 new_id = response.get("id")
-                if isinstance(new_id, int):
+                if new_id is not None:
                     self._vehicle_id = new_id
             else:
                 response = self._repository.update_vehicle(self._vehicle_id, payload)
+                new_id = response.get("id")
+                if new_id is not None:
+                    self._vehicle_id = new_id
         except LookupError as exc:  # pragma: no cover - UI branch
             logger.error("Failed to save vehicle %s: %s", self._vehicle_id, exc)
             QMessageBox.critical(
@@ -673,6 +700,7 @@ class VehicleEditDialog(QDialog):
             return
 
         self._current_record = response
+        self.id_edit.setText("" if self._vehicle_id is None else str(self._vehicle_id))
         self.vehicleSaved.emit(response)
         self.accept()
 

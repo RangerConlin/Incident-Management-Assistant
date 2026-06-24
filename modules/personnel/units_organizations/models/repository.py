@@ -92,9 +92,11 @@ class UnitsOrganizationsRepository:
             {
                 "rank_id": d.get("int_id"),
                 "rank_structure_id": d.get("rank_structure_id"),
-                "rank_code": d.get("abbreviation", ""),
-                "rank_name": d.get("name", ""),
-                "sort_order": d.get("rank_order", 0),
+                "rank_code": d.get("rank_code", ""),
+                "rank_name": d.get("rank_name", ""),
+                "short_display": d.get("short_display", ""),
+                "sort_order": d.get("sort_order", 0),
+                "is_active": d.get("is_active", 1),
             }
             for d in docs
         ]
@@ -113,9 +115,11 @@ class UnitsOrganizationsRepository:
             for idx, rank in enumerate(ranks):
                 api_client.post("/api/master/ranks", json={
                     "rank_structure_id": rank_structure_id,
-                    "name": rank.get("rank_name", ""),
-                    "abbreviation": rank.get("rank_code", ""),
-                    "rank_order": rank.get("sort_order", idx),
+                    "rank_code": rank.get("rank_code", ""),
+                    "rank_name": rank.get("rank_name", ""),
+                    "short_display": rank.get("short_display", ""),
+                    "sort_order": rank.get("sort_order", idx),
+                    "is_active": rank.get("is_active", 1),
                 })
         except Exception:
             pass
@@ -130,8 +134,14 @@ class UnitsOrganizationsRepository:
     ) -> int:
         """Create a full rank structure copy including ordered rank rows."""
         try:
-            result = api_client.post(f"/api/master/rank-structures/{source_rank_structure_id}/duplicate")
-            return result.get("int_id", 0) if result else 0
+            body: dict[str, Any] = {"name": new_name, "is_template": is_template}
+            if organization_type_id is not None:
+                body["organization_type_id"] = organization_type_id
+            result = api_client.post(
+                f"/api/master/rank-structures/{source_rank_structure_id}/duplicate",
+                json=body,
+            )
+            return result.get("id", 0) if result else 0
         except Exception:
             return 0
 

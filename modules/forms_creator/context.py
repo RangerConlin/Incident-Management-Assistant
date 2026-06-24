@@ -107,7 +107,7 @@ class FormDataContext:
         data["tasks"]           = self._build_tasks(inc_id)
         data["objectives"]      = self._build_objectives(inc_id)
         data["vehicles"]        = self._build_incident_vehicles(inc_id)
-        data["agency_contacts"] = []
+        data["agency_contacts"] = self._build_agency_contacts(inc_id)
         data["narrative"]       = []
         data["meetings"]        = self._build_meetings(inc_id)
         data["subject"]         = {"name": "", "sex": "", "dob": "", "race": "", "lkp_place": "", "lkp_time": ""}
@@ -306,6 +306,37 @@ class FormDataContext:
             return []
         try:
             return _get(f"/api/incidents/{inc_id}/resources") or []
+        except Exception:
+            return []
+
+    # ------------------------------------------------------------------
+    # Liaison agency contacts
+    # ------------------------------------------------------------------
+
+    def _build_agency_contacts(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            agencies = _get(f"/api/incidents/{inc_id}/liaison/agencies") or []
+            contacts: list[dict[str, Any]] = []
+            for agency in agencies:
+                agency_id = agency.get("int_id")
+                if agency_id in (None, ""):
+                    continue
+                agency_name = agency.get("name") or agency.get("agency") or ""
+                rows = _get(f"/api/incidents/{inc_id}/liaison/agencies/{agency_id}/contacts") or []
+                for row in rows:
+                    contacts.append(
+                        {
+                            "title": row.get("title") or "",
+                            "name": row.get("name") or "",
+                            "agency": row.get("agency") or agency_name,
+                            "phone": row.get("phone") or row.get("contact_info") or "",
+                            "email": row.get("email") or "",
+                            "notes": row.get("notes") or "",
+                        }
+                    )
+            return contacts
         except Exception:
             return []
 

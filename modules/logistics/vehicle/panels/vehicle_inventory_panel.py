@@ -1774,11 +1774,7 @@ class VehicleInventoryPanel(QWidget):
     def _open_selected_for_edit(self, index: QModelIndex) -> None:
         record = index.data(RECORD_ROLE)
         if isinstance(record, VehicleRecord):
-            raw_id = record.raw.get("id")
-            try:
-                vehicle_id = int(raw_id)
-            except (TypeError, ValueError):
-                vehicle_id = None
+            vehicle_id = record.raw.get("id")
             dialog = VehicleEditDialog(vehicle_id=vehicle_id, repository=self.repository, parent=self)
             dialog.vehicleSaved.connect(self._on_vehicle_saved)
             dialog.exec()

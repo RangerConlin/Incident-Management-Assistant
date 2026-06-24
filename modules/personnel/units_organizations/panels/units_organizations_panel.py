@@ -246,6 +246,8 @@ class UnitsOrganizationsPanel(QMainWindow):
         self.parent_combo         = QComboBox()
         self.org_type_combo       = QComboBox()
         self.rank_structure_combo = QComboBox()
+        self.rank_structure_effective_label = QLabel("")
+        self.rank_structure_effective_label.setStyleSheet("color: #888888; font-style: italic;")
         self.active_check         = QCheckBox("Active")
         self.external_id_edit     = QLineEdit()
         self.callsign_prefix_edit = QLineEdit()
@@ -257,6 +259,7 @@ class UnitsOrganizationsPanel(QMainWindow):
         form.addRow("Parent:", self.parent_combo)
         form.addRow("Type:", self.org_type_combo)
         form.addRow("Rank Structure:", self.rank_structure_combo)
+        form.addRow("", self.rank_structure_effective_label)
         form.addRow("", self.active_check)
         form.addRow("External ID:", self.external_id_edit)
         form.addRow("Callsign Prefix:", self.callsign_prefix_edit)
@@ -324,7 +327,7 @@ class UnitsOrganizationsPanel(QMainWindow):
             self.org_type_combo.addItem(row["name"], int(row["id"]))
 
         self.rank_structure_combo.clear()
-        self.rank_structure_combo.addItem("(None)", None)
+        self.rank_structure_combo.addItem("(Inherit from Parent)", None)
         for row in self.controller.list_rank_structures(include_inactive=True):
             self.rank_structure_combo.addItem(row["name"], int(row["id"]))
 
@@ -473,6 +476,7 @@ class UnitsOrganizationsPanel(QMainWindow):
             self._set_combo_to_data(self.parent_combo, None)
             self._set_combo_to_data(self.org_type_combo, None)
             self._set_combo_to_data(self.rank_structure_combo, None)
+            self.rank_structure_effective_label.setText("")
             self._set_detail_enabled(False)
         else:
             self.name_edit.setText(org.get("name") or "")
@@ -484,6 +488,14 @@ class UnitsOrganizationsPanel(QMainWindow):
             self._set_combo_to_data(self.parent_combo, org.get("parent_organization_id"))
             self._set_combo_to_data(self.org_type_combo, org.get("organization_type_id"))
             self._set_combo_to_data(self.rank_structure_combo, org.get("default_rank_structure_id"))
+            if org.get("default_rank_structure_id") is None:
+                effective_name = org.get("effective_rank_structure_name")
+                self.rank_structure_effective_label.setText(
+                    f"Inherited from parent: {effective_name}" if effective_name
+                    else "No rank structure assigned in this org's chain."
+                )
+            else:
+                self.rank_structure_effective_label.setText("")
             self._set_detail_enabled(True)
         self._block_detail_signals(False)
         self._set_dirty(False)

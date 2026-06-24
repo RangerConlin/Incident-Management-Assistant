@@ -49,6 +49,7 @@ class MasterCollections:
 
     # Hazard typing library
     HAZARD_TYPES = "hazard_types"
+    SAFETY_ANALYSIS_TEMPLATES = "safety_analysis_templates"
 
     # Facilities
     HOSPITALS = "hospitals"
@@ -69,6 +70,7 @@ class MasterCollections:
     TASK_TYPES = "task_types"
     TEAM_TYPES = "team_types"
     OBJECTIVE_TEMPLATES = "objective_templates"
+    CANNED_COMM_ENTRIES = "canned_comm_entries"
 
     # Users and access
     USER_PROFILES = "user_profiles"

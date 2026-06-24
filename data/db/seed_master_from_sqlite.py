@@ -74,6 +74,81 @@ def _report(name: str, inserted: int, skipped: int) -> None:
 # Per-table migration functions
 # ---------------------------------------------------------------------------
 
+
+def reconcile_aircraft_collection(master_db) -> None:
+    """
+    Normalize pre-existing aircraft documents into the current API shape.
+
+    Older data may already exist in two parallel forms:
+      - current API docs keyed by int_id
+      - legacy seed docs keyed by aircraft_id
+
+    This routine merges useful legacy fields into the current doc, deletes the
+    duplicate legacy row, and backfills aircraft_id on surviving API docs so the
+    unique aircraft_id index can be created cleanly.
+    """
+    col = master_db[MasterCollections.AIRCRAFT]
+    docs = list(col.find({}))
+    if not docs:
+        return
+
+    current_by_tail = {
+        str(doc.get("tail_number") or "").strip().upper(): doc
+        for doc in docs
+        if doc.get("int_id") is not None and str(doc.get("tail_number") or "").strip()
+    }
+
+    merged = deleted = backfilled = 0
+
+    for legacy in docs:
+        if legacy.get("int_id") is not None:
+            continue
+
+        tail = str(legacy.get("tail_number") or "").strip().upper()
+        if not tail:
+            continue
+
+        current = current_by_tail.get(tail)
+        if current is None or current["_id"] == legacy["_id"]:
+            continue
+
+        updates: dict[str, Any] = {}
+        legacy_aircraft_id = str(legacy.get("aircraft_id") or "").strip()
+        if legacy_aircraft_id and not current.get("aircraft_id"):
+            updates["aircraft_id"] = legacy_aircraft_id
+        if legacy.get("base_location") and not current.get("base"):
+            updates["base"] = legacy["base_location"]
+        if legacy.get("make_model") and not current.get("model"):
+            updates["model"] = legacy["make_model"]
+        if legacy.get("make_model") and not current.get("make_model"):
+            updates["make_model"] = legacy["make_model"]
+        if legacy.get("capacity") is not None and current.get("capacity") in (None, ""):
+            updates["capacity"] = legacy["capacity"]
+        if legacy.get("capabilities") and not current.get("capabilities"):
+            updates["capabilities"] = legacy["capabilities"]
+        if legacy.get("notes") and not current.get("notes"):
+            updates["notes"] = legacy["notes"]
+
+        if updates:
+            col.update_one({"_id": current["_id"]}, {"$set": updates})
+            merged += 1
+
+        col.delete_one({"_id": legacy["_id"]})
+        deleted += 1
+
+    for current in col.find({"int_id": {"$exists": True}}):
+        aircraft_id = str(current.get("aircraft_id") or "").strip()
+        if aircraft_id:
+            continue
+        col.update_one({"_id": current["_id"]}, {"$set": {"aircraft_id": str(current["int_id"])}})
+        backfilled += 1
+
+    if merged or deleted or backfilled:
+        print(
+            f"  {'aircraft reconcile':<30}"
+            f" {merged:>4} merged   {deleted:>4} deleted   {backfilled:>4} backfilled"
+        )
+
 def seed_personnel(cur: sqlite3.Cursor, master_db) -> None:
     cur.execute("SELECT * FROM personnel")
     rows = [dict(r) for r in cur.fetchall()]
@@ -162,8 +237,8 @@ def seed_vehicles(cur: sqlite3.Cursor, master_db) -> None:
         "make": r["make"],
         "model": r["model"],
         "capacity": r["capacity"],
-        "vehicle_type": r["type_id"],
-        "status": r["status_id"] or "available",
+        "type_id": r["type_id"],
+        "status_id": r["status_id"] or "Available",
         "tags": r["tags"],
         "organization": r["organization"],
         "resource_type_id": str(r["resource_type_id"]) if r["resource_type_id"] else None,
@@ -176,22 +251,57 @@ def seed_vehicles(cur: sqlite3.Cursor, master_db) -> None:
 def seed_aircraft(cur: sqlite3.Cursor, master_db) -> None:
     cur.execute("SELECT * FROM aircraft")
     rows = [dict(r) for r in cur.fetchall()]
-    docs = [{
-        "_id": _new_id(),
-        "aircraft_id": str(r["id"]),
-        "tail_number": r["tail_number"],
-        "callsign": r["callsign"],
-        "aircraft_type": r["type"],
-        "make_model": r["make_model"],
-        "capacity": r["capacity"],
-        "status": r["status"] or "available",
-        "base_location": r["base_location"],
-        "capabilities": r["capabilities"],
-        "notes": r["notes"],
-    } for r in rows]
     col = master_db[MasterCollections.AIRCRAFT]
-    i, s = _seed_collection(col, docs, id_field="aircraft_id")
-    _report("aircraft", i, s)
+    inserted = updated = skipped = 0
+    for r in rows:
+        aircraft_id = str(r["id"])
+        doc = {
+            "_id": _new_id(),
+            "aircraft_id": aircraft_id,
+            "tail_number": r["tail_number"],
+            "callsign": r["callsign"],
+            "aircraft_type": r["type"],
+            "make_model": r["make_model"],
+            "capacity": r["capacity"],
+            "status": r["status"] or "available",
+            "base_location": r["base_location"],
+            "capabilities": r["capabilities"],
+            "notes": r["notes"],
+        }
+
+        existing = (
+            col.find_one({"aircraft_id": aircraft_id})
+            or col.find_one({"int_id": int(r["id"])})
+            or col.find_one({"tail_number": r["tail_number"]})
+        )
+        if existing is None:
+            col.insert_one(doc)
+            inserted += 1
+            continue
+
+        updates: dict[str, Any] = {}
+        if not existing.get("aircraft_id"):
+            updates["aircraft_id"] = aircraft_id
+        if doc["base_location"] and not existing.get("base"):
+            updates["base"] = doc["base_location"]
+        if doc["make_model"] and not existing.get("model"):
+            updates["model"] = doc["make_model"]
+        if doc["make_model"] and not existing.get("make_model"):
+            updates["make_model"] = doc["make_model"]
+        if doc["capacity"] is not None and existing.get("capacity") in (None, ""):
+            updates["capacity"] = doc["capacity"]
+        if doc["capabilities"] and not existing.get("capabilities"):
+            updates["capabilities"] = doc["capabilities"]
+        if doc["notes"] and not existing.get("notes"):
+            updates["notes"] = doc["notes"]
+
+        if updates:
+            col.update_one({"_id": existing["_id"]}, {"$set": updates})
+            updated += 1
+        else:
+            skipped += 1
+
+    _report(f"aircraft ({updated} updated)", inserted, skipped)
 
 
 def seed_equipment(cur: sqlite3.Cursor, master_db) -> None:
@@ -706,6 +816,8 @@ def main() -> int:
 
     master_db = mgr.get_master_db()
     print(f"MongoDB target: {master_db.name}\n")
+
+    reconcile_aircraft_collection(master_db)
 
     conn = _connect_sqlite()
     cur = conn.cursor()

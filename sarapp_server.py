@@ -12,6 +12,7 @@ def _ensure_repo_packages_on_path() -> None:
     """Allow local runs without requiring editable installs first."""
     repo_root = Path(__file__).resolve().parent
     package_roots = (
+        repo_root / "cloud_server",
         repo_root / "data" / "db",
     )
     for package_root in package_roots:

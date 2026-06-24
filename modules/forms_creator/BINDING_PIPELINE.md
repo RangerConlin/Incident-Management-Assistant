@@ -470,8 +470,8 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `liaison_agencies` | `agency_contacts` | Stub (orphaned) | catalog has 60 `agency_contacts.*` entries; context.py hardcodes `data["agency_contacts"] = []` |
-| `liaison_contacts` | `agency_contacts` | Stub (orphaned) | same stub |
+| `liaison_agencies` | `agency_contacts` | Partial | `context.py` now builds incident-scoped `agency_contacts` by walking liaison agencies and flattening each agency's contacts; agency summary/contact row fields beyond `title/name/agency/phone/email/notes` are not yet cataloged |
+| `liaison_contacts` | `agency_contacts` | Partial | same flattened `agency_contacts` builder; existing 60 catalog entries now resolve from incident liaison contacts |
 | `liaison_interactions` | - | Not started | |
 | `liaison_agency_requests` | - | Not started | |
 | `liaison_resource_offers` | - | Not started | |

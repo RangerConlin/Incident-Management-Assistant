@@ -118,10 +118,8 @@
         "matchAll": true
     },
     "statusboard.team.textSize": "large",
-    "statusboard.team.columns.hidden": [
-        "team_type"
-    ],
-    "lastIncidentNumber": "2025-FAIR",
+    "statusboard.team.columns.hidden": [],
+    "lastIncidentNumber": "resource-status-test",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
