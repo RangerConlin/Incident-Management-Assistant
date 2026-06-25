@@ -38,13 +38,39 @@ def _personnel(incident_id: str):
     return get_db(f"sarapp_incident_{incident_id}")["incident_personnel"]
 
 
+def _find_air_ops_branch_position_id(incident_id: str) -> Optional[int]:
+    """Return the active Air Operations Branch position_id for chain-of-command
+    auto-assignment of aircraft (team_type == "AIR") teams, or None if the
+    incident has no Air Operations Branch yet (see incident_org.py's
+    is_air_ops flag - there can only be one per incident)."""
+    col = get_db(f"sarapp_incident_{incident_id}")[IncidentCollections.ORG_POSITIONS]
+    doc = col.find_one({"incident_id": incident_id, "is_air_ops": True, "status": "active"})
+    return doc.get("position_id") if doc else None
+
+
+def _find_incident_person(incident_id: str, master_id) -> Optional[dict]:
+    """Look up an incident-scoped personnel copy by master id.
+
+    Falls back to the legacy ``sqlite_id`` field for any copies that
+    predate the master-id rekey, so older incidents don't 404 outright.
+    """
+    col = _personnel(incident_id)
+    try:
+        doc = col.find_one({"master_id": int(master_id)})
+    except (TypeError, ValueError):
+        doc = None
+    if not doc:
+        doc = col.find_one({"sqlite_id": str(master_id)})
+    return doc
+
+
 def _resolve_leader(incident_id: str, team_doc: dict) -> tuple[str, str]:
     """Return (leader_name, leader_phone) resolved from personnel if needed."""
     leader_name = team_doc.get("leader_name") or ""
     leader_phone = team_doc.get("leader_phone") or team_doc.get("phone") or ""
     pid = team_doc.get("leader_personnel_id") or team_doc.get("team_leader")
     if pid and (not leader_name or not leader_phone):
-        p = _personnel(incident_id).find_one({"sqlite_id": str(pid)})
+        p = _find_incident_person(incident_id, pid)
         if p:
             if not leader_name:
                 leader_name = p.get("name") or (
@@ -93,6 +119,83 @@ TS_STATUS_COLS = {
     "find": "time_discovery", "discovery": "time_discovery",
     "complete": "time_complete", "returning": "time_cleared", "rtb": "time_cleared",
 }
+
+
+def _normalize_incident_person(doc: dict) -> dict:
+    return {
+        "id": doc.get("master_id") if doc.get("master_id") is not None else doc.get("sqlite_id"),
+        "name": doc.get("name") or "",
+        "rank": doc.get("rank"),
+        "callsign": doc.get("callsign"),
+        "role": doc.get("role"),
+        "primary_role": doc.get("role"),
+        "phone": doc.get("phone"),
+        "email": doc.get("email"),
+        "organization": doc.get("organization") or doc.get("unit"),
+        "home_unit": doc.get("organization") or doc.get("unit"),
+        "badge_number": doc.get("badge_number"),
+        "is_medic": bool(doc.get("is_medic", False)),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Incident-scoped personnel (check-in copies of master roster records,
+# keyed by the master record's int_id — see _find_incident_person)
+# ---------------------------------------------------------------------------
+
+@router.get("/incidents/{incident_id}/operations/personnel/{master_id}")
+def get_incident_person(incident_id: str, master_id: str) -> dict:
+    doc = _find_incident_person(incident_id, master_id)
+    if not doc:
+        raise HTTPException(404, f"Person {master_id} not found in incident {incident_id}")
+    return _normalize_incident_person(doc)
+
+
+@router.patch("/incidents/{incident_id}/operations/personnel/{master_id}")
+def update_incident_person(incident_id: str, master_id: str, body: dict[str, Any]) -> dict:
+    col = _personnel(incident_id)
+    doc = _find_incident_person(incident_id, master_id)
+    if not doc:
+        raise HTTPException(404, f"Person {master_id} not found in incident {incident_id}")
+    updates = {k: v for k, v in body.items() if k in ("is_medic", "rank")}
+    if updates:
+        col.update_one({"_id": doc["_id"]}, {"$set": updates})
+        doc.update(updates)
+    return _normalize_incident_person(doc)
+
+
+@router.post("/incidents/{incident_id}/operations/personnel/sync-from-master")
+def sync_incident_personnel_from_master(incident_id: str) -> dict:
+    """Refresh every incident-scoped personnel copy from its master record.
+
+    Called when an incident is loaded, so copies that missed a push-down
+    sync (because a different incident was active at edit time) catch up.
+    """
+    from sarapp_db.mongo.database_manager import get_master_db
+    from sarapp_db.mongo.collection_names import MasterCollections
+
+    incident_col = _personnel(incident_id)
+    master_col = get_master_db()[MasterCollections.PERSONNEL]
+    updated = 0
+    for copy_doc in incident_col.find({"master_id": {"$exists": True}}):
+        master_doc = master_col.find_one({"int_id": copy_doc["master_id"]})
+        if not master_doc:
+            continue
+        sync_fields = {
+            "name": master_doc.get("name"),
+            "rank": master_doc.get("rank"),
+            "callsign": master_doc.get("callsign"),
+            "role": master_doc.get("primary_role") or master_doc.get("role"),
+            "phone": master_doc.get("phone"),
+            "email": master_doc.get("email"),
+            "organization": master_doc.get("home_unit") or master_doc.get("organization"),
+            "unit": master_doc.get("home_unit") or master_doc.get("unit"),
+            "badge_number": master_doc.get("badge_number"),
+            "is_medic": bool(master_doc.get("is_medic", False)),
+        }
+        incident_col.update_one({"_id": copy_doc["_id"]}, {"$set": sync_fields})
+        updated += 1
+    return {"updated": updated}
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +371,11 @@ def list_teams(incident_id: str) -> list[dict]:
 def create_team(incident_id: str, body: dict[str, Any]) -> dict:
     col = _teams(incident_id)
     int_id = _next_int_id(col)
+    operational_unit_id = body.get("operational_unit_id")
+    if operational_unit_id is None and str(body.get("team_type") or "").strip().upper() == "AIR":
+        # Aircraft teams auto-slot under the Air Operations Branch for chain
+        # of command - unless the caller already picked a unit explicitly.
+        operational_unit_id = _find_air_ops_branch_position_id(incident_id)
     doc = {
         "int_id": int_id,
         "name": body.get("name"),
@@ -283,6 +391,7 @@ def create_team(incident_id: str, body: dict[str, Any]) -> dict:
         "status_updated": None,
         "current_task_id": body.get("current_task_id"),
         "location": body.get("location"),
+        "operational_unit_id": operational_unit_id,
         "needs_attention": bool(body.get("needs_attention", False)),
         "emergency_flag": False,
         "last_checkin_at": None,
@@ -316,6 +425,14 @@ def get_team(incident_id: str, team_id: int) -> dict:
 def update_team(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
     col = _teams(incident_id)
     body.pop("int_id", None)
+    if "team_type" in body and "operational_unit_id" not in body:
+        # If this edit is changing the team to an aircraft type and isn't
+        # also explicitly picking a unit, auto-slot under the Air
+        # Operations Branch for chain of command (see create_team above).
+        if str(body.get("team_type") or "").strip().upper() == "AIR":
+            air_ops_id = _find_air_ops_branch_position_id(incident_id)
+            if air_ops_id is not None:
+                body["operational_unit_id"] = air_ops_id
     result = col.find_one_and_update(
         {"int_id": team_id},
         {"$set": body},
@@ -470,13 +587,16 @@ def fetch_team_assignment_rows(incident_id: str) -> list[dict]:
         status = str(team.get("status") or "available").strip().lower()
         status = {"en route": "enroute", "on scene": "arrival", "rtb": "returning"}.get(status, status)
         location = team.get("location") or task_location or ""
+        team_type = str(team.get("team_type") or "").upper()
+        is_aircraft = team_type == "AIR"
+        display_name = (team.get("callsign") if is_aircraft else None) or team.get("name") or f"Team {team_int_id}"
         rows.append({
             "tt_id": None,
             "task_id": current_task_ref,
             "team_id": team_int_id,
             "sortie": sortie_display,
-            "name": team.get("name") or f"Team {team_int_id}",
-            "team_type": str(team.get("team_type") or "").upper(),
+            "name": display_name,
+            "team_type": team_type,
             "leader": leader_name,
             "contact": leader_phone,
             "status": status,

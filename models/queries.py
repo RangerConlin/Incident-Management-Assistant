@@ -102,6 +102,8 @@ def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
         return ordered
     except Exception:
         return []
+
+
 def fetch_team_vehicles(team_id: int) -> List[Dict[str, Any]]:
     sql = """
     SELECT id, name, callsign, type
@@ -280,15 +282,6 @@ def list_available_aircraft(include_team_id: Optional[int] = None) -> List[Dict[
         return _rows_to_dicts(cur)
     except Exception:
         return []
-
-
-def set_person_medic(person_id: int, is_medic: bool) -> None:
-    conn = get_db_connection()
-    conn.execute(
-        "UPDATE personnel SET is_medic = ? WHERE id = ?",
-        (1 if bool(is_medic) else 0, int(person_id)),
-    )
-    conn.commit()
 
 
 # ---------- Mutations ----------

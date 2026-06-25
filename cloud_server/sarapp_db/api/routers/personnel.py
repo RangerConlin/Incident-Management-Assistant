@@ -38,6 +38,9 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d["phone"] = d.get("phone") or d.get("contact")
     d["home_unit"] = d.get("home_unit") or d.get("unit")
     d["certifications"] = d.get("certifications") or d.get("certs")
+    d["is_medic"] = bool(d.get("is_medic", False))
+    d["badge_number"] = d.get("badge_number") or ""
+    d["incident_history"] = d.get("incident_history") or []
     return d
 
 
@@ -60,6 +63,7 @@ def search_personnel(
             d.get("callsign") or "",
             d.get("phone") or "",
             d.get("contact") or "",
+            d.get("badge_number") or "",
         ])).lower()
         if t in haystack:
             results.append(_normalize(d))
@@ -83,6 +87,7 @@ def list_personnel(
             if t in (d.get("name") or "").lower()
             or t in str(d.get("person_id") or d.get("id") or "").lower()
             or t in (d.get("callsign") or "").lower()
+            or t in (d.get("badge_number") or "").lower()
         ]
     return [_normalize(d) for d in docs]
 
@@ -112,9 +117,12 @@ def create_person(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 @router.get("/{person_id}")
 def get_person(person_id: str) -> dict[str, Any]:
+    col = _col()
+    _ensure_int_ids(col)
     doc = (
-        _col().find_one({"person_id": person_id})
-        or _col().find_one({"id": person_id})
+        col.find_one({"person_id": person_id})
+        or col.find_one({"id": person_id})
+        or (col.find_one({"int_id": int(person_id)}) if person_id.isdigit() else None)
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Person not found")

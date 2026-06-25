@@ -44,6 +44,7 @@ class IncidentOrganizationController:
             required_qualifications=self._qualification_list(values.get("required_qualifications")),
             is_critical=bool(values.get("is_critical", False)),
             is_custom=bool(values.get("is_custom", False)),
+            is_air_ops=bool(values.get("is_air_ops", False)),
             status=str(values.get("status", "active") or "active"),
             sort_order=int(values.get("sort_order", 0) or 0),
             notes=self._optional_text(values.get("notes")),
@@ -73,6 +74,7 @@ class IncidentOrganizationController:
             ),
             is_critical=bool(values.get("is_critical", current.is_critical)),
             is_custom=bool(values.get("is_custom", current.is_custom)),
+            is_air_ops=bool(values.get("is_air_ops", current.is_air_ops)),
             status=str(values.get("status", current.status) or current.status),
             sort_order=int(values.get("sort_order", current.sort_order) or 0),
             notes=self._optional_text(values.get("notes", current.notes)),
@@ -112,8 +114,16 @@ class IncidentOrganizationController:
         *,
         director_name: str | None = None,
         notes: str | None = None,
+        is_air_ops: bool = False,
     ) -> int:
-        """Create a branch node and optionally assign a director under it."""
+        """Create a branch node and optionally assign a director under it.
+
+        Set ``is_air_ops=True`` for the Air Operations Branch so it's
+        excluded from the numbered Branch 1/2/3 slots on ICS 203/207 and
+        instead populates the form's dedicated Air Operations Branch
+        Director field (see FormDataContext._build_org_branches /
+        _build_air_ops_branch).
+        """
         name = name.strip()
         if not name:
             raise ValueError("Branch name is required")
@@ -122,6 +132,7 @@ class IncidentOrganizationController:
             "classification": "branch",
             "parent_position_id": parent_id,
             "is_custom": True,
+            "is_air_ops": is_air_ops,
             "notes": notes,
         })
         if director_name and director_name.strip():

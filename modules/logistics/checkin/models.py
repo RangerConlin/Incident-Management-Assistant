@@ -107,6 +107,8 @@ class PersonnelIdentity:
     callsign: Optional[str] = None
     certifications: Optional[str] = None
     home_unit: Optional[str] = None
+    rank: Optional[str] = None
+    is_medic: Optional[bool] = None
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "PersonnelIdentity":
@@ -125,6 +127,8 @@ class PersonnelIdentity:
         phone = row.get("phone") or row.get("contact")
         home_unit = row.get("home_unit") or row.get("unit")
         certifications = row.get("certifications") or row.get("certs")
+        rank = row.get("rank")
+        is_medic = row.get("is_medic")
 
         return cls(
             person_id=str(row["id"]),
@@ -134,6 +138,8 @@ class PersonnelIdentity:
             callsign=row.get("callsign"),
             certifications=certifications,
             home_unit=home_unit,
+            rank=rank,
+            is_medic=is_medic,
         )
 
 

@@ -199,6 +199,7 @@ def list_work_assignments(
     branch: Optional[str] = None,
     division_group: Optional[str] = None,
     op_period_id: Optional[int] = None,
+    objective_id: Optional[int] = None,
     show_archived: bool = False,
 ) -> List[Dict[str, Any]]:
     col = _col(incident_id)
@@ -218,6 +219,8 @@ def list_work_assignments(
         q["division_group"] = division_group
     if op_period_id is not None:
         q["operational_period_id"] = op_period_id
+    if objective_id is not None:
+        q["objective_id"] = objective_id
     docs = list(col.find(q, sort=[("updated_at", -1)]))
     if search:
         s = search.lower()

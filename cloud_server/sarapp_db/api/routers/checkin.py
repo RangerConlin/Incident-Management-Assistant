@@ -255,7 +255,9 @@ def save_checkin(
     else:
         doc = repo.insert_one(body)
 
-    # Mirror contact fields back to master personnel
+    # Mirror contact fields back to master personnel, log this incident on
+    # the master record's check-in history, and ensure the incident has a
+    # local copy of this person's identity keyed by the master id.
     try:
         personnel_repo = _personnel_repo()
         ident = (
@@ -270,8 +272,36 @@ def save_checkin(
                 updates["callsign"] = body["incident_callsign"]
             if body.get("role_on_team"):
                 updates["primary_role"] = body["role_on_team"]
+
+            today = _utcnow()[:10]
+            history = ident.get("incident_history") or []
+            if not any(h.get("incident_id") == incident_id and h.get("date") == today for h in history):
+                updates["incident_history"] = history + [{"incident_id": incident_id, "date": today}]
+
             if updates:
                 personnel_repo.update_one(ident["_id"], updates)
+
+            master_id = ident.get("int_id")
+            if master_id is not None:
+                from sarapp_db.mongo.client import get_db
+                incident_personnel_col = get_db(f"sarapp_incident_{incident_id}")["incident_personnel"]
+                copy_fields = {
+                    "master_id": master_id,
+                    "incident_id": incident_id,
+                    "name": ident.get("name"),
+                    "rank": ident.get("rank"),
+                    "callsign": updates.get("callsign", ident.get("callsign")),
+                    "role": updates.get("primary_role", ident.get("primary_role") or ident.get("role")),
+                    "phone": updates.get("phone", ident.get("phone")),
+                    "email": ident.get("email"),
+                    "organization": ident.get("home_unit") or ident.get("organization"),
+                    "unit": ident.get("home_unit") or ident.get("unit"),
+                    "badge_number": ident.get("badge_number"),
+                    "is_medic": bool(ident.get("is_medic", False)),
+                }
+                incident_personnel_col.update_one(
+                    {"master_id": master_id}, {"$set": copy_fields}, upsert=True
+                )
     except Exception:
         pass
 

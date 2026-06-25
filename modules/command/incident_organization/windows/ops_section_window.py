@@ -156,7 +156,7 @@ class _AddBranchDialog(QDialog):
         layout = QFormLayout(self)
 
         self.name_edit = QLineEdit(self)
-        self.name_edit.setPlaceholderText("e.g. Branch A, Alpha Branch, Air Operations")
+        self.name_edit.setPlaceholderText("e.g. Branch A, Alpha Branch")
         layout.addRow("Branch name *", self.name_edit)
 
         self.parent_combo = QComboBox(self)
@@ -201,6 +201,51 @@ class _AddBranchDialog(QDialog):
         return {
             "name": self.name_edit.text().strip(),
             "parent_id": self.parent_combo.currentData(),
+            "director_name": self.director_edit.text().strip() or None,
+            "notes": self.notes_edit.toPlainText().strip() or None,
+        }
+
+
+class _AddAirOpsBranchDialog(QDialog):
+    """Dedicated dialog for the one-per-incident Air Operations Branch.
+
+    Deliberately has no name field (always titled "Air Operations Branch")
+    and no parent picker (always directly under the Operations Section) -
+    the only choices left are who's running it. Callers must check
+    uniqueness before opening this (see OperationsSectionWindow._add_air_ops_branch).
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Air Operations Branch")
+        self.setMinimumWidth(360)
+        layout = QFormLayout(self)
+
+        info = QLabel(
+            "Creates the Air Operations Branch directly under the "
+            "Operations Section. There can only be one per incident - it "
+            "populates the dedicated Air Ops field on ICS 203/207 instead "
+            "of a numbered branch slot.",
+            self,
+        )
+        info.setWordWrap(True)
+        layout.addRow(info)
+
+        self.director_edit = QLineEdit(self)
+        self.director_edit.setPlaceholderText("Optional — assign later if unknown")
+        layout.addRow("Air Ops Branch Director", self.director_edit)
+
+        self.notes_edit = QTextEdit(self)
+        self.notes_edit.setMaximumHeight(64)
+        layout.addRow("Notes", self.notes_edit)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def values(self) -> dict:
+        return {
             "director_name": self.director_edit.text().strip() or None,
             "notes": self.notes_edit.toPlainText().strip() or None,
         }
@@ -407,6 +452,14 @@ class OperationsSectionWindow(QDialog):
         self.btn_add_branch.clicked.connect(self._add_branch)
         toolbar.addWidget(self.btn_add_branch)
 
+        self.btn_add_air_ops_branch = QPushButton("Add Air Operations Branch…", self)
+        self.btn_add_air_ops_branch.setToolTip(
+            "Disabled once an Air Operations Branch exists for this "
+            "incident - there can only be one."
+        )
+        self.btn_add_air_ops_branch.clicked.connect(self._add_air_ops_branch)
+        toolbar.addWidget(self.btn_add_air_ops_branch)
+
         self.btn_add_div_group = QPushButton("Add Division / Group…", self)
         self.btn_add_div_group.clicked.connect(lambda: self._add_division_group(None))
         toolbar.addWidget(self.btn_add_div_group)
@@ -497,6 +550,10 @@ class OperationsSectionWindow(QDialog):
     def _refresh(self) -> None:
         self._refresh_tree()
         self._handle_unit_selected()
+        self.btn_add_air_ops_branch.setEnabled(not self._has_air_ops_branch())
+
+    def _has_air_ops_branch(self) -> bool:
+        return any(p.is_air_ops for p in self._positions_by_id.values())
 
     def _refresh_tree(self) -> None:
         positions = self.controller.list_positions()
@@ -660,6 +717,10 @@ class OperationsSectionWindow(QDialog):
         action_add_branch = menu.addAction("Add Branch…")
         action_add_branch.triggered.connect(self._add_branch)
 
+        action_add_air_ops = menu.addAction("Add Air Operations Branch…")
+        action_add_air_ops.setEnabled(not self._has_air_ops_branch())
+        action_add_air_ops.triggered.connect(self._add_air_ops_branch)
+
         action_add_div = menu.addAction("Add Division / Group…")
         if pos and pos.classification == "branch":
             action_add_div.setText(f"Add Division / Group under {pos.title}…")
@@ -693,6 +754,35 @@ class OperationsSectionWindow(QDialog):
             )
         except ValueError as exc:
             QMessageBox.warning(self, "Add Branch", str(exc))
+            return
+        self._refresh()
+        self.structure_changed.emit()
+
+    def _add_air_ops_branch(self) -> None:
+        if self._has_air_ops_branch():
+            QMessageBox.information(
+                self,
+                "Add Air Operations Branch",
+                "An Air Operations Branch already exists for this incident. "
+                "There can only be one - edit the existing one instead of "
+                "creating another.",
+            )
+            return
+        dialog = _AddAirOpsBranchDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        v = dialog.values()
+        ops_id = self.controller.get_ops_section_id()
+        try:
+            self.controller.add_branch(
+                "Air Operations Branch",
+                ops_id,
+                director_name=v["director_name"],
+                notes=v["notes"],
+                is_air_ops=True,
+            )
+        except ValueError as exc:
+            QMessageBox.warning(self, "Add Air Operations Branch", str(exc))
             return
         self._refresh()
         self.structure_changed.emit()

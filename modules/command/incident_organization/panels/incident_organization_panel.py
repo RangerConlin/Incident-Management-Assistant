@@ -84,6 +84,15 @@ class PositionDialog(QDialog):
         self.custom_check = QCheckBox("Custom AHJ-defined title/structure", self)
         self.custom_check.setChecked(True if position is None else bool(position.is_custom))
         layout.addRow("", self.custom_check)
+        if position and position.is_air_ops:
+            air_ops_label = QLabel(
+                "This is the Air Operations Branch (set via 'Add Air "
+                "Operations Branch...' in the Operations Section window - not "
+                "editable here, there can only be one per incident).",
+                self,
+            )
+            air_ops_label.setWordWrap(True)
+            layout.addRow("", air_ops_label)
         self.notes_edit = QTextEdit(position.notes if position and position.notes else "", self)
         self.notes_edit.setMaximumHeight(80)
         layout.addRow("Notes", self.notes_edit)
@@ -483,7 +492,8 @@ class IncidentOrganizationPanel(QWidget):
             for position in children.get(parent_id, []):
                 item_summary = summary.get(position.id or 0)
                 status = item_summary.staffing_status if item_summary else "unknown"
-                item = QTreeWidgetItem([position.title, status])
+                title = position.title + ("  [Air Ops]" if position.is_air_ops else "")
+                item = QTreeWidgetItem([title, status])
                 item.setData(0, Qt.UserRole, position.id)
                 if item_summary and item_summary.warnings:
                     item.setToolTip(0, "\n".join(w.message for w in item_summary.warnings))
@@ -522,9 +532,10 @@ class IncidentOrganizationPanel(QWidget):
         parent_label = "top level"
         if position.parent_position_id and position.parent_position_id in self._positions_by_id:
             parent_label = self._positions_by_id[position.parent_position_id].title
+        air_ops_tag = " | Air Operations Branch" if position.is_air_ops else ""
         self.detail_meta.setText(
             f"{position.classification} | Parent: {parent_label} | "
-            f"Operational period: {position.operational_period or 'any'}"
+            f"Operational period: {position.operational_period or 'any'}{air_ops_tag}"
         )
         critical = "Critical" if position.is_critical else "Standard"
         self.status_label.setText(

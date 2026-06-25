@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -19,16 +20,6 @@ class ObjectivesRepository(BaseRepository):
     collection_name = IncidentCollections.INCIDENT_OBJECTIVES
 
 
-class StrategiesRepository(BaseRepository):
-    collection_name = IncidentCollections.STRATEGIES
-    soft_deletes = False
-
-
-class StrategyTaskLinksRepository(BaseRepository):
-    collection_name = IncidentCollections.OBJECTIVE_STRATEGIES_TASK_LINKS
-    soft_deletes = False
-
-
 def _incident_db(incident_id: str):
     return get_client()[get_incident_db_name(incident_id)]
 
@@ -37,12 +28,34 @@ def _objectives_repo(incident_id: str) -> ObjectivesRepository:
     return ObjectivesRepository(_incident_db(incident_id))
 
 
-def _strategies_repo(incident_id: str) -> StrategiesRepository:
-    return StrategiesRepository(_incident_db(incident_id))
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _task_links_repo(incident_id: str) -> StrategyTaskLinksRepository:
-    return StrategyTaskLinksRepository(_incident_db(incident_id))
+def _append_audit(
+    repo: ObjectivesRepository,
+    objective_id: str,
+    action: str,
+    field: str | None = None,
+    old: Any = None,
+    new: Any = None,
+    user_id: str | None = None,
+) -> None:
+    entry = {
+        "ts": _utcnow(),
+        "action": action,
+        "field": field,
+        "old_value": old,
+        "new_value": new,
+        "user_id": user_id,
+    }
+    repo._col.update_one({"_id": objective_id}, {"$push": {"audit": entry}})
+
+
+def _next_link_id(links: list[dict[str, Any]]) -> int:
+    if not links:
+        return 1
+    return max((l.get("id", 0) for l in links), default=0) + 1
 
 
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
@@ -57,7 +70,8 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d.setdefault("display_order", 0)
     d.setdefault("tags", d.get("tags_json") or [])
     d.setdefault("narrative", None)
-    d.setdefault("strategies", [])
+    d.setdefault("task_links", [])
+    d.setdefault("audit", [])
     d.setdefault("open_tasks", 0)
     d.setdefault("total_tasks", 0)
     return d
@@ -141,6 +155,7 @@ def create_objective(body: CreateObjectiveRequest) -> dict[str, Any]:
         "updated_by": body.created_by,
     }
     doc = repo.insert_one(doc)
+    _append_audit(repo, doc["_id"], "create", new=body.text, user_id=body.created_by)
     return _normalize(doc)
 
 
@@ -155,7 +170,17 @@ class ReorderRequest(BaseModel):
 def reorder_objectives(incident_id: str, body: ReorderRequest) -> dict[str, Any]:
     repo = _objectives_repo(incident_id)
     for position, obj_id in enumerate(body.ids):
+        existing = repo.find_by_id(obj_id)
+        if existing and existing.get("display_order") == position:
+            continue
         repo.update_one(obj_id, {"display_order": position}, extra_filter={"incident_id": incident_id})
+        if existing:
+            _append_audit(
+                repo, obj_id, "reorder",
+                field="display_order",
+                old=existing.get("display_order"),
+                new=position,
+            )
     return {"ok": True}
 
 
@@ -190,126 +215,92 @@ def update_objective(
     incident_id: str,
     body: UpdateObjectiveRequest,
 ) -> dict[str, Any]:
+    repo = _objectives_repo(incident_id)
+    existing = repo.find_by_id(objective_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Objective not found")
     updates: dict[str, Any] = {}
     for field in ("text", "priority", "status", "owner_section", "tags", "op_period_id", "narrative", "updated_by"):
         val = getattr(body, field)
         if val is not None:
             updates[field] = val
-    repo = _objectives_repo(incident_id)
-    matched = repo.update_one(objective_id, updates)
-    if not matched:
-        raise HTTPException(status_code=404, detail="Objective not found")
+    repo.update_one(objective_id, updates)
+    for field, new_val in updates.items():
+        if field == "updated_by":
+            continue
+        old_val = existing.get(field)
+        if old_val != new_val:
+            _append_audit(repo, objective_id, "update", field=field, old=old_val, new=new_val, user_id=body.updated_by)
     doc = repo.find_by_id(objective_id)
     return _normalize(doc) if doc else {}
 
 
 # ------------------------------------------------------------------
-# Strategies
-
-class CreateStrategyRequest(BaseModel):
-    objective_id: str
-    title: str
-    description: str | None = None
-    status: str = "planned"
-    created_by: str | None = None
-
-
-@router.post("/{objective_id}/strategies", status_code=201)
-def add_strategy(
-    objective_id: str,
-    incident_id: str,
-    body: CreateStrategyRequest,
-) -> dict[str, Any]:
-    doc: dict[str, Any] = {
-        "incident_id": incident_id,
-        "objective_id": objective_id,
-        "title": body.title,
-        "description": body.description,
-        "status": body.status,
-        "created_by": body.created_by,
-    }
-    doc = _strategies_repo(incident_id).insert_one(doc)
-    doc.pop("_id", None)
-    return doc
-
-
-class UpdateStrategyRequest(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    status: str | None = None
-    updated_by: str | None = None
-
-
-@router.patch("/{objective_id}/strategies/{strategy_id}")
-def update_strategy(
-    objective_id: str,
-    strategy_id: str,
-    incident_id: str,
-    body: UpdateStrategyRequest,
-) -> dict[str, Any]:
-    updates: dict[str, Any] = {}
-    for field in ("title", "description", "status", "updated_by"):
-        val = getattr(body, field)
-        if val is not None:
-            updates[field] = val
-    repo = _strategies_repo(incident_id)
-    matched = repo.update_one(strategy_id, updates, extra_filter={"objective_id": objective_id})
-    if not matched:
-        raise HTTPException(status_code=404, detail="Strategy not found")
-    doc = repo.find_by_id(strategy_id)
-    if doc:
-        doc.pop("_id", None)
-    return doc or {}
-
-
-@router.delete("/{objective_id}/strategies/{strategy_id}", status_code=204)
-def delete_strategy(objective_id: str, strategy_id: str, incident_id: str) -> None:
-    deleted = _strategies_repo(incident_id).delete_one(strategy_id, extra_filter={"objective_id": objective_id})
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Strategy not found")
-    # Also delete any task links for this strategy
-    _task_links_repo(incident_id).delete_many({"strategy_id": strategy_id})
-
-
-# ------------------------------------------------------------------
-# Task links
+# Task links — tasks tied directly to this objective (embedded on the doc,
+# mirrors the work_assignments.task_links pattern).
 
 class LinkTaskRequest(BaseModel):
     task_id: int
+    link_type: str = "Linked Existing"
+    created_by: str | None = None
 
 
-@router.post("/{objective_id}/strategies/{strategy_id}/tasks", status_code=201)
+@router.get("/{objective_id}/tasks")
+def list_task_links(objective_id: str, incident_id: str) -> list[dict[str, Any]]:
+    doc = _objectives_repo(incident_id).find_by_id(objective_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Objective not found")
+    return doc.get("task_links") or []
+
+
+@router.post("/{objective_id}/tasks", status_code=201)
 def link_task(
     objective_id: str,
-    strategy_id: str,
     incident_id: str,
     body: LinkTaskRequest,
 ) -> dict[str, Any]:
-    doc: dict[str, Any] = {
-        "incident_id": incident_id,
-        "objective_id": objective_id,
-        "strategy_id": strategy_id,
+    repo = _objectives_repo(incident_id)
+    doc = repo.find_by_id(objective_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Objective not found")
+    existing = [t for t in doc.get("task_links", []) if t.get("task_id") == body.task_id]
+    if existing:
+        return existing[0]
+    link = {
+        "id": _next_link_id(doc.get("task_links", [])),
         "task_id": body.task_id,
+        "link_type": body.link_type,
+        "created_at": _utcnow(),
+        "created_by": body.created_by,
     }
-    doc = _task_links_repo(incident_id).insert_one(doc)
-    doc.pop("_id", None)
-    return doc
+    repo._col.update_one({"_id": objective_id}, {"$push": {"task_links": link}, "$set": {"updated_at": _utcnow()}})
+    _append_audit(repo, objective_id, "task.link", new=f"task_id={body.task_id}", user_id=body.created_by)
+    return link
 
 
-@router.delete("/{objective_id}/strategies/{strategy_id}/tasks/{task_id}", status_code=204)
-def unlink_task(
-    objective_id: str,
-    strategy_id: str,
-    task_id: int,
-    incident_id: str,
-) -> None:
-    deleted = _task_links_repo(incident_id).delete_many({
-        "objective_id": objective_id,
-        "strategy_id": strategy_id,
-        "task_id": task_id,
-    })
-    if deleted == 0:
+@router.delete("/{objective_id}/tasks/{link_id}", status_code=204)
+def unlink_task(objective_id: str, link_id: int, incident_id: str) -> None:
+    repo = _objectives_repo(incident_id)
+    doc = repo.find_by_id(objective_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Objective not found")
+    links = doc.get("task_links", [])
+    target = next((l for l in links if l.get("id") == link_id), None)
+    if target is None:
         raise HTTPException(status_code=404, detail="Task link not found")
+    repo._col.update_one({"_id": objective_id}, {"$pull": {"task_links": {"id": link_id}}})
+    _append_audit(repo, objective_id, "task.unlink", old=f"task_id={target.get('task_id')}")
+
+
+# ------------------------------------------------------------------
+# Audit log
+
+@router.get("/{objective_id}/audit")
+def list_audit(objective_id: str, incident_id: str) -> list[dict[str, Any]]:
+    doc = _objectives_repo(incident_id).find_by_id(objective_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Objective not found")
+    return list(reversed(doc.get("audit") or []))
 
 
 # ------------------------------------------------------------------

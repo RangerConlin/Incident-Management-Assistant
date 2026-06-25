@@ -42,6 +42,9 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d["phone"] = d.get("phone") or d.get("contact")
     d["home_unit"] = d.get("home_unit") or d.get("unit")
     d["certifications"] = d.get("certifications") or d.get("certs")
+    d["is_medic"] = bool(d.get("is_medic", False))
+    d["badge_number"] = d.get("badge_number") or ""
+    d["incident_history"] = d.get("incident_history") or []
     return d
 
 
@@ -64,6 +67,7 @@ def search_personnel(
             d.get("callsign") or "",
             d.get("phone") or "",
             d.get("contact") or "",
+            d.get("badge_number") or "",
         ])).lower()
         if t in haystack:
             results.append(_normalize(d))
@@ -87,6 +91,7 @@ def list_personnel(
             if t in (d.get("name") or "").lower()
             or t in str(d.get("person_id") or d.get("id") or "").lower()
             or t in (d.get("callsign") or "").lower()
+            or t in (d.get("badge_number") or "").lower()
         ]
     return [_normalize(d) for d in docs]
 
@@ -121,6 +126,7 @@ def _find_person(col, person_id: str):
 @router.get("/{person_id}")
 def get_person(person_id: str) -> dict[str, Any]:
     col = _col()
+    _ensure_int_ids(col)
     doc = (
         col.find_one({"person_id": person_id})
         or col.find_one({"id": person_id})
@@ -132,8 +138,13 @@ def get_person(person_id: str) -> dict[str, Any]:
 
 
 @router.put("/{person_id}")
-def update_person(person_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def update_person(
+    person_id: str,
+    body: dict[str, Any] = Body(...),
+    active_incident_id: str | None = Query(None),
+) -> dict[str, Any]:
     col = _col()
+    _ensure_int_ids(col)
     existing = (
         col.find_one({"person_id": person_id})
         or col.find_one({"id": person_id})
@@ -144,14 +155,42 @@ def update_person(person_id: str, body: dict[str, Any] = Body(...)) -> dict[str,
     body.pop("_id", None)
     body.pop("int_id", None)
     body.pop("id", None)
+    body.pop("incident_history", None)
     body["updated_at"] = _utcnow()
     col.update_one({"_id": existing["_id"]}, {"$set": body})
-    return _normalize(col.find_one({"_id": existing["_id"]}))
+    updated = col.find_one({"_id": existing["_id"]})
+
+    # Push the edit down to the active incident's local copy only. Other
+    # incidents catch up the next time they're loaded (see
+    # operations.sync_incident_personnel_from_master).
+    if active_incident_id:
+        try:
+            from sarapp_db.mongo.client import get_db
+            master_id = updated.get("int_id")
+            incident_col = get_db(f"sarapp_incident_{active_incident_id}")["incident_personnel"]
+            sync_fields = {
+                "name": updated.get("name"),
+                "rank": updated.get("rank"),
+                "callsign": updated.get("callsign"),
+                "role": updated.get("primary_role") or updated.get("role"),
+                "phone": updated.get("phone"),
+                "email": updated.get("email"),
+                "organization": updated.get("home_unit") or updated.get("organization"),
+                "unit": updated.get("home_unit") or updated.get("unit"),
+                "badge_number": updated.get("badge_number"),
+                "is_medic": bool(updated.get("is_medic", False)),
+            }
+            incident_col.update_one({"master_id": master_id}, {"$set": sync_fields})
+        except Exception:
+            pass
+
+    return _normalize(updated)
 
 
 @router.delete("/{person_id}", status_code=204)
 def delete_person(person_id: str) -> None:
     col = _col()
+    _ensure_int_ids(col)
     existing = (
         col.find_one({"person_id": person_id})
         or col.find_one({"id": person_id})

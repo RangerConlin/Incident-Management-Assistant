@@ -39,6 +39,7 @@ class Team:
     comms_preset_id: Optional[int] = None
     team_type: str = "GT"  # e.g., GT, UDF, AIR
     resource_type_id: Optional[int] = None
+    operational_unit_id: Optional[int] = None  # chain-of-command: org chart position id (any section)
     readiness_status: str = "Unknown"
     radio_ids: Optional[str] = None  # free-form text for now
     route: Optional[str] = None
@@ -194,6 +195,7 @@ class Team:
             "comms_preset_id": self.comms_preset_id,
             "team_type": self.team_type,
             "resource_type_id": self.resource_type_id,
+            "operational_unit_id": self.operational_unit_id,
             "readiness_status": self.readiness_status,
             "radio_ids": self.radio_ids,
             "route": self.route,

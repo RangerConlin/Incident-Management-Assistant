@@ -207,6 +207,8 @@ class WorkAssignmentRepository:
                 params[k] = filters[k]
         if filters.get("op_period_id") is not None:
             params["op_period_id"] = filters["op_period_id"]
+        if filters.get("objective_id") is not None:
+            params["objective_id"] = filters["objective_id"]
         if filters.get("search"):
             params["search"] = filters["search"]
         try:

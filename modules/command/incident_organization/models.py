@@ -27,6 +27,7 @@ class OrganizationPosition:
     required_qualifications: list[str] = field(default_factory=list)
     is_critical: bool = False
     is_custom: bool = False
+    is_air_ops: bool = False
     status: str = "active"
     sort_order: int = 0
     notes: Optional[str] = None

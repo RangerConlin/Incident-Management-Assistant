@@ -130,8 +130,8 @@ from layer 1.
 If you only add a catalog entry (layer 2) without also making `context.py`
 (layer 1) produce that path, the entry is **inert** - it shows up in the
 picker but never resolves to a real value. This already happened for
-~250 existing entries (`hospitals`, `ems_agencies`, `agency_contacts`,
-`narrative`, `team_members`) - see "Known stale entries" below. Don't
+~190 existing entries (`hospitals`, `ems_agencies`, `narrative`,
+`team_members`) - see "Known stale entries" below. Don't
 repeat that mistake: always wire layer 1 first, or in the same change.
 
 ## Conventions
@@ -345,7 +345,6 @@ because layer 1 was never wired for them - `context.py` hardcodes the key
 to `[]`/`{}` instead of calling an API:
 
 - `hospitals` (100 entries), `ems_agencies` (90 entries) - `MasterCollections.HOSPITALS`/`EMS_AGENCIES` exist but nothing queries them.
-- `agency_contacts` (60 entries) - should come from `liaison_agencies`/`liaison_contacts`, currently a hardcoded `[]`.
 - `narrative` (100 entries) - should come from `unit_logs`/`ics_214_logs`, currently a hardcoded `[]`.
 - `team_members` (32 entries) - currently a hardcoded `[]`.
 - `assignment.*` / `task.*` (the SAR 104 ground/air POD-matrix paths) - no `_build_assignment` exists in `context.py` at all yet; these resolve via `extra_data` only if a caller builds and passes that dict themselves (nobody does yet).
@@ -387,12 +386,12 @@ that point (follow the debrief table's format below as the template).
 | `incident_objectives` | `objectives` | Wired | id, description, status, priority, section, due_time, code |
 | `strategies` | - | Not started | |
 | `objective_strategy_task_links` | - | Not started | |
-| `org_positions` | `organization` | Partial | only the flattened named-position lookup (`_ORG_POSITIONS`), not raw position records |
-| `org_assignments` | `organization` | Partial | same as above |
+| `org_positions` | `organization`, `uc_commanders`, `org_branches`, `planning_tech_specialists` | Wired | `_build_organization` joins `/org/positions` + `/org/assignments` by `position_id` to resolve each role's title (previously broken - see "ics_203 resolution" below); `_build_uc_commanders` finds all assignments under "Incident Commander"-titled position(s); `_build_org_branches` walks `/org/units` (branch/division/group classifications) + assignments into a nested branch->divisions tree; `_build_planning_tech_specialists` finds positions titled "Technical Specialist[ - <specialty>]" |
+| `org_assignments` | same four keys as above | Wired | see `org_positions` row - same builders join both collections together |
 | `org_history` | - | Not started | |
 | `org_templates` | - | Not started | |
 | `org_snapshots` | - | Not started | |
-| `incident_organization` | - | Not started | `org_branches`/`org_agency_reps`/`uc_commanders` are hardcoded `[]` stubs in context.py - stub (orphaned) for the matching catalog category if one exists, otherwise just not started |
+| `incident_organization` | - | Not started | distinct from `org_positions`/`org_assignments` above (different collection); not yet identified what, if anything, still needs this one |
 | `incident_journal` | - | Not started | |
 | `work_assignments` | `assignment` (catalog only) | Stub (orphaned) | catalog has `assignment.*`/`task.*` entries (SAR 104 POD matrix etc.) but no `_build_assignment` exists in context.py at all |
 
@@ -470,15 +469,15 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `liaison_agencies` | `agency_contacts` | Partial | `context.py` now builds incident-scoped `agency_contacts` by walking liaison agencies and flattening each agency's contacts; agency summary/contact row fields beyond `title/name/agency/phone/email/notes` are not yet cataloged |
-| `liaison_contacts` | `agency_contacts` | Partial | same flattened `agency_contacts` builder; existing 60 catalog entries now resolve from incident liaison contacts |
-| `liaison_interactions` | - | Not started | |
-| `liaison_agency_requests` | - | Not started | |
-| `liaison_resource_offers` | - | Not started | |
-| `liaison_feedback` | - | Not started | |
-| `liaison_followup_actions` | - | Not started | |
-| `liaison_restrictions` | - | Not started | |
-| `liaison_agreements` | - | Not started | |
+| `liaison_agencies` | `liaison_agencies`, `agency_contacts` | Wired | `context.py` now exposes raw agency rows plus agency-name lookup for the rest of the liaison builders |
+| `liaison_contacts` | `liaison_contacts`, `agency_contacts` | Wired | raw contact rows exposed under `liaison_contacts`; existing 60 `agency_contacts.*` entries continue to resolve via the flattened compatibility list |
+| `liaison_interactions` | `liaison_interactions` | Wired | raw passthrough with current UI fields (`followup_action`, `followup_assigned_to`, `followup_due`) |
+| `liaison_agency_requests` | `liaison_agency_requests` | Wired | normalized to current UI field names (`description`, `requested_by`, `due_date`) with fallback from legacy SQLite names |
+| `liaison_resource_offers` | `liaison_resource_offers` | Wired | normalized to current UI field names (`description`, `offered_by`, `available_from`) with fallback from legacy SQLite names |
+| `liaison_feedback` | `liaison_feedback` | Wired | raw passthrough |
+| `liaison_followup_actions` | `liaison_followup_actions` | Wired | sourced from per-agency detail endpoint; catalog uses legacy collection field names |
+| `liaison_restrictions` | `liaison_restrictions` | Wired | sourced from per-agency detail endpoint |
+| `liaison_agreements` | `liaison_agreements` | Wired | sourced from per-agency detail endpoint |
 
 ### Personnel
 
@@ -575,7 +574,7 @@ that point (follow the debrief table's format below as the template).
 | `hazard_types` | - | Not started | |
 | `safety_analysis_templates` | - | Not started | |
 | `incident_types` | - | Not started | |
-| `agency_directory` | `agency_contacts` (likely overlap) | Stub (orphaned) | see Liaison section - same orphaned stub probably belongs here too, confirm which collection is the real source before wiring |
+| `agency_directory` | `agency_contacts` (historical overlap only) | N/A for current liaison wiring | current `agency_contacts` bindings now resolve from incident-scoped liaison agencies/contacts, not master `agency_directory` |
 | `task_types` | - | Not started | |
 | `team_types` | - | Not started | |
 | `objective_templates` | - | Not started | |
@@ -645,8 +644,8 @@ Status meanings:
   zero readable fields, but the page still has annotation widgets
   present. The file's `/AcroForm` catalog entry is missing/stripped, so
   no tool that reads `/AcroForm/Fields` (which is everything here) can
-  see the fields. See "ics_203 diagnosis" below for the one confirmed
-  case and how to recognize it.
+  see the fields. See "ics_203 resolution" below for how this was
+  diagnosed and fixed in one real case.
 - **Non-fillable source PDF** - `template.pdf` exists but has zero
   fields and zero annotations. Not corruption - this file was never a
   fillable AcroForm to begin with (likely a scan or a flattened/printed
@@ -655,33 +654,109 @@ Status meanings:
 - **Empty mapping stub** - both files exist but `mapping.json` has no
   real entries yet (a placeholder).
 
-### `ics_203` diagnosis (concrete example of "Broken template")
+### `ics_203` resolution (worked example: diagnosing + fixing a broken template)
 
-`forms/sets/fema/ics_203/template.pdf` reads as 0 fields via
-`PdfReader.get_fields()`, but `page.get("/Annots")` on page 0 returns 116
-annotation objects - one of which, inspected directly, has `/T: "1
-Incident Name"` and `/FT: "/Tx"` (i.e. it *is* a real text field widget,
-just not reachable through the normal AcroForm field list). Diagnostic:
+**The corruption.** `forms/sets/fema/ics_203/template.pdf` read as 0
+fields via `PdfReader.get_fields()`, but `page.get("/Annots")` on page 0
+returned 116 annotation objects - one of which, inspected directly, had
+`/T: "1 Incident Name"` and `/FT: "/Tx"` (i.e. it *was* a real text field
+widget, just not reachable through the normal AcroForm field list).
+Diagnostic:
 ```python
 from pypdf import PdfReader
 r = PdfReader("forms/sets/fema/ics_203/template.pdf")
-print("/AcroForm" in r.trailer["/Root"])   # False - this is the bug
-print(len(r.pages[0].get("/Annots") or [])) # 116 - the widgets are still there
+print("/AcroForm" in r.trailer["/Root"])   # False - this was the bug
+print(len(r.pages[0].get("/Annots") or [])) # 116 - the widgets were still there
 ```
 This happens when a PDF gets resaved/exported through a tool (print-to-PDF,
 certain flatten/merge operations) that drops the document-level
 `/AcroForm` catalog reference while leaving the per-page widget
-annotations physically in place. The widgets aren't gone, but they're
-orphaned - nothing that relies on `/AcroForm/Fields` (which includes
-`pypdf`'s `get_fields()` and therefore `PDFFiller`) can discover them.
+annotations physically in place. Checked git history first (the most
+reliable recovery path): both prior commits touching this file were
+already broken the same way, so there was no earlier good version to
+restore. Fix: replaced `template.pdf` with the user's raw, never-bound
+copy of the same form, which had a real `/AcroForm` and all 116 fields
+readable again.
 
-Also worth noting: this file's 116 orphaned widgets is the same count as
-the *raw, unbound* original PDF's 116 fields - not the 175 fields the
-existing `mapping.json` expects. So even a hypothetical AcroForm-repair
-wouldn't fully fix this: the file sitting in the repo right now appears to
-be the pre-binding original, corrupted on top of being the wrong revision.
-The properly-bound 175-field version needs to be re-supplied from
-whatever produced it originally.
+**The mapping mismatch.** That raw copy's field *count* matched the
+broken file (116), but the existing `mapping.json` had 175 entries,
+referencing some field names that simply don't exist on this form. Of
+those:
+- ~28 were dead boilerplate (`IncidentName`, `OperationsChief`,
+  `PreparedBy`, etc.) - present in most ICS form mappings in this repo,
+  unused everywhere, not specific to this form. Deleted.
+- ~93 were speculative snake_case aliases (`uc_agency1`, `rep_agency1`,
+  `tech_name1`, `branch_id1`, `div_1_name1`, etc.) tied to an unused
+  `row_groups` mechanism with `col_patterns` pointing at field names that
+  never existed on any version of this PDF. The real fields exist under
+  different native names. Resolved by walking the actual rendered PDF
+  page with the user, field name by field name, instead of guessing from
+  names/positions alone - see the table below for the final correspondence.
+  The `row_groups` mechanism was dropped in favor of plain indexed
+  `fields` entries (`org_branches.0.divisions.0.name`, etc.) because the
+  real numbering is irregular (sequential `Branch Director 1-6` across 3
+  branches, not reset-per-branch; `Technical SpecialistsRow1-3` offset by
+  +7 from their paired `5 Planning SectionRow8-10` name fields) - the
+  `{n}`-substitution pattern can't express that, a fixed small list of
+  explicit entries can.
+
+| Real PDF field(s) | What it actually is | Bound to |
+|---|---|---|
+| `ICUCs` | 1st Incident Commander/UC, name only | `organization.incident_commander.name` |
+| `ICUCsRow1` + `...Row2` | 2nd UC: agency (narrow, left) + name (wide, right) | `uc_commanders.1.agency` / `.name` |
+| `ICUCsRow2` + `...Row3` | 3rd UC: agency + name, same pairing | `uc_commanders.2.agency` / `.name` |
+| `AgencyOrganizationRow1-6` + `NameRow1-6` | Agency Rep rows 1-6: agency + name | `org_agency_reps.<0-5>.agency` / `.name` |
+| `Planning Section Technical Specialists` | 1st (head) tech specialist, name only | `planning_tech_specialists.0.name` |
+| `Technical SpecialistsRow1-3` + `5 Planning SectionRow8-10` | Specialists 2-4: specialty (narrow, left) + name (wide, right) | `planning_tech_specialists.<1-3>.specialty` / `.name` |
+| `Branch Director 1/3/5` | the branch's own name/identifier (not a person) | `org_branches.<0-2>.name` |
+| `Branch Director 2/4/6` | the branch director's name | `org_branches.<0-2>.director_name` |
+| `Branch Director Deputy 1/3/5` | unused on this form | left as `""`, intentionally |
+| `Branch Director Deputy 2/4/6` | the branch's deputy director's name | `org_branches.<0-2>.deputy_name` |
+| `Division/Group Identifier N` | the division/group's own name | `org_branches.<branch>.divisions.<slot>.name` |
+| `DivisionGroup Name N` | the division/group's supervisor's name | `org_branches.<branch>.divisions.<slot>.supervisor_name` |
+| `Operations Section Alternate(/1/2)` | unknown - no printed label found anywhere on the form | left as `""`, unresolved |
+| `Air Ops Branch Director 2/3` pairs | unclear, possibly additional branch directors | left as `""`, unresolved |
+
+Result: **116/116 template fields now have exactly one mapping entry,
+every entry resolves to a real field, zero "field not found" warnings on
+test-fill.**
+
+**Update - the data side got built too, same session.** While fixing this
+form the underlying `organization.<role>.name` lookup was found to be
+silently broken everywhere (not just here) - `_build_organization` joined
+on `row.get("position_title")`, a field that doesn't exist on an
+`/org/assignments` record (only `position_id` does), so it never matched
+anything and every named-position field on every form using
+`organization.*` always resolved empty. Fixed by first fetching
+`/org/positions` and joining `position_id -> title` before matching
+against `_ORG_POSITIONS`. Real builders were also added for
+`uc_commanders` (all assignments under any position titled "Incident
+Commander" - supports multiple, i.e. true Unified Command), `org_branches`
+(walks `/org/units` for branch/division/group positions + their
+assignments into a nested tree), and `planning_tech_specialists` (positions
+titled `Technical Specialist` or `Technical Specialist - <specialty>`).
+`org_agency_reps` reuses the already-wired `agency_contacts` builder
+directly (Liaison agencies/contacts). All four were verified end-to-end
+with a realistic nested test dict (3 UCs, a branch with a division, two
+tech specialists) and the corresponding fields filled correctly with zero
+warnings. See the updated `org_positions`/`org_assignments` rows in
+"Conversion status by collection" above.
+
+**Known, accepted limitation - more than 3 branches or 15 total divisions
+silently drops data.** The mapping only has PDF field slots for
+`org_branches.0` through `.2` (3 branches x 5 divisions each, matching
+the fixed row count printed on this one-page form) because that's all
+the physical space `ics_203`'s real template has - there is no
+`Branch Director 7/8` field to bind a 4th branch to even if one existed.
+`_build_org_branches` itself has no such limit and will return however
+many branches the incident actually has; the mapping just never
+references anything past index 2, so branch 4+ (or division 16+) is
+silently absent from the filled PDF - no warning, no error. This mirrors
+how the real paper form works too (a large incident needs a continuation
+sheet or multiple ICS 203 copies in practice) - no continuation template
+for this form exists in this repo yet. Decided 2026-06-23: leave this as
+silent truncation for now rather than adding an overflow warning or a
+continuation page - revisit if it becomes a real problem.
 
 ### Orphaned mappings (concrete example)
 
@@ -720,7 +795,7 @@ fresh raw copy.
 | cap | miwgf_52 | 69 | (none) | - | Needs mapping |
 | fema | ics_201 | 178 | 226 | 178 | Wired |
 | fema | ics_202 | 35 | 35 | 35 | Wired |
-| fema | ics_203 | 0 | 175 | 0 | Broken template (missing `/AcroForm`) - see diagnosis above |
+| fema | ics_203 | 116 | 116 | 116 | **Wired, end-to-end** - both field names and data builders done this session, see "ics_203 resolution" above; verified with a realistic nested test dict, zero warnings |
 | fema | ics_204 | 77 | 106 | 77 | Wired |
 | fema | ics_205 | 99 | 108 | 99 | Wired |
 | fema | ics_205a | (none) | 56 | - | Needs template (mapping orphaned) |

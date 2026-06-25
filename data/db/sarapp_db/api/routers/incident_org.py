@@ -82,6 +82,7 @@ class UpsertPositionRequest(BaseModel):
     required_qualifications: List[str] = []
     is_critical: bool = False
     is_custom: bool = False
+    is_air_ops: bool = False
     status: str = "active"
     sort_order: int = 0
     notes: Optional[str] = None
@@ -107,6 +108,7 @@ def _pos_to_dict(doc: dict) -> dict[str, Any]:
         "required_qualifications": doc.get("required_qualifications", []),
         "is_critical": bool(doc.get("is_critical", False)),
         "is_custom": bool(doc.get("is_custom", False)),
+        "is_air_ops": bool(doc.get("is_air_ops", False)),
         "status": doc.get("status", "active"),
         "sort_order": doc.get("sort_order", 0),
         "notes": doc.get("notes"),
@@ -134,6 +136,19 @@ def list_positions(incident_id: str, include_inactive: bool = False) -> list[dic
 @router.post("/{incident_id}/org/positions", status_code=201)
 def upsert_position(incident_id: str, body: UpsertPositionRequest) -> dict[str, Any]:
     repo = _positions_repo(incident_id)
+    if body.is_air_ops:
+        existing_air_ops = repo.find_one({
+            "incident_id": incident_id,
+            "is_air_ops": True,
+            "status": "active",
+            "position_id": {"$ne": body.position_id} if body.position_id is not None else {"$exists": True},
+        })
+        if existing_air_ops:
+            raise HTTPException(
+                400,
+                "An Air Operations Branch already exists for this incident "
+                f"(position {existing_air_ops['position_id']}). There can only be one.",
+            )
     if body.position_id is None:
         pid = _next_int_id(repo, "position_id")
         doc = {
@@ -146,6 +161,7 @@ def upsert_position(incident_id: str, body: UpsertPositionRequest) -> dict[str, 
             "required_qualifications": [q.strip() for q in body.required_qualifications if q.strip()],
             "is_critical": body.is_critical,
             "is_custom": body.is_custom,
+            "is_air_ops": body.is_air_ops,
             "status": body.status or "active",
             "sort_order": body.sort_order,
             "notes": body.notes,
@@ -163,6 +179,7 @@ def upsert_position(incident_id: str, body: UpsertPositionRequest) -> dict[str, 
         "required_qualifications": [q.strip() for q in body.required_qualifications if q.strip()],
         "is_critical": body.is_critical,
         "is_custom": body.is_custom,
+        "is_air_ops": body.is_air_ops,
         "status": body.status or "active",
         "sort_order": body.sort_order,
         "notes": body.notes,
@@ -346,6 +363,7 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
         qualifications = raw.get("required_qualifications") or []
         if isinstance(qualifications, str):
             qualifications = [q.strip() for q in qualifications.split(",") if q.strip()]
+        is_air_ops = bool(raw.get("is_air_ops", False))
         # Idempotent: find existing active position with same title+classification+parent
         existing = pos_repo.find_one({
             "incident_id": incident_id,
@@ -354,6 +372,15 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
             "parent_position_id": parent_id,
             "status": "active",
         })
+        if not existing and is_air_ops:
+            # There can only be one Air Operations Branch per incident -
+            # reuse whichever one already exists (even under a different
+            # title/parent) instead of creating a second, conflicting one.
+            existing = pos_repo.find_one({
+                "incident_id": incident_id,
+                "is_air_ops": True,
+                "status": "active",
+            })
         if existing:
             pid = existing["position_id"]
         else:
@@ -368,6 +395,7 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
                 "required_qualifications": [str(q) for q in qualifications],
                 "is_critical": bool(raw.get("is_critical", False)),
                 "is_custom": bool(raw.get("is_custom", False)),
+                "is_air_ops": bool(raw.get("is_air_ops", False)),
                 "status": status,
                 "sort_order": int(raw.get("sort_order", 0) or 0),
                 "notes": raw.get("notes"),

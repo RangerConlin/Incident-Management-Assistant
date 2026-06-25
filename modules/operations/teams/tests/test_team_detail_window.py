@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from modules.admin.resource_types.data import ApiResourceAssignmentRepository
 from modules.operations.taskings.models import TaskTeam
 from modules.operations.teams.data import repository as team_repo
 from modules.operations.teams.data.team import Team
@@ -24,15 +23,18 @@ def qt_app() -> QApplication:
     return app
 
 
-def test_team_detail_window_populates_empty_resource_type(qt_app: QApplication) -> None:
+def test_team_detail_window_populates_empty_assigned_unit(qt_app: QApplication) -> None:
     window = TeamDetailWindow()
     try:
-        assert isinstance(window._resource_assignments, ApiResourceAssignmentRepository)
+        # No active incident in this test environment, so the org chart
+        # lookup in _refresh_assignable_units no-ops and only the
+        # "Unassigned" sentinel item is present - that's still the
+        # correct, safe default for a team with no operational_unit_id.
+        window._populate_assigned_unit_selection({"operational_unit_id": None})
 
-        window._populate_resource_type_selection({"resource_type_id": None})
-
-        assert window._resource_type_search.resource_type_id is None
-        assert window._resource_type_search.resource_type_text == ""
+        assert window._assigned_unit_combo.count() >= 1
+        assert window._assigned_unit_combo.itemData(0) is None
+        assert window._assigned_unit_combo.currentIndex() == 0
     finally:
         window.close()
 
@@ -103,6 +105,42 @@ def test_team_repository_round_trips_attention_and_asset_lists(monkeypatch: pyte
     assert loaded.equipment == ["22"]
     assert loaded.aircraft == ["33"]
     assert loaded.needs_attention is True
+
+
+def test_team_repository_round_trips_operational_unit_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _FakeApiClient()
+    monkeypatch.setattr(team_repo, "_client", lambda: client)
+    monkeypatch.setattr(team_repo, "_base", lambda: "/api/incidents/INC/operations")
+
+    team = Team(team_id=7, name="Alpha", operational_unit_id=42)
+    team_repo.save_team(team)
+
+    assert client.patch_calls[-1][1]["operational_unit_id"] == 42
+
+    client.doc.update({"int_id": 7, "name": "Alpha", "operational_unit_id": 42})
+    loaded = team_repo.get_team(7)
+
+    assert loaded is not None
+    assert loaded.operational_unit_id == 42
+
+
+def test_team_repository_save_team_explicit_clear_sends_null(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A plain save with operational_unit_id=None must NOT send the field at
+    all (so it's left untouched server-side, consistent with every other
+    None-valued field) - only clear_operational_unit=True should explicitly
+    null it out. This matters because operations.py's create_team/update_team
+    auto-slots AIR teams onto the Air Ops Branch whenever the key is absent
+    from the PATCH body."""
+    client = _FakeApiClient()
+    monkeypatch.setattr(team_repo, "_client", lambda: client)
+    monkeypatch.setattr(team_repo, "_base", lambda: "/api/incidents/INC/operations")
+
+    team = Team(team_id=7, name="Alpha", operational_unit_id=None)
+    team_repo.save_team(team)
+    assert "operational_unit_id" not in client.patch_calls[-1][1]
+
+    team_repo.save_team(team, clear_operational_unit=True)
+    assert client.patch_calls[-1][1]["operational_unit_id"] is None
 
 
 def test_reset_team_comm_timer_sends_when_key(monkeypatch: pytest.MonkeyPatch) -> None:

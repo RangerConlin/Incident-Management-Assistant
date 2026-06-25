@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Modeless editor dialog for incident objectives."""
 
+import re
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt
@@ -12,7 +13,6 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -34,7 +34,6 @@ from modules.command.models.objectives import (
     PRIORITY_VALUES,
     STATUS_VALUES,
     ObjectiveDetail,
-    ObjectiveStrategyView,
 )
 from utils import incident_context
 
@@ -77,6 +76,7 @@ class ObjectiveDetailDialog(QDialog):
         self._objective_id: Optional[str] = None
         self._detail: Optional[ObjectiveDetail] = None
         self._on_saved = on_saved
+        self._detail_windows: list = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -88,7 +88,7 @@ class ObjectiveDetailDialog(QDialog):
         self._tab_widget = QTabWidget(self)
         layout.addWidget(self._tab_widget, 1)
 
-        self._build_strategies_tab()
+        self._build_overview_tab()
         self._build_tasks_tab()
         self._build_narrative_tab()
         self._build_log_tab()
@@ -211,7 +211,12 @@ class ObjectiveDetailDialog(QDialog):
         row.addWidget(spacer)
         return bar
 
-    def _build_strategies_tab(self) -> None:
+    def _build_overview_tab(self) -> None:
+        """Read-only roll-up of the ICS-204 work assignments ("strategies")
+        linked to this objective. Strategies themselves are authored and
+        managed in the Tactics & Resource Planner — this tab is a command
+        view into that work, not a second place to edit it.
+        """
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -219,38 +224,36 @@ class ObjectiveDetailDialog(QDialog):
 
         self._strategies_table = QTableWidget(0, 5, tab)
         self._strategies_table.setHorizontalHeaderLabels(
-            ["Strategy", "Owner", "Status", "Progress", "Open/Total"]
+            ["Assignment #", "Name", "Branch/Division", "Planning Status", "Tasks"]
         )
         self._strategies_table.horizontalHeader().setStretchLastSection(True)
         self._strategies_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._strategies_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._strategies_table.setAlternatingRowColors(True)
+        self._strategies_table.doubleClicked.connect(lambda _: self._open_selected_work_assignment())
 
         layout.addWidget(self._strategies_table)
 
         button_bar = QHBoxLayout()
-        add_btn = QPushButton("Add")
-        add_btn.clicked.connect(self._add_strategy)
-        edit_btn = QPushButton("Edit")
-        edit_btn.clicked.connect(self._edit_strategy)
-        delete_btn = QPushButton("Delete")
-        delete_btn.clicked.connect(self._delete_strategy)
-        button_bar.addWidget(add_btn)
-        button_bar.addWidget(edit_btn)
-        button_bar.addWidget(delete_btn)
+        open_btn = QPushButton("Open Strategy")
+        open_btn.clicked.connect(self._open_selected_work_assignment)
+        planner_btn = QPushButton("Open Tactics & Resource Planner")
+        planner_btn.clicked.connect(self._open_planner)
+        button_bar.addWidget(open_btn)
+        button_bar.addWidget(planner_btn)
         button_bar.addStretch(1)
         layout.addLayout(button_bar)
 
-        self._tab_widget.addTab(tab, "Strategies")
+        self._tab_widget.addTab(tab, "Overview")
 
     def _build_tasks_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(12, 12, 12, 12)
 
-        self._tasks_table = QTableWidget(0, 7, tab)
+        self._tasks_table = QTableWidget(0, 6, tab)
         self._tasks_table.setHorizontalHeaderLabels(
-            ["Task", "Title", "Strategy", "Assignee/Team", "Status", "Due", "Open"]
+            ["Task", "Title", "Assignee/Team", "Status", "Due", "Open"]
         )
         self._tasks_table.horizontalHeader().setStretchLastSection(True)
         self._tasks_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -261,7 +264,10 @@ class ObjectiveDetailDialog(QDialog):
         button_bar = QHBoxLayout()
         new_task_btn = QPushButton("New Task")
         new_task_btn.clicked.connect(self._create_task)
+        unlink_btn = QPushButton("Unlink")
+        unlink_btn.clicked.connect(self._unlink_task)
         button_bar.addWidget(new_task_btn)
+        button_bar.addWidget(unlink_btn)
         button_bar.addStretch(1)
         layout.addLayout(button_bar)
 
@@ -324,23 +330,71 @@ class ObjectiveDetailDialog(QDialog):
         updated_ts = summary.updated_at.isoformat(sep=" ", timespec="seconds") if summary.updated_at else ""
         self._updated_label.setText(f"Updated {updated_ts} by {updated_by}" if updated_ts else "–")
         self._narrative_edit.setPlainText(self._detail.narrative or "")
-        self._populate_strategies(detail.strategies)
+        self._populate_overview()
         self._populate_tasks()
         self._populate_history(history)
 
-    def _populate_strategies(self, strategies: list[ObjectiveStrategyView]) -> None:
+    def _objective_numeric_id(self) -> Optional[int]:
+        """Best-effort numeric id parsed from the objective code (e.g. 'OBJ-7' -> 7),
+        used to look up work assignments tagged with this objective."""
+        if not self._detail:
+            return None
+        match = re.search(r"(\d+)$", self._detail.summary.code or "")
+        return int(match.group(1)) if match else None
+
+    def _populate_overview(self) -> None:
         self._strategies_table.setRowCount(0)
-        for strategy in strategies:
+        objective_num = self._objective_numeric_id()
+        if objective_num is None:
+            return
+        from modules.planning.tactics_resources.data.work_assignment_repository import (
+            WorkAssignmentRepository,
+        )
+        repo = WorkAssignmentRepository()
+        try:
+            assignments = repo.list_work_assignments(
+                {"objective_id": objective_num, "show_archived": False}
+            )
+        except Exception:
+            assignments = []
+        for wa in assignments:
             row = self._strategies_table.rowCount()
             self._strategies_table.insertRow(row)
-            self._strategies_table.setItem(row, 0, QTableWidgetItem(strategy.text))
-            self._strategies_table.setItem(row, 1, QTableWidgetItem(strategy.owner or ""))
-            self._strategies_table.setItem(row, 2, QTableWidgetItem(strategy.status.title()))
-            progress = "" if strategy.progress_pct is None else f"{strategy.progress_pct}%"
-            self._strategies_table.setItem(row, 3, QTableWidgetItem(progress))
-            open_total = f"{strategy.open_tasks}/{strategy.total_tasks}"
-            self._strategies_table.setItem(row, 4, QTableWidgetItem(open_total))
-            self._strategies_table.item(row, 0).setData(Qt.UserRole, strategy.id)
+            self._strategies_table.setItem(row, 0, QTableWidgetItem(wa.assignment_number))
+            self._strategies_table.setItem(row, 1, QTableWidgetItem(wa.assignment_name))
+            branch_div = " / ".join(p for p in (wa.branch, wa.division_group) if p)
+            self._strategies_table.setItem(row, 2, QTableWidgetItem(branch_div))
+            self._strategies_table.setItem(row, 3, QTableWidgetItem(wa.planning_status))
+            try:
+                task_count = len(repo.list_linked_tasks(wa.id))
+            except Exception:
+                task_count = 0
+            self._strategies_table.setItem(row, 4, QTableWidgetItem(str(task_count)))
+            self._strategies_table.item(row, 0).setData(Qt.UserRole, wa.id)
+
+    def _open_selected_work_assignment(self) -> None:
+        row = self._strategies_table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Open Strategy", "Select a strategy row first.")
+            return
+        item = self._strategies_table.item(row, 0)
+        wa_id = item.data(Qt.UserRole) if item else None
+        if wa_id is None:
+            return
+        from modules.planning.tactics_resources.windows.work_assignment_detail_window import (
+            WorkAssignmentDetailWindow,
+        )
+        window = WorkAssignmentDetailWindow(work_assignment_id=int(wa_id))
+        window.show()
+        self._detail_windows.append(window)
+
+    def _open_planner(self) -> None:
+        from modules.planning.tactics_resources.windows.tactics_resources_planner_window import (
+            TacticsResourcesPlannerWindow,
+        )
+        window = TacticsResourcesPlannerWindow()
+        window.show()
+        self._detail_windows.append(window)
 
     def _populate_tasks(self) -> None:
         self._tasks_table.setRowCount(0)
@@ -351,16 +405,18 @@ class ObjectiveDetailDialog(QDialog):
             self._tasks_table.insertRow(row)
             self._tasks_table.setItem(row, 0, QTableWidgetItem(task.task_number))
             self._tasks_table.setItem(row, 1, QTableWidgetItem(task.title))
-            self._tasks_table.setItem(row, 2, QTableWidgetItem(task.strategy_text))
-            self._tasks_table.setItem(row, 3, QTableWidgetItem(task.assignee or ""))
-            self._tasks_table.setItem(row, 4, QTableWidgetItem(task.status))
-            self._tasks_table.setItem(row, 5, QTableWidgetItem(task.due or ""))
-            self._tasks_table.setItem(row, 6, QTableWidgetItem("Yes" if task.is_open else "No"))
+            self._tasks_table.setItem(row, 2, QTableWidgetItem(task.assignee or ""))
+            self._tasks_table.setItem(row, 3, QTableWidgetItem(task.status))
+            self._tasks_table.setItem(row, 4, QTableWidgetItem(task.due or ""))
+            self._tasks_table.setItem(row, 5, QTableWidgetItem("Yes" if task.is_open else "No"))
+            self._tasks_table.item(row, 0).setData(Qt.UserRole, (task.link_id, task.task_db_id))
 
     def _populate_history(self, history) -> None:
         self._log_list.clear()
         for entry in history:
-            label = f"{entry.ts:%Y-%m-%d %H:%M} – {entry.field}: {entry.old_value or ''} → {entry.new_value or ''}"
+            label = f"{entry.ts} – {entry.action}"
+            if entry.field:
+                label += f" ({entry.field}: {entry.old_value or ''} → {entry.new_value or ''})"
             item = QListWidgetItem(label)
             self._log_list.addItem(item)
 
@@ -395,104 +451,83 @@ class ObjectiveDetailDialog(QDialog):
             self._on_saved()
 
     def _create_task(self) -> None:
-        QMessageBox.information(
-            self,
-            "Create Task",
-            "Task creation workflow will be available in a future update.",
-        )
+        if self._objective_id is None:
+            QMessageBox.warning(self, "Create Task", "Save the objective before creating tasks.")
+            return
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            return
+        try:
+            from modules.operations.taskings.repository import create_task
+            new_id = create_task(title="<New Task>")
+            ApiObjectiveRepository(str(incident_id)).link_task(self._objective_id, new_id)
+        except Exception as exc:  # pragma: no cover
+            QMessageBox.critical(self, "Create Task", f"Failed to create task:\n{exc}")
+            return
+        self._refresh()
+        try:
+            from modules.operations.taskings.windows import open_task_detail_window
+            open_task_detail_window(new_id)
+        except Exception:
+            pass
+
+    def _unlink_task(self) -> None:
+        row = self._tasks_table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Unlink Task", "Select a task to unlink.")
+            return
+        item = self._tasks_table.item(row, 0)
+        data = item.data(Qt.UserRole) if item else None
+        if not data:
+            return
+        link_id, _task_id = data
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id or self._objective_id is None:
+            return
+        if QMessageBox.question(
+            self, "Unlink Task", "Remove this task's link to the objective?"
+        ) != QMessageBox.Yes:
+            return
+        try:
+            ApiObjectiveRepository(str(incident_id)).unlink_task(self._objective_id, link_id)
+        except Exception as exc:  # pragma: no cover
+            QMessageBox.critical(self, "Unlink Task", f"Failed to unlink task:\n{exc}")
+            return
+        self._refresh()
 
     def _show_history(self) -> None:
         self._tab_widget.setCurrentIndex(3)
 
     def _show_snippet(self) -> None:
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            QMessageBox.warning(self, "ICS-202", "Select an incident to export ICS-202 data.")
+            return
         if not self._detail:
-            QMessageBox.warning(self, "ICS-202", "Save the objective first to generate a snippet.")
-            return
-        summary = self._detail.summary
-        payload = {
-            "code": summary.code,
-            "text": summary.text,
-            "priority": summary.priority,
-            "status": summary.status,
-            "strategies": [
-                {
-                    "text": s.text,
-                    "status": s.status,
-                    "progress_pct": s.progress_pct,
-                    "open_tasks": s.open_tasks,
-                    "total_tasks": s.total_tasks,
-                }
-                for s in self._detail.strategies
-            ],
-        }
-        QMessageBox.information(self, "ICS-202", "Snippet prepared. Copy from console output.")
-        print(payload)  # noqa: T201
-
-    def _add_strategy(self) -> None:
-        if self._objective_id is None:
-            QMessageBox.warning(self, "Strategies", "Save the objective before adding strategies.")
-            return
-        text, ok = QInputDialog.getText(self, "New Strategy", "Strategy description")
-        if not ok or not text.strip():
-            return
-        incident_id = incident_context.get_active_incident_id()
-        if not incident_id:
+            QMessageBox.warning(self, "ICS-202", "Save the objective first.")
             return
         try:
-            ApiObjectiveRepository(str(incident_id)).add_strategy(self._objective_id, {"text": text.strip()})
+            payload = ApiObjectiveRepository(str(incident_id)).export_ics202()
         except Exception as exc:  # pragma: no cover
-            QMessageBox.critical(self, "Strategy", f"Failed to add strategy:\n{exc}")
-            return
-        self._refresh()
-
-    def _edit_strategy(self) -> None:
-        current = self._current_strategy_id()
-        if current is None:
-            return
-        row = self._strategies_table.currentRow()
-        existing_text = self._strategies_table.item(row, 0).text() if row >= 0 else ""
-        text, ok = QInputDialog.getText(self, "Edit Strategy", "Strategy description", text=existing_text)
-        if not ok:
-            return
-        incident_id = incident_context.get_active_incident_id()
-        if not incident_id:
+            QMessageBox.critical(self, "ICS-202", f"Failed to build ICS-202 export:\n{exc}")
             return
         try:
-            ApiObjectiveRepository(str(incident_id)).update_strategy(self._objective_id, current, {"text": text.strip()})
-        except Exception as exc:  # pragma: no cover
-            QMessageBox.critical(self, "Strategy", f"Failed to update strategy:\n{exc}")
-            return
-        self._refresh()
+            from pathlib import Path
+            from utils import incident_storage
+            from modules.forms_creator.api import export_form_unified
 
-    def _delete_strategy(self) -> None:
-        current = self._current_strategy_id()
-        if current is None:
-            return
-        incident_id = incident_context.get_active_incident_id()
-        if not incident_id:
-            return
-        if QMessageBox.question(
-            self,
-            "Delete Strategy",
-            "Remove the selected strategy?",
-        ) != QMessageBox.Yes:
-            return
-        try:
-            ApiObjectiveRepository(str(incident_id)).delete_strategy(self._objective_id, current)
+            paths = incident_storage.resolve_incident_paths_by_identifier(str(incident_id))
+            out_dir = paths.forms_exports if paths else Path("data") / "exports" / str(incident_id)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            result = export_form_unified(
+                "ics_202",
+                out_dir / "ICS202.pdf",
+                values=payload if isinstance(payload, dict) else {},
+                context={"incident_id": str(incident_id)},
+            )
+            QMessageBox.information(self, "ICS-202", f"ICS-202 exported to:\n{result.path}")
         except Exception as exc:  # pragma: no cover
-            QMessageBox.critical(self, "Strategy", f"Failed to delete strategy:\n{exc}")
-            return
-        self._refresh()
-
-    def _current_strategy_id(self) -> Optional[str]:
-        row = self._strategies_table.currentRow()
-        if row < 0:
-            return None
-        item = self._strategies_table.item(row, 0)
-        if not item:
-            return None
-        data = item.data(Qt.UserRole)
-        return str(data) if data is not None else None
+            QMessageBox.critical(self, "ICS-202", f"Export failed:\n{exc}")
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         super().closeEvent(event)

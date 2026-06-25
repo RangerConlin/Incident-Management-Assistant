@@ -87,13 +87,19 @@ def get_team(team_id: int) -> Optional[Team]:
         equipment=[str(x) for x in _parse_json_list(doc.get("equipment_json"))],
         aircraft=[str(x) for x in _parse_json_list(doc.get("aircraft_json") or doc.get("aircraft_ids"))],
         team_type=doc.get("team_type") or "GT",
+        operational_unit_id=_parse_int(doc.get("operational_unit_id")),
         readiness_status=doc.get("readiness_status") or "Unknown",
         needs_attention=bool(doc.get("needs_attention")),
         last_comm_ts=comm_dt,
     )
 
 
-def save_team(team: Team) -> Team:
+def save_team(team: Team, *, clear_operational_unit: bool = False) -> Team:
+    """Persist a team. ``clear_operational_unit=True`` explicitly clears chain
+    of command (otherwise an absent/None operational_unit_id is filtered out
+    below like every other unset field, which would leave the previous
+    assignment in place rather than clearing it - and could let the server's
+    AIR auto-slot logic in operations.py re-assign it on the next save)."""
     data = {
         "name": team.name,
         "callsign": getattr(team, "callsign", None),
@@ -113,6 +119,9 @@ def save_team(team: Team) -> Team:
         "needs_attention": bool(getattr(team, "needs_attention", False)),
     }
     data = {k: v for k, v in data.items() if v is not None}
+    operational_unit_id = getattr(team, "operational_unit_id", None)
+    if operational_unit_id is not None or clear_operational_unit:
+        data["operational_unit_id"] = operational_unit_id
 
     if team.team_id is None:
         result = _client().post(f"{_base()}/teams", json=data)

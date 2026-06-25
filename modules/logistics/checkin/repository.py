@@ -36,6 +36,8 @@ def _identity_from_doc(doc: dict) -> PersonnelIdentity:
         callsign=doc.get("callsign"),
         certifications=doc.get("certifications"),
         home_unit=doc.get("home_unit"),
+        rank=doc.get("rank"),
+        is_medic=doc.get("is_medic"),
     )
 
 
@@ -44,6 +46,26 @@ def _identity_from_doc(doc: dict) -> PersonnelIdentity:
 # ---------------------------------------------------------------------------
 
 def get_person_identity(person_id: str) -> Optional[PersonnelIdentity]:
+    """Resolve a person's display identity.
+
+    Team membership and other incident-scoped references use the id of the
+    incident's own ``incident_personnel`` check-in copy, not the master
+    roster id, so look there first and only fall back to the master
+    collection (e.g. for a person referenced before any check-in copy
+    exists).
+    """
+    try:
+        from utils import incident_context
+        incident_id = incident_context.get_active_incident_id()
+    except Exception:
+        incident_id = None
+    if incident_id:
+        try:
+            doc = _client().get(f"/api/incidents/{incident_id}/operations/personnel/{person_id}")
+            if doc:
+                return _identity_from_doc(doc)
+        except Exception:
+            pass
     try:
         doc = _client().get(f"{_BASE_PERSONNEL}/{person_id}")
         return _identity_from_doc(doc) if doc else None

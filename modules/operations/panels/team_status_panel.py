@@ -421,6 +421,14 @@ class TeamStatusPanel(QWidget):
                 app_signals.teamStatusChanged.connect(self._on_team_status_changed)
             except Exception:
                 pass
+            try:
+                app_signals.teamLeaderChanged.connect(lambda *_: self.reload())
+            except Exception:
+                pass
+            try:
+                app_signals.teamAssetsChanged.connect(lambda *_: self.reload())
+            except Exception:
+                pass
         except Exception:
             pass
         # Theme changes recolor rows
@@ -562,6 +570,25 @@ class TeamStatusPanel(QWidget):
             self.table.setItem(row, offset, item)
 
         self.set_row_color_by_status(row, status_key)
+        self._apply_team_type_color(row, data.get("team_type", ""))
+
+    def _apply_team_type_color(self, row: int, team_type: str) -> None:
+        """Color the Team Type cell using the same rule as the team detail
+        window's background (TEAM_TYPE_COLORS, lightened by 30%)."""
+        item = self.table.item(row, 3)
+        if not item:
+            return
+        try:
+            from utils.styles import TEAM_TYPE_COLORS
+            code = str(team_type or "").strip().upper()
+            color = TEAM_TYPE_COLORS.get(code)
+            if not color:
+                return
+            base = QColor(color).lighter(130)
+            item.setBackground(QBrush(base))
+            item.setForeground(QBrush(QColor("#000000") if base.lightness() > 128 else QColor("#ffffff")))
+        except Exception:
+            pass
 
     def _apply_identity_roles(self, item: QTableWidgetItem, data: dict) -> None:
         role_keys = (
@@ -719,11 +746,15 @@ class TeamStatusPanel(QWidget):
     def _recolor_all(self) -> None:
         try:
             status_col = 6
+            type_col = 3
             rows = self.table.rowCount()
             for r in range(rows):
                 item = self.table.item(r, status_col)
                 status = (item.text() if item else "").strip().lower()
                 self.set_row_color_by_status(r, status)
+                type_item = self.table.item(r, type_col)
+                team_type = (type_item.text() if type_item else "")
+                self._apply_team_type_color(r, team_type)
         except Exception:
             pass
 

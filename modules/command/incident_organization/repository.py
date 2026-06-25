@@ -53,6 +53,7 @@ class ApiIncidentOrganizationRepository:
             "required_qualifications": list(position.required_qualifications),
             "is_critical": position.is_critical,
             "is_custom": position.is_custom,
+            "is_air_ops": position.is_air_ops,
             "status": position.status,
             "sort_order": position.sort_order,
             "notes": position.notes,
@@ -199,6 +200,7 @@ class ApiIncidentOrganizationRepository:
             required_qualifications=list(doc.get("required_qualifications") or []),
             is_critical=bool(doc.get("is_critical", False)),
             is_custom=bool(doc.get("is_custom", False)),
+            is_air_ops=bool(doc.get("is_air_ops", False)),
             status=doc.get("status", "active"),
             sort_order=int(doc.get("sort_order", 0) or 0),
             notes=doc.get("notes"),
@@ -248,3 +250,152 @@ class ApiIncidentOrganizationRepository:
             changed_by=doc.get("changed_by"),
             notes=doc.get("notes"),
         )
+
+
+def _default_organization_templates() -> list[OrganizationTemplate]:
+    """Built-in ICS organization templates offered alongside any
+    incident-saved custom templates. Referenced by
+    data/db/sarapp_db/api/routers/incident_org.py::_builtin_templates().
+    """
+
+    basic_payload = [
+        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
+        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
+        {"key": "pio", "parent_key": "ic", "title": "Public Information Officer", "classification": "position"},
+        {"key": "liaison", "parent_key": "ic", "title": "Liaison Officer", "classification": "position"},
+        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
+        {"key": "planning", "parent_key": "ic", "title": "Planning Section Chief", "classification": "section"},
+        {"key": "logistics", "parent_key": "ic", "title": "Logistics Section Chief", "classification": "section"},
+        {"key": "finance", "parent_key": "ic", "title": "Finance/Administration Section Chief", "classification": "section"},
+    ]
+
+    expanded_payload = basic_payload + [
+        {"key": "ic_deputy", "parent_key": "ic", "title": "Deputy Incident Commander", "classification": "position"},
+        {"key": "ops_deputy", "parent_key": "ops", "title": "Deputy Operations Section Chief", "classification": "position"},
+        {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
+        {
+            "key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch",
+            "classification": "branch", "is_air_ops": True,
+        },
+        {"key": "resources_unit", "parent_key": "planning", "title": "Resources Unit Leader", "classification": "position"},
+        {"key": "situation_unit", "parent_key": "planning", "title": "Situation Unit Leader", "classification": "position"},
+        {"key": "documentation_unit", "parent_key": "planning", "title": "Documentation Unit Leader", "classification": "position"},
+        {"key": "demob_unit", "parent_key": "planning", "title": "Demobilization Unit Leader", "classification": "position"},
+        {"key": "support_branch", "parent_key": "logistics", "title": "Support Branch", "classification": "branch"},
+        {"key": "supply_unit", "parent_key": "support_branch", "title": "Supply Unit Leader", "classification": "position"},
+        {"key": "facilities_unit", "parent_key": "support_branch", "title": "Facilities Unit Leader", "classification": "position"},
+        {"key": "ground_support_unit", "parent_key": "support_branch", "title": "Ground Support Unit Leader", "classification": "position"},
+        {"key": "service_branch", "parent_key": "logistics", "title": "Service Branch", "classification": "branch"},
+        {"key": "communications_unit", "parent_key": "service_branch", "title": "Communications Unit Leader", "classification": "position"},
+        {"key": "medical_unit", "parent_key": "service_branch", "title": "Medical Unit Leader", "classification": "position"},
+        {"key": "food_unit", "parent_key": "service_branch", "title": "Food Unit Leader", "classification": "position"},
+        {"key": "time_unit", "parent_key": "finance", "title": "Time Unit Leader", "classification": "position"},
+        {"key": "procurement_unit", "parent_key": "finance", "title": "Procurement Unit Leader", "classification": "position"},
+        {"key": "comp_claims_unit", "parent_key": "finance", "title": "Compensation/Claims Unit Leader", "classification": "position"},
+        {"key": "cost_unit", "parent_key": "finance", "title": "Cost Unit Leader", "classification": "position"},
+    ]
+
+    sar_minimal_payload = [
+        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
+        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
+        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
+        {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
+    ]
+
+    # Civil Air Patrol - every Command Staff role and Section Chief gets a
+    # deputy. Branches (Ground Ops / Air Ops) don't get a separate deputy
+    # *position* node - a branch's deputy director is recorded as a second
+    # assignment (assignment_type="deputy") on the branch position itself,
+    # same as _build_org_branches/_build_air_ops_branch already expect.
+    cap_payload = [
+        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
+        {"key": "ic_deputy", "parent_key": "ic", "title": "Deputy Incident Commander", "classification": "position"},
+
+        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
+        {"key": "safety_deputy", "parent_key": "safety", "title": "Deputy Safety Officer", "classification": "position"},
+
+        {"key": "liaison", "parent_key": "ic", "title": "Liaison Officer", "classification": "position"},
+        {"key": "liaison_deputy", "parent_key": "liaison", "title": "Deputy Liaison Officer", "classification": "position"},
+
+        {"key": "pio", "parent_key": "ic", "title": "Public Information Officer", "classification": "position"},
+        {"key": "pio_deputy", "parent_key": "pio", "title": "Deputy Public Information Officer", "classification": "position"},
+
+        {"key": "planning", "parent_key": "ic", "title": "Planning Section Chief", "classification": "section"},
+        {"key": "planning_deputy", "parent_key": "planning", "title": "Deputy Planning Section Chief", "classification": "position"},
+        {"key": "situation_unit", "parent_key": "planning", "title": "Situation Unit Leader", "classification": "position"},
+
+        {"key": "logistics", "parent_key": "ic", "title": "Logistics Section Chief", "classification": "section"},
+        {"key": "logistics_deputy", "parent_key": "logistics", "title": "Deputy Logistics Section Chief", "classification": "position"},
+        {"key": "communications_unit", "parent_key": "logistics", "title": "Communications Unit Leader", "classification": "position"},
+
+        {"key": "finance", "parent_key": "ic", "title": "Finance/Administration Section Chief", "classification": "section"},
+        {"key": "finance_deputy", "parent_key": "finance", "title": "Deputy Finance/Administration Section Chief", "classification": "position"},
+
+        {"key": "intel", "parent_key": "ic", "title": "Intelligence Section Chief", "classification": "section"},
+        {"key": "intel_deputy", "parent_key": "intel", "title": "Deputy Intelligence Section Chief", "classification": "position"},
+
+        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
+        {"key": "ops_deputy", "parent_key": "ops", "title": "Deputy Operations Section Chief", "classification": "position"},
+        {"key": "ground_ops_branch", "parent_key": "ops", "title": "Ground Operations Branch", "classification": "branch"},
+        {
+            "key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch",
+            "classification": "branch", "is_air_ops": True,
+        },
+    ]
+
+    return [
+        OrganizationTemplate(
+            id=None,
+            incident_id=None,
+            name="ICS Command & General Staff (Basic)",
+            description=(
+                "Incident Commander, Command Staff (Safety/PIO/Liaison), and "
+                "the four Section Chiefs. Starting point for most incidents - "
+                "add branches/units as the incident grows."
+            ),
+            payload=basic_payload,
+        ),
+        OrganizationTemplate(
+            id=None,
+            incident_id=None,
+            name="Type 3 Incident (Expanded)",
+            description=(
+                "Basic structure plus deputies, an Air Operations Branch "
+                "(flagged so it correctly populates the dedicated Air Ops "
+                "field on ICS 203/207 instead of being counted as a numbered "
+                "branch), Support/Service Branches under Logistics, and the "
+                "standard Planning/Finance units."
+            ),
+            payload=expanded_payload,
+        ),
+        OrganizationTemplate(
+            id=None,
+            incident_id=None,
+            name="SAR Initial Response (Minimal)",
+            description=(
+                "Incident Commander, Safety Officer, Operations Section "
+                "Chief, and a Staging Area Manager - enough to start tasking "
+                "teams on a hasty/initial-response search before the full "
+                "organization is staffed."
+            ),
+            payload=sar_minimal_payload,
+        ),
+        OrganizationTemplate(
+            id=None,
+            incident_id=None,
+            name="Civil Air Patrol (Standard)",
+            description=(
+                "Incident Commander, Command Staff (Safety/Liaison/PIO), and "
+                "Planning/Logistics/Finance/Intelligence Section Chiefs - "
+                "every one of those with a deputy. Planning includes a "
+                "Situation Unit Leader (SITL); Logistics includes a "
+                "Communications Unit Leader (COML); Intelligence is its own "
+                "standalone section, not folded under Planning. Operations "
+                "Section Chief (with deputy) splits into a Ground "
+                "Operations Branch and an Air Operations Branch (pre-flagged "
+                "so it populates the form's dedicated Air Ops field instead "
+                "of a numbered branch slot)."
+            ),
+            payload=cap_payload,
+        ),
+    ]

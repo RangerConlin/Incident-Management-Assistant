@@ -378,6 +378,283 @@ for i in range(10):
             "index": i,
         })
 
+# ── Liaison Agencies ──────────────────────────────────────────────────────────
+LIAISON_AGENCY_FIELDS = [
+    ("int_id", "ID"),
+    ("name", "Agency Name"),
+    ("agency_type", "Agency Type"),
+    ("jurisdiction", "Jurisdiction"),
+    ("current_status", "Current Status"),
+    ("assigned_liaison", "Assigned Liaison"),
+    ("last_contact", "Last Contact"),
+    ("next_contact_due", "Next Contact Due"),
+    ("priority", "Priority"),
+    ("notes", "Notes"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_AGENCY_FIELDS:
+        entries.append({
+            "path": f"liaison_agencies.{i}.{col}",
+            "label": f"Liaison Agency {i+1} ({ord_}) — {label}",
+            "category": "Liaison Agencies",
+            "source_type": "incident_db",
+            "table": "liaison_agencies",
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Contacts ──────────────────────────────────────────────────────────
+LIAISON_CONTACT_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("name", "Name"),
+    ("title", "Title"),
+    ("role", "Role"),
+    ("agency", "Agency"),
+    ("phone", "Phone"),
+    ("email", "Email"),
+    ("radio_channel", "Radio Channel"),
+    ("preferred_contact", "Preferred Contact"),
+    ("notes", "Notes"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_CONTACT_FIELDS:
+        entries.append({
+            "path": f"liaison_contacts.{i}.{col}",
+            "label": f"Liaison Contact {i+1} ({ord_}) — {label}",
+            "category": "Liaison Contacts",
+            "source_type": "incident_db",
+            "table": "liaison_contacts",
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Interactions ──────────────────────────────────────────────────────
+LIAISON_INTERACTION_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("agency", "Agency"),
+    ("contact_id", "Contact ID"),
+    ("interaction_type", "Interaction Type"),
+    ("occurred_at", "Occurred At"),
+    ("subject", "Subject"),
+    ("summary", "Summary"),
+    ("followup_action", "Follow-up Action"),
+    ("followup_assigned_to", "Follow-up Assigned To"),
+    ("followup_due", "Follow-up Due"),
+    ("entered_by", "Entered By"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+    ("objective_id", "Objective ID"),
+    ("strategy_id", "Strategy ID"),
+    ("task_id", "Task ID"),
+    ("resource_request_id", "Resource Request ID"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_INTERACTION_FIELDS:
+        entries.append({
+            "path": f"liaison_interactions.{i}.{col}",
+            "label": f"Liaison Interaction {i+1} ({ord_}) — {label}",
+            "category": "Liaison Interactions",
+            "source_type": "incident_db" if col not in {"agency"} else "computed",
+            "table": "liaison_interactions" if col not in {"agency"} else None,
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Feedback ──────────────────────────────────────────────────────────
+LIAISON_FEEDBACK_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("agency", "Agency"),
+    ("contact_id", "Contact ID"),
+    ("feedback_type", "Feedback Type"),
+    ("priority", "Priority"),
+    ("summary", "Summary"),
+    ("requested_action", "Requested Action"),
+    ("assigned_section", "Assigned Section"),
+    ("assigned_to", "Assigned To"),
+    ("status", "Status"),
+    ("interaction_id", "Interaction ID"),
+    ("objective_id", "Objective ID"),
+    ("strategy_id", "Strategy ID"),
+    ("task_id", "Task ID"),
+    ("resource_request_id", "Resource Request ID"),
+    ("validation_status", "Validation Status"),
+    ("followup_due", "Follow-up Due"),
+    ("entered_by", "Entered By"),
+    ("entered_ts", "Entered Timestamp"),
+    ("resolved_by", "Resolved By"),
+    ("resolved_ts", "Resolved Timestamp"),
+    ("resolution_notes", "Resolution Notes"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_FEEDBACK_FIELDS:
+        entries.append({
+            "path": f"liaison_feedback.{i}.{col}",
+            "label": f"Liaison Feedback {i+1} ({ord_}) — {label}",
+            "category": "Liaison Feedback",
+            "source_type": "incident_db" if col not in {"agency"} else "computed",
+            "table": "liaison_feedback" if col not in {"agency"} else None,
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Agency Requests ───────────────────────────────────────────────────
+LIAISON_REQUEST_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("agency", "Agency"),
+    ("contact_id", "Contact ID"),
+    ("interaction_id", "Interaction ID"),
+    ("description", "Description"),
+    ("requested_by", "Requested By"),
+    ("priority", "Priority"),
+    ("status", "Status"),
+    ("due_date", "Due Date"),
+    ("resource_request_id", "Resource Request ID"),
+    ("notes", "Notes"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_REQUEST_FIELDS:
+        entries.append({
+            "path": f"liaison_agency_requests.{i}.{col}",
+            "label": f"Liaison Agency Request {i+1} ({ord_}) — {label}",
+            "category": "Liaison Agency Requests",
+            "source_type": "incident_db" if col not in {"agency"} else "computed",
+            "table": "liaison_agency_requests" if col not in {"agency"} else None,
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Resource Offers ───────────────────────────────────────────────────
+LIAISON_OFFER_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("agency", "Agency"),
+    ("contact_id", "Contact ID"),
+    ("interaction_id", "Interaction ID"),
+    ("description", "Description"),
+    ("offered_by", "Offered By"),
+    ("quantity", "Quantity"),
+    ("available_from", "Available From"),
+    ("priority", "Priority"),
+    ("status", "Status"),
+    ("resource_request_id", "Resource Request ID"),
+    ("notes", "Notes"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_OFFER_FIELDS:
+        entries.append({
+            "path": f"liaison_resource_offers.{i}.{col}",
+            "label": f"Liaison Resource Offer {i+1} ({ord_}) — {label}",
+            "category": "Liaison Resource Offers",
+            "source_type": "incident_db" if col not in {"agency"} else "computed",
+            "table": "liaison_resource_offers" if col not in {"agency"} else None,
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Follow-up Actions ─────────────────────────────────────────────────
+LIAISON_FOLLOWUP_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("agency", "Agency"),
+    ("contact_id", "Contact ID"),
+    ("interaction_id", "Interaction ID"),
+    ("feedback_id", "Feedback ID"),
+    ("action_summary", "Action Summary"),
+    ("assigned_to", "Assigned To"),
+    ("due_at", "Due At"),
+    ("status", "Status"),
+    ("objective_id", "Objective ID"),
+    ("strategy_id", "Strategy ID"),
+    ("task_id", "Task ID"),
+    ("resource_request_id", "Resource Request ID"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_FOLLOWUP_FIELDS:
+        entries.append({
+            "path": f"liaison_followup_actions.{i}.{col}",
+            "label": f"Liaison Follow-up {i+1} ({ord_}) — {label}",
+            "category": "Liaison Follow-up Actions",
+            "source_type": "incident_db" if col not in {"agency"} else "computed",
+            "table": "liaison_followup_actions" if col not in {"agency"} else None,
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Restrictions ──────────────────────────────────────────────────────
+LIAISON_RESTRICTION_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("agency", "Agency"),
+    ("restriction_type", "Restriction Type"),
+    ("description", "Description"),
+    ("effective_at", "Effective At"),
+    ("expires_at", "Expires At"),
+    ("status", "Status"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_RESTRICTION_FIELDS:
+        entries.append({
+            "path": f"liaison_restrictions.{i}.{col}",
+            "label": f"Liaison Restriction {i+1} ({ord_}) — {label}",
+            "category": "Liaison Restrictions",
+            "source_type": "incident_db" if col not in {"agency"} else "computed",
+            "table": "liaison_restrictions" if col not in {"agency"} else None,
+            "column": col,
+            "index": i,
+        })
+
+# ── Liaison Agreements ────────────────────────────────────────────────────────
+LIAISON_AGREEMENT_FIELDS = [
+    ("int_id", "ID"),
+    ("agency_id", "Agency ID"),
+    ("agency", "Agency"),
+    ("agreement_type", "Agreement Type"),
+    ("description", "Description"),
+    ("effective_at", "Effective At"),
+    ("expires_at", "Expires At"),
+    ("status", "Status"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in LIAISON_AGREEMENT_FIELDS:
+        entries.append({
+            "path": f"liaison_agreements.{i}.{col}",
+            "label": f"Liaison Agreement {i+1} ({ord_}) — {label}",
+            "category": "Liaison Agreements",
+            "source_type": "incident_db" if col not in {"agency"} else "computed",
+            "table": "liaison_agreements" if col not in {"agency"} else None,
+            "column": col,
+            "index": i,
+        })
+
 # ── Narrative Entries ─────────────────────────────────────────────────────────
 NARRATIVE_FIELDS = [
     ("timestamp",  "Timestamp"),

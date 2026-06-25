@@ -59,6 +59,16 @@ class AppState:
             incident_cache_loader.activate_incident(normalized_incident_id)
         except Exception as e:
             logger.warning("[state] failed to activate IncidentCache: %s", e)
+        # Catch up this incident's personnel copies against the master roster
+        # (push-down sync on edit only reaches the incident active at the time)
+        try:
+            if normalized_incident_id is not None:
+                from utils.api_client import api_client
+                api_client.post(
+                    f"/api/incidents/{normalized_incident_id}/operations/personnel/sync-from-master"
+                )
+        except Exception as e:
+            logger.warning("[state] failed to sync incident personnel from master: %s", e)
 
     @classmethod
     def get_active_incident(cls):

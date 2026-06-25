@@ -321,7 +321,10 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         grid = QtWidgets.QGridLayout(box)
 
         self.txt_id = QtWidgets.QLineEdit()
-        self.txt_id.setPlaceholderText("Auto-assigned if blank")
+        self.txt_id.setPlaceholderText("Auto-assigned")
+        self.txt_id.setReadOnly(True)
+        self.txt_badge = QtWidgets.QLineEdit()
+        self.txt_badge.setPlaceholderText("Badge / Employee #")
         self.txt_name = QtWidgets.QLineEdit()
         self.txt_callsign = QtWidgets.QLineEdit()
         self.txt_role = QtWidgets.QLineEdit()
@@ -331,12 +334,13 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_email = QtWidgets.QLineEdit()
         self.txt_phone = QtWidgets.QLineEdit()
         self.txt_notes = QtWidgets.QLineEdit()
+        self.chk_medic = QtWidgets.QCheckBox("Medic")
         self.btn_photo = QtWidgets.QPushButton("Photo…")
         self.btn_photo.setFixedWidth(80)
         self.btn_photo.clicked.connect(self._choose_photo)
 
-        # Row 0: ID, Name, Callsign
-        grid.addWidget(QtWidgets.QLabel("ID:"), 0, 0)
+        # Row 0: Internal ID, Name, Callsign
+        grid.addWidget(QtWidgets.QLabel("Internal ID:"), 0, 0)
         grid.addWidget(self.txt_id, 0, 1)
         grid.addWidget(QtWidgets.QLabel("Name:"), 0, 2)
         grid.addWidget(self.txt_name, 0, 3)
@@ -351,16 +355,21 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         grid.addWidget(QtWidgets.QLabel("Organization:"), 1, 4)
         grid.addWidget(self.txt_org, 1, 5)
 
-        # Row 2: Email, Phone, Photo
+        # Row 2: Email, Phone, Medic
         grid.addWidget(QtWidgets.QLabel("Email:"), 2, 0)
         grid.addWidget(self.txt_email, 2, 1)
         grid.addWidget(QtWidgets.QLabel("Phone:"), 2, 2)
         grid.addWidget(self.txt_phone, 2, 3)
-        grid.addWidget(QtWidgets.QLabel("Notes:"), 2, 4)
+        grid.addWidget(self.chk_medic, 2, 4)
+
+        # Row 3: Badge #, Notes, Photo
+        grid.addWidget(QtWidgets.QLabel("Badge #:"), 3, 0)
+        grid.addWidget(self.txt_badge, 3, 1)
+        grid.addWidget(QtWidgets.QLabel("Notes:"), 3, 4)
         notes_row = QtWidgets.QHBoxLayout()
         notes_row.addWidget(self.txt_notes)
         notes_row.addWidget(self.btn_photo)
-        grid.addLayout(notes_row, 2, 5)
+        grid.addLayout(notes_row, 3, 5)
 
         grid.setColumnStretch(1, 2)
         grid.setColumnStretch(3, 2)
@@ -520,6 +529,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             return
 
         self.txt_id.setText(str(doc.get("id") or ""))
+        self.txt_badge.setText(doc.get("badge_number") or "")
         self.txt_name.setText(doc.get("name") or "")
         self.txt_callsign.setText(doc.get("callsign") or "")
         self.txt_role.setText(doc.get("primary_role") or doc.get("role") or "")
@@ -527,6 +537,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_org.setCurrentText(doc.get("home_unit") or doc.get("organization") or "")
         self.txt_email.setText(doc.get("email") or "")
         self.txt_phone.setText(doc.get("phone") or "")
+        self.chk_medic.setChecked(bool(doc.get("is_medic")))
         self.txt_notes.setText(doc.get("notes") or "")
         self._photo_path = doc.get("photo_url") or ""
 
@@ -583,6 +594,8 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             "home_unit": self.txt_org.currentText().strip(),
             "email": self.txt_email.text().strip(),
             "phone": self.txt_phone.text().strip(),
+            "badge_number": self.txt_badge.text().strip(),
+            "is_medic": self.chk_medic.isChecked(),
             "notes": self.txt_notes.text().strip(),
             "photo_url": self._photo_path,
             "emergency_info": {
@@ -611,7 +624,10 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         }
         try:
             if self.personnel_id:
-                result = api_client.put(f"/api/master/personnel/{self.personnel_id}", json=doc)
+                from utils import incident_context
+                active_incident_id = incident_context.get_active_incident_id()
+                params = {"active_incident_id": active_incident_id} if active_incident_id else None
+                result = api_client.put(f"/api/master/personnel/{self.personnel_id}", json=doc, params=params)
                 normalized_id = str(result.get("id") or self.personnel_id)
             else:
                 result = api_client.post("/api/master/personnel", json=doc)

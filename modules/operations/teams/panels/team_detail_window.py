@@ -34,10 +34,6 @@ from PySide6.QtWidgets import (
     QSplitter,
 )
 
-from modules.admin.resource_types.data import READINESS_STATUSES, ApiResourceAssignmentRepository
-from modules.admin.resource_types.widgets import ResourceTypeSearchBox
-
-
 class AddVehicleDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -432,7 +428,6 @@ from models.queries import (
     set_team_leader_phone,
     list_available_personnel,
     list_available_aircraft,
-    set_person_medic,
 )
 from utils.app_signals import app_signals
 from utils.constants import (
@@ -465,7 +460,6 @@ class TeamDetailBridge(QObject):
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._team: Team = Team()
-        self._resource_assignments = ApiResourceAssignmentRepository()
         self._selected_member_id: int | None = None
         self._member_detail_dialog: QDialog | None = None
         # Cached lists for QML list views
@@ -682,13 +676,28 @@ class TeamDetailBridge(QObject):
             if self._team.team_id:
                 team_repo.set_team_status(int(self._team.team_id), self._team.status)
             self.statusChanged.emit(self._team.status)
-            self._emit_incident_refresh()
         self.teamChanged.emit()
+        try:
+            team_repo.save_team(self._team)
+        except Exception:
+            pass
+        self._emit_incident_refresh()
 
     @Slot('QVariant')
-    def setResourceType(self, resource_type_id: Any) -> None:
-        self._team.resource_type_id = int(resource_type_id) if resource_type_id not in (None, "") else None
+    def setOperationalUnit(self, unit_id: Any) -> None:
+        """Set chain-of-command (org chart position id, any section - not
+        just Operations) and persist immediately, same pattern as
+        setTeamType. ``None``/empty clears the assignment explicitly rather
+        than just leaving it unset (see repository.save_team's
+        clear_operational_unit handling)."""
+        clearing = unit_id in (None, "")
+        self._team.operational_unit_id = None if clearing else int(unit_id)
         self.teamChanged.emit()
+        try:
+            team_repo.save_team(self._team, clear_operational_unit=clearing)
+        except Exception:
+            pass
+        self._emit_incident_refresh()
 
     @Slot(str)
     def setReadinessStatus(self, readiness_status: str) -> None:
@@ -1291,7 +1300,14 @@ class TeamDetailBridge(QObject):
     @Slot(int, bool)
     def setMedic(self, person_id: int, is_medic: bool) -> None:
         try:
-            set_person_medic(int(person_id), bool(is_medic))
+            from utils.api_client import api_client
+            from utils import incident_context
+            incident_id = incident_context.get_active_incident_id()
+            if incident_id:
+                api_client.patch(
+                    f"/api/incidents/{incident_id}/operations/personnel/{int(person_id)}",
+                    json={"is_medic": bool(is_medic)},
+                )
             if self._team.team_id:
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1503,6 +1519,9 @@ class TeamDetailBridge(QObject):
             if "resource_type_id" in payload:
                 value = payload.get("resource_type_id")
                 self._team.resource_type_id = int(value) if value not in (None, "") else None
+            if "operational_unit_id" in payload:
+                value = payload.get("operational_unit_id")
+                self._team.operational_unit_id = int(value) if value not in (None, "") else None
             if "readiness_status" in payload:
                 value = payload.get("readiness_status")
                 self._team.readiness_status = str(value) if value not in (None, "") else "Unknown"
@@ -1676,7 +1695,6 @@ class TeamDetailWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self._bridge = bridge or TeamDetailBridge(self)
-        self._resource_assignments = ApiResourceAssignmentRepository()
         self._team_id: Optional[int] = team_id
         self._is_air: bool = False
         self._updating: bool = False
@@ -1844,9 +1862,14 @@ class TeamDetailWindow(QMainWindow):
         self._location_field = QLineEdit()
         right_form.addRow(QLabel("Location"), self._location_field)
 
-        self._resource_type_label = QLabel("Resource Type")
-        self._resource_type_search = ResourceTypeSearchBox(parent=self)
-        right_form.addRow(self._resource_type_label, self._resource_type_search)
+        self._assigned_unit_label = QLabel("Assigned Unit")
+        self._assigned_unit_combo = QComboBox()
+        self._assigned_unit_combo.setToolTip(
+            "Chain of command - the section/branch/division/group this team "
+            "reports to. Not limited to Operations; any section's units are "
+            "selectable here, since not every team works under Operations."
+        )
+        right_form.addRow(self._assigned_unit_label, self._assigned_unit_combo)
 
         grid.addWidget(right_widget, 0, 1)
 
@@ -1999,9 +2022,7 @@ class TeamDetailWindow(QMainWindow):
         # Connections for form controls
         self._team_type_combo.currentIndexChanged.connect(self._handle_team_type_changed)
         self._status_combo.currentIndexChanged.connect(self._handle_status_changed)
-        self._resource_type_search.resourceTypeSelected.connect(
-            lambda resource_type_id, _text: self._handle_resource_type_changed(resource_type_id)
-        )
+        self._assigned_unit_combo.currentIndexChanged.connect(self._handle_assigned_unit_changed)
         self._name_field.editingFinished.connect(self._handle_name_edited)
         self._assignment_field.editingFinished.connect(self._handle_assignment_edited)
         self._notes_edit.textChanged.connect(self._on_notes_changed)
@@ -2303,7 +2324,7 @@ class TeamDetailWindow(QMainWindow):
         self._update_background()
         self._update_title(team)
         self._populate_team_type_selection(team)
-        self._populate_resource_type_selection(team)
+        self._populate_assigned_unit_selection(team)
         self._populate_status_selection(team)
 
         self._update_leader_fields(team)
@@ -2398,12 +2419,67 @@ class TeamDetailWindow(QMainWindow):
             self._team_type_combo.setCurrentIndex(index)
         self._team_type_combo.blockSignals(False)
 
-    def _populate_resource_type_selection(self, team: Dict[str, Any]) -> None:
-        resource_type_id = team.get("resource_type_id")
-        self._resource_type_search.set_value(
-            resource_type_id,
-            self._resource_assignments.get_resource_type_name(resource_type_id),
-        )
+    # Org-chart classifications a team can actually be slotted under.
+    # "command" and "position" are intentionally excluded - those are
+    # individual staffed roles (e.g. the IC, a Safety Officer), not
+    # organizational groupings a team reports to. Deliberately not
+    # restricted to Operations Section - some teams (e.g. a Comms team
+    # under Logistics' Communications Unit) work under other sections.
+    _ASSIGNABLE_UNIT_CLASSIFICATIONS = {"section", "branch", "division", "group", "unit"}
+
+    def _populate_assigned_unit_selection(self, team: Dict[str, Any]) -> None:
+        if self._assigned_unit_combo.count() == 0:
+            self._refresh_assignable_units()
+        unit_id = team.get("operational_unit_id")
+        self._assigned_unit_combo.blockSignals(True)
+        index = self._assigned_unit_combo.findData(unit_id)
+        self._assigned_unit_combo.setCurrentIndex(index if index >= 0 else 0)
+        self._assigned_unit_combo.blockSignals(False)
+
+    def _refresh_assignable_units(self) -> None:
+        """Rebuild the Assigned Unit combo from the active incident's full
+        org chart (every section, not just Operations). Cheap to call
+        repeatedly - only does API work, not on every keystroke - because
+        _populate_assigned_unit_selection only triggers it when the combo
+        is still empty, not on every team-changed signal."""
+        self._assigned_unit_combo.clear()
+        self._assigned_unit_combo.addItem("-- Unassigned --", None)
+        try:
+            from utils import incident_context
+            from modules.command.incident_organization.controller import (
+                IncidentOrganizationController,
+            )
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            controller = IncidentOrganizationController(str(incident_id))
+            positions = controller.list_positions()
+            by_parent: Dict[Optional[int], list] = {}
+            for pos in positions:
+                by_parent.setdefault(pos.parent_position_id, []).append(pos)
+            for children in by_parent.values():
+                children.sort(key=lambda p: (p.sort_order or 0, p.title or ""))
+
+            def add_children(parent_id: Optional[int], depth: int) -> None:
+                for pos in by_parent.get(parent_id, []):
+                    if pos.classification in self._ASSIGNABLE_UNIT_CLASSIFICATIONS:
+                        label = "    " * depth + pos.title + f"  ({pos.classification})"
+                        self._assigned_unit_combo.addItem(label, pos.id)
+                    add_children(pos.id, depth + 1)
+
+            add_children(None, 0)
+        except Exception:
+            pass
+
+    def _handle_assigned_unit_changed(self, index: int) -> None:
+        if self._updating:
+            return
+        unit_id = self._assigned_unit_combo.itemData(index)
+        try:
+            self._bridge.setOperationalUnit(unit_id)
+        except Exception:
+            pass
 
     def _populate_status_selection(self, team: Dict[str, Any]) -> None:
         status = str(team.get("status", "")).strip().lower()
@@ -2634,6 +2710,7 @@ class TeamDetailWindow(QMainWindow):
         if self._is_air:
             headers = [
                 "ID",
+                "Callsign",
                 "Name",
                 "Rank",
                 "Organization",
@@ -2643,10 +2720,11 @@ class TeamDetailWindow(QMainWindow):
                 "PIC",
                 "Actions",
             ]
-            default_widths = [110, 220, 90, 160, 150, 150, 150, 80, 110]
+            default_widths = [80, 100, 220, 90, 160, 150, 150, 150, 80, 110]
         else:
             headers = [
                 "ID",
+                "Callsign",
                 "Name",
                 "Rank",
                 "Organization",
@@ -2656,7 +2734,7 @@ class TeamDetailWindow(QMainWindow):
                 "Medic",
                 "Actions",
             ]
-            default_widths = [110, 220, 90, 160, 150, 150, 80, 80, 110]
+            default_widths = [80, 100, 220, 90, 160, 150, 150, 80, 80, 110]
 
         self._personnel_table.clear()
         self._personnel_table.setRowCount(len(members))
@@ -2670,20 +2748,21 @@ class TeamDetailWindow(QMainWindow):
             roles = []
 
         identifier_col = 0
-        name_col = 1
-        rank_col = 2
-        org_col = 3
-        role_col = 4
-        phone_col = 5
+        callsign_col = 1
+        name_col = 2
+        rank_col = 3
+        org_col = 4
+        role_col = 5
+        phone_col = 6
         actions_col = len(headers) - 1
 
         self._personnel_medic_column = None
         if self._is_air:
-            cert_col = 6
-            leader_col = 7
+            cert_col = 7
+            leader_col = 8
         else:
-            leader_col = 6
-            self._personnel_medic_column = 7
+            leader_col = 7
+            self._personnel_medic_column = 8
 
         header = self._personnel_table.horizontalHeader()
         for col in range(len(headers)):
@@ -2694,15 +2773,17 @@ class TeamDetailWindow(QMainWindow):
 
         for row, member in enumerate(members):
             member_id = member.get("id")
-            identifier_value = member.get("identifier") or member.get("callsign")
-            if not identifier_value and member_id is not None:
-                identifier_value = member_id
-            id_item = QTableWidgetItem(str(identifier_value or ""))
+            id_item = QTableWidgetItem(str(member_id) if member_id is not None else "")
             id_item.setData(Qt.UserRole, member_id)
             id_item.setTextAlignment(Qt.AlignCenter)
             if member_id is not None:
                 id_item.setToolTip(f"Record #{member_id}")
             self._personnel_table.setItem(row, identifier_col, id_item)
+
+            callsign_value = member.get("callsign") or member.get("identifier") or ""
+            callsign_item = QTableWidgetItem(str(callsign_value))
+            callsign_item.setTextAlignment(Qt.AlignCenter)
+            self._personnel_table.setItem(row, callsign_col, callsign_item)
 
             name_item = QTableWidgetItem(str(member.get("name") or ""))
             self._personnel_table.setItem(row, name_col, name_item)
@@ -2951,8 +3032,43 @@ class TeamDetailWindow(QMainWindow):
         code = self._team_type_combo.itemData(index)
         if code is None:
             return
+        if str(code).strip().upper() == "AIR":
+            self._maybe_prompt_create_air_ops_branch()
         try:
             self._bridge.setTeamType(code)
+        except Exception:
+            pass
+
+    def _maybe_prompt_create_air_ops_branch(self) -> None:
+        """If the incident has no Air Operations Branch yet, ask whether to
+        create one now - so an aircraft team set here actually auto-slots
+        under it (see operations.py's create_team/update_team) instead of
+        silently staying unassigned. Declining just leaves the team
+        unassigned for now; nothing here is required to proceed."""
+        try:
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            from modules.command.incident_organization.controller import (
+                IncidentOrganizationController,
+            )
+            controller = IncidentOrganizationController(str(incident_id))
+            positions = controller.list_positions()
+            if any(p.is_air_ops for p in positions):
+                return
+            response = QMessageBox.question(
+                self,
+                "Air Operations Branch",
+                "This incident doesn't have an Air Operations Branch yet, "
+                "so this aircraft team won't be auto-assigned for chain of "
+                "command. Create the Air Operations Branch now?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes,
+            )
+            if response != QMessageBox.Yes:
+                return
+            ops_id = controller.get_ops_section_id()
+            controller.add_branch("Air Operations Branch", ops_id, is_air_ops=True)
         except Exception:
             pass
 
@@ -2964,14 +3080,6 @@ class TeamDetailWindow(QMainWindow):
             return
         try:
             self._bridge.setStatus(str(key))
-        except Exception:
-            pass
-
-    def _handle_resource_type_changed(self, resource_type_id: Any) -> None:
-        if self._updating:
-            return
-        try:
-            self._bridge.setResourceType(resource_type_id)
         except Exception:
             pass
 
