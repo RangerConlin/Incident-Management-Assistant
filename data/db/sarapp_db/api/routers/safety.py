@@ -12,11 +12,58 @@ from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 RISK_LEVELS = ("L", "M", "H", "EH")
 RISK_ORDER = {level: index for index, level in enumerate(RISK_LEVELS)}
+
+
+class SafetyReportsRepository(BaseRepository):
+    collection_name = IncidentCollections.SAFETY_REPORTS
+
+
+class MedicalIncidentsRepository(BaseRepository):
+    collection_name = IncidentCollections.MEDICAL_INCIDENTS
+
+
+class TriageEntriesRepository(BaseRepository):
+    collection_name = IncidentCollections.TRIAGE_ENTRIES
+
+
+class HazardZonesRepository(BaseRepository):
+    collection_name = IncidentCollections.HAZARD_ZONES
+
+
+class CapOrmSummariesRepository(BaseRepository):
+    collection_name = IncidentCollections.CAP_ORM_SUMMARIES
+
+
+class Ics206BuildsRepository(BaseRepository):
+    collection_name = IncidentCollections.ICS_206_BUILDS
+
+
+class CapOrmFormsRepository(BaseRepository):
+    collection_name = IncidentCollections.CAP_ORM_FORMS
+
+
+class CapOrmHazardsRepository(BaseRepository):
+    collection_name = IncidentCollections.CAP_ORM_HAZARDS
+
+
+class CapOrmAuditRepository(BaseRepository):
+    # Audit entries are append-only and never carry a `deleted` field.
+    collection_name = IncidentCollections.CAP_ORM_AUDIT
+    soft_deletes = False
+
+
+class Ics208InstancesRepository(BaseRepository):
+    collection_name = IncidentCollections.ICS_208_INSTANCES
+
+
+class IwiReportsRepository(BaseRepository):
+    collection_name = IncidentCollections.IWI_REPORTS
 
 
 def _utcnow() -> str:
@@ -27,52 +74,39 @@ def _new_uuid() -> str:
     return str(uuid.uuid4())
 
 
-def _next_id(col, incident_id: str) -> int:
-    doc = col.find_one(
-        {"incident_id": incident_id, "id": {"$exists": True}},
-        sort=[("id", -1)],
-        projection={"id": 1},
-    )
-    return int((doc or {}).get("id") or 0) + 1
-
-
 def _iso(value: Any) -> Any:
     if isinstance(value, datetime):
         return value.isoformat()
     return value
 
 
-def _clean_doc(doc: dict[str, Any]) -> dict[str, Any]:
-    data = dict(doc)
-    data.pop("_id", None)
-    return data
+def _next_id(repo: BaseRepository, incident_id: str) -> int:
+    docs = repo.find_many(
+        {"incident_id": incident_id, "id": {"$exists": True}},
+        sort=[("id", -1)],
+        limit=1,
+    )
+    return int((docs[0] if docs else {}).get("id") or 0) + 1
 
 
-def _collection(incident_id: str, name: str):
-    return get_incident_db(incident_id)[name]
-
-
-def _insert_incident_doc(incident_id: str, collection_name: str, payload: dict[str, Any]) -> dict[str, Any]:
-    col = _collection(incident_id, collection_name)
-    now = _utcnow()
+def _insert_incident_doc(repo: BaseRepository, incident_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     doc = {
-        "_id": _new_uuid(),
-        "id": _next_id(col, incident_id),
+        "id": _next_id(repo, incident_id),
         "incident_id": incident_id,
         **payload,
-        "created_at": now,
-        "updated_at": now,
-        "deleted": False,
     }
-    col.insert_one(doc)
-    return _clean_doc(doc)
+    return repo.insert_one(doc)
 
 
-def _query_incident_docs(incident_id: str, collection_name: str, query: dict[str, Any] | None = None):
-    base = {"incident_id": incident_id, "deleted": {"$ne": True}}
+def _query_incident_docs(repo: BaseRepository, incident_id: str, query: dict[str, Any] | None = None):
+    base: dict[str, Any] = {"incident_id": incident_id}
     if query:
         base.update(query)
-    return _collection(incident_id, collection_name).find(base, {"_id": 0}).sort("id", 1)
+    return repo.find_many(base, sort=[("id", 1)])
+
+
+def _find_by_int_id(repo: BaseRepository, incident_id: str, int_id: int) -> Optional[dict[str, Any]]:
+    return repo.find_one({"incident_id": incident_id, "id": int_id})
 
 
 # ---------------------------------------------------------------------------
@@ -113,14 +147,16 @@ def list_safety_reports(
         query["time"] = bounds
     if q:
         query["notes"] = {"$regex": q, "$options": "i"}
-    return list(_query_incident_docs(incident_id, IncidentCollections.SAFETY_REPORTS, query))
+    repo = SafetyReportsRepository(get_incident_db(incident_id))
+    return _query_incident_docs(repo, incident_id, query)
 
 
 @router.post("/incidents/{incident_id}/safety/reports", status_code=201)
 def create_safety_report(incident_id: str, body: SafetyReportRequest) -> dict[str, Any]:
     payload = body.model_dump()
     payload["time"] = _iso(payload["time"])
-    return _insert_incident_doc(incident_id, IncidentCollections.SAFETY_REPORTS, payload)
+    repo = SafetyReportsRepository(get_incident_db(incident_id))
+    return _insert_incident_doc(repo, incident_id, payload)
 
 
 # ---------------------------------------------------------------------------
@@ -141,14 +177,16 @@ class MedicalIncidentRequest(BaseModel):
 
 @router.get("/incidents/{incident_id}/medical/incidents")
 def list_medical_incidents(incident_id: str) -> list[dict[str, Any]]:
-    return list(_query_incident_docs(incident_id, IncidentCollections.MEDICAL_INCIDENTS))
+    repo = MedicalIncidentsRepository(get_incident_db(incident_id))
+    return _query_incident_docs(repo, incident_id)
 
 
 @router.post("/incidents/{incident_id}/medical/incidents", status_code=201)
 def create_medical_incident(incident_id: str, body: MedicalIncidentRequest) -> dict[str, Any]:
     payload = body.model_dump()
     payload["time"] = _iso(payload.get("time"))
-    return _insert_incident_doc(incident_id, IncidentCollections.MEDICAL_INCIDENTS, payload)
+    repo = MedicalIncidentsRepository(get_incident_db(incident_id))
+    return _insert_incident_doc(repo, incident_id, payload)
 
 
 class TriageEntryRequest(BaseModel):
@@ -163,14 +201,16 @@ class TriageEntryRequest(BaseModel):
 
 @router.get("/incidents/{incident_id}/medical/triage")
 def list_triage_entries(incident_id: str) -> list[dict[str, Any]]:
-    return list(_query_incident_docs(incident_id, IncidentCollections.TRIAGE_ENTRIES))
+    repo = TriageEntriesRepository(get_incident_db(incident_id))
+    return _query_incident_docs(repo, incident_id)
 
 
 @router.post("/incidents/{incident_id}/medical/triage", status_code=201)
 def create_triage_entry(incident_id: str, body: TriageEntryRequest) -> dict[str, Any]:
     payload = body.model_dump()
     payload["time_found"] = _iso(payload.get("time_found"))
-    return _insert_incident_doc(incident_id, IncidentCollections.TRIAGE_ENTRIES, payload)
+    repo = TriageEntriesRepository(get_incident_db(incident_id))
+    return _insert_incident_doc(repo, incident_id, payload)
 
 
 # ---------------------------------------------------------------------------
@@ -187,16 +227,14 @@ class HazardZoneRequest(BaseModel):
 
 @router.get("/incidents/{incident_id}/safety/zones")
 def list_hazard_zones(incident_id: str) -> list[dict[str, Any]]:
-    return list(_query_incident_docs(incident_id, IncidentCollections.HAZARD_ZONES))
+    repo = HazardZonesRepository(get_incident_db(incident_id))
+    return _query_incident_docs(repo, incident_id)
 
 
 @router.post("/incidents/{incident_id}/safety/zones", status_code=201)
 def create_hazard_zone(incident_id: str, body: HazardZoneRequest) -> dict[str, Any]:
-    return _insert_incident_doc(
-        incident_id,
-        IncidentCollections.HAZARD_ZONES,
-        body.model_dump(),
-    )
+    repo = HazardZonesRepository(get_incident_db(incident_id))
+    return _insert_incident_doc(repo, incident_id, body.model_dump())
 
 
 class CapOrmSummaryRequest(BaseModel):
@@ -211,20 +249,14 @@ class CapOrmSummaryRequest(BaseModel):
 
 @router.post("/incidents/{incident_id}/safety/caporm", status_code=201)
 def create_cap_orm_summary(incident_id: str, body: CapOrmSummaryRequest) -> dict[str, Any]:
-    return _insert_incident_doc(
-        incident_id,
-        IncidentCollections.CAP_ORM_SUMMARIES,
-        body.model_dump(),
-    )
+    repo = CapOrmSummariesRepository(get_incident_db(incident_id))
+    return _insert_incident_doc(repo, incident_id, body.model_dump())
 
 
 @router.post("/incidents/{incident_id}/safety/ics206/build", status_code=201)
 def build_ics206(incident_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    return _insert_incident_doc(
-        incident_id,
-        IncidentCollections.ICS_206_BUILDS,
-        dict(payload),
-    )
+    repo = Ics206BuildsRepository(get_incident_db(incident_id))
+    return _insert_incident_doc(repo, incident_id, dict(payload))
 
 
 # ---------------------------------------------------------------------------
@@ -264,53 +296,67 @@ class HazardUpdate(BaseModel):
     implement_who: Optional[str] = None
 
 
-def _form_col(incident_id: str):
-    return _collection(incident_id, IncidentCollections.CAP_ORM_FORMS)
+def _forms_repo(incident_id: str) -> CapOrmFormsRepository:
+    return CapOrmFormsRepository(get_incident_db(incident_id))
 
 
-def _hazard_col(incident_id: str):
-    return _collection(incident_id, IncidentCollections.CAP_ORM_HAZARDS)
+def _hazards_repo(incident_id: str) -> CapOrmHazardsRepository:
+    return CapOrmHazardsRepository(get_incident_db(incident_id))
 
 
-def _audit_col(incident_id: str):
-    return _collection(incident_id, IncidentCollections.CAP_ORM_AUDIT)
+def _audit_repo(incident_id: str) -> CapOrmAuditRepository:
+    return CapOrmAuditRepository(get_incident_db(incident_id))
 
 
-def _form_query(incident_id: str, op_period: int) -> dict[str, Any]:
-    return {"incident_id": incident_id, "op_period": op_period, "deleted": {"$ne": True}}
+def _log_audit(
+    incident_id: str,
+    entity: str,
+    entity_id: int | None,
+    action: str,
+    field: str | None,
+    old_value: Any,
+    new_value: Any,
+) -> None:
+    _audit_repo(incident_id).insert_one(
+        {
+            "incident_id": incident_id,
+            "entity": entity,
+            "entity_id": entity_id,
+            "action": action,
+            "field": field,
+            "old_value": None if old_value is None else str(old_value),
+            "new_value": None if new_value is None else str(new_value),
+            "ts_iso": _utcnow(),
+        }
+    )
 
 
 def _ensure_form(incident_id: str, op_period: int) -> dict[str, Any]:
-    col = _form_col(incident_id)
-    doc = col.find_one(_form_query(incident_id, op_period), {"_id": 0})
+    repo = _forms_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "op_period": op_period})
     if doc:
         return doc
-    now = _utcnow()
-    doc = {
-        "_id": _new_uuid(),
-        "id": _next_id(col, incident_id),
-        "incident_id": incident_id,
-        "op_period": op_period,
-        "activity": None,
-        "prepared_by_id": None,
-        "date_iso": None,
-        "highest_residual_risk": "L",
-        "status": "draft",
-        "approval_blocked": False,
-        "created_at": now,
-        "updated_at": now,
-        "deleted": False,
-    }
-    col.insert_one(doc)
-    _log_audit(incident_id, "orm_form", doc["id"], "create", None, None, {"op_period": op_period})
-    return _clean_doc(doc)
+    form_id = _next_id(repo, incident_id)
+    doc = repo.insert_one(
+        {
+            "id": form_id,
+            "incident_id": incident_id,
+            "op_period": op_period,
+            "activity": None,
+            "prepared_by_id": None,
+            "date_iso": None,
+            "highest_residual_risk": "L",
+            "status": "draft",
+            "approval_blocked": False,
+        }
+    )
+    _log_audit(incident_id, "orm_form", form_id, "create", None, None, {"op_period": op_period})
+    return doc
 
 
 def _hazards_for_form(incident_id: str, form_id: int) -> list[dict[str, Any]]:
-    return list(
-        _hazard_col(incident_id)
-        .find({"incident_id": incident_id, "form_id": form_id, "deleted": {"$ne": True}}, {"_id": 0})
-        .sort("id", 1)
+    return _hazards_repo(incident_id).find_many(
+        {"incident_id": incident_id, "form_id": form_id}, sort=[("id", 1)]
     )
 
 
@@ -331,35 +377,10 @@ def _recompute_form_state(incident_id: str, form: dict[str, Any]) -> dict[str, A
         "highest_residual_risk": highest,
         "approval_blocked": blocked,
         "status": status_value,
-        "updated_at": _utcnow(),
     }
-    _form_col(incident_id).update_one({"id": form["id"], "incident_id": incident_id}, {"$set": update})
-    refreshed = _form_col(incident_id).find_one({"id": form["id"], "incident_id": incident_id}, {"_id": 0})
-    return refreshed or {**form, **update}
-
-
-def _log_audit(
-    incident_id: str,
-    entity: str,
-    entity_id: int | None,
-    action: str,
-    field: str | None,
-    old_value: Any,
-    new_value: Any,
-) -> None:
-    _audit_col(incident_id).insert_one(
-        {
-            "_id": _new_uuid(),
-            "incident_id": incident_id,
-            "entity": entity,
-            "entity_id": entity_id,
-            "action": action,
-            "field": field,
-            "old_value": None if old_value is None else str(old_value),
-            "new_value": None if new_value is None else str(new_value),
-            "ts_iso": _utcnow(),
-        }
-    )
+    repo = _forms_repo(incident_id)
+    repo.update_one(form["_id"], update)
+    return repo.find_by_id(form["_id"]) or {**form, **update}
 
 
 @router.get("/incidents/{incident_id}/safety/orm/form")
@@ -376,15 +397,13 @@ def update_orm_form(incident_id: str, body: FormUpdate) -> dict[str, Any]:
         if value is not None
     }
     if updates:
-        updates["updated_at"] = _utcnow()
-        _form_col(incident_id).update_one(
-            {"id": form["id"], "incident_id": incident_id},
-            {"$set": updates},
-        )
+        repo = _forms_repo(incident_id)
+        repo.update_one(form["_id"], updates)
         for key, value in updates.items():
-            if key != "updated_at" and form.get(key) != value:
+            if form.get(key) != value:
                 _log_audit(incident_id, "orm_form", form["id"], "update", key, form.get(key), value)
-    return _form_col(incident_id).find_one({"id": form["id"], "incident_id": incident_id}, {"_id": 0}) or form
+        return repo.find_by_id(form["_id"]) or form
+    return form
 
 
 @router.get("/incidents/{incident_id}/safety/orm/hazards")
@@ -396,23 +415,20 @@ def list_orm_hazards(incident_id: str, op: int = Query(..., ge=1)) -> list[dict[
 @router.post("/incidents/{incident_id}/safety/orm/hazards", status_code=201)
 def create_orm_hazard(incident_id: str, body: HazardRequest) -> dict[str, Any]:
     form = _ensure_form(incident_id, body.op_period)
-    col = _hazard_col(incident_id)
-    now = _utcnow()
+    repo = _hazards_repo(incident_id)
     payload = body.model_dump(exclude={"op_period"})
-    doc = {
-        "_id": _new_uuid(),
-        "id": _next_id(col, incident_id),
-        "incident_id": incident_id,
-        "form_id": form["id"],
-        **payload,
-        "created_at": now,
-        "updated_at": now,
-        "deleted": False,
-    }
-    col.insert_one(doc)
-    _log_audit(incident_id, "orm_hazard", doc["id"], "create", None, None, payload)
+    hazard_id = _next_id(repo, incident_id)
+    doc = repo.insert_one(
+        {
+            "id": hazard_id,
+            "incident_id": incident_id,
+            "form_id": form["id"],
+            **payload,
+        }
+    )
+    _log_audit(incident_id, "orm_hazard", hazard_id, "create", None, None, payload)
     _recompute_form_state(incident_id, form)
-    return _clean_doc(doc)
+    return doc
 
 
 @router.put("/incidents/{incident_id}/safety/orm/hazards/{hazard_id}")
@@ -423,17 +439,17 @@ def update_orm_hazard(
     op: int = Query(..., ge=1),
 ) -> dict[str, Any]:
     form = _ensure_form(incident_id, op)
-    col = _hazard_col(incident_id)
-    old = col.find_one({"id": hazard_id, "incident_id": incident_id, "form_id": form["id"], "deleted": {"$ne": True}})
-    if not old:
+    repo = _hazards_repo(incident_id)
+    old = _find_by_int_id(repo, incident_id, hazard_id)
+    if not old or old.get("form_id") != form["id"]:
         raise HTTPException(status_code=404, detail="Hazard not found")
-    updates = {**body.model_dump(), "updated_at": _utcnow()}
-    col.update_one({"id": hazard_id, "incident_id": incident_id}, {"$set": updates})
-    for key, value in body.model_dump().items():
+    updates = body.model_dump()
+    repo.update_one(old["_id"], updates)
+    for key, value in updates.items():
         if old.get(key) != value:
             _log_audit(incident_id, "orm_hazard", hazard_id, "update", key, old.get(key), value)
     _recompute_form_state(incident_id, form)
-    return col.find_one({"id": hazard_id, "incident_id": incident_id}, {"_id": 0}) or {}
+    return repo.find_by_id(old["_id"]) or {}
 
 
 @router.delete("/incidents/{incident_id}/safety/orm/hazards/{hazard_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -443,10 +459,10 @@ def delete_orm_hazard(
     op: int = Query(..., ge=1),
 ) -> Response:
     form = _ensure_form(incident_id, op)
-    col = _hazard_col(incident_id)
-    old = col.find_one({"id": hazard_id, "incident_id": incident_id, "form_id": form["id"], "deleted": {"$ne": True}})
-    if old:
-        col.update_one({"id": hazard_id, "incident_id": incident_id}, {"$set": {"deleted": True, "updated_at": _utcnow()}})
+    repo = _hazards_repo(incident_id)
+    old = _find_by_int_id(repo, incident_id, hazard_id)
+    if old and old.get("form_id") == form["id"]:
+        repo.soft_delete(old["_id"])
         _log_audit(incident_id, "orm_hazard", hazard_id, "delete", None, old, None)
         _recompute_form_state(incident_id, form)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -474,15 +490,13 @@ def approve_orm_form(incident_id: str, body: ApproveRequest):
                 "message": "Approval is blocked until highest residual risk is Medium or Low.",
             },
         )
-    updates = {"status": "approved", "approval_blocked": False, "updated_at": _utcnow()}
+    repo = _forms_repo(incident_id)
+    updates: dict[str, Any] = {"status": "approved", "approval_blocked": False}
     if not form.get("date_iso"):
         updates["date_iso"] = _utcnow()
-    _form_col(incident_id).update_one(
-        {"id": form["id"], "incident_id": incident_id},
-        {"$set": updates},
-    )
+    repo.update_one(form["_id"], updates)
     _log_audit(incident_id, "orm_form", form["id"], "approve", "status", form.get("status"), "approved")
-    return _form_col(incident_id).find_one({"id": form["id"], "incident_id": incident_id}, {"_id": 0}) or {}
+    return repo.find_by_id(form["_id"]) or {}
 
 
 # ---------------------------------------------------------------------------
@@ -510,8 +524,8 @@ class ICS208Body(BaseModel):
 
 @router.get("/incidents/{incident_id}/safety/ics208")
 def get_ics208(incident_id: str, op: int = Query(..., ge=1)) -> dict[str, Any]:
-    col = _collection(incident_id, _IC.ICS_208_INSTANCES)
-    doc = col.find_one({"incident_id": incident_id, "op_period": op}, {"_id": 0})
+    repo = Ics208InstancesRepository(get_incident_db(incident_id))
+    doc = repo.find_one({"incident_id": incident_id, "op_period": op})
     if not doc:
         return {"incident_id": incident_id, "op_period": op}
     return doc
@@ -519,28 +533,24 @@ def get_ics208(incident_id: str, op: int = Query(..., ge=1)) -> dict[str, Any]:
 
 @router.put("/incidents/{incident_id}/safety/ics208")
 def upsert_ics208(incident_id: str, body: ICS208Body) -> dict[str, Any]:
-    col = _collection(incident_id, _IC.ICS_208_INSTANCES)
-    now = _utcnow()
-    updates = {**body.model_dump(), "incident_id": incident_id, "updated_at": now}
-    col.update_one(
-        {"incident_id": incident_id, "op_period": body.op_period},
-        {"$set": updates, "$setOnInsert": {"_id": _new_uuid(), "created_at": now}},
-        upsert=True,
-    )
-    return col.find_one({"incident_id": incident_id, "op_period": body.op_period}, {"_id": 0}) or updates
+    repo = Ics208InstancesRepository(get_incident_db(incident_id))
+    existing = repo.find_one({"incident_id": incident_id, "op_period": body.op_period})
+    updates = {**body.model_dump(), "incident_id": incident_id}
+    if existing:
+        repo.update_one(existing["_id"], updates)
+        return repo.find_by_id(existing["_id"]) or updates
+    return repo.insert_one(updates)
 
 
-def _iwi_col(incident_id: str):
-    return _collection(incident_id, _IC.IWI_REPORTS)
+def _iwi_repo(incident_id: str) -> IwiReportsRepository:
+    return IwiReportsRepository(get_incident_db(incident_id))
 
 
 def _next_form_number(incident_id: str) -> int:
-    doc = _iwi_col(incident_id).find_one(
-        {"incident_id": incident_id},
-        sort=[("form_number", -1)],
-        projection={"form_number": 1},
+    docs = _iwi_repo(incident_id).find_many(
+        {"incident_id": incident_id}, sort=[("form_number", -1)], limit=1
     )
-    return int((doc or {}).get("form_number") or 0) + 1
+    return int((docs[0] if docs else {}).get("form_number") or 0) + 1
 
 
 class IWICreate(BaseModel):
@@ -592,16 +602,15 @@ def list_iwi_reports(
         query["actual_severity"] = severity
     if status:
         query["status"] = status
-    return list(_query_incident_docs(incident_id, _IC.IWI_REPORTS, query))
+    repo = _iwi_repo(incident_id)
+    return _query_incident_docs(repo, incident_id, query)
 
 
 @router.post("/incidents/{incident_id}/safety/iwi", status_code=201)
 def create_iwi_report(incident_id: str, body: IWICreate) -> dict[str, Any]:
-    col = _iwi_col(incident_id)
-    now = _utcnow()
+    repo = _iwi_repo(incident_id)
     doc = {
-        "_id": _new_uuid(),
-        "id": _next_id(col, incident_id),
+        "id": _next_id(repo, incident_id),
         "form_number": _next_form_number(incident_id),
         "incident_id": incident_id,
         "status": "draft",
@@ -613,20 +622,14 @@ def create_iwi_report(incident_id: str, body: IWICreate) -> dict[str, Any]:
             "ic": None,
             "safety_officer": None,
         },
-        "created_at": now,
-        "updated_at": now,
-        "deleted": False,
     }
-    col.insert_one(doc)
-    return _clean_doc(doc)
+    return repo.insert_one(doc)
 
 
 @router.get("/incidents/{incident_id}/safety/iwi/{report_id}")
 def get_iwi_report(incident_id: str, report_id: str) -> dict[str, Any]:
-    doc = _iwi_col(incident_id).find_one(
-        {"_id": report_id, "incident_id": incident_id, "deleted": {"$ne": True}},
-        {"_id": 0},
-    )
+    repo = _iwi_repo(incident_id)
+    doc = repo.find_one({"_id": report_id, "incident_id": incident_id})
     if not doc:
         raise HTTPException(status_code=404, detail="IWI report not found")
     return doc
@@ -634,19 +637,18 @@ def get_iwi_report(incident_id: str, report_id: str) -> dict[str, Any]:
 
 @router.put("/incidents/{incident_id}/safety/iwi/{report_id}")
 def update_iwi_report(incident_id: str, report_id: str, body: IWICreate) -> dict[str, Any]:
-    col = _iwi_col(incident_id)
-    existing = col.find_one({"_id": report_id, "incident_id": incident_id, "deleted": {"$ne": True}})
+    repo = _iwi_repo(incident_id)
+    existing = repo.find_one({"_id": report_id, "incident_id": incident_id})
     if not existing:
         raise HTTPException(status_code=404, detail="IWI report not found")
-    updates = {**body.model_dump(), "updated_at": _utcnow()}
-    col.update_one({"_id": report_id}, {"$set": updates})
-    return col.find_one({"_id": report_id}, {"_id": 0}) or {}
+    repo.update_one(report_id, body.model_dump())
+    return repo.find_by_id(report_id) or {}
 
 
 @router.post("/incidents/{incident_id}/safety/iwi/{report_id}/signoff")
 def signoff_iwi_report(incident_id: str, report_id: str, body: IWISignoff) -> dict[str, Any]:
-    col = _iwi_col(incident_id)
-    existing = col.find_one({"_id": report_id, "incident_id": incident_id, "deleted": {"$ne": True}})
+    repo = _iwi_repo(incident_id)
+    existing = repo.find_one({"_id": report_id, "incident_id": incident_id})
     if not existing:
         raise HTTPException(status_code=404, detail="IWI report not found")
     now = _utcnow()
@@ -658,17 +660,14 @@ def signoff_iwi_report(incident_id: str, report_id: str, body: IWISignoff) -> di
         new_status = "reviewed"
     elif body.role == "ic" and new_status == "reviewed":
         new_status = "closed"
-    col.update_one(
-        {"_id": report_id},
-        {"$set": {f"signoffs.{body.role}": signoff_entry, "status": new_status, "updated_at": now}},
-    )
-    return col.find_one({"_id": report_id}, {"_id": 0}) or {}
+    signoffs = dict(existing.get("signoffs") or {})
+    signoffs[body.role] = signoff_entry
+    repo.update_one(report_id, {"signoffs": signoffs, "status": new_status})
+    return repo.find_by_id(report_id) or {}
 
 
 @router.delete("/incidents/{incident_id}/safety/iwi/{report_id}", status_code=204)
 def delete_iwi_report(incident_id: str, report_id: str) -> Response:
-    _iwi_col(incident_id).update_one(
-        {"_id": report_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "updated_at": _utcnow()}},
-    )
+    repo = _iwi_repo(incident_id)
+    repo.soft_delete(report_id)
     return Response(status_code=204)

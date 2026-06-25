@@ -149,13 +149,6 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _safe_row_value(row: sqlite3.Row, key: str) -> Any:
-    try:
-        return row[key]
-    except (KeyError, IndexError):
-        return None
-
-
 class CommsLogRepository:
     """Repository managing communications log persistence."""
 
@@ -438,69 +431,6 @@ class CommsLogRepository:
             )
         return result
 
-    def list_contact_entities(self) -> List[Dict[str, Any]]:
-        suggestions: List[Dict[str, Any]] = []
-        with _connect(self._path) as conn:
-            tables: set[str] = set()
-            try:
-                cur = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-                tables = {str(row[0]) for row in cur.fetchall()}
-            except sqlite3.DatabaseError:
-                return suggestions
-
-            if "teams" in tables:
-                try:
-                    rows = conn.execute("SELECT * FROM teams").fetchall()
-                except sqlite3.DatabaseError:
-                    rows = []
-                for row in rows:
-                    team_id = _safe_row_value(row, "id")
-                    if team_id is None:
-                        continue
-                    name = _safe_row_value(row, "name") or ""
-                    callsign = _safe_row_value(row, "callsign") or ""
-                    display = name or callsign or f"Team {team_id}"
-                    alias_values = [value for value in (name, callsign) if value]
-                    secondary_parts = [value for value in alias_values if value != display]
-                    secondary = " / ".join(dict.fromkeys(secondary_parts))
-                    entry = {
-                        "type": "team",
-                        "id": int(team_id),
-                        "primary": display,
-                        "secondary": secondary,
-                        "aliases": alias_values,
-                    }
-                    suggestions.append(entry)
-
-            if "personnel" in tables:
-                try:
-                    rows = conn.execute(
-                        "SELECT id, name, role, callsign FROM personnel"
-                    ).fetchall()
-                except sqlite3.DatabaseError:
-                    rows = []
-                for row in rows:
-                    person_id = _safe_row_value(row, "id")
-                    if person_id is None:
-                        continue
-                    name = _safe_row_value(row, "name") or ""
-                    role = _safe_row_value(row, "role") or ""
-                    callsign = _safe_row_value(row, "callsign") or ""
-                    primary = role or name or callsign or f"Personnel {person_id}"
-                    secondary_parts = [value for value in (name, callsign) if value and value != primary]
-                    secondary = " / ".join(secondary_parts)
-                    entry = {
-                        "type": "personnel",
-                        "id": int(person_id),
-                        "primary": primary,
-                        "secondary": secondary,
-                        "aliases": [value for value in (role, name, callsign) if value],
-                    }
-                    suggestions.append(entry)
-
-        return suggestions
 
     def list_filter_presets(self, user_id: Optional[str] = None) -> List[CommsLogFilterPreset]:
         user = user_id or AppState.get_active_user_id()

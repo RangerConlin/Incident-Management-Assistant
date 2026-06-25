@@ -1,0 +1,357 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "10 Logistics Order Number",
+      "source": ""
+    },
+    {
+      "pdf_field": "11 Supplier PhoneFaxEmail",
+      "source": ""
+    },
+    {
+      "pdf_field": "12 Name of SupplierPOC",
+      "source": ""
+    },
+    {
+      "pdf_field": "13 Notes",
+      "source": ""
+    },
+    {
+      "pdf_field": "14 Approval Signature of Auth Logistics Rep",
+      "source": ""
+    },
+    {
+      "pdf_field": "15 DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "16 Order placed by check box SPUL PROC",
+      "source": ""
+    },
+    {
+      "pdf_field": "17 ReplyComments from Finance",
+      "source": ""
+    },
+    {
+      "pdf_field": "18 Finance Section Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "19 DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "2 DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource Request Number",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Order Use additional forms when requesting different resource sources of supply",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Requested DeliveryReporting Location",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Suitable Substitutes andor Suggested Sources",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Requested by NamePosition",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Priority Urgent Routine Low",
+      "source": ""
+    },
+    {
+      "pdf_field": "9 Section Chief Approval",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date and Time",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "EstimatedRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "RequestedRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text1",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "undefined_5",
+      "source": ""
+    }
+  ]
+}

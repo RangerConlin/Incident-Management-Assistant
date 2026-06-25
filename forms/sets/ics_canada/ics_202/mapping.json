@@ -1,0 +1,145 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Objectives",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Operational Period Command Emphasis",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Site Safety Plan Required Yes No Approved Site Safety Plans Located at",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Prepared by Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Approved by Incident Commander Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date From",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date To",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "General Situational Awareness",
+      "source": ""
+    },
+    {
+      "pdf_field": "IAP Page",
+      "source": ""
+    },
+    {
+      "pdf_field": "ICS 203",
+      "source": ""
+    },
+    {
+      "pdf_field": "ICS 204",
+      "source": ""
+    },
+    {
+      "pdf_field": "ICS 205",
+      "source": ""
+    },
+    {
+      "pdf_field": "ICS 205A",
+      "source": ""
+    },
+    {
+      "pdf_field": "ICS 206",
+      "source": ""
+    },
+    {
+      "pdf_field": "ICS 207",
+      "source": ""
+    },
+    {
+      "pdf_field": "ICS 208",
+      "source": ""
+    },
+    {
+      "pdf_field": "Map/Chart",
+      "source": ""
+    },
+    {
+      "pdf_field": "No",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Attachments 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Attachments 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Attachments 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Attachments 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time From",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time To",
+      "source": ""
+    },
+    {
+      "pdf_field": "Weather Forecast/Tides/Current",
+      "source": ""
+    },
+    {
+      "pdf_field": "Yes",
+      "source": ""
+    }
+  ]
+}

@@ -1,0 +1,265 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "2Operatinal Period DateTime From To",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Prepared by Situation Unit Leader",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "AttendeesRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTimeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Meeting NameRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "PurposeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text2",
+      "source": ""
+    }
+  ]
+}

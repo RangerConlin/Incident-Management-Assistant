@@ -1,0 +1,453 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "Name AlphabetizedRow1.0",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.0",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.19.9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1.9",
+      "source": ""
+    },
+    {
+      "pdf_field": "1 Incident Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Basic Local Communications Information",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow27",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow29",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow30",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow31",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow32",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow33",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow34",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Assigned PositionRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow27",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow29",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow30",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow31",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow32",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow33",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow34",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Methods of Contact phone pager cell etcRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name AlphabetizedRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text44",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text45",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text46",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text48",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text49",
+      "source": ""
+    }
+  ]
+}

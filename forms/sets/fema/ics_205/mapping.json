@@ -1,5 +1,5 @@
 {
-  "description": "ICS 205 — Radio Communications Plan — FEMA ICS Forms 2023",
+  "description": "ICS 205 - Radio Communications Plan - FEMA ICS Forms 2023",
   "fields": [
     {
       "pdf_field": "1 Incident Name_8",
@@ -44,358 +44,6 @@
       }
     },
     {
-      "pdf_field": "Zone GrpRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row1",
-      "source": ""
-    },
-    {
-      "pdf_field": "function1",
-      "source": ""
-    },
-    {
-      "pdf_field": "name1",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment1",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq1",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone1",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq1",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone1",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode1",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Zone GrpRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row2",
-      "source": ""
-    },
-    {
-      "pdf_field": "function2",
-      "source": ""
-    },
-    {
-      "pdf_field": "name2",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment2",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq2",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone2",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq2",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone2",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode2",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Zone GrpRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row3",
-      "source": ""
-    },
-    {
-      "pdf_field": "function3",
-      "source": ""
-    },
-    {
-      "pdf_field": "name3",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment3",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq3",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone3",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq3",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone3",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode3",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Zone GrpRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row4",
-      "source": ""
-    },
-    {
-      "pdf_field": "function4",
-      "source": ""
-    },
-    {
-      "pdf_field": "name4",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment4",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq4",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone4",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq4",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone4",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode4",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Zone GrpRow5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row5",
-      "source": ""
-    },
-    {
-      "pdf_field": "function5",
-      "source": ""
-    },
-    {
-      "pdf_field": "name5",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment5",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq5",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone5",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq5",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone5",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode5",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Zone GrpRow6",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row6",
-      "source": ""
-    },
-    {
-      "pdf_field": "function6",
-      "source": ""
-    },
-    {
-      "pdf_field": "name6",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment6",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq6",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone6",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq6",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone6",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode6",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks6",
-      "source": ""
-    },
-    {
-      "pdf_field": "Zone GrpRow7",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row7",
-      "source": ""
-    },
-    {
-      "pdf_field": "function7",
-      "source": ""
-    },
-    {
-      "pdf_field": "name7",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment7",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq7",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone7",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq7",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone7",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode7",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks7",
-      "source": ""
-    },
-    {
-      "pdf_field": "Zone GrpRow8",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ch Row8",
-      "source": ""
-    },
-    {
-      "pdf_field": "function8",
-      "source": ""
-    },
-    {
-      "pdf_field": "name8",
-      "source": ""
-    },
-    {
-      "pdf_field": "assignment8",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_freq8",
-      "source": ""
-    },
-    {
-      "pdf_field": "rx_tone8",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_freq8",
-      "source": ""
-    },
-    {
-      "pdf_field": "tx_tone8",
-      "source": ""
-    },
-    {
-      "pdf_field": "mode8",
-      "source": ""
-    },
-    {
-      "pdf_field": "remarks8",
-      "source": ""
-    },
-    {
       "pdf_field": "5 Special Instructions",
       "source": {
         "key": "channels_notes",
@@ -408,7 +56,9 @@
     },
     {
       "pdf_field": "IAP Page_4",
-      "source": ""
+      "source": {
+        "literal": ""
+      }
     },
     {
       "pdf_field": "DateTime_8",
@@ -416,43 +66,9 @@
     },
     {
       "pdf_field": "Signature_9",
-      "source": ""
-    },
-    {
-      "pdf_field": "FunctionRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Channel NameTrunked Radio System TalkgroupRow8",
-      "source": ""
-    },
-    {
-      "pdf_field": "AssignmentRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "RX Freq N or WRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "RX ToneNACRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "TX Freq N or WRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "TX ToneNACRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Mode A D or MRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "RemarksRow4",
-      "source": ""
+      "source": {
+        "literal": ""
+      }
     }
   ],
   "row_groups": [
@@ -461,9 +77,11 @@
       "data_key": "channels",
       "overflow_mode": "truncate",
       "rows_per_page": [
-        1
+        8
       ],
       "col_patterns": {
+        "band": "Zone GrpRow{n}",
+        "id": "Ch Row{n}",
         "function": "function{n}",
         "name": "name{n}",
         "assignment": "assignment{n}",

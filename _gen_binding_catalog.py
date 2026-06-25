@@ -98,12 +98,33 @@ for col, label in [("name", "Name"), ("position", "Position"), ("agency", "Agenc
 
 # ── Radio Channels ────────────────────────────────────────────────────────────
 CHANNEL_FIELDS = [
+    ("id",         "Row ID"),
+    ("channel_id", "Channel ID"),
+    ("master_id",  "Master Channel ID"),
+    ("channel",    "Channel"),
     ("name",       "Channel Name"),
     ("function",   "Function"),
+    ("band",       "Band"),
+    ("system",     "System"),
+    ("system_type","System Type"),
     ("rx_freq",    "RX Frequency"),
     ("tx_freq",    "TX Frequency"),
     ("rx_tone",    "RX Tone"),
     ("tx_tone",    "TX Tone"),
+    ("squelch_type", "Squelch Type"),
+    ("squelch_value", "Squelch Value"),
+    ("repeater",   "Repeater"),
+    ("offset",     "Offset"),
+    ("encryption", "Encryption"),
+    ("assignment_division", "Assignment Division"),
+    ("assignment_team", "Assignment Team"),
+    ("priority",   "Priority"),
+    ("include_on_205", "Include On ICS 205"),
+    ("sort_index", "Sort Index"),
+    ("line_a",     "Line A"),
+    ("line_c",     "Line C"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
     ("mode",       "Mode"),
     ("assignment", "Assignment"),
     ("remarks",    "Remarks"),
@@ -671,7 +692,387 @@ for i in range(20):
             "label": f"Narrative Entry {i+1} ({ord_}) — {label}",
             "category": "Narrative",
             "source_type": "incident_db",
-            "table": "narrative_entries",
+            "table": "ics_214_logs",
+            "column": col,
+            "index": i,
+        })
+
+# ── Communications Log ───────────────────────────────────────────────────────
+COMM_LOG_FIELDS = [
+    ("id", "Row ID"),
+    ("comms_id", "Comms ID"),
+    ("ts_utc", "UTC Timestamp"),
+    ("ts_local", "Local Timestamp"),
+    ("direction", "Direction"),
+    ("priority", "Priority"),
+    ("resource_id", "Resource ID"),
+    ("resource_label", "Resource Label"),
+    ("frequency", "Frequency"),
+    ("band", "Band"),
+    ("mode", "Mode"),
+    ("from_unit", "From Unit"),
+    ("to_unit", "To Unit"),
+    ("message", "Message"),
+    ("action_taken", "Action Taken"),
+    ("follow_up_required", "Follow Up Required"),
+    ("disposition", "Disposition"),
+    ("operator_user_id", "Operator User ID"),
+    ("operator_display_name", "Operator Name"),
+    ("team_id", "Team ID"),
+    ("task_id", "Task ID"),
+    ("vehicle_id", "Vehicle ID"),
+    ("personnel_id", "Personnel ID"),
+    ("attachments", "Attachments"),
+    ("geotag_lat", "Geo Latitude"),
+    ("geotag_lon", "Geo Longitude"),
+    ("notification_level", "Notification Level"),
+    ("is_status_update", "Is Status Update"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in COMM_LOG_FIELDS:
+        entries.append({
+            "path": f"comm_log.{i}.{col}",
+            "label": f"Communications Log Entry {i+1} ({ord_}) — {label}",
+            "category": "Communications Log",
+            "source_type": "incident_db",
+            "table": "communications_log",
+            "column": col,
+            "index": i,
+        })
+
+# ── Safety Hazards ───────────────────────────────────────────────────────────
+HAZARD_FIELDS = [
+    ("id", "ID"),
+    ("incident_id", "Incident ID"),
+    ("work_assignment_id", "Work Assignment ID"),
+    ("hazard_type_id", "Hazard Type ID"),
+    ("hazard_type_text", "Hazard"),
+    ("risk_level", "Risk Level"),
+    ("likelihood", "Likelihood"),
+    ("severity", "Severity"),
+    ("control_measure", "Control Measure"),
+    ("mitigation_text", "Mitigation"),
+    ("ppe_text", "PPE Required"),
+    ("safety_message", "Safety Message"),
+    ("is_resolved", "Resolved"),
+    ("notes", "Notes"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in HAZARD_FIELDS:
+        entries.append({
+            "path": f"hazards.{i}.{col}",
+            "label": f"Hazard {i+1} ({ord_}) — {label}",
+            "category": "Safety Hazards",
+            "source_type": "incident_db",
+            "table": "hazards",
+            "column": col,
+            "index": i,
+        })
+
+# ── Safety Reports ───────────────────────────────────────────────────────────
+SAFETY_REPORT_FIELDS = [
+    ("id", "ID"),
+    ("incident_id", "Incident ID"),
+    ("time", "Time"),
+    ("location", "Location"),
+    ("severity", "Severity"),
+    ("notes", "Notes"),
+    ("flagged", "Flagged"),
+    ("reported_by", "Reported By"),
+    ("team_id", "Team ID"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in SAFETY_REPORT_FIELDS:
+        entries.append({
+            "path": f"safety_reports.{i}.{col}",
+            "label": f"Safety Report {i+1} ({ord_}) — {label}",
+            "category": "Safety Reports",
+            "source_type": "incident_db",
+            "table": "safety_reports",
+            "column": col,
+            "index": i,
+        })
+
+# ── Hazard Zones ─────────────────────────────────────────────────────────────
+HAZARD_ZONE_FIELDS = [
+    ("id", "ID"),
+    ("incident_id", "Incident ID"),
+    ("name", "Name"),
+    ("coordinates_json", "Coordinates JSON"),
+    ("severity", "Severity"),
+    ("description", "Description"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in HAZARD_ZONE_FIELDS:
+        entries.append({
+            "path": f"hazard_zones.{i}.{col}",
+            "label": f"Hazard Zone {i+1} ({ord_}) — {label}",
+            "category": "Hazard Zones",
+            "source_type": "incident_db",
+            "table": "hazard_zones",
+            "column": col,
+            "index": i,
+        })
+
+# ── CAP ORM Summary ──────────────────────────────────────────────────────────
+CAP_ORM_SUMMARY_FIELDS = [
+    ("id", "ID"),
+    ("incident_id", "Incident ID"),
+    ("form_type", "Form Type"),
+    ("activity", "Activity"),
+    ("participants_json", "Participants JSON"),
+    ("hazards_json", "Hazards JSON"),
+    ("mitigations_json", "Mitigations JSON"),
+    ("residual_risk", "Residual Risk"),
+    ("created_by", "Created By"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in CAP_ORM_SUMMARY_FIELDS:
+        entries.append({
+            "path": f"cap_orm_summaries.{i}.{col}",
+            "label": f"CAP ORM Summary {i+1} ({ord_}) — {label}",
+            "category": "CAP ORM Summaries",
+            "source_type": "incident_db",
+            "table": "cap_orm_summaries",
+            "column": col,
+            "index": i,
+        })
+
+# ── CAP ORM Form ─────────────────────────────────────────────────────────────
+CAP_ORM_FORM_FIELDS = [
+    ("id", "ID"),
+    ("incident_id", "Incident ID"),
+    ("op_period", "Operational Period"),
+    ("activity", "Activity"),
+    ("prepared_by_id", "Prepared By ID"),
+    ("date_iso", "Date"),
+    ("highest_residual_risk", "Highest Residual Risk"),
+    ("status", "Status"),
+    ("approval_blocked", "Approval Blocked"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for col, label in CAP_ORM_FORM_FIELDS:
+    entries.append({
+        "path": f"cap_orm_form.{col}",
+        "label": f"CAP ORM Form — {label}",
+        "category": "CAP ORM Form",
+        "source_type": "incident_db",
+        "table": "cap_orm_forms",
+        "column": col,
+    })
+
+# ── CAP ORM Hazards ──────────────────────────────────────────────────────────
+CAP_ORM_HAZARD_FIELDS = [
+    ("id", "ID"),
+    ("form_id", "Form ID"),
+    ("sub_activity", "Sub-Activity"),
+    ("hazard_outcome", "Hazard / Outcome"),
+    ("initial_risk", "Initial Risk"),
+    ("control_text", "Control Text"),
+    ("residual_risk", "Residual Risk"),
+    ("implement_how", "Implement How"),
+    ("implement_who", "Implement Who"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in CAP_ORM_HAZARD_FIELDS:
+        entries.append({
+            "path": f"cap_orm_hazards.{i}.{col}",
+            "label": f"CAP ORM Hazard {i+1} ({ord_}) — {label}",
+            "category": "CAP ORM Hazards",
+            "source_type": "incident_db",
+            "table": "cap_orm_hazards",
+            "column": col,
+            "index": i,
+        })
+
+# ── CAP ORM Audit ────────────────────────────────────────────────────────────
+CAP_ORM_AUDIT_FIELDS = [
+    ("incident_id", "Incident ID"),
+    ("entity", "Entity"),
+    ("entity_id", "Entity ID"),
+    ("action", "Action"),
+    ("field", "Field"),
+    ("old_value", "Old Value"),
+    ("new_value", "New Value"),
+    ("ts_iso", "Timestamp"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in CAP_ORM_AUDIT_FIELDS:
+        entries.append({
+            "path": f"cap_orm_audit.{i}.{col}",
+            "label": f"CAP ORM Audit {i+1} ({ord_}) — {label}",
+            "category": "CAP ORM Audit",
+            "source_type": "incident_db",
+            "table": "cap_orm_audit",
+            "column": col,
+            "index": i,
+        })
+
+# ── ICS 208 ──────────────────────────────────────────────────────────────────
+ICS_208_FIELDS = [
+    ("incident_id", "Incident ID"),
+    ("op_period", "Operational Period"),
+    ("op_period_from", "Operational Period From"),
+    ("op_period_to", "Operational Period To"),
+    ("safety_message", "Safety Message"),
+    ("site_safety_plan_required", "Site Safety Plan Required"),
+    ("site_safety_plan_location", "Site Safety Plan Location"),
+    ("prepared_by_name", "Prepared By Name"),
+    ("prepared_by_position", "Prepared By Position"),
+    ("prepared_by_datetime", "Prepared By Date/Time"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for col, label in ICS_208_FIELDS:
+    entries.append({
+        "path": f"ics_208.{col}",
+        "label": f"ICS 208 — {label}",
+        "category": "ICS 208",
+        "source_type": "incident_db",
+        "table": "ics_208_instances",
+        "column": col,
+    })
+
+# ── IWI Reports ──────────────────────────────────────────────────────────────
+IWI_FIELDS = [
+    ("id", "ID"),
+    ("form_number", "Form Number"),
+    ("incident_id", "Incident ID"),
+    ("status", "Status"),
+    ("op_period", "Operational Period"),
+    ("date_of_occurrence", "Date of Occurrence"),
+    ("day_of_event", "Day of Event"),
+    ("time_of_occurrence", "Time of Occurrence"),
+    ("time_reported", "Time Reported"),
+    ("reported_by", "Reported By"),
+    ("location_general", "General Location"),
+    ("location_zone", "Zone"),
+    ("location_sector", "Sector"),
+    ("location_specific", "Specific Location"),
+    ("incident_types", "Incident Types"),
+    ("incident_type_other", "Incident Type Other"),
+    ("actual_outcome", "Actual Outcome"),
+    ("actual_severity", "Actual Severity"),
+    ("activity_impact", "Activity Impact"),
+    ("activity_suspension_ref", "Activity Suspension Ref"),
+    ("conditions", "Conditions"),
+    ("persons_involved", "Persons Involved"),
+    ("injury_details", "Injury Details"),
+    ("equipment", "Equipment"),
+    ("sequence_of_events", "Sequence Of Events"),
+    ("narrative", "Narrative"),
+    ("contributing_factors", "Contributing Factors"),
+    ("immediate_actions", "Immediate Actions"),
+    ("notifications", "Notifications"),
+    ("corrective_actions", "Corrective Actions"),
+    ("escalation_decision", "Escalation Decision"),
+    ("escalation_rationale", "Escalation Rationale"),
+    ("witnesses", "Witnesses"),
+    ("prepared_by", "Prepared By"),
+    ("signoffs", "Signoffs"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in IWI_FIELDS:
+        entries.append({
+            "path": f"iwi_reports.{i}.{col}",
+            "label": f"IWI Report {i+1} ({ord_}) — {label}",
+            "category": "IWI Reports",
+            "source_type": "incident_db",
+            "table": "iwi_reports",
+            "column": col,
+            "index": i,
+        })
+
+# ── Hazard Types ─────────────────────────────────────────────────────────────
+HAZARD_TYPE_FIELDS = [
+    ("id", "ID"),
+    ("hazard_type_id", "Hazard Type ID"),
+    ("name", "Name"),
+    ("display_name", "Display Name"),
+    ("category", "Category"),
+    ("source", "Source"),
+    ("owner_agency", "Owner Agency"),
+    ("description", "Description"),
+    ("default_risk_level", "Default Risk Level"),
+    ("default_likelihood", "Default Likelihood"),
+    ("default_severity", "Default Severity"),
+    ("default_control_measure", "Default Control Measure"),
+    ("default_ppe", "Default PPE"),
+    ("default_safety_message", "Default Safety Message"),
+    ("is_active", "Is Active"),
+    ("notes", "Notes"),
+    ("created_by", "Created By"),
+    ("updated_by", "Updated By"),
+    ("aliases", "Aliases"),
+    ("mitigations", "Mitigations"),
+    ("ppe_items", "PPE Items"),
+    ("references", "References"),
+    ("resource_defaults", "Resource Defaults"),
+    ("mitigation_count", "Mitigation Count"),
+    ("ppe_preview", "PPE Preview"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in HAZARD_TYPE_FIELDS:
+        entries.append({
+            "path": f"hazard_types.{i}.{col}",
+            "label": f"Hazard Type {i+1} ({ord_}) — {label}",
+            "category": "Hazard Types",
+            "source_type": "master_db",
+            "table": "hazard_types",
+            "column": col,
+            "index": i,
+        })
+
+# ── Safety Analysis Templates ────────────────────────────────────────────────
+SAFETY_TEMPLATE_FIELDS = [
+    ("template_id", "Template ID"),
+    ("name", "Name"),
+    ("description", "Description"),
+    ("scenario_type", "Scenario Type"),
+    ("target_forms", "Target Forms"),
+    ("hazard_entries", "Hazard Entries"),
+    ("is_active", "Is Active"),
+    ("notes", "Notes"),
+    ("created_by", "Created By"),
+    ("updated_by", "Updated By"),
+    ("created_at", "Created At"),
+    ("updated_at", "Updated At"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in SAFETY_TEMPLATE_FIELDS:
+        entries.append({
+            "path": f"safety_analysis_templates.{i}.{col}",
+            "label": f"Safety Template {i+1} ({ord_}) — {label}",
+            "category": "Safety Analysis Templates",
+            "source_type": "master_db",
+            "table": "safety_analysis_templates",
             "column": col,
             "index": i,
         })

@@ -1,0 +1,333 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Branch Division Group Staging Area",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Resources Assigned",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Work Assignments",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Special Instructions",
+      "source": ""
+    },
+    {
+      "pdf_field": "9 Prepared by Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "Branch Director",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etcRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact eg phone pager radio frequency etc_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "DivisionGroup Supervisor",
+      "source": ""
+    },
+    {
+      "pdf_field": "IAP Page",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "LeaderRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operations Section Chief",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact indicate cell pager or radio frequencysystemchannel 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact indicate cell pager or radio frequencysystemchannel 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact indicate cell pager or radio frequencysystemchannel 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Primary Contact indicate cell pager or radio frequencysystemchannel 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes InformationRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reporting Location Special Equipment and Supplies Remarks Notes Information_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Resource IdentifierRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Row6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Row7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text9",
+      "source": ""
+    }
+  ]
+}

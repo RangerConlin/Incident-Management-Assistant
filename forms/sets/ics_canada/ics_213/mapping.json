@@ -1,0 +1,65 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name Optional",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 Replied by Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "2 To Name and Position",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 From Name and Position",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Subject",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Date",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Time",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Message",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Approved by Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "9 Reply",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_14",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_13",
+      "source": ""
+    },
+    {
+      "pdf_field": "PositionTitle_14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_20",
+      "source": ""
+    }
+  ]
+}

@@ -1,0 +1,613 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "3. DATE/TIME PREPARED Date",
+      "source": ""
+    },
+    {
+      "pdf_field": "3. DATE/TIME PREPARED Time",
+      "source": ""
+    },
+    {
+      "pdf_field": "6. PREPARED BY Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": ""
+    },
+    {
+      "pdf_field": "2 INCIDENT NUMBER",
+      "source": ""
+    },
+    {
+      "pdf_field": "3",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 VEHICLEEQUIPMENT CATEGORY",
+      "source": ""
+    },
+    {
+      "pdf_field": "6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Agency or OwnerRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Category KindType Capacity or SizeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident AssignmentRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident ID NoRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Release Date and TimeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Start Date and TimeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Operator Name or ContactRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request NoRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle License or ID NoRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment ClassificationRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment Features Row9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Vehicle or Equipment MakeRow9",
+      "source": ""
+    }
+  ]
+}

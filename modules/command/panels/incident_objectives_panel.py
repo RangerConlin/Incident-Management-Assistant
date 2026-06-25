@@ -35,6 +35,7 @@ from modules.command.models.objectives import (
     ObjectiveSummary,
 )
 from modules.command.widgets.objective_detail_dialog import ObjectiveDetailDialog
+from modules.command.widgets.objective_template_picker_dialog import ObjectiveTemplatePickerDialog
 from modules.planning.operational_periods.repository import OperationalPeriodRepository
 from utils import incident_context, timefmt
 
@@ -296,6 +297,14 @@ class IncidentObjectivesPanel(QWidget):
         new_action.triggered.connect(self._create_objective)
         self._toolbar.addAction(new_action)
 
+        template_action = QAction("New From Template…", self)
+        template_action.triggered.connect(self._create_from_template)
+        self._toolbar.addAction(template_action)
+
+        manage_templates_action = QAction("Manage Templates…", self)
+        manage_templates_action.triggered.connect(self._open_template_manager)
+        self._toolbar.addAction(manage_templates_action)
+
         clone_action = QAction("Clone From Previous OP", self)
         clone_action.triggered.connect(self._clone_previous)
         self._toolbar.addAction(clone_action)
@@ -355,6 +364,20 @@ class IncidentObjectivesPanel(QWidget):
         dialog.setWindowTitle("New Objective")
         dialog.show()
         self._detail_windows.append(dialog)
+
+    def _create_from_template(self) -> None:
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            QMessageBox.warning(self, "New From Template", "Select an incident first.")
+            return
+        dialog = ObjectiveTemplatePickerDialog(self, on_imported=self.reload)
+        dialog.exec()
+
+    def _open_template_manager(self) -> None:
+        from modules.planning.widgets.objectives_editor import show_objectives_editor
+        editor = show_objectives_editor(None)
+        editor.raise_()
+        editor.activateWindow()
 
     def _clone_previous(self) -> None:
         incident_id = incident_context.get_active_incident_id()

@@ -98,6 +98,7 @@ class FormDataContext:
 
         data["incident"]        = self._build_incident(inc_id)
         data["op_period"]       = self._build_op_period(inc_id)
+        current_op             = self._current_op_number(data["op_period"])
         data["organization"]    = self._build_organization(inc_id)
         air_ops = self._build_air_ops_branch(inc_id)
         if air_ops["director_name"]:
@@ -127,7 +128,7 @@ class FormDataContext:
         data["liaison_followup_actions"] = liaison_data["liaison_followup_actions"]
         data["liaison_restrictions"] = liaison_data["liaison_restrictions"]
         data["liaison_agreements"] = liaison_data["liaison_agreements"]
-        data["narrative"]       = []
+        data["narrative"]       = self._build_narrative(inc_id)
         data["meetings"]        = self._build_meetings(inc_id)
         data["subject"]         = {"name": "", "sex": "", "dob": "", "race": "", "lkp_place": "", "lkp_time": ""}
         data["debrief"]         = self._empty_debrief_shape()
@@ -144,6 +145,17 @@ class FormDataContext:
         data["message"]         = {}
 
         data["comm_log"]        = self._build_comm_log(inc_id)
+        data["hazards"]         = self._build_hazards(inc_id)
+        data["safety_reports"]  = self._build_safety_reports(inc_id)
+        data["hazard_zones"]    = self._build_hazard_zones(inc_id)
+        data["cap_orm_summaries"] = self._build_cap_orm_summaries(inc_id)
+        data["cap_orm_form"]    = self._build_cap_orm_form(inc_id, current_op)
+        data["cap_orm_hazards"] = self._build_cap_orm_hazards(inc_id, current_op)
+        data["cap_orm_audit"]   = self._build_cap_orm_audit(inc_id, current_op)
+        data["ics_208"]         = self._build_ics_208(inc_id, current_op)
+        data["iwi_reports"]     = self._build_iwi_reports(inc_id)
+        data["hazard_types"]    = self._build_hazard_types()
+        data["safety_analysis_templates"] = self._build_safety_analysis_templates()
 
         data["uc_commanders"]              = self._build_uc_commanders(inc_id)
         data["org_branches"]               = self._build_org_branches(inc_id)   # each entry carries branch director + div slots
@@ -152,6 +164,16 @@ class FormDataContext:
         data["planning_tech_specialists"]  = self._build_planning_tech_specialists(inc_id)
 
         return data
+
+    @staticmethod
+    def _current_op_number(op_period: dict[str, Any]) -> int | None:
+        raw = op_period.get("number")
+        if raw in (None, ""):
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
 
     # ------------------------------------------------------------------
     # Incident
@@ -429,20 +451,99 @@ class FormDataContext:
             rows = _get(f"/api/incidents/{inc_id}/comms/channels") or []
             return [
                 {
+                    "id": r.get("id") or "",
+                    "channel_id": r.get("channel_id") or "",
+                    "master_id": r.get("master_id") or "",
+                    "channel": r.get("channel") or r.get("name") or "",
                     "name": r.get("channel") or r.get("name") or "",
                     "function": r.get("function") or "",
+                    "band": r.get("band") or "",
+                    "system": r.get("system") or "",
+                    "system_type": r.get("system") or "",
                     "rx_freq": r.get("rx_freq") or r.get("freq_rx") or "",
                     "tx_freq": r.get("tx_freq") or r.get("freq_tx") or "",
                     "rx_tone": r.get("rx_tone") or "",
                     "tx_tone": r.get("tx_tone") or "",
+                    "squelch_type": r.get("squelch_type") or "",
+                    "squelch_value": r.get("squelch_value") or "",
+                    "repeater": bool(r.get("repeater")),
+                    "offset": r.get("offset") or "",
+                    "encryption": r.get("encryption") or "",
+                    "assignment_division": r.get("assignment_division") or "",
+                    "assignment_team": r.get("assignment_team") or "",
+                    "priority": r.get("priority") or "",
+                    "include_on_205": bool(r.get("include_on_205", True)),
+                    "sort_index": r.get("sort_index") or "",
+                    "line_a": bool(r.get("line_a")),
+                    "line_c": bool(r.get("line_c")),
+                    "created_at": r.get("created_at") or "",
+                    "updated_at": r.get("updated_at") or "",
                     "mode": r.get("mode") or "",
-                    "assignment": r.get("assignment_team") or r.get("assignment") or "",
+                    "assignment": (
+                        r.get("assignment")
+                        or r.get("assignment_team")
+                        or r.get("assignment_division")
+                        or ""
+                    ),
                     "remarks": r.get("remarks") or r.get("notes") or "",
                 }
                 for r in rows
             ]
         except Exception:
             return []
+
+    def _build_narrative(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            streams = _get(f"/api/incidents/{inc_id}/ics214/streams") or []
+            entries: list[dict[str, Any]] = []
+            for stream in streams:
+                stream_id = stream.get("id")
+                if not stream_id:
+                    continue
+                detail = _get(f"/api/incidents/{inc_id}/ics214/streams/{stream_id}") or {}
+                stream_name = detail.get("name") or stream.get("name") or ""
+                stream_entries = detail.get("entries") or []
+                for entry in stream_entries:
+                    entries.append(
+                        {
+                            "id": entry.get("id") or "",
+                            "stream_id": entry.get("stream_id") or stream_id,
+                            "timestamp": entry.get("timestamp_utc") or "",
+                            "timestamp_utc": entry.get("timestamp_utc") or "",
+                            "narrative": entry.get("text") or "",
+                            "text": entry.get("text") or "",
+                            "entered_by": entry.get("actor_user_id") or "",
+                            "actor_user_id": entry.get("actor_user_id") or "",
+                            "team_num": self._extract_team_num(stream_name),
+                            "stream_name": stream_name,
+                            "source": entry.get("source") or "",
+                            "autogenerated": bool(entry.get("autogenerated")),
+                            "critical": bool(entry.get("critical_flag")),
+                            "critical_flag": bool(entry.get("critical_flag")),
+                            "idempotency_hash": entry.get("idempotency_hash") or "",
+                            "tags": entry.get("tags") or [],
+                        }
+                    )
+            entries.sort(key=lambda item: item.get("timestamp_utc") or item.get("timestamp") or "")
+            return entries
+        except Exception:
+            return []
+
+    @staticmethod
+    def _extract_team_num(value: str) -> str:
+        if not value:
+            return ""
+        upper = value.upper()
+        for marker in ("TEAM-", "TEAM ", "T-"):
+            if marker not in upper:
+                continue
+            tail = upper.split(marker, 1)[1]
+            digits = "".join(ch for ch in tail if ch.isdigit())
+            if digits:
+                return digits
+        return ""
 
     # ------------------------------------------------------------------
     # Teams
@@ -784,6 +885,325 @@ class FormDataContext:
         except Exception:
             return []
 
+    def _build_hazards(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            snapshot = _get(f"/api/incidents/{inc_id}/snapshot", collections="hazards") or {}
+            rows = ((snapshot.get("collections") or {}).get("hazards")) or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "incident_id": row.get("incident_id") or "",
+                    "work_assignment_id": row.get("work_assignment_id") or row.get("strategy_id") or "",
+                    "hazard_type_id": row.get("hazard_type_id") or "",
+                    "hazard_type_text": row.get("hazard_type_text") or row.get("name") or "",
+                    "risk_level": row.get("risk_level") or "",
+                    "likelihood": row.get("likelihood") or "",
+                    "severity": row.get("severity") or "",
+                    "control_measure": row.get("control_measure") or "",
+                    "mitigation_text": row.get("mitigation_text") or "",
+                    "ppe_text": row.get("ppe_text") or "",
+                    "safety_message": row.get("safety_message") or "",
+                    "is_resolved": bool(row.get("is_resolved")),
+                    "notes": row.get("notes") or "",
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_safety_reports(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/safety/reports") or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "incident_id": row.get("incident_id") or "",
+                    "time": row.get("time") or "",
+                    "location": row.get("location") or "",
+                    "severity": row.get("severity") or "",
+                    "notes": row.get("notes") or "",
+                    "flagged": bool(row.get("flagged")),
+                    "reported_by": row.get("reported_by") or "",
+                    "team_id": row.get("team_id") or "",
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_hazard_zones(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/safety/zones") or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "incident_id": row.get("incident_id") or "",
+                    "name": row.get("name") or "",
+                    "coordinates_json": row.get("coordinates_json") or "",
+                    "severity": row.get("severity") or "",
+                    "description": row.get("description") or "",
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_cap_orm_summaries(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            snapshot = _get(f"/api/incidents/{inc_id}/snapshot", collections="cap_orm_summaries") or {}
+            rows = ((snapshot.get("collections") or {}).get("cap_orm_summaries")) or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "incident_id": row.get("incident_id") or "",
+                    "form_type": row.get("form_type") or "",
+                    "activity": row.get("activity") or "",
+                    "participants_json": row.get("participants_json") or "",
+                    "hazards_json": row.get("hazards_json") or "",
+                    "mitigations_json": row.get("mitigations_json") or "",
+                    "residual_risk": row.get("residual_risk") or "",
+                    "created_by": row.get("created_by") or "",
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_cap_orm_form(self, inc_id: str | None, op_number: int | None) -> dict[str, Any]:
+        empty = {
+            "id": "", "incident_id": "", "op_period": "", "activity": "", "prepared_by_id": "",
+            "date_iso": "", "highest_residual_risk": "", "status": "", "approval_blocked": False,
+            "created_at": "", "updated_at": "",
+        }
+        if not inc_id or op_number is None:
+            return empty
+        try:
+            row = _get(f"/api/incidents/{inc_id}/safety/orm/form", op=op_number) or {}
+            if not row:
+                return empty
+            return {
+                "id": row.get("id") or "",
+                "incident_id": row.get("incident_id") or "",
+                "op_period": row.get("op_period") or op_number,
+                "activity": row.get("activity") or "",
+                "prepared_by_id": row.get("prepared_by_id") or "",
+                "date_iso": row.get("date_iso") or "",
+                "highest_residual_risk": row.get("highest_residual_risk") or "",
+                "status": row.get("status") or "",
+                "approval_blocked": bool(row.get("approval_blocked")),
+                "created_at": row.get("created_at") or "",
+                "updated_at": row.get("updated_at") or "",
+            }
+        except Exception:
+            return empty
+
+    def _build_cap_orm_hazards(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id or op_number is None:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/safety/orm/hazards", op=op_number) or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "form_id": row.get("form_id") or "",
+                    "sub_activity": row.get("sub_activity") or "",
+                    "hazard_outcome": row.get("hazard_outcome") or "",
+                    "initial_risk": row.get("initial_risk") or "",
+                    "control_text": row.get("control_text") or "",
+                    "residual_risk": row.get("residual_risk") or "",
+                    "implement_how": row.get("implement_how") or "",
+                    "implement_who": row.get("implement_who") or "",
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_cap_orm_audit(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            snapshot = _get(f"/api/incidents/{inc_id}/snapshot", collections="cap_orm_audit") or {}
+            rows = ((snapshot.get("collections") or {}).get("cap_orm_audit")) or []
+            if op_number is not None:
+                form = self._build_cap_orm_form(inc_id, op_number)
+                form_id = form.get("id")
+                rows = [row for row in rows if not form_id or row.get("entity_id") in {form_id, int(form_id) if str(form_id).isdigit() else form_id}]
+            return [
+                {
+                    "incident_id": row.get("incident_id") or "",
+                    "entity": row.get("entity") or "",
+                    "entity_id": row.get("entity_id") or "",
+                    "action": row.get("action") or "",
+                    "field": row.get("field") or "",
+                    "old_value": row.get("old_value") or "",
+                    "new_value": row.get("new_value") or "",
+                    "ts_iso": row.get("ts_iso") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_ics_208(self, inc_id: str | None, op_number: int | None) -> dict[str, Any]:
+        empty = {
+            "incident_id": "", "op_period": "", "op_period_from": "", "op_period_to": "",
+            "safety_message": "", "site_safety_plan_required": False, "site_safety_plan_location": "",
+            "prepared_by_name": "", "prepared_by_position": "", "prepared_by_datetime": "",
+            "created_at": "", "updated_at": "",
+        }
+        if not inc_id or op_number is None:
+            return empty
+        try:
+            row = _get(f"/api/incidents/{inc_id}/safety/ics208", op=op_number) or {}
+            if not row:
+                return empty
+            return {
+                "incident_id": row.get("incident_id") or inc_id,
+                "op_period": row.get("op_period") or op_number,
+                "op_period_from": row.get("op_period_from") or "",
+                "op_period_to": row.get("op_period_to") or "",
+                "safety_message": row.get("safety_message") or "",
+                "site_safety_plan_required": bool(row.get("site_safety_plan_required")),
+                "site_safety_plan_location": row.get("site_safety_plan_location") or "",
+                "prepared_by_name": row.get("prepared_by_name") or "",
+                "prepared_by_position": row.get("prepared_by_position") or "",
+                "prepared_by_datetime": row.get("prepared_by_datetime") or "",
+                "created_at": row.get("created_at") or "",
+                "updated_at": row.get("updated_at") or "",
+            }
+        except Exception:
+            return empty
+
+    def _build_iwi_reports(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/safety/iwi") or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "form_number": row.get("form_number") or "",
+                    "incident_id": row.get("incident_id") or "",
+                    "status": row.get("status") or "",
+                    "op_period": row.get("op_period") or "",
+                    "date_of_occurrence": row.get("date_of_occurrence") or "",
+                    "day_of_event": row.get("day_of_event") or "",
+                    "time_of_occurrence": row.get("time_of_occurrence") or "",
+                    "time_reported": row.get("time_reported") or "",
+                    "reported_by": row.get("reported_by") or "",
+                    "location_general": row.get("location_general") or "",
+                    "location_zone": row.get("location_zone") or "",
+                    "location_sector": row.get("location_sector") or "",
+                    "location_specific": row.get("location_specific") or "",
+                    "incident_types": row.get("incident_types") or [],
+                    "incident_type_other": row.get("incident_type_other") or "",
+                    "actual_outcome": row.get("actual_outcome") or "",
+                    "actual_severity": row.get("actual_severity") or "",
+                    "activity_impact": row.get("activity_impact") or "",
+                    "activity_suspension_ref": row.get("activity_suspension_ref") or "",
+                    "conditions": row.get("conditions") or {},
+                    "persons_involved": row.get("persons_involved") or [],
+                    "injury_details": row.get("injury_details") or [],
+                    "equipment": row.get("equipment") or {},
+                    "sequence_of_events": row.get("sequence_of_events") or [],
+                    "narrative": row.get("narrative") or "",
+                    "contributing_factors": row.get("contributing_factors") or {},
+                    "immediate_actions": row.get("immediate_actions") or "",
+                    "notifications": row.get("notifications") or [],
+                    "corrective_actions": row.get("corrective_actions") or [],
+                    "escalation_decision": row.get("escalation_decision") or "",
+                    "escalation_rationale": row.get("escalation_rationale") or "",
+                    "witnesses": row.get("witnesses") or [],
+                    "prepared_by": row.get("prepared_by") or "",
+                    "signoffs": row.get("signoffs") or {},
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_hazard_types(self) -> list[dict[str, Any]]:
+        try:
+            rows = _get("/api/hazard-types") or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "hazard_type_id": row.get("hazard_type_id") or "",
+                    "name": row.get("name") or "",
+                    "display_name": row.get("display_name") or "",
+                    "category": row.get("category") or "",
+                    "source": row.get("source") or "",
+                    "owner_agency": row.get("owner_agency") or "",
+                    "description": row.get("description") or "",
+                    "default_risk_level": row.get("default_risk_level") or "",
+                    "default_likelihood": row.get("default_likelihood") or "",
+                    "default_severity": row.get("default_severity") or "",
+                    "default_control_measure": row.get("default_control_measure") or "",
+                    "default_ppe": row.get("default_ppe") or "",
+                    "default_safety_message": row.get("default_safety_message") or "",
+                    "is_active": bool(row.get("is_active", True)),
+                    "notes": row.get("notes") or "",
+                    "created_by": row.get("created_by") or "",
+                    "updated_by": row.get("updated_by") or "",
+                    "aliases": row.get("aliases") or [],
+                    "mitigations": row.get("mitigations") or [],
+                    "ppe_items": row.get("ppe_items") or [],
+                    "references": row.get("references") or [],
+                    "resource_defaults": row.get("resource_defaults") or [],
+                    "mitigation_count": row.get("mitigation_count") or 0,
+                    "ppe_preview": row.get("ppe_preview") or "",
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_safety_analysis_templates(self) -> list[dict[str, Any]]:
+        try:
+            rows = _get("/api/master/safety-templates") or []
+            return [
+                {
+                    "template_id": row.get("template_id") or "",
+                    "name": row.get("name") or "",
+                    "description": row.get("description") or "",
+                    "scenario_type": row.get("scenario_type") or "",
+                    "target_forms": row.get("target_forms") or [],
+                    "hazard_entries": row.get("hazard_entries") or [],
+                    "is_active": bool(row.get("is_active", True)),
+                    "notes": row.get("notes") or "",
+                    "created_by": row.get("created_by") or "",
+                    "updated_by": row.get("updated_by") or "",
+                    "created_at": row.get("created_at") or "",
+                    "updated_at": row.get("updated_at") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
     # ------------------------------------------------------------------
     # Debrief (single record  -  selected at form-generation time)
     # ------------------------------------------------------------------
@@ -929,16 +1349,36 @@ class FormDataContext:
             rows = _get(f"/api/incidents/{inc_id}/comms-log") or []
             return [
                 {
+                    "id": r.get("id") or "",
+                    "comms_id": r.get("comms_id") or "",
+                    "ts_utc": r.get("ts_utc") or "",
                     "ts_local":            r.get("ts_local") or r.get("ts_utc") or "",
+                    "direction":           r.get("direction") or "",
                     "priority":            r.get("priority") or "",
+                    "resource_id":         r.get("resource_id") or "",
                     "from_unit":           r.get("from_unit") or "",
                     "to_unit":             r.get("to_unit") or "",
                     "frequency":           r.get("frequency") or "",
+                    "band":                r.get("band") or "",
+                    "mode":                r.get("mode") or "",
                     "resource_label":      r.get("resource_label") or "",
                     "message":             r.get("message") or "",
                     "action_taken":        r.get("action_taken") or "",
                     "follow_up_required":  bool(r.get("follow_up_required")),
+                    "disposition":         r.get("disposition") or "",
+                    "operator_user_id":    r.get("operator_user_id") or "",
                     "operator_display_name": r.get("operator_display_name") or "",
+                    "team_id":             r.get("team_id") or "",
+                    "task_id":             r.get("task_id") or "",
+                    "vehicle_id":          r.get("vehicle_id") or "",
+                    "personnel_id":        r.get("personnel_id") or "",
+                    "attachments":         r.get("attachments") or [],
+                    "geotag_lat":          r.get("geotag_lat"),
+                    "geotag_lon":          r.get("geotag_lon"),
+                    "notification_level":  r.get("notification_level") or "",
+                    "is_status_update":    bool(r.get("is_status_update")),
+                    "created_at":          r.get("created_at") or "",
+                    "updated_at":          r.get("updated_at") or "",
                 }
                 for r in rows
             ]

@@ -665,8 +665,12 @@ def list_comms_contacts(incident_id: str):
 
     for doc in personnel_repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}}):
         doc.pop("_id", None)
-        p_id_str = doc.get("personnel_id", "")
-        int_id = _parse_ref_id(p_id_str, "-PERSON-")
+        # Personnel are referenced by their master roster id (see the
+        # master/incident-personnel sync chain in operations.py), not a
+        # per-incident "-PERSON-" formatted string.
+        int_id = doc.get("master_id")
+        if int_id is None:
+            int_id = _parse_ref_id(doc.get("personnel_id", ""), "-PERSON-")
         name = doc.get("name") or ""
         role = doc.get("role") or doc.get("position") or ""
         callsign = doc.get("callsign") or ""

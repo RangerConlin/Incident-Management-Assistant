@@ -1,0 +1,709 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow27",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource NumberRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow27",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 New Status Available Assigned OSRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow27",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 From Assignment and StatusRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow27",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 To Assignment and StatusRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow16_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow17_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow18_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow19_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow20_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow21",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow21_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow22",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow22_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow23",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow23_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow24",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow24_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow25",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow25_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow26",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow26_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow27",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow27_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow28",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow28_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Time and Date of ChangeRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Comments",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text9",
+      "source": ""
+    }
+  ]
+}

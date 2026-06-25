@@ -175,8 +175,7 @@
       "id": "capf_104",
       "number": "CAPF 104",
       "title": "Mission Flight Plan",
-      "category": "CAP",
-      "row_groups": []
+      "category": "CAP"
     },
     {
       "id": "capf_109",
@@ -467,6 +466,12 @@
       "id": "capf_106",
       "number": "CAPF 106",
       "title": "Ground Interrogation Form",
+      "category": "CAP"
+    },
+    {
+      "id": "capf_160",
+      "number": "CAPF 160",
+      "title": "Deliberate Risk Assessment Worksheet",
       "category": "CAP"
     }
   ]

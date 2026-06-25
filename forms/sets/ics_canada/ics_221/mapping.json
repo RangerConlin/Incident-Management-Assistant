@@ -1,0 +1,161 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "7. MANIFEST COMPLETED CheckBox No",
+      "source": ""
+    },
+    {
+      "pdf_field": "7. MANIFEST COMPLETED CheckBox Yes",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. Agency HQ CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. Area HQ CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. Dispatch HQ CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. Notify HQ CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. Region HQ CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "1 INCIDENT NAMENUMBER",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 UNIT LEADER RESPONSIBLE FOR COLLECTING PERFORMANCE RATING",
+      "source": ""
+    },
+    {
+      "pdf_field": "13 PREPARED BY include date and time",
+      "source": ""
+    },
+    {
+      "pdf_field": "2 DATETIME",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 DEMOB NUMBER",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 UNITPERSONNEL RELEASED",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 TRANSPORATION TYPENUMBER",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 ACTUAL RELEASE DATETIME",
+      "source": ""
+    },
+    {
+      "pdf_field": "7",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 DESTINATION",
+      "source": ""
+    },
+    {
+      "pdf_field": "9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Communication Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date",
+      "source": ""
+    },
+    {
+      "pdf_field": "Documentation Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "FINANCE SECTION Time Unit CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "Facilities Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Ground Support Unit Leader",
+      "source": ""
+    },
+    {
+      "pdf_field": "LOGISTICS SECTION Communication Unit CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "LOGISTICS SECTION Facilities Unit CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "LOGISTICS SECTION Ground Support Unit CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "LOGISTICS SECTION Supply Unit CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "OTHER CheckBox1",
+      "source": ""
+    },
+    {
+      "pdf_field": "OTHER CheckBox2",
+      "source": ""
+    },
+    {
+      "pdf_field": "OTHERRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "OTHERRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PLANNING SECTION Documentation Unit CheckBox",
+      "source": ""
+    },
+    {
+      "pdf_field": "REMARKS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Supply Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text60",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text61",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time Unit",
+      "source": ""
+    }
+  ]
+}

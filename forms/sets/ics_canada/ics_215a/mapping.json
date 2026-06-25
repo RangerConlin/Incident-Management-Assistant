@@ -1,0 +1,213 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "Name.0",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name.1",
+      "source": ""
+    },
+    {
+      "pdf_field": "1 Incident Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Incident AreaRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 HazardsRisksRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 MitigationsRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text6",
+      "source": ""
+    }
+  ]
+}

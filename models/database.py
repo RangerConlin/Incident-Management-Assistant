@@ -94,11 +94,6 @@ def get_all_incident_objectives():
         cursor.execute('SELECT * FROM incident_objectives')
         return cursor.fetchall()
 
-def get_all_personnel():
-    with get_cursor() as cursor:
-        cursor.execute('SELECT * FROM personnel')
-        return cursor.fetchall()
-
 def get_all_incident_types():
     with get_cursor() as cursor:
         cursor.execute('SELECT * FROM incident_types')

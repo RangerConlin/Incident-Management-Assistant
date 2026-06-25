@@ -419,14 +419,14 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `incident_channels` | `channels` | Wired | name, function, rx/tx freq+tone, mode, assignment, remarks |
-| `communications_log` | `comm_log` | Partial | log entries covered; audit trail and saved filters are not |
+| `incident_channels` | `channels` | Wired | full incident-channel payload exposed, including ICS-205-relevant fields (`system`, assignment division/team, include_on_205, sort/line flags) plus compatibility aliases (`name`, `assignment`, `remarks`) |
+| `communications_log` | `comm_log` | Wired | full communications log entry payload exposed for layer 1/2; audit trail and saved filters remain intentionally separate collections |
 | `comms_log_audit` | - | Not started | |
 | `comms_log_filters` | - | Not started | |
 | `ics_213_messages` | `message` | Stub (orphaned) | `data["message"] = {}` hardcoded |
-| `ics_214_logs` | `narrative` | Stub (orphaned) | catalog has 100 `narrative.*` entries; context.py hardcodes `data["narrative"] = []` |
+| `ics_214_logs` | `narrative` | Wired | ICS 214 stream entries are flattened into the legacy narrative shape (`timestamp`, `narrative`, `entered_by`, `team_num`, `critical`) with extra source metadata preserved alongside |
 | `ics_205_instances` | - | Not started | only live channel rows are exposed via `channels`, not the versioned ICS-205 plan document itself |
-| `unit_logs` | `narrative` | Stub (orphaned) | same stub as `ics_214_logs` above - whichever of the two is the real source, fix the stub once |
+| `unit_logs` | `narrative` | Partial | no dedicated unit-log builder yet; current narrative coverage comes from ICS 214 streams, which unblocks the form mappings that were previously orphaned |
 
 ### Medical & Safety
 
@@ -439,17 +439,17 @@ that point (follow the debrief table's format below as the template).
 | `ics_206_medical_comms` | - | Not started | |
 | `ics_206_procedures` | - | Not started | |
 | `ics_206_signatures` | - | Not started | |
-| `hazards` | - | Not started | |
-| `safety_reports` | - | Not started | |
+| `hazards` | `hazards` | Wired | generic incident snapshot-backed read exposes planning/tactics hazard entries with normalized safety fields (`hazard_type_text`, risk/likelihood/severity, controls, PPE, safety message, resolved flag, notes) |
+| `safety_reports` | `safety_reports` | Wired | incident safety report list exposed with time/location/severity/flagged metadata |
 | `medical_incidents` | - | Not started | |
 | `triage_entries` | - | Not started | |
-| `hazard_zones` | - | Not started | |
-| `cap_orm_summaries` | - | Not started | |
-| `cap_orm_forms` | - | Not started | |
-| `cap_orm_hazards` | - | Not started | |
-| `cap_orm_audit` | - | Not started | |
-| `ics_208_instances` | - | Not started | |
-| `iwi_reports` | - | Not started | |
+| `hazard_zones` | `hazard_zones` | Wired | zone name, geometry JSON, severity, description, timestamps |
+| `cap_orm_summaries` | `cap_orm_summaries` | Wired | legacy CAP ORM summary records exposed as list entries |
+| `cap_orm_forms` | `cap_orm_form` | Wired | current operational period ORM form exposed as a singular record |
+| `cap_orm_hazards` | `cap_orm_hazards` | Wired | current operational period ORM hazard rows exposed as list entries |
+| `cap_orm_audit` | `cap_orm_audit` | Wired | ORM audit rows exposed, filtered to the current operational period form when available |
+| `ics_208_instances` | `ics_208` | Wired | current operational period ICS 208 instance exposed as a singular record |
+| `iwi_reports` | `iwi_reports` | Wired | safety incident / IWI reports exposed with status, occurrence/location, narrative, factors, notifications, corrective actions, witnesses, and signoffs |
 
 ### Intel
 
@@ -527,7 +527,7 @@ that point (follow the debrief table's format below as the template).
 | `planned_event_schedules` | - | Not started | |
 | `planned_vendors` | - | Not started | |
 | `planned_permits` | - | Not started | |
-| `planned_safety_reports` | - | Not started | |
+| `planned_safety_reports` | - | Not started | planned toolkit domain, intentionally outside this safety pass |
 | `planned_tasks` | - | Not started | |
 | `planned_quick_assignments` | - | Not started | |
 | `planned_health_inspections` | - | Not started | |
@@ -571,8 +571,8 @@ that point (follow the debrief table's format below as the template).
 | `radio_channels` | `comms_resources` | Wired | raw passthrough via `/api/comms/channels` |
 | `hospitals` | `hospitals` | Stub (orphaned) | catalog has 100 `hospitals.*` entries; context.py hardcodes `data["hospitals"] = []` |
 | `ems_agencies` | `ems_agencies` | Stub (orphaned) | catalog has 90 `ems_agencies.*` entries; context.py hardcodes `data["ems_agencies"] = []` |
-| `hazard_types` | - | Not started | |
-| `safety_analysis_templates` | - | Not started | |
+| `hazard_types` | `hazard_types` | Wired | master hazard library exposed with defaults, aliases, mitigations, PPE items, and resource defaults |
+| `safety_analysis_templates` | `safety_analysis_templates` | Wired | master safety analysis templates exposed with target forms and hazard entries |
 | `incident_types` | - | Not started | |
 | `agency_directory` | `agency_contacts` (historical overlap only) | N/A for current liaison wiring | current `agency_contacts` bindings now resolve from incident-scoped liaison agencies/contacts, not master `agency_directory` |
 | `task_types` | - | Not started | |
@@ -820,7 +820,7 @@ fresh raw copy.
 | fema | ics_309 | 0 | (none) | - | Non-fillable source PDF, no mapping started - source file has 0 fields and 0 annotations (not corruption, never a fillable AcroForm) |
 | ics_canada | ics_201 | 160 | 169 | 160 | Wired |
 | ics_canada | ics_203 | 117 | 195 | 69 | Mapped, not yet test-fill verified |
-| ics_canada | ics_205 | 85 | 7 | 7 | Mapped, not yet test-fill verified (looks like an early stub - only 7 of 85 fields mapped) |
+| ics_canada | ics_205 | 85 | 7 | 85 | Wired - row-group coverage fills the 13 channel rows; test-fill verified zero warnings |
 | ics_canada | ics_207 | 114 | 120 | 98 | Mapped, not yet test-fill verified |
 | ics_canada | ics_208 | 13 | 14 | 13 | Wired |
 | ics_canada | ics_214 | 148 | 84 | 78 | Mapped, not yet test-fill verified |
@@ -854,6 +854,7 @@ fresh raw copy.
 | uscg | ics_203 | 122 | 141 | 122 | Wired |
 | uscg | ics_207 | 71 | 71 | 71 | Wired |
 | uscg | ics_214 | 57 | 59 | 57 | Wired |
+| uscg | ics_205 | 150 | 10 | 150 | Wired - mapped this session from the provided USCG PDF; test-fill verified zero warnings |
 | uscg | ics_233 | 239 | (none) | - | Needs mapping |
 
 Forms registered in `forms/catalog.json` with **no folder under

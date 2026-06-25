@@ -1,0 +1,789 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "Text37.0",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text37.1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text37.2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text37.3",
+      "source": ""
+    },
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 Page",
+      "source": ""
+    },
+    {
+      "pdf_field": "11 Prepared by",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 REMARKS safety notes hazards etcRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 MEDEVAC AIRCRAFTRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 PERSONNELRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 FREQUENCIESRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "AMRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Altitude ASL",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "BaseRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Baseof",
+      "source": ""
+    },
+    {
+      "pdf_field": "Center Point",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "FMRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Latitude",
+      "source": ""
+    },
+    {
+      "pdf_field": "Longitude",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "MakeModelRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "ModelRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "NAMERow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row4",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row5",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row6",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row7",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row8",
+      "source": ""
+    },
+    {
+      "pdf_field": "PHONE Row9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Radius nm",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow1_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow2_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow3_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow4_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow5_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow6_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow7_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow8_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "RegRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow1_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow2_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow3_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow4_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow5_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow6_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow7_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow8_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "StartRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Sunrise",
+      "source": ""
+    },
+    {
+      "pdf_field": "Sunset",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text37",
+      "source": ""
+    }
+  ]
+}

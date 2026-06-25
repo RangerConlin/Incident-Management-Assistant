@@ -1,6 +1,342 @@
 {
-  "description": "ICS 213RR Resource Request Message — FEMA",
+  "description": "ICS 213RR — Resource Request Message — FEMA ICS Forms 2023",
   "fields": [
+    {
+      "pdf_field": "1. Incident Name",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "3 Resource Request Number",
+      "source": "incident"
+    },
+    {
+      "pdf_field": "QtyRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "QtyRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "KindRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "TypeRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Detailed Item Description Vital characteristics brand specs experience size etcRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: RequestedRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Arrival Date/Time: EstimatedRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "CostRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Requested DeliveryReporting Location",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 Suitable Substitutes andor Suggested Sources",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Requested by NamePosition",
+      "source": ""
+    },
+    {
+      "pdf_field": "8. Priority: Urgent",
+      "source": ""
+    },
+    {
+      "pdf_field": "8. Priority: Routine",
+      "source": ""
+    },
+    {
+      "pdf_field": "8. Priority: Low",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. Section Chief Approval",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 Logistics Order Number",
+      "source": ""
+    },
+    {
+      "pdf_field": "11 Supplier PhoneFaxEmail",
+      "source": ""
+    },
+    {
+      "pdf_field": "12 Name of SupplierPOC",
+      "source": ""
+    },
+    {
+      "pdf_field": "13 Notes",
+      "source": ""
+    },
+    {
+      "pdf_field": "14. Approval Signature of Authorized Log Rep",
+      "source": ""
+    },
+    {
+      "pdf_field": "15 DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "16. Order placed by: SPUL",
+      "source": ""
+    },
+    {
+      "pdf_field": "16. Order placed by: PROC",
+      "source": ""
+    },
+    {
+      "pdf_field": "17 ReplyComments from Finance",
+      "source": ""
+    },
+    {
+      "pdf_field": "18. Finance Section Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "19 DateTime",
+      "source": ""
+    },
     {
       "pdf_field": "IncidentName",
       "source": "incident.name"

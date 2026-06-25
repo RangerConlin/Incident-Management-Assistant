@@ -418,15 +418,6 @@ from models.queries import (
     fetch_team_vehicles,
     fetch_team_equipment,
     fetch_team_aircraft,
-    fetch_team_leader_id,
-    set_person_team,
-    set_vehicle_team,
-    set_equipment_team,
-    set_aircraft_team,
-    set_team_leader,
-    set_person_role,
-    set_team_leader_phone,
-    list_available_personnel,
     list_available_aircraft,
 )
 from utils.app_signals import app_signals
@@ -561,14 +552,6 @@ class TeamDetailBridge(QObject):
                 self._team = t if t else Team(team_id=int(team_id))
             else:
                 self._team = Team()
-            # If legacy DB stores leader_id rather than team_leader, fallback
-            try:
-                if self._team.team_leader_id is None and team_id:
-                    lid = fetch_team_leader_id(int(team_id))
-                    if lid is not None:
-                        self._team.team_leader_id = int(lid)
-            except Exception:
-                pass
             self._refresh_assets()
             self._auto_set_pilot()
             self.teamChanged.emit()
@@ -803,12 +786,7 @@ class TeamDetailBridge(QObject):
                         'callsign': getattr(r, 'callsign', ''),
                         'phone': getattr(r, 'phone', ''),
                     })
-            if out:
-                return out
-        except Exception:
-            pass
-        try:
-            return list_available_personnel() or []
+            return out
         except Exception:
             return []
 
@@ -998,39 +976,8 @@ class TeamDetailBridge(QObject):
                 self._personnel = enriched
             except Exception:
                 pass
-            # Vehicles from team JSON when present
-            veh_ids = [str(v) for v in (getattr(self._team,'vehicles',[]) or [])]
-            if veh_ids:
-                try:
-                    from models.queries import list_incident_vehicles
-                    allv = list_incident_vehicles()
-                    by_id = {str(r.get('id')): r for r in allv}
-                    rows = []
-                    for vid in veh_ids:
-                        r = by_id.get(str(vid)) or {'id': vid, 'name': f'Vehicle {vid}', 'callsign': '', 'type': ''}
-                        rows.append({'id': r.get('id'), 'name': r.get('name'), 'callsign': r.get('callsign'), 'type': r.get('type')})
-                    self._vehicles = rows
-                except Exception:
-                    self._vehicles = fetch_team_vehicles(tid)
-            else:
-                self._vehicles = fetch_team_vehicles(tid)
-            # Equipment from team JSON when present
-            eq_ids = [str(e) for e in (getattr(self._team,'equipment',[]) or [])]
-            if eq_ids:
-                try:
-                    from models.queries import list_incident_equipment
-                    alle = list_incident_equipment()
-                    by_id = {str(r.get('id')): r for r in alle}
-                    rows = []
-                    for eid in eq_ids:
-                        r = by_id.get(str(eid)) or {'id': eid, 'name': f'Equipment {eid}', 'type': ''}
-                        rows.append({'id': r.get('id'), 'name': r.get('name'), 'type': r.get('type'), 'serial': r.get('serial')})
-                    self._equipment = rows
-                except Exception:
-                    self._equipment = fetch_team_equipment(tid)
-            else:
-                self._equipment = fetch_team_equipment(tid)
-            # Aircraft unchanged
+            self._vehicles = fetch_team_vehicles(tid)
+            self._equipment = fetch_team_equipment(tid)
             self._aircraft = fetch_team_aircraft(tid)
         except Exception:
             pass
@@ -1039,21 +986,13 @@ class TeamDetailBridge(QObject):
     def _on_assets_changed(self, team_id: int) -> None:
         try:
             if self._team.team_id and int(team_id) == int(self._team.team_id):
-                # If legacy DB stores leader_id rather than team_leader, fallback
-                try:
-                    if self._team.team_leader_id is None and team_id:
-                        lid = fetch_team_leader_id(int(team_id))
-                        if lid is not None:
-                            self._team.team_leader_id = int(lid)
-                except Exception:
-                    pass
+                # Another view changed this team's assets/leader — reload from
+                # the source of truth instead of patching stale local state.
+                fresh = team_repo.get_team(int(team_id))
+                if fresh is not None:
+                    self._team = fresh
                 self._refresh_assets()
                 self.teamChanged.emit()
-            try:
-                team_repo.save_team(self._team)
-                self._emit_incident_refresh()
-            except Exception:
-                pass
         except Exception:
             pass
 
@@ -1061,14 +1000,10 @@ class TeamDetailBridge(QObject):
     def _on_leader_changed(self, team_id: int) -> None:
         try:
             if self._team.team_id and int(team_id) == int(self._team.team_id):
-                lid = fetch_team_leader_id(int(team_id))
-                self._team.team_leader_id = int(lid) if lid is not None else None
+                fresh = team_repo.get_team(int(team_id))
+                if fresh is not None:
+                    self._team = fresh
                 self.teamChanged.emit()
-            try:
-                team_repo.save_team(self._team)
-                self._emit_incident_refresh()
-            except Exception:
-                pass
         except Exception:
             pass
     def _auto_set_pilot(self) -> None:
@@ -1196,11 +1131,6 @@ class TeamDetailBridge(QObject):
             if person_id in (None, ""):
                 return
             pid = int(person_id)
-            # Enforce uniqueness across teams and persist
-            try:
-                set_person_team(int(person_id), int(self._team.team_id))
-            except Exception:
-                pass
             # Update team.members list
             if self._append_team_list_value("members", pid, numeric=True):
                 self._save_team_best_effort()
@@ -1254,7 +1184,6 @@ class TeamDetailBridge(QObject):
                 raise RuntimeError("No team id")
             if not self._team_list_contains("members", int(person_id)):
                 raise RuntimeError(f"Personnel {int(person_id)} is not assigned to this team")
-            set_person_team(int(person_id), None)
             removed_from_list = self._remove_team_list_value("members", int(person_id))
             # Also sync Check-In record to clear team assignment
             try:
@@ -1278,13 +1207,8 @@ class TeamDetailBridge(QObject):
             # Clear leader if removing current leader
             cleared_leader = False
             if self._team.team_leader_id == int(person_id):
-                set_team_leader(int(self._team.team_id), None)
                 self._team.team_leader_id = None
                 cleared_leader = True
-                try:
-                    set_team_leader_phone(int(self._team.team_id), None)
-                except Exception:
-                    pass
                 try:
                     self._team.team_leader_phone = None
                 except Exception:
@@ -1330,9 +1254,6 @@ class TeamDetailBridge(QObject):
                 vid = int(vehicle_id)
                 if self._append_team_list_value("vehicles", vid):
                     self._save_team_best_effort()
-                try:
-                    set_vehicle_team(vid, int(self._team.team_id))
-                except Exception: pass
                 self._team_log(f"Vehicle assigned (ID: {vid})")
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1345,7 +1266,6 @@ class TeamDetailBridge(QObject):
                 raise RuntimeError("No team id")
             if not self._team_list_contains("vehicles", vehicle_id):
                 raise RuntimeError(f"Vehicle {int(vehicle_id)} is not assigned to this team")
-            set_vehicle_team(int(vehicle_id), None)
             if self._remove_team_list_value("vehicles", vehicle_id):
                 self._save_team_best_effort()
             self._team_log(f"Vehicle removed (ID: {int(vehicle_id)})")
@@ -1374,9 +1294,6 @@ class TeamDetailBridge(QObject):
                 eid = int(eq_id)
                 if self._append_team_list_value("equipment", eid):
                     self._save_team_best_effort()
-                try:
-                    set_equipment_team(eid, int(self._team.team_id))
-                except Exception: pass
                 self._team_log(f"Equipment assigned (ID: {eid})")
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1389,7 +1306,6 @@ class TeamDetailBridge(QObject):
                 raise RuntimeError("No team id")
             if not self._team_list_contains("equipment", eq_id):
                 raise RuntimeError(f"Equipment {int(eq_id)} is not assigned to this team")
-            set_equipment_team(int(eq_id), None)
             if self._remove_team_list_value("equipment", eq_id):
                 self._save_team_best_effort()
             self._team_log(f"Equipment removed (ID: {int(eq_id)})")
@@ -1405,7 +1321,6 @@ class TeamDetailBridge(QObject):
             if ac_id is not None and str(ac_id) != "":
                 if self._append_team_list_value("aircraft", ac_id):
                     self._save_team_best_effort()
-                set_aircraft_team(int(ac_id), int(self._team.team_id))
                 self._team_log(f"Aircraft assigned (ID: {int(ac_id)})")
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:
@@ -1418,7 +1333,6 @@ class TeamDetailBridge(QObject):
                 raise RuntimeError("No team id")
             if not self._team_list_contains("aircraft", ac_id):
                 raise RuntimeError(f"Aircraft {int(ac_id)} is not assigned to this team")
-            set_aircraft_team(int(ac_id), None)
             if self._remove_team_list_value("aircraft", ac_id):
                 self._save_team_best_effort()
             self._team_log(f"Aircraft removed (ID: {int(ac_id)})")
@@ -1433,14 +1347,7 @@ class TeamDetailBridge(QObject):
             if not self._team.team_id:
                 raise RuntimeError("No team id")
             tid = int(self._team.team_id)
-            # Detach any currently assigned aircraft first
-            for r in (self._aircraft or []):
-                try:
-                    set_aircraft_team(int(r.get("id")), None)
-                except Exception:
-                    continue
             if ac_id is not None and str(ac_id) != "":
-                set_aircraft_team(int(ac_id), tid)
                 self._team.aircraft = [str(ac_id)]
             else:
                 self._team.aircraft = []
@@ -1604,13 +1511,8 @@ class TeamDetailBridge(QObject):
             if not self._team.team_id:
                 raise RuntimeError("No team id")
             # Ensure the leader is assigned to this team
-            try:
-                set_person_team(int(person_id), int(self._team.team_id))
-            except Exception:
-                pass
             self._append_team_list_value("members", person_id, numeric=True)
             # Persist leader on team row and refresh badge
-            set_team_leader(int(self._team.team_id), int(person_id))
             self._team.team_leader_id = int(person_id)
             try:
                 phone = None
@@ -1623,7 +1525,6 @@ class TeamDetailBridge(QObject):
                         continue
                 if phone is not None:
                     self._team.team_leader_phone = str(phone)
-                    set_team_leader_phone(int(self._team.team_id), str(phone))
             except Exception:
                 pass
             self.teamChanged.emit()
@@ -1646,8 +1547,18 @@ class TeamDetailBridge(QObject):
     @Slot(int, str)
     def setPersonRole(self, person_id: int, role: str) -> None:
         try:
-            set_person_role(int(person_id), str(role) if role is not None else None)
-            # Refresh personnel list
+            # Role-on-team is part of the person's check-in record, which
+            # mirrors it into both the master roster and this incident's
+            # personnel copy — there's no separate "team role" store.
+            from modules.logistics.checkin import repository as ci_repo
+            rec = ci_repo.fetch_checkin(str(person_id))
+            if rec is not None:
+                rec.role_on_team = role or None
+                try:
+                    rec.updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
+                except Exception:
+                    pass
+                ci_repo.save_checkin(rec)
             if self._team.team_id:
                 app_signals.teamAssetsChanged.emit(int(self._team.team_id))
         except Exception as e:

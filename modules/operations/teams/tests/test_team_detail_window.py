@@ -169,10 +169,6 @@ def test_team_bridge_removes_members_and_assets_from_persisted_lists(
     )
     saved: list[Team] = []
 
-    monkeypatch.setattr(team_window, "set_person_team", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(team_window, "set_vehicle_team", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(team_window, "set_equipment_team", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(team_window, "set_aircraft_team", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(team_window.team_repo, "save_team", lambda team: saved.append(Team(**team.__dict__)) or team)
     monkeypatch.setattr(TeamDetailBridge, "_team_log", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(TeamDetailBridge, "_emit_incident_refresh", lambda *_args, **_kwargs: None)
@@ -244,7 +240,6 @@ def test_team_bridge_load_team_does_not_save_on_read(
 
     monkeypatch.setattr(team_window.team_repo, "get_team", lambda _team_id: Team(team_id=7, name="Alpha"))
     monkeypatch.setattr(team_window.team_repo, "save_team", lambda team: saves.append(team) or team)
-    monkeypatch.setattr(team_window, "fetch_team_leader_id", lambda _team_id: None)
     monkeypatch.setattr(TeamDetailBridge, "_refresh_assets", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(TeamDetailBridge, "_auto_set_pilot", lambda *_args, **_kwargs: None)
 
@@ -286,15 +281,11 @@ def test_team_bridge_does_not_remove_member_from_other_team(
 ) -> None:
     bridge = TeamDetailBridge()
     bridge._team = Team(team_id=7, members=[101])
-    calls: list[tuple[int, int | None]] = []
     errors: list[str] = []
     bridge.error.connect(errors.append)
 
-    monkeypatch.setattr(team_window, "set_person_team", lambda pid, tid: calls.append((pid, tid)))
-
     bridge.removeMember(999)
 
-    assert calls == []
     assert bridge._team.members == [101]
     assert errors and "not assigned to this team" in errors[-1].lower()
 
@@ -304,23 +295,13 @@ def test_team_bridge_does_not_clear_assets_from_other_teams(
 ) -> None:
     bridge = TeamDetailBridge()
     bridge._team = Team(team_id=7, vehicles=["11"], equipment=["22"], aircraft=["33"])
-    vehicle_calls: list[tuple[int, int | None]] = []
-    equipment_calls: list[tuple[int, int | None]] = []
-    aircraft_calls: list[tuple[int, int | None]] = []
     errors: list[str] = []
     bridge.error.connect(errors.append)
-
-    monkeypatch.setattr(team_window, "set_vehicle_team", lambda aid, tid: vehicle_calls.append((aid, tid)))
-    monkeypatch.setattr(team_window, "set_equipment_team", lambda aid, tid: equipment_calls.append((aid, tid)))
-    monkeypatch.setattr(team_window, "set_aircraft_team", lambda aid, tid: aircraft_calls.append((aid, tid)))
 
     bridge.removeVehicle("999")
     bridge.removeEquipment("999")
     bridge.removeAircraft("999")
 
-    assert vehicle_calls == []
-    assert equipment_calls == []
-    assert aircraft_calls == []
     assert bridge._team.vehicles == ["11"]
     assert bridge._team.equipment == ["22"]
     assert bridge._team.aircraft == ["33"]

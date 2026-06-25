@@ -1,0 +1,86 @@
+{
+  "description": "ICS 205-CG - Incident Radio Communications Plan - USCG",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 Incident Location",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "3 Operational Period DateTime From To0",
+      "source": {
+        "join": [
+          "op_period.start_date",
+          "op_period.start_time"
+        ],
+        "separator": " "
+      }
+    },
+    {
+      "pdf_field": "3 Operational Period DateTime From To1",
+      "source": {
+        "join": [
+          "op_period.end_date",
+          "op_period.end_time"
+        ],
+        "separator": " "
+      }
+    },
+    {
+      "pdf_field": "4 Basic Radio Channel Use",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "5 Special Instructions",
+      "source": {
+        "key": "channels_notes",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Name",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Position Title",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": "prepared_by.date_time"
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "radio_channels",
+      "data_key": "channels",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        14
+      ],
+      "col_patterns": {
+        "id": "Ch Row{n}",
+        "function": "FunctionRow{n}",
+        "name": "Channel Name  Trunked Radio System Talk GroupRow{n}",
+        "assignment": "AssignmentRow{n}",
+        "rx_freq": "RX Freq N or WRow{n}",
+        "rx_tone": "RX ToneNACRow{n}",
+        "tx_freq": "TX Freq N or WRow{n}",
+        "tx_tone": "TX ToneNACRow{n}",
+        "mode": "Mode A D MRow{n}",
+        "remarks": "RemarksRow{n}"
+      }
+    }
+  ]
+}

@@ -127,6 +127,9 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import objective_templates
     app.include_router(objective_templates.router, prefix="/api/master/objective-templates", tags=["planning"])
 
+    from sarapp_db.api.routers import strategy_templates
+    app.include_router(strategy_templates.router, prefix="/api/master/strategy-templates", tags=["planning"])
+
     from sarapp_db.api.routers import aircraft
     app.include_router(aircraft.router, prefix="/api/master/aircraft", tags=["logistics"])
 

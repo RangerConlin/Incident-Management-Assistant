@@ -1,0 +1,737 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "Channel ConfigurationRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Channel ConfigurationRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "ChannelTalkgroup NameRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "DESCRIPTION",
+      "source": ""
+    },
+    {
+      "pdf_field": "FREQUENCY BAND",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Mode ADMRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow10_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow11_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow12_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow13_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow14_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow15_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow16_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow17_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow18_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow19_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow20_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow5_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow6_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow7_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow8_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "PL Tone NACRow9_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Rx Freq NWRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Text36",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Tx Freq NWRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow15",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow16",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow17",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow18",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow19",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow20",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "UsersRow9",
+      "source": ""
+    }
+  ]
+}

@@ -1,0 +1,477 @@
+{
+  "description": "Mapping scaffold for template.pdf",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name_10",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Prepared by Medical Unit Leader Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Approved by Safety Officer Name",
+      "source": ""
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Address Latitude  Longitude if HelipadRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "AirRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "AirRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "AirRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "AirRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "AirRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Ambulance ServiceRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center No 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center No 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center No 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center No 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center No 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center Yes 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center Yes 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center Yes 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center Yes 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Burn Center Yes 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad No 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad No 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad No 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad No 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad No 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad Yes 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad Yes 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad Yes 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad Yes 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Helipad Yes 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Trauma Center 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Trauma Center 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Trauma Center 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Trauma Center 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Trauma Center 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box if aviation assests are utilized for rescue",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box1 Level of Service - ALS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box1 Level of Service - BLS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box2 Level of Service - ALS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box2 Level of Service - BLS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box3 Level of Service - ALS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box3 Level of Service - BLS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box4 Level of Service - ALS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box4 Level of Service - BLS",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact Numbers FrequencyRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow3_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow4_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact NumbersFrequencyRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date From",
+      "source": ""
+    },
+    {
+      "pdf_field": "Date To",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_10",
+      "source": ""
+    },
+    {
+      "pdf_field": "GroundRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "GroundRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "GroundRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "GroundRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "GroundRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Hospital NameRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Hospital NameRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Hospital NameRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Hospital NameRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Hospital NameRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "IAP Page_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow1-2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow2-2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow3-2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow4-2",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "LocationRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "NameRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "NameRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "NameRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "NameRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "NameRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "NameRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - No, Row 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - No, Row 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - No, Row 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - No, Row 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - No, Row 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - No, Row 6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - Yes, Row 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - Yes, Row 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - Yes, Row 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - Yes, Row 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - Yes, Row 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Paramedics on Site - Yes, Row 6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature_12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Special Medical Emergency Procedures",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time From",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time To",
+      "source": ""
+    },
+    {
+      "pdf_field": "Trauma Center - Level (Row 1)",
+      "source": ""
+    },
+    {
+      "pdf_field": "Trauma Center - Level (Row 2)",
+      "source": ""
+    },
+    {
+      "pdf_field": "Trauma Center - Level (Row 3)",
+      "source": ""
+    },
+    {
+      "pdf_field": "Trauma Center - Level (Row 4)",
+      "source": ""
+    },
+    {
+      "pdf_field": "Trauma Center - Level (Row 5)",
+      "source": ""
+    }
+  ]
+}

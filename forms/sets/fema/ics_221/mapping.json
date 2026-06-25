@@ -1,6 +1,370 @@
 {
-  "description": "ICS 221 Demobilization Check-Out — FEMA",
+  "description": "ICS 221 — Demobilization Check-Out — FEMA ICS Forms 2023",
   "fields": [
+    {
+      "pdf_field": "1 Incident Name_25",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 Incident Number_12",
+      "source": "incident.number"
+    },
+    {
+      "pdf_field": "Planned Release Date",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planned Release Time",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 Resource or Personnel Released",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Order Request Number",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Supply Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksSupply Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name Supply Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Communications Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksCommunications Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name Communications Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Facilities Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksFacilities Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name Facilities Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Ground Support Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksGround Support Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name Ground Support Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Security Manager",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksSecurity Manager",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name Security Manager",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Blank",
+      "source": ""
+    },
+    {
+      "pdf_field": "Logistics Section, Unit Manager  - Undefined",
+      "source": ""
+    },
+    {
+      "pdf_field": "RemarksRow6_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Name Row6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Time Unit 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "FINANCE/ADMINISTRATION SECTION Remarks Row 1_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "FINANCE/ADMINISTRATION SECTION Name Row 1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Time Unit 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time UnitRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "FINANCE/ADMINISTRATION SECTION RemarksRow2_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "FINANCE/ADMINISTRATION SECTION Name Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Time Unit 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Time UnitRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "FINANCE/ADMINISTRATION SECTION RemarksRow3_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "FINANCE/ADMINISTRATION SECTION Name Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Other Section/Staff 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Section/Staff UnitOtherRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Section/Staff RemarksRow1_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Section/Staff Name Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Other Section/Staff 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Section/Staff UnitOtherRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Section/Staff RemarksRow2_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Other Section/Staff Name Row2_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Planning Section Unit Leader 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section UnitLeaderRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section RemarksRow1_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section Name Row1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Planning Section Unit Leader 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section RemarksDocumentation Leader",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section Name Documentation Leader",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Check Box Planning Section Unit Leader 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section RemarksDemobilization Leader",
+      "source": ""
+    },
+    {
+      "pdf_field": "Planning Section Name Demobilization Leader",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature14",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Remarks",
+      "source": ""
+    },
+    {
+      "pdf_field": "Room Overnight Yes",
+      "source": ""
+    },
+    {
+      "pdf_field": "Room Overnight No",
+      "source": ""
+    },
+    {
+      "pdf_field": "Estimated Time of Departure",
+      "source": ""
+    },
+    {
+      "pdf_field": "Actual Release DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "Destination",
+      "source": ""
+    },
+    {
+      "pdf_field": "Estimated Time of Arrival",
+      "source": ""
+    },
+    {
+      "pdf_field": "Travel Method",
+      "source": ""
+    },
+    {
+      "pdf_field": "Contact Information While Traveling",
+      "source": ""
+    },
+    {
+      "pdf_field": "Manifest Yes",
+      "source": ""
+    },
+    {
+      "pdf_field": "Manifest No",
+      "source": ""
+    },
+    {
+      "pdf_field": "Number",
+      "source": ""
+    },
+    {
+      "pdf_field": "AreaAgencyRegion Notified",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reassignment Information: Yes",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reassignment Information: No",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Name_18",
+      "source": ""
+    },
+    {
+      "pdf_field": "Incident Number_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Location_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Order Request Number_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 Prepared by Name",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "PositionTitle_23",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature_28",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime_20",
+      "source": "prepared_by.date_time"
+    },
     {
       "pdf_field": "IncidentName",
       "source": "incident.name"

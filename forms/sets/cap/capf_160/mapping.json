@@ -1,0 +1,548 @@
+{
+  "description": "CAPF 160 — Deliberate Risk Assessment Worksheet — Civil Air Patrol 2023",
+  "fields": [
+    {
+      "pdf_field": "1 ACTIVITY",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 DATE DDMMYYYY",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "a Name Last First Middle Initial",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "b Rank",
+      "source": ""
+    },
+    {
+      "pdf_field": "c Duty TitlePosition",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "d Unit",
+      "source": ""
+    },
+    {
+      "pdf_field": "e Email",
+      "source": ""
+    },
+    {
+      "pdf_field": "f Telephone",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature1",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASK Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARD Consider Hazards from each of the 5M categories in CAPR 1601 Member Media Machine MissionActivity ManagementRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "How 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 1",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARD Consider Hazards from each of the 5M categories in CAPR 1601 Member Media Machine MissionActivity ManagementRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 2",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASK Row3",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARD Consider Hazards from each of the 5M categories in CAPR 1601 Member Media Machine MissionActivity Management",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_3",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Group1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Group1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Group1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Group1",
+      "source": ""
+    },
+    {
+      "pdf_field": "11 OVERALL SUPERVISION PLAN AND RECOMMENDED COURSE OF ACTION",
+      "source": ""
+    },
+    {
+      "pdf_field": "Group5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Group5",
+      "source": ""
+    },
+    {
+      "pdf_field": "a Name Last First Middle Initial_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "b Rank_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "c Duty TitlePosition_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature2",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 10",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROLRow 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 14",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_4",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_5",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 6",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_6",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 6",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 7",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_7",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 7",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 4",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Initial Risk Level 7",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 8",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_8",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_8",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow9",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 9",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 8",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_9",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_9",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow10",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 10",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_10",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_10",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 9",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow11",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 11",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_11",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 10",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 11",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 12",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_12",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 12",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow13",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 13",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_13",
+      "source": ""
+    },
+    {
+      "pdf_field": "4 SUBACTIVITY or SPECIFIC TASKRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 HAZARDRow14",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 RISK CONTROL 14",
+      "source": ""
+    },
+    {
+      "pdf_field": "How_14",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Who_14",
+      "source": ""
+    },
+    {
+      "pdf_field": "6 RRL 14",
+      "source": ""
+    },
+    {
+      "pdf_field": "a DateRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "b Last NameRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "c RankRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "d Duty TitlePositionRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature3",
+      "source": ""
+    },
+    {
+      "pdf_field": "a DateRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "b Last NameRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "c RankRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "d Duty TitlePositionRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature4",
+      "source": ""
+    },
+    {
+      "pdf_field": "a DateRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "b Last NameRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "c RankRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "d Duty TitlePositionRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "Signature5",
+      "source": ""
+    },
+    {
+      "pdf_field": "14 AFTERACTION FEEDBACK AND LESSONS LEARNED",
+      "source": ""
+    },
+    {
+      "pdf_field": "Reset",
+      "source": ""
+    }
+  ]
+}

@@ -7,7 +7,7 @@
     },
     {
       "pdf_field": "1 INCIDENT NAME",
-      "source": "incident"
+      "source": "incident.name"
     },
     {
       "pdf_field": "Text1",
@@ -32,7 +32,8 @@
   ],
   "row_groups": [
     {
-      "ref": "master_channels",
+      "ref": "radio_channels",
+      "data_key": "channels",
       "overflow_mode": "repeat",
       "rows_per_page": [
         13,

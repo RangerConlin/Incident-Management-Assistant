@@ -85,49 +85,36 @@ def person_meets_profile(personnel_id: int, profile_code: str) -> bool:
     if prof is None:
         return False
 
-    conn = _conn()
     try:
-        sql = (
-            "WITH max_levels AS ("
-            "  SELECT certification_type_id, MAX(level) AS lvl"
-            "  FROM personnel_certifications"
-            "  WHERE personnel_id = ?"
-            "  GROUP BY certification_type_id"
-            ")"
-            " SELECT ct.id, ct.code, ml.lvl, t.tag"
-            " FROM max_levels ml"
-            " JOIN certification_types ct ON ct.id = ml.certification_type_id"
-            " LEFT JOIN cert_tags t ON t.certification_type_id = ct.id"
-        )
-        cur = conn.execute(sql, (int(personnel_id),))
-        # Build map of cert -> {level, tags}
-        cert_map: dict[int, dict[str, Any]] = {}
-        for row in cur.fetchall():
-            cid = int(row[0])
-            lvl = int(row[2] or 0)
-            tag = row[3]
-            entry = cert_map.setdefault(cid, {"level": lvl, "tags": set()})
-            entry["level"] = max(entry["level"], lvl)
-            if tag is not None:
-                entry["tags"].add(str(tag))
+        certs = list_personnel_certs(personnel_id)
+    except Exception:
+        certs = []
 
-        # Evaluate profile
-        for info in cert_map.values():
-            lvl = int(info["level"])
-            if lvl < prof.min_level:
-                continue
-            tags: set[str] = set(info["tags"])  # type: ignore[assignment]
-            # Must include all required tags if specified
-            if prof.all_tags and not all(t in tags for t in prof.all_tags):
-                continue
-            # Must include at least one from any_tags if specified
-            if prof.any_tags and not any(t in tags for t in prof.any_tags):
-                continue
-            # Passed
-            return True
-        return False
-    finally:
-        conn.close()
+    # Highest level per certification type
+    max_levels: dict[int, int] = {}
+    for c in certs:
+        try:
+            cid = int(c.get("cert_type_id"))
+            lvl = int(c.get("level") or 0)
+        except (TypeError, ValueError):
+            continue
+        max_levels[cid] = max(max_levels.get(cid, 0), lvl)
+
+    for cert_type_id, lvl in max_levels.items():
+        if lvl < prof.min_level:
+            continue
+        try:
+            tags: set[str] = set(list_tags_for_cert(cert_type_id) or [])
+        except Exception:
+            tags = set()
+        # Must include all required tags if specified
+        if prof.all_tags and not all(t in tags for t in prof.all_tags):
+            continue
+        # Must include at least one from any_tags if specified
+        if prof.any_tags and not any(t in tags for t in prof.any_tags):
+            continue
+        return True
+    return False
 
 
 # Guard catalog writes (not exposed here, but ensure consistency if added later)
