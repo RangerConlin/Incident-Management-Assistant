@@ -7,7 +7,6 @@ import pytest
 
 from modules.finance import services
 from modules.finance.exporter import export_fuel_report, list_artifacts
-from modules.finance.repository import with_incident_session
 from modules.finance.models.schemas import (
     AttachmentCreate,
     FinanceExpenseCreate,
@@ -23,7 +22,17 @@ def finance_incident(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> str:
     base = tmp_path / "data"
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(base))
     incident_storage._INITIALIZED_ROOTS.clear()
-    return "FIN-TEST-001"
+    incident_id = "FIN-TEST-001"
+    # exporter.py writes CSV reports to the incident's local export folder,
+    # which requires the incident to be registered with incident_storage —
+    # the old sqlite-backed repository.get_incident_engine() used to create
+    # this as a side effect of opening any finance table; the Mongo-backed
+    # router has no equivalent side effect, so the test sets it up directly.
+    paths = incident_storage.get_incident_paths(
+        incident_number=incident_id, incident_name=incident_id, incident_id=incident_id
+    )
+    incident_storage.ensure_incident_structure(paths, incident_storage.infer_incident_metadata(incident_id))
+    return incident_id
 
 
 def test_finance_fuel_forecast_and_expense_workflow(finance_incident: str) -> None:
@@ -119,8 +128,7 @@ def test_finance_fuel_forecast_and_expense_workflow(finance_incident: str) -> No
     paid_expense = services.get_expense(finance_incident, expense.id)
     assert paid_expense.paid_at is not None
 
-    with with_incident_session(finance_incident) as session:
-        artifact = export_fuel_report(session, finance_incident)
+    artifact = export_fuel_report(finance_incident)
     assert artifact["path"].endswith("fuel_report.csv")
     assert list_artifacts(finance_incident)
 

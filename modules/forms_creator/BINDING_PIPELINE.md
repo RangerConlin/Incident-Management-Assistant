@@ -344,7 +344,6 @@ These catalog (layer 2) entries already exist but resolve to nothing
 because layer 1 was never wired for them - `context.py` hardcodes the key
 to `[]`/`{}` instead of calling an API:
 
-- `hospitals` (100 entries), `ems_agencies` (90 entries) - `MasterCollections.HOSPITALS`/`EMS_AGENCIES` exist but nothing queries them.
 - `narrative` (100 entries) - should come from `unit_logs`/`ics_214_logs`, currently a hardcoded `[]`.
 - `team_members` (32 entries) - currently a hardcoded `[]`.
 - `assignment.*` / `task.*` (the SAR 104 ground/air POD-matrix paths) - no `_build_assignment` exists in `context.py` at all yet; these resolve via `extra_data` only if a caller builds and passes that dict themselves (nobody does yet).
@@ -432,13 +431,13 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `ics_206_aid_stations` | `hospitals` (partial overlap, unconfirmed) | Not started | |
-| `ics_206_ambulance_services` | - | Not started | |
-| `ics_206_hospitals` | - | Not started | distinct from master `hospitals` below |
-| `ics_206_air_ambulance` | - | Not started | |
-| `ics_206_medical_comms` | - | Not started | |
-| `ics_206_procedures` | - | Not started | |
-| `ics_206_signatures` | - | Not started | |
+| `ics_206_aid_stations` | `ics_206_aid_stations` | Wired | op-scoped aid station rows exposed with name, type, level, 24/7 flag, and notes |
+| `ics_206_ambulance_services` | `ics_206_ambulance_services` | Wired | op-scoped ambulance services exposed with name, type, phone, location, notes, plus computed `service_level` / `service_level_label` |
+| `ics_206_hospitals` | `ics_206_hospitals` | Wired | op-scoped ICS 206 hospitals exposed separately from master hospitals, with computed trauma display from adult/pediatric levels |
+| `ics_206_air_ambulance` | `ics_206_air_ambulance` | Wired | op-scoped air ambulance rows exposed with name, phone, base, contact, and notes |
+| `ics_206_medical_comms` | `ics_206_medical_comms` | Wired | op-scoped medical comms rows exposed with channel, function, frequency, mode, and notes |
+| `ics_206_procedures` | `ics_206_procedures` | Wired | op-scoped ICS 206 procedures exposed as a singular content record |
+| `ics_206_signatures` | `ics_206_signatures` | Wired | op-scoped ICS 206 prepared-by / approved-by signature block exposed as a singular record |
 | `hazards` | `hazards` | Wired | generic incident snapshot-backed read exposes planning/tactics hazard entries with normalized safety fields (`hazard_type_text`, risk/likelihood/severity, controls, PPE, safety message, resolved flag, notes) |
 | `safety_reports` | `safety_reports` | Wired | incident safety report list exposed with time/location/severity/flagged metadata |
 | `medical_incidents` | - | Not started | |
@@ -446,8 +445,9 @@ that point (follow the debrief table's format below as the template).
 | `hazard_zones` | `hazard_zones` | Wired | zone name, geometry JSON, severity, description, timestamps |
 | `cap_orm_summaries` | `cap_orm_summaries` | Wired | legacy CAP ORM summary records exposed as list entries |
 | `cap_orm_forms` | `cap_orm_form` | Wired | current operational period ORM form exposed as a singular record |
-| `cap_orm_hazards` | `cap_orm_hazards` | Wired | current operational period ORM hazard rows exposed as list entries |
+| `cap_orm_hazards` | `cap_orm_hazards` | Wired | current operational period ORM hazard rows exposed as list entries; also drives CAPF 160 repeating hazard rows |
 | `cap_orm_audit` | `cap_orm_audit` | Wired | ORM audit rows exposed, filtered to the current operational period form when available |
+| `planning_work_assignments` | `ics_215a_rows` | Partial | computed repeating rows flatten current operational period work assignments plus embedded hazards for ICS 215A-style forms; sourced from work assignments rather than a dedicated collection |
 | `ics_208_instances` | `ics_208` | Wired | current operational period ICS 208 instance exposed as a singular record |
 | `iwi_reports` | `iwi_reports` | Wired | safety incident / IWI reports exposed with status, occurrence/location, narrative, factors, notifications, corrective actions, witnesses, and signoffs |
 
@@ -569,8 +569,8 @@ that point (follow the debrief table's format below as the template).
 | `resource_types` | `resource_types` | Wired | raw passthrough |
 | `resource_capabilities` | `resource_types` (partial overlap, unconfirmed) | Partial | verify before assuming full coverage |
 | `radio_channels` | `comms_resources` | Wired | raw passthrough via `/api/comms/channels` |
-| `hospitals` | `hospitals` | Stub (orphaned) | catalog has 100 `hospitals.*` entries; context.py hardcodes `data["hospitals"] = []` |
-| `ems_agencies` | `ems_agencies` | Stub (orphaned) | catalog has 90 `ems_agencies.*` entries; context.py hardcodes `data["ems_agencies"] = []` |
+| `hospitals` | `hospitals` | Wired | master hospital catalog exposed with contact, phone variants, helipad/burn flags, adult/pediatric trauma level fields, and computed `trauma_level_display` |
+| `ems_agencies` | `ems_agencies` | Wired | master EMS agencies exposed with radio/address fields plus computed highest-service `service_level` / `service_level_label` |
 | `hazard_types` | `hazard_types` | Wired | master hazard library exposed with defaults, aliases, mitigations, PPE items, and resource defaults |
 | `safety_analysis_templates` | `safety_analysis_templates` | Wired | master safety analysis templates exposed with target forms and hazard entries |
 | `incident_types` | - | Not started | |
@@ -789,6 +789,7 @@ fresh raw copy.
 |---|---|---|---|---|---|
 | cap | capf_104 | 207 | 130 | 130 | Mapped, not yet test-fill verified |
 | cap | capf_104a | 72 | (none) | - | Needs mapping |
+| cap | capf_160 | 131 | 31 | 131 | Wired - header uses `cap_orm_form` and `prepared_by`; body uses repeating `cap_orm_hazards` rows with `continuation.pdf` as the 11-row overflow sheet; test-fill verified zero warnings (signature widgets intentionally left blank) |
 | cap | capf_106 | 40 | 40 | 40 | Wired |
 | cap | capf_109 | 109 | 244 | 109 | Wired (mapping has ~135 extra entries beyond the template's 109 fields - likely stale/leftover, not harmful; low-priority cleanup) |
 | cap | ics_309 | 103 | 106 | 103 | Wired |
@@ -809,7 +810,7 @@ fresh raw copy.
 | fema | ics_213rr | (none) | 29 | - | Needs template (mapping orphaned) |
 | fema | ics_214 | 84 | 86 | 84 | Wired |
 | fema | ics_215 | (none) | 50 | - | Needs template (mapping orphaned) |
-| fema | ics_215a | (none) | 33 | - | Needs template (mapping orphaned) |
+| fema | ics_215a | 55 | 13 | 55 | Wired - raw FEMA template added; uses repeating `ics_215a_rows`; test-fill verified zero warnings |
 | fema | ics_217 | 202 | 209 | 202 | Wired |
 | fema | ics_218 | 152 | 215 | 152 | Wired |
 | fema | ics_220 | (none) | 45 | - | Needs template (mapping orphaned) |

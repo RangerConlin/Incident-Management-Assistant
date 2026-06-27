@@ -18,10 +18,16 @@ def _to_dict(obj: Any) -> Dict[str, Any]:
 class AidStation:
     id: Optional[int]
     op_period: int
+    facility_id: str = ""
     name: str = ""
     type: str = ""
     level: str = ""
     is_24_7: bool = False
+    location_text: str = ""
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    manager_personnel_id: str = ""
+    manager_name: str = ""
     notes: str = ""
 
     def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy

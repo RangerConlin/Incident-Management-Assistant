@@ -291,6 +291,15 @@ class CheckInService:
 
         return doc
 
+    def get_checked_in_record(self, entity_type: str, record_id: Any) -> Optional[Dict[str, Any]]:
+        incident_id = _incident_id()
+        if not incident_id:
+            return None
+        try:
+            return _client().get(f"{_incident_base(incident_id)}/{entity_type}/{record_id}")
+        except Exception:
+            return None
+
 
 _service: Optional[CheckInService] = None
 

@@ -25,6 +25,7 @@ def _base_header(priority: Priority = Priority.ROUTINE) -> dict[str, object]:
         "needed_by_utc": "2023-01-01T12:00:00Z",
         "justification": "Unit test",
         "delivery_location": "Cache",
+        "delivery_facility_id": "fac-cache",
     }
 
 
@@ -45,15 +46,20 @@ def test_create_and_fetch_request(service: ResourceRequestService):
     assert record["title"] == "Test Request"
     assert len(record["items"]) == 1
     assert record["status"] == RequestStatus.DRAFT.value
+    assert record["delivery_facility_id"] == "fac-cache"
 
 
 def test_update_and_versioning(service: ResourceRequestService):
     request_id = service.create_request(_base_header(), _single_item())
     service.record_approval(request_id, ApprovalAction.SUBMIT.value, actor_id="ops")
     original = service.get_request(request_id)
-    service.update_request(request_id, {"delivery_location": "Forward Base"})
+    service.update_request(
+        request_id,
+        {"delivery_location": "Forward Base", "delivery_facility_id": "fac-forward"},
+    )
     updated = service.get_request(request_id)
     assert updated["delivery_location"] == "Forward Base"
+    assert updated["delivery_facility_id"] == "fac-forward"
     assert updated["version"] == original["version"] + 1
 
 
@@ -80,10 +86,32 @@ def test_replace_items(service: ResourceRequestService):
 
 def test_fulfillment_flow(service: ResourceRequestService):
     request_id = service.create_request(_base_header(Priority.IMMEDIATE), _single_item())
-    fulfillment_id = service.assign_fulfillment(request_id, supplier_id="S1", team_id="T1")
-    service.update_fulfillment(fulfillment_id, FulfillmentStatus.INTRANSIT.value, note="En route")
+    fulfillment_id = service.assign_fulfillment(
+        request_id,
+        supplier_id="S1",
+        team_id="T1",
+        destination_location="Staging Alpha",
+        destination_facility_id="fac-staging-alpha",
+    )
+    service.update_fulfillment(
+        fulfillment_id,
+        FulfillmentStatus.INTRANSIT.value,
+        note="En route",
+        request_id=request_id,
+    )
     record = service.get_request(request_id)
     assert record["fulfillments"][-1]["status"] == FulfillmentStatus.INTRANSIT.value
+    assert record["fulfillments"][-1]["destination_location"] == "Staging Alpha"
+    assert record["fulfillments"][-1]["destination_facility_id"] == "fac-staging-alpha"
+
+
+def test_fulfillment_defaults_to_request_delivery_target(service: ResourceRequestService):
+    request_id = service.create_request(_base_header(Priority.HIGH), _single_item())
+    fulfillment_id = service.assign_fulfillment(request_id, supplier_id="S1")
+    record = service.get_request(request_id)
+    fulfillment = next(f for f in record["fulfillments"] if f["id"] == fulfillment_id)
+    assert fulfillment["destination_location"] == "Cache"
+    assert fulfillment["destination_facility_id"] == "fac-cache"
 
 
 def test_printers_generate_pdfs(tmp_path: Path, service: ResourceRequestService, monkeypatch):

@@ -202,6 +202,7 @@ class IncidentCollections:
     # Logistics
     LOGISTICS_RESOURCE_STATUS_ITEMS = "logistics_resource_status_items"
     LOGISTICS_RESOURCE_REQUESTS = "logistics_resource_requests"
+    FACILITIES = "facilities"
 
     # Operations (aliases to canonical task/team collections)
     OPERATIONS_TASKS = "tasks"
@@ -256,3 +257,16 @@ class IncidentCollections:
     ATTACHMENTS = "attachments"
     AUDIT_LOGS = "audit_logs"
     STATUS_BOARD_SNAPSHOTS = "status_board_snapshots"
+
+    # Finance/Admin — fuel pricing, forecasts, expenses, funding sources.
+    # finance_approvals is module-specific rather than reusing
+    # APPROVAL_INSTANCES/APPROVAL_RECORDS — see agents.md for the
+    # consolidation note.
+    FINANCE_FUEL_PRICE_PROFILES = "finance_fuel_price_profiles"
+    FINANCE_FORECASTS = "finance_forecasts"
+    FINANCE_FUEL_FORECAST_LINES = "finance_fuel_forecast_lines"
+    FINANCE_FUNDING_SOURCES = "finance_funding_sources"
+    FINANCE_EXPENSES = "finance_expenses"
+    FINANCE_APPROVALS = "finance_approvals"
+    FINANCE_ATTACHMENTS = "finance_attachments"
+    WEATHER_DATA = "weather_data"

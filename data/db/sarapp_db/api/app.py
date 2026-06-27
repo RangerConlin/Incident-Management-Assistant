@@ -97,6 +97,11 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import intel
     app.include_router(intel.router, prefix="/api", tags=["intel"])
 
+    from sarapp_db.api.routers import weather
+    app.include_router(weather.router, prefix="/api", tags=["weather"])
+    from sarapp_db.api.routers import geocoding
+    app.include_router(geocoding.router, prefix="/api/geocoding", tags=["geocoding"])
+
     from sarapp_db.api.routers import safety
     app.include_router(safety.router, prefix="/api", tags=["safety"])
 
@@ -117,12 +122,17 @@ def create_app(server_info_fn=None) -> FastAPI:
 
     from sarapp_db.api.routers import meetings
     app.include_router(meetings.router, prefix="/api", tags=["planning"])
+    from sarapp_db.api.routers import facilities
+    app.include_router(facilities.router, prefix="/api", tags=["facilities"])
 
     from sarapp_db.api.routers import work_assignments
     app.include_router(work_assignments.router, prefix="/api", tags=["planning"])
 
     from sarapp_db.api.routers import gis
     app.include_router(gis.router, prefix="/api", tags=["gis"])
+
+    from sarapp_db.api.routers import finance
+    app.include_router(finance.router, prefix="/api", tags=["finance"])
 
     from sarapp_db.api.routers import objective_templates
     app.include_router(objective_templates.router, prefix="/api/master/objective-templates", tags=["planning"])
@@ -144,6 +154,9 @@ def create_app(server_info_fn=None) -> FastAPI:
 
     from sarapp_db.api.routers import hospitals
     app.include_router(hospitals.router, prefix="/api/master/hospitals", tags=["medical"])
+
+    from sarapp_db.api.routers import medical
+    app.include_router(medical.router, prefix="/api", tags=["medical"])
 
     from sarapp_db.api.routers import checkin
     app.include_router(checkin.router, prefix="/api/incidents/{incident_id}/checkin", tags=["logistics"])

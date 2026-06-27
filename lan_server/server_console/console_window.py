@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from networking.server_info import SARAPP_VERSION
+from lan_server.networking.server_info import SARAPP_VERSION
 
 from .controller import ConsoleServerState, ServerConsoleController, check_port, fetch_health
 from .log_model import ConsoleLogBuffer

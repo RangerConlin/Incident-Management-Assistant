@@ -48,6 +48,8 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_resources_indexes(incident_db)
     _create_intel_indexes(incident_db)
     _create_approval_indexes(incident_db)
+    _create_weather_indexes(incident_db)
+    _create_facilities_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
 
@@ -349,6 +351,23 @@ def _create_intel_indexes(incident_db: Database) -> None:
     _ensure_index(reports, [("status", ASCENDING)])
     _ensure_index(reports, [("deleted", ASCENDING)])
     _ensure_index(reports, [("created_at", DESCENDING)])
+
+
+def _create_weather_indexes(incident_db: Database) -> None:
+    weather = incident_db[IncidentCollections.WEATHER_DATA]
+    _ensure_index(weather, [("incident_id", ASCENDING)])
+    _ensure_index(weather, [("key", ASCENDING)])
+
+
+def _create_facilities_indexes(incident_db: Database) -> None:
+    facilities = incident_db[IncidentCollections.FACILITIES]
+    _ensure_index(facilities, [("incident_id", ASCENDING)])
+    _ensure_index(facilities, [("facility_type", ASCENDING)])
+    _ensure_index(facilities, [("status", ASCENDING)])
+    _ensure_index(facilities, [("is_primary", ASCENDING)])
+    _ensure_index(facilities, [("name", ASCENDING)])
+    _ensure_index(facilities, [("latitude", ASCENDING), ("longitude", ASCENDING)])
+    _ensure_index(facilities, [("deleted", ASCENDING)])
 
 
 def _create_approval_indexes(incident_db: Database) -> None:

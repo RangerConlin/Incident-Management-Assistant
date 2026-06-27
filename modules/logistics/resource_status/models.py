@@ -36,6 +36,8 @@ class ResourceItem:
     assigned_to: Optional[str] = None
     assignment_reference: Optional[str] = None
     location: Optional[str] = None
+    destination_facility_id: Optional[str] = None
+    checkin_facility_id: Optional[str] = None
     checked_in_time: Optional[str] = None
     last_updated: Optional[str] = None
     notes: Optional[str] = None
@@ -55,6 +57,8 @@ class ResourceItem:
             "assigned_to": self.assigned_to,
             "assignment_reference": self.assignment_reference,
             "location": self.location,
+            "destination_facility_id": self.destination_facility_id,
+            "checkin_facility_id": self.checkin_facility_id,
             "checked_in_time": self.checked_in_time,
             "last_updated": self.last_updated,
             "notes": self.notes,
@@ -76,6 +80,8 @@ class ResourceItem:
             assigned_to=_optional_text(row.get("assigned_to")),
             assignment_reference=_optional_text(row.get("assignment_reference")),
             location=_optional_text(row.get("location")),
+            destination_facility_id=_optional_text(row.get("destination_facility_id")),
+            checkin_facility_id=_optional_text(row.get("checkin_facility_id")),
             checked_in_time=_optional_text(row.get("checked_in_time")),
             last_updated=_optional_text(row.get("last_updated")),
             notes=_optional_text(row.get("notes")),

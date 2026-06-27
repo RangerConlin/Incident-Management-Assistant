@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.logistics.facilities.widgets import FacilityPicker
 from modules.planning.tactics_resources.data.hazard_prefill_service import HazardPrefillService
 from modules.planning.tactics_resources.data.resource_gap_service import ResourceGapService
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
@@ -51,6 +52,7 @@ from modules.planning.tactics_resources.models.work_assignment_models import (
     WorkAssignment,
 )
 from modules.planning.tactics_resources.widgets.hazard_analysis_editor import HazardAnalysisEditor
+from modules.planning.tactics_resources.widgets.linked_agency_requests_panel import LinkedAgencyRequestsPanel
 from modules.planning.tactics_resources.widgets.linked_tasks_panel import LinkedTasksPanel
 from modules.planning.tactics_resources.widgets.resource_requirement_editor import ResourceRequirementEditor
 
@@ -110,6 +112,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._build_resources_tab()
         self._build_hazards_tab()
         self._build_tasks_tab()
+        self._build_agency_requests_tab()
         self._build_outputs_tab()
         self._build_log_tab()
         layout.addWidget(self._tabs, 1)
@@ -143,8 +146,9 @@ class WorkAssignmentDetailWindow(QWidget):
         self._number_label = QLabel("")
         self._name_edit = QLineEdit()
         self._name_edit.setPlaceholderText("Strategy name (required)")
-        self._objective_edit = QLineEdit()
-        self._objective_edit.setPlaceholderText("Objective ID or description")
+        self._objective_combo = QComboBox()
+        self._objective_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._load_objectives()
 
         self._op_period_combo = QComboBox()
         self._op_period_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
@@ -156,15 +160,18 @@ class WorkAssignmentDetailWindow(QWidget):
 
         self._division_combo = QComboBox()
         self._division_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._location_picker = FacilityPicker(facility_type=None, parent=self)
+        self._location_picker.line_edit.setPlaceholderText("Reporting / destination location (optional)")
 
         self._branch_combo.currentIndexChanged.connect(self._on_branch_changed)
 
         left_form.addRow("Strategy #", self._number_label)
         left_form.addRow("Name *", self._name_edit)
-        left_form.addRow("Objective", self._objective_edit)
+        left_form.addRow("Objective", self._objective_combo)
         left_form.addRow("Oper. Period", self._op_period_combo)
         left_form.addRow("Branch", self._branch_combo)
         left_form.addRow("Division / Group", self._division_combo)
+        left_form.addRow("Location", self._location_picker)
 
         right_form = QFormLayout()
         right_form.setLabelAlignment(Qt.AlignRight)
@@ -203,10 +210,12 @@ class WorkAssignmentDetailWindow(QWidget):
 
         # ---- Wire auto-save on every field change ----
         self._name_edit.textChanged.connect(self._schedule_save)
-        self._objective_edit.textChanged.connect(self._schedule_save)
+        self._objective_combo.currentIndexChanged.connect(self._schedule_save)
         self._op_period_combo.currentIndexChanged.connect(self._schedule_save)
         self._branch_combo.currentIndexChanged.connect(self._schedule_save)
         self._division_combo.currentIndexChanged.connect(self._schedule_save)
+        self._location_picker.facilitySelected.connect(lambda *_: self._schedule_save())
+        self._location_picker.textChanged.connect(lambda *_: self._schedule_save())
         self._planning_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._safety_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._resource_status_combo.currentIndexChanged.connect(self._schedule_save)
@@ -289,6 +298,16 @@ class WorkAssignmentDetailWindow(QWidget):
         lay.addWidget(lbl)
         self._tasks_placeholder = placeholder
         self._tasks_tab_index = self._tabs.addTab(self._tasks_placeholder, "Tasks")
+
+    def _build_agency_requests_tab(self) -> None:
+        placeholder = QWidget()
+        lbl = QLabel("Save the strategy first to link agency requests.", placeholder)
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setStyleSheet("color: gray; font-style: italic;")
+        lay = QVBoxLayout(placeholder)
+        lay.addWidget(lbl)
+        self._agency_requests_placeholder = placeholder
+        self._agency_requests_tab_index = self._tabs.addTab(self._agency_requests_placeholder, "Agency Requests")
 
     def _build_outputs_tab(self) -> None:
         tab = QWidget()
@@ -394,6 +413,22 @@ class WorkAssignmentDetailWindow(QWidget):
         except Exception:
             return []
 
+    def _load_objectives(self) -> None:
+        self._objective_combo.clear()
+        self._objective_combo.addItem("(none)", None)
+        iid = self._incident_id()
+        if not iid:
+            return
+        try:
+            rows = self._client().get("/api/objectives", params={"incident_id": iid}) or []
+        except Exception:
+            rows = []
+        for row in rows:
+            code = row.get("code") or row.get("_id") or ""
+            text = row.get("text") or ""
+            label = f"{code} - {text}" if text else code
+            self._objective_combo.addItem(label, row.get("_id"))
+
     def _load_branches(self) -> None:
         self._branch_combo.clear()
         self._branch_combo.addItem("(none)", None)
@@ -439,6 +474,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._populate_resource_tab()
         self._populate_hazard_tab()
         self._populate_tasks_tab()
+        self._populate_agency_requests_tab()
         self._reload_outputs()
         self._reload_log()
         self._update_summary()
@@ -447,7 +483,9 @@ class WorkAssignmentDetailWindow(QWidget):
     def _populate_header(self, wa: WorkAssignment) -> None:
         self._number_label.setText(wa.assignment_number)
         self._name_edit.setText(wa.assignment_name)
-        self._objective_edit.setText(str(wa.objective_id or ""))
+        self._load_objectives()
+        obj_idx = self._objective_combo.findData(wa.objective_id)
+        self._objective_combo.setCurrentIndex(obj_idx if obj_idx >= 0 else 0)
 
         # Reload combos from current DB state, then match stored values
         self._load_op_periods()
@@ -463,6 +501,7 @@ class WorkAssignmentDetailWindow(QWidget):
         div_idx = self._division_combo.findText(wa.division_group)
         if div_idx >= 0:
             self._division_combo.setCurrentIndex(div_idx)
+        self._location_picker.set_value(wa.location_facility_id, wa.location)
 
         idx = self._planning_status_combo.findText(wa.planning_status)
         if idx >= 0:
@@ -516,6 +555,16 @@ class WorkAssignmentDetailWindow(QWidget):
         self._tabs.insertTab(self._tasks_tab_index, panel, "Tasks")
         self._tasks_placeholder = panel
 
+    def _populate_agency_requests_tab(self) -> None:
+        if self._work_assignment_id is None:
+            return
+        panel = LinkedAgencyRequestsPanel(
+            self._work_assignment_id, db_path=self._db_path, parent=self
+        )
+        self._tabs.removeTab(self._agency_requests_tab_index)
+        self._tabs.insertTab(self._agency_requests_tab_index, panel, "Agency Requests")
+        self._agency_requests_placeholder = panel
+
     def _update_title(self) -> None:
         name = self._name_edit.text().strip() if hasattr(self, "_name_edit") else ""
         num = self._number_label.text() if hasattr(self, "_number_label") else ""
@@ -552,15 +601,16 @@ class WorkAssignmentDetailWindow(QWidget):
 
     def _collect_header_data(self) -> dict:
         """Collect all header form values into a data dict."""
-        obj_id_text = self._objective_edit.text().strip()
         branch_text = self._branch_combo.currentText() if self._branch_combo.currentData() is not None else ""
         div_text = self._division_combo.currentText() if self._division_combo.currentData() is not None else ""
         return {
             "assignment_name": self._name_edit.text().strip(),
-            "objective_id": int(obj_id_text) if obj_id_text.isdigit() else None,
+            "objective_id": self._objective_combo.currentData(),
             "operational_period_id": self._op_period_combo.currentData(),
             "branch": branch_text,
             "division_group": div_text,
+            "location": self._location_picker.facility_text,
+            "location_facility_id": self._location_picker.facility_id,
             "planning_status": self._planning_status_combo.currentText(),
             "safety_status": self._safety_status_combo.currentText(),
             "resource_status": self._resource_status_combo.currentText(),
@@ -597,6 +647,7 @@ class WorkAssignmentDetailWindow(QWidget):
                 self._populate_resource_tab()
                 self._populate_hazard_tab()
                 self._populate_tasks_tab()
+                self._populate_agency_requests_tab()
                 repo.add_log_entry(new_id, "Strategy created.", entry_type="System")
             else:
                 repo.update_work_assignment(self._work_assignment_id, data)

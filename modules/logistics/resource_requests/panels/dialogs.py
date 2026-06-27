@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtWidgets
 
+from modules.logistics.facilities.service import FacilitiesService
+from modules.logistics.facilities.widgets import FacilityPicker
+
 
 class NoteDialog(QtWidgets.QDialog):
     """Collects a textual note from the operator."""
@@ -44,9 +47,12 @@ class AssignDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.setWindowTitle("Assign Resources")
         layout = QtWidgets.QFormLayout(self)
+        self._facility_service = FacilitiesService()
         self.supplier_edit = QtWidgets.QLineEdit(self)
         self.team_edit = QtWidgets.QLineEdit(self)
         self.vehicle_edit = QtWidgets.QLineEdit(self)
+        self.destination_edit = QtWidgets.QLineEdit(self)
+        self.destination_facility = FacilityPicker(service=self._facility_service)
         self.eta_edit = QtWidgets.QDateTimeEdit(self)
         self.eta_edit.setCalendarPopup(True)
         self.note_edit = QtWidgets.QPlainTextEdit(self)
@@ -54,6 +60,8 @@ class AssignDialog(QtWidgets.QDialog):
         layout.addRow("Supplier ID", self.supplier_edit)
         layout.addRow("Team ID", self.team_edit)
         layout.addRow("Vehicle ID", self.vehicle_edit)
+        layout.addRow("Destination", self.destination_edit)
+        layout.addRow("Facility", self.destination_facility)
         layout.addRow("ETA", self.eta_edit)
         layout.addRow("Note", self.note_edit)
 
@@ -71,6 +79,8 @@ class AssignDialog(QtWidgets.QDialog):
             "supplier_id": self.supplier_edit.text().strip() or None,
             "team_id": self.team_edit.text().strip() or None,
             "vehicle_id": self.vehicle_edit.text().strip() or None,
+            "destination_location": self.destination_facility.facility_text or self.destination_edit.text().strip() or None,
+            "destination_facility_id": self.destination_facility.facility_id or None,
             "eta_utc": self.eta_edit.dateTime().toString(QtCore.Qt.ISODate) if self.eta_edit.dateTime().isValid() else None,
             "note": self.note_edit.toPlainText().strip() or None,
         }

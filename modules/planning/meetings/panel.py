@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
+import logging
+from datetime import date, datetime, timedelta
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -28,6 +29,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+logger = logging.getLogger(__name__)
+
+_REMINDER_CHECK_INTERVAL_MS = 5 * 60_000
+_REMINDER_SETTINGS_KEY = "planning/meetings/reminder_lead_minutes"
+_REMINDER_LEAD_DEFAULT = 15
 
 from .models import MeetingTemplate
 from .repository import MeetingsRepository
@@ -127,10 +134,12 @@ class _MeetingDetailWindow(QDialog):
         att_layout.setContentsMargins(6, 6, 6, 6)
         self.attendees_table = QTableWidget(0, 3)
         self.attendees_table.setHorizontalHeaderLabels(["Attendee", "Requirement", "Status"])
-        self.attendees_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.attendees_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.attendees_table.horizontalHeader().setStretchLastSection(True)
         self.attendees_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.attendees_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.attendees_table.setAlternatingRowColors(True)
+        self.attendees_table.setSortingEnabled(True)
         att_layout.addWidget(self.attendees_table)
 
         # Checklist group
@@ -140,14 +149,13 @@ class _MeetingDetailWindow(QDialog):
         self.checklist_table = QTableWidget(0, 4)
         self.checklist_table.setHorizontalHeaderLabels(["Done", "N/A", "Group", "Item"])
         hdr = self.checklist_table.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.Fixed)
-        hdr.setSectionResizeMode(1, QHeaderView.Fixed)
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(3, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(QHeaderView.Interactive)
+        hdr.setStretchLastSection(True)
         self.checklist_table.setColumnWidth(0, 48)
         self.checklist_table.setColumnWidth(1, 48)
         self.checklist_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.checklist_table.setAlternatingRowColors(True)
+        self.checklist_table.setSortingEnabled(True)
         self.checklist_table.itemChanged.connect(self._checklist_item_changed)
         chk_layout.addWidget(self.checklist_table)
 
@@ -173,10 +181,12 @@ class _MeetingDetailWindow(QDialog):
         note_bar.addWidget(route_note_btn)
         self.notes_table = QTableWidget(0, 4)
         self.notes_table.setHorizontalHeaderLabels(["Category", "Text", "Author", "Routing"])
-        self.notes_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.notes_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.notes_table.horizontalHeader().setStretchLastSection(True)
         self.notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.notes_table.setAlternatingRowColors(True)
+        self.notes_table.setSortingEnabled(True)
         notes_layout.addLayout(note_bar)
         notes_layout.addWidget(self.notes_table)
 
@@ -202,12 +212,15 @@ class _MeetingDetailWindow(QDialog):
         self.status_combo.setCurrentText(meeting.status)
         self.show_ics230_check.setChecked(meeting.show_on_ics230)
 
+        self.attendees_table.setSortingEnabled(False)
         attendees = self._repository.list_attendees(meeting.id or 0)
         self.attendees_table.setRowCount(len(attendees))
         for row, att in enumerate(attendees):
             for col, val in enumerate([att.display_name, att.requirement_status, att.attendance_status]):
                 self.attendees_table.setItem(row, col, QTableWidgetItem(val))
+        self.attendees_table.setSortingEnabled(True)
 
+        self.checklist_table.setSortingEnabled(False)
         self.checklist_table.blockSignals(True)
         checklist = self._repository.list_checklist_items(meeting.id or 0)
         self.checklist_table.setRowCount(len(checklist))
@@ -225,7 +238,9 @@ class _MeetingDetailWindow(QDialog):
             self.checklist_table.setItem(row, 2, QTableWidgetItem(item.group_name))
             self.checklist_table.setItem(row, 3, QTableWidgetItem(item.text))
         self.checklist_table.blockSignals(False)
+        self.checklist_table.setSortingEnabled(True)
 
+        self.notes_table.setSortingEnabled(False)
         notes = self._repository.list_structured_notes(meeting.id or 0)
         self.notes_table.setRowCount(len(notes))
         for row, note in enumerate(notes):
@@ -233,6 +248,7 @@ class _MeetingDetailWindow(QDialog):
                 item = QTableWidgetItem(val)
                 item.setData(Qt.UserRole, note.id)
                 self.notes_table.setItem(row, col, item)
+        self.notes_table.setSortingEnabled(True)
 
     def _save_detail(self) -> None:
         self._repository.update_meeting(
@@ -475,8 +491,16 @@ class MeetingsPanel(QWidget):
         self.service = MeetingsService(self.repository)
         self.setObjectName("PlanningMeetingsPanel")
         self.setWindowTitle("Planning - Meetings")
+        self._notified_meeting_ids: set[int] = set()
+        self._settings = QSettings()
         self._build_ui()
         self.refresh_all()
+
+        self._reminder_timer = QTimer(self)
+        self._reminder_timer.setInterval(_REMINDER_CHECK_INTERVAL_MS)
+        self._reminder_timer.timeout.connect(self._check_upcoming_meeting_reminders)
+        self._reminder_timer.start()
+        self._check_upcoming_meeting_reminders()
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -500,14 +524,29 @@ class MeetingsPanel(QWidget):
             header.addWidget(btn)
         root.addLayout(header)
 
+        reminder_bar = QHBoxLayout()
+        reminder_bar.addStretch()
+        reminder_bar.addWidget(QLabel("Remind attendees"))
+        self.reminder_lead_spin = QSpinBox()
+        self.reminder_lead_spin.setRange(0, 180)
+        self.reminder_lead_spin.setSuffix(" min before start")
+        self.reminder_lead_spin.setValue(
+            int(self._settings.value(_REMINDER_SETTINGS_KEY, _REMINDER_LEAD_DEFAULT))
+        )
+        self.reminder_lead_spin.valueChanged.connect(self._on_reminder_lead_changed)
+        reminder_bar.addWidget(self.reminder_lead_spin)
+        root.addLayout(reminder_bar)
+
         self.schedule_table = QTableWidget(0, 8)
         self.schedule_table.setHorizontalHeaderLabels(
             ["Date", "Time", "Title", "Status", "Owner", "Location", "Checklist", "ICS-230"]
         )
-        self.schedule_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.schedule_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.schedule_table.horizontalHeader().setStretchLastSection(True)
         self.schedule_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.schedule_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.schedule_table.setAlternatingRowColors(True)
+        self.schedule_table.setSortingEnabled(True)
         self.schedule_table.itemDoubleClicked.connect(self._open_meeting_detail)
         root.addWidget(self.schedule_table)
 
@@ -515,6 +554,7 @@ class MeetingsPanel(QWidget):
         self._load_schedule()
 
     def _load_schedule(self) -> None:
+        self.schedule_table.setSortingEnabled(False)
         meetings = self.repository.list_meetings()
         self.schedule_table.setRowCount(len(meetings))
         for row, meeting in enumerate(meetings):
@@ -535,6 +575,96 @@ class MeetingsPanel(QWidget):
                 item = QTableWidgetItem(value)
                 item.setData(Qt.UserRole, meeting.id)
                 self.schedule_table.setItem(row, col, item)
+        self.schedule_table.setSortingEnabled(True)
+
+    def _on_reminder_lead_changed(self, minutes: int) -> None:
+        self._settings.setValue(_REMINDER_SETTINGS_KEY, minutes)
+        # Lead time changed — re-evaluate so a longer window can re-arm reminders.
+        self._notified_meeting_ids.clear()
+
+    def _check_upcoming_meeting_reminders(self) -> None:
+        lead_minutes = self.reminder_lead_spin.value()
+        if lead_minutes <= 0:
+            return
+        now = datetime.now()
+        try:
+            meetings = self.repository.list_meetings(include_canceled=False)
+        except Exception:
+            logger.exception("Failed to list meetings for reminder check")
+            return
+        for meeting in meetings:
+            if meeting.id is None or meeting.id in self._notified_meeting_ids:
+                continue
+            if meeting.status in ("canceled", "completed"):
+                continue
+            start = self._parse_meeting_start(meeting.meeting_date, meeting.start_time)
+            if start is None:
+                continue
+            minutes_until = (start - now).total_seconds() / 60
+            if minutes_until < 0 or minutes_until > lead_minutes:
+                continue
+            self._notified_meeting_ids.add(meeting.id)
+            if self._current_user_is_attendee(meeting.id):
+                self._send_meeting_reminder(meeting)
+
+    @staticmethod
+    def _parse_meeting_start(meeting_date: str, start_time: str) -> datetime | None:
+        try:
+            return datetime.strptime(f"{meeting_date} {start_time}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            return None
+
+    def _current_user_is_attendee(self, meeting_id: int) -> bool:
+        from utils.state import AppState
+
+        active_user_id = str(AppState.get_active_user_id() or "").strip()
+        if not active_user_id:
+            return False
+        try:
+            attendees = self.repository.list_attendees(meeting_id)
+        except Exception:
+            logger.exception("Failed to list attendees for meeting %s", meeting_id)
+            return False
+        for attendee in attendees:
+            if attendee.attendee_type == "role" and attendee.role:
+                if self._resolve_role_actor_id(attendee.role) == active_user_id:
+                    return True
+            elif attendee.display_name.strip().lower() == active_user_id.lower():
+                return True
+        return False
+
+    def _resolve_role_actor_id(self, role: str) -> str | None:
+        try:
+            from modules.command.incident_organization.controller import (
+                IncidentOrganizationController,
+            )
+
+            org = IncidentOrganizationController(self.repository.incident_id)
+            positions = org.list_positions()
+            match = next((p for p in positions if p.title == role and p.status == "active"), None)
+            if match is None:
+                return None
+            assignments = org.list_assignments(match.id, active_only=True)
+            return str(assignments[0].personnel_id) if assignments else None
+        except Exception:
+            logger.exception("Failed to resolve role %r to an actor", role)
+            return None
+
+    def _send_meeting_reminder(self, meeting) -> None:
+        from notifications.models import Notification
+        from notifications.services import get_notifier
+
+        get_notifier().notify(
+            Notification(
+                title="Upcoming meeting",
+                message=f"{meeting.title} starts at {meeting.start_time} ({meeting.location or meeting.virtual_link}).",
+                severity="priority",
+                category="planning",
+                source="Meetings",
+                entity_type="meeting",
+                entity_id=str(meeting.id),
+            )
+        )
 
     def _open_new_meeting_dialog(self) -> None:
         templates = self.repository.list_templates()

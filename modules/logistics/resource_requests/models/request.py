@@ -31,6 +31,7 @@ class ResourceRequest:
     needed_by_utc: Optional[str] = None
     justification: Optional[str] = None
     delivery_location: Optional[str] = None
+    delivery_facility_id: Optional[str] = None
     comms_requirements: Optional[str] = None
     links: Optional[str] = None
     version: int = 1
@@ -49,6 +50,7 @@ class ResourceRequest:
             "last_updated_utc": self.last_updated_utc,
             "justification": self.justification,
             "delivery_location": self.delivery_location,
+            "delivery_facility_id": self.delivery_facility_id,
             "comms_requirements": self.comms_requirements,
             "links": self.links,
             "version": self.version,
@@ -69,6 +71,7 @@ class ResourceRequest:
             needed_by_utc=row.get("needed_by_utc"),
             justification=row.get("justification"),
             delivery_location=row.get("delivery_location"),
+            delivery_facility_id=row.get("delivery_facility_id"),
             comms_requirements=row.get("comms_requirements"),
             links=row.get("links"),
             version=row.get("version", 1),
@@ -98,6 +101,7 @@ def create_from_header(request_id: str, incident_id: str, header: Dict[str, obje
         needed_by_utc=header.get("needed_by_utc"),
         justification=header.get("justification"),
         delivery_location=header.get("delivery_location"),
+        delivery_facility_id=header.get("delivery_facility_id"),
         comms_requirements=header.get("comms_requirements"),
         links=header.get("links"),
         version=int(header.get("version", 1)),

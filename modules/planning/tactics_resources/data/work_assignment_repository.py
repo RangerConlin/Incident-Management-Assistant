@@ -49,6 +49,7 @@ def _wa_from_dict(d: dict) -> WorkAssignment:
         branch=str(d.get("branch") or ""),
         division_group=str(d.get("division_group") or ""),
         location=str(d.get("location") or ""),
+        location_facility_id=str(d.get("location_facility_id") or ""),
         assignment_kind=str(d.get("assignment_kind") or "Ground"),
         priority=str(d.get("priority") or "Normal"),
         planning_status=str(d.get("planning_status") or "Draft"),
@@ -431,6 +432,33 @@ class WorkAssignmentRepository:
         except Exception:
             pass
 
+    # ------------------------------------------------------------------
+    # Agency request links
+    # ------------------------------------------------------------------
+
+    def list_linked_agency_requests(self, work_assignment_id: int) -> list[dict]:
+        try:
+            return _client().get(f"{_base()}/{work_assignment_id}/agency-requests") or []
+        except Exception:
+            return []
+
+    def link_agency_request(self, work_assignment_id: int, agency_request_id: int) -> int | None:
+        try:
+            d = _client().post(f"{_base()}/{work_assignment_id}/agency-requests", json={
+                "agency_request_id": agency_request_id,
+            })
+            if d is None:
+                return None
+            return int(d.get("id") or 0)
+        except Exception:
+            return None
+
+    def unlink_agency_request(self, work_assignment_id: int, link_id: int) -> None:
+        try:
+            _client().delete(f"{_base()}/{work_assignment_id}/agency-requests/{link_id}")
+        except Exception:
+            pass
+
     def list_strategies_for_task(self, task_id: int) -> list[dict]:
         try:
             iid = _iid()
@@ -461,6 +489,7 @@ class WorkAssignmentRepository:
                 description="\n".join(description_parts) or None,
                 priority=wa.priority,
                 location=wa.location or None,
+                location_facility_id=wa.location_facility_id or None,
             )
         except Exception:
             return None

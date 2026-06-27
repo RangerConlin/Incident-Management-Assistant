@@ -13,6 +13,11 @@
       "base_url": "",
       "token": ""
     },
+    "hwo": {
+      "points_url": "",
+      "products_url": "",
+      "token": ""
+    },
     "lightning": {
       "base_url": "",
       "token": ""

@@ -41,6 +41,7 @@ def _wa_out(doc: dict) -> dict:
         "branch": doc.get("branch", ""),
         "division_group": doc.get("division_group", ""),
         "location": doc.get("location", ""),
+        "location_facility_id": doc.get("location_facility_id", ""),
         "assignment_kind": doc.get("assignment_kind", "Ground"),
         "priority": doc.get("priority", "Normal"),
         "planning_status": doc.get("planning_status", "Draft"),
@@ -199,7 +200,7 @@ def list_work_assignments(
     branch: Optional[str] = None,
     division_group: Optional[str] = None,
     op_period_id: Optional[int] = None,
-    objective_id: Optional[int] = None,
+    objective_id: Optional[str] = None,
     show_archived: bool = False,
 ) -> List[Dict[str, Any]]:
     col = _col(incident_id)
@@ -246,6 +247,7 @@ def create_work_assignment(incident_id: str, body: Dict[str, Any]) -> Dict[str, 
         "branch": str(body.get("branch") or ""),
         "division_group": str(body.get("division_group") or ""),
         "location": str(body.get("location") or ""),
+        "location_facility_id": str(body.get("location_facility_id") or ""),
         "assignment_kind": str(body.get("assignment_kind") or "Ground"),
         "priority": str(body.get("priority") or "Normal"),
         "planning_status": str(body.get("planning_status") or "Draft"),
@@ -284,7 +286,7 @@ def update_work_assignment(incident_id: str, wa_id: int, body: Dict[str, Any]) -
     _ensure_int_ids(col)
     updatable = {
         "assignment_number", "assignment_name", "objective_id", "operational_period_id",
-        "branch", "division_group", "location", "assignment_kind", "priority",
+        "branch", "division_group", "location", "location_facility_id", "assignment_kind", "priority",
         "planning_status", "safety_status", "resource_status", "description",
         "tactics_summary", "special_instructions", "prepared_by", "approved_by",
         "updated_by", "notes",
@@ -322,7 +324,7 @@ def clone_work_assignment(incident_id: str, wa_id: int) -> Dict[str, Any]:
     doc = _get_doc(incident_id, wa_id)
     body = {k: doc.get(k) for k in (
         "assignment_name", "objective_id", "operational_period_id", "branch", "division_group",
-        "location", "assignment_kind", "priority", "planning_status", "safety_status",
+        "location", "location_facility_id", "assignment_kind", "priority", "planning_status", "safety_status",
         "resource_status", "description", "tactics_summary", "special_instructions", "notes",
     )}
     body["assignment_name"] = f"{doc.get('assignment_name', '')} (Copy)"
@@ -605,6 +607,75 @@ def unlink_task(incident_id: str, wa_id: int, link_id: int) -> None:
     col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"task_links": {"id": link_id}}})
 
 
+def _agency_requests_col(incident_id: str):
+    return DatabaseManager().get_incident_db(incident_id)[IncidentCollections.LIAISON_AGENCY_REQUESTS]
+
+
+def _agency_request_link_out(link: dict) -> dict:
+    return {
+        "id": link.get("id"),
+        "agency_request_id": link.get("agency_request_id"),
+        "created_at": link.get("created_at", ""),
+    }
+
+
+@router.get("/incidents/{incident_id}/planning/work-assignments/{wa_id}/agency-requests")
+def list_agency_request_links(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
+    doc = _get_doc(incident_id, wa_id)
+    links = doc.get("agency_request_links", [])
+    req_col = _agency_requests_col(incident_id)
+    result = []
+    for link in links:
+        req = req_col.find_one({"incident_id": incident_id, "int_id": link.get("agency_request_id")})
+        result.append({
+            "link_id": link.get("id"),
+            "agency_request_id": link.get("agency_request_id"),
+            "agency_id": req.get("agency_id") if req else None,
+            "request_summary": (req.get("description") or req.get("request_type") or "") if req else "",
+            "status": req.get("status", "") if req else "",
+            "created_at": link.get("created_at", ""),
+        })
+    return result
+
+
+@router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/agency-requests", status_code=201)
+def link_agency_request(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    col = _col(incident_id)
+    doc = _get_doc(incident_id, wa_id)
+    agency_request_id = int(body.get("agency_request_id") or 0)
+    existing = [l for l in doc.get("agency_request_links", []) if l.get("agency_request_id") == agency_request_id]
+    if existing:
+        return None
+    req_col = _agency_requests_col(incident_id)
+    req = req_col.find_one({"incident_id": incident_id, "int_id": agency_request_id})
+    if not req:
+        raise HTTPException(status_code=404, detail="Agency request not found")
+    new_id = _next_sub_id(doc.get("agency_request_links", []))
+    link = {"id": new_id, "agency_request_id": agency_request_id, "created_at": _utcnow()}
+    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"agency_request_links": link}})
+    reverse_link = {"id": new_id, "work_assignment_id": wa_id, "wa_link_id": new_id, "created_at": _utcnow()}
+    req_col.update_one(
+        {"incident_id": incident_id, "int_id": agency_request_id},
+        {"$push": {"strategy_links": reverse_link}},
+    )
+    return _agency_request_link_out(link)
+
+
+@router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/agency-requests/{link_id}", status_code=204)
+def unlink_agency_request(incident_id: str, wa_id: int, link_id: int) -> None:
+    col = _col(incident_id)
+    doc = _get_doc(incident_id, wa_id)
+    links = doc.get("agency_request_links", [])
+    target = next((l for l in links if l.get("id") == link_id), None)
+    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"agency_request_links": {"id": link_id}}})
+    if target:
+        req_col = _agency_requests_col(incident_id)
+        req_col.update_one(
+            {"incident_id": incident_id, "int_id": target.get("agency_request_id")},
+            {"$pull": {"strategy_links": {"wa_link_id": link_id, "work_assignment_id": wa_id}}},
+        )
+
+
 @router.get("/incidents/{incident_id}/planning/tasks/{task_id}/work-assignments")
 def list_strategies_for_task(incident_id: str, task_id: int) -> List[Dict[str, Any]]:
     col = _col(incident_id)
@@ -618,6 +689,7 @@ def list_strategies_for_task(incident_id: str, task_id: int) -> List[Dict[str, A
                     "id": d.get("int_id"),
                     "assignment_number": d.get("assignment_number", ""),
                     "assignment_name": d.get("assignment_name", ""),
+                    "objective_id": d.get("objective_id"),
                     "planning_status": d.get("planning_status", "Draft"),
                     "link_id": link.get("id"),
                     "link_type": link.get("link_type", ""),

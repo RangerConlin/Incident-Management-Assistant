@@ -123,7 +123,6 @@ def _ensure_notifications_schema(conn: sqlite3.Connection) -> None:
 
 def _ensure_schema_compatibility(conn: sqlite3.Connection) -> None:
     _ensure_notifications_schema(conn)
-    ensure_spatial_schema(conn)
 
     tables = _table_names(conn)
     if "teams" in tables:

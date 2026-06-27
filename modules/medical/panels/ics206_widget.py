@@ -29,6 +29,8 @@ from PySide6.QtWidgets import (
 )
 
 from bridge.medical_bridge import MedicalBridge
+from modules.logistics.facilities.service import FacilitiesService
+from modules.logistics.facilities.widgets.facility_picker import FacilityPicker
 from utils.state import AppState
 
 
@@ -41,19 +43,24 @@ SECTIONS = [
         "key": "aid_stations",
         "label": "Aid Stations",
         "import_method": "import_aid_stations",
-        "columns": ["Name", "Type", "Level", "24/7", "Notes"],
+        "columns": ["Name", "Facility/Location", "Type", "Level", "24/7", "Manager", "Notes"],
         "fields": [
-            ("name",     "Name",   "text",  None),
-            ("type",     "Type",   "combo", ["Medical Aid", "BLS", "ALS", "Paramedic", "Other"]),
-            ("level",    "Level",  "text",  None),
-            ("is_24_7",  "24/7?",  "bool",  None),
-            ("notes",    "Notes",  "text",  None),
+            ("facility_id", "Facility", "facility", "medical"),
+            ("name", "Name", "text", None),
+            ("type", "Type", "combo", ["Medical Aid", "BLS", "ALS", "Paramedic", "Other"]),
+            ("level", "Level", "text", None),
+            ("is_24_7", "24/7?", "bool", None),
+            ("location_text", "Location", "text", None),
+            ("manager_name", "Manager", "text", None),
+            ("notes", "Notes", "text", None),
         ],
         "display": lambda r: [
             r.get("name") or "",
+            r.get("location_text") or "",
             r.get("type") or "",
             r.get("level") or "",
             "Yes" if r.get("is_24_7") else "No",
+            r.get("manager_name") or "",
             r.get("notes") or "",
         ],
     },
@@ -152,9 +159,11 @@ class RowEditDialog(QDialog):
     def __init__(self, fields: list, parent=None, data: Optional[dict] = None):
         super().__init__(parent)
         self.setWindowTitle("Edit" if data else "Add")
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(460)
         self._fields = fields
         self._widgets: dict[str, Any] = {}
+        self._facility_service = FacilitiesService()
+        self._selected_facility_snapshot: dict[str, Any] = {}
         layout = QFormLayout(self)
         d = data or {}
         for key, label, kind, options in fields:
@@ -174,11 +183,45 @@ class RowEditDialog(QDialog):
                 val = d.get(key)
                 w.setChecked(bool(val) and val not in (0, "0", False, "No", "false"))
                 layout.addRow(label, w)
+            elif kind == "facility":
+                w = FacilityPicker(service=self._facility_service, facility_type=str(options or ""))
+                facility_name = str(d.get("name") or d.get("location_text") or "")
+                w.set_value(str(d.get(key) or ""), facility_name)
+                w.facilitySelected.connect(self._on_facility_selected)
+                layout.addRow(label, w)
             self._widgets[key] = (kind, w)
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         layout.addRow(btns)
+
+    def _on_facility_selected(self, facility_id: object, facility_name: str) -> None:
+        facility_id_text = str(facility_id or "")
+        self._selected_facility_snapshot = {}
+        if not facility_id_text:
+            return
+        facility = self._facility_service.get_facility(facility_id_text)
+        if facility is None:
+            return
+        self._selected_facility_snapshot = {
+            "facility_id": facility.id,
+            "name": facility.name,
+            "location_text": facility.address or facility.geocoded_address or "",
+            "latitude": facility.latitude,
+            "longitude": facility.longitude,
+        }
+        self._set_text_if_blank("name", facility.name)
+        self._set_text_if_blank("location_text", facility.address or facility.geocoded_address or facility_name)
+
+    def _set_text_if_blank(self, key: str, value: str) -> None:
+        entry = self._widgets.get(key)
+        if not entry:
+            return
+        kind, widget = entry
+        if kind != "text":
+            return
+        if not widget.text().strip():
+            widget.setText(value or "")
 
     def result_data(self) -> dict:
         out = {}
@@ -189,6 +232,21 @@ class RowEditDialog(QDialog):
                 out[key] = w.currentText()
             elif kind == "bool":
                 out[key] = 1 if w.isChecked() else 0
+            elif kind == "facility":
+                out[key] = w.facility_id
+                if w.facility_id:
+                    facility = self._facility_service.get_facility(w.facility_id)
+                    if facility is not None:
+                        out["name"] = out.get("name") or facility.name
+                        out["location_text"] = out.get("location_text") or facility.address or facility.geocoded_address or ""
+                        out["latitude"] = facility.latitude
+                        out["longitude"] = facility.longitude
+                    else:
+                        out["latitude"] = self._selected_facility_snapshot.get("latitude")
+                        out["longitude"] = self._selected_facility_snapshot.get("longitude")
+                else:
+                    out.setdefault("latitude", None)
+                    out.setdefault("longitude", None)
         return out
 
 

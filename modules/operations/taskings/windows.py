@@ -13,6 +13,7 @@ def open_task_detail_window(task_id: Optional[int] = None) -> QWidget:
     """Open the QWidget-based Task Detail window (no QML)."""
     tid = int(task_id) if task_id is not None else -1
     w = TaskDetailWindow(tid)
+    w.resize(700, 800)
     w.show()
     _open_windows.append(w)
     # Remove from list on close

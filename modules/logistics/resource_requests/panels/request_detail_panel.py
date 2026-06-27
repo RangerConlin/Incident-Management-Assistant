@@ -6,6 +6,9 @@ from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from modules.logistics.facilities.service import FacilitiesService
+from modules.logistics.facilities.widgets import FacilityPicker
+
 from .. import get_service
 from ..api import printers
 from ..api.service import ResourceRequestService
@@ -27,6 +30,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         super().__init__(parent)
         self.service = service or get_service()
         self.current_request_id: Optional[str] = None
+        self._facility_service = FacilitiesService()
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -60,6 +64,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         self.needed_by_edit = QtWidgets.QDateTimeEdit(details_widget)
         self.needed_by_edit.setCalendarPopup(True)
         self.delivery_edit = QtWidgets.QLineEdit(details_widget)
+        self.delivery_facility_picker = FacilityPicker(service=self._facility_service)
         self.comms_edit = QtWidgets.QLineEdit(details_widget)
         self.links_edit = QtWidgets.QLineEdit(details_widget)
         self.justification_edit = QtWidgets.QPlainTextEdit(details_widget)
@@ -67,6 +72,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         form.addRow("Requesting Section", self.section_edit)
         form.addRow("Needed By", self.needed_by_edit)
         form.addRow("Delivery Location", self.delivery_edit)
+        form.addRow("Delivery Facility", self.delivery_facility_picker)
         form.addRow("Comms Requirements", self.comms_edit)
         form.addRow("Links", self.links_edit)
         form.addRow("Justification", self.justification_edit)
@@ -145,6 +151,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         self.section_edit.clear()
         self.needed_by_edit.setDateTime(QtCore.QDateTime.currentDateTime())
         self.delivery_edit.clear()
+        self.delivery_facility_picker.set_value("", "")
         self.comms_edit.clear()
         self.links_edit.clear()
         self.justification_edit.clear()
@@ -172,6 +179,10 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
             if dt.isValid():
                 self.needed_by_edit.setDateTime(dt)
         self.delivery_edit.setText(record.get("delivery_location", ""))
+        self.delivery_facility_picker.set_value(
+            str(record.get("delivery_facility_id") or ""),
+            str(record.get("delivery_location") or ""),
+        )
         self.comms_edit.setText(record.get("comms_requirements", ""))
         self.links_edit.setText(record.get("links", ""))
         self.justification_edit.setPlainText(record.get("justification", ""))
@@ -192,7 +203,8 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
             "requesting_section": self.section_edit.text().strip(),
             "priority": self.priority_combo.currentData(),
             "needed_by_utc": self.needed_by_edit.dateTime().toString(QtCore.Qt.ISODate),
-            "delivery_location": self.delivery_edit.text().strip() or None,
+            "delivery_location": self.delivery_facility_picker.facility_text or self.delivery_edit.text().strip() or None,
+            "delivery_facility_id": self.delivery_facility_picker.facility_id or None,
             "comms_requirements": self.comms_edit.text().strip() or None,
             "links": self.links_edit.text().strip() or None,
             "justification": self.justification_edit.toPlainText().strip() or None,
@@ -251,6 +263,8 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
             supplier_id=values["supplier_id"],
             team_id=values["team_id"],
             vehicle_id=values["vehicle_id"],
+            destination_location=values["destination_location"],
+            destination_facility_id=values["destination_facility_id"],
             eta_utc=values["eta_utc"],
             note=values["note"],
         )

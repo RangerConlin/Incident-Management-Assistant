@@ -34,11 +34,6 @@ def get_all_roles():
         cursor.execute('SELECT * FROM roles')
         return cursor.fetchall()
 
-def get_all_equipment():
-    with get_cursor() as cursor:
-        cursor.execute('SELECT * FROM equipment')
-        return cursor.fetchall()
-
 def get_all_form_templates():
     with get_cursor() as cursor:
         cursor.execute('SELECT * FROM form_templates')
@@ -112,11 +107,6 @@ def get_all_personnel_certifications():
 def get_all_incidents():
     with get_cursor() as cursor:
         cursor.execute('SELECT * FROM incidents')
-        return cursor.fetchall()
-
-def get_all_vehicles():
-    with get_cursor() as cursor:
-        cursor.execute('SELECT * FROM vehicles')
         return cursor.fetchall()
 
 def insert_new_incident(number, name, type, description, icp_location, is_training):

@@ -137,7 +137,7 @@ class ObjectivesTableModel(QAbstractTableModel):
                 return objective.op_period_id or ""
             if col == 8:
                 if objective.updated_at:
-                    return timefmt.relative_time(objective.updated_at)
+                    return timefmt.humanize_relative(objective.updated_at)
                 return ""
         if role == Qt.UserRole:
             return objective.id

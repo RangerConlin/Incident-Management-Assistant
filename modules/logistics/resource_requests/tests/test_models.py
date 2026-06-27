@@ -15,6 +15,8 @@ def test_request_round_trip():
         "priority": Priority.HIGH,
         "created_by_id": "tester",
         "justification": "Power backups",
+        "delivery_location": "Base Camp",
+        "delivery_facility_id": "fac-base",
     }
     request = request_model.create_from_header("req1", "INC-1", header)
     row = request.to_row()
@@ -61,5 +63,7 @@ def test_audit_and_approval_round_trip():
         request_id="req1",
         status=FulfillmentStatus.DELIVERED,
         ts_utc="2023-01-01T00:00:00Z",
+        destination_location="Base Camp",
+        destination_facility_id="fac-base",
     )
     assert FulfillmentRecord.from_row(fulfillment.to_row()) == fulfillment

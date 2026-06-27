@@ -46,9 +46,9 @@ class PreviewDialog(QDialog):
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.table.setItem(i, c, item)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Close, parent=self
-        )
+        buttons = QDialogButtonBox(parent=self)
+        self.btn_generate = buttons.addButton("Generate PDF ▸", QDialogButtonBox.AcceptRole)
+        buttons.addButton(QDialogButtonBox.Close)
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self.accept)
         layout.addWidget(buttons)

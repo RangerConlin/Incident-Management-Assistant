@@ -35,6 +35,12 @@ def _next_int_id(col) -> int:
     return (doc[0].get("int_id", 0) if doc else 0) + 1
 
 
+def _finalize(doc: dict[str, Any]) -> dict[str, Any]:
+    doc.pop("_id", None)
+    doc["id"] = doc.get("int_id")
+    return doc
+
+
 # ---------------------------------------------------------------------------
 # Documents
 # ---------------------------------------------------------------------------
@@ -57,9 +63,7 @@ def list_documents(
             {"agency": {"$regex": search, "$options": "i"}},
         ]
     docs = list(col.find(query).sort("title", 1))
-    for d in docs:
-        d.pop("_id", None)
-    return docs
+    return [_finalize(d) for d in docs]
 
 
 @router.post("/documents", status_code=201)
@@ -88,8 +92,7 @@ def add_document(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         "updated_at": now,
     }
     col.insert_one(doc)
-    doc.pop("_id", None)
-    return doc
+    return _finalize(doc)
 
 
 @router.get("/documents/{doc_id}")
@@ -97,8 +100,7 @@ def get_document(doc_id: int) -> dict[str, Any]:
     doc = _docs_col().find_one({"int_id": doc_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    doc.pop("_id", None)
-    return doc
+    return _finalize(doc)
 
 
 @router.patch("/documents/{doc_id}")
@@ -110,8 +112,7 @@ def update_document(doc_id: int, body: dict[str, Any] = Body(...)) -> dict[str, 
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Document not found")
     doc = col.find_one({"int_id": doc_id})
-    doc.pop("_id", None)
-    return doc
+    return _finalize(doc)
 
 
 @router.delete("/documents/{doc_id}", status_code=204)
@@ -128,9 +129,7 @@ def archive_document(doc_id: int) -> None:
 @router.get("/collections")
 def list_collections() -> list[dict[str, Any]]:
     docs = list(_cols_col().find().sort("name", 1))
-    for d in docs:
-        d.pop("_id", None)
-    return docs
+    return [_finalize(d) for d in docs]
 
 
 @router.post("/collections", status_code=201)
@@ -146,8 +145,7 @@ def create_collection(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         "created_at": _utcnow(),
     }
     col.insert_one(doc)
-    doc.pop("_id", None)
-    return doc
+    return _finalize(doc)
 
 
 @router.post("/collections/{collection_id}/documents/{doc_id}", status_code=204)

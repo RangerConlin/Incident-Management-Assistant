@@ -46,6 +46,8 @@ class ResourceStatusService:
             assigned_to=self._normalize_optional_text(payload.get("assigned_to")),
             assignment_reference=self._normalize_optional_text(payload.get("assignment_reference")),
             location=self._normalize_optional_text(payload.get("location")),
+            destination_facility_id=self._normalize_optional_text(payload.get("destination_facility_id")),
+            checkin_facility_id=self._normalize_optional_text(payload.get("checkin_facility_id")),
             checked_in_time=self._normalize_optional_text(payload.get("checked_in_time")),
             last_updated=now,
             notes=self._normalize_optional_text(payload.get("notes")),
@@ -78,6 +80,8 @@ class ResourceStatusService:
             "assigned_to",
             "assignment_reference",
             "location",
+            "destination_facility_id",
+            "checkin_facility_id",
             "checked_in_time",
             "notes",
         ):

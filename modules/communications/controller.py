@@ -76,14 +76,15 @@ PLAN_COLUMNS = [
     ("remarks",             "Remarks"),
 ]
 
+# Columns that belong to the plan reference itself (not the master channel
+# definition) and can therefore be edited inline. Channel identity columns
+# (channel, function, system, mode, band, rx/tx freq+tone) are read-only in
+# the plan table - they're owned by the master catalog and only change via
+# the channel library / master channel editor.
+PLAN_EDITABLE_KEYS = {"encryption", "assignment_division", "assignment_team", "priority", "remarks"}
+
 # Columns that use a fixed option list for inline combo editing.
 COMBO_COLUMN_OPTIONS: dict[str, list[str]] = {
-    "function":   ["Command", "Tactical", "Dispatch", "Emergency", "Ground-to-Air",
-                   "Air-to-Air", "Medical", "Logistics", "Operations", "Safety",
-                   "Public Info", "Other"],
-    "system":     ["NIFOG", "Conventional", "Trunked", "P25", "DMR", "NXDN", "Other"],
-    "mode":       ["FMN", "FMN/D", "AM", "DMR", "P25", "NXDN", "dPMR", "Tetra", "Other"],
-    "band":       ["HF", "VHF-LOW", "VHF", "Air", "Marine", "UHF", "700/800", "Other"],
     "encryption": ["No", "Yes"],
     "priority":   ["Primary", "Alternate", "Emergency"],
 }
@@ -92,7 +93,7 @@ COMBO_COLUMN_OPTIONS: dict[str, list[str]] = {
 class PlanModel(QAbstractTableModel):
     """Editable table model for the incident plan."""
 
-    def __init__(self, repo: IncidentRepository, parent=None):
+    def __init__(self, repo: "ApiIncidentRepository", parent=None):
         super().__init__(parent)
         self.repo = repo
         self._rows: List[Dict[str, Any]] = []
@@ -143,7 +144,11 @@ class PlanModel(QAbstractTableModel):
     def flags(self, index):  # type: ignore[override]
         if not index.isValid():
             return Qt.ItemIsEnabled
-        return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable
+        base = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+        key = PLAN_COLUMNS[index.column()][0]
+        if key in PLAN_EDITABLE_KEYS:
+            return base | Qt.ItemIsEditable
+        return base
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):  # type: ignore[override]
         if role != Qt.DisplayRole:
@@ -243,10 +248,8 @@ class ICS205Controller(QObject):
         self.refreshMaster()
 
     def addMasterIdToPlan(self, master_id: int):
-        row = self.master_repo.get_channel(master_id)
-        if row:
-            self.incident_repo.add_from_master(row, {})
-            self.refreshPlan()
+        self.incident_repo.add_from_master(master_id, {})
+        self.refreshPlan()
 
     def updatePlanCell(self, row_index: int, column: str, value: Any):
         rows = self.planModel._rows

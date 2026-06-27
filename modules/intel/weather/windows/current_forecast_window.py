@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from ..services.api_link import WeatherApiManager
 from ..services.settings import weather_settings
 from utils.incident_meta import get_icp_location
 from utils.geocoding import geocode_address
@@ -40,10 +41,13 @@ class CurrentForecastWindow(QMainWindow):
         self.setWindowTitle("Current & Forecast")
         self.resize(980, 680)
 
+        self.api = WeatherApiManager.instance()
         self._locations: List[dict] = []  # {label, lat, lon}
         self._cards: Dict[str, ForecastCard] = {}
 
         self._setup_ui()
+        self.api.dataUpdated.connect(self._handle_weather_payload)
+        self.api.fetchFailed.connect(self._handle_fetch_failed)
         self._load_locations()
         if not self._locations:
             try:
@@ -64,6 +68,9 @@ class CurrentForecastWindow(QMainWindow):
         add_icp = QAction("Add ICP", self)
         add_icp.triggered.connect(self._add_icp)
         self.toolbar.addAction(add_icp)
+        add_preset = QAction("Add Preset", self)
+        add_preset.triggered.connect(self._add_preset_location)
+        self.toolbar.addAction(add_preset)
         remove_action = QAction("Remove", self)
         remove_action.triggered.connect(self._remove_location)
         self.toolbar.addAction(remove_action)
@@ -127,6 +134,27 @@ class CurrentForecastWindow(QMainWindow):
         self._render_cards()
         self._refresh_all()
 
+    def _add_preset_location(self) -> None:
+        presets = self.api.location_presets()
+        if not presets:
+            QMessageBox.information(self, "Weather Presets", "No weather presets are available yet.")
+            return
+        labels = [str(item.get("label") or "Preset") for item in presets]
+        value, ok = QInputDialog.getItem(self, "Add Preset Location", "Preset", labels, 0, False)
+        if not (ok and value):
+            return
+        preset = presets[labels.index(value)]
+        try:
+            lat = float(preset.get("latitude"))
+            lon = float(preset.get("longitude"))
+        except (TypeError, ValueError):
+            QMessageBox.warning(self, "Weather Presets", "Selected preset does not have valid coordinates.")
+            return
+        self._locations.append({"label": value, "lat": lat, "lon": lon})
+        self._save_locations()
+        self._render_cards()
+        self._refresh_all()
+
     def _remove_location(self) -> None:
         if not self._locations:
             self.status_bar.showMessage("No locations to remove", 3000)
@@ -144,16 +172,12 @@ class CurrentForecastWindow(QMainWindow):
     def _refresh_all(self) -> None:
         self.status_bar.showMessage("Refreshing…")
         for loc in self._locations:
-            key = self._key(loc)
-            card = self._cards.get(key)
-            if not card:
-                continue
-            try:
-                forecast = self._fetch_structured(loc["lat"], loc["lon"], loc.get("label", ""))
-                card.update_from_forecast(forecast)
-            except Exception as e:
-                card.show_error(str(e))
-        self.status_bar.showMessage("Refreshed", 2000)
+            self.api.request_forecast(
+                float(loc["lat"]),
+                float(loc["lon"]),
+                str(loc.get("label", "")),
+            )
+        self.status_bar.showMessage("Refresh requested", 2000)
 
     def _render_cards(self) -> None:
         # Ensure a card exists per location and remove any stale ones
@@ -179,36 +203,6 @@ class CurrentForecastWindow(QMainWindow):
     def _key(loc: dict) -> str:
         return f"{float(loc['lat']):.4f},{float(loc['lon']):.4f}"
 
-    def _fetch_structured(self, lat: float, lon: float, label: str) -> dict:
-        import httpx
-
-        ua = {
-            "User-Agent": "IncidentManagementAssistant/1.0 (contact: admin@example.invalid)",
-            "Accept": "application/geo+json, application/json;q=0.9",
-        }
-        with httpx.Client(headers=ua, timeout=httpx.Timeout(10.0)) as client:
-            p = client.get(f"https://api.weather.gov/points/{lat:.4f},{lon:.4f}")
-            p.raise_for_status()
-            pdata = p.json()
-            props = pdata.get("properties", {})
-            forecast_url = props.get("forecast")
-            # Fallback to hourly if daily missing
-            if not forecast_url:
-                forecast_url = props.get("forecastHourly")
-            place = props.get("relativeLocation", {}).get("properties", {})
-            place_name = f"{place.get('city','')}, {place.get('state','')}".strip(", ")
-            fcast = []
-            if forecast_url:
-                r = client.get(forecast_url)
-                r.raise_for_status()
-                fdata = r.json()
-                fcast = (fdata.get("properties") or {}).get("periods") or []
-        return {
-            "place": place_name or label,
-            "current": (fcast[0] if fcast else None),
-            "next": fcast[1:5] if fcast else [],
-        }
-
     def _remove_by_key(self, key: str) -> None:
         # Find and remove from locations by key
         for i, loc in enumerate(list(self._locations)):
@@ -218,6 +212,21 @@ class CurrentForecastWindow(QMainWindow):
         self._save_locations()
         self._render_cards()
         self._refresh_all()
+
+    def _handle_weather_payload(self, payload: dict) -> None:
+        forecasts = payload.get("forecast", {}) or {}
+        for key, entry in forecasts.items():
+            if key not in self._cards or not isinstance(entry, dict):
+                continue
+            self._cards[key].update_from_forecast(entry)
+        self.status_bar.showMessage("Forecast updated", 2000)
+
+    def _handle_fetch_failed(self, context: str, error: Exception) -> None:
+        if context != "forecast":
+            return
+        self.status_bar.showMessage(f"Forecast failed: {error}", 4000)
+        for card in self._cards.values():
+            card.show_error(str(error))
 
 
 class ForecastCard(QWidget):
@@ -272,35 +281,34 @@ class ForecastCard(QWidget):
         v.addWidget(sep)
 
     def update_from_forecast(self, data: dict) -> None:
-        place = data.get("place") or self.key
+        place = data.get("label") or self.key
         self.title.setText(place)
-        cur = data.get("current") or {}
+        periods = data.get("periods") or []
+        cur = periods[0] if periods else {}
         nm = cur.get("name") or "Now"
         tp = cur.get("temperature")
-        un = cur.get("temperatureUnit") or "F"
-        wind = cur.get("windSpeed") or ""
-        sf = cur.get("shortForecast") or ""
+        wind = cur.get("wind_speed") or ""
+        sf = cur.get("detailed_text") or ""
         bits = [str(nm)]
         if tp is not None:
-            bits.append(f"{tp}°{un}")
+            bits.append(f"{tp}°F")
         if wind:
             bits.append(str(wind))
         if sf:
             bits.append(sf)
         self.current.setText("Current: " + ", ".join(bits))
 
-        nxt = data.get("next") or []
+        nxt = periods[1:5]
         for i in range(4):
             text = "—"
             if i < len(nxt):
                 item = nxt[i]
                 nm = item.get("name") or "—"
                 tp = item.get("temperature")
-                un = item.get("temperatureUnit") or "F"
-                sf = item.get("shortForecast") or ""
+                sf = item.get("detailed_text") or ""
                 parts = [nm]
                 if tp is not None:
-                    parts.append(f"{tp}°{un}")
+                    parts.append(f"{tp}°F")
                 if sf:
                     parts.append(sf)
                 text = ", ".join(parts)

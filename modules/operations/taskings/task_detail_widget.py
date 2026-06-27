@@ -34,6 +34,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
 )
 
+from modules.logistics.facilities.widgets import FacilityPicker
+
 
 def _to_variant(obj: Any) -> Any:
     if is_dataclass(obj):
@@ -273,15 +275,22 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         self._title_edit = QLineEdit(self); self._title_edit.setPlaceholderText("Title")
-        self._location_edit = QLineEdit(self); self._location_edit.setPlaceholderText("Location")
+        self._location_edit = FacilityPicker(parent=self)
+        self._location_edit.line_edit.setPlaceholderText("Location")
         # Removed redundant Category/Type read-only display between Location and Assignment
         self._category_type_display = None  # kept for compatibility with update helpers
         self._assignment_edit = QLineEdit(self); self._assignment_edit.setPlaceholderText("Assignment")
-        for edit, field in ((self._title_edit, 'title'), (self._location_edit, 'location'), (self._assignment_edit, 'assignment')):
+        for edit, field in ((self._title_edit, 'title'), (self._assignment_edit, 'assignment')):
             try:
                 edit.editingFinished.connect(partial(self._on_header_line_edit, field, edit))
             except Exception:
                 pass
+        try:
+            self._location_edit.facilitySelected.connect(self._on_location_changed)
+            self._location_edit.textChanged.connect(lambda *_: None)
+            self._location_edit.line_edit.editingFinished.connect(self._on_location_changed)
+        except Exception:
+            pass
         for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Assignment", self._assignment_edit)]:
             row = QVBoxLayout()
             try:
@@ -501,8 +510,6 @@ class TaskDetailWindow(QWidget):
         plan_row.addWidget(self._plan_strat_cb, 2)
         plan_row.addWidget(self._plan_refresh_btn)
         plan_row.addWidget(self._plan_link_btn)
-        # Objectives controls are currently disabled in this surface; keep them hidden.
-        plan_row_widget.hide()
 
         self._plan_headers = ["LinkId", "Objective", "Strategy", "Remove"]
         self._plan_links_model = QStandardItemModel(0, len(self._plan_headers), self)
@@ -529,8 +536,8 @@ class TaskDetailWindow(QWidget):
             self._plan_btn_delegate.clicked.connect(self._on_plan_remove_clicked)
         except Exception:
             pass
-        # Objective links table is currently disabled in this surface; keep it hidden.
-        self._plan_links_table.hide()
+        plan_layout.addWidget(plan_row_widget)
+        plan_layout.addWidget(self._plan_links_table, 1)
         # Defer adding the Planning tab until the very end so it appears on the far right
         self._planning_content = plan_content
 
@@ -694,9 +701,6 @@ class TaskDetailWindow(QWidget):
         pers_scroll.setWidget(pers_content)
         tabs.addTab(pers_scroll, "Personnel")
 
-        # Other tabs (placeholders, kept minimal to avoid scope growth)
-        tabs.addTab(QLabel("Teams - coming soon"), "Teams")
-        tabs.addTab(QLabel("Personnel - coming soon"), "Personnel")
         # Vehicles tab
         veh_content = QWidget(self)
         veh_layout = QVBoxLayout(veh_content)
@@ -971,6 +975,18 @@ class TaskDetailWindow(QWidget):
 
         # Wire add/remove actions
         def _add_comm_row():
+            try:
+                from modules.operations.taskings.repository import list_incident_channels
+                if not list_incident_channels():
+                    QMessageBox.information(
+                        self,
+                        "No Channels Configured",
+                        "This incident has no radio channels defined yet. Add channels under "
+                        "Communications → ICS 205 Channel Plan before assigning one to this task.",
+                    )
+                    return
+            except Exception:
+                pass
             new_id = None
             try:
                 from modules.operations.taskings.repository import add_task_comm
@@ -1091,7 +1107,6 @@ class TaskDetailWindow(QWidget):
         deb_v.addWidget(self._deb_table, 2)
 
         tabs.addTab(deb_content, "Debriefing")
-        tabs.addTab(QLabel("Log - coming soon"), "Log")
         # Attachments/Forms tab
         att_content = QWidget(self)
         att_v = QVBoxLayout(att_content)
@@ -1223,17 +1238,6 @@ class TaskDetailWindow(QWidget):
             self._btn_214_edit.clicked.connect(self._edit_ics214_entry)
             self._btn_214_open_full.clicked.connect(self._open_full_ics214)
             tabs.addTab(log_container, "Log")
-            # Remove any prior placeholder Log tab
-            try:
-                for i in range(tabs.count()-1, -1, -1):
-                    try:
-                        if str(tabs.tabText(i)).strip().lower().startswith("log"):
-                            if isinstance(tabs.widget(i), QLabel):
-                                tabs.removeTab(i)
-                    except Exception:
-                        continue
-            except Exception:
-                pass
             # Initial load deferred to _initial_load via QTimer
         except Exception:
             pass
@@ -1244,37 +1248,10 @@ class TaskDetailWindow(QWidget):
         self._att_delete_btn.clicked.connect(self._att_delete)
         self._att_generate_btn.clicked.connect(self._att_generate)
         self._att_refresh_btn.clicked.connect(self.load_attachments)
-        # Ensure no leftover placeholder Planning tabs remain (from older builds)
-        try:
-            i = 0
-            while i < tabs.count():
-                try:
-                    if str(tabs.tabText(i)).strip().lower().startswith("planning"):
-                        if isinstance(tabs.widget(i), QLabel):
-                            tabs.removeTab(i)
-                            continue
-                except Exception:
-                    pass
-                i += 1
-        except Exception:
-            pass
         # Finally add the functional Planning tab at the far right
         try:
             if getattr(self, "_planning_content", None) is not None:
                 tabs.addTab(self._planning_content, "Planning")
-        except Exception:
-            pass
-
-        # Remove duplicate placeholder tabs for Teams/Personnel if present
-        try:
-            i = 0
-            while i < tabs.count():
-                w = tabs.widget(i)
-                name = tabs.tabText(i)
-                if isinstance(w, QLabel) and name in ("Teams", "Personnel"):
-                    tabs.removeTab(i)
-                    continue
-                i += 1
         except Exception:
             pass
 
@@ -1363,10 +1340,6 @@ class TaskDetailWindow(QWidget):
             pass
         try:
             self._load_team_log()
-        except Exception:
-            pass
-        try:
-            self.adjustSize()
         except Exception:
             pass
 
@@ -1469,7 +1442,6 @@ class TaskDetailWindow(QWidget):
             getattr(self, "_stat", None),
             getattr(self, "_task_id_edit", None),
             getattr(self, "_title_edit", None),
-            getattr(self, "_location_edit", None),
             getattr(self, "_assignment_edit", None),
             getattr(self, "_nar_entry_top", None),
         ):
@@ -1479,6 +1451,11 @@ class TaskDetailWindow(QWidget):
                 widget.setStyleSheet(surface_style)
             except Exception:
                 pass
+        try:
+            if getattr(self, "_location_edit", None) is not None:
+                self._location_edit.line_edit.setStyleSheet(surface_style)
+        except Exception:
+            pass
 
     def _normalize_header_value(self, field: str, value: Any) -> str:
         text = '' if value is None else str(value).strip()
@@ -1601,6 +1578,17 @@ class TaskDetailWindow(QWidget):
         if widget is None:
             return
         self._persist_header_fields({field: widget.text()})
+
+    def _on_location_changed(self, *_args) -> None:
+        if getattr(self, '_loading_header', False):
+            return
+        picker = getattr(self, "_location_edit", None)
+        if picker is None:
+            return
+        self._persist_header_fields({
+            "location": picker.facility_text,
+            "location_facility_id": picker.facility_id,
+        })
 
     def _task_types_for_category(self, category: str | None) -> List[str]:
         try:
@@ -1933,7 +1921,10 @@ class TaskDetailWindow(QWidget):
                     if hasattr(self, '_title_edit'):
                         self._title_edit.setText(str(title))
                     if hasattr(self, '_location_edit'):
-                        self._location_edit.setText(str(t.get('location') or ''))
+                        self._location_edit.set_value(
+                            str(t.get('location_facility_id') or ''),
+                            str(t.get('location') or ''),
+                        )
                     if hasattr(self, '_assignment_edit'):
                         self._assignment_edit.setText(str(t.get('assignment') or ''))
                 except Exception:
@@ -1969,6 +1960,7 @@ class TaskDetailWindow(QWidget):
                             'task_id': self._normalize_header_value('task_id', tid),
                             'title': self._normalize_header_value('title', title),
                             'location': self._normalize_header_value('location', t.get('location')),
+                            'location_facility_id': self._normalize_header_value('location_facility_id', t.get('location_facility_id')),
                             'assignment': self._normalize_header_value('assignment', t.get('assignment')),
                             'category': self._normalize_header_value('category', self._cat.currentText() if hasattr(self, '_cat') else cat_target),
                             'task_type': self._normalize_header_value('task_type', self._typ.currentText() if hasattr(self, '_typ') else type_val),
@@ -2515,7 +2507,8 @@ class TaskDetailWindow(QWidget):
             payload = {
                 'task_id': self._task_id_edit.text().strip() if hasattr(self, '_task_id_edit') else str(self._task_id),
                 'title': self._title_edit.text().strip() if hasattr(self, '_title_edit') else '',
-                'location': self._location_edit.text().strip() if hasattr(self, '_location_edit') else '',
+                'location': self._location_edit.facility_text if hasattr(self, '_location_edit') else '',
+                'location_facility_id': self._location_edit.facility_id if hasattr(self, '_location_edit') else '',
                 'assignment': self._assignment_edit.text().strip() if hasattr(self, '_assignment_edit') else '',
                 'category': self._cat.currentText().strip() if hasattr(self, '_cat') else '',
                 'task_type': typ_val,
@@ -2851,34 +2844,91 @@ class TaskDetailWindow(QWidget):
 
     # --- Planning / Objectives linkage ---------------------------------
     def _load_planning(self) -> None:
-        """Populate objectives/strategies — deferred until planning module migrated to MongoDB."""
-        links = []
+        from modules.operations.taskings.repository import list_objectives, list_strategies_for_task
+
+        try:
+            objectives = list_objectives()
+        except Exception:
+            objectives = []
+        self._plan_obj_map = {o.get("_id"): o for o in objectives}
+
+        self._plan_obj_cb.blockSignals(True)
+        try:
+            self._plan_obj_cb.clear()
+            self._plan_obj_cb.addItem("(select objective)", None)
+            for o in objectives:
+                code = o.get("code") or o.get("_id") or ""
+                text = o.get("text") or ""
+                label = f"{code} - {text}" if text else code
+                self._plan_obj_cb.addItem(label, o.get("_id"))
+        finally:
+            self._plan_obj_cb.blockSignals(False)
+        self._plan_strat_cb.clear()
+
         try:
             self._plan_links_model.removeRows(0, self._plan_links_model.rowCount())
         except Exception:
             pass
+
+        try:
+            links = list_strategies_for_task(int(self._task_id))
+        except Exception:
+            links = []
         for link in links:
-            it_id = QStandardItem(str(link.link_id))
-            it_obj = QStandardItem(f"{link.objective_code} - {link.objective_text}")
-            it_strat = QStandardItem(str(link.strategy_text))
+            obj = self._plan_obj_map.get(link.get("objective_id"))
+            obj_label = f"{obj.get('code') or ''} - {obj.get('text') or ''}".strip(" -") if obj else ""
+            strat_label = f"{link.get('assignment_number') or ''} {link.get('assignment_name') or ''}".strip()
+            it_id = QStandardItem(str(link.get("link_id")))
+            it_obj = QStandardItem(obj_label)
+            it_strat = QStandardItem(strat_label)
             it_rm = QStandardItem("Remove")
             try:
-                it_rm.setData(int(link.link_id), Qt.UserRole)
+                it_rm.setData(int(link.get("id")), Qt.UserRole)
+                it_rm.setData(int(link.get("link_id")), Qt.UserRole + 1)
             except Exception:
                 pass
             self._plan_links_model.appendRow([it_id, it_obj, it_strat, it_rm])
 
     def _on_plan_obj_changed(self, repo=None) -> None:
-        """Deferred until planning module migrated to MongoDB."""
-        pass
+        from modules.operations.taskings.repository import list_strategies_for_objective
+
+        obj_id = self._plan_obj_cb.currentData()
+        self._plan_strat_cb.clear()
+        if not obj_id:
+            return
+        try:
+            strategies = list_strategies_for_objective(obj_id)
+        except Exception:
+            strategies = []
+        for s in strategies:
+            label = f"{s.get('assignment_number') or ''} {s.get('assignment_name') or ''}".strip()
+            self._plan_strat_cb.addItem(label, s.get("id"))
 
     def _link_task_to_strategy(self) -> None:
-        """Deferred until planning module fully migrated to MongoDB."""
-        pass
+        from modules.operations.taskings.repository import link_task_to_strategy
+
+        wa_id = self._plan_strat_cb.currentData()
+        if not wa_id:
+            return
+        try:
+            link_task_to_strategy(int(self._task_id), int(wa_id))
+        except Exception:
+            pass
+        self._load_planning()
 
     def _on_plan_remove_clicked(self, index):
-        """Deferred until planning module fully migrated to MongoDB."""
-        pass
+        from modules.operations.taskings.repository import unlink_task_from_strategy
+
+        try:
+            wa_id = int(index.data(Qt.UserRole))
+            link_id = int(index.data(Qt.UserRole + 1))
+        except Exception:
+            return
+        try:
+            unlink_task_from_strategy(wa_id, link_id)
+        except Exception:
+            pass
+        self._load_planning()
 
     # --- Personnel Ops ---
     def load_personnel(self) -> None:

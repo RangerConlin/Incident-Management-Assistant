@@ -15,18 +15,11 @@ from .resource_request import (
     LogisticsResourceItem,
 )
 
-from .equipment import (
-    EquipmentItem,
-    CheckTransaction,
-)
-
 from .schemas import (
     ResourceRequestCreate,
     ResourceRequestRead,
     RequestApprovalCreate,
     RequestAssignmentCreate,
-    EquipmentItemCreate,
-    EquipmentItemRead,
     PermissionOut,
 )
 
@@ -40,9 +33,5 @@ __all__ = [
     "ResourceRequestRead",
     "RequestApprovalCreate",
     "RequestAssignmentCreate",
-    "EquipmentItem",
-    "CheckTransaction",
-    "EquipmentItemCreate",
-    "EquipmentItemRead",
     "PermissionOut",
 ]

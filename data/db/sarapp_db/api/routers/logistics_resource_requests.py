@@ -98,6 +98,8 @@ def create_request(incident_id: str, body: dict[str, Any]) -> dict:
     now = _now()
     request_id = body.get("id") or _new_id()
     items = body.pop("items", [])
+    body["delivery_location"] = str(body.get("delivery_location") or "") or None
+    body["delivery_facility_id"] = str(body.get("delivery_facility_id") or "") or None
     doc = {
         **body,
         "id": request_id,
@@ -221,16 +223,20 @@ def record_approval(incident_id: str, request_id: str, body: dict[str, Any]) -> 
 @router.post("/incidents/{incident_id}/logistics/resource-requests/{request_id}/fulfillments", status_code=201)
 def assign_fulfillment(incident_id: str, request_id: str, body: dict[str, Any]) -> dict:
     repo = _repo(incident_id)
-    _fetch(repo, request_id)
+    request_doc = _fetch(repo, request_id)
     now = _now()
     fulfillment_id = _new_id()
     has_assignment = any(body.get(k) for k in ("supplier_id", "team_id", "vehicle_id"))
+    destination_location = str(body.get("destination_location") or request_doc.get("delivery_location") or "") or None
+    destination_facility_id = str(body.get("destination_facility_id") or request_doc.get("delivery_facility_id") or "") or None
     fulfillment = {
         "id": fulfillment_id,
         "request_id": request_id,
         "supplier_id": body.get("supplier_id"),
         "assigned_team_id": body.get("team_id"),
         "assigned_vehicle_id": body.get("vehicle_id"),
+        "destination_location": destination_location,
+        "destination_facility_id": destination_facility_id,
         "eta_utc": body.get("eta_utc"),
         "status": "ASSIGNED" if has_assignment else "SOURCING",
         "note": body.get("note"),
@@ -264,6 +270,10 @@ def update_fulfillment(incident_id: str, request_id: str, fulfillment_id: str, b
         update["fulfillments.$.note"] = body["note"]
     if "eta_utc" in body:
         update["fulfillments.$.eta_utc"] = body["eta_utc"]
+    if "destination_location" in body:
+        update["fulfillments.$.destination_location"] = str(body.get("destination_location") or "") or None
+    if "destination_facility_id" in body:
+        update["fulfillments.$.destination_facility_id"] = str(body.get("destination_facility_id") or "") or None
     repo._col.update_one(
         {"id": request_id, "fulfillments.id": fulfillment_id},
         {"$set": update},

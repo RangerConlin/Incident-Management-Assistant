@@ -726,10 +726,117 @@ def seed_meeting_templates(master_db) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+# Legacy flat-schema categories (forms_creator's old sqlite "category" column,
+# e.g. "ICS") don't line up with the family-is-agency taxonomy the Mongo forms
+# API uses. Best-effort mapping; anything unrecognized falls back to CUSTOM
+# and should be re-categorized by hand later via the Forms Creator UI.
+_LEGACY_CATEGORY_TO_AGENCY = {
+    "ICS": "FEMA",
+    "CAP": "CAP",
+    "SAR": "SAR",
+    "FEMA": "FEMA",
+    "USCG": "USCG",
+}
+
+
+def _seed_legacy_flat_form_templates(cur: sqlite3.Cursor, master_db, table_name: str) -> None:
+    """Migrate forms_creator's old flat template table (one row per template,
+    fields embedded as fields_json, no family/version split) into the
+    family -> template -> version collections the Mongo forms API expects.
+    """
+    cur.execute(f"SELECT * FROM {table_name}")
+    rows = [dict(r) for r in cur.fetchall()]
+    if not rows:
+        return
+
+    fam_col = master_db[MasterCollections.FORM_FAMILIES]
+    tmpl_col = master_db[MasterCollections.FORM_TEMPLATES]
+    ver_col = master_db[MasterCollections.FORM_TEMPLATE_VERSIONS]
+
+    inserted = skipped = 0
+    for r in rows:
+        agency = _LEGACY_CATEGORY_TO_AGENCY.get((r.get("category") or "").strip().upper(), "CUSTOM")
+
+        family = fam_col.find_one({"code": agency})
+        if family is None:
+            top = fam_col.find_one({}, sort=[("int_id", -1)])
+            family = {
+                "_id": _new_id(),
+                "int_id": (top["int_id"] + 1) if top else 1,
+                "code": agency,
+                "title": agency,
+                "description": None,
+                "category": None,
+                "default_agency": None,
+                "is_active": True,
+            }
+            fam_col.insert_one(family)
+
+        code = (r.get("subcategory") or r.get("name") or "").strip().upper().replace(" ", "_")
+        existing_tmpl = tmpl_col.find_one({"family_int_id": family["int_id"], "code": code, "title": r["name"]})
+        if existing_tmpl is not None:
+            skipped += 1
+            continue
+
+        top_tmpl = tmpl_col.find_one({}, sort=[("int_id", -1)])
+        tmpl_int_id = (top_tmpl["int_id"] + 1) if top_tmpl else 1
+        top_ver = ver_col.find_one({}, sort=[("int_id", -1)])
+        ver_int_id = (top_ver["int_id"] + 1) if top_ver else 1
+
+        ver_col.insert_one({
+            "_id": _new_id(),
+            "int_id": ver_int_id,
+            "template_int_id": tmpl_int_id,
+            "version_number": r.get("version", 1),
+            "version_label": None,
+            "effective_date": None,
+            "retired_date": None,
+            "layout": {
+                "background_path": r.get("background_path", ""),
+                "page_count": r.get("page_count", 1),
+                "schema_version": r.get("schema_version", 1),
+            },
+            "fields": json.loads(r["fields_json"]) if r.get("fields_json") else [],
+            "bindings": [],
+            "validation": [],
+            "export_profiles": {},
+            "source_asset_path": None,
+            "checksum": None,
+            "change_summary": "migrated from legacy sqlite form_templates",
+            "created_by": None,
+            "created_at": r.get("created_at", ""),
+            "is_current": True,
+        })
+        tmpl_col.insert_one({
+            "_id": _new_id(),
+            "int_id": tmpl_int_id,
+            "family_int_id": family["int_id"],
+            "agency": agency,
+            "system": None,
+            "code": code,
+            "title": r.get("name", ""),
+            "description": None,
+            "status": "active" if r.get("is_active", 1) else "retired",
+            "current_version_int_id": ver_int_id,
+            "compatibility": {},
+            "tags": [],
+            "created_by": None,
+            "created_at": r.get("created_at", ""),
+            "updated_at": r.get("updated_at", ""),
+        })
+        inserted += 1
+
+    _report(f"{table_name} (legacy flat -> family/template/version)", inserted, skipped)
+
+
 def seed_form_templates(cur: sqlite3.Cursor, master_db) -> None:
     def _table_exists(name: str) -> bool:
         cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
         return bool(cur.fetchone())
+
+    for legacy_table in ("form_templates_hybrid",):
+        if _table_exists(legacy_table):
+            _seed_legacy_flat_form_templates(cur, master_db, legacy_table)
 
     if not _table_exists("form_families"):
         return

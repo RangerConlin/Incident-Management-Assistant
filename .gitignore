@@ -7,6 +7,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.pyc
+.pytest*/
 
 # Python tooling caches
 .pytest_cache/
@@ -46,6 +47,8 @@ env/
 *.sw?
 .clairvoyance/
 .claude/
+.clinerules/
+.agents/
 
 # OS junk
 .DS_Store
@@ -64,6 +67,8 @@ Thumbs.db
 *.rej
 _tmp_*
 tmp_*
+/tmp
+/tests
 # One-shot migration/seed scripts (already applied; not needed in repo)
 scripts/
 

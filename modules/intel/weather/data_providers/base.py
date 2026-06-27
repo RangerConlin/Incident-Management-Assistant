@@ -15,6 +15,21 @@ from ..models.advisory import Advisory
 from ..models.readings import ForecastPeriod, MetarReading, TafReading
 from ..models.lightning import LightningStrike
 
+import httpx
+
+_shared_client: httpx.Client | None = None
+
+
+def get_shared_client() -> httpx.Client:
+    """Return a shared httpx.Client instance to reuse connections."""
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = httpx.Client(
+            timeout=httpx.Timeout(10.0),
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        )
+    return _shared_client
+
 
 @dataclass(slots=True)
 class ProviderResult:
@@ -72,4 +87,5 @@ __all__ = [
     "ForecastProvider",
     "AdvisoryProvider",
     "LightningProvider",
+    "get_shared_client",
 ]

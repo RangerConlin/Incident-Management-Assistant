@@ -15,8 +15,8 @@ from typing import Any
 
 import uvicorn
 
-from networking.discovery import DiscoveryBroadcaster
-from networking.server_info import (
+from lan_server.networking.discovery import DiscoveryBroadcaster
+from lan_server.networking.server_info import (
     DEFAULT_DISCOVERY_PORT,
     DEFAULT_SERVER_PORT,
     SARAPP_VERSION,

@@ -31,7 +31,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.logistics.facilities import FacilityPicker
+from modules.logistics.facilities.service import FacilitiesService
 from styles.styles import subscribe_theme
+from utils.incident_cache import incident_cache
 
 from modules.logistics.resource_status import RESOURCE_STATUSES, ResourceBoardFilters
 from modules.logistics.resource_status.models import ResourceItem, format_display_datetime, parse_datetime
@@ -231,6 +234,7 @@ class ResourceEditDialog(QDialog):
     def __init__(self, parent: Optional[QWidget] = None, item: Optional[ResourceItem] = None, source_entity_type: Optional[str] = None, source_record_id: Optional[str] = None) -> None:
         self._source_entity_type = source_entity_type
         self._source_record_id = source_record_id
+        self._facility_service = FacilitiesService()
         super().__init__(parent)
         self.setWindowTitle("Resource Details")
         self._item = item
@@ -249,6 +253,7 @@ class ResourceEditDialog(QDialog):
         self.assigned_to_edit = QLineEdit()
         self.assignment_reference_edit = QLineEdit()
         self.location_edit = QLineEdit()
+        self.facility_picker = FacilityPicker(service=self._facility_service)
         self.eta_unknown_check = QCheckBox("ETA unknown")
         self.eta_edit = QDateTimeEdit(self)
         self.eta_edit.setCalendarPopup(True)
@@ -271,6 +276,7 @@ class ResourceEditDialog(QDialog):
         form.addRow("Assigned To", self.assigned_to_edit)
         form.addRow("Assignment Ref", self.assignment_reference_edit)
         form.addRow("Location", self.location_edit)
+        form.addRow("Facility", self.facility_picker)
         form.addRow("Notes", self.notes_edit)
 
         layout.addLayout(form)
@@ -293,6 +299,8 @@ class ResourceEditDialog(QDialog):
         self.assigned_to_edit.setText(item.assigned_to or "")
         self.assignment_reference_edit.setText(item.assignment_reference or "")
         self.location_edit.setText(item.location or "")
+        facility_id = item.checkin_facility_id or item.destination_facility_id or ""
+        self.facility_picker.set_value(facility_id, item.location or "")
         self.notes_edit.setPlainText(item.notes or "")
         eta_dt = parse_datetime(item.eta_utc)
         if eta_dt is None:
@@ -307,15 +315,19 @@ class ResourceEditDialog(QDialog):
             eta_value = None
         else:
             eta_value = self.eta_edit.dateTime().toPython().astimezone().isoformat()
+        facility_id = self.facility_picker.facility_id or None
+        status = self.status_combo.currentText()
         payload = {
             "resource_id": self.resource_id_edit.text().strip(),
             "resource_name": self.resource_name_edit.text().strip(),
             "resource_type": self.resource_type_edit.text().strip(),
-            "status": self.status_combo.currentText(),
+            "status": status,
             "eta_utc": eta_value,
             "assigned_to": self.assigned_to_edit.text().strip() or None,
             "assignment_reference": self.assignment_reference_edit.text().strip() or None,
-            "location": self.location_edit.text().strip() or None,
+            "location": self.facility_picker.facility_text or self.location_edit.text().strip() or None,
+            "destination_facility_id": facility_id if status in {"Pending", "Enroute", "Assigned"} else None,
+            "checkin_facility_id": facility_id if status == "Checked In" else None,
             "notes": self.notes_edit.toPlainText().strip() or None,
         }
         if getattr(self, "_source_entity_type", None):
@@ -348,6 +360,18 @@ class ResourceStatusBoard(QWidget):
             subscribe_theme(self, lambda *_: self._table.viewport().update())
         except Exception:
             pass
+        # Live updates: re-pull whenever any tracked resource record changes.
+        # `list_resources()` also re-runs the source sync, so this stays a
+        # single call into existing service logic rather than a client-side
+        # join — there is no separate "raw resource document" to apply here.
+        try:
+            incident_cache.changed.connect(self._on_cache_changed)
+        except Exception:
+            pass
+
+    def _on_cache_changed(self, collection: str, op: str, doc_id: str) -> None:
+        if collection == "logistics_resource_status_items":
+            self.refresh()
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)

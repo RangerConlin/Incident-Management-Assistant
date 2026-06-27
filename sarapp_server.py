@@ -9,16 +9,19 @@ import sys
 
 
 def _ensure_repo_packages_on_path() -> None:
-    """Allow local runs without requiring editable installs first."""
+    """Allow local runs without requiring editable installs first.
+
+    Only ``data/db`` is added here — it is the canonical ``sarapp_db``
+    package. ``cloud_server`` ships its own standalone copy of ``sarapp_db``
+    for Docker deployment; it must never take priority over the canonical
+    package for the local desktop server, so it is intentionally excluded.
+    """
     repo_root = Path(__file__).resolve().parent
-    package_roots = (
-        repo_root / "cloud_server",
-        repo_root / "data" / "db",
-    )
-    for package_root in package_roots:
-        package_root_str = str(package_root)
-        if package_root.exists() and package_root_str not in sys.path:
-            sys.path.insert(0, package_root_str)
+    package_root = repo_root / "data" / "db"
+    package_root_str = str(package_root)
+    if package_root.exists():
+        sys.path = [p for p in sys.path if p != package_root_str]
+        sys.path.insert(0, package_root_str)
 
 
 _ensure_repo_packages_on_path()

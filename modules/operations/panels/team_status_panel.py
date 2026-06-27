@@ -242,14 +242,14 @@ class AssistanceIconDelegate(QStyledItemDelegate):
 # Use incident DB only (no sample fallback)
 try:
     from modules.operations.data.repository import (
-        fetch_team_assignment_rows,
         set_team_assignment_status,
         touch_team_checkin,
     )  # type: ignore
 except Exception:
-    fetch_team_assignment_rows = None  # type: ignore[assignment]
     set_team_assignment_status = None  # type: ignore[assignment]
     touch_team_checkin = None  # type: ignore[assignment]
+
+from modules.statusboards.team_task_desk import get_team_task_desk
 
 
 
@@ -390,16 +390,12 @@ class TeamStatusPanel(QWidget):
         self._filters: list[dict] = []
         self._match_all: bool = True
         self._load_filters()
-        # Initial load
-        self.reload()
-        # Auto-refresh timer (configurable)
-        try:
-            self._auto_refresh_timer = QTimer(self)
-            self._auto_refresh_timer.setSingleShot(False)
-            self._auto_refresh_timer.timeout.connect(self.reload)
-            self._apply_refresh_interval(self._load_refresh_ms())
-        except Exception:
-            pass
+        # The board is "dumb": it holds no fetch/join logic of its own. It
+        # renders whatever rows the Team/Task Newsroom Desk hands it, and
+        # re-renders whenever the desk says something changed.
+        self._desk = get_team_task_desk()
+        self._desk.team_rows_changed.connect(self._render_rows)
+        self._render_rows(self._desk.team_rows())
         # Start a 1s timer to refresh the Last Update column
         try:
             self._last_update_timer = QTimer(self)
@@ -408,27 +404,11 @@ class TeamStatusPanel(QWidget):
             self._last_update_timer.start()
         except Exception:
             pass
-        # React to incident changes
+        # Listen for comms messages to reset a row's "Last Update" baseline
+        # — unrelated to the desk's join, this is purely a display affordance.
         try:
             from utils.app_signals import app_signals
-            app_signals.incidentChanged.connect(lambda *_: self.reload())
-            # Listen for comms messages and external team status updates
-            try:
-                app_signals.messageLogged.connect(self._on_message_logged)
-            except Exception:
-                pass
-            try:
-                app_signals.teamStatusChanged.connect(self._on_team_status_changed)
-            except Exception:
-                pass
-            try:
-                app_signals.teamLeaderChanged.connect(lambda *_: self.reload())
-            except Exception:
-                pass
-            try:
-                app_signals.teamAssetsChanged.connect(lambda *_: self.reload())
-            except Exception:
-                pass
+            app_signals.messageLogged.connect(self._on_message_logged)
         except Exception:
             pass
         # Theme changes recolor rows
@@ -689,29 +669,6 @@ class TeamStatusPanel(QWidget):
                 sortie = (sortie_item.text().strip().lower() if sortie_item else "")
                 if name in labels or sortie in labels:
                     self._reset_last_update_row(r)
-        except Exception:
-            pass
-
-    def _on_team_status_changed(self, team_id: int) -> None:
-        """Reset Last Update baseline for the row with the given team_id."""
-        try:
-            rows = self.table.rowCount()
-            for r in range(rows):
-                # team_id is stored on first column (Needs Attention) item, UserRole+2
-                item0 = self.table.item(r, 0)
-                val = None
-                if item0 is not None:
-                    try:
-                        val = int(item0.data(Qt.UserRole + 2))
-                    except Exception:
-                        val = None
-                if val is not None and int(val) == int(team_id):
-                    self._reset_last_update_row(r)
-                    break
-        except Exception:
-            pass
-        try:
-            self.reload()
         except Exception:
             pass
 
@@ -978,19 +935,18 @@ class TeamStatusPanel(QWidget):
             QMessageBox.critical(self, "New Team", f"Failed to create new team:\n{e}")
 
     def reload(self) -> None:
-        # Clear and load fresh data from incident DB
+        """Re-render from the desk's current rows (no fetch of our own)."""
+        self._render_rows(self._desk.team_rows())
+
+    def _render_rows(self, rows: list[dict]) -> None:
         try:
             self._update_thresholds_from_config()
             self.table.setRowCount(0)
-            if not fetch_team_assignment_rows:
-                raise RuntimeError("DB repository not available")
-            rows = fetch_team_assignment_rows()
             rows = self._apply_filters(rows)
             for data in rows:
                 self._add_team_row(data)
         except Exception as e:
-            from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QMenu, QAbstractItemView, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
-            QMessageBox.critical(self, "Team Board Error", f"Failed to load team assignments from incident DB:\n{e}")
+            QMessageBox.critical(self, "Team Board Error", f"Failed to render team assignments:\n{e}")
 
     # --------------------------- Filters / Presets --------------------------- #
     def _open_filters_dialog(self) -> None:
@@ -1146,22 +1102,6 @@ class TeamStatusPanel(QWidget):
         widths_menu.addAction("Auto-fit Now", self._auto_fit_columns)
         widths_menu.addAction("Reset Saved Widths", self._reset_saved_column_widths)
         menu.addMenu(widths_menu)
-        # Auto-refresh submenu
-        refresh_menu = QMenu("Auto-Refresh", menu)
-        self._refresh_actions = {}
-        options = [
-            (0, "Off"),
-            (15000, "15 sec"),
-            (30000, "30 sec"),
-            (60000, "1 min"),
-            (120000, "2 min"),
-            (300000, "5 min"),
-        ]
-        for ms, label in options:
-            act = refresh_menu.addAction(label, lambda v=ms: self._set_refresh_ms(v))
-            act.setCheckable(True)
-            self._refresh_actions[ms] = act
-        menu.addMenu(refresh_menu)
         size_menu = QMenu("Text Size", menu)
         self._size_actions = {}
         for label in ("small", "medium", "large"):
@@ -1175,7 +1115,6 @@ class TeamStatusPanel(QWidget):
             self._update_column_checks()
         except Exception:
             pass
-        self._update_refresh_checks()
 
     def _update_text_size_checks(self) -> None:
         try:
@@ -1183,50 +1122,6 @@ class TeamStatusPanel(QWidget):
                 a.setChecked(k == self._text_size)
         except Exception:
             pass
-
-    def _update_refresh_checks(self) -> None:
-        try:
-            ms = getattr(self, "_refresh_ms", 0)
-            for val, act in getattr(self, "_refresh_actions", {}).items():
-                act.setChecked(int(val) == int(ms))
-        except Exception:
-            pass
-
-    # ------------------------------ Auto-refresh --------------------------- #
-    def _persist_refresh_ms(self, ms: int) -> None:
-        try:
-            from utils.settingsmanager import SettingsManager
-            SettingsManager().set("statusboard.team.refreshMs", int(max(0, ms)))
-        except Exception:
-            pass
-
-    def _load_refresh_ms(self) -> int:
-        try:
-            from utils.settingsmanager import SettingsManager
-            val = SettingsManager().get("statusboard.team.refreshMs", 30000)
-            return int(val or 0)
-        except Exception:
-            return 30000
-
-    def _apply_refresh_interval(self, ms: int) -> None:
-        try:
-            self._refresh_ms = int(max(0, ms))
-            t = getattr(self, "_auto_refresh_timer", None)
-            if t is None:
-                return
-            if self._refresh_ms <= 0:
-                t.stop()
-            else:
-                t.setInterval(self._refresh_ms)
-                if not t.isActive():
-                    t.start()
-            self._update_refresh_checks()
-        except Exception:
-            pass
-
-    def _set_refresh_ms(self, ms: int) -> None:
-        self._apply_refresh_interval(ms)
-        self._persist_refresh_ms(ms)
 
     def _set_text_size(self, label: str) -> None:
         self._text_size = label if label in ("small", "medium", "large") else "medium"

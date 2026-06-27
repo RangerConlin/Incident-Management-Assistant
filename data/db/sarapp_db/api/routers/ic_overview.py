@@ -51,6 +51,10 @@ class OperationalPeriodsRepository(BaseRepository):
     soft_deletes = False
 
 
+class FacilitiesRepository(BaseRepository):
+    collection_name = IncidentCollections.FACILITIES
+
+
 def _system_incidents_repo() -> SystemIncidentsRepository:
     return SystemIncidentsRepository(get_system_db())
 
@@ -79,6 +83,10 @@ def _op_periods_repo(incident_id: str) -> OperationalPeriodsRepository:
     return OperationalPeriodsRepository(get_incident_db(incident_id))
 
 
+def _facilities_repo(incident_id: str) -> FacilitiesRepository:
+    return FacilitiesRepository(get_incident_db(incident_id))
+
+
 def _utcnow() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -99,6 +107,7 @@ def list_incidents(status: str = "", number: str = "") -> list[dict[str, Any]]:
     result = []
     for doc in docs:
         doc.pop("_id", None)
+        doc["id"] = str(doc.get("incident_id") or doc.get("id") or "")
         result.append(doc)
     return result
 
@@ -109,6 +118,7 @@ class CreateIncidentRequest(BaseModel):
     type: str = ""
     description: str = ""
     icp_location: str = ""
+    icp_facility_id: Optional[str] = None
     is_training: bool = False
 
 
@@ -126,6 +136,7 @@ def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
         "type": body.type,
         "description": body.description,
         "icp_location": body.icp_location,
+        "icp_facility_id": body.icp_facility_id,
         "is_training": body.is_training,
         "status": "active",
     }
@@ -139,6 +150,7 @@ def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
         "incident_type": body.type,
         "description": body.description,
         "icp_address": body.icp_location,
+        "icp_facility_id": body.icp_facility_id,
         "is_training": body.is_training,
         "status": "active",
         "start_time": now,
@@ -184,6 +196,7 @@ def get_profile(incident_id: str) -> dict[str, Any]:
         "start_time": doc.get("start_time") or doc.get("created_at") or "",
         "end_time": doc.get("end_time") or "",
         "icp_location": doc.get("icp_address") or doc.get("icp_location") or "",
+        "icp_facility_id": doc.get("icp_facility_id") or "",
         "is_training": bool(doc.get("is_training", False)),
     }
 
@@ -197,6 +210,7 @@ class PatchProfileRequest(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     icp_location: Optional[str] = None
+    icp_facility_id: Optional[str] = None
     is_training: Optional[bool] = None
 
 
@@ -208,6 +222,7 @@ _PROFILE_FIELD_MAP = {
     "start_time": "start_time",
     "end_time": "end_time",
     "icp_location": "icp_address",
+    "icp_facility_id": "icp_facility_id",
     "is_training": "is_training",
 }
 
@@ -222,12 +237,45 @@ def patch_profile(incident_id: str, body: PatchProfileRequest) -> dict[str, Any]
             update[mongo_field] = data[api_field]
     if "status" in data:
         update["status"] = (data["status"] or "").lower()
+    facility_doc: Optional[dict[str, Any]] = None
+    if "icp_facility_id" in data and data["icp_facility_id"]:
+        facility_doc = _facilities_repo(incident_id).find_by_id(str(data["icp_facility_id"]))
+        if not facility_doc:
+            raise HTTPException(404, f"Facility '{data['icp_facility_id']}' not found")
+        update["icp_address"] = str(facility_doc.get("name") or facility_doc.get("address") or "")
+        update["latitude"] = facility_doc.get("latitude")
+        update["longitude"] = facility_doc.get("longitude")
+    elif "icp_facility_id" in data and not data["icp_facility_id"]:
+        update["latitude"] = None
+        update["longitude"] = None
     if not update:
         raise HTTPException(400, "No valid fields provided")
     existing = repo.find_one({"incident_id": incident_id})
     if not existing:
         raise HTTPException(404, f"Incident '{incident_id}' not found")
     repo.update_one(existing["_id"], update)
+    sys_update: dict[str, Any] = {}
+    if "name" in data:
+        sys_update["name"] = data["name"]
+    if "number" in data:
+        sys_update["number"] = data["number"]
+    if "type" in data:
+        sys_update["type"] = data["type"]
+    if "description" in data:
+        sys_update["description"] = data["description"]
+    if "status" in data:
+        sys_update["status"] = (data["status"] or "").lower()
+    if "is_training" in data:
+        sys_update["is_training"] = data["is_training"]
+    if "icp_location" in data:
+        sys_update["icp_location"] = update.get("icp_address", data["icp_location"])
+    if "icp_facility_id" in data:
+        sys_update["icp_facility_id"] = data["icp_facility_id"]
+    if sys_update:
+        sys_repo = _system_incidents_repo()
+        sys_doc = sys_repo.find_by_id(incident_id)
+        if sys_doc:
+            sys_repo.update_one(incident_id, sys_update)
     return {"ok": True}
 
 

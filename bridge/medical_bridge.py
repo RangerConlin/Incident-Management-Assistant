@@ -10,12 +10,27 @@ from utils.incident_context import get_active_incident_id
 from utils.state import AppState
 
 TABLE_FIELDS: Dict[str, Sequence[str]] = {
-    "aid_stations": ["id", "op_period", "name", "type", "level", "is_24_7", "notes"],
+    "aid_stations": [
+        "id",
+        "op_period",
+        "facility_id",
+        "name",
+        "type",
+        "level",
+        "is_24_7",
+        "location_text",
+        "latitude",
+        "longitude",
+        "manager_personnel_id",
+        "manager_name",
+        "notes",
+    ],
     "ambulance_services": [
         "id",
         "op_period",
         "name",
         "type",
+        "service_level",
         "phone",
         "location",
         "notes",
@@ -29,6 +44,8 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
         "helipad",
         "burn_center",
         "level",
+        "adult_trauma_level",
+        "pediatric_trauma_level",
         "notes",
     ],
     "air_ambulance": [
@@ -59,6 +76,55 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
         "date",
     ],
 }
+
+
+def _service_level_from_row(row: Mapping[str, Any]) -> int:
+    raw = row.get("service_level")
+    try:
+        if raw is not None and raw != "":
+            level = int(raw)
+            if level in (0, 1, 2):
+                return level
+    except (TypeError, ValueError):
+        pass
+    type_value = str(row.get("type") or "").strip().lower()
+    if "als" in type_value:
+        return 2
+    if "bls" in type_value:
+        return 1
+    return 0
+
+
+def _trauma_level_int(value: Any) -> int:
+    if value in (None, "", 0, "0", False):
+        return 0
+    if isinstance(value, int):
+        return max(0, min(value, 5))
+    text = str(value).strip().upper()
+    if text in {"I", "1"}:
+        return 1
+    if text in {"II", "2"}:
+        return 2
+    if text in {"III", "3"}:
+        return 3
+    if text in {"IV", "4"}:
+        return 4
+    if text in {"V", "5"}:
+        return 5
+    return 0
+
+
+def _trauma_display(adult_level: int, pediatric_level: int) -> str:
+    roman = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V"}
+    adult = roman.get(adult_level, "")
+    pediatric = roman.get(pediatric_level, "")
+    if adult and pediatric:
+        return f"A-{adult} / P-{pediatric}"
+    if adult:
+        return adult
+    if pediatric:
+        return f"P-{pediatric}"
+    return ""
 
 COLLECTIONS = {
     "aid_stations": "ics_206_aid_stations",
@@ -252,10 +318,16 @@ class MedicalBridge(QObject):
             self.add_record(
                 "aid_stations",
                 {
+                    "facility_id": "",
                     "name": row.get("name"),
                     "type": row.get("type"),
                     "level": "",
                     "is_24_7": 0,
+                    "location_text": row.get("address") or "",
+                    "latitude": row.get("latitude"),
+                    "longitude": row.get("longitude"),
+                    "manager_personnel_id": "",
+                    "manager_name": row.get("contact") or row.get("contact_name") or "",
                     "notes": row.get("notes"),
                 },
             )
@@ -272,6 +344,7 @@ class MedicalBridge(QObject):
                 {
                     "name": row.get("name"),
                     "type": row.get("type"),
+                    "service_level": _service_level_from_row(row),
                     "phone": row.get("phone"),
                     "location": row.get("address"),
                     "notes": row.get("notes"),
@@ -282,6 +355,14 @@ class MedicalBridge(QObject):
     def import_hospitals(self) -> int:
         rows = self._import_master_rows("hospitals", {"deleted": {"$ne": True}})
         for row in rows:
+            adult_level = _trauma_level_int(
+                row.get("adult_trauma_level") or row.get("trauma_level")
+            )
+            pediatric_level = _trauma_level_int(
+                row.get("pediatric_trauma_level")
+            )
+            if pediatric_level == 0 and row.get("pediatric_capability") and adult_level:
+                pediatric_level = adult_level
             self.add_record(
                 "hospitals",
                 {
@@ -290,7 +371,9 @@ class MedicalBridge(QObject):
                     "phone": row.get("phone") or row.get("phone_er") or row.get("phone_switchboard"),
                     "helipad": 1 if row.get("helipad") else 0,
                     "burn_center": 1 if row.get("burn_center") else 0,
-                    "level": row.get("trauma_level") or row.get("level") or "",
+                    "level": _trauma_display(adult_level, pediatric_level),
+                    "adult_trauma_level": adult_level,
+                    "pediatric_trauma_level": pediatric_level,
                     "notes": row.get("notes"),
                 },
             )

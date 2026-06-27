@@ -15,6 +15,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from sarapp_db.api.ws_hub import hub
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.json_safe import json_safe
 
 router = APIRouter()
 
@@ -40,7 +41,15 @@ def get_snapshot(
         name = name.strip()
         if not name:
             continue
-        snapshot[name] = list(db[name].find({"deleted": False}))
+        # `$ne: True` rather than `False` so documents that predate the
+        # `deleted` field (written before this collection went through
+        # BaseRepository) still show up instead of vanishing from the cache.
+        docs = list(db[name].find({"deleted": {"$ne": True}}))
+        # Documents from collections that predate BaseRepository can carry
+        # BSON types (ObjectId, raw datetime) a JSON encoder can't handle,
+        # anywhere in the document, not just `_id` — sanitize recursively
+        # rather than touching the stored value.
+        snapshot[name] = [json_safe(doc) for doc in docs]
     return {"incident_id": incident_id, "collections": snapshot}
 
 

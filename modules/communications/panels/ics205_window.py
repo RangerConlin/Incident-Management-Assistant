@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QFrame,
     QStyledItemDelegate,
+    QTextEdit,
 )
 from PySide6.QtCore import QModelIndex
 
@@ -35,7 +36,7 @@ from ..views.new_channel_dialog import NewChannelDialog
 from ..views.import_ics217_dialog import ImportICS217Dialog
 from ..views.edit_channel_dialog import EditChannelDialog
 
-_NON_EDITABLE_KEYS = {"function", "mode", "priority", "encryption"}
+_NON_EDITABLE_KEYS = {"priority", "encryption"}
 
 # Map column index → (options, editable)
 _COMBO_COL_INDEX: dict[int, tuple[list[str], bool]] = {
@@ -210,6 +211,26 @@ class ICS205Window(QWidget):
         self.split.setStretchFactor(1, 1)
         root.addWidget(self.split, 1)
 
+        # ── Footer: operational period + special instructions ──────────────────
+        footer = QHBoxLayout()
+        footer.setSpacing(4)
+        footer.addWidget(QLabel("Operational Period:"))
+        self.cmb_op_period = QComboBox()
+        self.cmb_op_period.setMinimumWidth(220)
+        footer.addWidget(self.cmb_op_period)
+        footer.addStretch()
+        root.addLayout(footer)
+
+        instr_box = QGroupBox("Special Instructions")
+        instr_v = QVBoxLayout(instr_box)
+        self.ed_special_instructions = QTextEdit()
+        self.ed_special_instructions.setFixedHeight(70)
+        self.ed_special_instructions.setPlaceholderText(
+            "Notes printed on the ICS-205 under Special Instructions…"
+        )
+        instr_v.addWidget(self.ed_special_instructions)
+        root.addWidget(instr_box)
+
         # ── Status bar ────────────────────────────────────────────────────────
         self.status = QStatusBar()
         root.addWidget(self.status)
@@ -253,9 +274,50 @@ class ICS205Window(QWidget):
         except Exception:
             pass
 
+        self._instance_save_timer = QTimer(self)
+        self._instance_save_timer.setSingleShot(True)
+        self._instance_save_timer.setInterval(600)
+        self._instance_save_timer.timeout.connect(self._save_instance)
+
+        self._load_op_periods()
+        self._load_instance()
+        self.ed_special_instructions.textChanged.connect(lambda: self._instance_save_timer.start())
+        self.cmb_op_period.currentIndexChanged.connect(lambda *_: self._instance_save_timer.start())
+
         self._refresh_table()
         self._update_button_states()
         self._fit_to_content()
+
+    def _load_op_periods(self):
+        from modules.planning.operational_periods.repository import OperationalPeriodRepository
+        self._op_period_repo = OperationalPeriodRepository(AppState.get_active_incident())
+        self.cmb_op_period.blockSignals(True)
+        self.cmb_op_period.clear()
+        for period in self._op_period_repo.list_periods():
+            label = f"{period.code} — {period.start_time or '?'} to {period.end_time or '?'} ({period.status})"
+            self.cmb_op_period.addItem(label, str(period.id))
+        self.cmb_op_period.blockSignals(False)
+
+    def _load_instance(self):
+        instance = self.controller.incident_repo.get_instance()
+        self.ed_special_instructions.blockSignals(True)
+        self.ed_special_instructions.setPlainText(instance.get("special_instructions") or "")
+        self.ed_special_instructions.blockSignals(False)
+
+        op_period_id = instance.get("op_period_id")
+        idx = self.cmb_op_period.findData(str(op_period_id)) if op_period_id else -1
+        if idx < 0:
+            active = self._op_period_repo.get_active_period()
+            idx = self.cmb_op_period.findData(str(active.id)) if active else -1
+        self.cmb_op_period.blockSignals(True)
+        self.cmb_op_period.setCurrentIndex(idx if idx >= 0 else 0)
+        self.cmb_op_period.blockSignals(False)
+
+    def _save_instance(self, *_args):
+        op_period_id = self.cmb_op_period.currentData()
+        self.controller.incident_repo.save_instance(
+            self.ed_special_instructions.toPlainText(), op_period_id
+        )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -292,16 +354,15 @@ class ICS205Window(QWidget):
         if not idx.isValid():
             return
         master_row = self.controller.masterModel.get(idx.row())
-        self.controller.incident_repo.add_from_master(master_row, {})
+        self.controller.incident_repo.add_from_master(master_row.get("id"), {})
         self._refresh_table()
         self.status.showMessage("Channel added from library.", 2000)
 
     def _open_new_channel(self):
-        dlg = NewChannelDialog(self.controller.incident_repo, self)
+        dlg = NewChannelDialog(self.controller.master_repo, self)
         if dlg.exec():
             data = dlg.get_channel_data()
-            master_like = {
-                "id": None,
+            master_payload = {
                 "name": data.get("channel"),
                 "function": data.get("function"),
                 "rx_freq": data.get("rx_freq"),
@@ -311,9 +372,8 @@ class ICS205Window(QWidget):
                 "system": data.get("system"),
                 "mode": data.get("mode"),
                 "notes": data.get("remarks"),
-                "line_a": 0,
-                "line_c": 0,
             }
+            new_channel = self.controller.master_repo.create_channel(master_payload)
             defaults = {
                 "assignment_division": data.get("assignment_division"),
                 "assignment_team": data.get("assignment_team"),
@@ -321,7 +381,8 @@ class ICS205Window(QWidget):
                 "encryption": data.get("encryption", "None"),
                 "remarks": data.get("remarks"),
             }
-            self.controller.incident_repo.add_from_master(master_like, defaults)
+            self.controller.incident_repo.add_from_master(new_channel.get("id"), defaults)
+            self.controller.refreshMaster()
             self._refresh_table()
 
     def _open_edit_dialog(self):
@@ -343,8 +404,8 @@ class ICS205Window(QWidget):
         if dlg.exec():
             selected = dlg.get_selected_rows()
             defaults = dlg.get_defaults()
-            for row in selected:
-                self.controller.incident_repo.add_from_master(row, defaults)
+            for master_id in selected:
+                self.controller.incident_repo.add_from_master(master_id, defaults)
             self._refresh_table()
 
     def _duplicate_selected(self):
@@ -353,20 +414,6 @@ class ICS205Window(QWidget):
         if not (0 <= i < len(rows)):
             return
         r = rows[i]
-        master_like = {
-            "id": r.get("master_id"),
-            "name": r.get("channel"),
-            "function": r.get("function"),
-            "rx_freq": r.get("rx_freq"),
-            "tx_freq": r.get("tx_freq"),
-            "rx_tone": r.get("rx_tone"),
-            "tx_tone": r.get("tx_tone"),
-            "system": r.get("system"),
-            "mode": r.get("mode"),
-            "notes": r.get("remarks"),
-            "line_a": r.get("line_a", 0),
-            "line_c": r.get("line_c", 0),
-        }
         defaults = {
             "assignment_division": r.get("assignment_division"),
             "assignment_team": r.get("assignment_team"),
@@ -375,7 +422,7 @@ class ICS205Window(QWidget):
             "remarks": r.get("remarks"),
             "sort_index": int(r.get("sort_index", 1000)) + 1,
         }
-        self.controller.incident_repo.add_from_master(master_like, defaults)
+        self.controller.incident_repo.add_from_master(r.get("master_id"), defaults)
         self._refresh_table()
 
     def _delete_selected(self):
@@ -407,7 +454,40 @@ class ICS205Window(QWidget):
     def _preview(self):
         rows = self.controller.getPreviewRows()
         dlg = PreviewDialog(rows, self)
-        dlg.exec()
+        if not dlg.exec():
+            return
+        self._generate_pdf()
+
+    def _generate_pdf(self):
+        import os
+        from pathlib import Path
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from modules.forms_creator.engine import generate as generate_form
+
+        incident = AppState.get_active_incident()
+        default_name = f"ICS-205_{incident}.pdf"
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Save ICS-205 PDF", default_name, "PDF Files (*.pdf)"
+        )
+        if not out_path:
+            return
+        try:
+            result = generate_form(
+                "ics_205",
+                Path(out_path),
+                incident_id=str(incident),
+                extra_data={
+                    "channels_notes": self.ed_special_instructions.toPlainText().strip(),
+                },
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Generate ICS-205", f"Failed to generate the PDF:\n{exc}")
+            return
+        self.status.showMessage(f"Saved {result}", 5000)
+        try:
+            os.startfile(str(result))  # noqa: S606 - user explicitly chose this path
+        except Exception:
+            pass
 
     # ── Show / center ─────────────────────────────────────────────────────────
 

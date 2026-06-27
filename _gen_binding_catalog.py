@@ -953,6 +953,39 @@ for col, label in ICS_208_FIELDS:
         "column": col,
     })
 
+# ── ICS 215A Rows ────────────────────────────────────────────────────────────
+ICS_215A_ROW_FIELDS = [
+    ("work_assignment_id", "Work Assignment ID"),
+    ("branch_div_group", "Branch / Division / Group"),
+    ("work_assignment", "Work Assignment"),
+    ("assignment_number", "Assignment Number"),
+    ("assignment_name", "Assignment Name"),
+    ("location", "Location"),
+    ("hazard_id", "Hazard ID"),
+    ("hazard", "Hazard"),
+    ("category", "Category"),
+    ("risk_level", "Risk Level"),
+    ("likelihood", "Likelihood"),
+    ("severity", "Severity"),
+    ("control_measure", "Control Measure"),
+    ("mitigation_text", "Mitigation"),
+    ("ppe_text", "PPE"),
+    ("resolved", "Resolved"),
+    ("notes", "Notes"),
+]
+for i in range(20):
+    ord_ = _ordinal(i + 1)
+    for col, label in ICS_215A_ROW_FIELDS:
+        entries.append({
+            "path": f"ics_215a_rows.{i}.{col}",
+            "label": f"ICS 215A Row {i+1} ({ord_}) — {label}",
+            "category": "ICS 215A",
+            "source_type": "computed",
+            "table": "hazards",
+            "column": col,
+            "index": i,
+        })
+
 # ── IWI Reports ──────────────────────────────────────────────────────────────
 IWI_FIELDS = [
     ("id", "ID"),
@@ -1123,16 +1156,36 @@ for i in range(10):
 
 # ── Hospitals (master) ────────────────────────────────────────────────────────
 HOSPITAL_FIELDS = [
-    ("name",    "Name"),
-    ("type",    "Type"),
-    ("phone",   "Phone"),
-    ("fax",     "Fax"),
+    ("id", "ID"),
+    ("hospital_id", "Hospital ID"),
+    ("name", "Name"),
+    ("type", "Type"),
+    ("code", "Code"),
+    ("phone", "Phone"),
+    ("phone_er", "ER Phone"),
+    ("phone_switchboard", "Switchboard Phone"),
+    ("fax", "Fax"),
+    ("email", "Email"),
     ("address", "Address"),
-    ("city",    "City"),
-    ("state",   "State"),
-    ("zip",     "Zip"),
+    ("city", "City"),
+    ("state", "State"),
+    ("zip", "Zip"),
     ("contact", "Contact"),
-    ("notes",   "Notes"),
+    ("contact_name", "Contact Name"),
+    ("helipad", "Helipad"),
+    ("burn_center", "Burn Center"),
+    ("pediatric_capability", "Pediatric Capability"),
+    ("adult_trauma_level", "Adult Trauma Level"),
+    ("pediatric_trauma_level", "Pediatric Trauma Level"),
+    ("trauma_level_display", "Trauma Level Display"),
+    ("travel_time_min", "Travel Time (Minutes)"),
+    ("bed_available", "Beds Available"),
+    ("diversion_status", "Diversion Status"),
+    ("ambulance_radio_channel", "Ambulance Radio Channel"),
+    ("lat", "Latitude"),
+    ("lon", "Longitude"),
+    ("notes", "Notes"),
+    ("is_active", "Is Active"),
 ]
 for i in range(10):
     ord_ = _ordinal(i + 1)
@@ -1149,15 +1202,22 @@ for i in range(10):
 
 # ── EMS Agencies (master) ─────────────────────────────────────────────────────
 EMS_FIELDS = [
-    ("name",          "Name"),
-    ("type",          "Type"),
-    ("phone",         "Phone"),
+    ("id", "ID"),
+    ("name", "Name"),
+    ("type", "Type"),
+    ("service_level", "Service Level"),
+    ("service_level_label", "Service Level Label"),
+    ("phone", "Phone"),
     ("radio_channel", "Radio Channel"),
-    ("address",       "Address"),
-    ("city",          "City"),
-    ("state",         "State"),
-    ("zip",           "Zip"),
-    ("notes",         "Notes"),
+    ("address", "Address"),
+    ("city", "City"),
+    ("state", "State"),
+    ("zip", "Zip"),
+    ("lat", "Latitude"),
+    ("lon", "Longitude"),
+    ("notes", "Notes"),
+    ("default_on_206", "Default On ICS 206"),
+    ("is_active", "Is Active"),
 ]
 for i in range(10):
     ord_ = _ordinal(i + 1)
@@ -1171,6 +1231,181 @@ for i in range(10):
             "column": col,
             "index": i,
         })
+
+# ── ICS 206 Aid Stations ─────────────────────────────────────────────────────
+ICS206_AID_STATION_FIELDS = [
+    ("id", "ID"),
+    ("op_period", "Operational Period"),
+    ("name", "Name"),
+    ("type", "Type"),
+    ("level", "Level"),
+    ("is_24_7", "24/7"),
+    ("notes", "Notes"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in ICS206_AID_STATION_FIELDS:
+        entries.append({
+            "path": f"ics_206_aid_stations.{i}.{col}",
+            "label": f"ICS 206 Aid Station {i+1} ({ord_}) — {label}",
+            "category": "ICS 206 Aid Stations",
+            "source_type": "incident_db",
+            "table": "ics_206_aid_stations",
+            "column": col,
+            "index": i,
+        })
+
+# ── ICS 206 Ambulance Services ───────────────────────────────────────────────
+ICS206_AMBULANCE_FIELDS = [
+    ("id", "ID"),
+    ("op_period", "Operational Period"),
+    ("name", "Name"),
+    ("type", "Type"),
+    ("service_level", "Service Level"),
+    ("service_level_label", "Service Level Label"),
+    ("phone", "Phone"),
+    ("location", "Location"),
+    ("notes", "Notes"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in ICS206_AMBULANCE_FIELDS:
+        entries.append({
+            "path": f"ics_206_ambulance_services.{i}.{col}",
+            "label": f"ICS 206 Ambulance Service {i+1} ({ord_}) — {label}",
+            "category": "ICS 206 Ambulance Services",
+            "source_type": "incident_db",
+            "table": "ics_206_ambulance_services",
+            "column": col,
+            "index": i,
+        })
+
+# ── ICS 206 Hospitals ────────────────────────────────────────────────────────
+ICS206_HOSPITAL_FIELDS = [
+    ("id", "ID"),
+    ("hospital_id", "Hospital ID"),
+    ("op_period", "Operational Period"),
+    ("name", "Name"),
+    ("type", "Type"),
+    ("code", "Code"),
+    ("phone", "Phone"),
+    ("phone_er", "ER Phone"),
+    ("phone_switchboard", "Switchboard Phone"),
+    ("fax", "Fax"),
+    ("email", "Email"),
+    ("address", "Address"),
+    ("city", "City"),
+    ("state", "State"),
+    ("zip", "Zip"),
+    ("contact", "Contact"),
+    ("contact_name", "Contact Name"),
+    ("helipad", "Helipad"),
+    ("burn_center", "Burn Center"),
+    ("pediatric_capability", "Pediatric Capability"),
+    ("adult_trauma_level", "Adult Trauma Level"),
+    ("pediatric_trauma_level", "Pediatric Trauma Level"),
+    ("trauma_level_display", "Trauma Level Display"),
+    ("travel_time_min", "Travel Time (Minutes)"),
+    ("bed_available", "Beds Available"),
+    ("diversion_status", "Diversion Status"),
+    ("ambulance_radio_channel", "Ambulance Radio Channel"),
+    ("lat", "Latitude"),
+    ("lon", "Longitude"),
+    ("notes", "Notes"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in ICS206_HOSPITAL_FIELDS:
+        entries.append({
+            "path": f"ics_206_hospitals.{i}.{col}",
+            "label": f"ICS 206 Hospital {i+1} ({ord_}) — {label}",
+            "category": "ICS 206 Hospitals",
+            "source_type": "incident_db",
+            "table": "ics_206_hospitals",
+            "column": col,
+            "index": i,
+        })
+
+# ── ICS 206 Air Ambulance ────────────────────────────────────────────────────
+ICS206_AIR_AMBULANCE_FIELDS = [
+    ("id", "ID"),
+    ("op_period", "Operational Period"),
+    ("name", "Name"),
+    ("phone", "Phone"),
+    ("base", "Base"),
+    ("contact", "Contact"),
+    ("notes", "Notes"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in ICS206_AIR_AMBULANCE_FIELDS:
+        entries.append({
+            "path": f"ics_206_air_ambulance.{i}.{col}",
+            "label": f"ICS 206 Air Ambulance {i+1} ({ord_}) — {label}",
+            "category": "ICS 206 Air Ambulance",
+            "source_type": "incident_db",
+            "table": "ics_206_air_ambulance",
+            "column": col,
+            "index": i,
+        })
+
+# ── ICS 206 Medical Comms ────────────────────────────────────────────────────
+ICS206_MEDICAL_COMMS_FIELDS = [
+    ("id", "ID"),
+    ("op_period", "Operational Period"),
+    ("channel", "Channel"),
+    ("function", "Function"),
+    ("frequency", "Frequency"),
+    ("mode", "Mode"),
+    ("notes", "Notes"),
+]
+for i in range(10):
+    ord_ = _ordinal(i + 1)
+    for col, label in ICS206_MEDICAL_COMMS_FIELDS:
+        entries.append({
+            "path": f"ics_206_medical_comms.{i}.{col}",
+            "label": f"ICS 206 Medical Comms {i+1} ({ord_}) — {label}",
+            "category": "ICS 206 Medical Comms",
+            "source_type": "incident_db",
+            "table": "ics_206_medical_comms",
+            "column": col,
+            "index": i,
+        })
+
+# ── ICS 206 Procedures ───────────────────────────────────────────────────────
+ICS206_PROCEDURE_FIELDS = [
+    ("id", "ID"),
+    ("op_period", "Operational Period"),
+    ("content", "Content"),
+]
+for col, label in ICS206_PROCEDURE_FIELDS:
+    entries.append({
+        "path": f"ics_206_procedures.{col}",
+        "label": f"ICS 206 Procedures — {label}",
+        "category": "ICS 206 Procedures",
+        "source_type": "incident_db",
+        "table": "ics_206_procedures",
+        "column": col,
+    })
+
+# ── ICS 206 Signatures ───────────────────────────────────────────────────────
+ICS206_SIGNATURE_FIELDS = [
+    ("id", "ID"),
+    ("op_period", "Operational Period"),
+    ("prepared_by", "Prepared By"),
+    ("position", "Position"),
+    ("approved_by", "Approved By"),
+    ("date", "Date"),
+]
+for col, label in ICS206_SIGNATURE_FIELDS:
+    entries.append({
+        "path": f"ics_206_signatures.{col}",
+        "label": f"ICS 206 Signatures — {label}",
+        "category": "ICS 206 Signatures",
+        "source_type": "incident_db",
+        "table": "ics_206_signatures",
+        "column": col,
+    })
 
 # ── Comms Resources (master) ──────────────────────────────────────────────────
 COMMS_FIELDS = [

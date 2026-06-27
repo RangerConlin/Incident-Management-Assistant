@@ -758,6 +758,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
         self._add_action(m_log, "Resource Status Board", None, "logistics.resource_status")
         self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
+        self._add_action(m_log, "Facilities Manager", None, "logistics.facilities")
 
         # ----- Communications -----
         m_comms = mb.addMenu("Communications")
@@ -1081,6 +1082,7 @@ class MainWindow(QMainWindow):
             "logistics.resource_status": self.open_logistics_resource_status,
             "logistics.requests": self.open_logistics_requests,
             "logistics.213rr": self.open_logistics_213rr,
+            "logistics.facilities": self.open_logistics_facilities,
 
             # ----- Communications -----
             "comms.unit_log": self.open_comms_unit_log,
@@ -2075,6 +2077,13 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = logistics.get_213rr_panel(incident_id)
         self._open_panel(panel, title="Resource Request (ICS-213RR)")
+
+    def open_logistics_facilities(self) -> None:
+        from modules.logistics import get_facilities_manager_panel
+
+        incident_id = AppState.get_active_incident()
+        panel = get_facilities_manager_panel(incident_id)
+        self._open_panel(panel, title="Facilities Manager")
 
 # --- 4.7 Communications --------------------------------------------------
     def open_comms_unit_log(self) -> None:

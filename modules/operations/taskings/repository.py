@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from modules.admin.resource_types.data.resource_assignment_repository import ApiResourceAssignmentRepository
 from modules.forms_creator.engine import generate as generate_form_pdf
+from modules.intel.weather.services.summary import build_weather_form_payload
 from modules.operations.teams.data.repository import get_team
 from utils import incident_context
 from utils.audit import write_audit
@@ -104,6 +105,7 @@ def get_task(task_id: int) -> Task:
         priority=priority,
         status=_task_status_to_key(doc.get("status")).title() if doc.get("status") else "",
         location=doc.get("location") or "",
+        location_facility_id=doc.get("location_facility_id") or "",
         created_by=doc.get("created_by") or "",
         created_at=doc.get("created_at") or "",
         assigned_to=None,
@@ -132,6 +134,8 @@ def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
         translated["status"] = _status_to_db(patch["status"])
     if "location" in patch:
         translated["location"] = str(patch["location"]) or None
+    if "location_facility_id" in patch:
+        translated["location_facility_id"] = str(patch["location_facility_id"]) or None
     if "assignment" in patch:
         translated["assignment"] = str(patch["assignment"]) or None
     if "team_leader" in patch:
@@ -140,7 +144,17 @@ def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
         translated["team_phone"] = str(patch["team_phone"]) or None
     if not translated:
         return
+    translated["changed_by"] = _active_user_display()
     _client().patch(f"{_base()}/tasks/{task_id}", json=translated)
+
+
+def _active_user_display() -> str:
+    try:
+        from utils.state import AppState
+        uid = AppState.get_active_user_id()
+        return str(uid) if uid is not None else ""
+    except Exception:
+        return ""
 
 
 def list_task_teams(task_id: int) -> List[TaskTeam]:
@@ -423,6 +437,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         "title": _safe_text(task_doc.get("title")),
         "description": _safe_text(task_doc.get("description")),
         "location": _safe_text(task_doc.get("location")),
+        "location_facility_id": _safe_text(task_doc.get("location_facility_id")),
         "assignment": _safe_text(task_doc.get("assignment") or assignment.get("ground", {}).get("present_search_efforts")),
         "due_time": _safe_text(task_doc.get("due_time")),
         "team_leader": leader_name,
@@ -493,10 +508,18 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
     except Exception:
         equipment_issued = []
 
+    weather_config = {}
+    try:
+        weather_config = _client().get(f"/api/incidents/{_iid()}/weather") or {}
+    except Exception:
+        weather_config = {}
+    weather_payload = build_weather_form_payload(weather_config)
+
     return {
         "task": task_payload,
         "team": team_payload,
         "assignment": assignment_payload,
+        "weather": weather_payload,
         "team_members": team_member_rows,
         "additional": {"names": additional_names},
         "subject": dict(assignment.get("subject") or {}) if isinstance(assignment.get("subject"), dict) else {},
@@ -514,6 +537,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         "time_in": team_payload["complete_ts"] or team_payload["arrival_ts"],
         "notes": task_payload["description"] or assignment_payload["ground"]["present_search_efforts"],
         "resource_type": team_payload["resource_type"],
+        "weather_summary": weather_payload.get("summary", ""),
     }
 
 
@@ -808,6 +832,7 @@ def get_task_detail(task_id: int) -> TaskDetail:
         priority=priority,
         status=_task_status_to_key(doc.get("status")).title() if doc.get("status") else "",
         location=doc.get("location") or "",
+        location_facility_id=doc.get("location_facility_id") or "",
         created_by=doc.get("created_by") or "",
         created_at=doc.get("created_at") or "",
         assigned_to=None,
@@ -816,7 +841,8 @@ def get_task_detail(task_id: int) -> TaskDetail:
         team_leader=doc.get("team_leader") or "",
         team_phone=doc.get("team_phone") or "",
     )
-    return TaskDetail(task=task)
+    teams = list_task_teams(task.id)
+    return TaskDetail(task=task, teams=teams)
 
 
 def create_team(team_leader_id: Optional[int] = None) -> int:
@@ -848,6 +874,7 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
         "team_id": team_id,
         "sortie_id": sortie_id,
         "primary": primary,
+        "changed_by": _active_user_display(),
     })
     tt_id = int(result.get("tt_id") or 0)
     actual_team_id = int(result.get("team_id") or team_id or 0) or None
@@ -868,7 +895,7 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
 
 
 def set_primary_team(task_id: int, tt_id: int) -> None:
-    _client().patch(f"{_base()}/tasks/{task_id}/teams/{tt_id}/primary", json={})
+    _client().patch(f"{_base()}/tasks/{task_id}/teams/{tt_id}/primary", json={"changed_by": _active_user_display()})
 
 
 def update_sortie_id(tt_id: int, sortie_id: Optional[str]) -> None:
@@ -879,7 +906,10 @@ def update_sortie_id(tt_id: int, sortie_id: Optional[str]) -> None:
 
 
 def update_sortie_id_for_task(task_id: int, tt_id: int, sortie_id: Optional[str]) -> None:
-    _client().patch(f"{_base()}/tasks/{task_id}/teams/{tt_id}/sortie", json={"sortie_id": sortie_id})
+    _client().patch(
+        f"{_base()}/tasks/{task_id}/teams/{tt_id}/sortie",
+        json={"sortie_id": sortie_id, "changed_by": _active_user_display()},
+    )
     try:
         write_audit("task.team.sortie", {"task_id": int(task_id), "tt_id": int(tt_id), "new": sortie_id})
     except Exception:
@@ -904,7 +934,7 @@ def remove_task_team(tt_id: int) -> None:
 
 
 def remove_task_team_from_task(task_id: int, tt_id: int, team_id: Optional[int] = None) -> None:
-    _client().delete(f"{_base()}/tasks/{task_id}/teams/{tt_id}")
+    _client().delete(f"{_base()}/tasks/{task_id}/teams/{tt_id}", params={"changed_by": _active_user_display()})
     try:
         from modules.operations.data.repository import ics214_log_entry
         if team_id:
@@ -938,12 +968,74 @@ def list_all_teams() -> List[Dict[str, Any]]:
         return []
 
 
-def create_task(title: str = "<New Task>", task_identifier: Optional[str] = None, priority: int = 2, status: str = "Draft") -> int:
-    priority_str = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}.get(priority, "Medium")
-    result = _client().post(f"{_base()}/tasks", json={
+def create_task(
+    title: str = "<New Task>",
+    task_identifier: Optional[str] = None,
+    priority: Any = 2,
+    status: str = "Draft",
+    location: Optional[str] = None,
+    location_facility_id: Optional[str] = None,
+    description: Optional[str] = None,
+) -> int:
+    if isinstance(priority, str):
+        priority_str = priority if priority in PRIORITY_MAP.values() else "Medium"
+    else:
+        priority_str = PRIORITY_MAP.get(priority, "Medium")
+    body: Dict[str, Any] = {
         "title": title,
         "task_id": task_identifier,
         "priority": priority_str,
         "status": status,
-    })
+    }
+    if location:
+        body["location"] = location
+    if location_facility_id:
+        body["location_facility_id"] = location_facility_id
+    if description:
+        body["assignment"] = description
+    result = _client().post(f"{_base()}/tasks", json=body)
     return int(result.get("int_id") or 0)
+
+
+# --- Planning linkage (objectives / strategies) -----------------------
+
+def list_objectives() -> List[Dict[str, Any]]:
+    """List incident objectives, for the Planning tab's Objective combo."""
+    try:
+        return _client().get("/api/objectives", params={"incident_id": _iid()}) or []
+    except Exception:
+        return []
+
+
+def list_strategies_for_objective(objective_id: Optional[str]) -> List[Dict[str, Any]]:
+    """List strategies (work assignments) under a given objective."""
+    if not objective_id:
+        return []
+    try:
+        return _client().get(
+            f"/api/incidents/{_iid()}/planning/work-assignments",
+            params={"objective_id": objective_id},
+        ) or []
+    except Exception:
+        return []
+
+
+def list_strategies_for_task(task_id: int) -> List[Dict[str, Any]]:
+    """List strategies linked to this task, with their task-link id for removal."""
+    try:
+        return _client().get(f"/api/incidents/{_iid()}/planning/tasks/{task_id}/work-assignments") or []
+    except Exception:
+        return []
+
+
+def link_task_to_strategy(task_id: int, work_assignment_id: int) -> None:
+    _client().post(
+        f"/api/incidents/{_iid()}/planning/work-assignments/{work_assignment_id}/task-links",
+        json={"task_id": task_id, "link_type": "Linked Existing"},
+    )
+
+
+def unlink_task_from_strategy(work_assignment_id: int, link_id: int) -> None:
+    _client().delete(
+        f"/api/incidents/{_iid()}/planning/work-assignments/{work_assignment_id}/task-links/{link_id}"
+    )

@@ -74,6 +74,8 @@ class MasterCollections:
     CANNED_COMM_ENTRIES = "canned_comm_entries"
 
     # Users and access
+    USERS = "users"
+    USER_SESSIONS = "user_sessions"
     USER_PROFILES = "user_profiles"
     ROLE_TEMPLATES = "role_templates"
 
@@ -192,11 +194,15 @@ class IncidentCollections:
     PLANNED_PERMITS = "planned_permits"
     PLANNED_SAFETY_REPORTS = "planned_safety_reports"
     PLANNED_TASKS = "planned_tasks"
+    PLANNED_QUICK_ASSIGNMENTS = "planned_quick_assignments"
     PLANNED_HEALTH_INSPECTIONS = "planned_health_inspections"
+    PLANNED_SCHEDULE_TRIGGERS = "planned_schedule_triggers"
+    PLANNED_NOTIFICATIONS = "planned_notifications"
 
     # Logistics
     LOGISTICS_RESOURCE_STATUS_ITEMS = "logistics_resource_status_items"
     LOGISTICS_RESOURCE_REQUESTS = "logistics_resource_requests"
+    FACILITIES = "facilities"
 
     # Operations (aliases to canonical task/team collections)
     OPERATIONS_TASKS = "tasks"
@@ -244,7 +250,23 @@ class IncidentCollections:
     APPROVAL_INSTANCES = "approval_instances"
     APPROVAL_RECORDS = "approval_records"
 
+    # Notifications — incident-scoped alert history
+    NOTIFICATIONS = "notifications"
+
     # Supporting
     ATTACHMENTS = "attachments"
     AUDIT_LOGS = "audit_logs"
     STATUS_BOARD_SNAPSHOTS = "status_board_snapshots"
+
+    # Finance/Admin — fuel pricing, forecasts, expenses, funding sources.
+    # finance_approvals is module-specific rather than reusing
+    # APPROVAL_INSTANCES/APPROVAL_RECORDS — see agents.md for the
+    # consolidation note.
+    FINANCE_FUEL_PRICE_PROFILES = "finance_fuel_price_profiles"
+    FINANCE_FORECASTS = "finance_forecasts"
+    FINANCE_FUEL_FORECAST_LINES = "finance_fuel_forecast_lines"
+    FINANCE_FUNDING_SOURCES = "finance_funding_sources"
+    FINANCE_EXPENSES = "finance_expenses"
+    FINANCE_APPROVALS = "finance_approvals"
+    FINANCE_ATTACHMENTS = "finance_attachments"
+    WEATHER_DATA = "weather_data"

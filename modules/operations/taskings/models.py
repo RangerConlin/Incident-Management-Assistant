@@ -42,6 +42,7 @@ class Task:
     priority: str
     status: str
     location: str
+    location_facility_id: str
     created_by: str
     created_at: str
     assigned_to: Optional[str] = None

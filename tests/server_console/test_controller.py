@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import socket
 
-from server.server_console.controller import ServerConsoleController, check_port, fetch_health
-from server.server_console.settings import ServerConsoleSettings
+from lan_server.server_console.controller import ServerConsoleController, check_port, fetch_health
+from lan_server.server_console.settings import ServerConsoleSettings
 
 
 def _free_port() -> int:

@@ -306,7 +306,12 @@ def set_team_status(team_id: int, status_key: str) -> None:
     """Update team status via API, then fire ICS-214 entries and Qt signals."""
     key = str(status_key).strip().lower()
     try:
-        result = _client().patch(f"{_base()}/teams/{team_id}/status", json={"status_key": key})
+        from utils.state import AppState
+        changed_by = str(AppState.get_active_user_id() or "")
+    except Exception:
+        changed_by = ""
+    try:
+        result = _client().patch(f"{_base()}/teams/{team_id}/status", json={"status_key": key, "changed_by": changed_by})
         current_task_id = result.get("current_task_id")
     except Exception:
         current_task_id = None

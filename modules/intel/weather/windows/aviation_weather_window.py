@@ -7,23 +7,9 @@ import logging
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QGuiApplication, QFont
-from PySide6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
-    QInputDialog,
-    QMainWindow,
-    QPushButton,
-    QScrollArea,
-    QStatusBar,
-    QTextEdit,
-    QToolBar,
-    QVBoxLayout,
-    QWidget,
-    QLabel,
-)
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QInputDialog, QMainWindow, QPushButton, QStatusBar, QTextEdit, QToolBar, QVBoxLayout, QWidget, QLabel
 
 from ..services.api_link import WeatherApiManager
-from ..services import cache as weather_cache
 from ..services.settings import weather_settings
 
 
@@ -141,7 +127,6 @@ class AviationWeatherWindow(QMainWindow):
         self.api.dataUpdated.connect(self._handle_data)
         self.api.fetchFailed.connect(lambda ctx, err: self.status_bar.showMessage(f"{ctx} failed: {err}"))
         self._stations = [s.upper() for s in (stations or [])]
-        self._panels: Dict[str, StationPanel] = {}
         self._metars: Dict[str, str] = {}
         self._tafs: Dict[str, str] = {}
         self._setup_ui()
@@ -231,25 +216,24 @@ class AviationWeatherWindow(QMainWindow):
         key = station.strip().upper()
         if not key:
             return
-        if key in self._panels:
+        if key in self._stations:
             return
         # Track but do not create per-station panels; render into a single view
-        if key not in self._stations:
-            self._stations.append(key)
+        self._stations.append(key)
+        self.api.add_station_code(key)
         self.api.request_metar([key])
         self.api.request_taf([key])
         if hasattr(self, "status_bar") and self.status_bar:
             self.status_bar.showMessage(f"Requested METAR/TAF for {key}")
-        # Also fetch directly to fill immediately
-        self._fetch_and_fill(key)
+        self._render_combined()
 
     def _remove_station(self, station: str) -> None:
         key = (station or "").strip().upper()
-        self._panels.pop(key, None)
         self._metars.pop(key, None)
         self._tafs.pop(key, None)
         if key in self._stations:
             self._stations.remove(key)
+            self.api.remove_station_code(key)
         if hasattr(self, "status_bar") and self.status_bar:
             self.status_bar.showMessage(f"Removed {key}")
         self._render_combined()
@@ -278,51 +262,12 @@ class AviationWeatherWindow(QMainWindow):
             )
         # no extra debug UI in compact mode
 
-    # --- Minimal direct-fetch path to ensure UI fills ---
-    def _fetch_and_fill(self, station: str) -> None:
-        key = (station or "").strip().upper()
-        panel = self._panels.get(key)
-        if not key or panel is None:
-            return
-        try:
-            import httpx
-            base_metar = "https://aviationweather.gov/api/data/metar"
-            base_taf = "https://aviationweather.gov/api/data/taf"
-            with httpx.Client(timeout=httpx.Timeout(8.0)) as client:
-                mr = client.get(base_metar, params={"ids": key, "format": "json"})
-                tr = client.get(base_taf, params={"ids": key, "format": "json"})
-                metar_items = mr.json() if mr.status_code == 200 else []
-                taf_items = tr.json() if tr.status_code == 200 else []
-        except Exception as e:
-            if hasattr(self, "status_bar") and self.status_bar:
-                self.status_bar.showMessage(f"Direct fetch failed: {e}")
-            return
-
-        def first_text(items: list, *keys: str) -> str | None:
-            if not isinstance(items, list) or not items:
-                return None
-            obj = items[0]
-            if not isinstance(obj, dict):
-                return None
-            for k in keys:
-                v = obj.get(k)
-                if v:
-                    return str(v)
-            return None
-
-        metar_text = first_text(metar_items, "rawOb", "raw_text", "rawText", "raw") or ""
-        taf_text = first_text(taf_items, "rawTAF", "raw_text", "rawText", "raw") or ""
-        if metar_text:
-            self._metars[key] = metar_text
-        if taf_text:
-            self._tafs[key] = taf_text
-        self._render_combined()
-
     def _refresh_all_now(self) -> None:
         if hasattr(self, "status_bar") and self.status_bar:
             self.status_bar.showMessage("Refreshing stations…")
-        for key in list(self._panels.keys()):
-            self._fetch_and_fill(key)
+        if self._stations:
+            self.api.request_metar(self._stations)
+            self.api.request_taf(self._stations)
         try:
             self.api.refresh_all()
         except Exception:

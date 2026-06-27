@@ -34,9 +34,13 @@ class HwoViewerWindow(QMainWindow):
         self.resize(900, 700)
         self.api = WeatherApiManager.instance()
         self.api.dataUpdated.connect(self._handle_data)
+        self.api.fetchFailed.connect(self._handle_error)
         self._last_find_term = ""
         self._setup_ui()
         self._load_state()
+        lat, lon = self.api.weather_location()
+        if lat is not None and lon is not None:
+            self.api.request_hwo(float(lat), float(lon))
 
     def _setup_ui(self) -> None:
         toolbar = QToolBar("HWO Toolbar", self)
@@ -102,7 +106,18 @@ class HwoViewerWindow(QMainWindow):
             self.status_bar.showMessage(f"'{text}' not found")
 
     def _open_browser(self) -> None:
-        self.status_bar.showMessage("Open in browser pending configuration")
+        hwo = getattr(self.api, "_hwo_payload", None) or {}
+        url = hwo.get("url")
+        if not url:
+            self.status_bar.showMessage("No live HWO URL available")
+            return
+        try:
+            import webbrowser
+
+            webbrowser.open(str(url))
+            self.status_bar.showMessage("Opened HWO in browser")
+        except Exception:
+            self.status_bar.showMessage("Could not open browser")
 
     def _handle_data(self, payload: dict) -> None:
         hwo_text = payload.get("hwo")
@@ -110,6 +125,15 @@ class HwoViewerWindow(QMainWindow):
             self.body.setPlainText(hwo_text.get("text", ""))
             self.issued_label.setText(f"Issued by: {hwo_text.get('office', '—')}")
             self.time_label.setText(f"Time: {hwo_text.get('time', '—')}")
+        else:
+            self.body.setPlainText("No Hazardous Weather Outlook available for the current location.")
+            self.issued_label.setText("Issued by: —")
+            self.time_label.setText("Time: —")
+
+    def _handle_error(self, context: str, error: Exception) -> None:
+        if context != "hwo":
+            return
+        self.status_bar.showMessage(f"HWO load failed: {error}")
 
     def _load_state(self) -> None:
         settings_store = weather_settings()

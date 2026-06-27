@@ -5,8 +5,9 @@ from __future__ import annotations
 import functools
 import logging
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -25,12 +26,16 @@ except Exception:  # pragma: no cover - environment-dependent
     _EXECUTOR = _futures.ThreadPoolExecutor(max_workers=4)
 
 from ..data_providers.noaa_metar_taf import NoaaMetarProvider, NoaaTafProvider
+from ..data_providers.noaa_forecast import NoaaForecastProvider
+from ..data_providers.noaa_hwo import NoaaHwoProvider
 from ..data_providers.noaa_nws_advisories import NoaaNwsAdvisoryProvider
 from ..data_providers.lightning_stub import LightningStub
 from ..models.advisory import Advisory
 from ..models.lightning import LightningStrike
-from ..models.readings import MetarReading, TafReading
+from ..models.readings import ForecastPeriod, MetarReading, TafReading
 from . import cache, settings
+from utils.incident_context import get_active_incident_id
+from utils.api_client import api_client
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +48,7 @@ class WeatherApiManager(QObject):
     fetchFailed = Signal(str, object)
     alertsUpdated = Signal(list)
     lightningUpdated = Signal(list)
+    forecastUpdated = Signal(dict)
 
     _instance: "WeatherApiManager" | None = None
 
@@ -51,6 +57,8 @@ class WeatherApiManager(QObject):
         self.setObjectName("weatherApiManager")
         self._metar_provider = NoaaMetarProvider()
         self._taf_provider = NoaaTafProvider()
+        self._forecast_provider = NoaaForecastProvider()
+        self._hwo_provider = NoaaHwoProvider()
         self._advisory_provider = NoaaNwsAdvisoryProvider()
         self._lightning_provider = LightningStub()
         self._watchers: List[QFutureWatcher] = [] if _HAS_QTCONCURRENT else []
@@ -60,6 +68,7 @@ class WeatherApiManager(QObject):
         self._taf_cache: Dict[str, TafReading] = {}
         self._advisory_cache: List[Advisory] = []
         self._lightning_cache: List[LightningStrike] = []
+        self._forecast_cache: Dict[str, Dict[str, Any]] = {}
         self._hwo_payload: Dict[str, Any] | None = None
         config_path = Path("modules/intel/weather/settings/api_config.json")
         self._api_config = settings.load_api_config(config_path)
@@ -75,14 +84,71 @@ class WeatherApiManager(QObject):
         return cls._instance
 
     def configure_polling(self, minutes: int) -> None:
-        interval_ms = max(minutes, 1) * 60_000
+        minutes = max(minutes, 1)
+        interval_ms = minutes * 60_000
         self._timer.start(interval_ms)
+        self._last_polling_minutes = minutes
+        self._save_settings_to_server(polling_minutes=minutes)
         LOGGER.debug("Polling interval set to %s minutes", minutes)
+
+    def station_codes(self) -> list[str]:
+        return list(getattr(self, "_last_icao_codes", []))
+
+    def add_station_code(self, code: str) -> list[str]:
+        station = code.strip().upper()
+        if not station:
+            return self.station_codes()
+        stations = self.station_codes()
+        if station not in stations:
+            stations.append(station)
+            self._save_settings_to_server(icao_codes=stations)
+        return stations
+
+    def remove_station_code(self, code: str) -> list[str]:
+        station = code.strip().upper()
+        stations = [item for item in self.station_codes() if item != station]
+        self._save_settings_to_server(icao_codes=stations)
+        self._metar_cache.pop(station, None)
+        self._taf_cache.pop(station, None)
+        self._publish_data()
+        return stations
+
+    def set_default_station(self, code: str) -> list[str]:
+        station = code.strip().upper()
+        stations = [item for item in self.station_codes() if item != station]
+        if station:
+            stations.insert(0, station)
+        self._save_settings_to_server(icao_codes=stations)
+        return stations
+
+    def weather_location(self) -> tuple[Optional[float], Optional[float]]:
+        return (
+            getattr(self, "_last_latitude", None),
+            getattr(self, "_last_longitude", None),
+        )
+
+    def location_presets(self) -> list[dict[str, Any]]:
+        return list(getattr(self, "_location_presets", []))
+
+    def active_location_preset(self) -> str:
+        return str(getattr(self, "_active_location_preset", "") or "")
+
+    def save_location_presets(
+        self,
+        presets: list[dict[str, Any]],
+        *,
+        active_preset: str | None = None,
+    ) -> None:
+        self._location_presets = [dict(item) for item in presets if isinstance(item, dict)]
+        if active_preset is not None:
+            self._active_location_preset = active_preset
+        self._save_settings_to_server()
 
     def request_metar(self, icao_codes: Iterable[str]) -> None:
         codes = list({code.strip().upper() for code in icao_codes if code})
         if not codes:
             return
+        self._save_settings_to_server(icao_codes=self._merge_station_codes(codes))
         LOGGER.debug("Requesting METAR data for %s", codes)
         self._run_async(
             functools.partial(self._metar_provider.fetch_metar, codes),
@@ -94,6 +160,7 @@ class WeatherApiManager(QObject):
         codes = list({code.strip().upper() for code in icao_codes if code})
         if not codes:
             return
+        self._save_settings_to_server(icao_codes=self._merge_station_codes(codes))
         LOGGER.debug("Requesting TAF data for %s", codes)
         self._run_async(
             functools.partial(self._taf_provider.fetch_taf, codes),
@@ -110,6 +177,30 @@ class WeatherApiManager(QObject):
             self._on_advisory_result,
             "advisories",
         )
+        self._save_settings_to_server(latitude=latitude, longitude=longitude)
+
+    def request_hwo(self, latitude: float, longitude: float) -> None:
+        self._run_async(
+            functools.partial(self._hwo_provider.fetch_hwo, latitude, longitude),
+            self._on_hwo_result,
+            "hwo",
+        )
+        self._save_settings_to_server(latitude=latitude, longitude=longitude)
+
+    def request_forecast(self, latitude: float, longitude: float, label: str = "") -> None:
+        location_key = self._forecast_key(latitude, longitude)
+        self._run_async(
+            functools.partial(self._forecast_provider.fetch_forecast, latitude, longitude),
+            functools.partial(
+                self._on_forecast_result,
+                location_key=location_key,
+                label=label,
+                latitude=latitude,
+                longitude=longitude,
+            ),
+            "forecast",
+        )
+        self._save_settings_to_server(latitude=latitude, longitude=longitude)
 
     def request_lightning(self, latitude: float, longitude: float, radius_nm: float) -> None:
         LOGGER.debug(
@@ -125,6 +216,7 @@ class WeatherApiManager(QObject):
             self._on_lightning_result,
             "lightning",
         )
+        self._save_settings_to_server(latitude=latitude, longitude=longitude, radius_nm=radius_nm)
 
     def refresh_all(self) -> None:
         self.statusChanged.emit("Refreshing weather data…")
@@ -133,6 +225,17 @@ class WeatherApiManager(QObject):
             self.request_metar(self._metar_cache.keys())
         if self._taf_cache:
             self.request_taf(self._taf_cache.keys())
+        if self._forecast_cache:
+            for item in list(self._forecast_cache.values()):
+                self.request_forecast(
+                    float(item.get("latitude", 0.0)),
+                    float(item.get("longitude", 0.0)),
+                    str(item.get("label", "")),
+                )
+        lat = getattr(self, "_last_latitude", None)
+        lon = getattr(self, "_last_longitude", None)
+        if lat is not None and lon is not None:
+            self.request_hwo(float(lat), float(lon))
         if self._advisory_cache:
             self.alertsUpdated.emit([asdict(item) for item in self._advisory_cache])
         if self._lightning_cache:
@@ -170,6 +273,26 @@ class WeatherApiManager(QObject):
         self.alertsUpdated.emit([asdict(item) for item in advisories])
         self._publish_data()
 
+    def _on_forecast_result(
+        self,
+        periods: List[ForecastPeriod],
+        *,
+        location_key: str,
+        label: str,
+        latitude: float,
+        longitude: float,
+    ) -> None:
+        entry = {
+            "label": label,
+            "latitude": latitude,
+            "longitude": longitude,
+            "periods": [asdict(period) for period in periods],
+        }
+        self._forecast_cache[location_key] = entry
+        cache.write_cache("forecast", self._forecast_cache)
+        self.forecastUpdated.emit({location_key: entry})
+        self._publish_data()
+
     def _on_lightning_result(self, strikes: List[LightningStrike]) -> None:
         self._lightning_cache = strikes
         cache.write_cache(
@@ -177,12 +300,18 @@ class WeatherApiManager(QObject):
         )
         self.lightningUpdated.emit([asdict(item) for item in strikes])
 
+    def _on_hwo_result(self, payload: Dict[str, Any] | None) -> None:
+        self._hwo_payload = payload or None
+        cache.write_cache("hwo", payload or {})
+        self._publish_data()
+
     def _publish_data(self) -> None:
         payload: Dict[str, Any] = {
             "metar": {key: asdict(value) for key, value in self._metar_cache.items()},
             "taf": {key: asdict(value) for key, value in self._taf_cache.items()},
             "advisories": [asdict(item) for item in self._advisory_cache],
             "lightning": [asdict(item) for item in self._lightning_cache],
+            "forecast": self._forecast_cache,
             "hwo": self._hwo_payload,
         }
         self.dataUpdated.emit(payload)
@@ -205,8 +334,83 @@ class WeatherApiManager(QObject):
                 cache.write_cache("last_payload_debug_empty", payload)
         except Exception:  # pragma: no cover - debug path only
             pass
+        self._save_settings_to_server()
+
+    def _save_settings_to_server(
+        self,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        radius_nm: Optional[float] = None,
+        icao_codes: Optional[list[str]] = None,
+        polling_minutes: Optional[int] = None,
+        active_location_preset: Optional[str] = None,
+        location_presets: Optional[list[dict[str, Any]]] = None,
+    ) -> None:
+        incident_id = get_active_incident_id()
+        if not incident_id:
+            return
+        
+        if latitude is not None:
+            self._last_latitude = latitude
+        if longitude is not None:
+            self._last_longitude = longitude
+        if radius_nm is not None:
+            self._last_radius_nm = radius_nm
+        if icao_codes is not None:
+            self._last_icao_codes = icao_codes
+        if polling_minutes is not None:
+            self._last_polling_minutes = polling_minutes
+        if active_location_preset is not None:
+            self._active_location_preset = active_location_preset
+        if location_presets is not None:
+            self._location_presets = [dict(item) for item in location_presets if isinstance(item, dict)]
+            
+        payload = {
+            "latitude": getattr(self, "_last_latitude", 39.8283),
+            "longitude": getattr(self, "_last_longitude", -98.5795),
+            "radius_nm": getattr(self, "_last_radius_nm", 25.0),
+            "icao_codes": getattr(self, "_last_icao_codes", []),
+            "polling_minutes": getattr(self, "_last_polling_minutes", 10),
+            "active_location_preset": getattr(self, "_active_location_preset", ""),
+            "location_presets": getattr(self, "_location_presets", []),
+            "weather_payload": {
+                "metar": {k: asdict(v) for k, v in self._metar_cache.items()},
+                "taf": {k: asdict(v) for k, v in self._taf_cache.items()},
+                "advisories": [asdict(item) for item in self._advisory_cache],
+                "lightning": [asdict(item) for item in self._lightning_cache],
+                "forecast": self._forecast_cache,
+                "hwo": self._hwo_payload,
+            }
+        }
+        
+        try:
+            if _HAS_QTCONCURRENT and _qt_run is not None:
+                _qt_run(lambda: api_client.post(f"/api/incidents/{incident_id}/weather", json=payload))
+            else:
+                _EXECUTOR.submit(lambda: api_client.post(f"/api/incidents/{incident_id}/weather", json=payload))
+        except Exception:
+            LOGGER.exception("Failed to post weather config to server")
 
     def _load_cached_payloads(self) -> None:
+        incident_id = get_active_incident_id()
+        if incident_id:
+            try:
+                config = api_client.get(f"/api/incidents/{incident_id}/weather")
+                if config:
+                    self._last_latitude = config.get("latitude")
+                    self._last_longitude = config.get("longitude")
+                    self._last_radius_nm = config.get("radius_nm", 25.0)
+                    self._last_icao_codes = config.get("icao_codes", [])
+                    self._last_polling_minutes = config.get("polling_minutes", 10)
+                    self._active_location_preset = str(config.get("active_location_preset") or "")
+                    self._location_presets = [
+                        dict(item)
+                        for item in (config.get("location_presets") or [])
+                        if isinstance(item, dict)
+                    ]
+            except Exception:
+                LOGGER.warning("Could not load weather settings from server, using local fallback")
+
         cached_metar = cache.read_cache("metar") or {}
         for key, payload in cached_metar.items():
             self._metar_cache[key] = MetarReading(
@@ -224,8 +428,8 @@ class WeatherApiManager(QObject):
             Advisory(
                 event=item.get("event", ""),
                 severity=item.get("severity"),
-                start=item.get("start"),
-                end=item.get("end"),
+                start=self._deserialize_datetime(item.get("start")),
+                end=self._deserialize_datetime(item.get("end")),
                 headline=item.get("headline"),
                 description=item.get("description"),
                 certainty=item.get("certainty"),
@@ -234,18 +438,40 @@ class WeatherApiManager(QObject):
             )
             for item in cached_adv.values()
         ]
+        cached_forecast = cache.read_cache("forecast") or {}
+        self._forecast_cache = {
+            str(key): value
+            for key, value in cached_forecast.items()
+            if isinstance(value, dict)
+        }
+        cached_hwo = cache.read_cache("hwo") or {}
+        self._hwo_payload = cached_hwo if isinstance(cached_hwo, dict) and cached_hwo else None
         cached_lightning = cache.read_cache("lightning") or {}
         self._lightning_cache = []
-        for _ in cached_lightning.values():
-            # Placeholder; actual reconstruction requires timestamp parsing.
-            continue
-        if self._metar_cache or self._taf_cache or self._advisory_cache:
+        for item in cached_lightning.values():
+            try:
+                ts_str = item.get("timestamp")
+                if ts_str:
+                    ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                else:
+                    ts = datetime.now(timezone.utc)
+                self._lightning_cache.append(
+                    LightningStrike(
+                        timestamp=ts,
+                        latitude=float(item.get("latitude", 0.0)),
+                        longitude=float(item.get("longitude", 0.0)),
+                        amplitude=item.get("amplitude"),
+                    )
+                )
+            except Exception:
+                LOGGER.exception("Failed to parse cached lightning strike: %s", item)
+        if self._metar_cache or self._taf_cache or self._advisory_cache or self._lightning_cache or self._forecast_cache or self._hwo_payload:
             self._publish_data()
 
     def _run_async(
         self,
-        func: callable,
-        callback: callable,
+        func: Callable[[], Any],
+        callback: Callable[[Any], None],
         context: str,
     ) -> None:
         if _HAS_QTCONCURRENT and _qt_run is not None and QFutureWatcher is not None:
@@ -281,6 +507,27 @@ class WeatherApiManager(QObject):
                 QTimer.singleShot(0, lambda: self.fetchFailed.emit(context, exc))
 
         future.add_done_callback(_done)
+
+    def _merge_station_codes(self, icao_codes: Iterable[str]) -> list[str]:
+        merged = self.station_codes()
+        for code in icao_codes:
+            station = code.strip().upper()
+            if station and station not in merged:
+                merged.append(station)
+        return merged
+
+    @staticmethod
+    def _forecast_key(latitude: float, longitude: float) -> str:
+        return f"{latitude:.4f},{longitude:.4f}"
+
+    @staticmethod
+    def _deserialize_datetime(value: Any) -> Optional[datetime]:
+        if not value or not isinstance(value, str):
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except Exception:  # pragma: no cover - defensive
+            return None
 
 
 __all__ = ["WeatherApiManager"]

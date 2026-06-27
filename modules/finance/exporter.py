@@ -5,10 +5,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-
 from utils import incident_storage
+
+from . import services
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -22,35 +21,8 @@ def _export_dir_for_incident(incident_id: str) -> Path:
     return export_dir
 
 
-def export_fuel_report(session: Session, incident_id: str) -> Dict[str, str]:
-    rows = session.execute(
-        text(
-            """
-            WITH expense_totals AS (
-                SELECT linked_forecast_id AS forecast_id,
-                       COALESCE(SUM(amount_total), 0) AS actual_cost
-                FROM finance_expenses
-                WHERE incident_id = :incident_id
-                  AND category = 'Fuel'
-                  AND linked_forecast_id IS NOT NULL
-                GROUP BY linked_forecast_id
-            )
-            SELECT
-                f.forecast_name,
-                COALESCE(SUM(l.estimated_gallons), 0) AS estimated_gallons,
-                COALESCE(SUM(l.estimated_cost), 0) AS estimated_cost,
-                COALESCE(et.actual_cost, 0) AS actual_cost,
-                COALESCE(et.actual_cost, 0) - COALESCE(SUM(l.estimated_cost), 0) AS variance
-            FROM finance_fuel_forecast_lines l
-            JOIN finance_forecasts f ON f.id = l.forecast_id
-            LEFT JOIN expense_totals et ON et.forecast_id = f.id
-            WHERE f.incident_id = :incident_id
-            GROUP BY f.id, f.forecast_name, et.actual_cost
-            ORDER BY f.forecast_name
-            """
-        ),
-        {"incident_id": incident_id},
-    ).mappings().all()
+def export_fuel_report(incident_id: str) -> Dict[str, str]:
+    rows = services.get_fuel_report(incident_id)
 
     export_dir = _export_dir_for_incident(incident_id)
     path = export_dir / "fuel_report.csv"
@@ -60,35 +32,26 @@ def export_fuel_report(session: Session, incident_id: str) -> Dict[str, str]:
         for row in rows:
             writer.writerow(
                 [
-                    row["forecast_name"],
-                    row["estimated_gallons"],
-                    row["estimated_cost"],
-                    row["actual_cost"],
-                    row["variance"],
+                    row.forecast_name,
+                    row.estimated_gallons,
+                    row.estimated_cost,
+                    row.actual_cost,
+                    row.variance,
                 ]
             )
     return {"path": str(path), "created_at": datetime.utcnow().isoformat(timespec="seconds")}
 
 
-def export_incident_cost_summary(session: Session, incident_id: str) -> Dict[str, str]:
-    row = session.execute(
-        text(
-            """
-            SELECT
-                COALESCE((SELECT SUM(total_estimated_cost) FROM finance_forecasts WHERE incident_id = :incident_id), 0) AS total_forecast,
-                COALESCE((SELECT SUM(amount_total) FROM finance_expenses WHERE incident_id = :incident_id), 0) AS total_actual
-            """
-        ),
-        {"incident_id": incident_id},
-    ).mappings().one()
-    variance = row["total_actual"] - row["total_forecast"]
+def export_incident_cost_summary(incident_id: str) -> Dict[str, str]:
+    snapshot = services.get_dashboard_snapshot(incident_id)
+    variance = snapshot.total_actual_cost - snapshot.total_forecast_cost
 
     export_dir = _export_dir_for_incident(incident_id)
     path = export_dir / "incident_cost_summary.csv"
     with open(path, "w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(["incident_id", "total_forecast", "total_actual", "variance"])
-        writer.writerow([incident_id, row["total_forecast"], row["total_actual"], variance])
+        writer.writerow([incident_id, snapshot.total_forecast_cost, snapshot.total_actual_cost, variance])
     return {"path": str(path), "created_at": datetime.utcnow().isoformat(timespec="seconds")}
 
 

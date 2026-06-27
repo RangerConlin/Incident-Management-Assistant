@@ -301,9 +301,9 @@ def comms_getPrimaryFrequencies() -> List[str]:
 
 def comms_getCommsLog(limit: int = 50) -> List[str]:
     try:
-        from modules.communications.traffic_log.repository import CommsLogRepository
+        from modules.communications.traffic_log.repository import ApiCommsLogRepository
         from modules.communications.traffic_log.models import CommsLogQuery
-        repo = CommsLogRepository()
+        repo = ApiCommsLogRepository()
         entries = repo.list_entries(CommsLogQuery())
         result = []
         for e in entries[-(limit):]:

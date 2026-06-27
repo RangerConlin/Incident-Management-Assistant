@@ -357,7 +357,7 @@ class _AssignResourceDialog(QDialog):
         self.table.setRowCount(len(unassigned))
         self._team_ids: list[int] = []
         for row, team in enumerate(unassigned):
-            self._team_ids.append(int(team["id"]))
+            self._team_ids.append(int(team["int_id"]))
             self.table.setItem(row, 0, QTableWidgetItem(str(team.get("name") or "")))
             self.table.setItem(row, 1, QTableWidgetItem(str(team.get("status") or "")))
 
@@ -690,7 +690,7 @@ class OperationsSectionWindow(QDialog):
         teams = self._teams.list_teams_for_unit(unit_id)
         self.resources_table.setRowCount(len(teams))
         for row, team in enumerate(teams):
-            team_id = team.get("id")
+            team_id = team.get("int_id")
             kind_key = str(team.get("ics_resource_kind") or "single_resource").lower()
             resource_type = _RESOURCE_TYPE_LABELS.get(kind_key, "Single Resource")
             cells = [

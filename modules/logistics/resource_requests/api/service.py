@@ -93,13 +93,22 @@ class ResourceRequestService:
         supplier_id: Optional[str] = None,
         team_id: Optional[str] = None,
         vehicle_id: Optional[str] = None,
+        destination_location: Optional[str] = None,
+        destination_facility_id: Optional[str] = None,
         eta_utc: Optional[str] = None,
         note: Optional[str] = None,
     ) -> str:
         result = self._client().post(
             f"{self._base()}/{request_id}/fulfillments",
-            json={"supplier_id": supplier_id, "team_id": team_id, "vehicle_id": vehicle_id,
-                  "eta_utc": eta_utc, "note": note},
+            json={
+                "supplier_id": supplier_id,
+                "team_id": team_id,
+                "vehicle_id": vehicle_id,
+                "destination_location": destination_location,
+                "destination_facility_id": destination_facility_id,
+                "eta_utc": eta_utc,
+                "note": note,
+            },
         )
         return result.get("id", "")
 
@@ -109,6 +118,8 @@ class ResourceRequestService:
         status: str,
         note: Optional[str] = None,
         eta_utc: Optional[str] = None,
+        destination_location: Optional[str] = None,
+        destination_facility_id: Optional[str] = None,
         *,
         request_id: Optional[str] = None,
     ) -> None:
@@ -116,7 +127,13 @@ class ResourceRequestService:
         if request_id:
             self._client().patch(
                 f"{self._base()}/{request_id}/fulfillments/{fulfillment_id}",
-                json={"status": parsed_status.value, "note": note, "eta_utc": eta_utc},
+                json={
+                    "status": parsed_status.value,
+                    "note": note,
+                    "eta_utc": eta_utc,
+                    "destination_location": destination_location,
+                    "destination_facility_id": destination_facility_id,
+                },
             )
             return
         # Fallback: search all requests for the matching fulfillment
@@ -130,7 +147,13 @@ class ResourceRequestService:
                 if f.get("id") == fulfillment_id:
                     self._client().patch(
                         f"{self._base()}/{rid}/fulfillments/{fulfillment_id}",
-                        json={"status": parsed_status.value, "note": note, "eta_utc": eta_utc},
+                        json={
+                            "status": parsed_status.value,
+                            "note": note,
+                            "eta_utc": eta_utc,
+                            "destination_location": destination_location,
+                            "destination_facility_id": destination_facility_id,
+                        },
                     )
                     return
         raise ValidationError(f"Unknown fulfillment record: {fulfillment_id}")

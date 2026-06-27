@@ -18,6 +18,7 @@ __all__ = [
     "get_checkin_panel",
     "get_requests_panel",
     "get_213rr_panel",
+    "get_facilities_manager_panel",
     "get_personnel_panel",
     "get_vehicles_panel",
     "get_resource_status_board_panel",
@@ -119,6 +120,14 @@ def get_213rr_panel(incident_id: object | None = None) -> QWidget:
     detail_panel.requestSaved.connect(lambda _: list_panel.refresh())
 
     return container
+
+
+def get_facilities_manager_panel(incident_id: object | None = None) -> QWidget:
+    if incident_id is not None:
+        incident_context.set_active_incident(str(incident_id))
+    from modules.logistics.facilities import get_facilities_manager_panel as _get_facilities_manager_panel
+
+    return _get_facilities_manager_panel(incident_id)
 
 
 def get_personnel_panel(incident_id: object | None = None) -> QWidget:

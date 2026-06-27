@@ -9,9 +9,38 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException
 
 from sarapp_db.mongo.client import get_db
-from sarapp_db.mongo.collection_names import IncidentCollections
+from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
+from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+
+class TasksRepository(BaseRepository):
+    collection_name = IncidentCollections.OPERATIONS_TASKS
+
+
+class TeamsRepository(BaseRepository):
+    collection_name = IncidentCollections.OPERATIONS_TEAMS
+
+
+class DebriefsRepository(BaseRepository):
+    # Uses its own `archived` flag for soft-delete-like behavior; `delete_debrief`
+    # below is a genuine hard delete, matching prior behavior.
+    collection_name = IncidentCollections.OPERATIONS_TASK_DEBRIEFS
+    soft_deletes = False
+
+
+def _tasks_repo(incident_id: str) -> TasksRepository:
+    return TasksRepository(get_db(f"sarapp_incident_{incident_id}"))
+
+
+def _teams_repo(incident_id: str) -> TeamsRepository:
+    return TeamsRepository(get_db(f"sarapp_incident_{incident_id}"))
+
+
+def _debriefs_repo(incident_id: str) -> DebriefsRepository:
+    return DebriefsRepository(get_db(f"sarapp_incident_{incident_id}"))
 
 
 def _now() -> str:
@@ -22,6 +51,8 @@ def _new_id() -> str:
     return uuid.uuid4().hex
 
 
+# Read-only raw collection access — no broadcast needed for reads, so these
+# keep talking to the collection directly rather than through a repository.
 def _tasks(incident_id: str):
     return get_db(f"sarapp_incident_{incident_id}")[IncidentCollections.OPERATIONS_TASKS]
 
@@ -36,6 +67,10 @@ def _debriefs(incident_id: str):
 
 def _personnel(incident_id: str):
     return get_db(f"sarapp_incident_{incident_id}")["incident_personnel"]
+
+
+def _find_by_int_id(repo: BaseRepository, int_id: int) -> Optional[dict]:
+    return repo.find_one({"int_id": int_id})
 
 
 def _find_air_ops_branch_position_id(incident_id: str) -> Optional[int]:
@@ -87,6 +122,9 @@ def _strip(doc: dict) -> dict:
 
 
 def _ensure_int_ids(col) -> int:
+    # Backfill bookkeeping only (assigns int_id to legacy docs that predate
+    # it) — not a user-facing write, so it doesn't go through a repository
+    # or broadcast.
     max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
     counter = max_doc["int_id"] if max_doc else 0
     for doc in col.find({"int_id": {"$exists": False}}):
@@ -142,6 +180,9 @@ def _normalize_incident_person(doc: dict) -> dict:
 # Incident-scoped personnel (check-in copies of master roster records,
 # keyed by the master record's int_id — see _find_incident_person)
 # ---------------------------------------------------------------------------
+# Personnel module is not yet migrated onto BaseRepository (see CLAUDE.md);
+# left as raw collection writes, unchanged, deliberately out of this pass's
+# scope.
 
 @router.get("/incidents/{incident_id}/operations/personnel/{master_id}")
 def get_incident_person(incident_id: str, master_id: str) -> dict:
@@ -166,7 +207,11 @@ def update_incident_person(incident_id: str, master_id: str, body: dict[str, Any
 
 @router.post("/incidents/{incident_id}/operations/personnel/sync-from-master")
 def sync_incident_personnel_from_master(incident_id: str) -> dict:
-    """Refresh every incident-scoped personnel copy from its master record."""
+    """Refresh every incident-scoped personnel copy from its master record.
+
+    Called when an incident is loaded, so copies that missed a push-down
+    sync (because a different incident was active at edit time) catch up.
+    """
     from sarapp_db.mongo.database_manager import get_master_db
     from sarapp_db.mongo.collection_names import MasterCollections
 
@@ -207,8 +252,8 @@ def list_tasks(incident_id: str) -> list[dict]:
 
 @router.post("/incidents/{incident_id}/operations/tasks", status_code=201)
 def create_task(incident_id: str, body: dict[str, Any]) -> dict:
-    col = _tasks(incident_id)
-    int_id = _next_int_id(col)
+    repo = _tasks_repo(incident_id)
+    int_id = _next_int_id(repo._col)
     # Auto-generate task_id if not supplied
     task_id_str = body.get("task_id")
     if not task_id_str:
@@ -236,7 +281,7 @@ def create_task(incident_id: str, body: dict[str, Any]) -> dict:
         "comms": [],
         "task_assignment": {},
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _strip(doc)
 
 
@@ -251,16 +296,13 @@ def get_task(incident_id: str, task_id: int) -> dict:
 
 @router.patch("/incidents/{incident_id}/operations/tasks/{task_id}")
 def update_task(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
-    col = _tasks(incident_id)
-    body.pop("int_id", None)
-    result = col.find_one_and_update(
-        {"int_id": task_id},
-        {"$set": body},
-        return_document=True,
-    )
-    if not result:
+    repo = _tasks_repo(incident_id)
+    doc = _find_by_int_id(repo, task_id)
+    if not doc:
         raise HTTPException(404, f"Task {task_id} not found")
-    return _strip(result)
+    body.pop("int_id", None)
+    repo.update_one(doc["_id"], body)
+    return _strip(repo.find_by_id(doc["_id"]))
 
 
 @router.get("/incidents/{incident_id}/operations/task-rows")
@@ -341,15 +383,12 @@ def set_task_status(incident_id: str, task_id: int, body: dict[str, Any]) -> dic
         "created": "Draft", "planned": "Planned", "assigned": "Assigned",
         "in progress": "In Progress", "complete": "Completed", "cancelled": "Cancelled",
     }.get(status_key, body.get("status_key", ""))
-    col = _tasks(incident_id)
-    result = col.find_one_and_update(
-        {"int_id": task_id},
-        {"$set": {"status": to_db}},
-        return_document=True,
-    )
-    if not result:
+    repo = _tasks_repo(incident_id)
+    doc = _find_by_int_id(repo, task_id)
+    if not doc:
         raise HTTPException(404, f"Task {task_id} not found")
-    return _strip(result)
+    repo.update_one(doc["_id"], {"status": to_db})
+    return _strip(repo.find_by_id(doc["_id"]))
 
 
 # ---------------------------------------------------------------------------
@@ -365,8 +404,8 @@ def list_teams(incident_id: str) -> list[dict]:
 
 @router.post("/incidents/{incident_id}/operations/teams", status_code=201)
 def create_team(incident_id: str, body: dict[str, Any]) -> dict:
-    col = _teams(incident_id)
-    int_id = _next_int_id(col)
+    repo = _teams_repo(incident_id)
+    int_id = _next_int_id(repo._col)
     operational_unit_id = body.get("operational_unit_id")
     if operational_unit_id is None and str(body.get("team_type") or "").strip().upper() == "AIR":
         # Aircraft teams auto-slot under the Air Operations Branch for chain
@@ -385,22 +424,22 @@ def create_team(incident_id: str, body: dict[str, Any]) -> dict:
         "notes": body.get("notes"),
         "status": body.get("status", "Available"),
         "status_updated": None,
-        "current_task_id": None,
+        "current_task_id": body.get("current_task_id"),
         "location": body.get("location"),
         "operational_unit_id": operational_unit_id,
-        "needs_attention": False,
+        "needs_attention": bool(body.get("needs_attention", False)),
         "emergency_flag": False,
         "last_checkin_at": None,
         "checkin_reference_at": None,
         "last_comm_ping": None,
-        "members_json": "[]",
-        "vehicles_json": "[]",
-        "equipment_json": "[]",
-        "aircraft_json": "[]",
+        "members_json": body.get("members_json", "[]"),
+        "vehicles_json": body.get("vehicles_json", "[]"),
+        "equipment_json": body.get("equipment_json", "[]"),
+        "aircraft_json": body.get("aircraft_json", "[]"),
         "resource_type_id": body.get("resource_type_id"),
         "readiness_status": body.get("readiness_status"),
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _strip(doc)
 
 
@@ -419,7 +458,10 @@ def get_team(incident_id: str, team_id: int) -> dict:
 
 @router.patch("/incidents/{incident_id}/operations/teams/{team_id}")
 def update_team(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
-    col = _teams(incident_id)
+    repo = _teams_repo(incident_id)
+    doc = _find_by_int_id(repo, team_id)
+    if not doc:
+        raise HTTPException(404, f"Team {team_id} not found")
     body.pop("int_id", None)
     if "team_type" in body and "operational_unit_id" not in body:
         # If this edit is changing the team to an aircraft type and isn't
@@ -429,23 +471,19 @@ def update_team(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
             air_ops_id = _find_air_ops_branch_position_id(incident_id)
             if air_ops_id is not None:
                 body["operational_unit_id"] = air_ops_id
-    result = col.find_one_and_update(
-        {"int_id": team_id},
-        {"$set": body},
-        return_document=True,
-    )
-    if not result:
-        raise HTTPException(404, f"Team {team_id} not found")
-    return _strip(result)
+    repo.update_one(doc["_id"], body)
+    return _strip(repo.find_by_id(doc["_id"]))
 
 
 @router.delete("/incidents/{incident_id}/operations/teams/{team_id}")
 def delete_team(incident_id: str, team_id: int) -> dict:
-    teams_col = _teams(incident_id)
-    tasks_col = _tasks(incident_id)
-    teams_col.delete_one({"int_id": team_id})
-    # Remove from task_teams arrays
-    tasks_col.update_many({}, {"$pull": {"task_teams": {"team_id": team_id}}})
+    teams_repo = _teams_repo(incident_id)
+    doc = _find_by_int_id(teams_repo, team_id)
+    if doc:
+        teams_repo.delete_one(doc["_id"])
+    # Remove from task_teams arrays across every task in one bulk operation —
+    # not a single-document broadcast-able write, so this stays a raw call.
+    _tasks(incident_id).update_many({}, {"$pull": {"task_teams": {"team_id": team_id}}})
     return {"ok": True}
 
 
@@ -462,15 +500,15 @@ def find_teams_by_label(incident_id: str, label: str = "") -> list[dict]:
 @router.patch("/incidents/{incident_id}/operations/teams/{team_id}/status")
 def set_team_status(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
     """Update team status and optionally stamp a task_teams timestamp."""
-    teams_col = _teams(incident_id)
-    tasks_col = _tasks(incident_id)
+    teams_repo = _teams_repo(incident_id)
+    tasks_repo = _tasks_repo(incident_id)
     status_key = str(body.get("status_key", "")).lower()
     now = _now()
     display = {
         "enroute": "En Route", "arrival": "On Scene", "on scene": "On Scene", "rtb": "RTB",
     }.get(status_key, status_key.title())
 
-    team = teams_col.find_one({"int_id": team_id})
+    team = _find_by_int_id(teams_repo, team_id)
     if not team:
         raise HTTPException(404, f"Team {team_id} not found")
 
@@ -481,66 +519,56 @@ def set_team_status(incident_id: str, team_id: int, body: dict[str, Any]) -> dic
         # Clear current task assignment
         if current_task_id is not None:
             # Stamp time_cleared on latest task_team for this team/task
-            task = tasks_col.find_one({"int_id": current_task_id})
+            task = _find_by_int_id(tasks_repo, current_task_id)
             if task:
                 tt_list = task.get("task_teams") or []
                 for i in range(len(tt_list) - 1, -1, -1):
                     if tt_list[i].get("team_id") == team_id:
                         if not tt_list[i].get("time_cleared"):
-                            tasks_col.update_one(
-                                {"int_id": current_task_id, f"task_teams.{i}.team_id": team_id},
-                                {"$set": {f"task_teams.{i}.time_cleared": now}},
-                            )
+                            tasks_repo.update_one(task["_id"], {f"task_teams.{i}.time_cleared": now})
                         break
-            tasks_col.update_one(
-                {"int_id": current_task_id},
-                {"$pull": {"active_team_ids": team_id}},
-            )
+            if task:
+                tasks_repo.apply_update(task["_id"], {"$pull": {"active_team_ids": team_id}})
         updates["current_task_id"] = None
 
     elif status_key in TS_STATUS_COLS and current_task_id is not None:
         col_name = TS_STATUS_COLS[status_key]
-        task = tasks_col.find_one({"int_id": current_task_id})
+        task = _find_by_int_id(tasks_repo, current_task_id)
         if task:
             tt_list = task.get("task_teams") or []
             for i in range(len(tt_list) - 1, -1, -1):
                 if tt_list[i].get("team_id") == team_id:
                     if not tt_list[i].get(col_name):
-                        tasks_col.update_one(
-                            {"int_id": current_task_id, f"task_teams.{i}.team_id": team_id},
-                            {"$set": {f"task_teams.{i}.{col_name}": now}},
-                        )
+                        tasks_repo.update_one(task["_id"], {f"task_teams.{i}.{col_name}": now})
                     break
 
-    result = teams_col.find_one_and_update(
-        {"int_id": team_id},
-        {"$set": updates},
-        return_document=True,
-    )
-    return _strip(result)
+    teams_repo.update_one(team["_id"], updates)
+    return _strip(teams_repo.find_by_id(team["_id"]))
 
 
 @router.patch("/incidents/{incident_id}/operations/teams/{team_id}/checkin")
 def touch_team_checkin(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
-    col = _teams(incident_id)
+    repo = _teams_repo(incident_id)
+    doc = _find_by_int_id(repo, team_id)
+    if not doc:
+        raise HTTPException(404, f"Team {team_id} not found")
     updates = {
         "last_checkin_at": body.get("checkin_time") or _now(),
         "checkin_reference_at": body.get("reference_time") or body.get("checkin_time") or _now(),
     }
-    result = col.find_one_and_update({"int_id": team_id}, {"$set": updates}, return_document=True)
-    if not result:
-        raise HTTPException(404, f"Team {team_id} not found")
-    return _strip(result)
+    repo.update_one(doc["_id"], updates)
+    return _strip(repo.find_by_id(doc["_id"]))
 
 
 @router.patch("/incidents/{incident_id}/operations/teams/{team_id}/comm-ping")
 def reset_team_comm_timer(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
-    col = _teams(incident_id)
-    ts = body.get("when") or _now()
-    result = col.find_one_and_update({"int_id": team_id}, {"$set": {"last_comm_ping": ts}}, return_document=True)
-    if not result:
+    repo = _teams_repo(incident_id)
+    doc = _find_by_int_id(repo, team_id)
+    if not doc:
         raise HTTPException(404, f"Team {team_id} not found")
-    return _strip(result)
+    ts = body.get("when") or body.get("ts") or _now()
+    repo.update_one(doc["_id"], {"last_comm_ping": ts})
+    return _strip(repo.find_by_id(doc["_id"]))
 
 
 @router.get("/incidents/{incident_id}/operations/team-assignment-rows")
@@ -625,14 +653,25 @@ def list_task_teams(incident_id: str, task_id: int) -> list[dict]:
     doc = col.find_one({"int_id": task_id})
     if not doc:
         raise HTTPException(404, f"Task {task_id} not found")
-    return doc.get("task_teams") or []
+    teams_col = _teams(incident_id)
+    out: list[dict] = []
+    for tt in (doc.get("task_teams") or []):
+        tt = dict(tt)
+        team = teams_col.find_one({"int_id": tt.get("team_id")})
+        if team:
+            leader_name, leader_phone = _resolve_leader(incident_id, team)
+            tt["team_leader"] = leader_name or tt.get("team_leader") or ""
+            tt["team_leader_phone"] = leader_phone or tt.get("team_leader_phone") or ""
+            tt["team_name"] = team.get("name") or tt.get("team_name") or f"Team {tt.get('team_id')}"
+        out.append(tt)
+    return out
 
 
 @router.post("/incidents/{incident_id}/operations/tasks/{task_id}/teams", status_code=201)
 def add_task_team(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
-    tasks_col = _tasks(incident_id)
-    teams_col = _teams(incident_id)
-    task = tasks_col.find_one({"int_id": task_id})
+    tasks_repo = _tasks_repo(incident_id)
+    teams_repo = _teams_repo(incident_id)
+    task = _find_by_int_id(tasks_repo, task_id)
     if not task:
         raise HTTPException(404, f"Task {task_id} not found")
 
@@ -653,7 +692,7 @@ def add_task_team(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
     tt_id = _next_tt_id(existing_teams)
 
     # Get team info for embedding
-    team = teams_col.find_one({"int_id": team_id})
+    team = _find_by_int_id(teams_repo, team_id)
     team_name = team.get("name") if team else None
     leader_name, leader_contact = _resolve_leader(incident_id, team or {})
 
@@ -673,22 +712,23 @@ def add_task_team(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
         "time_complete": None,
         "time_cleared": None,
     }
-    tasks_col.update_one(
-        {"int_id": task_id},
+    tasks_repo.apply_update(
+        task["_id"],
         {"$push": {"task_teams": tt}, "$addToSet": {"active_team_ids": team_id}},
     )
     # Update team's current_task_id
-    teams_col.update_one({"int_id": team_id}, {"$set": {"current_task_id": task_id}})
+    if team is not None:
+        teams_repo.update_one(team["_id"], {"current_task_id": task_id})
     return {"tt_id": tt_id, "team_id": team_id, **tt}
 
 
 @router.patch("/incidents/{incident_id}/operations/tasks/{task_id}/teams/{tt_id}/status")
 def set_task_team_status(incident_id: str, task_id: int, tt_id: int, body: dict[str, Any]) -> dict:
-    tasks_col = _tasks(incident_id)
-    teams_col = _teams(incident_id)
+    tasks_repo = _tasks_repo(incident_id)
+    teams_repo = _teams_repo(incident_id)
     status_key = str(body.get("status_key", "")).lower()
     now = _now()
-    task = tasks_col.find_one({"int_id": task_id})
+    task = _find_by_int_id(tasks_repo, task_id)
     if not task:
         raise HTTPException(404, f"Task {task_id} not found")
     tt_list = task.get("task_teams") or []
@@ -712,18 +752,20 @@ def set_task_team_status(incident_id: str, task_id: int, tt_id: int, body: dict[
     )
     team_id = tt_list[idx].get("team_id")
     if team_id is not None:
-        teams_col.update_one({"int_id": team_id}, {"$set": {"status": display, "status_updated": now}})
+        team = _find_by_int_id(teams_repo, team_id)
+        if team:
+            teams_repo.update_one(team["_id"], {"status": display, "status_updated": now})
 
     if updates:
-        tasks_col.update_one({"int_id": task_id}, {"$set": updates})
+        tasks_repo.update_one(task["_id"], updates)
 
     return {"ok": True, "status_key": status_key, "team_id": team_id}
 
 
 @router.patch("/incidents/{incident_id}/operations/tasks/{task_id}/teams/{tt_id}/primary")
 def set_primary_team(incident_id: str, task_id: int, tt_id: int) -> dict:
-    col = _tasks(incident_id)
-    task = col.find_one({"int_id": task_id})
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
     if not task:
         raise HTTPException(404)
     tt_list = task.get("task_teams") or []
@@ -731,29 +773,29 @@ def set_primary_team(incident_id: str, task_id: int, tt_id: int) -> dict:
     for i, tt in enumerate(tt_list):
         updates[f"task_teams.{i}.is_primary"] = tt.get("id") == tt_id
     if updates:
-        col.update_one({"int_id": task_id}, {"$set": updates})
+        repo.update_one(task["_id"], updates)
     return {"ok": True}
 
 
 @router.patch("/incidents/{incident_id}/operations/tasks/{task_id}/teams/{tt_id}/sortie")
 def update_sortie_id(incident_id: str, task_id: int, tt_id: int, body: dict[str, Any]) -> dict:
-    col = _tasks(incident_id)
-    task = col.find_one({"int_id": task_id})
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
     if not task:
         raise HTTPException(404)
     tt_list = task.get("task_teams") or []
     idx = next((i for i, t in enumerate(tt_list) if t.get("id") == tt_id), None)
     if idx is None:
         raise HTTPException(404)
-    col.update_one({"int_id": task_id}, {"$set": {f"task_teams.{idx}.sortie_id": body.get("sortie_id")}})
+    repo.update_one(task["_id"], {f"task_teams.{idx}.sortie_id": body.get("sortie_id")})
     return {"ok": True}
 
 
 @router.delete("/incidents/{incident_id}/operations/tasks/{task_id}/teams/{tt_id}")
 def remove_task_team(incident_id: str, task_id: int, tt_id: int) -> dict:
-    col = _tasks(incident_id)
-    teams_col = _teams(incident_id)
-    task = col.find_one({"int_id": task_id})
+    tasks_repo = _tasks_repo(incident_id)
+    teams_repo = _teams_repo(incident_id)
+    task = _find_by_int_id(tasks_repo, task_id)
     if not task:
         raise HTTPException(404)
     tt_list = task.get("task_teams") or []
@@ -763,48 +805,128 @@ def remove_task_team(incident_id: str, task_id: int, tt_id: int) -> dict:
     pull_spec: dict[str, Any] = {"task_teams": {"id": tt_id}}
     if removed_team_id is not None:
         pull_spec["active_team_ids"] = removed_team_id
-    col.update_one({"int_id": task_id}, {"$pull": pull_spec})
+    tasks_repo.apply_update(task["_id"], {"$pull": pull_spec})
     # If was primary and others remain, promote the first remaining
     if was_primary:
-        task2 = col.find_one({"int_id": task_id})
+        task2 = tasks_repo.find_by_id(task["_id"])
         remaining = task2.get("task_teams") or [] if task2 else []
         if remaining:
-            col.update_one({"int_id": task_id, "task_teams.id": remaining[0]["id"]},
-                           {"$set": {"task_teams.$.is_primary": True}})
+            promote_idx = 0
+            tasks_repo.update_one(task["_id"], {f"task_teams.{promote_idx}.is_primary": True})
     # Clear the team's stale assignment pointer, but only if it still points
     # here — avoids clobbering a newer assignment made after this removal.
     if removed_team_id is not None:
-        teams_col.update_one(
-            {"int_id": removed_team_id, "current_task_id": task_id},
-            {"$set": {"current_task_id": None}},
-        )
+        removed_team = _find_by_int_id(teams_repo, removed_team_id)
+        if removed_team and removed_team.get("current_task_id") == task_id:
+            teams_repo.update_one(removed_team["_id"], {"current_task_id": None})
     return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
-# Task personnel / vehicles / aircraft (stubs until personnel module migrated)
+# Task personnel / vehicles / aircraft — rolled up from the teams assigned
+# to the task (there is no separate task-level assignment step; a person,
+# vehicle, or aircraft shows up here because their team is on this task).
 # ---------------------------------------------------------------------------
+
+def _parse_id_list(value: Any) -> list[int]:
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            return []
+    if not isinstance(value, (list, tuple)):
+        return []
+    out: list[int] = []
+    for item in value:
+        try:
+            out.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _task_team_docs(incident_id: str, task_id: int) -> list[dict]:
+    """Full team documents for every team currently assigned to the task."""
+    task = _tasks(incident_id).find_one({"int_id": task_id})
+    if not task:
+        return []
+    teams_col = _teams(incident_id)
+    team_ids = [tt.get("team_id") for tt in (task.get("task_teams") or []) if tt.get("team_id") is not None]
+    out: list[dict] = []
+    for tid in team_ids:
+        team = teams_col.find_one({"int_id": tid})
+        if team:
+            out.append(team)
+    return out
+
 
 @router.get("/incidents/{incident_id}/operations/tasks/{task_id}/personnel")
 def list_task_personnel(incident_id: str, task_id: int) -> list[dict]:
-    """Returns personnel embedded in task. Full join deferred until personnel module migrated."""
-    col = _tasks(incident_id)
-    doc = col.find_one({"int_id": task_id})
-    return doc.get("personnel") or [] if doc else []
+    """Personnel rolled up from every team's roster on this task."""
+    out: list[dict] = []
+    for team in _task_team_docs(incident_id, task_id):
+        team_name = team.get("name") or f"Team {team.get('int_id')}"
+        member_ids = _parse_id_list(team.get("members_json") or team.get("member_personnel_ids"))
+        for pid in member_ids:
+            person = _find_incident_person(incident_id, pid)
+            if not person:
+                continue
+            name = person.get("name") or (
+                ((person.get("first_name") or "") + " " + (person.get("last_name") or "")).strip()
+            )
+            out.append({
+                "active": True,
+                "name": name,
+                "id": person.get("master_id") if person.get("master_id") is not None else person.get("sqlite_id"),
+                "rank": person.get("rank") or "",
+                "role": person.get("role") or "",
+                "organization": person.get("organization") or person.get("unit") or "",
+                "phone": person.get("phone") or "",
+                "team_name": team_name,
+            })
+    return out
 
 
 @router.get("/incidents/{incident_id}/operations/tasks/{task_id}/vehicles")
 def list_task_vehicles(incident_id: str, task_id: int) -> list[dict]:
-    col = _tasks(incident_id)
-    doc = col.find_one({"int_id": task_id})
-    return doc.get("vehicles") or [] if doc else []
+    """Vehicles rolled up from every team's roster on this task."""
+    master_vehicles = get_master_db()[MasterCollections.VEHICLES]
+    out: list[dict] = []
+    for team in _task_team_docs(incident_id, task_id):
+        for vid in _parse_id_list(team.get("vehicles_json") or team.get("vehicle_ids")):
+            v = master_vehicles.find_one({"$or": [{"int_id": vid}, {"vehicle_id": vid}]})
+            if not v:
+                continue
+            out.append({
+                "active": True,
+                "id": v.get("vehicle_id") or v.get("int_id"),
+                "license_plate": v.get("license_plate") or "",
+                "type": v.get("type") or "",
+                "organization": v.get("organization") or "",
+            })
+    return out
 
 
 @router.get("/incidents/{incident_id}/operations/tasks/{task_id}/aircraft")
 def list_task_aircraft(incident_id: str, task_id: int) -> list[dict]:
-    col = _tasks(incident_id)
-    doc = col.find_one({"int_id": task_id})
-    return doc.get("aircraft") or [] if doc else []
+    """Aircraft rolled up from every team's roster on this task."""
+    master_aircraft = get_master_db()[MasterCollections.AIRCRAFT]
+    out: list[dict] = []
+    for team in _task_team_docs(incident_id, task_id):
+        for aid in _parse_id_list(team.get("aircraft_json") or team.get("aircraft_ids")):
+            a = master_aircraft.find_one({"int_id": aid})
+            if not a:
+                continue
+            out.append({
+                "active": True,
+                "callsign": a.get("callsign") or "",
+                "tail_number": a.get("tail_number") or "",
+                "type": a.get("type") or "",
+                "organization": a.get("organization") or "",
+            })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -820,22 +942,22 @@ def list_task_comms(incident_id: str, task_id: int) -> list[dict]:
 
 @router.post("/incidents/{incident_id}/operations/tasks/{task_id}/comms", status_code=201)
 def add_task_comm(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
-    col = _tasks(incident_id)
-    task = col.find_one({"int_id": task_id})
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
     if not task:
         raise HTTPException(404)
     comms = task.get("comms") or []
     comm_id = (max((c.get("id") or 0) for c in comms) + 1) if comms else 1
     comm = {"id": comm_id, "incident_channel_id": body.get("incident_channel_id"),
             "function": body.get("function"), "remarks": body.get("remarks")}
-    col.update_one({"int_id": task_id}, {"$push": {"comms": comm}})
+    repo.apply_update(task["_id"], {"$push": {"comms": comm}})
     return {"id": comm_id, **comm}
 
 
 @router.patch("/incidents/{incident_id}/operations/tasks/{task_id}/comms/{comm_id}")
 def update_task_comm(incident_id: str, task_id: int, comm_id: int, body: dict[str, Any]) -> dict:
-    col = _tasks(incident_id)
-    task = col.find_one({"int_id": task_id})
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
     if not task:
         raise HTTPException(404)
     comms = task.get("comms") or []
@@ -848,14 +970,16 @@ def update_task_comm(incident_id: str, task_id: int, comm_id: int, body: dict[st
     if "function" in body:
         updates[f"comms.{idx}.function"] = body["function"]
     if updates:
-        col.update_one({"int_id": task_id}, {"$set": updates})
+        repo.update_one(task["_id"], updates)
     return {"ok": True}
 
 
 @router.delete("/incidents/{incident_id}/operations/tasks/{task_id}/comms/{comm_id}")
 def remove_task_comm(incident_id: str, task_id: int, comm_id: int) -> dict:
-    col = _tasks(incident_id)
-    col.update_one({"int_id": task_id}, {"$pull": {"comms": {"id": comm_id}}})
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
+    if task:
+        repo.apply_update(task["_id"], {"$pull": {"comms": {"id": comm_id}}})
     return {"ok": True}
 
 
@@ -878,15 +1002,59 @@ def get_task_assignment(incident_id: str, task_id: int) -> dict:
 
 @router.put("/incidents/{incident_id}/operations/tasks/{task_id}/assignment")
 def save_task_assignment(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
-    col = _tasks(incident_id)
-    result = col.find_one_and_update(
-        {"int_id": task_id},
-        {"$set": {"task_assignment": body}},
-        return_document=True,
-    )
-    if not result:
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
+    if not task:
         raise HTTPException(404)
-    return result.get("task_assignment") or {}
+    repo.update_one(task["_id"], {"task_assignment": body})
+    updated = repo.find_by_id(task["_id"])
+    return updated.get("task_assignment") or {}
+
+
+# ---------------------------------------------------------------------------
+# Task narratives
+# ---------------------------------------------------------------------------
+
+@router.get("/incidents/{incident_id}/operations/tasks/{task_id}/narrative")
+def list_task_narrative(incident_id: str, task_id: int) -> list[dict]:
+    col = _tasks(incident_id)
+    doc = col.find_one({"int_id": task_id}, {"narrative": 1})
+    entries = sorted(
+        (doc or {}).get("narrative") or [],
+        key=lambda e: e.get("timestamp", ""),
+    )
+    return entries
+
+
+@router.post("/incidents/{incident_id}/operations/tasks/{task_id}/narrative", status_code=201)
+def add_task_narrative(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
+    if not task:
+        raise HTTPException(404)
+    entry = {
+        "id": _new_id(),
+        "timestamp": body.get("timestamp") or _now(),
+        "narrative": body.get("narrative") or body.get("text") or "",
+        "entered_by": body.get("entered_by") or "",
+        "team_id": body.get("team_id"),
+        "team_num": body.get("team_num") or "",
+        "critical": bool(body.get("critical", False)),
+        "source": body.get("source", "manual"),
+    }
+    repo.apply_update(task["_id"], {"$push": {"narrative": entry}})
+    return entry
+
+
+@router.delete(
+    "/incidents/{incident_id}/operations/tasks/{task_id}/narrative/{entry_id}",
+    status_code=204,
+)
+def delete_task_narrative(incident_id: str, task_id: int, entry_id: str) -> None:
+    repo = _tasks_repo(incident_id)
+    task = _find_by_int_id(repo, task_id)
+    if task:
+        repo.apply_update(task["_id"], {"$pull": {"narrative": {"id": entry_id}}})
 
 
 # ---------------------------------------------------------------------------
@@ -901,8 +1069,8 @@ def list_task_debriefs(incident_id: str, task_id: int) -> list[dict]:
 
 @router.post("/incidents/{incident_id}/operations/tasks/{task_id}/debriefs", status_code=201)
 def create_debrief(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
-    col = _debriefs(incident_id)
-    int_id = _next_int_id(col)
+    repo = _debriefs_repo(incident_id)
+    int_id = _next_int_id(repo._col)
     doc = {
         "int_id": int_id,
         "task_id": task_id,
@@ -915,7 +1083,7 @@ def create_debrief(incident_id: str, task_id: int, body: dict[str, Any]) -> dict
         "archived": False,
         "created_at": _now(),
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _strip(doc)
 
 
@@ -930,38 +1098,40 @@ def get_debrief(incident_id: str, debrief_id: int) -> dict:
 
 @router.patch("/incidents/{incident_id}/operations/debriefs/{debrief_id}")
 def update_debrief_header(incident_id: str, debrief_id: int, body: dict[str, Any]) -> dict:
-    col = _debriefs(incident_id)
-    body.pop("int_id", None)
-    result = col.find_one_and_update({"int_id": debrief_id}, {"$set": body}, return_document=True)
-    if not result:
+    repo = _debriefs_repo(incident_id)
+    doc = _find_by_int_id(repo, debrief_id)
+    if not doc:
         raise HTTPException(404)
-    return _strip(result)
+    body.pop("int_id", None)
+    repo.update_one(doc["_id"], body)
+    return _strip(repo.find_by_id(doc["_id"]))
 
 
 @router.put("/incidents/{incident_id}/operations/debriefs/{debrief_id}/forms/{form_key}")
 def save_debrief_form(incident_id: str, debrief_id: int, form_key: str, body: dict[str, Any]) -> dict:
-    col = _debriefs(incident_id)
-    result = col.find_one_and_update(
-        {"int_id": debrief_id},
-        {"$set": {f"forms.{form_key}": body}},
-        return_document=True,
-    )
-    if not result:
+    repo = _debriefs_repo(incident_id)
+    doc = _find_by_int_id(repo, debrief_id)
+    if not doc:
         raise HTTPException(404)
+    repo.update_one(doc["_id"], {f"forms.{form_key}": body})
     return {"ok": True}
 
 
 @router.post("/incidents/{incident_id}/operations/debriefs/{debrief_id}/archive")
 def archive_debrief(incident_id: str, debrief_id: int) -> dict:
-    col = _debriefs(incident_id)
-    col.update_one({"int_id": debrief_id}, {"$set": {"archived": True}})
+    repo = _debriefs_repo(incident_id)
+    doc = _find_by_int_id(repo, debrief_id)
+    if doc:
+        repo.update_one(doc["_id"], {"archived": True})
     return {"ok": True}
 
 
 @router.delete("/incidents/{incident_id}/operations/debriefs/{debrief_id}")
 def delete_debrief(incident_id: str, debrief_id: int) -> dict:
-    col = _debriefs(incident_id)
-    col.delete_one({"int_id": debrief_id})
+    repo = _debriefs_repo(incident_id)
+    doc = _find_by_int_id(repo, debrief_id)
+    if doc:
+        repo.delete_one(doc["_id"])
     return {"ok": True}
 
 

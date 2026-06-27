@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from networking.server_info import DEFAULT_DISCOVERY_PORT, DEFAULT_SERVER_PORT
+from lan_server.networking.server_info import DEFAULT_DISCOVERY_PORT, DEFAULT_SERVER_PORT
 
 
 def _default_config_path() -> Path:

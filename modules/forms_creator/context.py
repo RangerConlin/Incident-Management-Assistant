@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from modules.intel.weather.services.summary import build_weather_form_payload
 from utils import incident_context
 from utils.api_client import api_client
 
@@ -36,6 +37,58 @@ def _get(path: str, **params) -> Any:
         return api_client.get(path, params=params or None)
     except Exception:
         return None
+
+
+def _roman_trauma_level(value: int) -> str:
+    return {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V"}.get(value, "")
+
+
+def _coerce_trauma_level(value: Any) -> int:
+    if value in (None, "", 0, "0", False):
+        return 0
+    if isinstance(value, int):
+        return max(0, min(value, 5))
+    text = str(value).strip().upper()
+    if text in {"I", "1"}:
+        return 1
+    if text in {"II", "2"}:
+        return 2
+    if text in {"III", "3"}:
+        return 3
+    if text in {"IV", "4"}:
+        return 4
+    if text in {"V", "5"}:
+        return 5
+    return 0
+
+
+def _format_trauma_display(adult_level: int, pediatric_level: int) -> str:
+    adult = _roman_trauma_level(adult_level)
+    pediatric = _roman_trauma_level(pediatric_level)
+    if adult and pediatric:
+        return f"A-{adult} / P-{pediatric}"
+    if adult:
+        return adult
+    if pediatric:
+        return f"P-{pediatric}"
+    return ""
+
+
+def _coerce_service_level(row: dict[str, Any]) -> int:
+    raw = row.get("service_level")
+    try:
+        if raw not in (None, ""):
+            level = int(raw)
+            if level in (0, 1, 2):
+                return level
+    except (TypeError, ValueError):
+        pass
+    text = str(row.get("type") or "").strip().lower()
+    if "als" in text:
+        return 2
+    if "bls" in text:
+        return 1
+    return 0
 
 
 class FormDataContext:
@@ -137,8 +190,15 @@ class FormDataContext:
         data["personnel"]       = self._build_personnel()
         data["master_vehicles"] = self._build_master_vehicles()
         data["equipment"]       = self._build_equipment()
-        data["hospitals"]       = []
-        data["ems_agencies"]    = []
+        data["hospitals"]       = self._build_hospitals()
+        data["ems_agencies"]    = self._build_ems_agencies()
+        data["ics_206_aid_stations"] = self._build_ics_206_aid_stations(inc_id, current_op)
+        data["ics_206_ambulance_services"] = self._build_ics_206_ambulance_services(inc_id, current_op)
+        data["ics_206_hospitals"] = self._build_ics_206_hospitals(inc_id, current_op)
+        data["ics_206_air_ambulance"] = self._build_ics_206_air_ambulance(inc_id, current_op)
+        data["ics_206_medical_comms"] = self._build_ics_206_medical_comms(inc_id, current_op)
+        data["ics_206_procedures"] = self._build_ics_206_procedures(inc_id, current_op)
+        data["ics_206_signatures"] = self._build_ics_206_signatures(inc_id, current_op)
         data["comms_resources"] = self._build_comms_resources()
         data["resource_types"]  = self._build_resource_types()
 
@@ -153,9 +213,12 @@ class FormDataContext:
         data["cap_orm_hazards"] = self._build_cap_orm_hazards(inc_id, current_op)
         data["cap_orm_audit"]   = self._build_cap_orm_audit(inc_id, current_op)
         data["ics_208"]         = self._build_ics_208(inc_id, current_op)
+        data["ics_215a_rows"]   = self._build_ics_215a_rows(inc_id, current_op)
         data["iwi_reports"]     = self._build_iwi_reports(inc_id)
         data["hazard_types"]    = self._build_hazard_types()
         data["safety_analysis_templates"] = self._build_safety_analysis_templates()
+        data["weather"]         = self._build_weather(inc_id)
+        data["facilities"]      = self._build_facilities(inc_id)
 
         data["uc_commanders"]              = self._build_uc_commanders(inc_id)
         data["org_branches"]               = self._build_org_branches(inc_id)   # each entry carries branch director + div slots
@@ -180,12 +243,29 @@ class FormDataContext:
     # ------------------------------------------------------------------
 
     def _build_incident(self, inc_id: str | None) -> dict[str, Any]:
-        empty = {"name": "", "number": "", "type": "", "description": "", "icp_location": "", "start_time": ""}
+        empty = {
+            "name": "",
+            "number": "",
+            "type": "",
+            "description": "",
+            "icp_location": "",
+            "icp_facility_id": "",
+            "icp_facility_name": "",
+            "start_time": "",
+        }
         if not inc_id:
             return empty
         try:
             doc = _get(f"/api/incidents/{inc_id}")
             if doc:
+                icp_facility_id = str(doc.get("icp_facility_id") or "")
+                icp_facility_name = ""
+                if icp_facility_id:
+                    try:
+                        facility = _get(f"/api/incidents/{inc_id}/facilities/{icp_facility_id}") or {}
+                        icp_facility_name = str(facility.get("name") or "")
+                    except Exception:
+                        icp_facility_name = ""
                 return {
                     "id": doc.get("id", ""),
                     "name": doc.get("name", ""),
@@ -193,6 +273,8 @@ class FormDataContext:
                     "type": doc.get("type", "") or doc.get("incident_type", ""),
                     "description": doc.get("description", ""),
                     "icp_location": doc.get("icp_location", "") or doc.get("location", ""),
+                    "icp_facility_id": icp_facility_id,
+                    "icp_facility_name": icp_facility_name,
                     "start_time": doc.get("start_time", "") or doc.get("start_date", ""),
                 }
         except Exception:
@@ -211,7 +293,7 @@ class FormDataContext:
         if not inc_id:
             return empty
         try:
-            periods = _get(f"/api/incidents/{inc_id}/operational-periods") or []
+            periods = _get(f"/api/incidents/{inc_id}/planning/operational-periods") or []
             if periods:
                 row = periods[-1]
                 start = row.get("start_time") or row.get("op_start") or ""
@@ -448,7 +530,7 @@ class FormDataContext:
         if not inc_id:
             return []
         try:
-            rows = _get(f"/api/incidents/{inc_id}/comms/channels") or []
+            rows = _get(f"/api/incidents/{inc_id}/channels-plan") or []
             return [
                 {
                     "id": r.get("id") or "",
@@ -464,10 +546,6 @@ class FormDataContext:
                     "tx_freq": r.get("tx_freq") or r.get("freq_tx") or "",
                     "rx_tone": r.get("rx_tone") or "",
                     "tx_tone": r.get("tx_tone") or "",
-                    "squelch_type": r.get("squelch_type") or "",
-                    "squelch_value": r.get("squelch_value") or "",
-                    "repeater": bool(r.get("repeater")),
-                    "offset": r.get("offset") or "",
                     "encryption": r.get("encryption") or "",
                     "assignment_division": r.get("assignment_division") or "",
                     "assignment_team": r.get("assignment_team") or "",
@@ -570,7 +648,36 @@ class FormDataContext:
                 created = r.get("created_at") or ""
                 r.setdefault("task_date", _fmt_date(created))
                 r.setdefault("task_time", _fmt_time(created))
+                r.setdefault("location_facility_id", r.get("location_facility_id") or "")
             return rows
+        except Exception:
+            return []
+
+    def _build_facilities(self, inc_id: str | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/facilities") or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "incident_id": row.get("incident_id") or inc_id,
+                    "name": row.get("name") or "",
+                    "facility_type": row.get("facility_type") or "",
+                    "status": row.get("status") or "",
+                    "address": row.get("address") or "",
+                    "geocoded_address": row.get("geocoded_address") or "",
+                    "latitude": row.get("latitude"),
+                    "longitude": row.get("longitude"),
+                    "manager_personnel_id": row.get("manager_personnel_id") or "",
+                    "manager_name": row.get("manager_name") or "",
+                    "contact_name": row.get("contact_name") or "",
+                    "contact_phone": row.get("contact_phone") or "",
+                    "notes": row.get("notes") or "",
+                    "is_primary": bool(row.get("is_primary")),
+                }
+                for row in rows
+            ]
         except Exception:
             return []
 
@@ -1067,6 +1174,7 @@ class FormDataContext:
         empty = {
             "incident_id": "", "op_period": "", "op_period_from": "", "op_period_to": "",
             "safety_message": "", "site_safety_plan_required": False, "site_safety_plan_location": "",
+            "weather_summary": "",
             "prepared_by_name": "", "prepared_by_position": "", "prepared_by_datetime": "",
             "created_at": "", "updated_at": "",
         }
@@ -1084,6 +1192,7 @@ class FormDataContext:
                 "safety_message": row.get("safety_message") or "",
                 "site_safety_plan_required": bool(row.get("site_safety_plan_required")),
                 "site_safety_plan_location": row.get("site_safety_plan_location") or "",
+                "weather_summary": row.get("weather_summary") or "",
                 "prepared_by_name": row.get("prepared_by_name") or "",
                 "prepared_by_position": row.get("prepared_by_position") or "",
                 "prepared_by_datetime": row.get("prepared_by_datetime") or "",
@@ -1092,6 +1201,15 @@ class FormDataContext:
             }
         except Exception:
             return empty
+
+    def _build_weather(self, inc_id: str | None) -> dict[str, Any]:
+        if not inc_id:
+            return build_weather_form_payload({})
+        try:
+            config = _get(f"/api/incidents/{inc_id}/weather") or {}
+        except Exception:
+            config = {}
+        return build_weather_form_payload(config)
 
     def _build_iwi_reports(self, inc_id: str | None) -> list[dict[str, Any]]:
         if not inc_id:
@@ -1140,6 +1258,60 @@ class FormDataContext:
                 }
                 for row in rows
             ]
+        except Exception:
+            return []
+
+    def _build_ics_215a_rows(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            params: dict[str, Any] = {}
+            if op_number is not None:
+                params["op_period_id"] = op_number
+            work_assignments = _get(
+                f"/api/incidents/{inc_id}/planning/work-assignments",
+                **params,
+            ) or []
+            rows: list[dict[str, Any]] = []
+            for assignment in work_assignments:
+                branch = assignment.get("branch") or ""
+                division_group = assignment.get("division_group") or ""
+                assignment_number = assignment.get("assignment_number") or ""
+                assignment_name = assignment.get("assignment_name") or ""
+                branch_div_group = " / ".join(
+                    part for part in (branch, division_group) if part
+                )
+                if not branch_div_group:
+                    branch_div_group = assignment_number or assignment_name
+                work_assignment = " - ".join(
+                    part for part in (assignment_number, assignment_name) if part
+                ) or assignment_name or assignment_number
+                for hazard in assignment.get("hazards") or []:
+                    rows.append(
+                        {
+                            "work_assignment_id": assignment.get("id") or "",
+                            "branch_div_group": branch_div_group,
+                            "work_assignment": work_assignment,
+                            "assignment_number": assignment_number,
+                            "assignment_name": assignment_name,
+                            "location": assignment.get("location") or "",
+                            "location_facility_id": assignment.get("location_facility_id") or "",
+                            "hazard_id": hazard.get("id") or "",
+                            "hazard": hazard.get("hazard_type_text") or "",
+                            "category": hazard.get("category") or "",
+                            "risk_level": hazard.get("risk_level") or "",
+                            "likelihood": hazard.get("likelihood") or "",
+                            "severity": hazard.get("severity") or "",
+                            "control_measure": hazard.get("control_measure")
+                            or hazard.get("mitigation_text")
+                            or "",
+                            "mitigation_text": hazard.get("mitigation_text") or "",
+                            "ppe_text": hazard.get("ppe_text") or "",
+                            "resolved": bool(hazard.get("is_resolved")),
+                            "notes": hazard.get("notes") or "",
+                        }
+                    )
+            return rows
         except Exception:
             return []
 
@@ -1327,6 +1499,220 @@ class FormDataContext:
             return _get("/api/master/equipment") or []
         except Exception:
             return []
+
+    # ------------------------------------------------------------------
+    # Medical (master + incident ICS 206)
+    # ------------------------------------------------------------------
+
+    def _normalize_hospital_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        adult_level = _coerce_trauma_level(
+            row.get("adult_trauma_level") or row.get("trauma_level") or row.get("level")
+        )
+        pediatric_level = _coerce_trauma_level(row.get("pediatric_trauma_level"))
+        if pediatric_level == 0 and row.get("pediatric_capability") and adult_level:
+            pediatric_level = adult_level
+        return {
+            "id": row.get("id") or "",
+            "hospital_id": row.get("hospital_id") or "",
+            "name": row.get("name") or "",
+            "type": row.get("type") or "",
+            "code": row.get("code") or "",
+            "phone": row.get("phone") or "",
+            "phone_er": row.get("phone_er") or "",
+            "phone_switchboard": row.get("phone_switchboard") or "",
+            "fax": row.get("fax") or "",
+            "email": row.get("email") or "",
+            "address": row.get("address") or "",
+            "city": row.get("city") or "",
+            "state": row.get("state") or "",
+            "zip": row.get("zip") or "",
+            "contact": row.get("contact") or "",
+            "contact_name": row.get("contact_name") or "",
+            "helipad": bool(row.get("helipad")),
+            "burn_center": bool(row.get("burn_center")),
+            "pediatric_capability": bool(row.get("pediatric_capability")),
+            "adult_trauma_level": adult_level,
+            "pediatric_trauma_level": pediatric_level,
+            "trauma_level_display": _format_trauma_display(adult_level, pediatric_level),
+            "travel_time_min": row.get("travel_time_min") or "",
+            "bed_available": row.get("bed_available") or "",
+            "diversion_status": row.get("diversion_status") or "",
+            "ambulance_radio_channel": row.get("ambulance_radio_channel") or "",
+            "lat": row.get("lat") if row.get("lat") is not None else "",
+            "lon": row.get("lon") if row.get("lon") is not None else "",
+            "notes": row.get("notes") or "",
+            "is_active": bool(row.get("is_active", True)),
+            "op_period": row.get("op_period") or "",
+        }
+
+    def _normalize_ems_agency_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        service_level = _coerce_service_level(row)
+        return {
+            "id": row.get("id") or "",
+            "name": row.get("name") or "",
+            "type": row.get("type") or "",
+            "service_level": service_level,
+            "service_level_label": {0: "Other", 1: "BLS", 2: "ALS"}.get(service_level, "Other"),
+            "phone": row.get("phone") or "",
+            "radio_channel": row.get("radio_channel") or "",
+            "address": row.get("address") or "",
+            "city": row.get("city") or "",
+            "state": row.get("state") or "",
+            "zip": row.get("zip") or "",
+            "lat": row.get("lat") if row.get("lat") is not None else "",
+            "lon": row.get("lon") if row.get("lon") is not None else "",
+            "notes": row.get("notes") or "",
+            "default_on_206": bool(row.get("default_on_206")),
+            "is_active": bool(row.get("is_active", True)),
+            "op_period": row.get("op_period") or "",
+        }
+
+    def _build_hospitals(self) -> list[dict[str, Any]]:
+        try:
+            rows = _get("/api/master/hospitals") or []
+            return [self._normalize_hospital_row(row) for row in rows]
+        except Exception:
+            return []
+
+    def _build_ems_agencies(self) -> list[dict[str, Any]]:
+        try:
+            rows = _get("/api/master/ems-agencies") or []
+            return [self._normalize_ems_agency_row(row) for row in rows]
+        except Exception:
+            return []
+
+    def _build_ics_206_aid_stations(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/medical/ics206/aid-stations", op=op_number) or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "op_period": row.get("op_period") or "",
+                    "name": row.get("name") or "",
+                    "type": row.get("type") or "",
+                    "level": row.get("level") or "",
+                    "facility_id": row.get("facility_id") or "",
+                    "location_text": row.get("location_text") or "",
+                    "latitude": row.get("latitude"),
+                    "longitude": row.get("longitude"),
+                    "is_24_7": bool(row.get("is_24_7")),
+                    "notes": row.get("notes") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_ics_206_ambulance_services(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/medical/ics206/ambulance-services", op=op_number) or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "op_period": row.get("op_period") or "",
+                    "name": row.get("name") or "",
+                    "type": row.get("type") or "",
+                    "service_level": _coerce_service_level(row),
+                    "service_level_label": {0: "Other", 1: "BLS", 2: "ALS"}.get(_coerce_service_level(row), "Other"),
+                    "phone": row.get("phone") or "",
+                    "location": row.get("location") or "",
+                    "notes": row.get("notes") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_ics_206_hospitals(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/medical/ics206/hospitals", op=op_number) or []
+            return [self._normalize_hospital_row(row) for row in rows]
+        except Exception:
+            return []
+
+    def _build_ics_206_air_ambulance(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/medical/ics206/air-ambulance", op=op_number) or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "op_period": row.get("op_period") or "",
+                    "name": row.get("name") or "",
+                    "phone": row.get("phone") or "",
+                    "base": row.get("base") or "",
+                    "contact": row.get("contact") or "",
+                    "notes": row.get("notes") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_ics_206_medical_comms(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
+        if not inc_id:
+            return []
+        try:
+            rows = _get(f"/api/incidents/{inc_id}/medical/ics206/comms", op=op_number) or []
+            return [
+                {
+                    "id": row.get("id") or "",
+                    "op_period": row.get("op_period") or "",
+                    "channel": row.get("channel") or "",
+                    "function": row.get("function") or "",
+                    "frequency": row.get("frequency") or "",
+                    "mode": row.get("mode") or "",
+                    "notes": row.get("notes") or "",
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+
+    def _build_ics_206_procedures(self, inc_id: str | None, op_number: int | None) -> dict[str, Any]:
+        empty = {"id": "", "op_period": "", "content": ""}
+        if not inc_id:
+            return empty
+        try:
+            row = _get(f"/api/incidents/{inc_id}/medical/ics206/procedures", op=op_number) or {}
+            if not row:
+                return empty
+            return {
+                "id": row.get("id") or "",
+                "op_period": row.get("op_period") or "",
+                "content": row.get("content") or "",
+            }
+        except Exception:
+            return empty
+
+    def _build_ics_206_signatures(self, inc_id: str | None, op_number: int | None) -> dict[str, Any]:
+        empty = {
+            "id": "", "op_period": "", "prepared_by": "", "position": "",
+            "approved_by": "", "date": "",
+        }
+        if not inc_id:
+            return empty
+        try:
+            row = _get(f"/api/incidents/{inc_id}/medical/ics206/signatures", op=op_number) or {}
+            if not row:
+                return empty
+            return {
+                "id": row.get("id") or "",
+                "op_period": row.get("op_period") or "",
+                "prepared_by": row.get("prepared_by") or "",
+                "position": row.get("position") or "",
+                "approved_by": row.get("approved_by") or "",
+                "date": row.get("date") or "",
+            }
+        except Exception:
+            return empty
 
     # ------------------------------------------------------------------
     # Comms resources (master)

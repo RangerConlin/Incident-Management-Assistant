@@ -517,6 +517,7 @@ class ICS208Body(BaseModel):
     safety_message: Optional[str] = None
     site_safety_plan_required: bool = False
     site_safety_plan_location: Optional[str] = None
+    weather_summary: Optional[str] = None
     prepared_by_name: Optional[str] = None
     prepared_by_position: Optional[str] = None
     prepared_by_datetime: Optional[str] = None

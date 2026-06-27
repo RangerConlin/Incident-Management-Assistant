@@ -38,6 +38,14 @@ class IncidentChannelsRepository(BaseRepository):
     soft_deletes = False
 
 
+class ICS205InstanceRepository(BaseRepository):
+    """One document per incident holding ICS-205 header fields that aren't
+    tied to any single channel row (special instructions, which operational
+    period the plan is for)."""
+    collection_name = IncidentCollections.ICS_205_INSTANCES
+    soft_deletes = False
+
+
 class CommunicationsLogRepository(BaseRepository):
     collection_name = IncidentCollections.COMMUNICATIONS_LOG
     soft_deletes = False
@@ -69,6 +77,10 @@ def _radio_channels_repo() -> RadioChannelsRepository:
 
 def _incident_channels_repo(incident_id: str) -> IncidentChannelsRepository:
     return IncidentChannelsRepository(get_incident_db(incident_id))
+
+
+def _ics205_instance_repo(incident_id: str) -> ICS205InstanceRepository:
+    return ICS205InstanceRepository(get_incident_db(incident_id))
 
 
 def _comms_log_repo(incident_id: str) -> CommunicationsLogRepository:
@@ -118,21 +130,6 @@ def _infer_band(freq: float | None) -> str:
     if 700 <= f <= 869:
         return "700/800"
     return "Other"
-
-
-def _infer_squelch(tone: Optional[str]):
-    if tone in (None, "", "CSQ"):
-        return "None", None
-    try:
-        float(tone)
-        return "CTCSS", tone
-    except (TypeError, ValueError):
-        pass
-    if tone and tone.isdigit() and len(tone) in (2, 3):
-        return "DCS", tone
-    if tone and tone.upper().startswith("F"):
-        return "NAC", tone
-    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -185,24 +182,37 @@ def _channel_int_id(channel_id: str) -> Optional[int]:
         return None
 
 
-def _map_incident_channel(doc: Dict[str, Any]) -> Dict[str, Any]:
+def _master_channels_by_id(repo: RadioChannelsRepository) -> Dict[str, Dict[str, Any]]:
+    """All master channels keyed by their string channel_id."""
+    docs = repo.find_many({})
+    for d in docs:
+        d.pop("_id", None)
+    return {str(d.get("channel_id")): _map_master_channel(d) for d in docs}
+
+
+def _map_incident_channel(doc: Dict[str, Any], master_by_id: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Combine an incident-specific plan reference with the live master channel
+    definition it points to. The incident document never owns channel identity
+    (name/freq/tone/mode/etc.) - that always comes from the master catalog so
+    edits to the master channel are reflected immediately in every incident
+    that references it.
+    """
+    master = master_by_id.get(str(doc.get("master_id"))) or {}
     return {
         "id": _channel_int_id(doc.get("channel_id", "")),
         "channel_id": doc.get("channel_id"),
         "master_id": doc.get("master_id"),
-        "channel": doc.get("channel", ""),
-        "function": doc.get("function"),
-        "band": doc.get("band"),
-        "system": doc.get("system"),
-        "mode": doc.get("mode"),
-        "rx_freq": doc.get("rx_freq"),
-        "tx_freq": doc.get("tx_freq"),
-        "rx_tone": doc.get("rx_tone"),
-        "tx_tone": doc.get("tx_tone"),
-        "squelch_type": doc.get("squelch_type"),
-        "squelch_value": doc.get("squelch_value"),
-        "repeater": int(bool(doc.get("repeater", False))),
-        "offset": doc.get("offset"),
+        "channel": master.get("name", ""),
+        "function": master.get("function"),
+        "band": master.get("band"),
+        "system": master.get("system"),
+        "mode": master.get("mode"),
+        "rx_freq": master.get("rx_freq"),
+        "tx_freq": master.get("tx_freq"),
+        "rx_tone": master.get("rx_tone"),
+        "tx_tone": master.get("tx_tone"),
+        "line_a": int(bool(master.get("line_a", False))),
+        "line_c": int(bool(master.get("line_c", False))),
         "encryption": doc.get("encryption", "None"),
         "assignment_division": doc.get("assignment_division"),
         "assignment_team": doc.get("assignment_team"),
@@ -210,8 +220,6 @@ def _map_incident_channel(doc: Dict[str, Any]) -> Dict[str, Any]:
         "include_on_205": int(bool(doc.get("include_on_205", True))),
         "remarks": doc.get("remarks"),
         "sort_index": doc.get("sort_index", 1000),
-        "line_a": int(bool(doc.get("line_a", False))),
-        "line_c": int(bool(doc.get("line_c", False))),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }
@@ -456,13 +464,14 @@ def delete_master_channel(channel_id: int):
 @incident_router.get("/incidents/{incident_id}/channels-plan/validate")
 def validate_channels_plan(incident_id: str):
     repo = _incident_channels_repo(incident_id)
+    master_by_id = _master_channels_by_id(_radio_channels_repo())
     docs = repo.find_many(
         {"incident_id": incident_id, "deleted": {"$ne": True}},
         sort=[("sort_index", 1), ("channel_id", 1)],
     )
     for d in docs:
         d.pop("_id", None)
-    rows = [_map_incident_channel(d) for d in docs]
+    rows = [_map_incident_channel(d, master_by_id) for d in docs]
     messages = []
     for i, a in enumerate(rows):
         for b in rows[i + 1:]:
@@ -480,8 +489,6 @@ def validate_channels_plan(incident_id: str):
             messages.append({"level": "warning", "text": f"{r.get('channel')} missing function"})
         if r.get("function", "").lower() == "tactical" and (not r.get("assignment_division") or not r.get("assignment_team")):
             messages.append({"level": "warning", "text": f"{r.get('channel')} missing assignment"})
-        if int(r.get("repeater") or 0) == 0 and r.get("offset"):
-            messages.append({"level": "warning", "text": f"{r.get('channel')} offset with no repeater"})
         inferred = _infer_band(r.get("rx_freq") or r.get("tx_freq"))
         if inferred != r.get("band"):
             messages.append({"level": "warning", "text": f"{r.get('channel')} out of band"})
@@ -495,13 +502,14 @@ def validate_channels_plan(incident_id: str):
 @incident_router.get("/incidents/{incident_id}/channels-plan/preview")
 def preview_channels_plan(incident_id: str):
     repo = _incident_channels_repo(incident_id)
+    master_by_id = _master_channels_by_id(_radio_channels_repo())
     docs = repo.find_many(
         {"incident_id": incident_id, "deleted": {"$ne": True}},
         sort=[("sort_index", 1), ("channel_id", 1)],
     )
     for d in docs:
         d.pop("_id", None)
-    rows = [_map_incident_channel(d) for d in docs]
+    rows = [_map_incident_channel(d, master_by_id) for d in docs]
     preview = []
     for r in rows:
         assignment = " / ".join([p for p in [r.get("assignment_division"), r.get("assignment_team")] if p])
@@ -523,61 +531,83 @@ def preview_channels_plan(incident_id: str):
     return preview
 
 
+# NOTE: /instance must be declared before /{row_id} for the same reason as
+# /validate and /preview above - it shares the same single-segment path
+# shape and would otherwise be swallowed by the int-coercing {row_id} routes.
+
+class ICS205InstanceRequest(BaseModel):
+    special_instructions: str = ""
+    op_period_id: Optional[str] = None
+
+
+@incident_router.get("/incidents/{incident_id}/channels-plan/instance")
+def get_ics205_instance(incident_id: str):
+    repo = _ics205_instance_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id})
+    if not doc:
+        return {"special_instructions": "", "op_period_id": None}
+    return {
+        "special_instructions": doc.get("special_instructions", ""),
+        "op_period_id": doc.get("op_period_id"),
+    }
+
+
+@incident_router.put("/incidents/{incident_id}/channels-plan/instance")
+def save_ics205_instance(incident_id: str, body: ICS205InstanceRequest):
+    repo = _ics205_instance_repo(incident_id)
+    existing = repo.find_one({"incident_id": incident_id})
+    update = {
+        "special_instructions": body.special_instructions,
+        "op_period_id": body.op_period_id,
+    }
+    if existing:
+        repo.update_one(existing["_id"], update)
+    else:
+        update["incident_id"] = incident_id
+        repo.insert_one(update)
+    return update
+
+
 @incident_router.get("/incidents/{incident_id}/channels-plan")
 def list_channels_plan(incident_id: str):
     repo = _incident_channels_repo(incident_id)
+    master_by_id = _master_channels_by_id(_radio_channels_repo())
     docs = repo.find_many(
         {"incident_id": incident_id, "deleted": {"$ne": True}},
         sort=[("sort_index", 1), ("channel_id", 1)],
     )
     for d in docs:
         d.pop("_id", None)
-    return [_map_incident_channel(d) for d in docs]
+    return [_map_incident_channel(d, master_by_id) for d in docs]
+
+
+# Incident-specific fields a plan reference is allowed to carry. Channel
+# identity (name/freq/tone/mode/etc.) always lives on the master channel and
+# is never copied or patched here - the plan only ever stores a pointer
+# (master_id) plus how this incident is using that channel.
+_PLAN_PATCHABLE_FIELDS = {
+    "assignment_division", "assignment_team", "priority", "encryption",
+    "remarks", "include_on_205", "sort_index",
+}
 
 
 class AddFromMasterRequest(BaseModel):
-    master_row: Dict[str, Any]
+    master_id: int
     defaults: Dict[str, Any] = {}
 
 
 @incident_router.post("/incidents/{incident_id}/channels-plan", status_code=201)
 def add_channel_from_master(incident_id: str, body: AddFromMasterRequest):
-    master_row = body.master_row
     defaults = body.defaults or {}
     repo = _incident_channels_repo(incident_id)
-    rx_freq = master_row.get("rx_freq")
-    tx_freq = master_row.get("tx_freq")
-    band = _infer_band(rx_freq or tx_freq)
-    rx_tone = master_row.get("rx_tone")
-    tx_tone = master_row.get("tx_tone")
-    squelch_type, squelch_value = _infer_squelch(rx_tone if rx_tone == tx_tone else None)
-    repeater = bool(tx_freq and rx_freq and tx_freq != rx_freq)
-    offset = None
-    if repeater:
-        try:
-            offset = float(tx_freq) - float(rx_freq)
-        except Exception:
-            pass
+    master_doc = _radio_channels_repo().find_one({"channel_id": str(body.master_id)})
+    if not master_doc:
+        raise HTTPException(status_code=404, detail="Master channel not found")
     channel_id = _next_channel_id(repo, incident_id)
     doc = {
         "channel_id": channel_id,
         "incident_id": incident_id,
-        "master_id": str(master_row.get("id")) if master_row.get("id") is not None else None,
-        "channel": master_row.get("name", ""),
-        "function": master_row.get("function", "Tactical"),
-        "band": band,
-        "system": master_row.get("system"),
-        "mode": master_row.get("mode"),
-        "rx_freq": rx_freq,
-        "tx_freq": tx_freq,
-        "rx_tone": rx_tone,
-        "tx_tone": tx_tone,
-        "squelch_type": squelch_type,
-        "squelch_value": squelch_value,
-        "repeater": repeater,
-        "offset": offset,
-        "line_a": bool(master_row.get("line_a", 0)),
-        "line_c": bool(master_row.get("line_c", 0)),
+        "master_id": str(body.master_id),
         "encryption": defaults.get("encryption", "None"),
         "assignment_division": defaults.get("assignment_division"),
         "assignment_team": defaults.get("assignment_team"),
@@ -589,7 +619,7 @@ def add_channel_from_master(incident_id: str, body: AddFromMasterRequest):
     }
     doc = repo.insert_one(doc)
     doc.pop("_id", None)
-    return _map_incident_channel(doc)
+    return _map_incident_channel(doc, _master_channels_by_id(_radio_channels_repo()))
 
 
 @incident_router.get("/incidents/{incident_id}/channels-plan/{row_id}")
@@ -600,7 +630,7 @@ def get_channel_plan_row(incident_id: str, row_id: int):
     if not doc:
         raise HTTPException(status_code=404, detail="Channel not found")
     doc.pop("_id", None)
-    return _map_incident_channel(doc)
+    return _map_incident_channel(doc, _master_channels_by_id(_radio_channels_repo()))
 
 
 @incident_router.put("/incidents/{incident_id}/channels-plan/{row_id}")
@@ -610,10 +640,11 @@ def update_channel_plan_row(incident_id: str, row_id: int, patch: Dict[str, Any]
     existing = repo.find_one({"channel_id": channel_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Channel not found")
-    repo.update_one(existing["_id"], dict(patch))
+    update = {k: v for k, v in patch.items() if k in _PLAN_PATCHABLE_FIELDS}
+    repo.update_one(existing["_id"], update)
     doc = repo.find_by_id(existing["_id"])
     doc.pop("_id", None)
-    return _map_incident_channel(doc)
+    return _map_incident_channel(doc, _master_channels_by_id(_radio_channels_repo()))
 
 
 @incident_router.delete("/incidents/{incident_id}/channels-plan/{row_id}", status_code=204)

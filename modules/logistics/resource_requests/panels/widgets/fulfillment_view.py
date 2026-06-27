@@ -23,11 +23,13 @@ class FulfillmentView(QtWidgets.QWidget):
         self.supplier_label = QtWidgets.QLabel("-")
         self.team_label = QtWidgets.QLabel("-")
         self.vehicle_label = QtWidgets.QLabel("-")
+        self.destination_label = QtWidgets.QLabel("-")
         self.eta_label = QtWidgets.QLabel("-")
         form.addRow("Status", self.status_label)
         form.addRow("Supplier", self.supplier_label)
         form.addRow("Team", self.team_label)
         form.addRow("Vehicle", self.vehicle_label)
+        form.addRow("Destination", self.destination_label)
         form.addRow("ETA", self.eta_label)
         layout.addLayout(form)
 
@@ -47,6 +49,7 @@ class FulfillmentView(QtWidgets.QWidget):
             self.supplier_label.setText("-")
             self.team_label.setText("-")
             self.vehicle_label.setText("-")
+            self.destination_label.setText("-")
             self.eta_label.setText("-")
             self.update_button.setEnabled(False)
             return
@@ -55,5 +58,8 @@ class FulfillmentView(QtWidgets.QWidget):
         self.supplier_label.setText(str(record.get("supplier_id", "-")))
         self.team_label.setText(str(record.get("assigned_team_id", "-")))
         self.vehicle_label.setText(str(record.get("assigned_vehicle_id", "-")))
+        self.destination_label.setText(
+            str(record.get("destination_location") or record.get("destination_facility_id") or "-")
+        )
         self.eta_label.setText(str(record.get("eta_utc", "-")))
         self.update_button.setEnabled(True)

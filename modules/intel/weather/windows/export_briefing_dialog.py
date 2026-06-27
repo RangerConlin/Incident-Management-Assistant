@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..services.api_link import WeatherApiManager
+from ..services.summary import build_weather_form_payload
 
 
 class ExportBriefingDialog(QDialog):
@@ -29,6 +30,7 @@ class ExportBriefingDialog(QDialog):
         self.resize(640, 480)
         self.api = WeatherApiManager.instance()
         self.api.dataUpdated.connect(self._handle_data)
+        self._latest_payload: dict = {}
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -80,17 +82,31 @@ class ExportBriefingDialog(QDialog):
         QWidget.setTabOrder(self.preview, self.buttons.button(QDialogButtonBox.Ok))
 
     def _handle_data(self, payload: dict) -> None:
+        if payload:
+            self._latest_payload = payload
+        payload = self._latest_payload
+        weather = build_weather_form_payload({"weather_payload": payload})
         parts = []
         if self.include_current.isChecked():
-            parts.append("Current weather: —")
+            current = weather.get("current", {}).get("local", "")
+            parts.append(f"Current weather: {current or '—'}")
         if self.include_forecast.isChecked():
-            parts.append("Next 12h: —")
+            forecast = weather.get("forecast", {}).get("local", "")
+            parts.append(f"Next 12h: {forecast or '—'}")
         if self.include_aviation.isChecked():
-            parts.append("Aviation summary: —")
+            aviation = weather.get("current", {}).get("enroute", "") or weather.get("current", {}).get("local", "")
+            parts.append(f"Aviation summary: {aviation or '—'}")
         if self.include_alerts.isChecked():
-            parts.append("Alerts: —")
+            alerts = weather.get("alerts", "")
+            parts.append(f"Alerts: {alerts or '—'}")
         if self.include_hwo.isChecked():
-            parts.append("HWO: —")
+            hwo = payload.get("hwo") or {}
+            if isinstance(hwo, dict) and hwo.get("text"):
+                text = str(hwo.get("text") or "").strip().replace("\r\n", "\n")
+                excerpt = next((line.strip() for line in text.splitlines() if line.strip()), "")
+                parts.append(f"HWO: {excerpt or '—'}")
+            else:
+                parts.append("HWO: —")
         self.preview.setPlainText("\n".join(parts))
 
     def _copy_text(self) -> None:

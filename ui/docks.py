@@ -186,3 +186,27 @@ def create_task_status_dock(parent=None):
     dock = CDockWidget("Task Status")
     dock.setWidget(w)
     return dock
+dock = CDockWidget("Task Status")
+    dock.setWidget(w)
+    return dock
+
+
+def create_number_card_dock(metric_id: str, parent=None):
+    """Create a NumberCardWidget wrapped in an ADS dock panel.
+
+    Example:
+        dock = create_number_card_dock("tasks_pending")
+        dock_manager.addDockWidget(LeftDockWidgetArea, dock)
+    """
+    from ui.widgets.number_card import NumberCardWidget
+    from ui.widgets.number_card_metrics import get_metric
+
+    metric = get_metric(metric_id)
+    if not metric:
+        raise ValueError(f"Unknown metric: {metric_id}")
+
+    card = NumberCardWidget(metric=metric, parent=parent)
+    dock = CDockWidget(metric.label)
+    dock.setWidget(card)
+    dock.setMinimumSizeHintHint(card.minimumSize())
+    return dock

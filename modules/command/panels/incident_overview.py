@@ -32,6 +32,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QDateTime
 
+from modules.logistics.facilities import FacilityPicker
+from modules.logistics.facilities.service import FacilitiesService
 from utils.state import AppState
 
 _LOGGER = logging.getLogger(__name__)
@@ -111,6 +113,8 @@ class IncidentOverviewPanel(QWidget):
 
         self._incident_id: Optional[int] = None
         self._editing = False
+        self._icp_facility_id: str = ""
+        self._facility_service = FacilitiesService()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -151,11 +155,12 @@ class IncidentOverviewPanel(QWidget):
         self._fld_number      = QLineEdit()
         self._fld_type        = QComboBox()
         self._fld_status      = QComboBox()
-        self._fld_location    = QLineEdit()
+        self._fld_location    = FacilityPicker(service=self._facility_service, facility_type="command_post")
         self._fld_start       = QDateTimeEdit()
         self._fld_end         = QDateTimeEdit()
         self._fld_description = QTextEdit()
         self._fld_training    = QCheckBox("This is a training exercise")
+        self._btn_manage_icp  = QPushButton("Manage...")
 
         self._fld_type.addItems(_get_incident_types())
         self._fld_status.addItems(_INCIDENT_STATUSES)
@@ -172,7 +177,13 @@ class IncidentOverviewPanel(QWidget):
         form.addRow("Incident Number:", self._fld_number)
         form.addRow("Type:", self._fld_type)
         form.addRow("Status:", self._fld_status)
-        form.addRow("ICP Location:", self._fld_location)
+        icp_row = QWidget()
+        icp_layout = QHBoxLayout(icp_row)
+        icp_layout.setContentsMargins(0, 0, 0, 0)
+        icp_layout.setSpacing(6)
+        icp_layout.addWidget(self._fld_location, 1)
+        icp_layout.addWidget(self._btn_manage_icp, 0)
+        form.addRow("ICP Location:", icp_row)
         form.addRow("Start Date/Time:", self._fld_start)
         form.addRow("End Date/Time:", self._fld_end)
         form.addRow("Description:", self._fld_description)
@@ -208,6 +219,8 @@ class IncidentOverviewPanel(QWidget):
         self._btn_edit.clicked.connect(self._enter_edit_mode)
         self._btn_save.clicked.connect(self._save)
         self._btn_cancel.clicked.connect(self._cancel_edit)
+        self._btn_manage_icp.clicked.connect(self._open_facilities_manager)
+        self._fld_location.facilitySelected.connect(self._on_icp_selected)
 
         self._set_fields_readonly(True)
         self.refresh()
@@ -242,6 +255,7 @@ class IncidentOverviewPanel(QWidget):
         itype  = inc.get("type") or ""
         status = inc.get("status") or ""
         loc    = inc.get("icp_location") or ""
+        self._icp_facility_id = str(inc.get("icp_facility_id") or "")
         desc   = inc.get("description") or ""
         start  = inc.get("start_time") or ""
         end    = inc.get("end_time") or ""
@@ -270,7 +284,7 @@ class IncidentOverviewPanel(QWidget):
             f"border-radius: 12px; padding: 2px 12px; color: white; background: {color};"
         )
 
-        self._fld_location.setText(loc)
+        self._fld_location.set_value(self._icp_facility_id, loc)
         self._fld_description.setPlainText(desc)
         self._fld_training.setChecked(training)
 
@@ -289,8 +303,10 @@ class IncidentOverviewPanel(QWidget):
         self._training_banner.setVisible(training)
 
     def _clear_fields(self) -> None:
-        for w in (self._fld_name, self._fld_number, self._fld_location):
+        for w in (self._fld_name, self._fld_number):
             w.clear()
+        self._fld_location.clear()
+        self._icp_facility_id = ""
         self._fld_description.clear()
         self._fld_training.setChecked(False)
         self._training_banner.hide()
@@ -298,19 +314,42 @@ class IncidentOverviewPanel(QWidget):
     def _set_fields_readonly(self, readonly: bool) -> None:
         self._fld_name.setReadOnly(readonly)
         self._fld_number.setReadOnly(readonly)
-        self._fld_location.setReadOnly(readonly)
+        self._fld_location.line_edit.setReadOnly(readonly)
         self._fld_description.setReadOnly(readonly)
         self._fld_type.setEnabled(not readonly)
         self._fld_status.setEnabled(not readonly)
         self._fld_start.setReadOnly(readonly)
         self._fld_end.setReadOnly(readonly)
         self._fld_training.setEnabled(not readonly)
+        self._btn_manage_icp.setEnabled(not readonly)
 
         # Visual hint
         style = "QLineEdit, QTextEdit { background: palette(window); }" if readonly else ""
         self._fld_name.setStyleSheet(style)
-        self._fld_location.setStyleSheet(style)
+        self._fld_location.line_edit.setStyleSheet(style)
         self._fld_description.setStyleSheet(style)
+
+    @Slot(object, str)
+    def _on_icp_selected(self, facility_id: object, text: str) -> None:
+        self._icp_facility_id = str(facility_id or "")
+        if not self._editing:
+            self._fld_location.set_value(self._icp_facility_id, text)
+
+    @Slot()
+    def _open_facilities_manager(self) -> None:
+        try:
+            from modules.logistics import get_facilities_manager_panel
+
+            panel = get_facilities_manager_panel(AppState.get_active_incident())
+            panel.setWindowTitle("Facilities Manager")
+            panel.show()
+            panel.raise_()
+        except Exception:
+            QMessageBox.information(
+                self,
+                "Facilities",
+                "Open Facilities Manager from the Logistics menu to create or edit ICP facilities.",
+            )
 
     @Slot()
     def _enter_edit_mode(self) -> None:
@@ -346,7 +385,8 @@ class IncidentOverviewPanel(QWidget):
             "description": self._fld_description.toPlainText().strip(),
             "start_time":  self._fld_start.dateTime().toString("yyyy-MM-dd HH:mm:ss"),
             "end_time":    end_str,
-            "icp_location": self._fld_location.text().strip(),
+            "icp_location": self._fld_location.facility_text,
+            "icp_facility_id": self._icp_facility_id or None,
             "is_training": self._fld_training.isChecked(),
         }
 

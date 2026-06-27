@@ -441,6 +441,31 @@ def test_build_safety_context_wires_incident_and_master_safety_collections(monke
         "/api/incidents/SAFE-1/tasks": [],
         "/api/objectives": [],
         "/api/incidents/SAFE-1/resources": [],
+        "/api/incidents/SAFE-1/planning/work-assignments": [
+            {
+                "id": 99,
+                "assignment_number": "WA-3",
+                "assignment_name": "West Slope Search",
+                "branch": "Operations",
+                "division_group": "Division A",
+                "location": "West Slope",
+                "hazards": [
+                    {
+                        "id": 11,
+                        "hazard_type_text": "Loose rock",
+                        "category": "Terrain",
+                        "risk_level": "H",
+                        "likelihood": "Likely",
+                        "severity": "Serious",
+                        "control_measure": "Belay team",
+                        "mitigation_text": "Use spotters",
+                        "ppe_text": "Helmet",
+                        "is_resolved": False,
+                        "notes": "Slope on west edge",
+                    }
+                ],
+            }
+        ],
         "/api/incidents/SAFE-1/ics214/streams": [],
         "/api/incidents/SAFE-1/meetings": [],
         "/api/incidents/SAFE-1/snapshot": {
@@ -557,11 +582,36 @@ def test_build_safety_context_wires_incident_and_master_safety_collections(monke
             "safety_message": "Hydrate and use helmets near the cliff band.",
             "site_safety_plan_required": True,
             "site_safety_plan_location": "Plans trailer",
+            "weather_summary": "Current: KCVG VFR\nForecast: Hot with afternoon storms",
             "prepared_by_name": "Pat Morgan",
             "prepared_by_position": "SOFR",
             "prepared_by_datetime": "2026-06-26 07:40",
             "created_at": "2026-06-26T07:35:00",
             "updated_at": "2026-06-26T07:40:00",
+        },
+        "/api/incidents/SAFE-1/weather": {
+            "incident_id": "SAFE-1",
+            "icao_codes": ["KCVG", "KDAY"],
+            "weather_payload": {
+                "metar": {
+                    "KCVG": {
+                        "station": "KCVG",
+                        "raw_text": "KCVG 261651Z 21012KT 10SM SCT040 29/21 A2992",
+                    }
+                },
+                "forecast": {
+                    "39.1031,-84.5120": {
+                        "label": "ICP",
+                        "periods": [
+                            {"name": "Today", "temperature": 84, "detailed_text": "Hot and humid"},
+                            {"name": "Tonight", "temperature": 68, "detailed_text": "Chance of storms"},
+                        ],
+                    }
+                },
+                "advisories": [
+                    {"event": "Heat Advisory"}
+                ],
+            },
         },
         "/api/incidents/SAFE-1/safety/iwi": [
             {
@@ -662,6 +712,368 @@ def test_build_safety_context_wires_incident_and_master_safety_collections(monke
     assert context["cap_orm_hazards"][0]["implement_who"] == "Team lead"
     assert context["cap_orm_audit"][0]["field"] == "activity"
     assert context["ics_208"]["site_safety_plan_required"] is True
+    assert context["ics_208"]["weather_summary"].startswith("Current:")
+    assert context["ics_215a_rows"][0]["branch_div_group"] == "Operations / Division A"
+    assert context["ics_215a_rows"][0]["work_assignment"] == "WA-3 - West Slope Search"
     assert context["iwi_reports"][0]["actual_severity"] == "MODERATE"
     assert context["hazard_types"][0]["default_safety_message"] == "Watch footing"
     assert context["safety_analysis_templates"][0]["scenario_type"] == "Mountain"
+    assert context["weather"]["current"]["local"].startswith("KCVG:")
+    assert "Heat Advisory" in context["weather"]["conditions"]
+
+
+def test_build_medical_context_wires_master_and_ics206_collections(monkeypatch):
+    responses = {
+        "/api/incidents/MED-1": {},
+        "/api/incidents/MED-1/operational-periods": [
+            {
+                "op_number": 2,
+                "start_time": "2026-06-26T08:00:00",
+                "end_time": "2026-06-26T20:00:00",
+            }
+        ],
+        "/api/incidents/MED-1/org/positions": [],
+        "/api/incidents/MED-1/org/assignments": [],
+        "/api/incidents/MED-1/comms/channels": [],
+        "/api/incidents/MED-1/teams": [],
+        "/api/incidents/MED-1/tasks": [],
+        "/api/objectives": [],
+        "/api/incidents/MED-1/resources": [],
+        "/api/incidents/MED-1/liaison/agencies": [],
+        "/api/incidents/MED-1/liaison/interactions": [],
+        "/api/incidents/MED-1/liaison/feedback": [],
+        "/api/incidents/MED-1/liaison/agency-requests": [],
+        "/api/incidents/MED-1/liaison/resource-offers": [],
+        "/api/incidents/MED-1/ics214/streams": [],
+        "/api/incidents/MED-1/meetings": [],
+        "/api/incidents/MED-1/snapshot": {"collections": {"hazards": [], "cap_orm_summaries": [], "cap_orm_audit": []}},
+        "/api/incidents/MED-1/safety/reports": [],
+        "/api/incidents/MED-1/safety/zones": [],
+        "/api/incidents/MED-1/safety/iwi": [],
+        "/api/incidents/MED-1/safety/orm/form": {},
+        "/api/incidents/MED-1/safety/orm/hazards": [],
+        "/api/incidents/MED-1/safety/ics208": {},
+        "/api/incidents/MED-1/planning/work-assignments": [],
+        "/api/hazard-types": [],
+        "/api/master/safety-templates": [],
+        "/api/master/aircraft": [],
+        "/api/master/personnel": [],
+        "/api/master/vehicles": [],
+        "/api/master/equipment": [],
+        "/api/master/hospitals": [
+            {
+                "id": 10,
+                "hospital_id": "10",
+                "name": "Regional Medical Center",
+                "type": "Hospital",
+                "phone": "555-2000",
+                "phone_er": "555-2001",
+                "address": "1 Main St",
+                "city": "Albany",
+                "state": "NY",
+                "zip": "12207",
+                "contact_name": "Charge Nurse",
+                "helipad": True,
+                "burn_center": True,
+                "adult_trauma_level": 2,
+                "pediatric_trauma_level": 1,
+                "notes": "Primary destination",
+            }
+        ],
+        "/api/master/ems-agencies": [
+            {
+                "id": 20,
+                "name": "County EMS",
+                "type": "Ground Ambulance",
+                "service_level": 2,
+                "phone": "555-3000",
+                "radio_channel": "MED-1",
+                "address": "2 Station Rd",
+                "city": "Albany",
+                "state": "NY",
+                "zip": "12207",
+                "default_on_206": True,
+                "is_active": True,
+            }
+        ],
+        "/api/comms/channels": [],
+        "/api/resource-types": [],
+        "/api/incidents/MED-1/comms-log": [],
+        "/api/incidents/MED-1/medical/ics206/aid-stations": [
+            {
+                "id": 1,
+                "op_period": 2,
+                "name": "Base Aid",
+                "type": "Medical Aid",
+                "level": "ALS",
+                "is_24_7": True,
+                "notes": "Main camp",
+            }
+        ],
+        "/api/incidents/MED-1/medical/ics206/ambulance-services": [
+            {
+                "id": 2,
+                "op_period": 2,
+                "name": "County EMS",
+                "type": "Ground ALS",
+                "service_level": 2,
+                "phone": "555-3000",
+                "location": "Staging",
+                "notes": "Closest transport",
+            }
+        ],
+        "/api/incidents/MED-1/medical/ics206/hospitals": [
+            {
+                "id": 3,
+                "op_period": 2,
+                "name": "Children's Hospital",
+                "address": "3 Care Ave",
+                "phone": "555-4000",
+                "helipad": False,
+                "burn_center": False,
+                "adult_trauma_level": 0,
+                "pediatric_trauma_level": 2,
+                "notes": "Pediatric specialty",
+            }
+        ],
+        "/api/incidents/MED-1/medical/ics206/air-ambulance": [
+            {
+                "id": 4,
+                "op_period": 2,
+                "name": "Medevac 1",
+                "phone": "555-5000",
+                "base": "Airport",
+                "contact": "Dispatch",
+                "notes": "Day ops",
+            }
+        ],
+        "/api/incidents/MED-1/medical/ics206/comms": [
+            {
+                "id": 5,
+                "op_period": 2,
+                "channel": "MED TAC",
+                "function": "Hospital coordination",
+                "frequency": "155.340",
+                "mode": "Analog",
+                "notes": "Backup route",
+            }
+        ],
+        "/api/incidents/MED-1/medical/ics206/procedures": {
+            "id": 6,
+            "op_period": 2,
+            "content": "Call dispatch before transport.",
+        },
+        "/api/incidents/MED-1/medical/ics206/signatures": {
+            "id": 7,
+            "op_period": 2,
+            "prepared_by": "Pat Morgan",
+            "position": "MEDL",
+            "approved_by": "Alex Rivera",
+            "date": "2026-06-26 07:50",
+        },
+    }
+
+    def fake_get(path, params=None, **kwargs):
+        return responses[path]
+
+    monkeypatch.setattr("modules.forms_creator.context._get", fake_get)
+
+    context = FormDataContext().build("MED-1")
+
+    assert context["hospitals"][0]["trauma_level_display"] == "A-II / P-I"
+    assert context["ems_agencies"][0]["service_level"] == 2
+    assert context["ems_agencies"][0]["service_level_label"] == "ALS"
+    assert context["ics_206_aid_stations"][0]["is_24_7"] is True
+    assert context["ics_206_ambulance_services"][0]["service_level_label"] == "ALS"
+    assert context["ics_206_hospitals"][0]["trauma_level_display"] == "P-II"
+    assert context["ics_206_air_ambulance"][0]["base"] == "Airport"
+    assert context["ics_206_medical_comms"][0]["channel"] == "MED TAC"
+    assert context["ics_206_procedures"]["content"] == "Call dispatch before transport."
+    assert context["ics_206_signatures"]["position"] == "MEDL"
+
+
+def test_build_context_exposes_facility_bindings_for_incident_tasks_and_ics215a(monkeypatch):
+    responses = {
+        "/api/incidents/FAC-1": {
+            "id": "FAC-1",
+            "name": "River Search",
+            "number": "INC-500",
+            "type": "Search",
+            "description": "River corridor incident",
+            "icp_location": "County fairgrounds",
+            "icp_facility_id": "fac-icp",
+            "start_time": "2026-06-27T08:00:00",
+        },
+        "/api/incidents/FAC-1/facilities/fac-icp": {
+            "id": "fac-icp",
+            "name": "County Fairgrounds ICP",
+        },
+        "/api/incidents/FAC-1/operational-periods": [],
+        "/api/incidents/FAC-1/org/assignments": [],
+        "/api/incidents/FAC-1/comms/channels": [],
+        "/api/incidents/FAC-1/teams": [],
+        "/api/incidents/FAC-1/tasks": [
+            {
+                "id": "task-1",
+                "task_id": "T-1",
+                "title": "Set up staging",
+                "location": "North lot",
+                "location_facility_id": "fac-staging",
+                "created_at": "2026-06-27T09:15:00",
+            }
+        ],
+        "/api/objectives": [],
+        "/api/incidents/FAC-1/resources": [],
+        "/api/incidents/FAC-1/ics214/streams": [],
+        "/api/incidents/FAC-1/meetings": [],
+        "/api/incidents/FAC-1/snapshot": {"collections": {"hazards": [], "cap_orm_summaries": [], "cap_orm_audit": []}},
+        "/api/incidents/FAC-1/safety/reports": [],
+        "/api/incidents/FAC-1/safety/zones": [],
+        "/api/incidents/FAC-1/safety/iwi": [],
+        "/api/hazard-types": [],
+        "/api/master/safety-templates": [],
+        "/api/master/aircraft": [],
+        "/api/master/personnel": [],
+        "/api/master/vehicles": [],
+        "/api/master/equipment": [],
+        "/api/comms/channels": [],
+        "/api/resource-types": [],
+        "/api/incidents/FAC-1/comms-log": [],
+        "/api/incidents/FAC-1/planning/work-assignments": [
+            {
+                "id": "wa-1",
+                "assignment_number": "WA-1",
+                "assignment_name": "North Perimeter",
+                "branch": "Operations",
+                "division_group": "Division N",
+                "location": "North lot",
+                "location_facility_id": "fac-staging",
+                "hazards": [
+                    {
+                        "id": "hz-1",
+                        "hazard_type_text": "Traffic",
+                    }
+                ],
+            }
+        ],
+        "/api/incidents/FAC-1/weather": {},
+        "/api/incidents/FAC-1/liaison/agencies": [],
+        "/api/incidents/FAC-1/liaison/interactions": [],
+        "/api/incidents/FAC-1/liaison/feedback": [],
+        "/api/incidents/FAC-1/liaison/agency-requests": [],
+        "/api/incidents/FAC-1/liaison/resource-offers": [],
+        "/api/incidents/FAC-1/facilities": [
+            {
+                "id": "fac-icp",
+                "incident_id": "FAC-1",
+                "name": "County Fairgrounds ICP",
+                "facility_type": "command_post",
+                "status": "active",
+                "address": "123 Main St",
+                "geocoded_address": "123 Main St, Albany, NY",
+                "latitude": 42.6526,
+                "longitude": -73.7562,
+                "is_primary": True,
+            },
+            {
+                "id": "fac-staging",
+                "incident_id": "FAC-1",
+                "name": "North Lot Staging",
+                "facility_type": "staging",
+                "status": "active",
+                "address": "456 North Rd",
+                "geocoded_address": "456 North Rd, Albany, NY",
+                "latitude": 42.66,
+                "longitude": -73.75,
+                "manager_name": "Taylor",
+                "is_primary": False,
+            },
+        ],
+    }
+
+    def fake_get(path, params=None, **kwargs):
+        return responses[path]
+
+    monkeypatch.setattr("modules.forms_creator.context._get", fake_get)
+
+    context = FormDataContext().build("FAC-1")
+
+    assert context["incident"]["icp_facility_id"] == "fac-icp"
+    assert context["incident"]["icp_facility_name"] == "County Fairgrounds ICP"
+    assert context["tasks"][0]["location_facility_id"] == "fac-staging"
+    assert context["ics_215a_rows"][0]["location_facility_id"] == "fac-staging"
+    assert context["facilities"][0]["facility_type"] == "command_post"
+    assert context["facilities"][1]["manager_name"] == "Taylor"
+
+
+def test_build_medical_context_exposes_aid_station_facility_fields(monkeypatch):
+    responses = {
+        "/api/incidents/MED-FAC-1": {},
+        "/api/incidents/MED-FAC-1/operational-periods": [
+            {
+                "op_number": 1,
+                "start_time": "2026-06-27T08:00:00",
+                "end_time": "2026-06-27T20:00:00",
+            }
+        ],
+        "/api/incidents/MED-FAC-1/org/positions": [],
+        "/api/incidents/MED-FAC-1/org/assignments": [],
+        "/api/incidents/MED-FAC-1/comms/channels": [],
+        "/api/incidents/MED-FAC-1/teams": [],
+        "/api/incidents/MED-FAC-1/tasks": [],
+        "/api/objectives": [],
+        "/api/incidents/MED-FAC-1/resources": [],
+        "/api/incidents/MED-FAC-1/ics214/streams": [],
+        "/api/incidents/MED-FAC-1/meetings": [],
+        "/api/incidents/MED-FAC-1/snapshot": {"collections": {"hazards": [], "cap_orm_summaries": [], "cap_orm_audit": []}},
+        "/api/incidents/MED-FAC-1/safety/reports": [],
+        "/api/incidents/MED-FAC-1/safety/zones": [],
+        "/api/incidents/MED-FAC-1/safety/iwi": [],
+        "/api/hazard-types": [],
+        "/api/master/safety-templates": [],
+        "/api/master/aircraft": [],
+        "/api/master/personnel": [],
+        "/api/master/vehicles": [],
+        "/api/master/equipment": [],
+        "/api/master/hospitals": [],
+        "/api/master/ems-agencies": [],
+        "/api/comms/channels": [],
+        "/api/resource-types": [],
+        "/api/incidents/MED-FAC-1/comms-log": [],
+        "/api/incidents/MED-FAC-1/medical/ics206/aid-stations": [
+            {
+                "id": 1,
+                "op_period": 1,
+                "name": "Base Aid",
+                "type": "Medical Aid",
+                "level": "ALS",
+                "facility_id": "fac-aid",
+                "location_text": "Base camp, east side",
+                "latitude": 39.123,
+                "longitude": -84.456,
+                "is_24_7": True,
+                "notes": "Main camp",
+            }
+        ],
+        "/api/incidents/MED-FAC-1/medical/ics206/ambulance-services": [],
+        "/api/incidents/MED-FAC-1/medical/ics206/hospitals": [],
+        "/api/incidents/MED-FAC-1/medical/ics206/air-ambulance": [],
+        "/api/incidents/MED-FAC-1/weather": {},
+        "/api/incidents/MED-FAC-1/liaison/agencies": [],
+        "/api/incidents/MED-FAC-1/liaison/interactions": [],
+        "/api/incidents/MED-FAC-1/liaison/feedback": [],
+        "/api/incidents/MED-FAC-1/liaison/agency-requests": [],
+        "/api/incidents/MED-FAC-1/liaison/resource-offers": [],
+    }
+
+    def fake_get(path, params=None, **kwargs):
+        return responses[path]
+
+    monkeypatch.setattr("modules.forms_creator.context._get", fake_get)
+
+    context = FormDataContext().build("MED-FAC-1")
+
+    assert context["ics_206_aid_stations"][0]["facility_id"] == "fac-aid"
+    assert context["ics_206_aid_stations"][0]["location_text"] == "Base camp, east side"
+    assert context["ics_206_aid_stations"][0]["latitude"] == 39.123
+    assert context["ics_206_aid_stations"][0]["longitude"] == -84.456

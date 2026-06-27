@@ -5,39 +5,40 @@ from typing import Dict
 from .base import WidgetSpec, Size
 from . import data_providers as dp
 from .components import (
-    IncidentInfoWidget,
-    TeamStatusBoardWidget,
-    TaskStatusBoardWidget,
-    PersonnelAvailabilityWidget,
-    EquipmentSnapshotWidget,
-    VehicleSnapshotWidget,
-    OpsDashboardFeedWidget,
-    RecentMessagesWidget,
-    NotificationsWidget,
-    ICS205CommPlanWidget,
-    CommLogFeedWidget,
-    ObjectivesTrackerWidget,
-    FormsInProgressWidget,
-    SitrepFeedWidget,
-    UpcomingTasksWidget,
-    SafetyAlertsWidget,
-    MedicalIncidentLogWidget,
-    ICS206SnapshotWidget,
-    IntelDashboardWidget,
-    ClueLogSnapshotWidget,
-    MapSnapshotWidget,
-    PressDraftsWidget,
-    MediaLogWidget,
-    BriefingQueueWidget,
-    QuickEntryWidget,
-    ClockDualWidget,
-    # New widgets
-    WeatherWidget,
-    OpPeriodWidget,
-    ResourceRequestWidget,
     ActivityLogWidget,
+    BriefingQueueWidget,
+    ClockDualWidget,
+    ClueLogSnapshotWidget,
+    CommLogFeedWidget,
+    EquipmentSnapshotWidget,
+    FormsInProgressWidget,
+    ICS205CommPlanWidget,
+    ICS206SnapshotWidget,
+    IncidentInfoWidget,
+    IntelDashboardWidget,
+    MapSnapshotWidget,
+    MediaLogWidget,
+    MedicalIncidentLogWidget,
+    NotificationsWidget,
+    ObjectivesTrackerWidget,
+    OpPeriodWidget,
+    OpsDashboardFeedWidget,
+    PersonnelAvailabilityWidget,
+    PressDraftsWidget,
+    QuickEntryWidget,
+    RecentMessagesWidget,
+    ResourceRequestWidget,
+    SafetyAlertsWidget,
+    SitrepFeedWidget,
     SubjectProfileWidget,
+    TaskStatusBoardWidget,
+    TeamStatusBoardWidget,
+    UpcomingTasksWidget,
+    VehicleSnapshotWidget,
+    WeatherWidget,
 )
+from .number_card import NumberCardWidget
+from .number_card_metrics import get_metric, list_metrics
 
 
 def _team_status_items():
@@ -340,5 +341,86 @@ REGISTRY: Dict[str, WidgetSpec] = {
         min_size=Size(3, 1),
         component=ClockDualWidget,  # type: ignore
         data_hooks={"settings.getTimezone": lambda: None},
+    ),
+    # ── Number Cards ──────────────────────────────────────────────────────────
+    "ncard_teams_available": WidgetSpec(
+        id="ncard_teams_available",
+        title="Available Teams",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("teams_available")
+        ),
+        data_hooks=None,
+    ),
+    "ncard_teams_field": WidgetSpec(
+        id="ncard_teams_field",
+        title="Teams in Field",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("teams_field")
+        ),
+        data_hooks=None,
+    ),
+    "ncard_tasks_pending": WidgetSpec(
+        id="ncard_tasks_pending",
+        title="Pending Tasks",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("tasks_pending")
+        ),
+        data_hooks=None,
+    ),
+    "ncard_tasks_completed": WidgetSpec(
+        id="ncard_tasks_completed",
+        title="Tasks Complete",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("tasks_completed")
+        ),
+        data_hooks=None,
+    ),
+    "ncard_personnel_in": WidgetSpec(
+        id="ncard_personnel_in",
+        title="Personnel In",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("personnel_in")
+        ),
+        data_hooks=None,
+    ),
+    "ncard_requests_open": WidgetSpec(
+        id="ncard_requests_open",
+        title="Open Requests",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("requests_open")
+        ),
+        data_hooks=None,
+    ),
+    "ncard_alerts_active": WidgetSpec(
+        id="ncard_alerts_active",
+        title="Active Alerts",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("alerts_active")
+        ),
+        data_hooks=None,
+    ),
+    "ncard_equipment_out": WidgetSpec(
+        id="ncard_equipment_out",
+        title="Equipment Out",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: NumberCardWidget(
+            metric=get_metric("equipment_out")
+        ),
+        data_hooks=None,
     ),
 }

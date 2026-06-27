@@ -4,6 +4,14 @@ The :class:`FormService` encapsulates the persistence, binding and exporting
 behaviour required by both the Qt authoring UI and other application modules.
 It intentionally avoids any Qt specific code so the service can be reused from
 command line utilities and tests.
+
+Persistence goes through the master/incident HTTP API (`utils.api_client`),
+backed by MongoDB (`data/db/sarapp_db/api/routers/forms.py`). That API models
+forms as family -> template -> version: family is the issuing agency (FEMA,
+CAP, SAR, ICS Canada, USCG, Custom), template is one form within that
+agency's set (e.g. FEMA's ICS 204), and version is a specific revision of
+that form's layout/fields over time. This module flattens that shape back
+into the single dict per template that the rest of forms_creator expects.
 """
 
 from __future__ import annotations
@@ -15,21 +23,24 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ..models import Field
-from . import db
 from .binder import Binder
 from .exporter import PDFExporter
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 
 
-def _utcnow() -> str:
-    """Return a UTC timestamp suitable for storage in SQLite."""
+def _client():
+    from utils.api_client import api_client
 
+    return api_client
+
+
+def _utcnow() -> str:
     return datetime.now(timezone.utc).strftime(ISO_FORMAT)
 
 
 def _serialise_value(value: Any) -> str | None:
-    """Serialise a Python value for storage in the ``instance_values`` table."""
+    """Serialise a Python value for storage in a form instance's values map."""
 
     if value is None:
         return None
@@ -63,37 +74,40 @@ class FormService:
         custom_bindings_path = self.forms_dir / "custom_bindings.json"
         self.binder = binder or Binder(custom_bindings_path=custom_bindings_path)
         self.exporter = exporter or PDFExporter(base_data_dir=self.data_dir)
-        db.init_master_db()
-        self.template_table = self._ensure_template_table()
+
+    # ------------------------------------------------------------------
+    # Family (agency) helpers
+    # ------------------------------------------------------------------
+    def _get_or_create_family(self, agency_code: str) -> dict[str, Any]:
+        code = agency_code.strip().upper() if agency_code else "CUSTOM"
+        families = _client().get("/api/forms/families", params={"code": code}) or []
+        if families:
+            return families[0]
+        return _client().post(
+            "/api/forms/families",
+            json={"code": code, "title": code, "category": None, "default_agency": None, "is_active": True},
+        )
 
     # ------------------------------------------------------------------
     # Template helpers
     # ------------------------------------------------------------------
     def list_templates(self, category: str | None = None) -> list[dict[str, Any]]:
-        """Return template dictionaries from the master database."""
+        """Return template dictionaries, optionally filtered by agency (``category``)."""
 
-        with db.get_master_connection() as conn:
-            query = f"SELECT * FROM {self.template_table}"
-            params: tuple[Any, ...] = ()
-            if category:
-                query += " WHERE category = ?"
-                params = (category,)
-            query += " ORDER BY name ASC, version DESC"
-            cursor = conn.execute(query, params)
-            rows = cursor.fetchall()
-        return [self._row_to_template_dict(row) for row in rows]
+        # The list endpoint doesn't embed each template's current version, so
+        # callers only get id/name/category/subcategory metadata here, not
+        # fields/background_path. Use get_template() for the full picture.
+        params = {"agency": category.strip().upper()} if category else {}
+        templates = _client().get("/api/forms/templates", params=params) or []
+        return [self._flatten_template(t) for t in templates]
 
     def get_template(self, template_id: int) -> dict[str, Any]:
-        """Fetch a specific template as a dictionary."""
+        """Fetch a specific template as a flattened dictionary."""
 
-        with db.get_master_connection() as conn:
-            row = conn.execute(
-                f"SELECT * FROM {self.template_table} WHERE id = ?",
-                (template_id,),
-            ).fetchone()
-        if row is None:
+        doc = _client().get(f"/api/forms/templates/{template_id}")
+        if doc is None:
             raise ValueError(f"Template {template_id} not found")
-        return self._row_to_template_dict(row)
+        return self._flatten_template(doc)
 
     def save_template(
         self,
@@ -110,90 +124,56 @@ class FormService:
     ) -> int:
         """Insert or update a template.
 
-        Parameters mirror the master schema.  ``fields`` should be an iterable
-        of dictionaries (or :class:`~modules.forms_creator.models.Field`
-        instances) that are JSON serialisable.  The canonical ``meta.json`` in
-        the template's asset directory is refreshed on each save so external
-        tools (such as the profile manager) can immediately consume updates.
+        ``category`` is the issuing agency (e.g. ``"FEMA"``, ``"CAP"``) and
+        maps onto the family. ``subcategory`` is the form code within that
+        agency (e.g. ``"ICS_204"``); it defaults to a slug of ``name`` when
+        omitted. Saving against an existing ``template_id`` creates a new
+        version under that template rather than mutating one in place.
         """
 
         fields_payload = [self._normalise_field(field) for field in fields]
-        serialised_fields = json.dumps(fields_payload, ensure_ascii=False)
-        now = _utcnow()
+        layout = {
+            "background_path": background_path,
+            "page_count": page_count,
+            "schema_version": schema_version,
+        }
 
-        persisted_row: dict[str, Any] | None = None
+        if template_id is None:
+            family = self._get_or_create_family(category or "CUSTOM")
+            code = (subcategory or name).strip().upper().replace(" ", "_")
+            template = _client().post(
+                "/api/forms/templates",
+                json={
+                    "family_id": family["id"],
+                    "agency": family["code"],
+                    "code": code,
+                    "title": name,
+                    "status": "active",
+                },
+            )
+            template_id = template["id"]
+            version_number = version or 1
+        else:
+            existing = _client().get(f"/api/forms/templates/{template_id}")
+            if existing is None:
+                raise ValueError(f"Template {template_id} not found")
+            current_version_number = (existing.get("current_version") or {}).get("version_number", 0)
+            version_number = version or (current_version_number + 1)
 
-        with db.get_master_connection() as conn:
-            if template_id is None:
-                new_version = version or 1
-                cursor = conn.execute(
-                    f"""
-                    INSERT INTO {self.template_table}
-                      (name, category, subcategory, version, background_path, page_count, schema_version, fields_json, created_at, updated_at, is_active)
-                    VALUES
-                      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                    """,
-                    (
-                        name,
-                        category,
-                        subcategory,
-                        new_version,
-                        background_path,
-                        page_count,
-                        schema_version,
-                        serialised_fields,
-                        now,
-                        now,
-                    ),
-                )
-                template_id = cursor.lastrowid
-            else:
-                existing = conn.execute(
-                    f"SELECT * FROM {self.template_table} WHERE id = ?",
-                    (template_id,),
-                ).fetchone()
-                if existing is None:
-                    raise ValueError(f"Template {template_id} not found")
-                self._archive_template_snapshot(existing)
-                current_version = existing["version"]
-                new_version = version or (current_version + 1)
-                conn.execute(
-                    f"""
-                    UPDATE {self.template_table}
-                       SET name = ?,
-                           category = ?,
-                           subcategory = ?,
-                           version = ?,
-                           background_path = ?,
-                           page_count = ?,
-                           schema_version = ?,
-                           fields_json = ?,
-                           updated_at = ?
-                     WHERE id = ?
-                    """,
-                    (
-                        name,
-                        category,
-                        subcategory,
-                        new_version,
-                        background_path,
-                        page_count,
-                        schema_version,
-                        serialised_fields,
-                        now,
-                        template_id,
-                    ),
-                )
+        version_doc = _client().post(
+            f"/api/forms/templates/{template_id}/versions",
+            json={
+                "version_number": version_number,
+                "layout": layout,
+                "fields": fields_payload,
+            },
+        )
 
-            persisted = conn.execute(
-                f"SELECT * FROM {self.template_table} WHERE id = ?",
-                (template_id,),
-            ).fetchone()
-            if persisted is not None:
-                persisted_row = dict(persisted)
-
-        if persisted_row is not None:
-            self._write_template_files(persisted_row, fields_payload)
+        persisted_row = self._flatten_template(
+            _client().get(f"/api/forms/templates/{template_id}"),
+            version_override=version_doc,
+        )
+        self._write_template_files(persisted_row, fields_payload)
 
         return int(template_id)
 
@@ -204,131 +184,91 @@ class FormService:
         """Create a form instance for the specified incident."""
 
         template_row = self.get_template(template_id)
-        db.ensure_incident_db(incident_id)
-        now = _utcnow()
-        template_version = template_row["version"]
-        fields = template_row["fields"]
         ctx = prefill_ctx or {}
 
-        with db.get_incident_connection(incident_id) as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO form_instances (incident_id, template_id, template_version, status, created_at, updated_at)
-                VALUES (?, ?, ?, 'draft', ?, ?)
-                """,
-                (incident_id, template_id, template_version, now, now),
+        created = _client().post(
+            f"/api/incidents/{incident_id}/forms",
+            json={
+                "family_id": template_row["family_id"],
+                "template_id": template_id,
+                "template_version_id": template_row["version_id"],
+                "title": template_row["name"],
+                "agency": template_row["category"],
+                "status": "draft",
+            },
+        )
+        instance_id = created["id"]
+
+        updates: dict[str, Any] = {}
+        for field in template_row["fields"]:
+            value = self._prefill_value(field, ctx)
+            if value is None:
+                continue
+            updates[str(field["id"])] = {"value": _serialise_value(value), "source_type": "system"}
+        if updates:
+            _client().patch(
+                f"/api/incidents/{incident_id}/forms/{instance_id}/values",
+                json={"updates": updates, "require_override_reason": False},
             )
-            instance_id = cursor.lastrowid
-            for field in fields:
-                value = self._prefill_value(field, ctx)
-                if value is None:
-                    continue
-                conn.execute(
-                    """
-                    INSERT INTO instance_values (instance_id, field_id, value, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (instance_id, field["id"], _serialise_value(value), now, now),
-                )
         return instance_id
 
     def save_instance_value(self, instance_id: int, field_id: int, value: Any, *, incident_id: str) -> None:
         """Persist a single field value for a form instance."""
 
-        db.ensure_incident_db(incident_id)
-        now = _utcnow()
         serialised = _serialise_value(value)
-
-        with db.get_incident_connection(incident_id) as conn:
-            cursor = conn.execute(
-                "SELECT id FROM instance_values WHERE instance_id = ? AND field_id = ?",
-                (instance_id, field_id),
-            )
-            row = cursor.fetchone()
-            if row:
-                conn.execute(
-                    "UPDATE instance_values SET value = ?, updated_at = ? WHERE id = ?",
-                    (serialised, now, row["id"]),
-                )
-            else:
-                conn.execute(
-                    """
-                    INSERT INTO instance_values (instance_id, field_id, value, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (instance_id, field_id, serialised, now, now),
-                )
-            conn.execute(
-                "UPDATE form_instances SET updated_at = ? WHERE id = ?",
-                (now, instance_id),
-            )
+        _client().patch(
+            f"/api/incidents/{incident_id}/forms/{instance_id}/values",
+            json={"updates": {str(field_id): {"value": serialised, "source_type": "manual"}}, "require_override_reason": False},
+        )
 
     def finalize_instance(self, incident_id: str, instance_id: int) -> None:
         """Mark an instance as finalised."""
 
-        db.ensure_incident_db(incident_id)
-        now = _utcnow()
-        with db.get_incident_connection(incident_id) as conn:
-            conn.execute(
-                "UPDATE form_instances SET status = 'finalized', updated_at = ? WHERE id = ?",
-                (now, instance_id),
-            )
+        _client().post(f"/api/incidents/{incident_id}/forms/{instance_id}/finalize", json={})
 
     def export_instance_pdf(self, incident_id: str, instance_id: int, out_path: str | Path) -> str:
         """Composite a filled template into a printable PDF."""
 
-        db.ensure_incident_db(incident_id)
-        with db.get_incident_connection(incident_id) as conn:
-            instance_row = conn.execute("SELECT * FROM form_instances WHERE id = ?", (instance_id,)).fetchone()
-            if instance_row is None:
-                raise ValueError(f"Instance {instance_id} not found for incident {incident_id}")
-            values_cursor = conn.execute(
-                "SELECT field_id, value FROM instance_values WHERE instance_id = ?",
-                (instance_id,),
-            )
-            value_map = {row["field_id"]: _deserialise_value(row["value"]) for row in values_cursor.fetchall()}
+        instance_row = _client().get(f"/api/incidents/{incident_id}/forms/{instance_id}")
+        if instance_row is None:
+            raise ValueError(f"Instance {instance_id} not found for incident {incident_id}")
 
-        template_data = self._load_template_version(instance_row["template_id"], instance_row["template_version"])
+        value_map: dict[int, Any] = {}
+        for field_key, vdoc in (instance_row.get("values") or {}).items():
+            try:
+                key = int(field_key)
+            except (TypeError, ValueError):
+                continue
+            value_map[key] = _deserialise_value(vdoc.get("value"))
+
+        template_data = self._load_template_version(
+            instance_row["template_id"], instance_row["template_version_id"]
+        )
         output = self.exporter.export_instance(template_data, value_map, Path(out_path))
         return str(output)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _ensure_template_table(self) -> str:
-        required = {
-            "id",
-            "name",
-            "category",
-            "subcategory",
-            "version",
-            "background_path",
-            "page_count",
-            "schema_version",
-            "fields_json",
-            "created_at",
-            "updated_at",
-            "is_active",
+    def _flatten_template(self, doc: dict[str, Any], *, version_override: dict[str, Any] | None = None) -> dict[str, Any]:
+        version = version_override or doc.get("current_version") or {}
+        layout = version.get("layout") or {}
+        return {
+            "id": doc["id"],
+            "family_id": doc.get("family_id"),
+            "version_id": version.get("id"),
+            "name": doc.get("title", ""),
+            "category": doc.get("agency", ""),
+            "subcategory": doc.get("code", ""),
+            "version": version.get("version_number", 1),
+            "background_path": layout.get("background_path", ""),
+            "page_count": layout.get("page_count", 1),
+            "schema_version": layout.get("schema_version", 1),
+            "fields": version.get("fields", []),
+            "created_at": doc.get("created_at", ""),
+            "updated_at": doc.get("updated_at", ""),
+            "is_active": 1 if doc.get("status", "active") == "active" else 0,
         }
-        fallback_table = "form_templates_hybrid"
-        with db.get_master_connection() as conn:
-            try:
-                info = conn.execute("PRAGMA table_info(form_templates)").fetchall()
-            except Exception:
-                info = []
-            columns = {row["name"] for row in info}
-            if not info:
-                conn.executescript(db._create_template_sql("form_templates"))
-                return "form_templates"
-            if required.issubset(columns):
-                return "form_templates"
-            conn.executescript(db._create_template_sql(fallback_table))
-        return fallback_table
-
-    def _row_to_template_dict(self, row: Any) -> dict[str, Any]:
-        payload = dict(row)
-        payload["fields"] = json.loads(payload.pop("fields_json"))
-        return payload
 
     def _normalise_field(self, field: dict[str, Any] | Field) -> dict[str, Any]:
         if is_dataclass(field):
@@ -362,50 +302,14 @@ class FormService:
                         continue
         return value
 
-    def _archive_template_snapshot(self, row: Any) -> None:
-        """Persist the previous template definition to disk for version history."""
-
-        background = Path(row["background_path"])
-        if not background.is_absolute():
-            background = self.data_dir / background
-        versions_dir = background / "versions"
-        versions_dir.mkdir(parents=True, exist_ok=True)
-        snapshot_path = versions_dir / f"template_v{row['version']:03d}.json"
-        snapshot = dict(row)
-        snapshot["fields"] = json.loads(snapshot.pop("fields_json"))
-        with snapshot_path.open("w", encoding="utf-8") as fh:
-            json.dump(snapshot, fh, ensure_ascii=False, indent=2)
-
-    def _load_template_version(self, template_id: int, version: int) -> dict[str, Any]:
-        with db.get_master_connection() as conn:
-            row = conn.execute(
-                f"SELECT * FROM {self.template_table} WHERE id = ?",
-                (template_id,),
-            ).fetchone()
-        if row is None:
+    def _load_template_version(self, template_id: int, version_id: int) -> dict[str, Any]:
+        version = _client().get(f"/api/forms/templates/{template_id}/versions/{version_id}")
+        if version is None:
+            raise ValueError(f"Template version {version_id} not found for template {template_id}")
+        template = _client().get(f"/api/forms/templates/{template_id}")
+        if template is None:
             raise ValueError(f"Template {template_id} not found")
-
-        current_version = row["version"]
-        if version == current_version:
-            return self._row_to_template_dict(row)
-
-        if version > current_version:
-            raise ValueError(
-                f"Requested template version {version} is newer than stored version {current_version}"
-            )
-
-        background = Path(row["background_path"])
-        if not background.is_absolute():
-            background = self.data_dir / background
-        snapshot_path = background / "versions" / f"template_v{version:03d}.json"
-        if not snapshot_path.exists():
-            raise FileNotFoundError(
-                f"Template version {version} for template {template_id} is not available. Expected {snapshot_path}."
-            )
-        with snapshot_path.open("r", encoding="utf-8") as fh:
-            snapshot = json.load(fh)
-        snapshot["id"] = template_id
-        return snapshot
+        return self._flatten_template(template, version_override=version)
 
     def _write_template_files(self, row: dict[str, Any], fields: list[dict[str, Any]]) -> None:
         """Persist the canonical ``meta.json`` alongside the template assets."""

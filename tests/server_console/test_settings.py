@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from server.server_console.settings import (
+from lan_server.server_console.settings import (
     ServerConsoleSettings,
     ServerConsoleSettingsStore,
     _default_config_path,

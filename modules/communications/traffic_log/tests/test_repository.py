@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import importlib
-import sqlite3
 import sys
 from pathlib import Path
 
@@ -11,82 +9,96 @@ ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from utils import incident_context
 from utils.state import AppState
 
-from modules.communications.models.master_repo import MasterRepository
 from modules.communications.traffic_log.models import CommsLogEntry, CommsLogQuery
-from modules.communications.traffic_log.repository import CommsLogRepository
+from modules.communications.traffic_log.repository import ApiCommsLogRepository
 from modules.communications.traffic_log.services import CommsLogService
 
 
+class FakeApiClient:
+    """Minimal in-memory stand-in for ``utils.api_client.api_client``."""
+
+    def __init__(self):
+        self.entries: dict[int, dict] = {}
+        self.audit: dict[int, list[dict]] = {}
+        self._next_id = 1
+
+    def post(self, path, *, json=None):
+        if path.endswith("/comms-log"):
+            entry_id = self._next_id
+            self._next_id += 1
+            row = dict(json or {})
+            row["id"] = entry_id
+            row.setdefault("ts_utc", "2026-06-26T00:00:00+00:00")
+            row.setdefault("ts_local", "2026-06-26T00:00:00")
+            row.setdefault("created_at", row["ts_utc"])
+            row.setdefault("updated_at", row["ts_utc"])
+            self.entries[entry_id] = row
+            self.audit.setdefault(entry_id, []).append({"action": "create", "changed_by": row.get("operator_user_id")})
+            return dict(row)
+        raise AssertionError(f"Unexpected POST {path}")
+
+    def get(self, path, *, params=None):
+        if path.endswith("/audit"):
+            entry_id = int(path.split("/")[-2])
+            return list(self.audit.get(entry_id, []))
+        if "/comms-log/" in path:
+            entry_id = int(path.rsplit("/", 1)[-1])
+            return dict(self.entries[entry_id])
+        if path.endswith("/comms-log"):
+            rows = list(self.entries.values())
+            if params and params.get("priorities"):
+                wanted = set(params["priorities"].split(","))
+                rows = [r for r in rows if r.get("priority") in wanted]
+            return rows
+        if path.endswith("/master-channels/1"):
+            return {
+                "id": 1,
+                "name": "VHF-1",
+                "display_name": "VHF-1",
+                "function": "Tactical",
+                "rx_freq": 155.55,
+                "tx_freq": 155.55,
+                "band": "VHF",
+                "mode": "FM",
+            }
+        raise AssertionError(f"Unexpected GET {path}")
+
+    def patch(self, path, *, json=None, params=None):
+        entry_id = int(path.rsplit("/", 1)[-1])
+        row = self.entries[entry_id]
+        row.update(json or {})
+        self.audit.setdefault(entry_id, []).append({"action": "update", "changed_by": row.get("operator_user_id")})
+        return dict(row)
+
+    def delete(self, path, *, params=None):
+        entry_id = int(path.rsplit("/", 1)[-1])
+        self.entries.pop(entry_id, None)
+
+
 @pytest.fixture()
-def setup_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
-    incident_context.set_active_incident("test-incident")
+def fake_client(monkeypatch):
+    fake = FakeApiClient()
+    monkeypatch.setattr("utils.api_client.api_client", fake)
     AppState.set_active_incident("test-incident")
     AppState.set_active_user_id("comm_op")
-    master_db = tmp_path / "master.db"
-    with sqlite3.connect(master_db) as conn:
-        conn.execute(
-            """
-            CREATE TABLE comms_resources (
-                id INTEGER PRIMARY KEY,
-                alpha_tag TEXT,
-                function TEXT,
-                freq_rx REAL,
-                freq_tx REAL,
-                mode TEXT,
-                notes TEXT
-            )
-            """
-        )
-        conn.execute(
-            "INSERT INTO comms_resources (id, alpha_tag, function, freq_rx, freq_tx, mode, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (1, "VHF-1", "Tactical", 155.55, 155.55, "FM", "Primary tactical"),
-        )
-        conn.commit()
-
-    # Reload modules that cache database paths
-    import modules.communications.models.db as comms_db
-    import modules.communications.models.master_repo as master_repo_module
-    import modules.communications.traffic_log.models as log_models
-    import modules.communications.traffic_log.repository as repo_module
-    import modules.communications.traffic_log.services as services_module
-
-    comms_db.MASTER_DB_PATH = master_db
-    importlib.reload(comms_db)
-    comms_db.MASTER_DB_PATH = master_db
-    importlib.reload(master_repo_module)
-    importlib.reload(log_models)
-    importlib.reload(repo_module)
-    importlib.reload(services_module)
-
-    global MasterRepository, CommsLogEntry, CommsLogQuery, CommsLogRepository, CommsLogService
-    from modules.communications.models.master_repo import MasterRepository as MasterRepository
-    from modules.communications.traffic_log.models import CommsLogEntry as CommsLogEntry
-    from modules.communications.traffic_log.models import CommsLogQuery as CommsLogQuery
-    from modules.communications.traffic_log.repository import CommsLogRepository as CommsLogRepository
-    from modules.communications.traffic_log.services import CommsLogService as CommsLogService
-
-    return tmp_path
+    return fake
 
 
-def test_repository_creates_entry_and_audit(setup_env):
-    repo = CommsLogRepository(incident_id="test-incident")
+def test_repository_creates_entry_and_audit(fake_client):
+    repo = ApiCommsLogRepository(incident_id="test-incident")
     entry = CommsLogEntry(
         message="Rescue team checking in",
         priority="Routine",
         resource_id=1,
+        resource_label="VHF-1",
         from_unit="Team 1",
         to_unit="Base",
     )
     created = repo.add_entry(entry)
     assert created.id is not None
-    master = MasterRepository()
-    channel = master.get_channel(1)
-    assert created.resource_label == channel["display_name"]
-    assert created.frequency.startswith("155")
+    assert created.resource_label == "VHF-1"
 
     updated = repo.update_entry(created.id, {"message": "Updated message", "follow_up_required": True})
     assert updated.message == "Updated message"
@@ -100,14 +112,15 @@ def test_repository_creates_entry_and_audit(setup_env):
     assert results and results[0].message == "Updated message"
 
 
-def test_service_exports_csv(tmp_path, setup_env):
-    repo = CommsLogRepository(incident_id="test-incident")
+def test_service_exports_csv(tmp_path, fake_client):
+    repo = ApiCommsLogRepository(incident_id="test-incident")
     service = CommsLogService(repository=repo)
     service.create_entry(
         {
             "message": "Perimeter established",
             "priority": "Priority",
             "resource_id": 1,
+            "resource_label": "VHF-1",
             "from_unit": "Base",
             "to_unit": "Ops",
             "follow_up_required": False,

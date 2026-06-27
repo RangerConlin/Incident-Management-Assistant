@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 from pymongo.database import Database
 
 from sarapp_db.mongo.errors import RepositoryError
+from sarapp_db.mongo.json_safe import json_safe
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +69,17 @@ class BaseRepository:
         self._col = db[self.collection_name]
         self._incident_id = _incident_id_for_db(db)
 
-    def _broadcast(self, op: str, doc_id: str, doc: Optional[Dict[str, Any]]) -> None:
+    def _broadcast(self, op: str, doc_id: Any, doc: Optional[Dict[str, Any]]) -> None:
         if self._incident_id is None:
             return
+        # Documents from collections that predate BaseRepository can carry
+        # BSON types (ObjectId, raw datetime) a plain WebSocket send_json
+        # can't encode, anywhere in the document or in `doc_id` itself
+        # (passed straight through by callers that fetched a legacy
+        # document) — sanitize recursively rather than touching the
+        # stored value.
+        doc_id = str(doc_id)
+        doc = json_safe(doc) if doc is not None else None
         try:
             from sarapp_db.api.ws_hub import broadcast_change
 
@@ -110,11 +119,33 @@ class BaseRepository:
         """
         if touch_updated_at:
             updates = {**updates, "updated_at": _utcnow_iso()}
+        return self.apply_update(doc_id, {"$set": updates}, extra_filter=extra_filter)
+
+    def apply_update(
+        self,
+        doc_id: str,
+        update: Dict[str, Any],
+        *,
+        extra_filter: Optional[Dict[str, Any]] = None,
+        touch_updated_at: bool = True,
+    ) -> bool:
+        """Apply an arbitrary Mongo update document ($push/$pull/$addToSet/
+        $set/...) to the document with the given _id, and broadcast the
+        result like every other write here.
+
+        Use this instead of reaching into `._col` directly when a write
+        needs an operator `update_one` doesn't expose (array fields, etc.) —
+        it's the one place that keeps "write" and "announce" the same
+        action regardless of which Mongo operators the write needs.
+        """
+        if touch_updated_at:
+            update = dict(update)
+            update["$set"] = {**update.get("$set", {}), "updated_at": _utcnow_iso()}
         query = {"_id": doc_id, **(extra_filter or {})}
         try:
-            result = self._col.update_one(query, {"$set": updates})
+            result = self._col.update_one(query, update)
         except Exception as exc:
-            raise RepositoryError(f"update_one failed on '{self.collection_name}' id='{doc_id}': {exc}") from exc
+            raise RepositoryError(f"apply_update failed on '{self.collection_name}' id='{doc_id}': {exc}") from exc
         if result.matched_count > 0:
             doc = self._col.find_one({"_id": doc_id})
             op = "deleted" if doc and doc.get("deleted") is True else "updated"
@@ -160,7 +191,9 @@ class BaseRepository:
     ) -> Optional[Dict[str, Any]]:
         """Return the first document matching query, or None."""
         if self.soft_deletes and not include_deleted:
-            query = {**query, "deleted": False}
+            # `$ne: True` rather than `False` so documents that predate
+            # BaseRepository (never stamped `deleted` at all) still match.
+            query = {**query, "deleted": {"$ne": True}}
         try:
             return self._col.find_one(query)
         except Exception as exc:
@@ -181,7 +214,9 @@ class BaseRepository:
     ) -> List[Dict[str, Any]]:
         """Return all documents matching query."""
         if self.soft_deletes and not include_deleted:
-            query = {**query, "deleted": False}
+            # `$ne: True` rather than `False` so documents that predate
+            # BaseRepository (never stamped `deleted` at all) still match.
+            query = {**query, "deleted": {"$ne": True}}
         try:
             cursor = self._col.find(query)
             if sort:
@@ -198,7 +233,7 @@ class BaseRepository:
         """Return the number of documents matching query."""
         q: Dict[str, Any] = query or {}
         if self.soft_deletes and not include_deleted:
-            q = {**q, "deleted": False}
+            q = {**q, "deleted": {"$ne": True}}
         try:
             return self._col.count_documents(q)
         except Exception as exc:

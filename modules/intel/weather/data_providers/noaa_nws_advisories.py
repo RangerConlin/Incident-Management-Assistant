@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from .base import AdvisoryProvider
+from .base import AdvisoryProvider, get_shared_client
 from ..models.advisory import Advisory
 from ..services import settings
 
@@ -34,11 +34,6 @@ class NoaaNwsAdvisoryProvider(AdvisoryProvider):
     """Fetches weather advisories for a location from the NWS API."""
 
     def fetch_advisories(self, latitude: float, longitude: float) -> List[Advisory]:
-        try:
-            import httpx  # lazy import to avoid hard runtime dependency at import time
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError('httpx is not installed. Install with: pip install httpx')
-
         LOGGER.info(
             "Advisory fetch requested for lat=%s lon=%s", latitude, longitude
         )
@@ -46,10 +41,10 @@ class NoaaNwsAdvisoryProvider(AdvisoryProvider):
         url = f"{base_url}/alerts/active"
         params = {"point": f"{latitude:.4f},{longitude:.4f}"}
         try:
-            with httpx.Client(headers=headers, timeout=httpx.Timeout(10.0)) as client:
-                resp = client.get(url, params=params)
-                resp.raise_for_status()
-                payload = resp.json()
+            client = get_shared_client()
+            resp = client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
+            payload = resp.json()
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Failed to fetch advisories: %s", exc)
             return []

@@ -119,7 +119,7 @@
     },
     "statusboard.team.textSize": "large",
     "statusboard.team.columns.hidden": [],
-    "lastIncidentNumber": "2025-FAIR",
+    "lastIncidentNumber": "INC-OPS-001",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {

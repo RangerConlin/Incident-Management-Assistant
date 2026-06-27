@@ -1,11 +1,12 @@
 """Datamodels for the SARApp form creator module.
 
 The dataclasses defined in this module describe the hybrid JSON structures
-stored in the SQLite databases.  They are intentionally lightweight so they
-can be easily serialised/deserialised without pulling in heavy ORM
-dependencies.  The service layer primarily works with primitive dictionaries
-so that existing modules that expect JSON friendly structures can continue to
-operate without modification.
+persisted via the forms API (`data/db/sarapp_db/api/routers/forms.py`,
+MongoDB-backed). They are intentionally lightweight so they can be easily
+serialised/deserialised without pulling in heavy ORM dependencies. The
+service layer primarily works with primitive dictionaries so that existing
+modules that expect JSON friendly structures can continue to operate without
+modification.
 """
 
 from __future__ import annotations

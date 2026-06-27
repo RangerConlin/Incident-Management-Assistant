@@ -61,6 +61,7 @@ def test_create_and_update_resource_logs_audit(tmp_path: Path, monkeypatch, reso
             "resource_type": "Vehicle",
             "status": "Pending",
             "eta_utc": "2026-03-22T12:30:00+00:00",
+            "destination_facility_id": "fac-1",
             "notes": "Incoming support",
         },
         actor_name="pytest",
@@ -71,15 +72,18 @@ def test_create_and_update_resource_logs_audit(tmp_path: Path, monkeypatch, reso
             "status": "Enroute",
             "eta_utc": "2026-03-22T13:00:00+00:00",
             "assigned_to": "Staging",
+            "checkin_facility_id": "fac-2",
         },
         actor_name="pytest",
     )
 
     assert created.resource_id == "ENG-12"
+    assert created.destination_facility_id == "fac-1"
     assert updated.status == "Enroute"
+    assert updated.checkin_facility_id == "fac-2"
     audit_entries = service.list_audit_entries(created.id)
     fields = {entry["field_name"] for entry in audit_entries}
-    assert {"status", "eta_utc", "assigned_to"}.issubset(fields)
+    assert {"status", "eta_utc", "assigned_to", "checkin_facility_id"}.issubset(fields)
     assert db_path.exists()
 
 

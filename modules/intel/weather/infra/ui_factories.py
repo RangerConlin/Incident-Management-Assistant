@@ -102,6 +102,7 @@ def open_override_location(parent: Optional[QWidget] = None) -> QWidget:
             lat, lon = dialog.get_manual_coords()
             api.request_advisories(latitude=lat, longitude=lon)
             api.request_lightning(latitude=lat, longitude=lon, radius_nm=25.0)
+            api.request_hwo(latitude=lat, longitude=lon)
         elif mode == "icp":
             try:
                 from utils import incident_meta as _incident_meta
@@ -110,15 +111,14 @@ def open_override_location(parent: Optional[QWidget] = None) -> QWidget:
                 if loc:
                     api.request_advisories(latitude=loc.latitude, longitude=loc.longitude)
                     api.request_lightning(latitude=loc.latitude, longitude=loc.longitude, radius_nm=25.0)
+                    api.request_hwo(latitude=loc.latitude, longitude=loc.longitude)
             except Exception:
                 pass
         # 'city' remains a no-op until a geocoder-backed search is provided
 
-    try:
-        dialog.accepted.disconnect()
-    except Exception:
-        pass
-    dialog.accepted.connect(_on_accept)
+    if not getattr(dialog, "_weather_accept_connected", False):
+        dialog.accepted.connect(_on_accept)
+        setattr(dialog, "_weather_accept_connected", True)
     return dialog
 
 

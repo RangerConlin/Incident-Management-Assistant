@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-import json
 
 PRIORITY_ROUTINE = "Routine"
 PRIORITY_PRIORITY = "Priority"
@@ -57,65 +56,6 @@ class CommsLogEntry:
     updated_at: str = field(default_factory=utcnow_iso)
     operator_display_name: Optional[str] = None
     id: Optional[int] = None
-
-    def to_record(self) -> Dict[str, Any]:
-        """Return a mapping ready for SQLite insertion/update."""
-        payload = asdict(self)
-        payload["follow_up_required"] = 1 if self.follow_up_required else 0
-        payload["is_status_update"] = 1 if self.is_status_update else 0
-        payload["attachments"] = json.dumps(self.attachments, ensure_ascii=False)
-        # ``id`` is handled separately to avoid duplicates in INSERT payloads
-        payload.pop("id", None)
-        payload.pop("operator_display_name", None)
-        return payload
-
-    @classmethod
-    def from_row(cls, row: Dict[str, Any]) -> "CommsLogEntry":
-        attachments_raw = row.get("attachments")
-        if attachments_raw in (None, ""):
-            attachments = []
-        else:
-            try:
-                parsed = json.loads(attachments_raw)
-            except Exception:
-                parsed = []
-            if isinstance(parsed, list):
-                attachments = [str(p) for p in parsed]
-            elif isinstance(parsed, str):
-                attachments = [parsed]
-            else:
-                attachments = []
-        return cls(
-            id=row.get("id"),
-            ts_utc=row.get("ts_utc") or utcnow_iso(),
-            ts_local=row.get("ts_local") or localnow_iso(),
-            priority=row.get("priority") or PRIORITY_ROUTINE,
-            resource_id=row.get("resource_id"),
-            resource_label=row.get("resource_label") or "",
-            frequency=row.get("frequency") or "",
-            band=row.get("band") or "",
-            mode=row.get("mode") or "",
-            from_unit=row.get("from_unit") or "",
-            to_unit=row.get("to_unit") or "",
-            message=row.get("message") or "",
-            action_taken=row.get("action_taken") or "",
-            follow_up_required=bool(row.get("follow_up_required")),
-            disposition=row.get("disposition") or DISPOSITION_OPEN,
-            operator_user_id=str(row.get("operator_user_id")) if row.get("operator_user_id") is not None else None,
-            team_id=row.get("team_id"),
-            task_id=row.get("task_id"),
-            vehicle_id=row.get("vehicle_id"),
-            personnel_id=row.get("personnel_id"),
-            attachments=attachments,
-            geotag_lat=row.get("geotag_lat"),
-            geotag_lon=row.get("geotag_lon"),
-            notification_level=row.get("notification_level"),
-            is_status_update=bool(row.get("is_status_update")),
-            created_at=row.get("created_at") or utcnow_iso(),
-            updated_at=row.get("updated_at") or utcnow_iso(),
-            operator_display_name=row.get("operator_display_name"),
-        )
-
 
 @dataclass(slots=True)
 class CommsLogAuditEntry:

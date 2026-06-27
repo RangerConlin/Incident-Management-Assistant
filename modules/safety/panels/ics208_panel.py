@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.safety import services
+from modules.intel.weather.services.summary import build_weather_form_payload
 from utils.api_client import api_client
 from utils.state import AppState
 
@@ -144,6 +145,27 @@ class ICS208Panel(QWidget):
 
         layout.addWidget(_divider())
 
+        layout.addWidget(_section_label("Weather Summary"))
+        self._weather_summary = QTextEdit()
+        self._weather_summary.setPlaceholderText(
+            "Summary of current weather, forecast impacts, and active alerts for this operational period."
+        )
+        self._weather_summary.setMinimumHeight(90)
+        layout.addWidget(self._weather_summary)
+        weather_row = QHBoxLayout()
+        self._import_weather_btn = QPushButton("Import Cached Weather Summary")
+        self._import_weather_btn.setToolTip("Pulls the current incident weather summary into this field.")
+        self._import_weather_btn.clicked.connect(self._import_weather_summary)
+        weather_row.addWidget(self._import_weather_btn)
+        self._append_weather_btn = QPushButton("Append to Safety Message")
+        self._append_weather_btn.setToolTip("Appends the weather summary below the main safety message.")
+        self._append_weather_btn.clicked.connect(self._append_weather_to_message)
+        weather_row.addWidget(self._append_weather_btn)
+        weather_row.addStretch()
+        layout.addLayout(weather_row)
+
+        layout.addWidget(_divider())
+
         # Prepared by
         layout.addWidget(_section_label("Prepared By"))
         sig_grid = QGridLayout()
@@ -196,6 +218,7 @@ class ICS208Panel(QWidget):
         self._safety_message.setPlainText(data.get("safety_message") or "")
         self._site_plan_required.setChecked(bool(data.get("site_safety_plan_required", False)))
         self._site_plan_location.setText(data.get("site_safety_plan_location") or "")
+        self._weather_summary.setPlainText(data.get("weather_summary") or "")
         self._prepared_by_name.setText(data.get("prepared_by_name") or "")
         self._prepared_by_position.setText(data.get("prepared_by_position") or "")
         self._prepared_by_datetime.setText(data.get("prepared_by_datetime") or "")
@@ -262,6 +285,7 @@ class ICS208Panel(QWidget):
             "safety_message": self._safety_message.toPlainText().strip(),
             "site_safety_plan_required": self._site_plan_required.isChecked(),
             "site_safety_plan_location": self._site_plan_location.text().strip(),
+            "weather_summary": self._weather_summary.toPlainText().strip(),
             "prepared_by_name": self._prepared_by_name.text().strip(),
             "prepared_by_position": self._prepared_by_position.text().strip(),
             "prepared_by_datetime": self._prepared_by_datetime.text().strip(),
@@ -271,3 +295,34 @@ class ICS208Panel(QWidget):
             self._status_lbl.setText("Saved.")
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
+
+    def _import_weather_summary(self) -> None:
+        if not self._incident_id:
+            return
+        try:
+            weather_config = api_client.get(f"/api/incidents/{self._incident_id}/weather") or {}
+        except Exception:
+            QMessageBox.warning(self, "Import Failed", "Could not load incident weather data.")
+            return
+        weather_summary = build_weather_form_payload(weather_config).get("summary", "")
+        if not weather_summary:
+            QMessageBox.information(self, "No Weather Available", "No cached weather summary is available yet.")
+            return
+        self._weather_summary.setPlainText(weather_summary)
+        self._status_lbl.setText("Imported weather summary — remember to save.")
+        self._status_lbl.setStyleSheet("color: #e65100; font-size: 11px;")
+
+    def _append_weather_to_message(self) -> None:
+        weather_text = self._weather_summary.toPlainText().strip()
+        if not weather_text:
+            QMessageBox.information(self, "No Weather Summary", "Import or enter a weather summary first.")
+            return
+        existing = self._safety_message.toPlainText().rstrip()
+        block = f"Weather Summary:\n{weather_text}"
+        if existing:
+            combined = f"{existing}\n\n{block}"
+        else:
+            combined = block
+        self._safety_message.setPlainText(combined)
+        self._status_lbl.setText("Weather summary appended — remember to save.")
+        self._status_lbl.setStyleSheet("color: #e65100; font-size: 11px;")

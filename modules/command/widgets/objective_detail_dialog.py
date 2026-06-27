@@ -321,8 +321,10 @@ class ObjectiveDetailDialog(QDialog):
         summary = detail.summary
         self._code_label.setText(summary.code)
         self._objective_text.setPlainText(summary.text)
-        self._priority_combo.setCurrentIndex(PRIORITY_VALUES.index(summary.priority))
-        self._status_combo.setCurrentIndex(STATUS_VALUES.index(summary.status))
+        priority_index = PRIORITY_VALUES.index(summary.priority) if summary.priority in PRIORITY_VALUES else 0
+        self._priority_combo.setCurrentIndex(priority_index)
+        status_index = STATUS_VALUES.index(summary.status) if summary.status in STATUS_VALUES else 0
+        self._status_combo.setCurrentIndex(status_index)
         self._owner_edit.setText(summary.owner_section or "")
         self._tags_edit.setText(", ".join(summary.tags))
         self._op_label.setText(str(summary.op_period_id or "–"))

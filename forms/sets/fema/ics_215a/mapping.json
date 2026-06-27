@@ -1,19 +1,35 @@
 {
-  "description": "ICS 215A IAP Safety Analysis — FEMA",
+  "description": "ICS 215A IAP Safety Analysis - FEMA",
   "fields": [
     {
-      "pdf_field": "IncidentName",
+      "pdf_field": "1 Incident Name_21",
       "source": "incident.name"
     },
     {
-      "pdf_field": "IncidentNumber",
+      "pdf_field": "2 Incident Number_10",
       "source": {
         "key": "incident.number",
         "default": ""
       }
     },
     {
-      "pdf_field": "OpPeriodDateFrom",
+      "pdf_field": "Date",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Time",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Date From",
       "source": {
         "key": "op_period.start",
         "transform": "date_short",
@@ -21,15 +37,7 @@
       }
     },
     {
-      "pdf_field": "OpPeriodTimeFrom",
-      "source": {
-        "key": "op_period.start",
-        "transform": "time_short",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "OpPeriodDateTo",
+      "pdf_field": "Date To",
       "source": {
         "key": "op_period.end",
         "transform": "date_short",
@@ -37,7 +45,15 @@
       }
     },
     {
-      "pdf_field": "OpPeriodTimeTo",
+      "pdf_field": "Time From",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Time To",
       "source": {
         "key": "op_period.end",
         "transform": "time_short",
@@ -45,190 +61,52 @@
       }
     },
     {
-      "pdf_field": "BranchDivGroup1",
-      "source": {
-        "key": "tasks.0.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment1",
-      "source": {
-        "key": "tasks.0.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard1",
-      "source": {
-        "key": "objectives.0.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "BranchDivGroup2",
-      "source": {
-        "key": "tasks.1.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment2",
-      "source": {
-        "key": "tasks.1.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard2",
-      "source": {
-        "key": "objectives.1.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "BranchDivGroup3",
-      "source": {
-        "key": "tasks.2.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment3",
-      "source": {
-        "key": "tasks.2.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard3",
-      "source": {
-        "key": "objectives.2.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "BranchDivGroup4",
-      "source": {
-        "key": "tasks.3.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment4",
-      "source": {
-        "key": "tasks.3.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard4",
-      "source": {
-        "key": "objectives.3.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "BranchDivGroup5",
-      "source": {
-        "key": "tasks.4.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment5",
-      "source": {
-        "key": "tasks.4.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard5",
-      "source": {
-        "key": "objectives.4.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "BranchDivGroup6",
-      "source": {
-        "key": "tasks.5.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment6",
-      "source": {
-        "key": "tasks.5.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard6",
-      "source": {
-        "key": "objectives.5.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "BranchDivGroup7",
-      "source": {
-        "key": "tasks.6.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment7",
-      "source": {
-        "key": "tasks.6.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard7",
-      "source": {
-        "key": "objectives.6.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "BranchDivGroup8",
-      "source": {
-        "key": "tasks.7.assignment",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "WorkAssignment8",
-      "source": {
-        "key": "tasks.7.title",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "Hazard8",
-      "source": {
-        "key": "objectives.7.text",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "SafetyOfficer",
+      "pdf_field": "8 Prepared by Safety Officer Name",
       "source": {
         "key": "organization.safety_officer.name",
         "default": ""
       }
     },
     {
-      "pdf_field": "PreparedBy",
-      "source": "prepared_by.name"
+      "pdf_field": "Signature_23",
+      "source": {
+        "literal": ""
+      }
     },
     {
-      "pdf_field": "PreparedDateTime",
+      "pdf_field": "Prepared by Operations Section Chief Name",
+      "source": {
+        "key": "organization.operations_section_chief.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Signature_24",
+      "source": {
+        "literal": ""
+      }
+    },
+    {
+      "pdf_field": "DateTime_17",
       "source": {
         "key": "prepared_by.date_time",
         "transform": "datetime_short",
         "default": ""
+      }
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "ics_215a_rows",
+      "data_key": "ics_215a_rows",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        14
+      ],
+      "col_patterns": {
+        "location": "5 Incident AreaRow{n}",
+        "hazard": "6 HazardsRisksRow{n}",
+        "control_measure": "7 MitigationsRow{n}"
       }
     }
   ]

@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
 from utils.state import AppState
 from utils.org_combo import make_org_combo
 
+from modules.logistics.facilities import FacilityPicker
+from modules.logistics.facilities.service import FacilitiesService
 from modules.logistics.checkin.services import (
     ENTITY_CONFIG,
     CheckInService,
@@ -259,6 +261,7 @@ class ResourceDetailDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Resource Details")
         self._row = row
+        self._facility_service = FacilitiesService()
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -274,6 +277,9 @@ class ResourceDetailDialog(QDialog):
         self.status.setCurrentText(self._row.status_item.status)
         self.assigned_to = QLineEdit(self._row.assigned_to)
         self.location = QLineEdit(self._row.location)
+        self.facility_picker = FacilityPicker(service=self._facility_service)
+        facility_id = self._row.status_item.checkin_facility_id or self._row.status_item.destination_facility_id or ""
+        self.facility_picker.set_value(facility_id, self._row.location)
         self.eta = QLineEdit(self._row.status_item.eta_utc or "")
         self.notes = QTextEdit(self._row.status_item.notes or "")
 
@@ -284,6 +290,7 @@ class ResourceDetailDialog(QDialog):
         form.addRow("Status", self.status)
         form.addRow("Assigned To", self.assigned_to)
         form.addRow("Location", self.location)
+        form.addRow("Facility", self.facility_picker)
         form.addRow("ETA", self.eta)
         form.addRow("Notes", self.notes)
         layout.addLayout(form)
@@ -300,13 +307,18 @@ class ResourceDetailDialog(QDialog):
         layout.addWidget(buttons)
 
     def payload(self) -> dict[str, Any]:
+        facility_id = self.facility_picker.facility_id or None
+        location_text = self.facility_picker.facility_text or self.location.text().strip() or None
+        status = self.status.currentText()
         return {
             "resource_id": self.resource_id.text().strip(),
             "resource_type": self.resource_type.text().strip(),
             "resource_name": self.name.text().strip(),
-            "status": self.status.currentText(),
+            "status": status,
             "assigned_to": self.assigned_to.text().strip() or None,
-            "location": self.location.text().strip() or None,
+            "location": location_text,
+            "destination_facility_id": facility_id if status in {"Pending", "Enroute", "Assigned"} else None,
+            "checkin_facility_id": facility_id if status == "Checked In" else None,
             "eta_utc": self.eta.text().strip() or None,
             "notes": self.notes.toPlainText().strip() or None,
         }
@@ -322,6 +334,7 @@ class QuickCheckInDialog(QDialog):
         self.setWindowTitle("Quick Check-In")
         self.setModal(True)
         self._board = board
+        self._facility_service = FacilitiesService()
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -348,11 +361,14 @@ class QuickCheckInDialog(QDialog):
         self.eta_input.setPlaceholderText("ETA (optional)")
         self.assignment_input = QLineEdit()
         self.assignment_input.setPlaceholderText("Team / section / location")
+        self.facility_picker = FacilityPicker(service=self._facility_service)
+        self.facility_picker.line_edit.setPlaceholderText("Destination / check-in facility (optional)")
         self.oos_reason = QLineEdit()
         self.oos_reason.setPlaceholderText("Out of service reason (optional)")
         top.addWidget(self.eta_input, 3, 1)
         top.addWidget(self.assignment_input, 4, 1)
-        top.addWidget(self.oos_reason, 5, 1)
+        top.addWidget(self.facility_picker, 5, 1)
+        top.addWidget(self.oos_reason, 6, 1)
 
         layout.addLayout(top)
 
@@ -460,12 +476,19 @@ class QuickCheckInDialog(QDialog):
     def _status_patch(self) -> dict[str, Any]:
         status = self.status_combo.currentText()
         patch: dict[str, Any] = {"status": status}
+        facility_id = self.facility_picker.facility_id or None
+        facility_text = self.facility_picker.facility_text or None
         if status in {"Pending", "Enroute"}:
             patch["eta_utc"] = self.eta_input.text().strip() or None
+            patch["destination_facility_id"] = facility_id
         if status == "Checked In":
             patch["checked_in_time"] = datetime.now().astimezone().isoformat(timespec="seconds")
+            patch["checkin_facility_id"] = facility_id
         if status == "Assigned":
             patch["assigned_to"] = self.assignment_input.text().strip() or None
+            patch["destination_facility_id"] = facility_id
+        if facility_text:
+            patch["location"] = facility_text
         if status == "Out of Service":
             patch["notes"] = self.oos_reason.text().strip() or None
         return patch
@@ -836,6 +859,9 @@ class CheckInWindow(QWidget):
                 "status": status_patch.get("status", "Checked In"),
                 "eta_utc": status_patch.get("eta_utc"),
                 "assigned_to": status_patch.get("assigned_to"),
+                "location": status_patch.get("location"),
+                "destination_facility_id": status_patch.get("destination_facility_id"),
+                "checkin_facility_id": status_patch.get("checkin_facility_id"),
                 "checked_in_time": status_patch.get("checked_in_time"),
                 "notes": status_patch.get("notes"),
                 "source_entity_type": entity_key,

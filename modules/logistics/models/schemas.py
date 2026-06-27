@@ -40,21 +40,6 @@ class RequestAssignmentCreate(BaseModel):
     status: Optional[str] = "pending"
 
 
-class EquipmentItemCreate(BaseModel):
-    name: str
-    type_id: Optional[str] = None
-    serial_number: Optional[str] = None
-    location: Optional[str] = None
-
-
-class EquipmentItemRead(EquipmentItemCreate):
-    id: int
-    status: str
-    current_holder_id: Optional[int]
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class PermissionOut(BaseModel):
     can_create: bool = False
     can_approve: bool = False

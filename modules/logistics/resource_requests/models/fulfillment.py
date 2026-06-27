@@ -17,6 +17,8 @@ class FulfillmentRecord:
     supplier_id: Optional[str] = None
     assigned_team_id: Optional[str] = None
     assigned_vehicle_id: Optional[str] = None
+    destination_location: Optional[str] = None
+    destination_facility_id: Optional[str] = None
     eta_utc: Optional[str] = None
     note: Optional[str] = None
 
@@ -27,6 +29,8 @@ class FulfillmentRecord:
             "supplier_id": self.supplier_id,
             "assigned_team_id": self.assigned_team_id,
             "assigned_vehicle_id": self.assigned_vehicle_id,
+            "destination_location": self.destination_location,
+            "destination_facility_id": self.destination_facility_id,
             "eta_utc": self.eta_utc,
             "status": self.status.value,
             "note": self.note,
@@ -41,6 +45,8 @@ class FulfillmentRecord:
             supplier_id=row.get("supplier_id"),
             assigned_team_id=row.get("assigned_team_id"),
             assigned_vehicle_id=row.get("assigned_vehicle_id"),
+            destination_location=row.get("destination_location"),
+            destination_facility_id=row.get("destination_facility_id"),
             eta_utc=row.get("eta_utc"),
             status=FulfillmentStatus(row["status"]),
             note=row.get("note"),

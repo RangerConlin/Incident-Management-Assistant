@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Iterable, List, Optional
 
-from .base import MetarProvider, TafProvider
+from .base import MetarProvider, TafProvider, get_shared_client
 from ..models.readings import MetarReading, TafReading
 from ..services import settings
 from ..services import cache as weather_cache
@@ -31,11 +31,6 @@ class NoaaMetarProvider(MetarProvider):
     """Fetches METAR observations from the NOAA AWC API."""
 
     def fetch_metar(self, icao_codes: Iterable[str]) -> List[MetarReading]:
-        try:
-            import httpx  # lazy import to avoid hard runtime dependency at import time
-        except Exception:
-            raise RuntimeError("httpx is not installed. Install with: pip install httpx")
-
         codes = list({code.strip().upper() for code in icao_codes if code})
         if not codes:
             LOGGER.debug("No ICAO codes supplied for METAR fetch.")
@@ -47,18 +42,18 @@ class NoaaMetarProvider(MetarProvider):
             "format": "json",
         }
         try:
-            with httpx.Client(headers=headers, timeout=httpx.Timeout(10.0)) as client:
-                resp = client.get(base_url, params=params)
-                if resp.status_code == 204:
-                    return []
-                if resp.status_code != 200:
-                    LOGGER.warning("METAR fetch HTTP %s for %s", resp.status_code, resp.url)
-                    return []
-                payload = resp.json()
-                try:
-                    weather_cache.write_cache("debug_awc_metar_raw", {"url": str(resp.url), "payload": payload})
-                except Exception:
-                    pass
+            client = get_shared_client()
+            resp = client.get(base_url, params=params, headers=headers)
+            if resp.status_code == 204:
+                return []
+            if resp.status_code != 200:
+                LOGGER.warning("METAR fetch HTTP %s for %s", resp.status_code, resp.url)
+                return []
+            payload = resp.json()
+            try:
+                weather_cache.write_cache("debug_awc_metar_raw", {"url": str(resp.url), "payload": payload})
+            except Exception:
+                pass
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Failed to fetch METAR: %s", exc)
             return []
@@ -69,11 +64,6 @@ class NoaaTafProvider(TafProvider):
     """Fetches TAF bulletins from the NOAA AWC API."""
 
     def fetch_taf(self, icao_codes: Iterable[str]) -> List[TafReading]:
-        try:
-            import httpx  # lazy import to avoid hard runtime dependency at import time
-        except Exception:
-            raise RuntimeError("httpx is not installed. Install with: pip install httpx")
-
         codes = list({code.strip().upper() for code in icao_codes if code})
         if not codes:
             LOGGER.debug("No ICAO codes supplied for TAF fetch.")
@@ -85,18 +75,18 @@ class NoaaTafProvider(TafProvider):
             "format": "json",
         }
         try:
-            with httpx.Client(headers=headers, timeout=httpx.Timeout(10.0)) as client:
-                resp = client.get(base_url, params=params)
-                if resp.status_code == 204:
-                    return []
-                if resp.status_code != 200:
-                    LOGGER.warning("TAF fetch HTTP %s for %s", resp.status_code, resp.url)
-                    return []
-                payload = resp.json()
-                try:
-                    weather_cache.write_cache("debug_awc_taf_raw", {"url": str(resp.url), "payload": payload})
-                except Exception:
-                    pass
+            client = get_shared_client()
+            resp = client.get(base_url, params=params, headers=headers)
+            if resp.status_code == 204:
+                return []
+            if resp.status_code != 200:
+                LOGGER.warning("TAF fetch HTTP %s for %s", resp.status_code, resp.url)
+                return []
+            payload = resp.json()
+            try:
+                weather_cache.write_cache("debug_awc_taf_raw", {"url": str(resp.url), "payload": payload})
+            except Exception:
+                pass
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Failed to fetch TAF: %s", exc)
             return []

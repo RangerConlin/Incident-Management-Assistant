@@ -67,6 +67,30 @@ def test_sar104_bindings_exist_in_library():
     assert expected.issubset(paths)
 
 
+def test_cap_weather_mappings_reference_shared_weather_payload():
+    cap104_mapping = Path(r"C:\Users\Brendan\Documents\GitHub\Incident-Management-Assistant\forms\sets\cap\capf_104\mapping.json")
+    cap109_mapping = Path(r"C:\Users\Brendan\Documents\GitHub\Incident-Management-Assistant\forms\sets\cap\capf_109\mapping.json")
+
+    cap104 = json.loads(cap104_mapping.read_text(encoding="utf-8"))
+    cap109 = json.loads(cap109_mapping.read_text(encoding="utf-8"))
+
+    cap104_sources = {
+        item["pdf_field"]: item.get("source", {}).get("key") if isinstance(item.get("source"), dict) else item.get("source")
+        for item in cap104["fields"]
+    }
+    cap109_sources = {item["pdf_field"]: item.get("source") for item in cap109["fields"]}
+
+    assert cap104_sources["Weather Conditions"] == "weather.conditions"
+    assert cap104_sources["Current Local"] == "weather.current.local"
+    assert cap104_sources["Current Enroute"] == "weather.current.enroute"
+    assert cap104_sources["Current Area of Operations"] == "weather.current.area_of_operations"
+    assert cap104_sources["Forecast Local"] == "weather.forecast.local"
+    assert cap104_sources["Forecast Enroute"] == "weather.forecast.enroute"
+    assert cap104_sources["Forecast Area of Operations"] == "weather.forecast.area_of_operations"
+    assert cap109_sources["Text68"] == "weather.current.local"
+    assert cap109_sources["Text69"] == "weather.forecast.local"
+
+
 def test_sar104_export_context_orders_team_and_roster(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(repo.incident_context, "get_active_incident_id", lambda: "INC-1")
@@ -164,6 +188,37 @@ def test_sar104_export_context_orders_team_and_roster(monkeypatch, tmp_path):
         "generate_form_pdf",
         lambda form_id, out_path, form_set_id=None, extra_data=None: Path(out_path),
     )
+    monkeypatch.setattr(
+        repo,
+        "_client",
+        lambda: type(
+            "FakeClient",
+            (),
+            {
+                "get": staticmethod(
+                    lambda path, params=None: {
+                        "weather_payload": {
+                            "metar": {
+                                "KCVG": {"station": "KCVG", "raw_text": "KCVG 261651Z 21012KT 10SM SCT040 29/21 A2992"},
+                                "KDAY": {"station": "KDAY", "raw_text": "KDAY 261656Z 22010KT 10SM BKN050 28/20 A2990"},
+                            },
+                            "forecast": {
+                                "39.1031,-84.5120": {
+                                    "label": "ICP",
+                                    "periods": [
+                                        {"name": "Today", "temperature": 84, "detailed_text": "Hot and humid"},
+                                        {"name": "Tonight", "temperature": 68, "detailed_text": "Chance of storms"},
+                                    ],
+                                }
+                            },
+                            "advisories": [{"event": "Heat Advisory"}],
+                        },
+                        "icao_codes": ["KCVG", "KDAY"],
+                    }
+                )
+            },
+        )(),
+    )
 
     context = repo._build_assignment_export_context(17, {"team_id": 7})
     assert context["team"]["leader_name"] == "Alice Leader"
@@ -173,6 +228,9 @@ def test_sar104_export_context_orders_team_and_roster(monkeypatch, tmp_path):
     assert context["team_members"][1]["member_medic"] is True
     assert context["assignment"]["ground"]["expected_pod"]["responsive"]["high"] == "X"
     assert context["radio_call"].startswith("Primary: 151.100")
+    assert context["weather"]["current"]["local"].startswith("KCVG:")
+    assert "Heat Advisory" in context["weather"]["conditions"]
+    assert context["weather_summary"].startswith("Current:")
 
     exports = repo.export_assignment_forms(17, ["SAR 104"], {"team_id": 7})
     assert len(exports) == 1

@@ -1,4 +1,4 @@
-"""Incident database routing helpers for finance and other SQLite-backed modules."""
+"""Incident database routing helpers for ics214 and other SQLite-backed modules."""
 
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,7 +12,6 @@ from sqlalchemy.orm import sessionmaker
 
 from modules._infra.base import Base
 # Import model modules so tables are registered on Base metadata
-import modules.personnel.org_models  # noqa: F401
 import modules.command.models.objectives  # noqa: F401
 
 _engine_cache: Dict[str, Any] = {}
