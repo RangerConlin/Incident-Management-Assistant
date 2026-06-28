@@ -67,8 +67,6 @@ _tmp_*
 tmp_*
 /tmp
 /tests
-# One-shot migration/seed scripts (already applied; not needed in repo)
-scripts/
 
 old qml/
 
