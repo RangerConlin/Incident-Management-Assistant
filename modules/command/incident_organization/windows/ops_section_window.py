@@ -6,12 +6,17 @@ Provides a persistent floating window for managing the Operations Section
 structure: branches, divisions, groups, and their assigned resources.
 Resources are currently treated as single resources (teams); task force
 and strike team scaffolding is present for future expansion.
+
+Deputies, assistants, trainees, and relief are shown as secondary assignments
+(assignment_type field) on the parent position rather than as separate
+position nodes.
 """
 
+from collections import defaultdict
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -36,7 +41,7 @@ from PySide6.QtWidgets import (
 
 from utils import incident_context
 from ..controller import IncidentOrganizationController
-from ..models import OrganizationPosition
+from ..models import OrganizationPosition, PositionAssignment
 
 # Fallback resource kind options when the master resource type library is empty
 _DEFAULT_RESOURCE_KINDS: list[str] = [
@@ -73,15 +78,35 @@ def _load_resource_kind_options() -> list[str]:
 # Classifications rendered in this window's tree
 _UNIT_CLASSIFICATIONS = {"branch", "division", "group"}
 
-# Titles that indicate a supervisor/director position under a unit node
-_SUPERVISOR_KEYWORDS = ("director", "supervisor")
-
-# Resource type labels — extend when task forces / strike teams are supported
+# Resource type labels
 _RESOURCE_TYPE_LABELS = {
     "task_force": "Task Force",
     "strike_team": "Strike Team",
     "single_resource": "Single Resource",
 }
+
+# ICS support role titles by classification (mirrors incident_organization_panel.py)
+# Division/Group have no deputies (N/A per ICS standard).
+# Incident Commander (command) has a Deputy only (no Assistant).
+# Command Staff (PIO/LOFR/SOFR - "position") have Assistants only.
+# Section Chiefs have both Deputies and Assistants.
+_ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
+    "command": {"deputy": "Deputy", "trainee": "Trainee", "relief": "Relief"},
+    "section": {"deputy": "Deputy", "assistant": "Assistant", "trainee": "Trainee", "relief": "Relief"},
+    "branch":  {"deputy": "Deputy Director", "trainee": "Trainee", "relief": "Relief"},
+    "division":{"trainee": "Trainee", "relief": "Relief"},
+    "group":   {"trainee": "Trainee", "relief": "Relief"},
+    "unit":    {"trainee": "Trainee", "relief": "Relief"},
+    "position":{"assistant": "Assistant", "trainee": "Trainee", "relief": "Relief"},
+}
+
+def _assignment_display_text(at: str, name: str, classification: str = "position") -> str:
+    """Format assignment text with ICS-standard role titles."""
+    if at == "primary":
+        return name
+    cls_titles = _ICS_SUPPORT_TITLES.get(classification, _ICS_SUPPORT_TITLES["position"])
+    title = cls_titles.get(at)
+    return f"{title}: {name}" if title else name
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +193,10 @@ class _AddBranchDialog(QDialog):
         self.director_edit.setPlaceholderText("Optional — assign later if unknown")
         layout.addRow("Branch Director", self.director_edit)
 
+        self.deputy_edit = QLineEdit(self)
+        self.deputy_edit.setPlaceholderText("Optional — deputy director")
+        layout.addRow("Deputy Director", self.deputy_edit)
+
         self.notes_edit = QTextEdit(self)
         self.notes_edit.setMaximumHeight(64)
         layout.addRow("Notes", self.notes_edit)
@@ -202,6 +231,7 @@ class _AddBranchDialog(QDialog):
             "name": self.name_edit.text().strip(),
             "parent_id": self.parent_combo.currentData(),
             "director_name": self.director_edit.text().strip() or None,
+            "deputy_name": self.deputy_edit.text().strip() or None,
             "notes": self.notes_edit.toPlainText().strip() or None,
         }
 
@@ -212,7 +242,7 @@ class _AddAirOpsBranchDialog(QDialog):
     Deliberately has no name field (always titled "Air Operations Branch")
     and no parent picker (always directly under the Operations Section) -
     the only choices left are who's running it. Callers must check
-    uniqueness before opening this (see OperationsSectionWindow._add_air_ops_branch).
+    uniqueness before opening this.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -235,6 +265,10 @@ class _AddAirOpsBranchDialog(QDialog):
         self.director_edit.setPlaceholderText("Optional — assign later if unknown")
         layout.addRow("Air Ops Branch Director", self.director_edit)
 
+        self.deputy_edit = QLineEdit(self)
+        self.deputy_edit.setPlaceholderText("Optional — deputy director")
+        layout.addRow("Deputy Director", self.deputy_edit)
+
         self.notes_edit = QTextEdit(self)
         self.notes_edit.setMaximumHeight(64)
         layout.addRow("Notes", self.notes_edit)
@@ -247,6 +281,7 @@ class _AddAirOpsBranchDialog(QDialog):
     def values(self) -> dict:
         return {
             "director_name": self.director_edit.text().strip() or None,
+            "deputy_name": self.deputy_edit.text().strip() or None,
             "notes": self.notes_edit.toPlainText().strip() or None,
         }
 
@@ -278,6 +313,15 @@ class _AddDivisionGroupDialog(QDialog):
         self.supervisor_edit = QLineEdit(self)
         self.supervisor_edit.setPlaceholderText("Optional — assign later if unknown")
         layout.addRow("Supervisor", self.supervisor_edit)
+
+        info = QLabel(
+            "Note: Division/Group Supervisors do not have deputies or "
+            "assistants per ICS standards (N/A).",
+            self,
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #757575; font-style: italic;")
+        layout.addRow("", info)
 
         self.notes_edit = QTextEdit(self)
         self.notes_edit.setMaximumHeight(64)
@@ -319,7 +363,6 @@ class _AddDivisionGroupDialog(QDialog):
 class _AssignResourceDialog(QDialog):
     """Pick a team and set its ICS resource kind for assignment to a division/group."""
 
-    # Displayed label -> stored key
     RESOURCE_KINDS: list[tuple[str, str]] = [
         ("Single Resource", "single_resource"),
         ("Task Force", "task_force"),
@@ -412,9 +455,9 @@ class _AssignResourceDialog(QDialog):
 class OperationsSectionWindow(QDialog):
     """Floating window for managing Operations Section structure and resources.
 
-    The tree on the left shows branches and their divisions/groups.
-    The panel on the right shows resources assigned to the selected unit
-    and allows assigning or removing teams.
+    The tree on the left shows branches and their divisions/groups with
+    assignments (including deputies) shown inline on the position node
+    rather than as separate child positions.
 
     Emits ``structure_changed`` when the org structure is modified so the
     main org panel can refresh its own tree.
@@ -438,6 +481,7 @@ class OperationsSectionWindow(QDialog):
         self.resize(1200, 700)
 
         self._positions_by_id: dict[int, OrganizationPosition] = {}
+        self._assignments_by_position: dict[int, list[PositionAssignment]] = {}
         self._build_ui()
         self._refresh()
 
@@ -491,7 +535,7 @@ class OperationsSectionWindow(QDialog):
         left_layout.addWidget(QLabel("Operations Section Structure", left))
 
         self.tree = QTreeWidget(left)
-        self.tree.setHeaderLabels(["Unit", "Supervisor / Director"])
+        self.tree.setHeaderLabels(["Unit", "Assignments"])
         self.tree.header().setStretchLastSection(True)
         self.tree.itemSelectionChanged.connect(self._handle_unit_selected)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -513,6 +557,11 @@ class OperationsSectionWindow(QDialog):
 
         self.unit_meta = QLabel("", right)
         right_layout.addWidget(self.unit_meta)
+
+        # Show personnel assignments on this unit
+        self.unit_staffing = QLabel("", right)
+        self.unit_staffing.setWordWrap(True)
+        right_layout.addWidget(self.unit_staffing)
 
         right_layout.addWidget(QLabel("Assigned Resources", right))
 
@@ -560,26 +609,13 @@ class OperationsSectionWindow(QDialog):
         self._positions_by_id = {p.id or 0: p for p in positions}
 
         assignments = self.controller.list_assignments(active_only=True)
-        # Build supervisor lookup: unit_id -> supervisor display name
-        # A supervisor is the first active primary assignment on a child position
-        # whose title contains a supervisor/director keyword.
-        supervisor_by_unit: dict[int, str] = {}
-        for pos in positions:
-            pid = pos.parent_position_id
-            if pid is None:
-                continue
-            title_lower = pos.title.lower()
-            if any(kw in title_lower for kw in _SUPERVISOR_KEYWORDS):
-                for asgn in assignments:
-                    if asgn.position_id == pos.id and asgn.assignment_type == "primary":
-                        if pid not in supervisor_by_unit:
-                            supervisor_by_unit[pid] = asgn.display_name
-                        break
+        self._assignments_by_position = defaultdict(list)
+        for asgn in assignments:
+            self._assignments_by_position[asgn.position_id].append(asgn)
 
         ops_id = self.controller.get_ops_section_id()
 
         # Group positions by parent
-        from collections import defaultdict
         children: dict[int | None, list[OrganizationPosition]] = defaultdict(list)
         for pos in positions:
             children[pos.parent_position_id].append(pos)
@@ -602,12 +638,28 @@ class OperationsSectionWindow(QDialog):
         branch_font = QFont()
         branch_font.setBold(True)
 
+        def _build_assignment_text(pos_id: int) -> str:
+            """Build inline assignment text showing primary + other types."""
+            pos_obj = self._positions_by_id.get(pos_id)
+            classification = pos_obj.classification if pos_obj else "position"
+            pos_assignments = self._assignments_by_position.get(pos_id, [])
+            parts = []
+            primary_names = [a.display_name for a in pos_assignments if a.assignment_type == "primary"]
+            if primary_names:
+                parts.append(", ".join(primary_names))
+            non_primary_assignments = [a for a in pos_assignments if a.assignment_type != "primary"]
+            for at in ("deputy", "assistant", "trainee", "relief"):
+                names = [a.display_name for a in non_primary_assignments if a.assignment_type == at]
+                for n in names:
+                    parts.append(_assignment_display_text(at, n, classification))
+            return " | ".join(parts) if parts else ""
+
         def _add_unit_children(parent_item: QTreeWidgetItem, parent_id: int | None) -> None:
             for pos in children.get(parent_id, []):
                 if pos.classification not in _UNIT_CLASSIFICATIONS:
                     continue
-                supervisor = supervisor_by_unit.get(pos.id or 0, "")
-                item = QTreeWidgetItem([pos.title, supervisor])
+                assignment_text = _build_assignment_text(pos.id or 0)
+                item = QTreeWidgetItem([pos.title, assignment_text])
                 item.setData(0, Qt.UserRole, pos.id)
                 if pos.classification == "branch":
                     item.setFont(0, branch_font)
@@ -617,7 +669,6 @@ class OperationsSectionWindow(QDialog):
         _add_unit_children(root_item, ops_id)
 
         # Also surface any branches/divisions not under the ops section
-        # (e.g. manually placed or from custom templates)
         all_unit_ids = {
             p.id for p in positions if p.classification in _UNIT_CLASSIFICATIONS
         }
@@ -642,14 +693,15 @@ class OperationsSectionWindow(QDialog):
             self.tree.addTopLevelItem(other_item)
             for pos in positions:
                 if pos.id in orphan_ids:
-                    supervisor = supervisor_by_unit.get(pos.id or 0, "")
-                    item = QTreeWidgetItem([pos.title, supervisor])
+                    assignment_text = _build_assignment_text(pos.id or 0)
+                    item = QTreeWidgetItem([pos.title, assignment_text])
                     item.setData(0, Qt.UserRole, pos.id)
                     other_item.addChild(item)
             other_item.setExpanded(True)
 
         self.tree.expandAll()
         self.tree.resizeColumnToContents(0)
+        self.tree.resizeColumnToContents(1)
 
     def _selected_unit_id(self) -> int | None:
         items = self.tree.selectedItems()
@@ -674,6 +726,7 @@ class OperationsSectionWindow(QDialog):
         if not is_unit:
             self.unit_header.setText("Select a unit")
             self.unit_meta.setText("")
+            self.unit_staffing.setText("")
             self.resources_table.setRowCount(0)
             return
 
@@ -684,6 +737,17 @@ class OperationsSectionWindow(QDialog):
 
         self.unit_header.setText(pos.title)
         self.unit_meta.setText(f"{pos.classification.title()}{parent_label}")
+
+        # Show staffing inline
+        assignments = self._assignments_by_position.get(unit_id, [])
+        staff_lines = []
+        for at in ("primary", "deputy", "assistant", "trainee", "relief"):
+            names = [a.display_name for a in assignments if a.assignment_type == at]
+            if names:
+                label = "Director" if at == "primary" else at.title()
+                staff_lines.append(f"{label}: {', '.join(names)}")
+        self.unit_staffing.setText("\n".join(staff_lines) if staff_lines else "")
+
         self._refresh_resources(unit_id)
 
     def _refresh_resources(self, unit_id: int) -> None:
@@ -746,12 +810,25 @@ class OperationsSectionWindow(QDialog):
             return
         v = dialog.values()
         try:
-            self.controller.add_branch(
+            branch_id = self.controller.add_branch(
                 v["name"],
                 v["parent_id"],
                 director_name=v["director_name"],
                 notes=v["notes"],
             )
+            # Add deputy as a secondary assignment on the branch director position
+            if v.get("deputy_name"):
+                # The branch director is the first child position of the branch
+                positions = self.controller.list_positions()
+                director_positions = [
+                    p for p in positions
+                    if p.parent_position_id == branch_id
+                ]
+                if director_positions:
+                    self.controller.assign_person(director_positions[0].id or 0, {
+                        "display_name": v["deputy_name"],
+                        "assignment_type": "deputy",
+                    })
         except ValueError as exc:
             QMessageBox.warning(self, "Add Branch", str(exc))
             return
@@ -774,13 +851,24 @@ class OperationsSectionWindow(QDialog):
         v = dialog.values()
         ops_id = self.controller.get_ops_section_id()
         try:
-            self.controller.add_branch(
+            branch_id = self.controller.add_branch(
                 "Air Operations Branch",
                 ops_id,
                 director_name=v["director_name"],
                 notes=v["notes"],
                 is_air_ops=True,
             )
+            if v.get("deputy_name"):
+                positions = self.controller.list_positions()
+                director_positions = [
+                    p for p in positions
+                    if p.parent_position_id == branch_id
+                ]
+                if director_positions:
+                    self.controller.assign_person(director_positions[0].id or 0, {
+                        "display_name": v["deputy_name"],
+                        "assignment_type": "deputy",
+                    })
         except ValueError as exc:
             QMessageBox.warning(self, "Add Air Operations Branch", str(exc))
             return
@@ -800,7 +888,7 @@ class OperationsSectionWindow(QDialog):
         if parent_id is None:
             parent_id = self.controller.get_ops_section_id()
         try:
-            self.controller.add_division_group(
+            unit_id = self.controller.add_division_group(
                 v["name"],
                 v["classification"],
                 parent_id,
@@ -821,7 +909,6 @@ class OperationsSectionWindow(QDialog):
         if pos is None:
             return
 
-        # Reuse a simple name + notes editor
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Edit {pos.classification.title()}")
         layout = QFormLayout(dialog)

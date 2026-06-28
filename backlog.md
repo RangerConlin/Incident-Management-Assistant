@@ -28,7 +28,6 @@ Operational Period Manager
     - Ensure unique OP # are enforced
     - Modify OP table to have standard colors and actions (selection borders, resizeable columns etc)
     - Double check that linked records numbers are pulling correctly
-    - OP does not appear to be being set programwide
 Demobilization Planner
     - Needs to have colors set to the correct light/dark palette.
     - Not able to tell anything beyond that due to colors, but demob module is still heavily scaffold

@@ -10,6 +10,7 @@
 - Tests live in `tests/` and `modules/**/tests` using `pytest`.
 - Master product roadmap: `Design Documents/designplan.md`.
 - Use **"incident"** everywhere, never "mission".
+- Do not create new git branches or forks without being instructed to.
 
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
@@ -46,7 +47,7 @@
 - Stub `CHECKIN_DATA_DIR` when tests need isolated data paths.
 
 ## Instruction Index
-- Backlog / queued follow-up work: `plan of action.md`
+- Backlog / queued follow-up work: `backlog.md`
 - Table UI standards: `Design Documents/Instructions/tabledesign.md`
 - Database architecture and incident context: `Design Documents/Instructions/database_architecture.md`
 - API/router rules and mirroring requirements: `Design Documents/Instructions/api_router_rules.md`
@@ -61,7 +62,7 @@
 
 ## Updating Instructions
 - `AGENTS.md` is the repo-wide entry point. Keep it short, stable, and limited to universal rules plus pointers to focused instruction docs.
-- `plan of action.md` is the repo backlog/reference list for pending work. Consult it when orienting on open follow-ups, and update it when durable backlog items are added, completed, or materially re-scoped.  If you complete an item, remove it from the list, do not just make a comment.
+- `backlog.md` is the repo backlog/reference list for pending work. Consult it when orienting on open follow-ups, and update it when durable backlog items are added, completed, or materially re-scoped.  If you complete an item, remove it from the list, do not just make a comment.
 - When architecture, workflow, migration status, coding standards, or UI conventions change, update the relevant file under `Design Documents/Instructions/` in the same work when practical.
 - If you add a new durable rule that future agents must follow, either add it to `AGENTS.md` if it is truly repo-wide and mandatory, or add it to the appropriate instruction doc and reference it here.
 - Add nested `AGENTS.md` files only when a specific subtree needs extra local rules.
