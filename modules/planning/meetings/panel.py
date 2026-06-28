@@ -39,8 +39,8 @@ _REMINDER_SETTINGS_KEY = "planning/meetings/reminder_lead_minutes"
 _REMINDER_LEAD_DEFAULT = 15
 
 from .models import MeetingTemplate
-from .positions import IcsPosition, all_position_names, position_names_by_group
 from ..operational_periods.repository import OperationalPeriodRepository
+from modules.common.models.ics_positions import IcsPosition, all_position_names, position_names_by_group
 from .repository import MeetingsRepository
 from .services import MeetingsService
 

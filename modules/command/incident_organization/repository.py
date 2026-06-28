@@ -270,8 +270,6 @@ def _default_organization_templates() -> list[OrganizationTemplate]:
     ]
 
     expanded_payload = basic_payload + [
-        {"key": "ic_deputy", "parent_key": "ic", "title": "Deputy Incident Commander", "classification": "position"},
-        {"key": "ops_deputy", "parent_key": "ops", "title": "Deputy Operations Section Chief", "classification": "position"},
         {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
         {
             "key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch",
@@ -302,40 +300,32 @@ def _default_organization_templates() -> list[OrganizationTemplate]:
         {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
     ]
 
-    # Civil Air Patrol - every Command Staff role and Section Chief gets a
-    # deputy. Branches (Ground Ops / Air Ops) don't get a separate deputy
-    # *position* node - a branch's deputy director is recorded as a second
-    # assignment (assignment_type="deputy") on the branch position itself,
-    # same as _build_org_branches/_build_air_ops_branch already expect.
+    # Civil Air Patrol - every Command Staff role and Section Chief includes
+    # a deputy slot. Deputies are set as assignment_type="deputy" on the
+    # parent position rather than as separate position nodes (the Unified
+    # Assignment Dialog allows selecting "deputy" as the assignment type).
+    # Branches (Ground Ops / Air Ops) similarly get their deputy director
+    # via a second assignment on the branch position itself.
     cap_payload = [
         {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
-        {"key": "ic_deputy", "parent_key": "ic", "title": "Deputy Incident Commander", "classification": "position"},
 
         {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
-        {"key": "safety_deputy", "parent_key": "safety", "title": "Deputy Safety Officer", "classification": "position"},
 
         {"key": "liaison", "parent_key": "ic", "title": "Liaison Officer", "classification": "position"},
-        {"key": "liaison_deputy", "parent_key": "liaison", "title": "Deputy Liaison Officer", "classification": "position"},
 
         {"key": "pio", "parent_key": "ic", "title": "Public Information Officer", "classification": "position"},
-        {"key": "pio_deputy", "parent_key": "pio", "title": "Deputy Public Information Officer", "classification": "position"},
 
         {"key": "planning", "parent_key": "ic", "title": "Planning Section Chief", "classification": "section"},
-        {"key": "planning_deputy", "parent_key": "planning", "title": "Deputy Planning Section Chief", "classification": "position"},
         {"key": "situation_unit", "parent_key": "planning", "title": "Situation Unit Leader", "classification": "position"},
 
         {"key": "logistics", "parent_key": "ic", "title": "Logistics Section Chief", "classification": "section"},
-        {"key": "logistics_deputy", "parent_key": "logistics", "title": "Deputy Logistics Section Chief", "classification": "position"},
         {"key": "communications_unit", "parent_key": "logistics", "title": "Communications Unit Leader", "classification": "position"},
 
         {"key": "finance", "parent_key": "ic", "title": "Finance/Administration Section Chief", "classification": "section"},
-        {"key": "finance_deputy", "parent_key": "finance", "title": "Deputy Finance/Administration Section Chief", "classification": "position"},
 
         {"key": "intel", "parent_key": "ic", "title": "Intelligence Section Chief", "classification": "section"},
-        {"key": "intel_deputy", "parent_key": "intel", "title": "Deputy Intelligence Section Chief", "classification": "position"},
 
         {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
-        {"key": "ops_deputy", "parent_key": "ops", "title": "Deputy Operations Section Chief", "classification": "position"},
         {"key": "ground_ops_branch", "parent_key": "ops", "title": "Ground Operations Branch", "classification": "branch"},
         {
             "key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch",
