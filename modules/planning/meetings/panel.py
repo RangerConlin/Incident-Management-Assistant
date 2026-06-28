@@ -11,9 +11,9 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -23,12 +23,14 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +39,58 @@ _REMINDER_SETTINGS_KEY = "planning/meetings/reminder_lead_minutes"
 _REMINDER_LEAD_DEFAULT = 15
 
 from .models import MeetingTemplate
+from .positions import IcsPosition, all_position_names, position_names_by_group
+from ..operational_periods.repository import OperationalPeriodRepository
 from .repository import MeetingsRepository
 from .services import MeetingsService
+
+_OP_TEMPLATE_SETTINGS_KEY = "planning/meetings/op_template_sets"
+
+
+def _copy_op_template_sets(data: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    return {name: [dict(entry) for entry in entries] for name, entries in data.items()}
+
+
+def _calculate_time_from_offset(anchor_time: str, offset_minutes: int) -> str:
+    base = datetime.fromisoformat(f"2000-01-01T{anchor_time}")
+    calculated = base + timedelta(minutes=offset_minutes)
+    return calculated.time().isoformat(timespec="minutes")
+
+
+def _load_operational_period_template_sets(settings: QSettings) -> dict[str, list[dict]]:
+    raw = settings.value(_OP_TEMPLATE_SETTINGS_KEY)
+    if isinstance(raw, dict) and raw:
+        loaded: dict[str, list[dict]] = {}
+        for set_name, entries in raw.items():
+            if not isinstance(entries, list):
+                continue
+            normalized_entries: list[dict] = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                template_name = str(entry.get("template_name") or "").strip()
+                if not template_name:
+                    continue
+                selected = bool(entry.get("selected", True))
+                start_time = str(entry.get("start_time") or "").strip()
+                if not start_time:
+                    start_time = _calculate_time_from_offset("07:00", int(entry.get("offset_minutes") or 0))
+                normalized_entries.append(
+                    {
+                        "template_name": template_name,
+                        "selected": selected,
+                        "start_time": start_time,
+                    }
+                )
+            if normalized_entries:
+                loaded[str(set_name)] = normalized_entries
+        if loaded:
+            return loaded
+    return MeetingsService.default_operational_period_template_sets()
+
+
+def _save_operational_period_template_sets(settings: QSettings, data: dict[str, list[dict]]) -> None:
+    settings.setValue(_OP_TEMPLATE_SETTINGS_KEY, _copy_op_template_sets(data))
 
 
 # ── New Meeting dialog ────────────────────────────────────────────────────────
@@ -94,12 +146,175 @@ class _NewMeetingDialog(QDialog):
         return self._result
 
 
+class _OperationalPeriodTemplateDialog(QDialog):
+    def __init__(
+        self,
+        period_repo: OperationalPeriodRepository,
+        template_sets: dict[str, list[dict]],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Operational Period Meeting Set")
+        self.setMinimumWidth(420)
+        self._period_repo = period_repo
+        self._template_sets = _copy_op_template_sets(template_sets)
+        self._result: dict | None = None
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(8)
+
+        self.set_combo = QComboBox()
+        for set_name in self._template_sets:
+            self.set_combo.addItem(set_name, set_name)
+        self.set_combo.currentTextChanged.connect(self._refresh_included_meetings)
+
+        self.period_combo = QComboBox()
+        for period_id, label in self._period_repo.list_period_choices():
+            self.period_combo.addItem(label, period_id)
+
+        active_period = self._period_repo.get_active_period()
+        if active_period is not None and active_period.id is not None:
+            active_index = self.period_combo.findData(active_period.id)
+            if active_index >= 0:
+                self.period_combo.setCurrentIndex(active_index)
+            default_date, default_time = self._period_start_defaults(active_period)
+        else:
+            default_date = date.today().isoformat()
+            default_time = "07:00"
+
+        self.date_edit = QLineEdit(default_date)
+        self.time_edit = QLineEdit(default_time)
+        self.time_edit.textChanged.connect(self._recalculate_display_times)
+        self.location_edit = QLineEdit()
+        self.owner_edit = QLineEdit()
+        self.included_meetings = QTableWidget(0, 3)
+        self.included_meetings.setHorizontalHeaderLabels(["Use", "Meeting", "Time"])
+        apply_statusboard_table_behavior(self.included_meetings, stretch_last_section=False)
+        self.included_meetings.setAlternatingRowColors(True)
+        self.included_meetings.verticalHeader().setVisible(False)
+        self.included_meetings.setColumnWidth(0, 56)
+        self.included_meetings.setColumnWidth(1, 220)
+        self.included_meetings.setColumnWidth(2, 90)
+        self.included_meetings.setMinimumHeight(220)
+
+        form.addRow("Meeting Set", self.set_combo)
+        form.addRow("Operational Period", self.period_combo)
+        form.addRow("First Meeting Date", self.date_edit)
+        form.addRow("First Meeting Time", self.time_edit)
+        form.addRow("Location", self.location_edit)
+        form.addRow("Owner", self.owner_edit)
+        layout.addLayout(form)
+        layout.addWidget(QLabel("Meetings Included By Default"))
+        layout.addWidget(self.included_meetings)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self._refresh_included_meetings()
+
+    @staticmethod
+    def _period_start_defaults(period) -> tuple[str, str]:
+        if period.start_time:
+            normalized = period.start_time.strip().replace("Z", "+00:00")
+            for candidate in (normalized, normalized.replace(" ", "T")):
+                try:
+                    parsed = datetime.fromisoformat(candidate)
+                    return parsed.date().isoformat(), parsed.time().isoformat(timespec="minutes")
+                except ValueError:
+                    continue
+        return date.today().isoformat(), "07:00"
+
+    def _on_accept(self) -> None:
+        period_id = self.period_combo.currentData()
+        if period_id is None:
+            QMessageBox.warning(self, "Operational Period Meeting Set", "Please select an operational period.")
+            return
+        self._result = {
+            "entries": [
+                self._entry_from_row(row)
+                for row in range(self.included_meetings.rowCount())
+            ],
+            "operational_period_id": int(period_id),
+            "meeting_date": self.date_edit.text().strip(),
+            "anchor_time": self.time_edit.text().strip(),
+            "location": self.location_edit.text().strip(),
+            "owner": self.owner_edit.text().strip(),
+        }
+        self.accept()
+
+    def result_data(self) -> dict | None:
+        return self._result
+
+    def _refresh_included_meetings(self) -> None:
+        self.included_meetings.setRowCount(0)
+        set_name = self.set_combo.currentText()
+        anchor_time = self.time_edit.text().strip() or "07:00"
+        for entry in self._template_sets.get(set_name, []):
+            row = self.included_meetings.rowCount()
+            self.included_meetings.insertRow(row)
+            enabled_item = QTableWidgetItem()
+            enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
+            enabled_item.setCheckState(Qt.Checked if bool(entry.get("selected", True)) else Qt.Unchecked)
+            self.included_meetings.setItem(row, 0, enabled_item)
+            self.included_meetings.setItem(
+                row, 1, QTableWidgetItem(str(entry.get("template_name") or "").strip())
+            )
+            start_time = str(entry.get("start_time") or "").strip()
+            if not start_time:
+                start_time = anchor_time
+            self.included_meetings.setItem(row, 2, QTableWidgetItem(start_time))
+
+    def _entry_from_row(self, row: int) -> dict:
+        use_item = self.included_meetings.item(row, 0)
+        name_item = self.included_meetings.item(row, 1)
+        time_item = self.included_meetings.item(row, 2)
+        return {
+            "selected": use_item is not None and use_item.checkState() == Qt.Checked,
+            "template_name": name_item.text().strip() if name_item else "",
+            "start_time": time_item.text().strip() if time_item else "",
+        }
+
+    def _recalculate_display_times(self) -> None:
+        anchor_time = self.time_edit.text().strip()
+        try:
+            base_time = datetime.fromisoformat(f"2000-01-01T{anchor_time}")
+        except ValueError:
+            return
+        entries = self._template_sets.get(self.set_combo.currentText(), [])
+        if not entries:
+            return
+        previous_time: datetime | None = None
+        for row, entry in enumerate(entries):
+            item = self.included_meetings.item(row, 2)
+            if item is None:
+                continue
+            if row == 0:
+                calculated = base_time
+            else:
+                prior_entry = entries[row - 1]
+                prior_time = str(prior_entry.get("start_time") or "").strip()
+                current_time = str(entry.get("start_time") or "").strip()
+                try:
+                    prior_dt = datetime.fromisoformat(f"2000-01-01T{prior_time}")
+                    current_dt = datetime.fromisoformat(f"2000-01-01T{current_time}")
+                    gap_minutes = int((current_dt - prior_dt).total_seconds() / 60)
+                except ValueError:
+                    gap_minutes = 60
+                calculated = (previous_time or base_time) + timedelta(minutes=gap_minutes)
+            item.setText(calculated.time().isoformat(timespec="minutes"))
+            previous_time = calculated
+
+
 # ── Meeting detail window ─────────────────────────────────────────────────────
 
 class _MeetingDetailWindow(QDialog):
     def __init__(self, meeting_id: int, repository: MeetingsRepository, service: MeetingsService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMinimumSize(600, 640)
+        self.resize(850, 640)
+        self.setMinimumSize(700, 520)
         self._meeting_id = meeting_id
         self._repository = repository
         self._service = service
@@ -109,24 +324,40 @@ class _MeetingDetailWindow(QDialog):
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
 
-        self.title_label = QLabel()
-        self.title_label.setStyleSheet("font-size: 14px; font-weight: 600;")
-        root.addWidget(self.title_label)
-
-        # Meeting Details group
         details_group = QGroupBox("Meeting Details")
-        details_form = QFormLayout(details_group)
-        details_form.setHorizontalSpacing(12)
-        details_form.setVerticalSpacing(6)
+        details_layout = QGridLayout(details_group)
+        details_layout.setHorizontalSpacing(14)
+        details_layout.setVerticalSpacing(4)
+        self.title_value = QLabel()
+        self.date_value = QLabel()
+        self.time_value = QLabel()
+        self.location_value = QLabel()
+        self.owner_value = QLabel()
+        self.title_value.setWordWrap(True)
+        self.location_value.setWordWrap(True)
         self.status_combo = QComboBox()
-        self.status_combo.addItems(["draft", "scheduled", "ready", "completed", "canceled"])
-        self.show_ics230_check = QCheckBox("Visible on ICS-230")
+        self.status_combo.addItems(["Draft", "Scheduled", "Ready", "Completed", "Canceled"])
+        self.show_ics230_check = QCheckBox("On ICS-230")
         save_btn = QPushButton("Save")
-        save_btn.setFixedWidth(80)
+        save_btn.setFixedWidth(96)
         save_btn.clicked.connect(self._save_detail)
-        details_form.addRow("Status", self.status_combo)
-        details_form.addRow("", self.show_ics230_check)
-        details_form.addRow("", save_btn)
+
+        details_layout.addWidget(QLabel("Meeting"), 0, 0)
+        details_layout.addWidget(self.title_value, 0, 1)
+        details_layout.addWidget(QLabel("Date"), 0, 2)
+        details_layout.addWidget(self.date_value, 0, 3)
+        details_layout.addWidget(QLabel("Time"), 1, 0)
+        details_layout.addWidget(self.time_value, 1, 1)
+        details_layout.addWidget(QLabel("Owner"), 1, 2)
+        details_layout.addWidget(self.owner_value, 1, 3)
+        details_layout.addWidget(QLabel("Location"), 2, 0)
+        details_layout.addWidget(self.location_value, 2, 1, 1, 3)
+        details_layout.addWidget(QLabel("Status"), 3, 0)
+        details_layout.addWidget(self.status_combo, 3, 1)
+        details_layout.addWidget(self.show_ics230_check, 3, 2)
+        details_layout.addWidget(save_btn, 3, 3, alignment=Qt.AlignRight)
+        details_layout.setColumnStretch(1, 1)
+        details_layout.setColumnStretch(3, 1)
 
         # Attendees group
         attendees_group = QGroupBox("Attendees")
@@ -134,12 +365,11 @@ class _MeetingDetailWindow(QDialog):
         att_layout.setContentsMargins(6, 6, 6, 6)
         self.attendees_table = QTableWidget(0, 3)
         self.attendees_table.setHorizontalHeaderLabels(["Attendee", "Requirement", "Status"])
-        self.attendees_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.attendees_table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self.attendees_table, stretch_last_section=True)
+        self.attendees_table.setAlternatingRowColors(True)
         self.attendees_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.attendees_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.attendees_table.setAlternatingRowColors(True)
-        self.attendees_table.setSortingEnabled(True)
+        self.attendees_table.verticalHeader().setVisible(False)
         att_layout.addWidget(self.attendees_table)
 
         # Checklist group
@@ -148,29 +378,33 @@ class _MeetingDetailWindow(QDialog):
         chk_layout.setContentsMargins(6, 6, 6, 6)
         self.checklist_table = QTableWidget(0, 4)
         self.checklist_table.setHorizontalHeaderLabels(["Done", "N/A", "Group", "Item"])
-        hdr = self.checklist_table.horizontalHeader()
-        hdr.setSectionResizeMode(QHeaderView.Interactive)
-        hdr.setStretchLastSection(True)
+        apply_statusboard_table_behavior(self.checklist_table, stretch_last_section=True)
         self.checklist_table.setColumnWidth(0, 48)
         self.checklist_table.setColumnWidth(1, 48)
-        self.checklist_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.checklist_table.setAlternatingRowColors(True)
-        self.checklist_table.setSortingEnabled(True)
+        self.checklist_table.verticalHeader().setVisible(False)
         self.checklist_table.itemChanged.connect(self._checklist_item_changed)
         chk_layout.addWidget(self.checklist_table)
 
-        # Structured Notes group
-        notes_group = QGroupBox("Structured Notes")
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(attendees_group)
+        splitter.addWidget(checklist_group)
+        splitter.setChildrenCollapsible(False)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+
+        # Notes group
+        notes_group = QGroupBox("Notes")
         notes_layout = QVBoxLayout(notes_group)
         notes_layout.setContentsMargins(6, 6, 6, 6)
         note_bar = QHBoxLayout()
         self.note_category_combo = QComboBox()
         self.note_category_combo.addItems(
-            ["decision", "action item", "issue/risk", "resource request",
-             "safety item", "assignment", "notable event", "follow-up"]
+            ["Comment", "Decision", "Action Item", "Issue/Risk", "Resource Request",
+             "Safety Item", "Assignment", "Notable Event", "Follow-Up"]
         )
         self.note_text_edit = QLineEdit()
-        self.note_text_edit.setPlaceholderText("Note text…")
+        self.note_text_edit.setPlaceholderText("Add a note…")
         add_note_btn = QPushButton("Add Note")
         add_note_btn.clicked.connect(self._add_note)
         route_note_btn = QPushButton("Route to Log")
@@ -181,46 +415,52 @@ class _MeetingDetailWindow(QDialog):
         note_bar.addWidget(route_note_btn)
         self.notes_table = QTableWidget(0, 4)
         self.notes_table.setHorizontalHeaderLabels(["Category", "Text", "Author", "Routing"])
-        self.notes_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.notes_table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self.notes_table, stretch_last_section=True)
+        self.notes_table.setAlternatingRowColors(True)
         self.notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.notes_table.setAlternatingRowColors(True)
-        self.notes_table.setSortingEnabled(True)
+        self.notes_table.verticalHeader().setVisible(False)
         notes_layout.addLayout(note_bar)
         notes_layout.addWidget(self.notes_table)
 
-        # Scroll area wrapping all groups
-        inner = QWidget()
-        inner_layout = QVBoxLayout(inner)
-        inner_layout.setSpacing(8)
-        inner_layout.setContentsMargins(0, 0, 0, 0)
-        for group in (details_group, attendees_group, checklist_group, notes_group):
-            inner_layout.addWidget(group)
-        inner_layout.addStretch()
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(inner)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        root.addWidget(scroll)
+        vertical_splitter = QSplitter(Qt.Vertical)
+        vertical_splitter.addWidget(details_group)
+        vertical_splitter.addWidget(splitter)
+        vertical_splitter.addWidget(notes_group)
+        vertical_splitter.setChildrenCollapsible(False)
+        vertical_splitter.setStretchFactor(0, 0)
+        vertical_splitter.setStretchFactor(1, 1)
+        vertical_splitter.setStretchFactor(2, 1)
+        vertical_splitter.setSizes([130, 280, 180])
+        root.addWidget(vertical_splitter)
 
     def _load(self) -> None:
         meeting = self._repository.get_meeting(self._meeting_id)
         self.setWindowTitle(f"{meeting.title} — {meeting.meeting_date}")
-        self.title_label.setText(f"{meeting.title} — {meeting.meeting_date} {meeting.start_time}")
-        self.status_combo.setCurrentText(meeting.status)
+        self.title_value.setText(meeting.title)
+        self.date_value.setText(meeting.meeting_date)
+        self.time_value.setText(f"{meeting.start_time} - {meeting.end_time}")
+        self.location_value.setText(meeting.virtual_link or meeting.location or "Not set")
+        self.owner_value.setText(meeting.owner or "Not set")
+        self.status_combo.setCurrentText(meeting.status.title())
         self.show_ics230_check.setChecked(meeting.show_on_ics230)
 
-        self.attendees_table.setSortingEnabled(False)
         attendees = self._repository.list_attendees(meeting.id or 0)
         self.attendees_table.setRowCount(len(attendees))
         for row, att in enumerate(attendees):
-            for col, val in enumerate([att.display_name, att.requirement_status, att.attendance_status]):
-                self.attendees_table.setItem(row, col, QTableWidgetItem(val))
-        self.attendees_table.setSortingEnabled(True)
+            attendee_item = QTableWidgetItem(att.display_name)
+            attendee_item.setData(Qt.UserRole, att.id)
+            self.attendees_table.setItem(row, 0, attendee_item)
+            self.attendees_table.setItem(row, 1, QTableWidgetItem(att.requirement_status.title()))
 
-        self.checklist_table.setSortingEnabled(False)
+            status_combo = QComboBox()
+            status_combo.addItems(["Invited", "Confirmed", "Tentative", "Declined", "Attended"])
+            status_combo.setCurrentText(att.attendance_status.title())
+            status_combo.currentTextChanged.connect(
+                lambda value, attendee_id=att.id: self._update_attendee_status(attendee_id, value)
+            )
+            self.attendees_table.setCellWidget(row, 2, status_combo)
+
         self.checklist_table.blockSignals(True)
         checklist = self._repository.list_checklist_items(meeting.id or 0)
         self.checklist_table.setRowCount(len(checklist))
@@ -238,23 +478,26 @@ class _MeetingDetailWindow(QDialog):
             self.checklist_table.setItem(row, 2, QTableWidgetItem(item.group_name))
             self.checklist_table.setItem(row, 3, QTableWidgetItem(item.text))
         self.checklist_table.blockSignals(False)
-        self.checklist_table.setSortingEnabled(True)
 
-        self.notes_table.setSortingEnabled(False)
         notes = self._repository.list_structured_notes(meeting.id or 0)
         self.notes_table.setRowCount(len(notes))
         for row, note in enumerate(notes):
-            for col, val in enumerate([note.category, note.text, note.author, note.routing_status]):
+            for col, val in enumerate(
+                [note.category.title(), note.text, note.author, note.routing_status.title()]
+            ):
                 item = QTableWidgetItem(val)
                 item.setData(Qt.UserRole, note.id)
                 self.notes_table.setItem(row, col, item)
-        self.notes_table.setSortingEnabled(True)
 
     def _save_detail(self) -> None:
         self._repository.update_meeting(
             self._meeting_id,
-            {"status": self.status_combo.currentText(), "show_on_ics230": self.show_ics230_check.isChecked()},
+            {
+                "status": self.status_combo.currentText().lower(),
+                "show_on_ics230": self.show_ics230_check.isChecked(),
+            },
         )
+        self._load()
 
     def _checklist_item_changed(self, item: QTableWidgetItem) -> None:
         if item.column() not in (0, 1):
@@ -263,7 +506,20 @@ class _MeetingDetailWindow(QDialog):
         if item_id is None:
             return
         field = "is_complete" if item.column() == 0 else "is_not_applicable"
-        self._repository.update_checklist_item(int(item_id), {field: item.checkState() == Qt.Checked})
+        self._repository.update_checklist_item_for_meeting(
+            self._meeting_id,
+            int(item_id),
+            {field: item.checkState() == Qt.Checked},
+        )
+
+    def _update_attendee_status(self, attendee_id: int | None, value: str) -> None:
+        if attendee_id is None:
+            return
+        self._repository.update_attendee(
+            self._meeting_id,
+            int(attendee_id),
+            {"attendance_status": value.lower()},
+        )
 
     def _add_note(self) -> None:
         text = self.note_text_edit.text().strip()
@@ -271,7 +527,7 @@ class _MeetingDetailWindow(QDialog):
             return
         self._service.add_structured_note(
             self._meeting_id,
-            category=self.note_category_combo.currentText(),
+            category=self.note_category_combo.currentText().lower(),
             text=text,
             route_ready=True,
         )
@@ -286,8 +542,164 @@ class _MeetingDetailWindow(QDialog):
         if note_id is None:
             return
         meeting = self._repository.get_meeting(self._meeting_id)
-        self._service.route_note_to_log(int(note_id), entered_by=meeting.owner)
+        self._service.route_note_to_log(int(note_id), meeting_id=self._meeting_id, entered_by=meeting.owner)
         self._load()
+
+
+# ── Attendee role picker dialog ──────────────────────────────────────────────
+
+class _AttendeeRolePickerDialog(QDialog):
+    """Modal dialog for selecting required/optional attendee roles from a
+    canonical ICS position catalog.
+
+    Displays all known positions grouped by section, each with checkboxes
+    for Required and Optional. A position cannot be both — checking one
+    column unchecks the other.
+    """
+
+    def __init__(
+        self,
+        current_required: list[str],
+        current_optional: list[str],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Select Attendee Roles")
+        self.setMinimumSize(520, 480)
+        self.setModal(True)
+
+        # Track which positions are checked and in which column
+        self._required: set[str] = set(current_required)
+        self._optional: set[str] = set(current_optional)
+        self._positions_by_group = position_names_by_group()
+        self._all_groups = list(self._positions_by_group.keys())
+        self._all_position_names = all_position_names()
+
+        layout = QVBoxLayout(self)
+
+        # ── Filter bar ────────────────────────────────────────────────────
+        self.filter_edit = QLineEdit()
+        self.filter_edit.setPlaceholderText("Type to filter positions…")
+        self.filter_edit.textChanged.connect(self._apply_filter)
+        layout.addWidget(self.filter_edit)
+
+        # ── Table ─────────────────────────────────────────────────────────
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["Position", "Required", "Optional"])
+        self.table.setAlternatingRowColors(True)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.setColumnWidth(0, 260)
+        self.table.setColumnWidth(1, 80)
+        self.table.setColumnWidth(2, 80)
+        layout.addWidget(self.table)
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self._populate_table()
+
+    # ── Table building ──────────────────────────────────────────────────
+
+    def _populate_table(self, filter_text: str = "") -> None:
+        """Fill the table with all positions, optionally filtered."""
+        self.table.setRowCount(0)
+        for group_name, positions in self._positions_by_group.items():
+            sorted_positions = sorted(positions)
+            # Add group header row
+            group_row = self.table.rowCount()
+            self.table.insertRow(group_row)
+            group_item = QTableWidgetItem(f"  {group_name}")
+            group_font = group_item.font()
+            group_font.setBold(True)
+            group_item.setFont(group_font)
+            group_item.setFlags(group_item.flags() & ~Qt.ItemIsSelectable)
+            self.table.setItem(group_row, 0, group_item)
+            self.table.setSpan(group_row, 0, 1, 3)
+            # Store metadata so we know this is a group row
+            group_item.setData(Qt.UserRole, "__group__")
+
+            for pos_name in sorted_positions:
+                if filter_text and filter_text.lower() not in pos_name.lower():
+                    continue
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+
+                # Position name
+                name_item = QTableWidgetItem(pos_name)
+                name_item.setData(Qt.UserRole, pos_name)
+                self.table.setItem(row, 0, name_item)
+
+                # Required checkbox
+                required_item = QTableWidgetItem()
+                required_item.setFlags(required_item.flags() | Qt.ItemIsUserCheckable)
+                required_item.setCheckState(Qt.Checked if pos_name in self._required else Qt.Unchecked)
+                required_item.setData(Qt.UserRole, pos_name)
+                self.table.setItem(row, 1, required_item)
+
+                # Optional checkbox
+                optional_item = QTableWidgetItem()
+                optional_item.setFlags(optional_item.flags() | Qt.ItemIsUserCheckable)
+                optional_item.setCheckState(Qt.Checked if pos_name in self._optional else Qt.Unchecked)
+                optional_item.setData(Qt.UserRole, pos_name)
+                self.table.setItem(row, 2, optional_item)
+
+        # Connect item changed signal for mutual exclusion
+        self.table.itemChanged.connect(self._on_item_changed)
+
+    def _on_item_changed(self, item: QTableWidgetItem) -> None:
+        if item.column() not in (1, 2):
+            return
+        pos_name = item.data(Qt.UserRole)
+        if not pos_name or pos_name == "__group__":
+            return
+        is_checked = item.checkState() == Qt.Checked
+        if not is_checked:
+            # Just unchecking — remove from the appropriate set
+            if item.column() == 1:
+                self._required.discard(pos_name)
+            else:
+                self._optional.discard(pos_name)
+            return
+
+        # Preventing the signal from re-entering
+        self.table.blockSignals(True)
+
+        # Uncheck the other column for this position
+        if item.column() == 1:
+            # Checked "Required" — uncheck "Optional"
+            self._required.add(pos_name)
+            self._optional.discard(pos_name)
+            other = self.table.item(item.row(), 2)
+            if other is not None:
+                other.setCheckState(Qt.Unchecked)
+        else:
+            # Checked "Optional" — uncheck "Required"
+            self._optional.add(pos_name)
+            self._required.discard(pos_name)
+            other = self.table.item(item.row(), 1)
+            if other is not None:
+                other.setCheckState(Qt.Unchecked)
+
+        self.table.blockSignals(False)
+
+    def _apply_filter(self, text: str) -> None:
+        self.table.itemChanged.disconnect(self._on_item_changed)
+        self._populate_table(filter_text=text)
+
+    def _on_accept(self) -> None:
+        self.accept()
+
+    # ── Result ──────────────────────────────────────────────────────────
+
+    def selected_roles(self) -> tuple[list[str], list[str]]:
+        """Return (required_roles, optional_roles) as sorted lists."""
+        return sorted(self._required), sorted(self._optional)
 
 
 # ── Template manager window ───────────────────────────────────────────────────
@@ -298,12 +710,26 @@ class _TemplateManagerWindow(QDialog):
         self.setWindowTitle("Manage Meeting Templates")
         self.setMinimumSize(760, 560)
         self._repository = repository
+        self._settings = QSettings()
         self._templates: list[MeetingTemplate] = []
+        self._required_roles: list[str] = []
+        self._optional_roles: list[str] = []
+        self._op_template_sets: dict[str, list[dict]] = _load_operational_period_template_sets(self._settings)
         self._build_ui()
         self._load_list()
+        self._load_op_template_list()
 
     def _build_ui(self) -> None:
-        root = QHBoxLayout(self)
+        root = QVBoxLayout(self)
+        tabs = QTabWidget()
+        root.addWidget(tabs)
+
+        meeting_tab = QWidget()
+        op_tab = QWidget()
+        tabs.addTab(meeting_tab, "Meeting Templates")
+        tabs.addTab(op_tab, "Operational Period Templates")
+
+        meeting_root = QHBoxLayout(meeting_tab)
 
         # Left: template list + New button
         left = QWidget()
@@ -314,11 +740,14 @@ class _TemplateManagerWindow(QDialog):
         self.template_list.currentRowChanged.connect(self._on_selection_changed)
         new_btn = QPushButton("New Template")
         new_btn.clicked.connect(self._new_template)
+        delete_btn = QPushButton("Delete Template")
+        delete_btn.clicked.connect(self._delete_template)
         left_layout.addWidget(QLabel("Templates"))
         left_layout.addWidget(self.template_list, 1)
         left_layout.addWidget(new_btn)
+        left_layout.addWidget(delete_btn)
         left.setFixedWidth(200)
-        root.addWidget(left)
+        meeting_root.addWidget(left)
 
         # Right: edit form in a scroll area
         form_inner = QWidget()
@@ -341,17 +770,14 @@ class _TemplateManagerWindow(QDialog):
         form_layout.addWidget(basics_group)
 
         roles_group = QGroupBox("Attendee Roles")
-        roles_form = QFormLayout(roles_group)
-        roles_form.setHorizontalSpacing(12)
-        roles_form.setVerticalSpacing(6)
-        self.required_roles_edit = QPlainTextEdit()
-        self.required_roles_edit.setPlaceholderText("One role per line…")
-        self.required_roles_edit.setFixedHeight(80)
-        self.optional_roles_edit = QPlainTextEdit()
-        self.optional_roles_edit.setPlaceholderText("One role per line…")
-        self.optional_roles_edit.setFixedHeight(60)
-        roles_form.addRow("Required", self.required_roles_edit)
-        roles_form.addRow("Optional", self.optional_roles_edit)
+        roles_layout = QVBoxLayout(roles_group)
+        roles_layout.setSpacing(6)
+        self.roles_summary = QLabel("No roles configured")
+        self.roles_summary.setWordWrap(True)
+        self.configure_roles_btn = QPushButton("Configure Attendee Roles…")
+        self.configure_roles_btn.clicked.connect(self._open_role_picker)
+        roles_layout.addWidget(self.roles_summary)
+        roles_layout.addWidget(self.configure_roles_btn)
         form_layout.addWidget(roles_group)
 
         checklist_group = QGroupBox("Checklist Items")
@@ -381,13 +807,72 @@ class _TemplateManagerWindow(QDialog):
         scroll.setWidgetResizable(True)
         scroll.setWidget(form_inner)
         scroll.setFrameShape(QScrollArea.NoFrame)
-        root.addWidget(scroll, 1)
+        meeting_root.addWidget(scroll, 1)
+
+        op_root = QHBoxLayout(op_tab)
+        op_left = QWidget()
+        op_left_layout = QVBoxLayout(op_left)
+        op_left_layout.setContentsMargins(0, 0, 0, 0)
+        op_left_layout.setSpacing(6)
+        self.op_template_list = QListWidget()
+        self.op_template_list.currentRowChanged.connect(self._on_op_template_selection_changed)
+        new_op_btn = QPushButton("New OP Template")
+        new_op_btn.clicked.connect(self._new_op_template)
+        delete_op_btn = QPushButton("Delete OP Template")
+        delete_op_btn.clicked.connect(self._delete_op_template)
+        op_left_layout.addWidget(QLabel("Operational Period Templates"))
+        op_left_layout.addWidget(self.op_template_list, 1)
+        op_left_layout.addWidget(new_op_btn)
+        op_left_layout.addWidget(delete_op_btn)
+        op_left.setFixedWidth(230)
+        op_root.addWidget(op_left)
+
+        op_editor = QWidget()
+        op_editor_layout = QVBoxLayout(op_editor)
+        op_editor_layout.setContentsMargins(8, 0, 0, 0)
+        op_editor_layout.setSpacing(10)
+
+        op_details_group = QGroupBox("Template Details")
+        op_details_form = QFormLayout(op_details_group)
+        self.op_template_name_edit = QLineEdit()
+        self.op_anchor_time_edit = QLineEdit("07:00")
+        op_details_form.addRow("Name", self.op_template_name_edit)
+        op_details_form.addRow("First Meeting Time", self.op_anchor_time_edit)
+        op_editor_layout.addWidget(op_details_group)
+
+        included_group = QGroupBox("Included Meetings")
+        included_layout = QVBoxLayout(included_group)
+        self.op_meetings_table = QTableWidget(0, 3)
+        self.op_meetings_table.setHorizontalHeaderLabels(["Use", "Meeting Template", "Time"])
+        apply_statusboard_table_behavior(self.op_meetings_table, stretch_last_section=False)
+        self.op_meetings_table.setAlternatingRowColors(True)
+        self.op_meetings_table.verticalHeader().setVisible(False)
+        self.op_meetings_table.setColumnWidth(0, 56)
+        self.op_meetings_table.setColumnWidth(1, 260)
+        self.op_meetings_table.setColumnWidth(2, 90)
+        included_layout.addWidget(self.op_meetings_table)
+        included_buttons = QHBoxLayout()
+        add_meeting_btn = QPushButton("Add Meeting")
+        add_meeting_btn.clicked.connect(self._add_op_template_meeting)
+        remove_meeting_btn = QPushButton("Remove Selected")
+        remove_meeting_btn.clicked.connect(self._remove_op_template_meeting)
+        included_buttons.addWidget(add_meeting_btn)
+        included_buttons.addWidget(remove_meeting_btn)
+        included_buttons.addStretch()
+        included_layout.addLayout(included_buttons)
+        op_editor_layout.addWidget(included_group, 1)
+
+        save_op_btn = QPushButton("Save OP Template")
+        save_op_btn.clicked.connect(self._save_op_template)
+        op_editor_layout.addWidget(save_op_btn)
+        op_root.addWidget(op_editor, 1)
 
         self._set_form_enabled(False)
+        self._set_op_form_enabled(False)
 
     def _set_form_enabled(self, enabled: bool) -> None:
         for w in (self.name_edit, self.duration_spin, self.ics230_check,
-                  self.required_roles_edit, self.optional_roles_edit,
+                  self.roles_summary, self.configure_roles_btn,
                   self.prep_edit, self.agenda_edit, self.closeout_edit):
             w.setEnabled(enabled)
 
@@ -395,7 +880,8 @@ class _TemplateManagerWindow(QDialog):
         self._templates = self._repository.list_templates(active_only=False)
         self.template_list.clear()
         for t in self._templates:
-            self.template_list.addItem(t.name)
+            suffix = "" if t.active else " (Inactive)"
+            self.template_list.addItem(f"{t.name}{suffix}")
 
     def _on_selection_changed(self, row: int) -> None:
         if row < 0 or row >= len(self._templates):
@@ -406,8 +892,9 @@ class _TemplateManagerWindow(QDialog):
         self.name_edit.setText(t.name)
         self.duration_spin.setValue(t.default_duration_minutes)
         self.ics230_check.setChecked(t.appears_on_ics230_default)
-        self.required_roles_edit.setPlainText("\n".join(t.required_attendee_roles))
-        self.optional_roles_edit.setPlainText("\n".join(t.optional_attendee_roles))
+        self._required_roles = list(t.required_attendee_roles)
+        self._optional_roles = list(t.optional_attendee_roles)
+        self._update_roles_summary()
         self.prep_edit.setPlainText("\n".join(t.prep_checklist_items))
         self.agenda_edit.setPlainText("\n".join(t.agenda_checklist_items))
         self.closeout_edit.setPlainText("\n".join(t.closeout_checklist_items))
@@ -418,15 +905,55 @@ class _TemplateManagerWindow(QDialog):
         self.name_edit.clear()
         self.duration_spin.setValue(60)
         self.ics230_check.setChecked(True)
-        self.required_roles_edit.clear()
-        self.optional_roles_edit.clear()
+        self._required_roles = []
+        self._optional_roles = []
+        self._update_roles_summary()
         self.prep_edit.clear()
         self.agenda_edit.clear()
         self.closeout_edit.clear()
         self.name_edit.setFocus()
 
-    def _lines(self, widget: QPlainTextEdit) -> list[str]:
-        return [ln.strip() for ln in widget.toPlainText().splitlines() if ln.strip()]
+    def _delete_template(self) -> None:
+        row = self.template_list.currentRow()
+        if row < 0 or row >= len(self._templates):
+            return
+        template = self._templates[row]
+        self._repository.save_template(
+            MeetingTemplate(
+                name=template.name,
+                slug=template.slug,
+                default_duration_minutes=template.default_duration_minutes,
+                agenda_sections=list(template.agenda_sections),
+                required_attendee_roles=list(template.required_attendee_roles),
+                optional_attendee_roles=list(template.optional_attendee_roles),
+                prep_checklist_items=list(template.prep_checklist_items),
+                agenda_checklist_items=list(template.agenda_checklist_items),
+                closeout_checklist_items=list(template.closeout_checklist_items),
+                appears_on_ics230_default=template.appears_on_ics230_default,
+                active=False,
+            )
+        )
+        self._load_list()
+        self.template_list.clearSelection()
+        self._set_form_enabled(False)
+
+    def _update_roles_summary(self) -> None:
+        parts = []
+        if self._required_roles:
+            parts.append(f"{len(self._required_roles)} required")
+        if self._optional_roles:
+            parts.append(f"{len(self._optional_roles)} optional")
+        if parts:
+            self.roles_summary.setText(f"{', '.join(parts)} role(s) selected")
+        else:
+            self.roles_summary.setText("No roles configured")
+
+    def _open_role_picker(self) -> None:
+        dlg = _AttendeeRolePickerDialog(self._required_roles, self._optional_roles, parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        self._required_roles, self._optional_roles = dlg.selected_roles()
+        self._update_roles_summary()
 
     def _save_template(self) -> None:
         name = self.name_edit.text().strip()
@@ -443,14 +970,141 @@ class _TemplateManagerWindow(QDialog):
             slug=slug,
             default_duration_minutes=self.duration_spin.value(),
             appears_on_ics230_default=self.ics230_check.isChecked(),
-            required_attendee_roles=self._lines(self.required_roles_edit),
-            optional_attendee_roles=self._lines(self.optional_roles_edit),
-            prep_checklist_items=self._lines(self.prep_edit),
-            agenda_checklist_items=self._lines(self.agenda_edit),
-            closeout_checklist_items=self._lines(self.closeout_edit),
+            required_attendee_roles=list(self._required_roles),
+            optional_attendee_roles=list(self._optional_roles),
+            prep_checklist_items=[ln.strip() for ln in self.prep_edit.toPlainText().splitlines() if ln.strip()],
+            agenda_checklist_items=[ln.strip() for ln in self.agenda_edit.toPlainText().splitlines() if ln.strip()],
+            closeout_checklist_items=[ln.strip() for ln in self.closeout_edit.toPlainText().splitlines() if ln.strip()],
         )
         self._repository.save_template(template)
         self._load_list()
+
+    def _set_op_form_enabled(self, enabled: bool) -> None:
+        for widget in (self.op_template_name_edit, self.op_anchor_time_edit, self.op_meetings_table):
+            widget.setEnabled(enabled)
+
+    def _load_op_template_list(self) -> None:
+        self.op_template_list.clear()
+        for name in self._op_template_sets:
+            self.op_template_list.addItem(name)
+
+    def _on_op_template_selection_changed(self, row: int) -> None:
+        names = list(self._op_template_sets.keys())
+        if row < 0 or row >= len(names):
+            self._set_op_form_enabled(False)
+            self.op_template_name_edit.clear()
+            self.op_meetings_table.setRowCount(0)
+            return
+        set_name = names[row]
+        self._set_op_form_enabled(True)
+        self.op_template_name_edit.setText(set_name)
+        entries = self._op_template_sets[set_name]
+        self.op_anchor_time_edit.setText(str(entries[0].get("start_time") or "07:00") if entries else "07:00")
+        available_templates = [template.name for template in self._repository.list_templates(active_only=False)]
+        self.op_meetings_table.setRowCount(len(entries))
+        for row_index, entry in enumerate(entries):
+            enabled_item = QTableWidgetItem()
+            enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
+            enabled_item.setCheckState(Qt.Checked if bool(entry.get("selected", True)) else Qt.Unchecked)
+            self.op_meetings_table.setItem(row_index, 0, enabled_item)
+            combo = QComboBox()
+            combo.addItems(available_templates)
+            combo.setEditable(True)
+            combo.setCurrentText(str(entry.get("template_name") or ""))
+            self.op_meetings_table.setCellWidget(row_index, 1, combo)
+            self.op_meetings_table.setItem(
+                row_index,
+                2,
+                QTableWidgetItem(str(entry.get("start_time") or "")),
+            )
+
+    def _new_op_template(self) -> None:
+        self.op_template_list.clearSelection()
+        self._set_op_form_enabled(True)
+        self.op_template_name_edit.setText("New Operational Period Template")
+        self.op_anchor_time_edit.setText("07:00")
+        self.op_meetings_table.setRowCount(0)
+        self._add_op_template_meeting()
+
+    def _delete_op_template(self) -> None:
+        row = self.op_template_list.currentRow()
+        names = list(self._op_template_sets.keys())
+        if row < 0 or row >= len(names):
+            return
+        del self._op_template_sets[names[row]]
+        _save_operational_period_template_sets(self._settings, self._op_template_sets)
+        self._load_op_template_list()
+        self.op_template_list.clearSelection()
+        self._on_op_template_selection_changed(-1)
+
+    def _add_op_template_meeting(self) -> None:
+        row = self.op_meetings_table.rowCount()
+        self.op_meetings_table.insertRow(row)
+        enabled_item = QTableWidgetItem()
+        enabled_item.setFlags(enabled_item.flags() | Qt.ItemIsUserCheckable)
+        enabled_item.setCheckState(Qt.Checked)
+        self.op_meetings_table.setItem(row, 0, enabled_item)
+        combo = QComboBox()
+        combo.addItems([template.name for template in self._repository.list_templates(active_only=False)])
+        combo.setEditable(True)
+        self.op_meetings_table.setCellWidget(row, 1, combo)
+        self.op_meetings_table.setItem(row, 2, QTableWidgetItem(self._default_op_meeting_time(row)))
+
+    def _remove_op_template_meeting(self) -> None:
+        row = self.op_meetings_table.currentRow()
+        if row >= 0:
+            self.op_meetings_table.removeRow(row)
+
+    def _save_op_template(self) -> None:
+        set_name = self.op_template_name_edit.text().strip()
+        if not set_name:
+            QMessageBox.warning(self, "Save OP Template", "Template name is required.")
+            return
+        entries: list[dict] = []
+        for row in range(self.op_meetings_table.rowCount()):
+            enabled_item = self.op_meetings_table.item(row, 0)
+            combo = self.op_meetings_table.cellWidget(row, 1)
+            template_name = combo.currentText().strip() if isinstance(combo, QComboBox) else ""
+            if not template_name:
+                continue
+            time_item = self.op_meetings_table.item(row, 2)
+            meeting_time = time_item.text().strip() if time_item else ""
+            try:
+                datetime.strptime(meeting_time, "%H:%M")
+            except ValueError:
+                QMessageBox.warning(self, "Save OP Template", "Meeting times must use HH:MM.")
+                return
+            entries.append(
+                {
+                    "selected": enabled_item is not None and enabled_item.checkState() == Qt.Checked,
+                    "template_name": template_name,
+                    "start_time": meeting_time,
+                }
+            )
+        if not entries:
+            QMessageBox.warning(self, "Save OP Template", "Add at least one meeting to the template.")
+            return
+
+        existing_names = list(self._op_template_sets.keys())
+        selected_row = self.op_template_list.currentRow()
+        if 0 <= selected_row < len(existing_names):
+            previous_name = existing_names[selected_row]
+            if previous_name != set_name and previous_name in self._op_template_sets:
+                del self._op_template_sets[previous_name]
+        self._op_template_sets[set_name] = entries
+        _save_operational_period_template_sets(self._settings, self._op_template_sets)
+        self._load_op_template_list()
+        matching_items = self.op_template_list.findItems(set_name, Qt.MatchExactly)
+        if matching_items:
+            self.op_template_list.setCurrentItem(matching_items[0])
+
+    def _default_op_meeting_time(self, row: int) -> str:
+        anchor_time = self.op_anchor_time_edit.text().strip() or "07:00"
+        try:
+            base = datetime.fromisoformat(f"2000-01-01T{anchor_time}")
+        except ValueError:
+            base = datetime.fromisoformat("2000-01-01T07:00")
+        return (base + timedelta(minutes=row * 60)).time().isoformat(timespec="minutes")
 
 
 # ── ICS-230 preview dialog ────────────────────────────────────────────────────
@@ -493,6 +1147,7 @@ class MeetingsPanel(QWidget):
         self.setWindowTitle("Planning - Meetings")
         self._notified_meeting_ids: set[int] = set()
         self._settings = QSettings()
+        self._op_template_sets = _load_operational_period_template_sets(self._settings)
         self._build_ui()
         self.refresh_all()
 
@@ -515,12 +1170,14 @@ class MeetingsPanel(QWidget):
         new_btn.clicked.connect(self._open_new_meeting_dialog)
         templates_btn = QPushButton("Manage Templates…")
         templates_btn.clicked.connect(self._open_template_manager)
+        op_set_btn = QPushButton("Add OP Meeting Set…")
+        op_set_btn.clicked.connect(self._open_operational_period_template_dialog)
         ics230_btn = QPushButton("Print ICS-230")
         ics230_btn.clicked.connect(self._open_ics230)
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self.refresh_all)
 
-        for btn in (new_btn, templates_btn, ics230_btn, refresh_btn):
+        for btn in (new_btn, templates_btn, op_set_btn, ics230_btn, refresh_btn):
             header.addWidget(btn)
         root.addLayout(header)
 
@@ -541,11 +1198,16 @@ class MeetingsPanel(QWidget):
         self.schedule_table.setHorizontalHeaderLabels(
             ["Date", "Time", "Title", "Status", "Owner", "Location", "Checklist", "ICS-230"]
         )
-        self.schedule_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.schedule_table.horizontalHeader().setStretchLastSection(True)
-        self.schedule_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.schedule_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self.schedule_table, stretch_last_section=False)
         self.schedule_table.setAlternatingRowColors(True)
+        self.schedule_table.setColumnWidth(0, 96)
+        self.schedule_table.setColumnWidth(1, 112)
+        self.schedule_table.setColumnWidth(2, 220)
+        self.schedule_table.setColumnWidth(3, 96)
+        self.schedule_table.setColumnWidth(4, 120)
+        self.schedule_table.setColumnWidth(5, 180)
+        self.schedule_table.setColumnWidth(6, 80)
+        self.schedule_table.setColumnWidth(7, 64)
         self.schedule_table.setSortingEnabled(True)
         self.schedule_table.itemDoubleClicked.connect(self._open_meeting_detail)
         root.addWidget(self.schedule_table)
@@ -565,9 +1227,9 @@ class MeetingsPanel(QWidget):
                 meeting.meeting_date,
                 f"{meeting.start_time}–{meeting.end_time}",
                 meeting.title,
-                meeting.status,
-                meeting.owner,
-                meeting.virtual_link or meeting.location,
+                meeting.status.title(),
+                meeting.owner or "",
+                meeting.virtual_link or meeting.location or "",
                 f"{complete}/{total}",
                 "Yes" if meeting.show_on_ics230 else "",
             ]
@@ -698,6 +1360,31 @@ class MeetingsPanel(QWidget):
     def _open_template_manager(self) -> None:
         dlg = _TemplateManagerWindow(self.repository, parent=self)
         dlg.exec()
+        self._op_template_sets = _load_operational_period_template_sets(self._settings)
+
+    def _open_operational_period_template_dialog(self) -> None:
+        try:
+            period_repo = OperationalPeriodRepository(self.repository.incident_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Operational Period Meeting Set", str(exc))
+            return
+        dlg = _OperationalPeriodTemplateDialog(period_repo, self._op_template_sets, parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        data = dlg.result_data()
+        if not data:
+            return
+        try:
+            created = self.service.create_operational_period_template_set(**data)
+        except Exception as exc:
+            QMessageBox.warning(self, "Operational Period Meeting Set", str(exc))
+            return
+        self._load_schedule()
+        QMessageBox.information(
+            self,
+            "Operational Period Meeting Set",
+            f"Created {len(created)} meetings for the selected operational period.",
+        )
 
     def _open_ics230(self) -> None:
         dlg = _ICS230Dialog(self.service, parent=self)

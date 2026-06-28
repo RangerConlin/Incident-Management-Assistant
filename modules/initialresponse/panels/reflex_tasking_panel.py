@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 from utils.api_client import APIError
 from utils.state import AppState
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 from ..models import ReflexActionCreate, ReflexActionRead
 from .. import services
@@ -58,9 +59,7 @@ class ReflexTaskingPanel(QWidget):
             "Alert",
             "Created",
         ])
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.setSelectionBehavior(QTableWidget.SelectRows)
-        self._table.setEditTriggers(QTableWidget.NoEditTriggers)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
 
         btn_save = QPushButton("Save reflex action")
         btn_save.clicked.connect(self._on_save)

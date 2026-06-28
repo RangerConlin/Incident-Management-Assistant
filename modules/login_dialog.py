@@ -54,6 +54,107 @@ class IncidentItem:
     name: str
 
 
+class IncidentSelectionDialog(QDialog):
+    """Widget-based incident picker for switching the active incident."""
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        default_incident_number: str | None = None,
+        api_available: bool = True,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Select Incident")
+        self.setModal(True)
+        self._default_incident_number = default_incident_number
+        self._api_available = api_available
+
+        self.incident_combo = QComboBox(self)
+        self.btn_new_incident = QPushButton("Create New Incident", self)
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        self.btn_continue = self.buttons.button(QDialogButtonBox.Ok)
+        self.btn_continue.setText("Open")
+        self.btn_continue.setEnabled(False)
+        self._incidents: List[IncidentItem] = []
+
+        form = QFormLayout()
+        row_inc = QHBoxLayout()
+        row_inc.addWidget(self.incident_combo, 1)
+        row_inc.addWidget(self.btn_new_incident)
+        form.addRow("Incident", self._wrap(row_inc))
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(self.buttons)
+
+        self.btn_new_incident.clicked.connect(self._on_create_new_incident)
+        self.incident_combo.currentIndexChanged.connect(self._update_continue_enabled)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+
+        self._load_incidents()
+        if self._default_incident_number:
+            idx = self.incident_combo.findData(self._default_incident_number)
+            if idx >= 0:
+                self.incident_combo.setCurrentIndex(idx)
+        self._update_continue_enabled()
+
+    def _wrap(self, layout: QHBoxLayout) -> QWidget:
+        w = QWidget(self)
+        w.setLayout(layout)
+        return w
+
+    def _load_incidents(self) -> None:
+        self.incident_combo.clear()
+        self._incidents.clear()
+        if not self._api_available:
+            self.incident_combo.addItem("Connect or start offline to load incidents", userData=None)
+            return
+        try:
+            from utils.api_client import api_client
+            docs = api_client.get("/api/incidents") or []
+            for doc in docs:
+                self._incidents.append(
+                    IncidentItem(
+                        incident_id=doc.get("incident_id") or doc.get("id", ""),
+                        number=str(doc.get("number", "")),
+                        name=str(doc.get("name", "")),
+                    )
+                )
+        except Exception as e:
+            QMessageBox.warning(self, "Database Error", f"Failed to load incidents: {e}")
+            self._incidents = []
+
+        for it in self._incidents:
+            label = f"{it.name or '(unnamed)'} - #{it.number}"
+            self.incident_combo.addItem(label, userData=it.number)
+
+    def _on_create_new_incident(self) -> None:
+        dlg = NewIncidentDialog(self)
+
+        def _created(meta, incident_id: str):
+            try:
+                write_audit("incident.create", {"number": meta.number, "name": meta.name})
+            except Exception:
+                pass
+            self._load_incidents()
+            idx = self.incident_combo.findData(meta.number)
+            if idx >= 0:
+                self.incident_combo.setCurrentIndex(idx)
+            self._update_continue_enabled()
+
+        dlg.created.connect(_created)
+        dlg.exec()
+
+    def _update_continue_enabled(self) -> None:
+        self.btn_continue.setEnabled(self.incident_combo.currentData() is not None)
+
+    def selected_incident_number(self) -> str | None:
+        value = self.incident_combo.currentData()
+        return str(value) if value is not None else None
+
+
 class LoginDialog(QDialog):
     """Modal startup splash for online sign-in, registration, or offline launch."""
 
@@ -302,4 +403,4 @@ class LoginDialog(QDialog):
         self.accept()
 
 
-__all__ = ["LoginDialog", "STATIC_ROLES"]
+__all__ = ["IncidentSelectionDialog", "LoginDialog", "STATIC_ROLES"]

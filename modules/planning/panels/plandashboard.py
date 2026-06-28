@@ -73,6 +73,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from utils.styles import get_palette, subscribe_theme
+
 
 class PillCard(QFrame):
     """Rounded small card showing a numeric value and label."""
@@ -102,20 +104,6 @@ class PillCard(QFrame):
         layout.addWidget(self._value_label)
         layout.addWidget(self._title_label)
 
-        # Inline style (approx. shared look)
-        self.setStyleSheet(
-            """
-            QFrame#PillCard {
-                background: #ffffff;
-                border: 1px solid #e1e5ea;
-                border-radius: 12px;
-            }
-            QFrame#PillCard QLabel {
-                color: #1a1f2b;
-            }
-            """
-        )
-
     def set_value(self, value: Any) -> None:
         self._value_label.setText(str(value))
 
@@ -130,14 +118,15 @@ def _make_section_header(text: str) -> QLabel:
 
 
 def _priority_bg(priority: str) -> QColor:
+    pal = get_palette()
     p = (priority or "").strip().upper()
     if p == "CRITICAL":
-        return QColor("#ffebee")  # light red
+        return pal.get("danger", pal.get("error"))
     if p == "HIGH":
-        return QColor("#fff3e0")  # light orange
+        return pal.get("warning")
     if p == "MED":
-        return QColor("#fffde7")  # light yellow
-    return QColor("#eceff1")  # gray for LOW/unknown
+        return pal.get("info", pal.get("accent"))
+    return pal.get("ctrl_bg", pal.get("bg_panel"))  # gray for LOW/unknown
 
 
 class PlanningGlanceWidget(QWidget):
@@ -171,6 +160,7 @@ class PlanningGlanceWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("PlanningGlanceWidget")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._auto_timer = QTimer(self)
         self._auto_timer.setSingleShot(False)
         self._auto_timer.timeout.connect(self.refreshRequested)
@@ -178,8 +168,12 @@ class PlanningGlanceWidget(QWidget):
         # Main stacked layout to support incident overlay
         self._stack = QStackedLayout(self)
         self._content = QWidget(self)
+        self._content.setObjectName("PlanningGlanceContent")
+        self._content.setAttribute(Qt.WA_StyledBackground, True)
         self._stack.addWidget(self._content)  # index 0 = content
         self._overlay = QLabel("No active incident — select or create one.")
+        self._overlay.setObjectName("OverlayMessage")
+        self._overlay.setAttribute(Qt.WA_StyledBackground, True)
         self._overlay.setAlignment(Qt.AlignCenter)
         of = self._overlay.font()
         of.setPointSize(12)
@@ -190,6 +184,7 @@ class PlanningGlanceWidget(QWidget):
 
         self._build_ui(self._content)
         self._apply_styles()
+        subscribe_theme(self, lambda *_: self._apply_styles())
 
     # ------------------------------- UI ---------------------------------
     def _build_ui(self, root: QWidget) -> None:
@@ -292,11 +287,11 @@ class PlanningGlanceWidget(QWidget):
         iap_layout.addWidget(_make_section_header("IAP Inputs Snapshot"))
         self._iap_row1 = QHBoxLayout()
         self._iap_row1.setSpacing(8)
-        self._lbl_202 = self._make_badge("202 open", "#eceff1")
-        self._lbl_203 = self._make_badge("203 unfilled roles", "#eceff1")
-        self._lbl_204d = self._make_badge("204 drafts", "#eceff1")
-        self._lbl_204m = self._make_badge("204 missing sign", "#eceff1")
-        self._lbl_215 = self._make_badge("215 unresolved", "#eceff1")
+        self._lbl_202 = self._make_badge("202 open")
+        self._lbl_203 = self._make_badge("203 unfilled roles")
+        self._lbl_204d = self._make_badge("204 drafts")
+        self._lbl_204m = self._make_badge("204 missing sign")
+        self._lbl_215 = self._make_badge("215 unresolved")
         for w in (self._lbl_202, self._lbl_203, self._lbl_204d, self._lbl_204m, self._lbl_215):
             self._iap_row1.addWidget(w)
         self._iap_row1.addStretch(1)
@@ -338,10 +333,10 @@ class PlanningGlanceWidget(QWidget):
         doc_layout.setSpacing(6)
         doc_layout.addWidget(_make_section_header("Documentation Health (quick)"))
         self._doc_labels: Dict[str, QLabel] = {
-            "214_ok": self._make_badge("ICS 214", "#eceff1"),
-            "205_ok": self._make_badge("ICS 205", "#eceff1"),
-            "205a_ok": self._make_badge("ICS 205A", "#eceff1"),
-            "206_status": self._make_badge("ICS 206", "#eceff1"),
+            "214_ok": self._make_badge("ICS 214"),
+            "205_ok": self._make_badge("ICS 205"),
+            "205a_ok": self._make_badge("ICS 205A"),
+            "206_status": self._make_badge("ICS 206"),
         }
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -375,31 +370,58 @@ class PlanningGlanceWidget(QWidget):
         root_layout.addLayout(bottom)
 
     def _apply_styles(self) -> None:
-        # Subtle badges and section boxes
+        pal = get_palette()
+        bg_window = pal.get("bg_window", pal["bg"]).name()
+        bg_raised = pal.get("bg_raised", pal["bg_panel"]).name()
+        ctrl_bg = pal.get("ctrl_bg", pal["bg_panel"]).name()
+        ctrl_border = pal.get("ctrl_border", pal["divider"]).name()
+        fg_primary = pal.get("fg_primary", pal["fg"]).name()
+
         self.setStyleSheet(
-            """
-            QLabel[role="badge"] {
+            f"""
+            QWidget#PlanningGlanceWidget,
+            QWidget#PlanningGlanceContent {{
+                background: {bg_window};
+                color: {fg_primary};
+            }}
+            QLabel#OverlayMessage {{
+                background: {bg_window};
+                color: {fg_primary};
+                font-weight: 600;
+            }}
+            QFrame#PillCard {{
+                background: {bg_raised};
+                border: 1px solid {ctrl_border};
+                border-radius: 12px;
+            }}
+            QFrame#PillCard QLabel {{
+                color: {fg_primary};
+            }}
+            QLabel[role="badge"] {{
                 padding: 3px 8px;
                 border-radius: 10px;
-                border: 1px solid #dfe3e8;
-                background: #eceff1;
-                color: #263238;
-            }
-            QFrame#SectionBox {
-                background: #fafbfc;
-                border: 1px solid #e1e5ea;
+                border: 1px solid {ctrl_border};
+                background: {ctrl_bg};
+                color: {fg_primary};
+            }}
+            QFrame#SectionBox {{
+                background: {bg_raised};
+                border: 1px solid {ctrl_border};
                 border-radius: 8px;
-            }
-            QListWidget {
-                background: #ffffff;
-                border: 1px solid #e1e5ea;
+            }}
+            QListWidget {{
+                background: {ctrl_bg};
+                border: 1px solid {ctrl_border};
                 border-radius: 6px;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 padding: 4px 10px;
-            }
+            }}
             """
         )
+        # Re-apply current doc-health badge states so their semantic colors track the new theme.
+        if hasattr(self, "_doc_health_cache"):
+            self.update_doc_health(self._doc_health_cache)
 
     def _configure_list(self, lst: QListWidget) -> None:
         lst.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -408,12 +430,9 @@ class PlanningGlanceWidget(QWidget):
         lst.setAlternatingRowColors(False)
         lst.setSpacing(2)
 
-    def _make_badge(self, text: str, bg: str) -> QLabel:
+    def _make_badge(self, text: str) -> QLabel:
         lbl = QLabel(text, self)
         lbl.setProperty("role", "badge")
-        lbl.setStyleSheet(
-            f"QLabel[role=\"badge\"] {{ background: {bg}; border: 1px solid #dfe3e8; border-radius: 10px; padding: 3px 8px; }}"
-        )
         return lbl
 
     # ---------------------------- Public slots ---------------------------
@@ -478,13 +497,22 @@ class PlanningGlanceWidget(QWidget):
 
     @Slot(dict)
     def update_doc_health(self, doc: Dict[str, Any]) -> None:
+        self._doc_health_cache = dict(doc)
+        pal = get_palette()
+        ok_bg = pal.get("success", pal.get("accent_alt")).name()
+        ok_border = pal.get("success", pal.get("accent_alt")).name()
+        warn_bg = pal.get("warning").name()
+        warn_border = pal.get("warning").name()
+        danger_bg = pal.get("danger", pal.get("error")).name()
+        danger_border = pal.get("danger", pal.get("error")).name()
+
         def set_ok(label: QLabel, ok: bool, name: str) -> None:
             if ok:
                 label.setText(f"{name}: OK")
-                label.setStyleSheet("QLabel[role=\"badge\"] { background: #e8f5e9; border: 1px solid #c8e6c9; }")
+                label.setStyleSheet(f"QLabel[role=\"badge\"] {{ background: {ok_bg}; border: 1px solid {ok_border}; }}")
             else:
                 label.setText(f"{name}: Needs attention")
-                label.setStyleSheet("QLabel[role=\"badge\"] { background: #ffebee; border: 1px solid #ffcdd2; }")
+                label.setStyleSheet(f"QLabel[role=\"badge\"] {{ background: {danger_bg}; border: 1px solid {danger_border}; }}")
 
         set_ok(self._doc_labels["214_ok"], bool(doc.get("214_ok", False)), "ICS 214")
         set_ok(self._doc_labels["205_ok"], bool(doc.get("205_ok", False)), "ICS 205")
@@ -492,12 +520,11 @@ class PlanningGlanceWidget(QWidget):
 
         status_206 = str(doc.get("206_status", "Unknown"))
         lbl_206 = self._doc_labels["206_status"]
+        lbl_206.setText(f"ICS 206: {status_206}")
         if status_206.strip().lower() in ("ok", "green", "ready"):
-            lbl_206.setText(f"ICS 206: {status_206}")
-            lbl_206.setStyleSheet("QLabel[role=\"badge\"] { background: #e8f5e9; border: 1px solid #c8e6c9; }")
+            lbl_206.setStyleSheet(f"QLabel[role=\"badge\"] {{ background: {ok_bg}; border: 1px solid {ok_border}; }}")
         else:
-            lbl_206.setText(f"ICS 206: {status_206}")
-            lbl_206.setStyleSheet("QLabel[role=\"badge\"] { background: #fff3e0; border: 1px solid #ffe0b2; }")
+            lbl_206.setStyleSheet(f"QLabel[role=\"badge\"] {{ background: {warn_bg}; border: 1px solid {warn_border}; }}")
 
     @Slot(bool)
     def setIncidentOverlayVisible(self, visible: bool) -> None:  # noqa: N802 (Qt slot naming)

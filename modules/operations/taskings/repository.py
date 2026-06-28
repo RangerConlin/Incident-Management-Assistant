@@ -543,7 +543,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
 
 def list_incident_channels() -> List[Dict[str, Any]]:
     try:
-        return _client().get(f"{_base()}/incident-channels")
+        return _client().get(f"/api/incidents/{_iid()}/channels-plan")
     except Exception:
         return []
 

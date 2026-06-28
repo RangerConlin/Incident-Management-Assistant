@@ -173,6 +173,9 @@ class MeetingsRepository:
     def _base(self) -> str:
         return f"/api/incidents/{self.incident_id}/planning"
 
+    def _template_base(self) -> str:
+        return "/api/master/meeting-templates"
+
     def _client(self):
         from utils.api_client import api_client
         return api_client
@@ -181,19 +184,19 @@ class MeetingsRepository:
 
     def list_templates(self, *, active_only: bool = True) -> list[MeetingTemplate]:
         try:
-            data = self._client().get(f"{self._base()}/meeting-templates", params={"active_only": active_only})
+            data = self._client().get(self._template_base(), params={"active_only": active_only})
             return [_template_from_dict(d) for d in data]
         except Exception:
             return []
 
     def get_template(self, slug: str) -> MeetingTemplate:
-        d = self._client().get(f"{self._base()}/meeting-templates/{slug}")
+        d = self._client().get(f"{self._template_base()}/{slug}")
         return _template_from_dict(d)
 
     def save_template(self, template: MeetingTemplate) -> MeetingTemplate:
         from dataclasses import asdict
         slug = template.slug or template.name.lower().replace("/", "-").replace(" ", "-")
-        d = self._client().put(f"{self._base()}/meeting-templates/{slug}", json=asdict(template))
+        d = self._client().put(f"{self._template_base()}/{slug}", json=asdict(template))
         return _template_from_dict(d)
 
     def seed_default_templates(self, conn=None) -> None:
@@ -253,6 +256,13 @@ class MeetingsRepository:
             return [_attendee_from_dict(d) for d in data]
         except Exception:
             return []
+
+    def update_attendee(self, meeting_id: int, attendee_id: int, patch: dict[str, Any]) -> MeetingAttendee:
+        d = self._client().patch(
+            f"{self._base()}/meetings/{meeting_id}/attendees/{attendee_id}",
+            json=patch,
+        )
+        return _attendee_from_dict(d)
 
     # Checklist
 

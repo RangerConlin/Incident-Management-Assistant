@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from ..services.api_link import WeatherApiManager
 from ..services.settings import weather_settings
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class WeatherTimelineWindow(QMainWindow):
@@ -89,6 +90,7 @@ class WeatherTimelineWindow(QMainWindow):
 
         self.table = QTableWidget(0, 4, central)
         self.table.setHorizontalHeaderLabels(["Time", "Temp", "Wind", "Precip%"])
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         layout.addWidget(self.table)
 
         self.setCentralWidget(central)

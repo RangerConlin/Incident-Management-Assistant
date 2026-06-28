@@ -117,7 +117,8 @@ def create_app(server_info_fn=None) -> FastAPI:
     app.include_router(operational_periods.router, prefix="/api", tags=["planning"])
 
     from sarapp_db.api.routers import meetings
-    app.include_router(meetings.router, prefix="/api", tags=["planning"])
+    app.include_router(meetings.master_router, prefix="/api/master/meeting-templates", tags=["planning"])
+    app.include_router(meetings.incident_router, prefix="/api", tags=["planning"])
 
     from sarapp_db.api.routers import work_assignments
     app.include_router(work_assignments.router, prefix="/api", tags=["planning"])

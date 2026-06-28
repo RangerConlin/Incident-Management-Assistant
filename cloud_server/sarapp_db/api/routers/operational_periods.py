@@ -1,6 +1,8 @@
 """Operational Periods router — per-incident."""
 from __future__ import annotations
 
+import logging
+
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -9,6 +11,8 @@ from fastapi import APIRouter, HTTPException
 from sarapp_db.mongo.db_manager import DatabaseManager
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -123,6 +127,17 @@ def create_period(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     return _doc_to_record(doc)
 
 
+@router.get("/incidents/{incident_id}/planning/operational-periods/active")
+def get_active_period(incident_id: str) -> Optional[Dict[str, Any]]:
+    col = _col(incident_id)
+    _ensure_int_ids(col)
+    doc = col.find_one(
+        {"incident_id": incident_id, "status": "Active", "deleted": {"$ne": True}},
+        sort=[("updated_at", -1)],
+    )
+    return _doc_to_record(doc) if doc else None
+
+
 @router.get("/incidents/{incident_id}/planning/operational-periods/{period_id}")
 def get_period(incident_id: str, period_id: int) -> Dict[str, Any]:
     col = _col(incident_id)
@@ -175,17 +190,6 @@ def set_active_period(incident_id: str, period_id: int) -> Dict[str, Any]:
     )
     col.update_one({"incident_id": incident_id, "int_id": period_id}, {"$set": {"status": "Active", "updated_at": now}})
     return get_period(incident_id, period_id)
-
-
-@router.get("/incidents/{incident_id}/planning/operational-periods/active")
-def get_active_period(incident_id: str) -> Optional[Dict[str, Any]]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one(
-        {"incident_id": incident_id, "status": "Active", "deleted": {"$ne": True}},
-        sort=[("updated_at", -1)],
-    )
-    return _doc_to_record(doc) if doc else None
 
 
 @router.post("/incidents/{incident_id}/planning/operational-periods/{period_id}/clone", status_code=201)

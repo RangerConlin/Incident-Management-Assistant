@@ -15,11 +15,9 @@ from typing import Optional
 from PySide6.QtCore import Qt, QSortFilterProxyModel, QAbstractTableModel, QModelIndex
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
@@ -45,6 +43,7 @@ from modules.planning.tactics_resources.models.work_assignment_models import (
 from modules.planning.tactics_resources.windows.work_assignment_detail_window import (
     WorkAssignmentDetailWindow,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 # ---------------------------------------------------------------------------
@@ -233,12 +232,8 @@ class TacticsResourcesPlannerWindow(QWidget):
 
         self._table = QTableView()
         self._table.setModel(self._proxy)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.setSortingEnabled(True)
-        self._table.horizontalHeader().setSectionsMovable(True)
-        self._table.horizontalHeader().setStretchLastSection(True)
         self._table.doubleClicked.connect(self._on_double_click)
         self._table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_context_menu)

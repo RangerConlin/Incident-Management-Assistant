@@ -12,7 +12,6 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -33,6 +32,7 @@ from PySide6.QtWidgets import (
 from modules.planning.tactics_resources.data.hazard_prefill_service import HazardPrefillService
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import WorkAssignmentHazard
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 # Try to import the HazardTypeSearchBox — degrade gracefully if unavailable
 try:
@@ -91,10 +91,7 @@ class HazardAnalysisEditor(QWidget):
         ]
         self._table = QTableWidget(0, len(columns))
         self._table.setHorizontalHeaderLabels(columns)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self._table)
 

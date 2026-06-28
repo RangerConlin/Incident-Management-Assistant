@@ -4,7 +4,6 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QFormLayout,
     QFrame,
@@ -25,6 +24,7 @@ from PySide6.QtWidgets import (
 from utils.api_client import APIError, api_client
 from utils.app_signals import app_signals
 from utils.state import AppState
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class HazardsPanel(QWidget):
@@ -101,9 +101,7 @@ class HazardsPanel(QWidget):
         orm_layout.addLayout(orm_actions)
         self._hazard_table = QTableWidget(0, 5)
         self._hazard_table.setHorizontalHeaderLabels(["Activity", "Hazard", "Initial", "Residual", "Controls"])
-        self._hazard_table.horizontalHeader().setStretchLastSection(True)
-        self._hazard_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._hazard_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self._hazard_table, stretch_last_section=True)
         orm_layout.addWidget(self._hazard_table)
         top_layout.addWidget(orm_box, 1)
 
@@ -133,9 +131,7 @@ class HazardsPanel(QWidget):
         safety_layout.addLayout(safety_actions)
         self._report_table = QTableWidget(0, 4)
         self._report_table.setHorizontalHeaderLabels(["Time", "Location", "Severity", "Notes"])
-        self._report_table.horizontalHeader().setStretchLastSection(True)
-        self._report_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._report_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self._report_table, stretch_last_section=True)
         safety_layout.addWidget(self._report_table)
         top_layout.addWidget(safety_box, 1)
 

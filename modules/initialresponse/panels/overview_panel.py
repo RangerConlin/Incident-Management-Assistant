@@ -4,7 +4,6 @@ from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QFormLayout,
     QFrame,
@@ -28,6 +27,7 @@ from utils.api_client import APIError, api_client
 from utils.app_signals import app_signals
 from utils.geocoding import geocode_address, reverse_geocode_coordinates
 from utils.state import AppState
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 from .. import services
 from ..models import InitialOverviewRead, InitialOverviewUpdate
@@ -269,8 +269,7 @@ class InitialOverviewPanel(QWidget):
         related_layout = QVBoxLayout(related_box)
         self._related_table = QTableWidget(0, 5)
         self._related_table.setHorizontalHeaderLabels(["Location", "Address / Description", "Latitude", "Longitude", "Notes"])
-        self._related_table.horizontalHeader().setStretchLastSection(True)
-        self._related_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        apply_statusboard_table_behavior(self._related_table, stretch_last_section=True)
         related_layout.addWidget(self._related_table)
         related_buttons = QHBoxLayout()
         btn_add_related = QPushButton("Add Related Location")

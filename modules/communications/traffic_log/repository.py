@@ -96,6 +96,15 @@ class ApiCommsLogRepository:
                 ics214_log_entry("team", int(saved.team_id), log_text[:200], source="auto")
             except Exception:
                 pass
+            # Auto-flag the team as needing assistance when a Priority or
+            # Emergency entry is logged against it.
+            try:
+                priority = str(saved.priority or entry.priority or "Routine").strip()
+                if priority in ("Priority", "Emergency"):
+                    from modules.operations.teams.data import repository as team_repo
+                    team_repo.set_team_needs_attention(int(saved.team_id), True)
+            except Exception:
+                pass
         return saved
 
     def get_entry(self, entry_id: int) -> CommsLogEntry:

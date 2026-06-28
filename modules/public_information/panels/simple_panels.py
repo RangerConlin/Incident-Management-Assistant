@@ -33,6 +33,12 @@ from modules.public_information.models.constants import (
 )
 from modules.public_information.services import PublicInformationRepository
 from modules.public_information.widgets.common import SimpleRecordDialog, combo, fill_table, selected_row_data
+from utils.table_view_styles import apply_statusboard_table_behavior
+
+
+def _configure_table(table: QTableWidget) -> None:
+    apply_statusboard_table_behavior(table, stretch_last_section=True)
+    table.verticalHeader().setVisible(False)
 
 
 class MisinformationDialog(QDialog):
@@ -166,6 +172,7 @@ class MisinformationPanel(QWidget):
         buttons.addStretch(1)
         layout.addLayout(buttons)
         self.table = QTableWidget()
+        _configure_table(self.table)
         layout.addWidget(self.table, 1)
         add.clicked.connect(lambda: self.edit_item(None))
         edit.clicked.connect(lambda: self.edit_item(selected_row_data(self.table)))
@@ -199,6 +206,7 @@ class MediaLogPanel(QWidget):
         buttons.addStretch(1)
         layout.addLayout(buttons)
         self.table = QTableWidget()
+        _configure_table(self.table)
         layout.addWidget(self.table, 1)
         add.clicked.connect(lambda: self.edit_item(None))
         edit.clicked.connect(lambda: self.edit_item(selected_row_data(self.table)))
@@ -238,6 +246,7 @@ class TalkingPointsPanel(QWidget):
         buttons.addStretch(1)
         layout.addLayout(buttons)
         self.table = QTableWidget()
+        _configure_table(self.table)
         layout.addWidget(self.table, 1)
         add.clicked.connect(lambda: self.edit_item(None))
         edit.clicked.connect(lambda: self.edit_item(selected_row_data(self.table)))
@@ -268,6 +277,7 @@ class TemplateManagerPanel(QWidget):
         layout.addLayout(buttons)
         layout.addWidget(QLabel("Supported merge fields are listed in the editor insert menu."))
         self.table = QTableWidget()
+        _configure_table(self.table)
         layout.addWidget(self.table, 1)
         add.clicked.connect(lambda: self.edit_item(None))
         edit.clicked.connect(lambda: self.edit_item(selected_row_data(self.table)))
@@ -299,6 +309,7 @@ class DistributionLogPanel(QWidget):
         buttons.addStretch(1)
         layout.addLayout(buttons)
         self.table = QTableWidget()
+        _configure_table(self.table)
         layout.addWidget(self.table, 1)
         add.clicked.connect(lambda: self.edit_item(None))
         edit.clicked.connect(lambda: self.edit_item(selected_row_data(self.table)))

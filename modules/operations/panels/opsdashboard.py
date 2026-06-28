@@ -43,6 +43,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+try:
+    import shiboken6
+except Exception:  # pragma: no cover - optional at runtime
+    shiboken6 = None  # type: ignore[assignment]
+
 from PySide6.QtCore import Qt, QTimer, QSize, Signal, Slot
 from PySide6.QtGui import QAction, QColor, QContextMenuEvent
 from PySide6.QtWidgets import (
@@ -61,6 +66,17 @@ from PySide6.QtWidgets import (
     QWidget,
     QStackedLayout,
 )
+
+from utils.styles import get_palette, subscribe_theme
+
+
+def _status_color_map() -> Dict[str, str]:
+    pal = get_palette()
+    return {
+        "OK": pal.get("success", pal.get("accent_alt")).name(),
+        "DEGRADED": pal.get("warning").name(),
+        "DOWN": pal.get("danger", pal.get("error")).name(),
+    }
 
 
 class KpiCard(QFrame):
@@ -93,12 +109,6 @@ class KpiCard(QFrame):
 class StatusBadge(QFrame):
     """Comms channel badge: status dot + name + role."""
 
-    COLOR_MAP = {
-        "OK": "#2e7d32",  # green
-        "DEGRADED": "#f9a825",  # amber
-        "DOWN": "#c62828",  # red
-    }
-
     def __init__(self, name: str, role: str, status: str, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("CommsBadge")
@@ -109,7 +119,9 @@ class StatusBadge(QFrame):
         dot = QFrame(self)
         dot.setObjectName("StatusDot")
         dot.setFixedSize(10, 10)
-        dot.setProperty("statusColor", self.COLOR_MAP.get(status.upper(), "#9e9e9e"))
+        dot.setProperty("statusName", status.upper())
+        color = _status_color_map().get(status.upper(), get_palette().get("muted").name())
+        dot.setStyleSheet(f"background: {color}; border-radius: 5px;")
 
         name_lbl = QLabel(name, self)
         name_lbl.setObjectName("CommsName")
@@ -144,6 +156,7 @@ class OpsGlanceWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("OpsGlanceWidget")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._refresh_timer: Optional[QTimer] = None
 
         # Stacked layout for overlay
@@ -151,18 +164,23 @@ class OpsGlanceWidget(QWidget):
 
         # Page 0: Main content
         self._content = QWidget(self)
+        self._content.setObjectName("OpsGlanceContent")
+        self._content.setAttribute(Qt.WA_StyledBackground, True)
         self._stack.addWidget(self._content)
 
         # Page 1: Overlay when no active incident
         self._overlay = QWidget(self)
+        self._overlay.setObjectName("OpsGlanceOverlay")
+        self._overlay.setAttribute(Qt.WA_StyledBackground, True)
         self._stack.addWidget(self._overlay)
         self._build_overlay()
 
         # Build main UI
         self._build_ui()
 
-        # Default stylesheet (light)
+        # Theme-aware stylesheet
         self._apply_styles()
+        subscribe_theme(self, lambda *_: self._apply_styles())
 
         # Default to showing overlay off (assume active incident until told otherwise)
         self.setIncidentOverlayVisible(False)
@@ -320,42 +338,67 @@ class OpsGlanceWidget(QWidget):
         self._btn_reassign_team.clicked.connect(self._emit_reassign_selected_team)
 
     def _apply_styles(self) -> None:
+        pal = get_palette()
+        bg_window = pal.get("bg_window", pal["bg"]).name()
+        bg_raised = pal.get("bg_raised", pal["bg_panel"]).name()
+        ctrl_bg = pal.get("ctrl_bg", pal["bg_panel"]).name()
+        ctrl_border = pal.get("ctrl_border", pal["divider"]).name()
+        fg_primary = pal.get("fg_primary", pal["fg"]).name()
+        fg_muted = pal.get("fg_muted", pal["muted"]).name()
+
         self.setStyleSheet(
-            """
+            f"""
+            QWidget#OpsGlanceWidget,
+            QWidget#OpsGlanceContent,
+            QWidget#OpsGlanceOverlay {{
+                background: {bg_window};
+                color: {fg_primary};
+            }}
+
             /* Header */
-            #HeaderTitle { font-size: 18px; font-weight: 600; }
-            #HeaderContext { color: #555; }
+            #HeaderTitle {{ font-size: 18px; font-weight: 600; }}
+            #HeaderContext {{ color: {fg_muted}; }}
 
             /* KPI Cards */
-            #KpiCard {
-                background: #ffffff;
-                border: 1px solid #e0e0e0;
+            #KpiCard {{
+                background: {bg_raised};
+                border: 1px solid {ctrl_border};
                 border-radius: 12px;
-            }
-            QLabel[kpiValue="true"] { font-size: 22px; font-weight: 700; }
-            QLabel[kpiCaption="true"] { font-size: 11px; color: #666; }
+            }}
+            QLabel[kpiValue="true"] {{ font-size: 22px; font-weight: 700; }}
+            QLabel[kpiCaption="true"] {{ font-size: 11px; color: {fg_muted}; }}
 
             /* Lists */
-            #AlertsList, #TasksList, #TeamsList {
-                background: #ffffff;
-                border: 1px solid #e0e0e0;
+            #AlertsList, #TasksList, #TeamsList {{
+                background: {ctrl_bg};
+                border: 1px solid {ctrl_border};
                 border-radius: 8px;
-            }
-            #AlertsLabel, #SubsectionLabel, #OverlayMessage { font-weight: 600; }
+            }}
+            #AlertsLabel, #SubsectionLabel, #OverlayMessage {{ font-weight: 600; }}
 
             /* Comms badges */
-            #CommsBadge {
-                background: #ffffff;
-                border: 1px solid #e0e0e0;
+            #CommsBadge {{
+                background: {bg_raised};
+                border: 1px solid {ctrl_border};
                 border-radius: 12px;
-            }
-            #CommsBadge > #StatusDot {
-                background: #9e9e9e;
-                border-radius: 5px;
-            }
-            /* dynamic color via palette since Qt stylesheets don't read properties for colors */
+            }}
+            /* StatusDot color is set per-instance from the live palette (see StatusBadge) */
             """
         )
+        # Refresh any existing comms badge dots to the current theme's status colors.
+        color_map = _status_color_map()
+        for dot in self.findChildren(QFrame, "StatusDot"):
+            status_name = dot.property("statusName") or ""
+            color = color_map.get(status_name, fg_muted)
+            dot.setStyleSheet(f"background: {color}; border-radius: 5px;")
+
+    def _is_qt_alive(self) -> bool:
+        if shiboken6 is None:
+            return True
+        try:
+            return bool(shiboken6.isValid(self) and shiboken6.isValid(self._stack))
+        except Exception:
+            return False
 
     # ------------------------- Slots / API -------------------------
     @Slot(str, str, str)
@@ -457,12 +500,6 @@ class OpsGlanceWidget(QWidget):
             role = ch.get("role") or ""
             status = (ch.get("status") or "").upper() or "OK"
             badge = StatusBadge(name, role, status, self)
-            # Apply the color to the dot by palette (Qt stylesheets can't read dynamic properties for color values)
-            for child in badge.findChildren(QFrame, "StatusDot"):
-                pal = child.palette()
-                color = QColor(StatusBadge.COLOR_MAP.get(status, "#9e9e9e"))
-                pal.setColor(child.backgroundRole(), color)
-                child.setStyleSheet(f"background: {color.name()}; border-radius: 5px;")
             self._comms_wrap.addWidget(badge)
 
         if more > 0:
@@ -478,6 +515,8 @@ class OpsGlanceWidget(QWidget):
 
     @Slot(bool)
     def setIncidentOverlayVisible(self, visible: bool) -> None:
+        if not self._is_qt_alive():
+            return
         self._stack.setCurrentIndex(1 if visible else 0)
 
     @Slot(int)

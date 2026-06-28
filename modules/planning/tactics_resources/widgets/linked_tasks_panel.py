@@ -15,7 +15,6 @@ from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
@@ -31,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 # Optional integration with Operations Taskings
 try:
@@ -78,10 +78,7 @@ class LinkedTasksPanel(QWidget):
         columns = ["Task ID", "Task Name", "Type", "Assigned Team", "Status", "Priority", "Link Type", "Notes"]
         self._table = QTableWidget(0, len(columns))
         self._table.setHorizontalHeaderLabels(columns)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self._table)
 
@@ -249,9 +246,7 @@ class _LinkTaskDialog(QDialog):
         columns = ["Task ID", "Title", "Status", "Priority"]
         self._task_table = QTableWidget(0, len(columns))
         self._task_table.setHorizontalHeaderLabels(columns)
-        self._task_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._task_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._task_table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._task_table, stretch_last_section=True)
         layout.addWidget(self._task_table)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from .. import services
 from ..records import ScheduledItem, schedule_from_dict
 from utils.api_client import APIError
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class ScheduleWidget(QWidget):
@@ -60,8 +61,7 @@ class ScheduleWidget(QWidget):
 
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Name", "Kind", "Starts", "Ends", "Notes"])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         layout.addWidget(self.table)
 
     def _iid(self) -> str | None:

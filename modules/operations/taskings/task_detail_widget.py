@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.logistics.facilities.widgets import FacilityPicker
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 def _to_variant(obj: Any) -> Any:
@@ -434,7 +435,7 @@ class TaskDetailWindow(QWidget):
 
         self._nar_table = QTableView(self)
         self._nar_table.setModel(self._nar_model)
-        self._nar_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        apply_statusboard_table_behavior(self._nar_table)
         self._nar_table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
         self._nar_table.setAlternatingRowColors(True)
         self._nar_table.setColumnHidden(0, True)
@@ -516,8 +517,7 @@ class TaskDetailWindow(QWidget):
         self._plan_links_model.setHorizontalHeaderLabels(self._plan_headers)
         self._plan_links_table = QTableView(plan_content)
         self._plan_links_table.setModel(self._plan_links_model)
-        self._plan_links_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._plan_links_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._plan_links_table)
         self._plan_links_table.setAlternatingRowColors(True)
         self._plan_links_table.setSortingEnabled(True)
         self._plan_links_table.setColumnHidden(0, True)
@@ -600,7 +600,7 @@ class TaskDetailWindow(QWidget):
         self._teams_model.setHorizontalHeaderLabels(list(self._teams_headers_base))
         self._teams_table = QTableView(self)
         self._teams_table.setModel(self._teams_model)
-        self._teams_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        apply_statusboard_table_behavior(self._teams_table)
         self._teams_table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
         self._teams_table.setAlternatingRowColors(True)
         self._teams_table.setSortingEnabled(True)
@@ -657,8 +657,7 @@ class TaskDetailWindow(QWidget):
         self._pers_model.setHorizontalHeaderLabels(list(self._pers_headers_base))
         self._pers_table = QTableView(self)
         self._pers_table.setModel(self._pers_model)
-        self._pers_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._pers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._pers_table)
         self._pers_table.setAlternatingRowColors(True)
         self._pers_table.setSortingEnabled(True)
         thp: QHeaderView = self._pers_table.horizontalHeader()
@@ -714,8 +713,7 @@ class TaskDetailWindow(QWidget):
         self._veh_model.setHorizontalHeaderLabels(list(self._veh_headers_base))
         self._veh_table = QTableView(self)
         self._veh_table.setModel(self._veh_model)
-        self._veh_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._veh_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._veh_table)
         self._veh_table.setAlternatingRowColors(True)
         self._veh_table.setSortingEnabled(True)
         thv: QHeaderView = self._veh_table.horizontalHeader()
@@ -770,8 +768,7 @@ class TaskDetailWindow(QWidget):
         self._air_model.setHorizontalHeaderLabels(list(self._air_headers_base))
         self._air_table = QTableView(self)
         self._air_table.setModel(self._air_model)
-        self._air_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._air_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._air_table)
         self._air_table.setAlternatingRowColors(True)
         self._air_table.setSortingEnabled(True)
         tha: QHeaderView = self._air_table.horizontalHeader()
@@ -861,7 +858,7 @@ class TaskDetailWindow(QWidget):
 
         self._comms_table = QTableView(self)
         self._comms_table.setModel(self._comms_model)
-        self._comms_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        apply_statusboard_table_behavior(self._comms_table, stretch_last_section=True)
         self._comms_table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
         self._comms_table.setAlternatingRowColors(True)
         self._comms_table.setSortingEnabled(False)
@@ -1095,8 +1092,7 @@ class TaskDetailWindow(QWidget):
         self._deb_model.setHorizontalHeaderLabels(list(self._deb_headers))
         self._deb_table = QTableView(self)
         self._deb_table.setModel(self._deb_model)
-        self._deb_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._deb_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._deb_table, stretch_last_section=True)
         self._deb_table.setAlternatingRowColors(True)
         self._deb_table.setSortingEnabled(True)
         try:
@@ -1132,8 +1128,7 @@ class TaskDetailWindow(QWidget):
         self._att_model.setHorizontalHeaderLabels(list(self._att_headers))
         self._att_table = QTableView(self)
         self._att_table.setModel(self._att_model)
-        self._att_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._att_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._att_table)
         self._att_table.setAlternatingRowColors(True)
         self._att_table.setSortingEnabled(True)
         try:
@@ -1171,6 +1166,7 @@ class TaskDetailWindow(QWidget):
             self._model_214 = QStandardItemModel(0, 3, self)
             self._model_214.setHorizontalHeaderLabels(["Timestamp", "Entry", "Entered By"])
             self._tbl_214.setModel(self._model_214); self._tbl_214.setSortingEnabled(True)
+            apply_statusboard_table_behavior(self._tbl_214)
             # Resize behavior: Timestamp autosize to contents; Entry stretches
             try:
                 hh214 = self._tbl_214.horizontalHeader()
@@ -1195,6 +1191,7 @@ class TaskDetailWindow(QWidget):
             self._model_tlog = QStandardItemModel(0, 5, self)
             self._model_tlog.setHorizontalHeaderLabels(["Timestamp", "Field Changed", "Old Value", "New Value", "Changed By"])
             self._tbl_tlog.setModel(self._model_tlog); self._tbl_tlog.setSortingEnabled(True)
+            apply_statusboard_table_behavior(self._tbl_tlog)
             try:
                 hht = self._tbl_tlog.horizontalHeader()
                 hht.setStretchLastSection(False)
@@ -1210,6 +1207,7 @@ class TaskDetailWindow(QWidget):
             self._model_teamlog = QStandardItemModel(0, 3, self)
             self._model_teamlog.setHorizontalHeaderLabels(["Timestamp", "Team", "Status Changed To"])
             self._tbl_teamlog.setModel(self._model_teamlog); self._tbl_teamlog.setSortingEnabled(True)
+            apply_statusboard_table_behavior(self._tbl_teamlog)
             try:
                 hhm = self._tbl_teamlog.horizontalHeader()
                 hhm.setStretchLastSection(False)

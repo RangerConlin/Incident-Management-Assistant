@@ -12,6 +12,7 @@ from PySide6.QtGui import QColor, QBrush
 
 from modules.intel.models.log_entry import IntelLogEntry
 from modules.intel.services.intel_service import IntelService
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 _ENTITY_FG: dict[str, str] = {
@@ -93,9 +94,8 @@ class IntelLogTab(QWidget):
         self._table = QTableWidget()
         self._table.setColumnCount(len(self._COLS))
         self._table.setHorizontalHeaderLabels(self._COLS)
+        apply_statusboard_table_behavior(self._table)
         self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
         self._table.setSortingEnabled(False)  # log is chronological, preserve order
         layout.addWidget(self._table)

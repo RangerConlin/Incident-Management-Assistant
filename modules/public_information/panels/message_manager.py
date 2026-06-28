@@ -33,6 +33,7 @@ from modules.public_information.models.constants import (
 )
 from modules.public_information.services import PublicInformationRepository, build_release_html
 from modules.public_information.widgets.common import combo, fill_table, selected_row_data
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class ApprovalWorkflowPanel(QWidget):
@@ -260,6 +261,7 @@ class MessageManagerPanel(QWidget):
         layout.addLayout(top)
         splitter = QSplitter()
         self.table = QTableWidget()
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         splitter.addWidget(self.table)
         right = QWidget()
         right_layout = QVBoxLayout(right)

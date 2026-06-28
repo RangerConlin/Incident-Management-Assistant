@@ -1083,12 +1083,6 @@ def remove_task_comm(incident_id: str, task_id: int, comm_id: int) -> dict:
     return {"ok": True}
 
 
-@router.get("/incidents/{incident_id}/operations/incident-channels")
-def list_incident_channels(incident_id: str) -> list[dict]:
-    """Returns incident comms channels — currently returns empty list until comms module is linked."""
-    return []
-
-
 # ---------------------------------------------------------------------------
 # Task assignment
 # ---------------------------------------------------------------------------

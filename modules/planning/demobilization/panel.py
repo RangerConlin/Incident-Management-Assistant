@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 def _section_title(text: str) -> QLabel:
@@ -108,7 +109,7 @@ class DemobilizationPanel(QWidget):
         self._release_table.setHorizontalHeaderLabels(
             ["Resource", "Assignment", "Release Window", "Dependencies", "Status"]
         )
-        self._release_table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._release_table, stretch_last_section=True)
         table_layout.addWidget(self._release_table)
         root.addWidget(table_group, 1)
 

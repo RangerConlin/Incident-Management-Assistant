@@ -12,7 +12,6 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -35,6 +34,7 @@ from PySide6.QtWidgets import (
 from modules.planning.tactics_resources.data.resource_gap_service import ResourceGapService
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import PRIORITY_VALUES
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 # Try to import the ResourceTypeSearchBox — degrade gracefully if unavailable
 try:
@@ -97,10 +97,7 @@ class ResourceRequirementEditor(QWidget):
         req_columns = ["Resource Type", "Capability", "Req.", "Assigned", "Available", "Gap", "Priority", "Notes"]
         self._req_table = QTableWidget(0, len(req_columns))
         self._req_table.setHorizontalHeaderLabels(req_columns)
-        self._req_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._req_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._req_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._req_table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._req_table, stretch_last_section=True)
         self._req_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         top_layout.addWidget(self._req_table)
         splitter.addWidget(top_widget)
@@ -120,9 +117,7 @@ class ResourceRequirementEditor(QWidget):
         assign_columns = ["Kind", "ID", "Display Name", "Status", "Assigned At", "Released At"]
         self._assign_table = QTableWidget(0, len(assign_columns))
         self._assign_table.setHorizontalHeaderLabels(assign_columns)
-        self._assign_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._assign_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._assign_table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._assign_table, stretch_last_section=True)
         bottom_layout.addWidget(self._assign_table)
         splitter.addWidget(bottom_group)
 

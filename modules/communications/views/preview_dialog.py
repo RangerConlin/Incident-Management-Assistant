@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QDialogButtonBox,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class PreviewDialog(QDialog):
@@ -25,6 +26,7 @@ class PreviewDialog(QDialog):
         self.table.setHorizontalHeaderLabels([
             "Function", "Channel", "Assignment", "RX", "TX", "Tone/NAC", "Mode", "Encryption",
         ])
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         layout.addWidget(self.table, 1)
 
         for r in rows:

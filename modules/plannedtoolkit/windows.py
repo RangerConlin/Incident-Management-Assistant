@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from utils.api_client import APIError
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 from . import services
 from .records import PlannedRecord, PlannedToolDefinition, ScheduledItem, TOOLS
@@ -146,9 +147,7 @@ class _ToolPanel(QWidget):
 
         self.table = QTableWidget(0, len(self.spec.columns))
         self.table.setHorizontalHeaderLabels(list(self.spec.columns))
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         layout.addWidget(self.table)
 
     def _iid(self) -> str | None:
@@ -340,9 +339,7 @@ class QuickAssignmentsPanel(QWidget):
             "Source",
             "Action",
         ])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         layout.addWidget(self.table)
 
     def _iid(self) -> str | None:

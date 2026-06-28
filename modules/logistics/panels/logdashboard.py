@@ -117,6 +117,8 @@ class LogisticsDashboardWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Logistics Dashboard")
+        self.setObjectName("LogisticsDashboardRoot")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._timer = QTimer(self)
         self._timer.setSingleShot(False)
         self._timer.timeout.connect(self.refreshRequested)
@@ -134,6 +136,8 @@ class LogisticsDashboardWidget(QWidget):
 
         # Overlay page
         overlay_page = QWidget()
+        overlay_page.setObjectName("LogisticsOverlayPage")
+        overlay_page.setAttribute(Qt.WA_StyledBackground, True)
         ovl_layout = QVBoxLayout(overlay_page)
         ovl_layout.setContentsMargins(20, 20, 20, 20)
         ovl_layout.addStretch(1)
@@ -145,6 +149,8 @@ class LogisticsDashboardWidget(QWidget):
 
         # Main page
         main_page = QWidget()
+        main_page.setObjectName("LogisticsMainPage")
+        main_page.setAttribute(Qt.WA_StyledBackground, True)
         root = QVBoxLayout(main_page)
         root.setContentsMargins(10, 10, 10, 10)
         root.setSpacing(8)
@@ -342,8 +348,10 @@ class LogisticsDashboardWidget(QWidget):
 
     def _apply_styles(self) -> None:
         pal = get_palette()
+        bg_window = pal.get("bg_window", pal["bg"]).name()
         bg_raised = pal.get("bg_raised", pal["bg_panel"]).name()
         ctrl_border = pal.get("ctrl_border", pal["divider"]).name()
+        fg_primary = pal.get("fg_primary", pal["fg"]).name()
         fg_muted = pal.get("fg_muted", pal["muted"]).name()
         ctrl_bg = pal.get("ctrl_bg", pal["bg_panel"]).name()
         success = pal.get("success", pal.get("accent_alt")).name()
@@ -352,6 +360,12 @@ class LogisticsDashboardWidget(QWidget):
 
         self.setStyleSheet(
             f"""
+            QWidget#LogisticsDashboardRoot,
+            QWidget#LogisticsMainPage,
+            QWidget#LogisticsOverlayPage {{
+                background: {bg_window};
+                color: {fg_primary};
+            }}
             QLabel#title {{ font-size: 18px; font-weight: 600; }}
             QLabel#pill_value {{ font-size: 20px; font-weight: 600; }}
             QLabel#pill_label {{ font-size: 11px; color: {fg_muted}; }}

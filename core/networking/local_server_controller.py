@@ -107,6 +107,13 @@ class LocalServerController:
         # child blocks on write() and the whole server (including request
         # handling) freezes.
         self._log_file = open(log_path, "a", encoding="utf-8")
+        # CREATE_NEW_PROCESS_GROUP keeps the child server out of the parent
+        # console's process group, so a Ctrl+C/Ctrl+Break delivered to the
+        # parent (e.g. VS Code stopping/restarting the debug session) does
+        # not also kill the server out from under the app.
+        popen_kwargs = {}
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         try:
             self.process = subprocess.Popen(
                 command,
@@ -114,6 +121,7 @@ class LocalServerController:
                 stdin=subprocess.DEVNULL,
                 stdout=self._log_file,
                 stderr=self._log_file,
+                **popen_kwargs,
             )
         except OSError as exc:
             raise LocalServerError(f"Unable to start local SARApp server: {exc}") from exc

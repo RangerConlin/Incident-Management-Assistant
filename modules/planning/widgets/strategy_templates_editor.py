@@ -35,6 +35,7 @@ from modules.planning.models.strategy_templates_dao import (
     StrategyTemplate,
     StrategyTemplatesDAO,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 SETTINGS_GROUP = "Modules/Planning/StrategyTemplatesEditor"
 
@@ -87,9 +88,7 @@ class StrategyTemplatesEditor(QMainWindow):
 
         self._table = QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(["Title", "Objective Template", "Assignment Kind", "Priority"])
-        self._table.setSelectionBehavior(QTableWidget.SelectRows)
-        self._table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
         table_layout.addWidget(self._table)
 

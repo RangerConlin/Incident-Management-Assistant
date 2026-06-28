@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialogButtonBox,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 _PRIORITIES = ["Normal", "Primary", "Alternate", "Emergency"]
 
@@ -56,7 +57,8 @@ class ImportICS217Dialog(QDialog):
         # Table (multi select)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["Alpha", "System", "Mode", "RX", "TX", "Function"])
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         layout.addWidget(self.table, 1)
 

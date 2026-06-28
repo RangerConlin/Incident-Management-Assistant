@@ -35,6 +35,7 @@ from modules.logistics.facilities import FacilityPicker
 from modules.logistics.facilities.service import FacilitiesService
 from styles.styles import subscribe_theme
 from utils.incident_cache import incident_cache
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 from modules.logistics.resource_status import RESOURCE_STATUSES, ResourceBoardFilters
 from modules.logistics.resource_status.models import ResourceItem, format_display_datetime, parse_datetime
@@ -427,16 +428,13 @@ class ResourceStatusBoard(QWidget):
         self._table.setSortingEnabled(True)
         self._table.sortByColumn(1, Qt.AscendingOrder)
         self._table.setAlternatingRowColors(False)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.doubleClicked.connect(lambda *_: self._edit_selected())
         header = self._table.horizontalHeader()
         header.setSectionsClickable(True)
         header.setSortIndicatorShown(True)
-        header.setStretchLastSection(True)
         for column in range(len(COLUMNS)):
-            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(column, QHeaderView.Interactive)
         layout.addWidget(self._table, 1)
 
         self.status_filter.currentTextChanged.connect(self._apply_filters)

@@ -1,0 +1,36 @@
+{
+  "next_id": 2,
+  "attachments": [
+    {
+      "id": 1,
+      "filename": "sar_104.pdf",
+      "type": "PDF",
+      "versions": [
+        {
+          "version": 1,
+          "path": "data\\incidents\\2025-FAIR_County_Fair\\files\\attachments\\tasks\\1\\att0001\\v1_sar_104.pdf",
+          "timestamp": "2026-06-27T10:07:24Z",
+          "size_bytes": 84164,
+          "uploaded_by": "",
+          "filename": "sar_104.pdf"
+        }
+      ],
+      "associated_team": {
+        "id": 1,
+        "team_id": 9,
+        "team_name": "Team 11",
+        "team_leader": "Morgan Nguyen",
+        "team_leader_phone": "(485) 551-6460",
+        "status": "Assigned",
+        "sortie_number": "G-41",
+        "assigned_ts": "2026-06-18T06:08:47+00:00",
+        "briefed_ts": null,
+        "enroute_ts": null,
+        "arrival_ts": null,
+        "discovery_ts": null,
+        "complete_ts": null,
+        "primary": true
+      }
+    }
+  ]
+}

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QCheckBox,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 _BASE = "/api/master/canned-comm-entries"
 
@@ -61,16 +62,12 @@ class CannedCommPickerDialog(QDialog):
         # Table
         self.table = QTableWidget(0, 3)
         self.table.setHorizontalHeaderLabels(["Title", "Team Status", "Message"])
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setStyleSheet(
             "QTableWidget { font-size:12px; }"
-            "QTableWidget::item:selected { background:#3949ab; color:white; }"
             "QHeaderView::section { font-weight:700; font-size:11px; padding:4px; }"
         )
         self.table.itemSelectionChanged.connect(self._on_selection)

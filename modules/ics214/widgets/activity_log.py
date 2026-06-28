@@ -1313,7 +1313,7 @@ class Ics214ActivityLogPanel(QWidget):
         if self.incident_id:
             try:
                 from utils.api_client import api_client
-                rows = api_client.get(f"/api/incidents/{self.incident_id}/operational-periods") or []
+                rows = api_client.get(f"/api/incidents/{self.incident_id}/planning/operational-periods") or []
             except Exception as exc:
                 logger.exception("Failed to load operational periods for %s: %s", self.incident_id, exc)
         for row in rows:

@@ -37,6 +37,7 @@ from modules.finance.models.schemas import (
     FuelForecastLineCreate,
     FuelPriceProfileCreate,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 def _money(value: float) -> str:
@@ -44,12 +45,9 @@ def _money(value: float) -> str:
 
 
 def _set_table_style(table: QTableWidget) -> None:
+    apply_statusboard_table_behavior(table, stretch_last_section=True)
     table.setAlternatingRowColors(True)
-    table.setSelectionBehavior(QAbstractItemView.SelectRows)
-    table.setSelectionMode(QAbstractItemView.SingleSelection)
-    table.setEditTriggers(QAbstractItemView.NoEditTriggers)
     table.verticalHeader().setVisible(False)
-    table.horizontalHeader().setStretchLastSection(True)
 
 
 class _MetricCard(QFrame):

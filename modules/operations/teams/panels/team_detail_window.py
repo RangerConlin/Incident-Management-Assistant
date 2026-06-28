@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
 )
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 class AddVehicleDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -47,13 +48,8 @@ class AddVehicleDialog(QDialog):
         self._tbl = QTableWidget(self); self._tbl.setColumnCount(7)
         self._tbl.setHorizontalHeaderLabels(["ID","Name","Callsign","Type","Team","Status","ETA"])
         try:
-            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            apply_statusboard_table_behavior(self._tbl, stretch_last_section=True)
             self._tbl.verticalHeader().setVisible(False)
-            self._tbl.horizontalHeader().setStretchLastSection(True)
-        except Exception: pass
-        try:
-            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         except Exception: pass
         try:
             self._tbl.itemDoubleClicked.connect(lambda *_: self._accept())
@@ -142,13 +138,8 @@ class AddEquipmentDialog(QDialog):
         self._tbl = QTableWidget(self); self._tbl.setColumnCount(6)
         self._tbl.setHorizontalHeaderLabels(["ID","Name","Type","Team","Status","ETA"])
         try:
-            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            apply_statusboard_table_behavior(self._tbl, stretch_last_section=True)
             self._tbl.verticalHeader().setVisible(False)
-            self._tbl.horizontalHeader().setStretchLastSection(True)
-        except Exception: pass
-        try:
-            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         except Exception: pass
         try:
             self._tbl.itemDoubleClicked.connect(lambda *_: self._accept())
@@ -240,14 +231,8 @@ class AddTeamMemberDialog(QDialog):
         self._tbl.setColumnCount(6)
         self._tbl.setHorizontalHeaderLabels(["Name","Role","Team","Status","ETA","Phone"])
         try:
-            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            apply_statusboard_table_behavior(self._tbl, stretch_last_section=True)
             self._tbl.verticalHeader().setVisible(False)
-            self._tbl.horizontalHeader().setStretchLastSection(True)
-        except Exception:
-            pass
-        try:
-            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         except Exception:
             pass
         try:
@@ -1656,12 +1641,20 @@ class TeamDetailWindow(QMainWindow):
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(10)
 
+        # Title row: title on left, Needs Assistance button on right
+        title_row = QHBoxLayout()
+        title_row.setSpacing(12)
         self._title_label = QLabel("Team Detail")
         title_font = self._title_label.font()
         title_font.setBold(True)
         title_font.setPointSize(20)
         self._title_label.setFont(title_font)
-        main_layout.addWidget(self._title_label)
+        title_row.addWidget(self._title_label)
+        title_row.addStretch()
+        self._needs_assist_button = QPushButton("Needs Assistance")
+        self._needs_assist_button.setToolTip("Mark this team as needing assistance")
+        title_row.addWidget(self._needs_assist_button)
+        main_layout.addLayout(title_row)
 
         self._assist_banner = QFrame()
         self._assist_banner.setObjectName("assistBanner")
@@ -1800,12 +1793,6 @@ class TeamDetailWindow(QMainWindow):
 
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(8)
-        self._edit_team_button = QPushButton("Edit Team")
-        actions_layout.addWidget(self._edit_team_button)
-        self._needs_assist_button = QPushButton("Flag Needs Assistance")
-        actions_layout.addWidget(self._needs_assist_button)
-        self._status_button = QPushButton("Update Status")
-        actions_layout.addWidget(self._status_button)
         self._view_task_button = QPushButton("View Task")
         actions_layout.addWidget(self._view_task_button)
         actions_layout.addStretch()
@@ -1861,9 +1848,7 @@ class TeamDetailWindow(QMainWindow):
         self._personnel_table = QTableWidget()
         self._personnel_table.setAlternatingRowColors(True)
         self._personnel_table.verticalHeader().setVisible(False)
-        self._personnel_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._personnel_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._personnel_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._personnel_table)
         self._personnel_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._personnel_table.customContextMenuRequested.connect(self._show_personnel_menu)
         self._personnel_table.itemSelectionChanged.connect(self._on_member_selection_changed)
@@ -1883,9 +1868,7 @@ class TeamDetailWindow(QMainWindow):
         self._asset_table = QTableWidget()
         self._asset_table.setAlternatingRowColors(True)
         self._asset_table.verticalHeader().setVisible(False)
-        self._asset_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._asset_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._asset_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._asset_table)
         assets_layout.addWidget(self._asset_table)
 
         equipment_layout = QVBoxLayout(self._equipment_tab)
@@ -1901,9 +1884,7 @@ class TeamDetailWindow(QMainWindow):
         self._equipment_table = QTableWidget()
         self._equipment_table.setAlternatingRowColors(True)
         self._equipment_table.verticalHeader().setVisible(False)
-        self._equipment_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._equipment_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._equipment_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._equipment_table)
         equipment_layout.addWidget(self._equipment_table)
 
         # Logs tab: ICS-214 for this team
@@ -1924,6 +1905,7 @@ class TeamDetailWindow(QMainWindow):
         self._model_214 = QStandardItemModel(0, 3, self)
         self._model_214.setHorizontalHeaderLabels(["Timestamp", "Entry", "Entered By"])
         self._tbl_214.setModel(self._model_214)
+        apply_statusboard_table_behavior(self._tbl_214)
         try:
             self._tbl_214.setSortingEnabled(True)
         except Exception:
@@ -1940,9 +1922,7 @@ class TeamDetailWindow(QMainWindow):
         self._location_field.editingFinished.connect(self._handle_location_edited)
         self._task_button.clicked.connect(self._handle_task_button)
         self._unlink_task_button.clicked.connect(self._handle_unlink_task)
-        self._edit_team_button.clicked.connect(self._handle_edit_team)
         self._needs_assist_button.clicked.connect(self._handle_needs_assist)
-        self._status_button.clicked.connect(self._status_combo.showPopup)
         self._view_task_button.clicked.connect(self._handle_view_task)
         self._add_member_button.clicked.connect(self._handle_add_member)
         self._member_detail_button.clicked.connect(self._handle_member_detail)
@@ -2214,6 +2194,10 @@ class TeamDetailWindow(QMainWindow):
         team = self._bridge.team if hasattr(self._bridge, "team") else {}
         team = team or {}
         self._is_air = bool(getattr(self._bridge, "isAircraftTeam", False))
+        # Sync _team_id from bridge team if not set yet
+        bridge_team_id = team.get("team_id")
+        if bridge_team_id is not None and self._team_id is None:
+            self._team_id = int(bridge_team_id)
         try:
             self._members_cache = (
                 self._bridge.aircrewMembers() if self._is_air else self._bridge.groundMembers()
@@ -2882,7 +2866,7 @@ class TeamDetailWindow(QMainWindow):
         else:
             self._assist_timer.stop()
             self._assist_strip.setStyleSheet("background-color: #ff4d6d; border-radius: 2px;")
-            self._needs_assist_button.setText("Flag Needs Assistance")
+            self._needs_assist_button.setText("Needs Assistance")
             self._needs_assist_button.setStyleSheet("")
             self._needs_assist_button.setToolTip("Mark this team as needing assistance")
 
@@ -3090,10 +3074,6 @@ class TeamDetailWindow(QMainWindow):
         if callable(handler):
             handler()
 
-    def _handle_edit_team(self) -> None:
-        handler = getattr(self._bridge, "openEditTeam", None)
-        if callable(handler):
-            handler()
     def _handle_add_member(self) -> None:
         try:
             dlg = AddTeamMemberDialog(self)
@@ -3254,11 +3234,8 @@ class TaskLinkDialog(QDialog):
         self._tbl.setColumnCount(6)
         self._tbl.setHorizontalHeaderLabels(["ID", "Number", "Title", "Priority", "Status", "Location"])
         try:
-            self._tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self._tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+            apply_statusboard_table_behavior(self._tbl, stretch_last_section=True)
             self._tbl.verticalHeader().setVisible(False)
-            self._tbl.horizontalHeader().setStretchLastSection(True)
-            self._tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         except Exception:
             pass
         try:

@@ -155,7 +155,7 @@ def export_stream(incident_id: str, stream_id: str, options: ExportRequest):
         incident_name = incident_id
 
     try:
-        op = _client().get(f"/api/incidents/{incident_id}/operational-periods/active")
+        op = _client().get(f"/api/incidents/{incident_id}/planning/operational-periods/active")
         if op:
             def _fmt_dt(iso: str, fmt: str) -> str:
                 try:

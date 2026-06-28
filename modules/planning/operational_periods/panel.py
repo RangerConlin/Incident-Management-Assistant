@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from .repository import OperationalPeriodRecord, OperationalPeriodRepository
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 # Status -> (row background, badge background, badge text) — light and dark variants
 _STATUS_COLORS_LIGHT: dict[str, tuple[str, str, str]] = {
@@ -152,9 +153,7 @@ class OperationalPeriodManagerPanel(QWidget):
         self.periods_table.setHorizontalHeaderLabels(
             ["Period", "Status", "Start", "End", "Duration"]
         )
-        self.periods_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.periods_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.periods_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self.periods_table)
         self.periods_table.setAlternatingRowColors(False)  # we paint rows manually
         self.periods_table.setFixedHeight(180)
         self.periods_table.itemSelectionChanged.connect(self._on_selection_changed)

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 
 from modules.gis.models.spatial_feature import SpatialFeature
 from modules.gis.services.spatial_repository import SpatialRepository
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class SpatialObjectsPanel(QWidget):
@@ -39,9 +40,7 @@ class SpatialObjectsPanel(QWidget):
                 "Visible",
             ]
         )
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        apply_statusboard_table_behavior(self._table)
         self._table.verticalHeader().setVisible(False)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.itemSelectionChanged.connect(self._emit_selection)

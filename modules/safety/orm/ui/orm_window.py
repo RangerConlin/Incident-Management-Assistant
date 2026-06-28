@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from utils.state import AppState
+from utils.app_signals import app_signals
 
 from .. import pdf_export, service
 from ..models import ORMForm, ORMHazard
@@ -109,8 +110,23 @@ class ORMWindow(QWidget):
 
         self._build_ui()
         self._load_form()
+        app_signals.opPeriodChanged.connect(self._on_op_period_changed)
 
     # ------------------------------------------------------------------ UI build
+    def _on_op_period_changed(self, op_data: object) -> None:
+        """Update the OP combo when the active period changes externally."""
+        number: int = 1
+        if isinstance(op_data, dict):
+            number = int(op_data.get("number", 1))
+        elif isinstance(op_data, int):
+            number = op_data
+        self.op_combo.blockSignals(True)
+        try:
+            self.op_combo.setCurrentText(str(number))
+        finally:
+            self.op_combo.blockSignals(False)
+        self._current_op = number
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)

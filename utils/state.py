@@ -72,24 +72,43 @@ class AppState:
 
     @classmethod
     def get_active_incident(cls):
-        logger.debug(
-            "[state] get_active_incident -> %s",
-            getattr(cls, "_active_incident_number", None),
-        )
         return cls._active_incident_number
 
     @classmethod
     def set_active_op_period(cls, op_period_id):
+        """Store the active OP identifier.
+    
+        Accepts either a plain int (OP number, for backward compatibility)
+        or a dict with keys: number, id, status, start_time, end_time.
+        """
         cls._active_op_period_id = op_period_id
+        payload = op_period_id
+        if isinstance(op_period_id, dict):
+            payload = dict(op_period_id)
+        elif isinstance(op_period_id, int):
+            payload = {"number": op_period_id, "id": None, "status": "Active"}
         try:
             from utils.app_signals import app_signals
-            app_signals.opPeriodChanged.emit(op_period_id)
+            app_signals.opPeriodChanged.emit(payload)
         except Exception as e:
             logger.warning("[state] failed to emit opPeriodChanged: %s", e)
 
     @classmethod
     def get_active_op_period(cls):
+        """Return the stored active OP value (int or dict, depending on caller)."""
         return cls._active_op_period_id
+
+    @classmethod
+    def get_active_op_period_dict(cls) -> dict | None:
+        """Return a dict representation of the active OP, or None."""
+        from typing import Mapping
+        value = cls._active_op_period_id
+        if value is None:
+            return None
+        if isinstance(value, Mapping):
+            return dict(value)
+        # Legacy: plain int
+        return {"number": int(value), "id": None, "status": "Active"}
 
     @classmethod
     def set_active_user_id(cls, user_id):

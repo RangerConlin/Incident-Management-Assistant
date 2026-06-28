@@ -1,9 +1,13 @@
 """Operational Periods repository — proxies through SARApp API (MongoDB backend)."""
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _iid() -> str:
@@ -157,14 +161,24 @@ class OperationalPeriodRepository:
         d = _client().post(f"{self._base()}/{period_id}/set-active", json={})
         from utils.state import AppState
         record = _from_dict(d)
-        AppState.set_active_op_period(record.number)
+        AppState.set_active_op_period({
+            "number": record.number,
+            "id": record.id,
+            "status": record.status,
+            "start_time": record.start_time,
+            "end_time": record.end_time,
+        })
         return record
 
     def get_active_period(self) -> Optional[OperationalPeriodRecord]:
         try:
             d = _client().get(f"{self._base()}/active")
             return _from_dict(d) if d else None
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch active operational period for incident '%s': %s",
+                self.incident_id, exc,
+            )
             return None
 
     def period_summary(self, period_id: int) -> dict[str, int]:

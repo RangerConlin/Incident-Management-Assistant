@@ -8,11 +8,14 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import IncidentCollections
+from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
 from sarapp_db.mongo.repository import BaseRepository
 
-router = APIRouter()
+master_router = APIRouter()
+incident_router = APIRouter()
 
 
 class MeetingsRepository(BaseRepository):
@@ -23,7 +26,7 @@ class MeetingsRepository(BaseRepository):
 
 
 class MeetingTemplatesRepository(BaseRepository):
-    collection_name = "meeting_templates"
+    collection_name = MasterCollections.MEETING_TEMPLATES
     soft_deletes = False
 
 
@@ -31,8 +34,8 @@ def _repo(incident_id: str) -> MeetingsRepository:
     return MeetingsRepository(get_incident_db(incident_id))
 
 
-def _templates_repo(incident_id: str) -> MeetingTemplatesRepository:
-    return MeetingTemplatesRepository(get_incident_db(incident_id))
+def _templates_repo() -> MeetingTemplatesRepository:
+    return MeetingTemplatesRepository(get_master_db())
 
 
 def _utcnow() -> str:
@@ -115,9 +118,12 @@ def _note_out(n: dict) -> dict:
 
 
 def _template_out(t: dict) -> dict:
+    name = t.get("name", "")
+    if t.get("slug") == "operations-briefing":
+        name = "Operational Period Briefing"
     return {
         "slug": t.get("slug", ""),
-        "name": t.get("name", ""),
+        "name": name,
         "default_duration_minutes": t.get("default_duration_minutes", 60),
         "agenda_sections": _j(t.get("agenda_sections"), []),
         "required_attendee_roles": _j(t.get("required_attendee_roles"), []),
@@ -127,36 +133,58 @@ def _template_out(t: dict) -> dict:
         "closeout_checklist_items": _j(t.get("closeout_checklist_items"), []),
         "appears_on_ics230_default": bool(t.get("appears_on_ics230_default", True)),
         "active": bool(t.get("active", True)),
-    }
+}
+
+
+_DEPRECATED_BUILTIN_TEMPLATE_SLUGS = {
+    "pre-tactics-meeting",
+    "execute-plan-and-assess",
+}
+
+
+def _dedupe_template_docs(docs: List[dict]) -> List[dict]:
+    deduped: list[dict] = []
+    seen_names: set[str] = set()
+    seen_slugs: set[str] = set()
+    for doc in docs:
+        slug = str(doc.get("slug") or "").strip().lower()
+        if slug in _DEPRECATED_BUILTIN_TEMPLATE_SLUGS:
+            continue
+        normalized_name = str(_template_out(doc).get("name") or "").strip().lower()
+        if slug in seen_slugs or normalized_name in seen_names:
+            continue
+        seen_slugs.add(slug)
+        seen_names.add(normalized_name)
+        deduped.append(doc)
+    return deduped
 
 
 # -------------------------------------------------------------------------
 # Template endpoints
 # -------------------------------------------------------------------------
 
-@router.get("/incidents/{incident_id}/planning/meeting-templates")
-def list_templates(incident_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
-    repo = _templates_repo(incident_id)
+@master_router.get("")
+def list_templates(active_only: bool = True) -> List[Dict[str, Any]]:
+    repo = _templates_repo()
+    _seed_missing_templates()
     q = {"active": True} if active_only else {}
     docs = repo.find_many(q, sort=[("name", 1)])
-    if not docs:
-        _seed_templates(incident_id)
-        docs = repo.find_many(q, sort=[("name", 1)])
+    docs = _dedupe_template_docs(docs)
     return [_template_out(d) for d in docs]
 
 
-@router.get("/incidents/{incident_id}/planning/meeting-templates/{slug}")
-def get_template(incident_id: str, slug: str) -> Dict[str, Any]:
-    repo = _templates_repo(incident_id)
+@master_router.get("/{slug}")
+def get_template(slug: str) -> Dict[str, Any]:
+    repo = _templates_repo()
     doc = repo.find_one({"slug": slug})
     if not doc:
         raise HTTPException(status_code=404, detail=f"Meeting template not found: {slug}")
     return _template_out(doc)
 
 
-@router.put("/incidents/{incident_id}/planning/meeting-templates/{slug}")
-def upsert_template(incident_id: str, slug: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    repo = _templates_repo(incident_id)
+@master_router.put("/{slug}")
+def upsert_template(slug: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    repo = _templates_repo()
     upd = {
         "slug": slug,
         "name": body.get("name", slug),
@@ -182,7 +210,7 @@ def upsert_template(incident_id: str, slug: str, body: Dict[str, Any]) -> Dict[s
 # Meeting CRUD
 # -------------------------------------------------------------------------
 
-@router.get("/incidents/{incident_id}/planning/meetings")
+@incident_router.get("/incidents/{incident_id}/planning/meetings")
 def list_meetings(
     incident_id: str,
     operational_period_id: Optional[str] = None,
@@ -203,7 +231,7 @@ def list_meetings(
     return [_meeting_out(d) for d in docs]
 
 
-@router.post("/incidents/{incident_id}/planning/meetings", status_code=201)
+@incident_router.post("/incidents/{incident_id}/planning/meetings", status_code=201)
 def create_meeting(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -233,13 +261,13 @@ def create_meeting(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
     return _meeting_out(saved)
 
 
-@router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}")
+@incident_router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}")
 def get_meeting(incident_id: str, meeting_id: int) -> Dict[str, Any]:
     doc = _col_get(incident_id, meeting_id)
     return _meeting_out(doc)
 
 
-@router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}")
+@incident_router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}")
 def update_meeting(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -258,7 +286,7 @@ def update_meeting(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> D
     return get_meeting(incident_id, meeting_id)
 
 
-@router.delete("/incidents/{incident_id}/planning/meetings/{meeting_id}", status_code=204)
+@incident_router.delete("/incidents/{incident_id}/planning/meetings/{meeting_id}", status_code=204)
 def delete_meeting(incident_id: str, meeting_id: int) -> None:
     repo = _repo(incident_id)
     doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id})
@@ -276,13 +304,13 @@ def _next_sub_id(items: list) -> int:
     return max(i.get("id", 0) for i in items) + 1
 
 
-@router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees")
+@incident_router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees")
 def list_attendees(incident_id: str, meeting_id: int) -> List[Dict[str, Any]]:
     doc = _col_get(incident_id, meeting_id)
     return [_attendee_out(a) for a in doc.get("attendees", [])]
 
 
-@router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees", status_code=201)
+@incident_router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees", status_code=201)
 def add_attendee(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -309,7 +337,7 @@ def add_attendee(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dic
     return _attendee_out(att)
 
 
-@router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees/{attendee_id}")
+@incident_router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees/{attendee_id}")
 def update_attendee(incident_id: str, meeting_id: int, attendee_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -327,7 +355,7 @@ def update_attendee(incident_id: str, meeting_id: int, attendee_id: int, body: D
     raise HTTPException(status_code=404, detail="Attendee not found")
 
 
-@router.delete("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees/{attendee_id}", status_code=204)
+@incident_router.delete("/incidents/{incident_id}/planning/meetings/{meeting_id}/attendees/{attendee_id}", status_code=204)
 def remove_attendee(incident_id: str, meeting_id: int, attendee_id: int) -> None:
     repo = _repo(incident_id)
     doc = repo.find_one({"incident_id": incident_id, "int_id": meeting_id})
@@ -349,13 +377,13 @@ def remove_attendee(incident_id: str, meeting_id: int, attendee_id: int) -> None
 # Checklist items (embedded array)
 # -------------------------------------------------------------------------
 
-@router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist")
+@incident_router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist")
 def list_checklist(incident_id: str, meeting_id: int) -> List[Dict[str, Any]]:
     doc = _col_get(incident_id, meeting_id)
     return [_checklist_out(c) for c in doc.get("checklist_items", [])]
 
 
-@router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist", status_code=201)
+@incident_router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist", status_code=201)
 def add_checklist_item(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -380,7 +408,7 @@ def add_checklist_item(incident_id: str, meeting_id: int, body: Dict[str, Any]) 
     return _checklist_out(item)
 
 
-@router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist/{item_id}")
+@incident_router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/checklist/{item_id}")
 def update_checklist_item(incident_id: str, meeting_id: int, item_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -405,13 +433,13 @@ def update_checklist_item(incident_id: str, meeting_id: int, item_id: int, body:
 # Structured notes (embedded array)
 # -------------------------------------------------------------------------
 
-@router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes")
+@incident_router.get("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes")
 def list_notes(incident_id: str, meeting_id: int) -> List[Dict[str, Any]]:
     doc = _col_get(incident_id, meeting_id)
     return [_note_out(n) for n in doc.get("structured_notes", [])]
 
 
-@router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes", status_code=201)
+@incident_router.post("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes", status_code=201)
 def add_note(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -437,7 +465,7 @@ def add_note(incident_id: str, meeting_id: int, body: Dict[str, Any]) -> Dict[st
     return _note_out(note)
 
 
-@router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes/{note_id}/route")
+@incident_router.patch("/incidents/{incident_id}/planning/meetings/{meeting_id}/notes/{note_id}/route")
 def mark_note_routed(incident_id: str, meeting_id: int, note_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
     repo = _repo(incident_id)
     _ensure_int_ids(repo._col)
@@ -465,14 +493,16 @@ def _col_get(incident_id: str, meeting_id: int) -> dict:
 
 
 # -------------------------------------------------------------------------
-# Template seeding (called lazily on first list_templates)
+# Template seeding / sync
 # -------------------------------------------------------------------------
 
-def _seed_templates(incident_id: str) -> None:
+def _seed_missing_templates() -> None:
     try:
         from modules.planning.meetings.seeds import ICS_MEETING_TEMPLATES
-        repo = _templates_repo(incident_id)
+        repo = _templates_repo()
         for t in ICS_MEETING_TEMPLATES:
+            if repo.find_one({"slug": t.slug}):
+                continue
             payload = {
                 "slug": t.slug,
                 "name": t.name,
@@ -486,10 +516,6 @@ def _seed_templates(incident_id: str) -> None:
                 "appears_on_ics230_default": bool(t.appears_on_ics230_default),
                 "active": bool(t.active),
             }
-            existing = repo.find_one({"slug": t.slug})
-            if existing:
-                repo.update_one(existing["_id"], payload)
-            else:
-                repo.insert_one(payload)
+            repo.insert_one(payload)
     except Exception:
         pass

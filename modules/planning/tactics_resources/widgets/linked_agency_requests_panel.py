@@ -11,7 +11,6 @@ from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class LinkedAgencyRequestsPanel(QWidget):
@@ -56,10 +56,7 @@ class LinkedAgencyRequestsPanel(QWidget):
         columns = ["Agency", "Request Summary", "Status", "Linked"]
         self._table = QTableWidget(0, len(columns))
         self._table.setHorizontalHeaderLabels(columns)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self._table)
 
@@ -162,9 +159,7 @@ class _LinkAgencyRequestDialog(QDialog):
         columns = ["Agency", "Description", "Priority", "Status"]
         self._req_table = QTableWidget(0, len(columns))
         self._req_table.setHorizontalHeaderLabels(columns)
-        self._req_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._req_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._req_table.horizontalHeader().setStretchLastSection(True)
+        apply_statusboard_table_behavior(self._req_table, stretch_last_section=True)
         layout.addWidget(self._req_table)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)

@@ -46,9 +46,7 @@ env/
 *.sln
 *.sw?
 .clairvoyance/
-.claude/
-.clinerules/
-.agents/
+
 
 # OS junk
 .DS_Store

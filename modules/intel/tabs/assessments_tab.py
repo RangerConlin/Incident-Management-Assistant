@@ -13,6 +13,7 @@ from PySide6.QtGui import QColor, QBrush
 
 from modules.intel.models.assessments import Assessment, AssessmentStatus, ASSESSMENT_STATUSES
 from modules.intel.services.intel_service import IntelService
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 _ROW_COLORS: dict[str, QColor] = {
     "draft":     QColor(30,  80,  180, 110),
@@ -134,10 +135,9 @@ class AssessmentsTab(QWidget):
         self._table = QTableWidget()
         self._table.setColumnCount(len(self._COLS))
         self._table.setHorizontalHeaderLabels(self._COLS)
+        apply_statusboard_table_behavior(self._table)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
         self._table.setSortingEnabled(True)
         self._table.doubleClicked.connect(self._on_double_click)

@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from modules.safety import services
 from modules.intel.weather.services.summary import build_weather_form_payload
 from utils.api_client import api_client
+from utils.app_signals import app_signals
 from utils.state import AppState
 
 
@@ -53,6 +54,20 @@ class ICS208Panel(QWidget):
         self._incident_id = incident_id
         self._build_ui()
         self._load()
+        app_signals.opPeriodChanged.connect(self._on_op_period_changed)
+
+    def _on_op_period_changed(self, op_data: object) -> None:
+        """Update the spinbox when the active period changes externally."""
+        number: int = 1
+        if isinstance(op_data, dict):
+            number = int(op_data.get("number", 1))
+        elif isinstance(op_data, int):
+            number = op_data
+        self._op_spin.blockSignals(True)
+        try:
+            self._op_spin.setValue(number)
+        finally:
+            self._op_spin.blockSignals(False)
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)

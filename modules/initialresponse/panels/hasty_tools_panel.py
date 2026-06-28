@@ -5,7 +5,6 @@ from typing import Iterable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -28,6 +27,7 @@ from PySide6.QtWidgets import (
 from utils.api_client import APIError
 from utils.app_signals import app_signals
 from utils.state import AppState
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 from .. import services
 from ..models import HastyTaskCreate, HastyTaskRead, InitialOverviewRead
@@ -321,8 +321,7 @@ class HastyToolsPanel(QWidget):
 
         self._suggestion_table = QTableWidget(0, 6)
         self._suggestion_table.setHorizontalHeaderLabels(["Use", "Qty", "Category", "Type", "Suggested Task", "Priority"])
-        self._suggestion_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._suggestion_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self._suggestion_table)
         header_view = self._suggestion_table.horizontalHeader()
         header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -345,6 +344,7 @@ class HastyToolsPanel(QWidget):
 
         self._build_table = QTableWidget(0, 6)
         self._build_table.setHorizontalHeaderLabels(["Task #", "Type", "Title", "Location", "Priority", "Category"])
+        apply_statusboard_table_behavior(self._build_table)
         self._build_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self._build_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self._build_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
@@ -375,9 +375,7 @@ class HastyToolsPanel(QWidget):
         logged_layout = QVBoxLayout(logged_box)
         self._table = QTableWidget(0, 6)
         self._table.setHorizontalHeaderLabels(["Area / Task", "Priority", "Task", "Logistics", "Notes", "Created"])
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         logged_layout.addWidget(self._table)
         layout.addWidget(logged_box)
 

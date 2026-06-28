@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.logistics.panels.request_detail_dialog import RequestDetailDialog
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class RequestsPanel(QWidget):
@@ -23,6 +24,7 @@ class RequestsPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Legacy QML resource-request board has been removed."))
         self.table = QTableWidget()
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         layout.addWidget(self.table)
 
         bar = QWidget(self)

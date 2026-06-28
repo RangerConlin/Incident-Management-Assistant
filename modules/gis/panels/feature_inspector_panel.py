@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from modules.gis.models.spatial_feature import SpatialFeature
 from modules.gis.services.spatial_repository import SpatialRepository
 from modules.gis.widgets.geometry_summary_widget import GeometrySummaryWidget
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class FeatureInspectorPanel(QWidget):
@@ -60,6 +61,7 @@ class FeatureInspectorPanel(QWidget):
         self._links_table.setHorizontalHeaderLabels(
             ["Module", "Record Type", "Record ID", "Relationship"]
         )
+        apply_statusboard_table_behavior(self._links_table, stretch_last_section=True)
         self._links_table.verticalHeader().setVisible(False)
         links_layout.addWidget(self._links_table)
 

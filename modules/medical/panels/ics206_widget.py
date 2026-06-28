@@ -31,6 +31,8 @@ from PySide6.QtWidgets import (
 from bridge.medical_bridge import MedicalBridge
 from modules.logistics.facilities.service import FacilitiesService
 from modules.logistics.facilities.widgets.facility_picker import FacilityPicker
+from utils.app_signals import app_signals
+from utils.table_view_styles import apply_statusboard_table_behavior
 from utils.state import AppState
 
 
@@ -299,13 +301,10 @@ class ResourceSection(QWidget):
         cols = self._spec["columns"]
         self._table = QTableWidget(0, len(cols))
         self._table.setHorizontalHeaderLabels(cols)
-        self._table.setSelectionBehavior(QTableWidget.SelectRows)
-        self._table.setSelectionMode(QTableWidget.SingleSelection)
-        self._table.setEditTriggers(QTableWidget.NoEditTriggers)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.verticalHeader().setVisible(False)
         self._table.setAlternatingRowColors(True)
         self._table.setFixedHeight(120)
-        self._table.horizontalHeader().setStretchLastSection(True)
         self._table.doubleClicked.connect(self._edit)
         layout.addWidget(self._table)
 
@@ -395,6 +394,7 @@ class ICS206Panel(QWidget):
         self._build_ui()
         if self._bridge:
             self._load_text_sections()
+        app_signals.opPeriodChanged.connect(self._on_op_period_changed)
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
@@ -519,6 +519,15 @@ class ICS206Panel(QWidget):
             self._sig_date.setText(sigs.get("date") or "")
         except Exception:
             pass
+
+    def _on_op_period_changed(self, op_data: object) -> None:
+        """Update the OP label when the active period changes program-wide."""
+        number: int | str = "—"
+        if isinstance(op_data, dict):
+            number = op_data.get("number", "—")
+        elif isinstance(op_data, int):
+            number = op_data
+        self._op_label.setText(str(number))
 
     def _refresh_all(self) -> None:
         self._op_label.setText(str(AppState.get_active_op_period() or 1))

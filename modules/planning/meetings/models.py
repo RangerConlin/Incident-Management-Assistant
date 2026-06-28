@@ -7,6 +7,7 @@ from typing import Any
 
 MEETING_STATUSES = {"draft", "scheduled", "ready", "completed", "canceled"}
 NOTE_CATEGORIES = {
+    "comment",
     "decision",
     "action item",
     "issue/risk",

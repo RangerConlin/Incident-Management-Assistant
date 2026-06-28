@@ -1,0 +1,60 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; [ -f \"$f\" ] && bash scripts/validate-hardcoded-uri.sh \"$f\" 2>&1 || true; }",
+            "statusMessage": "Checking for hardcoded URIs..."
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; [ -f \"$f\" ] && bash scripts/validate-direct-db-access.sh \"$f\" 2>&1 || true; }",
+            "statusMessage": "Checking for direct DB access..."
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; [ -f \"$f\" ] && bash scripts/validate-ui-styles.sh \"$f\" 2>&1 || true; }",
+            "statusMessage": "Checking UI styling consistency..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "if": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/validate-structure.sh 2>&1",
+            "statusMessage": "Validating repo structure..."
+          },
+          {
+            "type": "command",
+            "command": "bash scripts/validate-cloud-server-mirror.sh 2>&1",
+            "statusMessage": "Checking cloud_server mirrors..."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(scripts/validate-*.sh)"
+    ],
+    "deny": [
+      "Read(**/.env*)",
+      "Read(**/*.key)",
+      "Read(**/*.pem)",
+      "Read(venv/**)",
+      "Read(__pycache__/**)",
+      "Read(**/*.couch)",
+      "Read(**/*.sqlite3)",
+      "Read(logs/**)",
+      "Read(snapshots/**)"
+    ]
+  }
+}

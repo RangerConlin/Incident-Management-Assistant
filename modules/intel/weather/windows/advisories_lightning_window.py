@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from ..services.api_link import WeatherApiManager
 from ..services.settings import weather_settings
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class AdvisoriesLightningWindow(QMainWindow):
@@ -69,8 +70,10 @@ class AdvisoriesLightningWindow(QMainWindow):
         self.advisories_table.setHorizontalHeaderLabels(
             ["Type", "Start", "End", "Headline"]
         )
+        apply_statusboard_table_behavior(self.advisories_table, stretch_last_section=True)
         self.lightning_table = QTableWidget(0, 3, splitter)
         self.lightning_table.setHorizontalHeaderLabels(["Time", "Lat", "Lon"])
+        apply_statusboard_table_behavior(self.lightning_table, stretch_last_section=True)
         splitter.addWidget(self.advisories_table)
         splitter.addWidget(self.lightning_table)
         layout.addWidget(splitter)

@@ -35,6 +35,7 @@ from ..views.preview_dialog import PreviewDialog
 from ..views.new_channel_dialog import NewChannelDialog
 from ..views.import_ics217_dialog import ImportICS217Dialog
 from ..views.edit_channel_dialog import EditChannelDialog
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 _NON_EDITABLE_KEYS = {"priority", "encryption"}
 
@@ -190,8 +191,7 @@ class ICS205Window(QWidget):
         plan_v.setSpacing(0)
 
         self.table = QTableView()
-        self.table.setSelectionBehavior(QTableView.SelectRows)
-        self.table.setSelectionMode(QTableView.SingleSelection)
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         self.table.setEditTriggers(
             QTableView.DoubleClicked | QTableView.SelectedClicked
         )
@@ -199,7 +199,6 @@ class ICS205Window(QWidget):
         self.table.setHorizontalScrollMode(QTableView.ScrollPerPixel)
         self.table.setVerticalScrollMode(QTableView.ScrollPerPixel)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setAlternatingRowColors(True)
         self.table.setItemDelegate(_PlanDelegate(self.table))
 

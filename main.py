@@ -90,6 +90,11 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("pymongo").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+try:
+    import shiboken6
+except Exception:  # pragma: no cover - optional at runtime
+    shiboken6 = None  # type: ignore[assignment]
+
 # Development mode toggle (prevents NameError later);
 # enable with env var IMA_DEV_MODE=true/1/on
 DEV_MODE = str(os.getenv("IMA_DEV_MODE", "")).strip().lower() in {"1", "true", "yes", "on"}
@@ -149,6 +154,17 @@ def _get_incident_by_number(number: str | None) -> dict | None:
         return results[0] if results else None
     except Exception:
         return None
+
+
+def _qobject_is_alive(obj: object | None) -> bool:
+    if obj is None:
+        return False
+    if shiboken6 is None:
+        return True
+    try:
+        return bool(shiboken6.isValid(obj))
+    except Exception:
+        return False
 
 
 @lru_cache(maxsize=1)
@@ -1215,18 +1231,29 @@ class MainWindow(QMainWindow):
 
         # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_open_incident(self) -> None:
-        """Launch the Incident Selection window."""
-        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
-        def _apply_active(number: int) -> None:
-            print(f"[main] on_select callback received: {number}")
-            AppState.set_active_incident(number)
-            self.update_title_with_active_incident()
+        """Launch the widget-based incident selection dialog."""
+        from modules.login_dialog import IncidentSelectionDialog
 
-        show_incident_selector(on_select=_apply_active)
+        dialog = IncidentSelectionDialog(
+            self,
+            default_incident_number=AppState.get_active_incident(),
+            api_available=True,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        number = dialog.selected_incident_number()
+        if not number:
+            return
+        AppState.set_active_incident(number)
+        self.update_title_with_active_incident()
 
     def open_menu_save_incident(self) -> None:
-        from ui_bootstrap.incident_select_bootstrap import show_incident_selector
-        show_incident_selector()
+        QMessageBox.information(
+            self,
+            "Save Incident",
+            "Incident data is saved automatically through the API. No manual save step is required.",
+        )
 
     def open_menu_settings(self) -> None:
         """Open the widget-based Settings window."""
@@ -1465,13 +1492,13 @@ class MainWindow(QMainWindow):
                 create_command_incident_overview_panel,
             )
             widget = create_command_incident_overview_panel(self.dock_manager, getattr(self, "app_context", None))
-            self._open_panel(widget, title=IncidentOverviewPanel.panel_title)
+            self._open_panel(widget, title=IncidentOverviewPanel.panel_title, preferred_size=(600, 480))
         except Exception:
             # Fallback to legacy placeholder if import fails
             from modules import command
             incident_id = AppState.get_active_incident()
             panel = command.get_incident_overview_panel(incident_id)
-            self._open_panel(panel, title="Incident Overview")
+            self._open_panel(panel, title="Incident Overview", preferred_size=(600, 480))
 
     def open_command_iap(self) -> None:
         from modules import command
@@ -1659,6 +1686,10 @@ class MainWindow(QMainWindow):
 
     # ---- Ops Glance data wiring ----
     def _wire_ops_glance(self, w) -> None:
+        from modules.operations.data.dashboard_summary import (
+            build_team_snapshot_rows,
+            summarize_team_kpis,
+        )
         from utils.app_signals import app_signals
         from utils.state import AppState
         from utils import incident_context
@@ -1735,12 +1766,15 @@ class MainWindow(QMainWindow):
 
         # Refresh function using live data
         def _refresh() -> None:
+            if not _qobject_is_alive(w):
+                return
             # Overlay if no active incident
             try:
                 active_id = incident_context.get_active_incident_id()
                 w.setIncidentOverlayVisible(False if active_id else True)
             except Exception:
-                w.setIncidentOverlayVisible(True)
+                if _qobject_is_alive(w):
+                    w.setIncidentOverlayVisible(True)
                 return
 
             # Context header
@@ -1776,22 +1810,12 @@ class MainWindow(QMainWindow):
 
             # Teams snapshot via API
             try:
-                teams = api_client.get(f"/api/incidents/{iid}/teams") or []
-                def _has_task(t):
-                    return bool(t.get("task_id") or t.get("assignment"))
-                k_assigned = sum(1 for t in teams if _has_task(t))
-                k_available = sum(1 for t in teams if not _has_task(t))
-                k_blocking = sum(1 for t in teams if t.get("needs_assistance") or t.get("emergency"))
-                w.update_team_snapshot([
-                    {
-                        "name": t.get("team_name") or "Team",
-                        "status": str(t.get("status") or "").title(),
-                        "assigned": t.get("assignment") or "",
-                        "leader": t.get("leader") or "",
-                        "last_checkin_at": t.get("last_checkin_ts") or "",
-                    }
-                    for t in teams[:6]
-                ])
+                teams = api_client.get(f"/api/incidents/{iid}/operations/teams") or []
+                team_summary = summarize_team_kpis(teams)
+                k_assigned = team_summary["teams_assigned"]
+                k_available = team_summary["teams_available"]
+                k_blocking = team_summary["blocking_issues"]
+                w.update_team_snapshot(build_team_snapshot_rows(teams))
             except Exception as exc:
                 print(f"[warn] teams API failed: {exc}")
 
@@ -1806,6 +1830,7 @@ class MainWindow(QMainWindow):
 
             # Alerts (last 30 min) via API
             try:
+                from utils.api_client import APIError
                 audit_rows = api_client.get(f"/api/incidents/{iid}/audit-log", params={"limit": 100}) or []
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
                 alerts = []
@@ -1824,6 +1849,11 @@ class MainWindow(QMainWindow):
                             msg = f"{msg} — {who}"
                         alerts.append({"id": r.get("id"), "ts": ts[-8:] if ts else "", "message": msg})
                 w.update_alerts(alerts[:8])
+            except APIError as exc:
+                if exc.status_code == 404:
+                    w.update_alerts([])
+                else:
+                    print(f"[warn] audit-log API failed: {exc}")
             except Exception as exc:
                 print(f"[warn] audit-log API failed: {exc}")
 
@@ -2013,11 +2043,14 @@ class MainWindow(QMainWindow):
 
         # Refresh function focused on header + safe defaults
         def _refresh() -> None:
+            if not _qobject_is_alive(w):
+                return
             try:
                 active_id = incident_context.get_active_incident_id()
                 w.setIncidentOverlayVisible(False if active_id else True)
             except Exception:
-                w.setIncidentOverlayVisible(True)
+                if _qobject_is_alive(w):
+                    w.setIncidentOverlayVisible(True)
                 return
 
             try:
@@ -2430,12 +2463,15 @@ class MainWindow(QMainWindow):
             pass
 
         def _refresh() -> None:
+            if not _qobject_is_alive(w):
+                return
             # Overlay visibility based on active incident
             try:
                 active_id = incident_context.get_active_incident_id()
                 w.setIncidentOverlayVisible(False if active_id else True)
             except Exception:
-                w.setIncidentOverlayVisible(True)
+                if _qobject_is_alive(w):
+                    w.setIncidentOverlayVisible(True)
                 return
 
             # Header context

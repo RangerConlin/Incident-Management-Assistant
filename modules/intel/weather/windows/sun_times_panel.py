@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..services.api_link import WeatherApiManager
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class SunTimesPanel(QWidget):
@@ -43,6 +44,7 @@ class SunTimesPanel(QWidget):
 
         self.table = QTableWidget(0, 3, self)
         self.table.setHorizontalHeaderLabels(["Date", "Civil AM", "Civil PM"])
+        apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         layout.addWidget(self.table)
 
         self.copy_button = QPushButton("Copy to Clipboard", self)

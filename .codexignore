@@ -1,0 +1,105 @@
+
+
+# ── Git ──────────────────────────────────────────────────────────────────
+.git/
+
+# ── Python caches & bytecode ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# ── Python tooling caches ────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pytest*/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ── Virtual environments ─────────────────────────────────────────────────
+.venv*/
+venv*/
+env*/
+.venv/
+venv/
+env/
+
+# ── Qt Creator ───────────────────────────────────────────────────────────
+.qtcreator/
+.qtc_clangd/
+
+# ── IDE & editor files ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.creator
+*.user
+*.pro.user
+*.pyproj
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Cline/Claude internal state ──────────────────────────────────────────
+.clairvoyance/
+.claude/
+.agents/
+
+# ── OS junk ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────
+*.log
+/logs/
+
+# ── Temporary files ──────────────────────────────────────────────────────
+*.tmp
+*~
+*.bak
+*.swp
+*.swo
+*.orig
+*.rej
+_tmp_*
+tmp_*
+/tmp
+
+# ── SQLite ephemeral files ───────────────────────────────────────────────
+*-journal
+*-wal
+*-shm
+*.sqlite3-journal
+*.db-journal
+
+# ── Build artifacts ──────────────────────────────────────────────────────
+dist/
+build/
+*.spec
+
+# ── Generated reports & outputs ──────────────────────────────────────────
+reports/
+data/output/
+data/cache/
+data/exports/
+
+# ── Local settings with machine-specific state ───────────────────────────
+settings/ads_perspectives.ini
+
+# ── Large binary documents (not useful as code context) ──────────────────
+*.docx
+*.xlsx
+*.pdf
+
+# ── Packaged Windows binaries ────────────────────────────────────────────
+*.exe
+*.msi
+
+# ── Node.js (if any npm/node_modules artifacts appear) ───────────────────
+node_modules/

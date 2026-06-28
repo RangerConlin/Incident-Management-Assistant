@@ -789,6 +789,8 @@ class TeamStatusPanel(QWidget):
         needs_task: list[str] = []
         for status in team_status_colors():
             (needs_task if self._status_requires_task(status) else no_task).append(status)
+        no_task.sort(key=_display_label)
+        needs_task.sort(key=_display_label)
         # First: statuses that do not require a task
         for status in no_task:
             menu.addAction(_display_label(status), lambda s=status: self.change_status(row, s))

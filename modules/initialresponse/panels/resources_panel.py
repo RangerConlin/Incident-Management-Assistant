@@ -4,7 +4,6 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QFormLayout,
     QFrame,
@@ -25,6 +24,7 @@ from PySide6.QtWidgets import (
 from utils.api_client import APIError, api_client
 from utils.app_signals import app_signals
 from utils.state import AppState
+from utils.table_view_styles import apply_statusboard_table_behavior
 
 
 class ResourcesPanel(QWidget):
@@ -96,9 +96,7 @@ class ResourcesPanel(QWidget):
         current_layout.addLayout(current_actions)
         self._resource_table = QTableWidget(0, 5)
         self._resource_table.setHorizontalHeaderLabels(["Name", "Type", "Status", "Owner", "Updated"])
-        self._resource_table.horizontalHeader().setStretchLastSection(True)
-        self._resource_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._resource_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self._resource_table, stretch_last_section=True)
         current_layout.addWidget(self._resource_table)
         top_layout.addWidget(current_box, 1)
 
@@ -127,9 +125,7 @@ class ResourcesPanel(QWidget):
         needs_layout.addLayout(needs_actions)
         self._request_table = QTableWidget(0, 5)
         self._request_table.setHorizontalHeaderLabels(["Title", "Priority", "Status", "Section", "Updated"])
-        self._request_table.horizontalHeader().setStretchLastSection(True)
-        self._request_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._request_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self._request_table, stretch_last_section=True)
         needs_layout.addWidget(self._request_table)
         top_layout.addWidget(needs_box, 1)
 
@@ -142,9 +138,7 @@ class ResourcesPanel(QWidget):
         teams_layout = QVBoxLayout(teams_box)
         self._team_table = QTableWidget(0, 4)
         self._team_table.setHorizontalHeaderLabels(["Team", "Status", "Last Check-In", "Assistance"])
-        self._team_table.horizontalHeader().setStretchLastSection(True)
-        self._team_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._team_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        apply_statusboard_table_behavior(self._team_table, stretch_last_section=True)
         teams_layout.addWidget(self._team_table)
         bottom_layout.addWidget(teams_box, 1)
 
