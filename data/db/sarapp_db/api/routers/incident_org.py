@@ -7,6 +7,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from modules.command.incident_organization.models import normalize_assignment_type
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.repository import BaseRepository
@@ -428,6 +429,7 @@ class EndAssignmentRequest(BaseModel):
 
 
 def _assignment_to_dict(doc: dict) -> dict[str, Any]:
+    assignment_type = normalize_assignment_type(doc.get("assignment_type", "primary"))
     return {
         "id": doc["assignment_id"],
         "assignment_id": doc["assignment_id"],
@@ -435,7 +437,7 @@ def _assignment_to_dict(doc: dict) -> dict[str, Any]:
         "position_id": doc["position_id"],
         "personnel_id": doc.get("personnel_id"),
         "display_name": doc.get("display_name", ""),
-        "assignment_type": doc.get("assignment_type", "primary"),
+        "assignment_type": assignment_type,
         "start_time": doc.get("start_time"),
         "end_time": doc.get("end_time"),
         "operational_period": doc.get("operational_period"),
@@ -450,12 +452,12 @@ def _assignment_to_dict(doc: dict) -> dict[str, Any]:
 # Assignments
 # ---------------------------------------------------------------------------
 
-_VALID_ASSIGNMENT_TYPES = {"primary", "deputy", "assistant", "trainee", "relief"}
+_VALID_ASSIGNMENT_TYPES = {"primary", "deputy", "assistant", "staff_assistant", "trainee", "relief"}
 
 
 @router.post("/{incident_id}/org/assignments", status_code=201)
 def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, Any]:
-    atype = (body.assignment_type or "primary").lower().strip()
+    atype = normalize_assignment_type(body.assignment_type)
     if atype not in _VALID_ASSIGNMENT_TYPES:
         raise HTTPException(400, f"Invalid assignment type: {body.assignment_type}")
     asgn_repo = _assignments_repo(incident_id)
@@ -572,7 +574,7 @@ def list_assignment_history(
             "position_id": d["position_id"],
             "personnel_id": d.get("personnel_id"),
             "display_name": d.get("display_name", ""),
-            "assignment_type": d.get("assignment_type", "primary"),
+            "assignment_type": normalize_assignment_type(d.get("assignment_type", "primary")),
             "action": d.get("action", ""),
             "effective_time": d.get("effective_time"),
             "operational_period": d.get("operational_period"),

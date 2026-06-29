@@ -7,7 +7,7 @@ structure: branches, divisions, groups, and their assigned resources.
 Resources are currently treated as single resources (teams); task force
 and strike team scaffolding is present for future expansion.
 
-Deputies, assistants, trainees, and relief are shown as secondary assignments
+Deputies, staff assistants, trainees, and relief are shown as secondary assignments
 (assignment_type field) on the parent position rather than as separate
 position nodes.
 """
@@ -41,7 +41,17 @@ from PySide6.QtWidgets import (
 
 from utils import incident_context
 from ..controller import IncidentOrganizationController
-from ..models import OrganizationPosition, PositionAssignment
+from ..models import (
+    ASSIGNMENT_TYPE_ASSISTANT,
+    ASSIGNMENT_TYPE_DEPUTY,
+    ASSIGNMENT_TYPE_PRIMARY,
+    ASSIGNMENT_TYPE_RELIEF,
+    ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+    ASSIGNMENT_TYPE_TRAINEE,
+    OrganizationPosition,
+    PositionAssignment,
+    normalize_assignment_type,
+)
 
 # Fallback resource kind options when the master resource type library is empty
 _DEFAULT_RESOURCE_KINDS: list[str] = [
@@ -87,17 +97,28 @@ _RESOURCE_TYPE_LABELS = {
 
 # ICS support role titles by classification (mirrors incident_organization_panel.py)
 # Division/Group have no deputies (N/A per ICS standard).
-# Incident Commander (command) has a Deputy only (no Assistant).
-# Command Staff (PIO/LOFR/SOFR - "position") have Assistants only.
-# Section Chiefs have both Deputies and Assistants.
+# Incident Commander (command) has a Deputy only.
+# Command Staff positions can have assistants and staff assistants.
+# Section Chiefs have deputies, assistants, and staff assistants.
 _ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
     "command": {"deputy": "Deputy", "trainee": "Trainee", "relief": "Relief"},
-    "section": {"deputy": "Deputy", "assistant": "Assistant", "trainee": "Trainee", "relief": "Relief"},
+    "section": {
+        "deputy": "Deputy",
+        "assistant": "Assistant",
+        "staff_assistant": "Staff Assistant",
+        "trainee": "Trainee",
+        "relief": "Relief",
+    },
     "branch":  {"deputy": "Deputy Director", "trainee": "Trainee", "relief": "Relief"},
     "division":{"trainee": "Trainee", "relief": "Relief"},
     "group":   {"trainee": "Trainee", "relief": "Relief"},
     "unit":    {"trainee": "Trainee", "relief": "Relief"},
-    "position":{"assistant": "Assistant", "trainee": "Trainee", "relief": "Relief"},
+    "position": {
+        "assistant": "Assistant",
+        "staff_assistant": "Staff Assistant",
+        "trainee": "Trainee",
+        "relief": "Relief",
+    },
 }
 
 def _assignment_display_text(at: str, name: str, classification: str = "position") -> str:
@@ -639,20 +660,14 @@ class OperationsSectionWindow(QDialog):
         branch_font.setBold(True)
 
         def _build_assignment_text(pos_id: int) -> str:
-            """Build inline assignment text showing primary + other types."""
-            pos_obj = self._positions_by_id.get(pos_id)
-            classification = pos_obj.classification if pos_obj else "position"
+            """Build inline assignment text showing only the primary assignee."""
             pos_assignments = self._assignments_by_position.get(pos_id, [])
-            parts = []
-            primary_names = [a.display_name for a in pos_assignments if a.assignment_type == "primary"]
-            if primary_names:
-                parts.append(", ".join(primary_names))
-            non_primary_assignments = [a for a in pos_assignments if a.assignment_type != "primary"]
-            for at in ("deputy", "assistant", "trainee", "relief"):
-                names = [a.display_name for a in non_primary_assignments if a.assignment_type == at]
-                for n in names:
-                    parts.append(_assignment_display_text(at, n, classification))
-            return " | ".join(parts) if parts else ""
+            primary_names = [
+                a.display_name
+                for a in pos_assignments
+                if normalize_assignment_type(a.assignment_type) == ASSIGNMENT_TYPE_PRIMARY
+            ]
+            return ", ".join(primary_names) if primary_names else ""
 
         def _add_unit_children(parent_item: QTreeWidgetItem, parent_id: int | None) -> None:
             for pos in children.get(parent_id, []):
@@ -741,10 +756,29 @@ class OperationsSectionWindow(QDialog):
         # Show staffing inline
         assignments = self._assignments_by_position.get(unit_id, [])
         staff_lines = []
-        for at in ("primary", "deputy", "assistant", "trainee", "relief"):
-            names = [a.display_name for a in assignments if a.assignment_type == at]
+        role_labels = {
+            ASSIGNMENT_TYPE_PRIMARY: "Primary",
+            ASSIGNMENT_TYPE_DEPUTY: "Deputy",
+            ASSIGNMENT_TYPE_ASSISTANT: "Assistant",
+            ASSIGNMENT_TYPE_STAFF_ASSISTANT: "Staff Assistant",
+            ASSIGNMENT_TYPE_TRAINEE: "Trainee",
+            ASSIGNMENT_TYPE_RELIEF: "Relief",
+        }
+        for at in (
+            ASSIGNMENT_TYPE_PRIMARY,
+            ASSIGNMENT_TYPE_DEPUTY,
+            ASSIGNMENT_TYPE_ASSISTANT,
+            ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+            ASSIGNMENT_TYPE_TRAINEE,
+            ASSIGNMENT_TYPE_RELIEF,
+        ):
+            names = [
+                a.display_name
+                for a in assignments
+                if normalize_assignment_type(a.assignment_type) == at
+            ]
             if names:
-                label = "Director" if at == "primary" else at.title()
+                label = role_labels.get(at, at.replace("_", " ").title())
                 staff_lines.append(f"{label}: {', '.join(names)}")
         self.unit_staffing.setText("\n".join(staff_lines) if staff_lines else "")
 

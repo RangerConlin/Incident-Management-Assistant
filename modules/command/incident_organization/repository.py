@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 from typing import Any, Iterable, List, Optional, Sequence
+
+from modules.common.models.ics_positions import get_position
+
 from .models import (
     ACTIVE_ASSIGNMENT_TYPES,
+    ASSIGNMENT_TYPE_PRIMARY,
     AssignmentHistoryEntry,
     GeneratedFormSnapshot,
     OrganizationPosition,
     OrganizationTemplate,
     PositionAssignment,
     POSITION_STATUSES,
+    normalize_assignment_type,
 )
+
+
+def _catalog_title(key: str, fallback: str) -> str:
+    position = get_position(key)
+    return position.title if position else fallback
 
 class ApiIncidentOrganizationRepository:
     """MongoDB-backed implementation via the SARApp API server."""
@@ -224,7 +234,9 @@ class ApiIncidentOrganizationRepository:
             position_id=int(doc.get("position_id", 0)),
             personnel_id=doc.get("personnel_id"),
             display_name=doc.get("display_name", ""),
-            assignment_type=doc.get("assignment_type", "primary"),
+            assignment_type=normalize_assignment_type(
+                doc.get("assignment_type", ASSIGNMENT_TYPE_PRIMARY)
+            ),
             start_time=doc.get("start_time"),
             end_time=doc.get("end_time"),
             operational_period=doc.get("operational_period"),
@@ -243,7 +255,9 @@ class ApiIncidentOrganizationRepository:
             position_id=int(doc.get("position_id", 0)),
             personnel_id=doc.get("personnel_id"),
             display_name=doc.get("display_name", ""),
-            assignment_type=doc.get("assignment_type", "primary"),
+            assignment_type=normalize_assignment_type(
+                doc.get("assignment_type", ASSIGNMENT_TYPE_PRIMARY)
+            ),
             action=doc.get("action", ""),
             effective_time=doc.get("effective_time"),
             operational_period=doc.get("operational_period"),
@@ -259,45 +273,45 @@ def _default_organization_templates() -> list[OrganizationTemplate]:
     """
 
     basic_payload = [
-        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
-        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
-        {"key": "pio", "parent_key": "ic", "title": "Public Information Officer", "classification": "position"},
-        {"key": "liaison", "parent_key": "ic", "title": "Liaison Officer", "classification": "position"},
-        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
-        {"key": "planning", "parent_key": "ic", "title": "Planning Section Chief", "classification": "section"},
-        {"key": "logistics", "parent_key": "ic", "title": "Logistics Section Chief", "classification": "section"},
-        {"key": "finance", "parent_key": "ic", "title": "Finance/Administration Section Chief", "classification": "section"},
+        {"key": "ic", "title": _catalog_title("incident_commander", "Incident Commander"), "classification": "command", "is_critical": True},
+        {"key": "safety", "parent_key": "ic", "title": _catalog_title("safety_officer", "Safety Officer"), "classification": "position"},
+        {"key": "pio", "parent_key": "ic", "title": _catalog_title("public_information_officer", "Public Information Officer"), "classification": "position"},
+        {"key": "liaison", "parent_key": "ic", "title": _catalog_title("liaison_officer", "Liaison Officer"), "classification": "position"},
+        {"key": "ops", "parent_key": "ic", "title": _catalog_title("operations_section_chief", "Operations Section Chief"), "classification": "section"},
+        {"key": "planning", "parent_key": "ic", "title": _catalog_title("planning_section_chief", "Planning Section Chief"), "classification": "section"},
+        {"key": "logistics", "parent_key": "ic", "title": _catalog_title("logistics_section_chief", "Logistics Section Chief"), "classification": "section"},
+        {"key": "finance", "parent_key": "ic", "title": _catalog_title("finance_admin_section_chief", "Finance/Administration Section Chief"), "classification": "section"},
     ]
 
     expanded_payload = basic_payload + [
-        {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
+        {"key": "staging", "parent_key": "ops", "title": _catalog_title("staging_area_manager", "Staging Area Manager"), "classification": "position"},
         {
             "key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch",
             "classification": "branch", "is_air_ops": True,
         },
-        {"key": "resources_unit", "parent_key": "planning", "title": "Resources Unit Leader", "classification": "position"},
-        {"key": "situation_unit", "parent_key": "planning", "title": "Situation Unit Leader", "classification": "position"},
-        {"key": "documentation_unit", "parent_key": "planning", "title": "Documentation Unit Leader", "classification": "position"},
-        {"key": "demob_unit", "parent_key": "planning", "title": "Demobilization Unit Leader", "classification": "position"},
+        {"key": "resources_unit", "parent_key": "planning", "title": _catalog_title("resources_unit_leader", "Resources Unit Leader"), "classification": "position"},
+        {"key": "situation_unit", "parent_key": "planning", "title": _catalog_title("situation_unit_leader", "Situation Unit Leader"), "classification": "position"},
+        {"key": "documentation_unit", "parent_key": "planning", "title": _catalog_title("documentation_unit_leader", "Documentation Unit Leader"), "classification": "position"},
+        {"key": "demob_unit", "parent_key": "planning", "title": _catalog_title("demobilization_unit_leader", "Demobilization Unit Leader"), "classification": "position"},
         {"key": "support_branch", "parent_key": "logistics", "title": "Support Branch", "classification": "branch"},
-        {"key": "supply_unit", "parent_key": "support_branch", "title": "Supply Unit Leader", "classification": "position"},
-        {"key": "facilities_unit", "parent_key": "support_branch", "title": "Facilities Unit Leader", "classification": "position"},
-        {"key": "ground_support_unit", "parent_key": "support_branch", "title": "Ground Support Unit Leader", "classification": "position"},
+        {"key": "supply_unit", "parent_key": "support_branch", "title": _catalog_title("supply_unit_leader", "Supply Unit Leader"), "classification": "position"},
+        {"key": "facilities_unit", "parent_key": "support_branch", "title": _catalog_title("facilities_unit_leader", "Facilities Unit Leader"), "classification": "position"},
+        {"key": "ground_support_unit", "parent_key": "support_branch", "title": _catalog_title("ground_support_unit_leader", "Ground Support Unit Leader"), "classification": "position"},
         {"key": "service_branch", "parent_key": "logistics", "title": "Service Branch", "classification": "branch"},
-        {"key": "communications_unit", "parent_key": "service_branch", "title": "Communications Unit Leader", "classification": "position"},
-        {"key": "medical_unit", "parent_key": "service_branch", "title": "Medical Unit Leader", "classification": "position"},
-        {"key": "food_unit", "parent_key": "service_branch", "title": "Food Unit Leader", "classification": "position"},
-        {"key": "time_unit", "parent_key": "finance", "title": "Time Unit Leader", "classification": "position"},
-        {"key": "procurement_unit", "parent_key": "finance", "title": "Procurement Unit Leader", "classification": "position"},
-        {"key": "comp_claims_unit", "parent_key": "finance", "title": "Compensation/Claims Unit Leader", "classification": "position"},
-        {"key": "cost_unit", "parent_key": "finance", "title": "Cost Unit Leader", "classification": "position"},
+        {"key": "communications_unit", "parent_key": "service_branch", "title": _catalog_title("communications_unit_leader", "Communications Unit Leader"), "classification": "position"},
+        {"key": "medical_unit", "parent_key": "service_branch", "title": _catalog_title("medical_unit_leader", "Medical Unit Leader"), "classification": "position"},
+        {"key": "food_unit", "parent_key": "service_branch", "title": _catalog_title("food_unit_leader", "Food Unit Leader"), "classification": "position"},
+        {"key": "time_unit", "parent_key": "finance", "title": _catalog_title("time_unit_leader", "Time Unit Leader"), "classification": "position"},
+        {"key": "procurement_unit", "parent_key": "finance", "title": _catalog_title("procurement_unit_leader", "Procurement Unit Leader"), "classification": "position"},
+        {"key": "comp_claims_unit", "parent_key": "finance", "title": _catalog_title("compensation_claims_unit_leader", "Compensation/Claims Unit Leader"), "classification": "position"},
+        {"key": "cost_unit", "parent_key": "finance", "title": _catalog_title("cost_unit_leader", "Cost Unit Leader"), "classification": "position"},
     ]
 
     sar_minimal_payload = [
-        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
-        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
-        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
-        {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
+        {"key": "ic", "title": _catalog_title("incident_commander", "Incident Commander"), "classification": "command", "is_critical": True},
+        {"key": "safety", "parent_key": "ic", "title": _catalog_title("safety_officer", "Safety Officer"), "classification": "position"},
+        {"key": "ops", "parent_key": "ic", "title": _catalog_title("operations_section_chief", "Operations Section Chief"), "classification": "section"},
+        {"key": "staging", "parent_key": "ops", "title": _catalog_title("staging_area_manager", "Staging Area Manager"), "classification": "position"},
     ]
 
     # Civil Air Patrol - every Command Staff role and Section Chief includes
@@ -307,25 +321,25 @@ def _default_organization_templates() -> list[OrganizationTemplate]:
     # Branches (Ground Ops / Air Ops) similarly get their deputy director
     # via a second assignment on the branch position itself.
     cap_payload = [
-        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
+        {"key": "ic", "title": _catalog_title("incident_commander", "Incident Commander"), "classification": "command", "is_critical": True},
 
-        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
+        {"key": "safety", "parent_key": "ic", "title": _catalog_title("safety_officer", "Safety Officer"), "classification": "position"},
 
-        {"key": "liaison", "parent_key": "ic", "title": "Liaison Officer", "classification": "position"},
+        {"key": "liaison", "parent_key": "ic", "title": _catalog_title("liaison_officer", "Liaison Officer"), "classification": "position"},
 
-        {"key": "pio", "parent_key": "ic", "title": "Public Information Officer", "classification": "position"},
+        {"key": "pio", "parent_key": "ic", "title": _catalog_title("public_information_officer", "Public Information Officer"), "classification": "position"},
 
-        {"key": "planning", "parent_key": "ic", "title": "Planning Section Chief", "classification": "section"},
-        {"key": "situation_unit", "parent_key": "planning", "title": "Situation Unit Leader", "classification": "position"},
+        {"key": "planning", "parent_key": "ic", "title": _catalog_title("planning_section_chief", "Planning Section Chief"), "classification": "section"},
+        {"key": "situation_unit", "parent_key": "planning", "title": _catalog_title("situation_unit_leader", "Situation Unit Leader"), "classification": "position"},
 
-        {"key": "logistics", "parent_key": "ic", "title": "Logistics Section Chief", "classification": "section"},
-        {"key": "communications_unit", "parent_key": "logistics", "title": "Communications Unit Leader", "classification": "position"},
+        {"key": "logistics", "parent_key": "ic", "title": _catalog_title("logistics_section_chief", "Logistics Section Chief"), "classification": "section"},
+        {"key": "communications_unit", "parent_key": "logistics", "title": _catalog_title("communications_unit_leader", "Communications Unit Leader"), "classification": "position"},
 
-        {"key": "finance", "parent_key": "ic", "title": "Finance/Administration Section Chief", "classification": "section"},
+        {"key": "finance", "parent_key": "ic", "title": _catalog_title("finance_admin_section_chief", "Finance/Administration Section Chief"), "classification": "section"},
 
-        {"key": "intel", "parent_key": "ic", "title": "Intelligence Section Chief", "classification": "section"},
+        {"key": "intel", "parent_key": "ic", "title": _catalog_title("intelligence_section_chief", "Intelligence Section Chief"), "classification": "section"},
 
-        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
+        {"key": "ops", "parent_key": "ic", "title": _catalog_title("operations_section_chief", "Operations Section Chief"), "classification": "section"},
         {"key": "ground_ops_branch", "parent_key": "ops", "title": "Ground Operations Branch", "classification": "branch"},
         {
             "key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch",

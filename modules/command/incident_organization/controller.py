@@ -8,18 +8,32 @@ from typing import Iterable
 
 from .personnel_repo import ApiPersonnelPoolRepository
 from .models import (
+    ASSIGNMENT_TYPE_ASSISTANT,
+    ASSIGNMENT_TYPE_DEPUTY,
+    ASSIGNMENT_TYPE_PRIMARY,
+    ASSIGNMENT_TYPE_RELIEF,
+    ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+    ASSIGNMENT_TYPE_TRAINEE,
     GeneratedFormSnapshot,
     OrganizationPosition,
     OrganizationTemplate,
     OrganizationWarning,
     PositionAssignment,
     PositionStatusSummary,
+    normalize_assignment_type,
 )
 from .repository import ApiIncidentOrganizationRepository
 
 
 DEFAULT_SPAN_OF_CONTROL_LIMIT = 7
 MIN_FILLED_ASSIGNMENTS = 1
+_LEGACY_SUPPORT_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("staff assistant", ASSIGNMENT_TYPE_STAFF_ASSISTANT),
+    ("assistant", ASSIGNMENT_TYPE_ASSISTANT),
+    ("deputy", ASSIGNMENT_TYPE_DEPUTY),
+    ("trainee", ASSIGNMENT_TYPE_TRAINEE),
+    ("relief", ASSIGNMENT_TYPE_RELIEF),
+)
 
 
 class IncidentOrganizationController:
@@ -90,7 +104,9 @@ class IncidentOrganizationController:
         self.repo.deactivate_position(position_id)
 
     def list_positions(self, include_inactive: bool = False) -> list[OrganizationPosition]:
-        return self.repo.list_positions(include_inactive=include_inactive)
+        positions = self.repo.list_positions(include_inactive=include_inactive)
+        visible_positions, _legacy_support_map = self._normalize_legacy_support_positions(positions)
+        return visible_positions
 
     def get_position(self, position_id: int) -> OrganizationPosition | None:
         return self.repo.get_position(position_id)
@@ -145,7 +161,7 @@ class IncidentOrganizationController:
             })
             self.assign_person(director_pos_id, {
                 "display_name": director_name.strip(),
-                "assignment_type": "primary",
+                "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })
         return branch_id
 
@@ -184,7 +200,7 @@ class IncidentOrganizationController:
             })
             self.assign_person(sup_pos_id, {
                 "display_name": supervisor_name.strip(),
-                "assignment_type": "primary",
+                "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })
         return unit_id
 
@@ -212,7 +228,7 @@ class IncidentOrganizationController:
             position_id=position_id,
             personnel_id=self._optional_text(values.get("personnel_id")),
             display_name=str(values.get("display_name", "")).strip(),
-            assignment_type=str(values.get("assignment_type", "primary") or "primary"),
+            assignment_type=normalize_assignment_type(values.get("assignment_type")),
             start_time=self._optional_text(values.get("start_time")),
             end_time=None,
             operational_period=self._optional_text(values.get("operational_period")),
@@ -221,8 +237,21 @@ class IncidentOrganizationController:
         )
         if not assignment.display_name:
             raise ValueError("Assigned personnel name is required")
+        position = self.repo.get_position(position_id)
+        if position is None:
+            raise ValueError(f"Position {position_id} was not found")
+        if assignment.assignment_type == ASSIGNMENT_TYPE_PRIMARY:
+            current_primary = [
+                item for item in self.repo.list_assignments(position_id, active_only=True)
+                if item.assignment_type == ASSIGNMENT_TYPE_PRIMARY
+            ]
+            if current_primary and not self._allows_multiple_primaries(position):
+                raise ValueError(
+                    "This position already has a primary assignee. "
+                    "Multiple primary assignees are only allowed for Incident Commander."
+                )
         assignment_id = self.repo.add_assignment(assignment)
-        return assignment_id, self.qualification_warnings(position_id, assignment)
+        return assignment_id, self.qualification_warnings(position_id, assignment, position)
 
     def remove_assignment(
         self,
@@ -236,7 +265,42 @@ class IncidentOrganizationController:
     def list_assignments(
         self, position_id: int | None = None, *, active_only: bool = True
     ) -> list[PositionAssignment]:
-        return self.repo.list_assignments(position_id, active_only=active_only)
+        assignments = self.repo.list_assignments(position_id, active_only=active_only)
+        positions = self.repo.list_positions()
+        visible_positions, legacy_support_map = self._normalize_legacy_support_positions(positions)
+        if not legacy_support_map:
+            return assignments
+
+        visible_position_ids = {position.id for position in visible_positions if position.id is not None}
+        normalized: list[PositionAssignment] = []
+        for assignment in assignments:
+            remapped = legacy_support_map.get(assignment.position_id)
+            if remapped is not None:
+                parent_position_id, assignment_type = remapped
+                normalized.append(
+                    PositionAssignment(
+                        id=assignment.id,
+                        incident_id=assignment.incident_id,
+                        position_id=parent_position_id,
+                        personnel_id=assignment.personnel_id,
+                        display_name=assignment.display_name,
+                        assignment_type=assignment_type,
+                        start_time=assignment.start_time,
+                        end_time=assignment.end_time,
+                        operational_period=assignment.operational_period,
+                        assigned_by=assignment.assigned_by,
+                        notes=assignment.notes,
+                        created_at=assignment.created_at,
+                        updated_at=assignment.updated_at,
+                    )
+                )
+                continue
+            if assignment.position_id in visible_position_ids:
+                normalized.append(assignment)
+
+        if position_id is not None:
+            normalized = [assignment for assignment in normalized if assignment.position_id == position_id]
+        return normalized
 
     def list_assignments_for_person(
         self, personnel_id: str, *, active_only: bool = True
@@ -263,7 +327,7 @@ class IncidentOrganizationController:
             elif len(current) < MIN_FILLED_ASSIGNMENTS:
                 status = "partially filled"
             elif (
-                any(a.assignment_type == "trainee" for a in current)
+                any(a.assignment_type == ASSIGNMENT_TYPE_TRAINEE for a in current)
                 and len(current) == 1
             ):
                 status = "partially filled"
@@ -437,3 +501,45 @@ class IncidentOrganizationController:
         if isinstance(value, (list, tuple, set)):
             return [str(item).strip() for item in value if str(item).strip()]
         return [item.strip() for item in str(value).split(",") if item.strip()]
+
+    @staticmethod
+    def _allows_multiple_primaries(position: OrganizationPosition) -> bool:
+        return (
+            position.classification == "command"
+            and position.title.strip().casefold() == "incident commander"
+        )
+
+    @staticmethod
+    def _normalize_legacy_support_positions(
+        positions: list[OrganizationPosition],
+    ) -> tuple[list[OrganizationPosition], dict[int, tuple[int, str]]]:
+        by_id = {position.id: position for position in positions if position.id is not None}
+        legacy_support_map: dict[int, tuple[int, str]] = {}
+
+        for position in positions:
+            if position.id is None or position.parent_position_id is None:
+                continue
+            parent = by_id.get(position.parent_position_id)
+            if parent is None:
+                continue
+            assignment_type = IncidentOrganizationController._legacy_support_assignment_type(
+                position.title,
+                parent.title,
+            )
+            if assignment_type is not None:
+                legacy_support_map[position.id] = (parent.id, assignment_type)
+
+        visible_positions = [
+            position for position in positions if position.id not in legacy_support_map
+        ]
+        return visible_positions, legacy_support_map
+
+    @staticmethod
+    def _legacy_support_assignment_type(title: str, parent_title: str) -> str | None:
+        normalized_title = title.strip().casefold()
+        normalized_parent = parent_title.strip().casefold()
+        for prefix, assignment_type in _LEGACY_SUPPORT_PREFIXES:
+            expected = f"{prefix} {normalized_parent}"
+            if normalized_title == expected:
+                return assignment_type
+        return None

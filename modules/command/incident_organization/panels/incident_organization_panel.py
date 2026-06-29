@@ -36,7 +36,18 @@ from utils.app_signals import app_signals
 from utils.state import AppState
 
 from ..controller import IncidentOrganizationController
-from ..models import OrganizationPosition, OrganizationTemplate, PositionAssignment
+from ..models import (
+    ASSIGNMENT_TYPE_ASSISTANT,
+    ASSIGNMENT_TYPE_DEPUTY,
+    ASSIGNMENT_TYPE_PRIMARY,
+    ASSIGNMENT_TYPE_RELIEF,
+    ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+    ASSIGNMENT_TYPE_TRAINEE,
+    OrganizationPosition,
+    OrganizationTemplate,
+    PositionAssignment,
+    normalize_assignment_type,
+)
 from ..windows.ops_section_window import OperationsSectionWindow
 
 
@@ -63,6 +74,7 @@ _ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
     "section": {
         "deputy": "Deputy",
         "assistant": "Assistant",
+        "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
         "relief": "Relief",
     },
@@ -85,6 +97,7 @@ _ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
     },
     "position": {
         "assistant": "Assistant",
+        "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
         "relief": "Relief",
     },
@@ -100,9 +113,28 @@ def _classification_support_title(classification: str, assignment_type: str) -> 
 _ASSIGNMENT_COLORS: dict[str, QColor] = {
     "primary":  QColor("#2e7d32"),
     "deputy":   QColor("#1565c0"),
-    "assistant":QColor("#6a1b9a"),
+    "assistant": QColor("#8e24aa"),
+    "staff_assistant": QColor("#6a1b9a"),
     "trainee":  QColor("#e65100"),
     "relief":   QColor("#00838f"),
+}
+
+_ASSIGNMENT_ORDER = {
+    ASSIGNMENT_TYPE_PRIMARY: 0,
+    ASSIGNMENT_TYPE_DEPUTY: 1,
+    ASSIGNMENT_TYPE_ASSISTANT: 2,
+    ASSIGNMENT_TYPE_STAFF_ASSISTANT: 3,
+    ASSIGNMENT_TYPE_TRAINEE: 4,
+    ASSIGNMENT_TYPE_RELIEF: 5,
+}
+
+_ASSIGNMENT_LABELS = {
+    ASSIGNMENT_TYPE_PRIMARY: "Primary",
+    ASSIGNMENT_TYPE_DEPUTY: "Deputy",
+    ASSIGNMENT_TYPE_ASSISTANT: "Assistant",
+    ASSIGNMENT_TYPE_STAFF_ASSISTANT: "Staff Assistant",
+    ASSIGNMENT_TYPE_TRAINEE: "Trainee",
+    ASSIGNMENT_TYPE_RELIEF: "Relief",
 }
 
 
@@ -496,7 +528,16 @@ class UnifiedAssignmentDialog(QDialog):
         type_row = QHBoxLayout()
         type_row.addWidget(QLabel("Assignment type:", self))
         self.type_combo = QComboBox(self)
-        self.type_combo.addItems(["primary", "deputy", "assistant", "trainee", "relief"])
+        self.type_combo.addItems(
+            [
+                ASSIGNMENT_TYPE_PRIMARY,
+                ASSIGNMENT_TYPE_DEPUTY,
+                ASSIGNMENT_TYPE_ASSISTANT,
+                ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+                ASSIGNMENT_TYPE_TRAINEE,
+                ASSIGNMENT_TYPE_RELIEF,
+            ]
+        )
         type_row.addWidget(self.type_combo)
         type_row.addStretch(1)
 
@@ -541,7 +582,7 @@ class UnifiedAssignmentDialog(QDialog):
         self._result = {
             "personnel_id": str(pid) if pid is not None else None,
             "display_name": name,
-            "assignment_type": self.type_combo.currentText(),
+            "assignment_type": normalize_assignment_type(self.type_combo.currentText()),
             "operational_period": self.period_edit.text().strip() or None,
             "notes": self.notes_edit.text().strip() or None,
         }
@@ -924,29 +965,9 @@ class IncidentOrganizationPanel(QWidget):
                 # Build summary of assignments for display
                 primary_names = [
                     a.display_name for a in pos_assignments
-                    if a.assignment_type == "primary"
+                    if normalize_assignment_type(a.assignment_type) == ASSIGNMENT_TYPE_PRIMARY
                 ]
-                other_assignments = [
-                    a for a in pos_assignments
-                    if a.assignment_type != "primary"
-                ]
-
-                primary_text = ", ".join(primary_names) if primary_names else ""
-                classification = position.classification
-                other_text_parts = []
-                for at in ("deputy", "assistant", "trainee", "relief"):
-                    names = [
-                        _assignment_display_text(at, a.display_name, classification)
-                        for a in other_assignments if a.assignment_type == at
-                    ]
-                    if names:
-                        other_text_parts.extend(names)
-
-                assignment_display = primary_text
-                if other_text_parts:
-                    if assignment_display:
-                        assignment_display += " | "
-                    assignment_display += ", ".join(other_text_parts)
+                assignment_display = ", ".join(primary_names) if primary_names else ""
 
                 item_summary = summary.get(pos_id)
                 status = item_summary.staffing_status if item_summary else "unknown"
@@ -959,18 +980,6 @@ class IncidentOrganizationPanel(QWidget):
                     item.setForeground(0, QColor("#bdbdbd"))
                 elif status == "partially filled":
                     item.setForeground(0, QColor("#e65100"))
-
-                # Color-code non-primary assignments in column 1
-                if other_text_parts:
-                    for asgn in other_assignments:
-                        if asgn.assignment_type != "primary":
-                            color = _assignment_color(asgn.assignment_type)
-                            # Apply color to the first occurrence
-                            col1_text = item.text(1)
-                            if asgn.display_name in col1_text:
-                                # We can only set one color per cell, use the first non-primary color
-                                item.setForeground(1, color)
-                            break
 
                 item.setData(0, Qt.UserRole, position.id)
                 if item_summary and item_summary.warnings:
@@ -1019,9 +1028,21 @@ class IncidentOrganizationPanel(QWidget):
         if position.parent_position_id and position.parent_position_id in self._positions_by_id:
             parent_label = self._positions_by_id[position.parent_position_id].title
         air_ops_tag = " | Air Operations Branch" if position.is_air_ops else ""
+        primary_count = sum(
+            1
+            for assignment in assignments
+            if normalize_assignment_type(assignment.assignment_type) == ASSIGNMENT_TYPE_PRIMARY
+        )
+        command_mode_tag = (
+            " | Unified Command"
+            if position.classification == "command"
+            and position.title.strip().casefold() == "incident commander"
+            and primary_count > 1
+            else ""
+        )
         self.detail_meta.setText(
             f"{position.classification} | Parent: {parent_label} | "
-            f"Operational period: {position.operational_period or 'any'}{air_ops_tag}"
+            f"Operational period: {position.operational_period or 'any'}{air_ops_tag}{command_mode_tag}"
         )
 
         critical = "Critical" if position.is_critical else "Standard"
@@ -1035,26 +1056,28 @@ class IncidentOrganizationPanel(QWidget):
         self._populate_assignments(assignments)
 
     def _populate_assignments(self, assignments: list[PositionAssignment]) -> None:
-        # Sort: primary first, then deputy, assistant, trainee, relief
-        type_order = {"primary": 0, "deputy": 1, "assistant": 2, "trainee": 3, "relief": 4}
         sorted_assignments = sorted(
             assignments,
-            key=lambda a: (type_order.get(a.assignment_type, 99), a.display_name.lower()),
+            key=lambda a: (
+                _ASSIGNMENT_ORDER.get(normalize_assignment_type(a.assignment_type), 99),
+                a.display_name.lower(),
+            ),
         )
 
         self.assignments_table.setRowCount(len(sorted_assignments))
         for row, assignment in enumerate(sorted_assignments):
+            assignment_type = normalize_assignment_type(assignment.assignment_type)
             values = [
                 assignment.display_name,
-                assignment.assignment_type,
+                _ASSIGNMENT_LABELS.get(assignment_type, assignment_type.replace("_", " ").title()),
                 assignment.operational_period or "",
                 assignment.notes or "",
             ]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setData(Qt.UserRole, assignment.id)
-                if col == 1 and assignment.assignment_type != "primary":
-                    color = _assignment_color(assignment.assignment_type)
+                if col == 1 and assignment_type != ASSIGNMENT_TYPE_PRIMARY:
+                    color = _assignment_color(assignment_type)
                     item.setForeground(color)
                 self.assignments_table.setItem(row, col, item)
 
@@ -1281,7 +1304,7 @@ class IncidentOrganizationPanel(QWidget):
             _, warnings = self._ensure_controller().assign_person(position_id, {
                 "personnel_id": person.get("id"),
                 "display_name": str(person.get("name") or ""),
-                "assignment_type": "primary",
+                "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })
         except ValueError as exc:
             QMessageBox.warning(self, "Assignment", str(exc))

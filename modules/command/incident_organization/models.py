@@ -10,8 +10,42 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 
-ACTIVE_ASSIGNMENT_TYPES = {"primary", "deputy", "assistant", "trainee", "relief"}
+ASSIGNMENT_TYPE_PRIMARY = "primary"
+ASSIGNMENT_TYPE_DEPUTY = "deputy"
+ASSIGNMENT_TYPE_ASSISTANT = "assistant"
+ASSIGNMENT_TYPE_STAFF_ASSISTANT = "staff_assistant"
+ASSIGNMENT_TYPE_TRAINEE = "trainee"
+ASSIGNMENT_TYPE_RELIEF = "relief"
+_LEGACY_ASSIGNMENT_TYPE_ALIASES = {
+    "staff assistant": ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+}
+ACTIVE_ASSIGNMENT_TYPES = {
+    ASSIGNMENT_TYPE_PRIMARY,
+    ASSIGNMENT_TYPE_DEPUTY,
+    ASSIGNMENT_TYPE_ASSISTANT,
+    ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+    ASSIGNMENT_TYPE_TRAINEE,
+    ASSIGNMENT_TYPE_RELIEF,
+}
 POSITION_STATUSES = {"active", "inactive"}
+
+
+def normalize_assignment_type(value: object) -> str:
+    """Normalize stored or user-selected assignment types.
+
+    Accept a few loose text variants while preserving distinct ICS support
+    roles like ``assistant`` and ``staff_assistant``.
+    """
+
+    assignment_type = str(value or ASSIGNMENT_TYPE_PRIMARY).strip().lower()
+    if not assignment_type:
+        return ASSIGNMENT_TYPE_PRIMARY
+    assignment_type = _LEGACY_ASSIGNMENT_TYPE_ALIASES.get(assignment_type, assignment_type)
+    return (
+        assignment_type
+        if assignment_type in ACTIVE_ASSIGNMENT_TYPES
+        else ASSIGNMENT_TYPE_PRIMARY
+    )
 
 
 @dataclass(slots=True)
@@ -53,7 +87,7 @@ class PositionAssignment:
     position_id: int
     personnel_id: Optional[str]
     display_name: str
-    assignment_type: str = "primary"
+    assignment_type: str = ASSIGNMENT_TYPE_PRIMARY
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     operational_period: Optional[str] = None
