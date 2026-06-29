@@ -2,7 +2,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+CHECKED_IN_STATUSES = {
+    "Available",
+    "Assigned",
+    "Out of Service",
+    "Preparing for Demobilization",
+    "Checked In",
+}
+ASSIGNED_HINT_FIELDS = (
+    "team_id",
+    "current_task_id",
+    "current_assignment",
+    "operational_unit_id",
+    "assignment",
+    "assigned_driver",
+    "responsible_person_id",
+    "responsible_team_id",
+)
 
 
 @dataclass(frozen=True)
@@ -170,16 +189,83 @@ def get_entity_config(entity_type: str) -> EntityConfig:
 class CheckInService:
     """API-backed facade that manages master and incident resource check-in."""
 
+    def _has_active_org_assignment(self, person_id: str) -> bool:
+        incident_id = _incident_id()
+        if not incident_id or not person_id:
+            return False
+        try:
+            rows = _client().get(
+                f"/api/incidents/{incident_id}/org/assignments/by-person/{person_id}",
+                params={"active_only": True},
+            ) or []
+        except Exception:
+            return False
+        return bool(rows)
+
+    def _is_on_incident_team(self, resource_type: str, record_id: Any) -> bool:
+        incident_id = _incident_id()
+        resource_id = str(record_id or "").strip()
+        if not incident_id or not resource_id:
+            return False
+        field_map = {
+            "personnel": "members_json",
+            "vehicle": "vehicles_json",
+            "aircraft": "aircraft_json",
+            "equipment": "equipment_json",
+        }
+        team_field = field_map.get(resource_type)
+        if not team_field:
+            return False
+        try:
+            teams = _client().get(f"/api/incidents/{incident_id}/operations/teams") or []
+        except Exception:
+            return False
+        for team in teams:
+            raw_members = team.get(team_field) or []
+            if isinstance(raw_members, str):
+                try:
+                    raw_members = json.loads(raw_members)
+                except Exception:
+                    raw_members = []
+            if isinstance(raw_members, list) and resource_id in {str(item) for item in raw_members}:
+                return True
+        return False
+
+    def default_arrival_status(
+        self,
+        resource_type: str,
+        row: Optional[Dict[str, Any]] = None,
+        *,
+        record_id: Any = None,
+    ) -> str:
+        record = row or {}
+        if any(record.get(field) not in (None, "", [], {}) for field in ASSIGNED_HINT_FIELDS):
+            return "Assigned"
+        if self._is_on_incident_team(resource_type, record.get("id") or record.get("person_id") or record_id):
+            return "Assigned"
+        if resource_type == "personnel":
+            person_id = str(record.get("id") or record.get("person_id") or record_id or "").strip()
+            if person_id and self._has_active_org_assignment(person_id):
+                return "Assigned"
+        return "Available"
+
     def _checked_in_ids(self, entity_type: str) -> set[str]:
         incident_id = _incident_id()
         if not incident_id:
             return set()
         try:
-            ids = _client().get(
-                f"{_incident_base(incident_id)}/checked-ids",
+            rows = _client().get(
+                f"{_incident_base(incident_id)}",
                 params={"resource_type": entity_type},
             ) or []
-            return {str(i) for i in ids}
+            config = _get_config(entity_type)
+            checked_ids: set[str] = set()
+            for row in rows:
+                if str(row.get("status") or "").strip() in CHECKED_IN_STATUSES:
+                    identifier = row.get(config.id_column)
+                    if identifier is not None:
+                        checked_ids.add(str(identifier))
+            return checked_ids
         except Exception:
             return set()
 
@@ -269,16 +355,18 @@ class CheckInService:
                     except Exception:
                         pass
                     if existing is None:
+                        default_status = self.default_arrival_status("personnel", doc, record_id=pid)
                         rec = CheckInRecord(
                             person_id=pid,
-                            ci_status=CIStatus.CHECKED_IN,
-                            personnel_status=PersonnelStatus.AVAILABLE,
+                            status=CIStatus.normalize(default_status),
                             arrival_time=now_iso,
                             location=Location.ICP,
                             incident_callsign=doc.get("callsign"),
                             incident_phone=doc.get("phone") or doc.get("contact"),
-                            team_id=None,
+                            team_id=doc.get("team_id"),
                             role_on_team=doc.get("role") or doc.get("primary_role"),
+                            ci_status=CIStatus.normalize(default_status),
+                            personnel_status=PersonnelStatus.ASSIGNED if default_status == "Assigned" else PersonnelStatus.AVAILABLE,
                         )
                     else:
                         rec = existing
@@ -299,6 +387,231 @@ class CheckInService:
             return _client().get(f"{_incident_base(incident_id)}/{entity_type}/{record_id}")
         except Exception:
             return None
+
+    # ------------------------------------------------------------------
+    # ID search (returns resolver list for ambiguous matches)
+    # ------------------------------------------------------------------
+
+    def search_by_id(
+        self, entity_type: str, typed_value: str, limit: int = 30
+    ) -> tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Search for a master record by ID/callsign/etc.
+
+        Returns (exact_match, resolver_list):
+        - If exactly one match is found, exact_match is that record
+          and resolver_list is empty.
+        - If multiple matches are found, exact_match is None and
+          resolver_list contains the candidates.
+        - If no matches are found, both are empty/None.
+        """
+        config = ENTITY_CONFIG.get(entity_type)
+        if not config:
+            return None, []
+
+        results = self.search_master_records(entity_type, typed_value, limit=limit)
+        if not results:
+            return None, []
+
+        exact_values = [
+            str(typed_value.strip().lower()),
+        ]
+        exact_matches = []
+        for row in results:
+            candidates = [
+                str(row.get(config.id_column) or "").strip().lower(),
+                str(row.get("callsign") or "").strip().lower(),
+                str(row.get("tail_number") or "").strip().lower(),
+                str(row.get("serial_number") or "").strip().lower(),
+                str(row.get("license_plate") or "").strip().lower(),
+            ]
+            if typed_value.strip().lower() in candidates:
+                exact_matches.append(row)
+
+        if len(exact_matches) == 1:
+            return exact_matches[0], []
+        if len(exact_matches) > 1:
+            return None, exact_matches
+        if len(results) == 1:
+            return results[0], []
+        return None, results
+
+    # ------------------------------------------------------------------
+    # Organization-filtered listing
+    # ------------------------------------------------------------------
+
+    def list_by_organization(
+        self, entity_type: str, organization: str
+    ) -> List[Dict[str, Any]]:
+        """List master records filtered by organization/unit."""
+        config = ENTITY_CONFIG.get(entity_type)
+        if not config:
+            return []
+        records = self.list_master_records(entity_type)
+        if not organization:
+            return records
+        org_lower = organization.strip().lower()
+        filtered = []
+        for r in records:
+            org_val = str(r.get("organization") or r.get("unit") or r.get("home_unit") or "")
+            if org_lower in org_val.lower():
+                filtered.append(r)
+        return filtered
+
+    # ------------------------------------------------------------------
+    # LDW support
+    # ------------------------------------------------------------------
+
+    def update_ldw(
+        self, person_id: str, ldw_date: Optional[str] = None,
+        ldw_notes: Optional[str] = None,
+        ldw_updated_by: Optional[str] = None,
+    ) -> None:
+        """Update LDW fields on an existing check-in record."""
+        incident_id = _incident_id()
+        if not incident_id:
+            return
+        try:
+            from . import repository as ci_repo
+            rec = ci_repo.fetch_checkin(person_id)
+            if rec is None:
+                return
+            now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
+            rec.ldw_date = ldw_date
+            rec.ldw_notes = ldw_notes
+            rec.ldw_updated_at = now_iso
+            rec.ldw_updated_by = ldw_updated_by
+            ci_repo.save_checkin(rec)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Planning status transitions
+    # ------------------------------------------------------------------
+
+    def set_planning_status(self, person_id: str, planning_status: str) -> Optional[Dict[str, Any]]:
+        """Set the linear resource-flow status on a check-in record."""
+        incident_id = _incident_id()
+        if not incident_id:
+            return None
+        try:
+            return _client().patch(
+                f"/api/incidents/{incident_id}/checkin/{person_id}/status",
+                json={"status": planning_status},
+            )
+        except Exception:
+            return None
+
+    def transition_to_checked_in(
+        self, person_id: str, arrival_time: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Transition a planning-status record to fully checked in."""
+        incident_id = _incident_id()
+        if not incident_id:
+            return None
+        now = arrival_time or datetime.now().astimezone().isoformat(timespec="seconds")
+        existing = None
+        try:
+            from . import repository as ci_repo
+            existing = ci_repo.fetch_checkin(person_id)
+        except Exception:
+            existing = None
+        status = self.default_arrival_status(
+            "personnel",
+            {
+                "id": person_id,
+                "team_id": getattr(existing, "team_id", None) if existing else None,
+                "role_on_team": getattr(existing, "role_on_team", None) if existing else None,
+            },
+            record_id=person_id,
+        )
+        try:
+            return _client().patch(
+                f"/api/incidents/{incident_id}/checkin/{person_id}",
+                json={
+                    "status": status,
+                    "arrival_time": now,
+                    "updated_at": now,
+                },
+            )
+        except Exception:
+            return None
+
+    # ------------------------------------------------------------------
+    # Team check-in / disband
+    # ------------------------------------------------------------------
+
+    def team_check_in(
+        self,
+        team_id: str,
+        keep_together: bool = True,
+        checked_in_by: Optional[str] = None,
+        checkin_notes: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Check in a team. If keep_together=False, also disband."""
+        incident_id = _incident_id()
+        if not incident_id:
+            return None
+        try:
+            team_doc = _client().get(f"/api/incidents/{incident_id}/operations/teams/{team_id}") or {}
+        except Exception:
+            team_doc = {}
+        status = "Assigned" if any(team_doc.get(field) not in (None, "", [], {}) for field in ("current_task_id", "operational_unit_id", "assignment")) else "Available"
+        try:
+            return _client().post(
+                f"/api/incidents/{incident_id}/checkin/teams/{team_id}/checkin",
+                json={
+                    "keep_together": keep_together,
+                    "checked_in_by": checked_in_by,
+                    "checkin_notes": checkin_notes,
+                    "status": status,
+                },
+            )
+        except Exception:
+            return None
+
+    def team_disband(
+        self, team_id: str, disbanded_by: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Disband a team."""
+        incident_id = _incident_id()
+        if not incident_id:
+            return None
+        try:
+            return _client().post(
+                f"/api/incidents/{incident_id}/checkin/teams/{team_id}/disband",
+                json={"disbanded_by": disbanded_by},
+            )
+        except Exception:
+            return None
+
+    def list_unchecked_teams(self) -> List[Dict[str, Any]]:
+        """List teams that are not checked in (for planning views)."""
+        incident_id = _incident_id()
+        if not incident_id:
+            return []
+        try:
+            return _client().get(
+                f"/api/incidents/{incident_id}/checkin/teams/checked-state",
+                params={"checked_in": False, "include_disbanded": False},
+            ) or []
+        except Exception:
+            return []
+
+    def list_planning_status_resources(self, status: str = "") -> List[Dict[str, Any]]:
+        """List check-in records in planning statuses."""
+        incident_id = _incident_id()
+        if not incident_id:
+            return []
+        try:
+            params = {}
+            if status:
+                params["status"] = status
+            return _client().get(
+                f"/api/incidents/{incident_id}/checkin/planning-statuses",
+                params=params,
+            ) or []
+        except Exception:
+            return []
 
 
 _service: Optional[CheckInService] = None

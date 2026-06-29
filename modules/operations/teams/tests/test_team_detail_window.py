@@ -39,6 +39,28 @@ def test_team_detail_window_populates_empty_assigned_unit(qt_app: QApplication) 
         window.close()
 
 
+def test_team_detail_window_includes_logistics_tab(qt_app: QApplication) -> None:
+    window = TeamDetailWindow()
+    try:
+        tab_titles = [window._tabs.tabText(i) for i in range(window._tabs.count())]
+
+        assert tab_titles == [
+            "Personnel (Ground)",
+            "Vehicles",
+            "Equipment",
+            "Logistics",
+            "Logs",
+        ]
+    finally:
+        window.close()
+
+
+def test_new_team_defaults_to_available_status() -> None:
+    team = Team()
+
+    assert team.status == "available"
+
+
 class _FakeApiClient:
     def __init__(self) -> None:
         self.doc: dict = {}

@@ -18,6 +18,7 @@ once that happens.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from PySide6.QtCore import QObject, Signal
@@ -58,6 +59,42 @@ def _resolve_leader(team_doc: dict[str, Any], personnel_by_master_id: dict[Any, 
             if not leader_phone:
                 leader_phone = person.get("phone") or ""
     return leader_name, leader_phone
+
+
+def _fmt_text(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    return str(value).strip()
+
+
+def _parse_dt(value: Any) -> Optional[datetime]:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        s = str(value).strip()
+        if not s:
+            return None
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s)
+    except Exception:
+        return None
+
+
+def _fmt_dt(value: Any) -> str:
+    dt = _parse_dt(value)
+    if dt is None:
+        return ""
+    try:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone()
+        return dt.strftime("%m/%d/%Y %H:%M:%S")
+    except Exception:
+        return _fmt_text(value)
 
 
 class TeamTaskDesk(QObject):
@@ -144,6 +181,9 @@ class TeamTaskDesk(QObject):
     ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         for team in sorted(teams, key=lambda t: t.get("int_id") or 0):
+            # Skip teams that are not checked in or are disbanded (ICS-211 rule)
+            if not team.get("checked_in", True) or team.get("disbanded", False):
+                continue
             team_int_id = team.get("int_id")
             team_str_id = team.get("team_id") or str(team_int_id)
             current_task_ref = team.get("current_task_id")
@@ -200,6 +240,11 @@ class TeamTaskDesk(QObject):
 
     def _build_task_rows(self, tasks: list[dict[str, Any]], teams: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
+        strategy_cache: dict[Any, str] = {}
+        try:
+            from modules.operations.taskings.repository import list_strategies_for_task
+        except Exception:
+            list_strategies_for_task = None  # type: ignore[assignment]
         for doc in sorted(tasks, key=lambda t: t.get("int_id") or 0):
             task_int_id = doc.get("int_id")
             task_str_id = doc.get("task_id") or str(task_int_id)
@@ -215,18 +260,61 @@ class TeamTaskDesk(QObject):
                     if team.get("current_task_id") in (task_int_id, task_str_id)
                 ]
             assigned = []
+            primary_team = ""
+            team_count = 0
+            sortie_ids: set[str] = set()
+            task_team_records = list(doc.get("task_teams") or doc.get("assigned_teams") or [])
             for team in matching_teams:
                 sortie_id = None
-                for tt in reversed(doc.get("task_teams") or doc.get("assigned_teams") or []):
+                for tt in reversed(task_team_records):
                     if tt.get("team_id") in (team.get("int_id"), team.get("team_id")):
                         sortie_id = tt.get("sortie_id")
+                        if tt.get("is_primary") and not primary_team:
+                            primary_team = team.get("name") or team.get("callsign") or f"Team {team.get('int_id')}"
                         break
-                assigned.append(team.get("name") or sortie_id or f"Team {team.get('int_id')}")
+                assigned.append(team.get("name") or team.get("callsign") or sortie_id or f"Team {team.get('int_id')}")
+                team_count += 1
+                if sortie_id not in (None, ""):
+                    sortie_ids.add(str(sortie_id))
             priority = doc.get("priority", "")
             try:
                 priority = _PRIORITY_MAP.get(int(priority), str(priority))
             except (ValueError, TypeError):
                 pass
+            task_links = doc.get("task_links") or []
+            if not task_links and list_strategies_for_task and task_int_id is not None:
+                cache_key = task_int_id
+                if cache_key not in strategy_cache:
+                    try:
+                        linked = list_strategies_for_task(int(task_int_id))
+                    except Exception:
+                        linked = []
+                    summary = ""
+                    if linked:
+                        first = linked[0]
+                        number = _fmt_text(first.get("assignment_number"))
+                        name = _fmt_text(first.get("assignment_name"))
+                        summary = f"{number} - {name}" if number and name else (number or name)
+                        if len(linked) > 1:
+                            summary = f"{summary} (+{len(linked) - 1})" if summary else f"+{len(linked) - 1} linked"
+                    strategy_cache[cache_key] = summary
+                linked_strategy_summary = strategy_cache.get(cache_key, "")
+            else:
+                linked_strategy_summary = ""
+            if task_links:
+                wa = task_links[0]
+                number = _fmt_text(wa.get("assignment_number"))
+                name = _fmt_text(wa.get("assignment_name"))
+                if number and name:
+                    linked_strategy_summary = f"{number} - {name}"
+                else:
+                    linked_strategy_summary = number or name
+                if len(task_links) > 1:
+                    linked_strategy_summary = f"{linked_strategy_summary} (+{len(task_links) - 1})" if linked_strategy_summary else f"+{len(task_links) - 1} linked"
+            due_value = doc.get("due_time") or doc.get("due_datetime") or doc.get("due_at")
+            created_at = doc.get("created_at")
+            updated_at = doc.get("updated_at")
+            last_activity_at = updated_at or created_at
             rows.append({
                 "id": task_int_id,
                 "number": doc.get("task_id") or f"T-{task_int_id}",
@@ -235,6 +323,18 @@ class TeamTaskDesk(QObject):
                 "status": _STATUS_LABEL.get(str(doc.get("status") or "").lower(), str(doc.get("status") or "").lower()),
                 "priority": priority,
                 "location": doc.get("location") or "",
+                "category": doc.get("category") or "",
+                "task_type": doc.get("task_type") or "",
+                "due_datetime": _fmt_dt(due_value),
+                "created_at": _fmt_dt(created_at),
+                "updated_at": _fmt_dt(updated_at),
+                "created_by": doc.get("created_by") or "",
+                "operational_period": doc.get("operational_period") or doc.get("operational_period_id") or "",
+                "primary_team": primary_team,
+                "team_count": team_count if team_count else "",
+                "sortie_count": len(task_team_records) if task_team_records else "",
+                "last_activity_at": _fmt_dt(last_activity_at),
+                "linked_strategy_summary": linked_strategy_summary,
             })
         return rows
 

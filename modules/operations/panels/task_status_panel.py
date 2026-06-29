@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtCore import Qt
+from datetime import datetime
 from utils.styles import task_status_colors, subscribe_theme, get_palette
 from utils.itemview_delegates import RowOutlineSelectionDelegate
 from utils.audit import write_audit
@@ -90,21 +91,29 @@ class TaskStatusPanel(QWidget):
         except Exception:
             self._outline_delegate = None
 
-        # Set column headers
-        self.table.setColumnCount(6)
-        headers = [
-            "Task #", "Task Name", "Assigned Team(s)", "Status", "Priority", "Location"
+        self._column_defs = [
+            {"key": "number", "label": "Task #", "default_visible": True, "width": 90, "filter_type": "string"},
+            {"key": "name", "label": "Task Name", "default_visible": True, "width": 220, "filter_type": "string"},
+            {"key": "assigned_teams", "label": "Assigned Team(s)", "default_visible": True, "width": 180, "filter_type": "string"},
+            {"key": "status", "label": "Status", "default_visible": True, "width": 110, "filter_type": "string"},
+            {"key": "priority", "label": "Priority", "default_visible": True, "width": 90, "filter_type": "string"},
+            {"key": "location", "label": "Location", "default_visible": True, "width": 280, "filter_type": "string"},
+            {"key": "category", "label": "Category", "default_visible": False, "width": 140, "filter_type": "string"},
+            {"key": "task_type", "label": "Task Type", "default_visible": False, "width": 160, "filter_type": "string"},
+            {"key": "due_datetime", "label": "Due Date/Time", "default_visible": False, "width": 150, "filter_type": "datetime"},
+            {"key": "created_at", "label": "Created Date/Time", "default_visible": False, "width": 150, "filter_type": "datetime"},
+            {"key": "updated_at", "label": "Updated Date/Time", "default_visible": False, "width": 150, "filter_type": "datetime"},
+            {"key": "created_by", "label": "Created By", "default_visible": False, "width": 140, "filter_type": "string"},
+            {"key": "operational_period", "label": "Operational Period", "default_visible": False, "width": 130, "filter_type": "string"},
+            {"key": "primary_team", "label": "Primary Team", "default_visible": False, "width": 150, "filter_type": "string"},
+            {"key": "team_count", "label": "Team Count", "default_visible": False, "width": 90, "filter_type": "number"},
+            {"key": "sortie_count", "label": "Sortie Count", "default_visible": False, "width": 90, "filter_type": "number"},
+            {"key": "last_activity_at", "label": "Last Activity Date/Time", "default_visible": False, "width": 150, "filter_type": "datetime"},
+            {"key": "linked_strategy_summary", "label": "Linked Strategy/Planning Summary", "default_visible": False, "width": 240, "filter_type": "string"},
         ]
-        self.table.setHorizontalHeaderLabels(headers)
-        # Column registry for visibility settings
-        self._columns: list[tuple[int, str, str]] = [
-            (0, "number", headers[0]),
-            (1, "name", headers[1]),
-            (2, "assigned_teams", headers[2]),
-            (3, "status", headers[3]),
-            (4, "priority", headers[4]),
-            (5, "location", headers[5]),
-        ]
+        self.table.setColumnCount(len(self._column_defs))
+        self.table.setHorizontalHeaderLabels([c["label"] for c in self._column_defs])
+        self._columns = [(idx, c["key"], c["label"]) for idx, c in enumerate(self._column_defs)]
         try:
             hdr = self.table.horizontalHeader()
             hdr.setSectionsMovable(True)
@@ -112,6 +121,10 @@ class TaskStatusPanel(QWidget):
             try:
                 for idx in range(self.table.columnCount()):
                     hdr.setSectionResizeMode(idx, QHeaderView.Interactive)
+                    try:
+                        hdr.resizeSection(idx, int(self._column_defs[idx]["width"]))
+                    except Exception:
+                        pass
             except Exception:
                 pass
             try:
@@ -180,19 +193,8 @@ class TaskStatusPanel(QWidget):
     def _add_task_row(self, data: dict) -> None:
         row = self.table.rowCount()
         self.table.insertRow(row)
-        teams = data.get("assigned_teams") or []
-        teams_str = ", ".join(map(str, teams)) if isinstance(teams, (list, tuple)) else str(teams)
-        status_key = str(data.get("status", ""))
-        status_display = status_key.title() if status_key else ""
-        vals = [
-            str(data.get("number", "")),
-            str(data.get("name", "")),
-            teams_str,
-            status_display,
-            str(data.get("priority", "")),
-            str(data.get("location", "")),
-        ]
-        for col, text in enumerate(vals):
+        for col, spec in enumerate(self._column_defs):
+            text = self._format_cell_value(spec, data.get(spec["key"]))
             item = QTableWidgetItem(text)
             if col == 0:
                 try:
@@ -201,7 +203,7 @@ class TaskStatusPanel(QWidget):
                     pass
             self.table.setItem(row, col, item)
         # Use the original key for color mapping (row-wide coloring)
-        self.set_row_color_by_status(row, status_key)
+        self.set_row_color_by_status(row, str(data.get("status", "")))
 
     def reload(self) -> None:
         """Re-render from the desk's current rows (no fetch of our own)."""
@@ -229,7 +231,7 @@ class TaskStatusPanel(QWidget):
 
     def _recolor_all(self) -> None:
         try:
-            status_col = 3
+            status_col = self._key_to_index().get("status", 3)
             rows = self.table.rowCount()
             for r in range(rows):
                 item = self.table.item(r, status_col)
@@ -321,14 +323,7 @@ class TaskStatusPanel(QWidget):
     def _open_filters_dialog(self) -> None:
         try:
             from modules.common.widgets.custom_filter_dialog import CustomFilterDialog, FieldSpec
-            fields = [
-                FieldSpec(key="number", label="Task #", type="number"),
-                FieldSpec(key="name", label="Task Name", type="string"),
-                FieldSpec(key="assigned_teams", label="Assigned Teams", type="string"),
-                FieldSpec(key="status", label="Status", type="string"),
-                FieldSpec(key="priority", label="Priority", type="string"),
-                FieldSpec(key="location", label="Location", type="string"),
-            ]
+            fields = [FieldSpec(key=c["key"], label=c["label"], type=c["filter_type"]) for c in self._column_defs]
             seed = {
                 "High Priority": {"rules": [{"field": "priority", "op": "=", "value": "High"}], "matchAll": True},
                 "In Progress": {"rules": [{"field": "status", "op": "=", "value": "In Progress"}], "matchAll": True},
@@ -412,6 +407,31 @@ class TaskStatusPanel(QWidget):
                 out.append(row)
         return out
 
+    def _format_cell_value(self, spec: dict, value) -> str:
+        if value in (None, ""):
+            return ""
+        if spec.get("key") == "assigned_teams" and isinstance(value, (list, tuple)):
+            return ", ".join(str(v) for v in value if v not in (None, ""))
+        if spec.get("filter_type") == "number":
+            try:
+                return str(int(value))
+            except Exception:
+                return str(value)
+        if spec.get("filter_type") == "datetime":
+            text = str(value).strip()
+            if not text:
+                return ""
+            try:
+                if text.endswith("Z"):
+                    text = text[:-1] + "+00:00"
+                dt = datetime.fromisoformat(text)
+                return dt.astimezone().strftime("%m/%d/%Y %H:%M:%S")
+            except Exception:
+                return str(value)
+        if isinstance(value, (list, tuple)):
+            return ", ".join(str(v) for v in value if v not in (None, ""))
+        return str(value)
+
     def _persist_filters(self) -> None:
         try:
             from utils.settingsmanager import SettingsManager
@@ -434,7 +454,7 @@ class TaskStatusPanel(QWidget):
             try:
                 act.setChecked(not self.table.isColumnHidden(idx))
             except Exception:
-                act.setChecked(True)
+                act.setChecked(bool(self._column_defs[idx].get("default_visible", True)))
             self._col_actions[idx] = act
         menu.addMenu(cols_menu)
         widths_menu = QMenu("Column Widths", menu)
@@ -578,6 +598,10 @@ class TaskStatusPanel(QWidget):
 # -------------------------- Column visibility -------------------------- #
     def _toggle_column(self, index: int) -> None:
         try:
+            if not self.table.isColumnHidden(index):
+                visible = [idx for idx in range(self.table.columnCount()) if not self.table.isColumnHidden(idx)]
+                if len(visible) <= 1:
+                    return
             hidden = self.table.isColumnHidden(index)
             self.table.setColumnHidden(index, not hidden)
             self._persist_column_visibility()
@@ -601,9 +625,15 @@ class TaskStatusPanel(QWidget):
             from utils.settingsmanager import SettingsManager
             hidden = SettingsManager().get("statusboard.task.columns.hidden", []) or []
             key_to_index = {key: idx for idx, key, _ in self._columns}
+            for idx, spec in enumerate(self._column_defs):
+                self.table.setColumnHidden(idx, not bool(spec.get("default_visible", False)))
             for key in hidden:
                 if key in key_to_index:
                     self.table.setColumnHidden(key_to_index[key], True)
+            if all(self.table.isColumnHidden(idx) for idx in range(self.table.columnCount())):
+                for idx, spec in enumerate(self._column_defs):
+                    if spec.get("default_visible", False):
+                        self.table.setColumnHidden(idx, False)
         except Exception:
             pass
 
@@ -617,4 +647,3 @@ class TaskStatusPanel(QWidget):
                 self._match_all = bool(filt.get("matchAll", True))
         except Exception:
             pass
-

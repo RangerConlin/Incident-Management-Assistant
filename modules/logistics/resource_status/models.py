@@ -9,18 +9,39 @@ from utils.timefmt import abbreviate_tz_name
 
 
 RESOURCE_STATUSES: tuple[str, ...] = (
+    "Requested",
+    "Ordered",
     "Pending",
     "Enroute",
+    "Staged",
     "Checked In",
     "Assigned",
     "Available",
     "Out of Service",
+    "Preparing for Demobilization",
     "Demobilized",
+    "Cancelled",
+    "Not Coming",
 )
 
+RESOURCE_FLOW_STATUSES = {
+    "Requested",
+    "Ordered",
+    "Pending",
+    "Enroute",
+    "Staged",
+    "Checked In",
+    "Assigned",
+    "Available",
+    "Out of Service",
+    "Preparing for Demobilization",
+    "Demobilized",
+    "Cancelled",
+    "Not Coming",
+}
 PENDING_STATUSES = {"Pending", "Enroute"}
 ACTIVE_STATUSES = {"Checked In", "Assigned", "Available", "Out of Service"}
-CLOSED_STATUSES = {"Demobilized"}
+CLOSED_STATUSES = {"Demobilized", "Cancelled", "Not Coming"}
 
 
 @dataclass(slots=True)
@@ -157,8 +178,16 @@ def normalize_status(value: str) -> str:
         "available": "Available",
         "out of service": "Out of Service",
         "oos": "Out of Service",
+        "preparing for demobilization": "Preparing for Demobilization",
+        "prepare for demobilization": "Preparing for Demobilization",
         "demobilized": "Demobilized",
         "demob": "Demobilized",
+        "requested": "Requested",
+        "ordered": "Ordered",
+        "staged": "Staged",
+        "cancelled": "Cancelled",
+        "canceled": "Cancelled",
+        "not coming": "Not Coming",
     }
     normalized = mapping.get(lowered)
     if normalized is None and text in RESOURCE_STATUSES:

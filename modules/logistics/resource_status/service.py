@@ -168,7 +168,11 @@ class ResourceStatusService:
             raise ValueError("Resource Name is required")
         if not item.resource_type:
             raise ValueError("Resource Type is required")
-        if item.status in PENDING_STATUSES:
+        if item.status in {"Requested", "Ordered", "Pending", "Enroute", "Staged"}:
+            # Planning/status-flow values don't get a checked_in_time
+            item.checked_in_time = None
+            item.eta_utc = self._normalize_optional_text(item.eta_utc)
+        elif item.status in PENDING_STATUSES:
             # ETA is optional, but the data model must always include a place to store it.
             item.eta_utc = self._normalize_optional_text(item.eta_utc)
 
@@ -221,9 +225,10 @@ class ResourceStatusService:
         return changes
 
     def _status_from_source(self, entity_type: str, record: dict[str, Any]) -> str:
-        raw_status = str(
-            self._first_value(record, "status", "status_id", "ci_status", "personnel_status") or ""
-        ).strip()
+        team_status = str(self._first_value(record, "team_status", "planning_status") or "").strip()
+        if team_status and team_status != "Checked In":
+            return normalize_status(team_status)
+        raw_status = str(self._first_value(record, "status", "status_id", "ci_status", "personnel_status") or "").strip()
         if not raw_status:
             if entity_type == "personnel" and record.get("team_id"):
                 return "Assigned"

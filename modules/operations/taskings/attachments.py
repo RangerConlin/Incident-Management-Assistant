@@ -13,6 +13,19 @@ except Exception:  # pragma: no cover - defensive
 
 
 ATTACHMENT_MAX_WARN_BYTES = 10 * 1024 * 1024  # 10 MB: warn user but allow
+ATTACHMENT_TYPE_CATEGORIES = [
+    "Map",
+    "Log",
+    "Safety",
+    "Assignment",
+    "Debrief",
+    "Photo",
+    "Audio/Video",
+    "Form",
+    "Medical",
+    "Communications",
+    "Other",
+]
 
 
 def _now_utc_iso() -> str:
@@ -66,21 +79,32 @@ def _save_manifest(task_id: int, data: Dict[str, Any]) -> None:
 
 def _infer_type(filename: str) -> str:
     ext = os.path.splitext(filename)[1].lower()
-    mapping = {
-        ".jpg": "Image",
-        ".jpeg": "Image",
-        ".png": "Image",
-        ".gif": "Image",
-        ".pdf": "PDF",
-        ".txt": "Text",
-        ".doc": "Word",
-        ".docx": "Word",
-        ".xls": "Excel",
-        ".xlsx": "Excel",
-        ".json": "JSON",
-        ".csv": "CSV",
-    }
-    return mapping.get(ext, (ext[1:].upper() if ext else "File"))
+    name = os.path.basename(filename).lower()
+    if ext in {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff", ".heic"}:
+        return "Photo"
+    if ext in {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".avi", ".mkv"}:
+        return "Audio/Video"
+    if ext in {".pdf", ".doc", ".docx", ".xls", ".xlsx"}:
+        if any(term in name for term in ("ics", "form", "214", "204", "109", "104")):
+            return "Form"
+        if "debrief" in name or "brief" in name:
+            return "Debrief"
+        if "map" in name:
+            return "Map"
+        if "safety" in name:
+            return "Safety"
+        if "medical" in name:
+            return "Medical"
+        if "comm" in name or "radio" in name or "channel" in name or "205" in name:
+            return "Communications"
+        if "assign" in name or "task" in name:
+            return "Assignment"
+        return "Form"
+    if ext in {".txt", ".log", ".json", ".csv"}:
+        if "radio" in name or "comm" in name or "channel" in name:
+            return "Communications"
+        return "Log"
+    return "Other"
 
 
 def list_attachments(task_id: int) -> List[Dict[str, Any]]:
@@ -288,7 +312,22 @@ def set_attachment_team(task_id: int, attachment_id: int, team: Dict[str, Any]) 
     return False
 
 
+def set_attachment_type(task_id: int, attachment_id: int, attachment_type: str) -> bool:
+    """Update the attachment's operational category without touching file versions."""
+    normalized = str(attachment_type or "").strip()
+    if not normalized:
+        return False
+    m = _load_manifest(int(task_id))
+    for a in m.get("attachments", []):
+        if int(a.get("id")) == int(attachment_id):
+            a["type"] = normalized
+            _save_manifest(int(task_id), m)
+            return True
+    return False
+
+
 __all__ = [
+    "ATTACHMENT_TYPE_CATEGORIES",
     "list_attachments",
     "upload_attachment",
     "get_attachment_file",
@@ -296,4 +335,5 @@ __all__ = [
     "attach_files",
     "delete_attachment",
     "set_attachment_team",
+    "set_attachment_type",
 ]

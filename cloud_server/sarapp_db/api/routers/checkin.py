@@ -12,6 +12,13 @@ from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollecti
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+DERIVED_CHECKED_IN_STATUSES = {
+    "Available",
+    "Assigned",
+    "Out of Service",
+    "Preparing for Demobilization",
+    "Checked In",
+}
 
 
 class PersonnelRepository(BaseRepository):
@@ -54,6 +61,10 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _is_checked_in_status(status: Any) -> bool:
+    return str(status or "").strip() in DERIVED_CHECKED_IN_STATUSES
+
+
 def _normalize_person(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
@@ -68,6 +79,9 @@ def _normalize_person(doc: dict[str, Any]) -> dict[str, Any]:
 def _normalize_checkin(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
+    d["status"] = d.get("status") or d.get("ci_status") or d.get("planning_status") or d.get("personnel_status") or "Pending"
+    d["checked_in"] = _is_checked_in_status(d["status"])
+    d["checkin_status"] = "Checked In" if d["checked_in"] else "Not Checked In"
     return d
 
 
@@ -210,13 +224,13 @@ def fetch_roster(
             "team_id": d.get("team_id"),
             "phone": (identity or {}).get("phone") or d.get("incident_phone"),
             "callsign": d.get("incident_callsign") or (identity or {}).get("callsign"),
-            "ci_status": ci_st,
-            "personnel_status": p_st,
+            "status": d.get("status") or ci_st or p_st or "Pending",
+            "checked_in": _is_checked_in_status(d.get("status") or ci_st or p_st),
             "updated_at": d.get("updated_at"),
-            "row_class": "row-demob" if ci_st == "Demobilized" else None,
+            "row_class": "row-demob" if str(d.get("status") or ci_st) == "Demobilized" else None,
             "ui_flags": {
-                "hidden_by_default": ci_st == "NoShow",
-                "grayed": ci_st == "Demobilized",
+                "hidden_by_default": str(d.get("status") or ci_st) == "NoShow",
+                "grayed": str(d.get("status") or ci_st) == "Demobilized",
             },
         })
 

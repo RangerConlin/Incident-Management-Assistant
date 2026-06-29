@@ -7,15 +7,48 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 
+# Canonical linear resource-flow status values used by the workbench and board.
+# Defined outside the enum so it never appears as an enum member.
+_RESOURCE_FLOW_STATUSES = {
+    "Requested",
+    "Ordered",
+    "Pending",
+    "Enroute",
+    "Staged",
+    "Assigned",
+    "Available",
+    "Out of Service",
+    "Preparing for Demobilization",
+    "Demobilized",
+    "Cancelled",
+    "Not Coming",
+}
+_DERIVED_CHECKED_IN_STATUSES = {
+    "Assigned",
+    "Available",
+    "Out of Service",
+    "Preparing for Demobilization",
+    "Checked In",
+}
+
+
 class CIStatus(str, Enum):
-    """Canonical Check-In status values used within the UI and DB."""
+    """Backward-compatible status enum used by existing roster payloads."""
 
     CHECKED_IN = "CheckedIn"
     PENDING = "Pending"
-    AT_ICP = "AtICP"
-    OFF_DUTY = "OffDuty"
+    REQUESTED = "Requested"
+    ORDERED = "Ordered"
+    ENROUTE = "Enroute"
+    STAGED = "Staged"
+    ASSIGNED = "Assigned"
+    AVAILABLE = "Available"
+    OUT_OF_SERVICE = "Out of Service"
+    PREPARING_FOR_DEMOBILIZATION = "Preparing for Demobilization"
     DEMOBILIZED = "Demobilized"
     NO_SHOW = "NoShow"
+    CANCELLED = "Cancelled"
+    NOT_COMING = "Not Coming"
 
     @classmethod
     def normalize(cls, value: str) -> "CIStatus":
@@ -24,9 +57,12 @@ class CIStatus(str, Enum):
             raise ValueError("Check-In status is required")
         value = value.strip()
         mapping = {
-            "Enroute to Incident": cls.PENDING,
-            "EnrouteToIncident": cls.PENDING,
-            "Enroute": cls.PENDING,
+            "Enroute to Incident": cls.ENROUTE,
+            "EnrouteToIncident": cls.ENROUTE,
+            "Enroute": cls.ENROUTE,
+            "Checked In": cls.CHECKED_IN,
+            "CheckedIn": cls.CHECKED_IN,
+            "Preparing for Demobilization": cls.PREPARING_FOR_DEMOBILIZATION,
         }
         if value in mapping:
             return mapping[value]
@@ -34,6 +70,11 @@ class CIStatus(str, Enum):
             return cls(value)
         except ValueError as exc:  # pragma: no cover - defensive guard
             raise ValueError(f"Unsupported Check-In status: {value}") from exc
+
+    @classmethod
+    def is_planning_status(cls, value: str) -> bool:
+        """Return True if the status is a pre-arrival planning status."""
+        return value in _RESOURCE_FLOW_STATUSES
 
     @classmethod
     def choices(cls) -> tuple["CIStatus", ...]:
@@ -148,8 +189,7 @@ class CheckInRecord:
     """A persisted incident check-in row."""
 
     person_id: str
-    ci_status: CIStatus
-    personnel_status: PersonnelStatus
+    status: CIStatus
     arrival_time: str
     location: Location
     location_other: Optional[str] = None
@@ -165,12 +205,27 @@ class CheckInRecord:
     updated_at: str = field(default_factory=lambda: datetime.now().astimezone().isoformat(timespec="seconds"))
     ui_flags: UIFlags = field(default_factory=UIFlags)
     pending: bool = False
+    # Last Day Worked (LDW) — optional per check-in
+    ldw_date: Optional[str] = None
+    ldw_notes: Optional[str] = None
+    ldw_updated_at: Optional[str] = None
+    ldw_updated_by: Optional[str] = None
+    # Legacy compatibility fields retained for existing payloads/UI callers.
+    ci_status: Optional[CIStatus] = None
+    personnel_status: Optional[PersonnelStatus] = None
+    planning_status: Optional[str] = None
 
     def to_payload(self) -> Dict[str, Any]:
+        canonical_status = self.status.value
+        ci_status = self.ci_status.value if self.ci_status else canonical_status
+        personnel_status = self.personnel_status.value if self.personnel_status else (
+            "Available" if canonical_status in _DERIVED_CHECKED_IN_STATUSES else "Pending"
+        )
         return {
             "person_id": self.person_id,
-            "ci_status": self.ci_status.value,
-            "personnel_status": self.personnel_status.value,
+            "status": canonical_status,
+            "ci_status": ci_status,
+            "personnel_status": personnel_status,
             "arrival_time": self.arrival_time,
             "location": self.location.value,
             "location_other": self.location_other,
@@ -184,14 +239,19 @@ class CheckInRecord:
             "operational_period": self.operational_period,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "ldw_date": self.ldw_date,
+            "ldw_notes": self.ldw_notes,
+            "ldw_updated_at": self.ldw_updated_at,
+            "ldw_updated_by": self.ldw_updated_by,
+            "planning_status": self.planning_status,
         }
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "CheckInRecord":
+        raw_status = row.get("status") or row.get("ci_status") or row.get("planning_status") or "Pending"
         return cls(
             person_id=row["person_id"],
-            ci_status=CIStatus.normalize(row["ci_status"]),
-            personnel_status=PersonnelStatus.normalize(row["personnel_status"]),
+            status=CIStatus.normalize(raw_status),
             arrival_time=row["arrival_time"],
             location=Location.normalize(row["location"]),
             location_other=row.get("location_other"),
@@ -210,6 +270,17 @@ class CheckInRecord:
                 grayed=bool(row.get("grayed", False)),
             ),
             pending=bool(row.get("pending", False)),
+            ldw_date=row.get("ldw_date"),
+            ldw_notes=row.get("ldw_notes"),
+            ldw_updated_at=row.get("ldw_updated_at"),
+            ldw_updated_by=row.get("ldw_updated_by"),
+            planning_status=row.get("planning_status"),
+            ci_status=CIStatus.normalize(row.get("ci_status")) if row.get("ci_status") else None,
+            personnel_status=(
+                PersonnelStatus.normalize(row.get("personnel_status"))
+                if row.get("personnel_status")
+                else None
+            ),
         )
 
 

@@ -118,6 +118,7 @@ def get_task(task_id: int) -> Task:
 
 def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
     patch = dict(patch or {})
+    original = dict(patch)
     translated: Dict[str, Any] = {}
     if "task_id" in patch:
         translated["task_id"] = str(patch["task_id"]) or None
@@ -146,6 +147,10 @@ def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
         return
     translated["changed_by"] = _active_user_display()
     _client().patch(f"{_base()}/tasks/{task_id}", json=translated)
+    try:
+        write_audit("task.header.update", {"task_id": int(task_id), "changes": original})
+    except Exception:
+        pass
 
 
 def _active_user_display() -> str:
@@ -561,7 +566,21 @@ def add_task_comm(task_id: int, incident_channel_id: Optional[int] = None, funct
         "function": function,
         "remarks": remarks,
     })
-    return int(result.get("id") or 0)
+    row_id = int(result.get("id") or 0)
+    try:
+        write_audit(
+            "task.comms.add",
+            {
+                "task_id": int(task_id),
+                "comm_id": row_id,
+                "incident_channel_id": incident_channel_id,
+                "function": function,
+                "remarks": remarks,
+            },
+        )
+    except Exception:
+        pass
+    return row_id
 
 
 def update_task_comm(row_id: int, incident_channel_id: Optional[int] = None, function: Optional[str] = None) -> None:
@@ -577,6 +596,10 @@ def update_task_comm_for_task(task_id: int, comm_id: int, incident_channel_id: O
         patch["function"] = function
     if patch:
         _client().patch(f"{_base()}/tasks/{task_id}/comms/{comm_id}", json=patch)
+        try:
+            write_audit("task.comms.update", {"task_id": int(task_id), "comm_id": int(comm_id), "changes": patch})
+        except Exception:
+            pass
 
 
 def remove_task_comm(row_id: int) -> None:
@@ -586,6 +609,10 @@ def remove_task_comm(row_id: int) -> None:
 
 def remove_task_comm_for_task(task_id: int, comm_id: int) -> None:
     _client().delete(f"{_base()}/tasks/{task_id}/comms/{comm_id}")
+    try:
+        write_audit("task.comms.remove", {"task_id": int(task_id), "comm_id": int(comm_id)})
+    except Exception:
+        pass
 
 
 def list_task_debriefs(task_id: int) -> List[Dict[str, Any]]:
@@ -1033,9 +1060,17 @@ def link_task_to_strategy(task_id: int, work_assignment_id: int) -> None:
         f"/api/incidents/{_iid()}/planning/work-assignments/{work_assignment_id}/task-links",
         json={"task_id": task_id, "link_type": "Linked Existing"},
     )
+    try:
+        write_audit("task.planning.link", {"task_id": int(task_id), "work_assignment_id": int(work_assignment_id)})
+    except Exception:
+        pass
 
 
 def unlink_task_from_strategy(work_assignment_id: int, link_id: int) -> None:
     _client().delete(
         f"/api/incidents/{_iid()}/planning/work-assignments/{work_assignment_id}/task-links/{link_id}"
     )
+    try:
+        write_audit("task.planning.unlink", {"work_assignment_id": int(work_assignment_id), "link_id": int(link_id)})
+    except Exception:
+        pass

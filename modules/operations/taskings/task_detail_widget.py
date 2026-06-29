@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QPushButton,
     QTabWidget,
+    QTabBar,
     QScrollArea,
     QSplitter,
     QTableView,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QStyle,
     QStyleOptionButton,
+    QStyleOptionComboBox,
     QMessageBox,
     QInputDialog,
 )
@@ -71,7 +73,32 @@ def _fmt_ts(ts: str | None) -> str:
         return str(ts)
 
 
+def _fmt_ts_compact(ts: str | None) -> str:
+    text = _fmt_ts(ts)
+    if not text:
+        return ""
+    try:
+        date_part, time_part = text.split(" ", 1)
+        return f"{date_part} {time_part[:5]}"
+    except Exception:
+        return text
+
+
 class _YesNoDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):  # type: ignore[override]
+        combo = QStyleOptionComboBox()
+        combo.rect = option.rect.adjusted(2, 2, -2, -2)
+        combo.currentText = str(index.data(Qt.DisplayRole) or "No")
+        combo.state = option.state | QStyle.State_Enabled
+        combo.editable = False
+        combo.frame = True
+        style = option.widget.style() if option.widget else None
+        if style is not None:
+            style.drawComplexControl(QStyle.CC_ComboBox, combo, painter, option.widget)
+            style.drawControl(QStyle.CE_ComboBoxLabel, combo, painter, option.widget)
+            return
+        super().paint(painter, option, index)
+
     def createEditor(self, parent, option, index):  # type: ignore[override]
         cb = QComboBox(parent)
         cb.addItems(["No", "Yes"])
@@ -113,6 +140,108 @@ class _ButtonDelegate(QStyledItemDelegate):
         except Exception:
             pass
         return False
+
+
+def _resolve_person_display(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    try:
+        from modules.logistics.checkin import repository as ci_repo
+        ident = ci_repo.get_person_identity(raw)
+        if ident and getattr(ident, "name", None):
+            return str(ident.name)
+    except Exception:
+        pass
+    return raw
+
+
+def _ics_position_abbreviation(title: str) -> str:
+    text = str(title or "").strip()
+    if not text:
+        return ""
+    normalized = text.casefold()
+    explicit = {
+        "incident commander": "IC",
+        "deputy incident commander": "DPIC",
+        "assistant incident commander": "IC-ASST",
+        "operations section chief": "OSC",
+        "deputy operations section chief": "DOSC",
+        "assistant operations section chief": "OSC-ASST",
+        "planning section chief": "PSC",
+        "deputy planning section chief": "DPSC",
+        "logistics section chief": "LSC",
+        "deputy logistics section chief": "DLSC",
+        "finance/admin section chief": "FSC",
+        "finance section chief": "FSC",
+        "deputy finance/admin section chief": "DFSC",
+        "safety officer": "SOFR",
+        "public information officer": "PIO",
+        "liaison officer": "LNO",
+        "air operations branch director": "AOBD",
+    }
+    if normalized in explicit:
+        return explicit[normalized]
+    words = [w for w in text.replace("/", " ").replace("-", " ").split() if w]
+    if not words:
+        return text
+    if words[0].casefold() == "assistant" and len(words) > 1:
+        base = _ics_position_abbreviation(" ".join(words[1:]))
+        return f"{base}-ASST" if base else "ASST"
+    if words[0].casefold() == "deputy" and len(words) > 1:
+        base = _ics_position_abbreviation(" ".join(words[1:]))
+        return f"D{base}" if base else "DEP"
+    stop = {"section", "branch", "unit", "group", "director", "chief", "officer"}
+    letters = [w[0].upper() for w in words if w.casefold() not in stop]
+    return "".join(letters) or text.upper()
+
+
+class _WrappingTabBar(QTabBar):
+    """Compact tab bar that grows to two rows when width gets tight."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setExpanding(False)
+        self.setUsesScrollButtons(False)
+        self.setDrawBase(True)
+
+    def tabSizeHint(self, index: int):  # type: ignore[override]
+        size = super().tabSizeHint(index)
+        try:
+            width = max(110, min(180, size.width() + 18))
+            size.setWidth(width)
+            size.setHeight(max(size.height(), 28))
+        except Exception:
+            pass
+        return size
+
+    def hasHeightForWidth(self) -> bool:  # type: ignore[override]
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # type: ignore[override]
+        if width <= 0 or self.count() == 0:
+            return super().sizeHint().height()
+        row_width = 0
+        rows = 1
+        row_height = 0
+        for idx in range(self.count()):
+            size = self.tabSizeHint(idx)
+            tab_width = size.width()
+            if row_width and row_width + tab_width > width:
+                rows += 1
+                row_width = 0
+            row_width += tab_width
+            row_height = max(row_height, size.height())
+        return max(row_height * rows + 6, row_height)
+
+    def resizeEvent(self, event) -> None:  # type: ignore[override]
+        super().resizeEvent(event)
+        try:
+            self.setFixedHeight(self.heightForWidth(max(1, self.width())))
+        except Exception:
+            pass
 
 
 class TaskDetailWindow(QWidget):
@@ -319,7 +448,7 @@ class TaskDetailWindow(QWidget):
             pass
         self._nar_entry_top = QTextEdit(self)
         try:
-            self._nar_entry_top.setPlaceholderText("Type narrativeâ€¦ (Enter to add; Shift+Enter = newline)")
+            self._nar_entry_top.setPlaceholderText("Type narrative... (Enter to add; Shift+Enter = newline)")
         except Exception:
             pass
         # Make it ~3 lines tall
@@ -357,6 +486,15 @@ class TaskDetailWindow(QWidget):
 
         # Tabs (bottom half of splitter)
         tabs = QTabWidget(self)
+        self._tabs = tabs
+        try:
+            tabs.setTabBar(_WrappingTabBar(tabs))
+            tabs.setUsesScrollButtons(False)
+            tabs.setDocumentMode(False)
+            tabs.tabBar().setExpanding(False)
+            tabs.tabBar().setElideMode(Qt.ElideNone)
+        except Exception:
+            pass
 
         # Build splitter: scrollable top half + tabs
         _top_scroll = QScrollArea(self)
@@ -395,7 +533,7 @@ class TaskDetailWindow(QWidget):
 
         # Narrative tab
         # Add a small dropdown cue on Critical to make editability obvious
-        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Team", "Critical â–¼", "214+"]
+        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Position", "Critical", "214+"]
         self._nar_model = QStandardItemModel(0, len(self._nar_headers_base), self)
         self._nar_model.setHorizontalHeaderLabels(self._nar_headers_base)
         nar_content = QWidget(self)
@@ -414,7 +552,7 @@ class TaskDetailWindow(QWidget):
             self._nar_entry.setVisible(False)
         except Exception:
             pass
-        self._nar_entry.setPlaceholderText("Type narrativeâ€¦ (Enter to add; Shift+Enter = newline)")
+        self._nar_entry.setPlaceholderText("Type narrative... (Enter to add; Shift+Enter = newline)")
         self._nar_entry.returnPressed.connect(self.add_narrative)
         self._nar_crit = QComboBox(nar_content)
         try:
@@ -440,6 +578,7 @@ class TaskDetailWindow(QWidget):
         self._nar_table.setAlternatingRowColors(True)
         self._nar_table.setColumnHidden(0, True)
         self._nar_table.setSortingEnabled(True)
+        self._nar_table.setWordWrap(False)
         hh: QHeaderView = self._nar_table.horizontalHeader()
         # Default: interactive columns; make Entry column stretch to fill remaining width
         try:
@@ -930,10 +1069,14 @@ class TaskDetailWindow(QWidget):
                         update_task_comm_for_task(int(self._task_id), int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
                     # Trigger reload to refresh read-only columns
                     self._parent_w.load_comms()
-                except Exception:
-                    pass
+                except Exception as e:
+                    QMessageBox.warning(self._parent_w, "Communications", f"Could not save channel selection: {e}")
 
         class _CommsFunctionDelegate(_QStyledItemDelegate):
+            def __init__(self, parent_w: QWidget):
+                super().__init__(parent_w)
+                self._parent_w = parent_w
+
             def createEditor(self, parent, option, index):  # type: ignore[override]
                 cb = _QComboBox(parent)
                 try:
@@ -960,8 +1103,8 @@ class TaskDetailWindow(QWidget):
                         update_task_comm_for_task(int(self._task_id), int(row_id), function=value)
                     # Update display
                     model.setData(index, value, _Qt.DisplayRole)
-                except Exception:
-                    pass
+                except Exception as e:
+                    QMessageBox.warning(self._parent_w, "Communications", f"Could not save channel function: {e}")
 
         # Install delegates
         try:
@@ -1085,7 +1228,9 @@ class TaskDetailWindow(QWidget):
             "Debriefer",
             "Types",
             "Status",
-            "Flag",
+            "Review",
+            "Reviewed By",
+            "Reviewed At",
             "Updated",
         ]
         self._deb_model = QStandardItemModel(0, len(self._deb_headers), self)
@@ -1142,8 +1287,86 @@ class TaskDetailWindow(QWidget):
                 self._att_table.setColumnWidth(i, int(w))
         except Exception:
             pass
+        try:
+            from modules.operations.taskings.attachments import ATTACHMENT_TYPE_CATEGORIES
+
+            class _AttachmentTypeDelegate(QStyledItemDelegate):
+                def __init__(self, parent_w: QWidget):
+                    super().__init__(parent_w)
+                    self._parent_w = parent_w
+
+                def createEditor(self, parent, option, index):  # type: ignore[override]
+                    cb = QComboBox(parent)
+                    cb.addItems(list(ATTACHMENT_TYPE_CATEGORIES))
+                    return cb
+
+                def setEditorData(self, editor, index):  # type: ignore[override]
+                    txt = str(index.data(Qt.DisplayRole) or "")
+                    pos = editor.findText(txt)
+                    editor.setCurrentIndex(pos if pos >= 0 else max(0, editor.findText("Other")))
+
+                def setModelData(self, editor, model, index):  # type: ignore[override]
+                    value = str(editor.currentText() or "").strip()
+                    aid = model.item(index.row(), 6).text()
+                    try:
+                        from modules.operations.taskings.attachments import set_attachment_type
+                        from utils.audit import write_audit
+
+                        set_attachment_type(int(self._parent_w._task_id), int(aid), value)
+                        model.setData(index, value, Qt.DisplayRole)
+                        write_audit(
+                            "task.attachment.type.update",
+                            {"task_id": int(self._parent_w._task_id), "attachment_id": int(aid), "type": value},
+                        )
+                    except Exception as e:
+                        QMessageBox.warning(self._parent_w, "Attachment Type", f"Could not save attachment type: {e}")
+
+            self._att_type_delegate = _AttachmentTypeDelegate(self)
+            self._att_table.setItemDelegateForColumn(1, self._att_type_delegate)
+            self._att_table.setEditTriggers(
+                QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed
+            )
+        except Exception:
+            pass
         att_v.addWidget(self._att_table, 1)
         tabs.addTab(att_content, "Attachments/Forms")
+
+        clue_content = QWidget(self)
+        clue_layout = QVBoxLayout(clue_content)
+        try:
+            clue_layout.setContentsMargins(6, 6, 6, 6)
+            clue_layout.setSpacing(6)
+        except Exception:
+            pass
+        clue_toolbar = QHBoxLayout()
+        self._clue_open_btn = QPushButton("Open Selected", self)
+        self._clue_refresh_btn = QPushButton("Refresh", self)
+        self._clue_empty_lbl = QLabel("Linked clues come from existing task debrief references.", clue_content)
+        clue_toolbar.addWidget(self._clue_open_btn)
+        clue_toolbar.addWidget(self._clue_refresh_btn)
+        clue_toolbar.addStretch(1)
+        clue_layout.addLayout(clue_toolbar)
+        clue_layout.addWidget(self._clue_empty_lbl)
+        self._clue_headers = ["Clue ID", "Clue", "Priority", "Status", "Updated", "Debrief ID"]
+        self._clue_model = QStandardItemModel(0, len(self._clue_headers), self)
+        self._clue_model.setHorizontalHeaderLabels(self._clue_headers)
+        self._clue_table = QTableView(self)
+        self._clue_table.setModel(self._clue_model)
+        apply_statusboard_table_behavior(self._clue_table)
+        self._clue_table.setAlternatingRowColors(True)
+        self._clue_table.setSortingEnabled(True)
+        try:
+            clue_h = self._clue_table.horizontalHeader()
+            clue_h.setStretchLastSection(False)
+            clue_h.setSectionResizeMode(QHeaderView.Interactive)
+            clue_h.setSectionResizeMode(1, QHeaderView.Stretch)
+            self._clue_table.setColumnHidden(5, True)
+        except Exception:
+            pass
+        clue_layout.addWidget(self._clue_table, 1)
+        tabs.addTab(clue_content, "Linked Clues")
+        # Deferred: a dedicated Locations tab needs a stable task-linked location
+        # repository surface beyond debrief-linked clues and the task header.
         # Insert Log tab (ICS-214, Task Log, Team Log) and remove placeholder if present
         try:
             log_container = QWidget(self)
@@ -1246,6 +1469,12 @@ class TaskDetailWindow(QWidget):
         self._att_delete_btn.clicked.connect(self._att_delete)
         self._att_generate_btn.clicked.connect(self._att_generate)
         self._att_refresh_btn.clicked.connect(self.load_attachments)
+        self._clue_open_btn.clicked.connect(self._open_selected_clue)
+        self._clue_refresh_btn.clicked.connect(self.load_linked_clues)
+        try:
+            self._clue_table.doubleClicked.connect(lambda *_: self._open_selected_clue())
+        except Exception:
+            pass
         # Finally add the functional Planning tab at the far right
         try:
             if getattr(self, "_planning_content", None) is not None:
@@ -1314,6 +1543,14 @@ class TaskDetailWindow(QWidget):
             pass
         try:
             self.load_debriefs()
+        except Exception:
+            pass
+        try:
+            self.load_attachments()
+        except Exception:
+            pass
+        try:
+            self.load_linked_clues()
         except Exception:
             pass
         try:
@@ -1728,6 +1965,96 @@ class TaskDetailWindow(QWidget):
         except Exception:
             return ""
 
+    def _active_user_display(self) -> str:
+        try:
+            from utils.state import AppState
+
+            active_id = AppState.get_active_user_id()
+            if active_id not in (None, ""):
+                resolved = _resolve_person_display(active_id)
+                if resolved:
+                    return resolved
+            role = str(AppState.get_active_user_role() or "").strip()
+            return role
+        except Exception:
+            return ""
+
+    def _active_user_identifier(self) -> str:
+        try:
+            from utils.state import AppState
+
+            active_id = AppState.get_active_user_id()
+            if active_id not in (None, ""):
+                return str(active_id)
+        except Exception:
+            pass
+        return self._active_user_display()
+
+    def _position_for_person(self, person_id: Any) -> str:
+        raw = str(person_id or "").strip()
+        if not raw:
+            return ""
+        try:
+            from utils import incident_context
+            from modules.command.incident_organization.repository import ApiIncidentOrganizationRepository
+
+            incident_id = incident_context.get_active_incident_id()
+            if incident_id:
+                repo = ApiIncidentOrganizationRepository(str(incident_id))
+                assignments = repo.list_assignments_for_person(raw, active_only=True)
+                if assignments:
+                    primary = None
+                    for assignment in assignments:
+                        if str(getattr(assignment, "assignment_type", "")).strip().lower() == "primary":
+                            primary = assignment
+                            break
+                    chosen = primary or assignments[0]
+                    pos = repo.get_position(int(chosen.position_id)) if getattr(chosen, "position_id", None) is not None else None
+                    title = str(getattr(pos, "title", "") or "")
+                    if title:
+                        return _ics_position_abbreviation(title)
+        except Exception:
+            pass
+        try:
+            from utils import incident_context
+            from modules.logistics.checkin.repository import fetch_roster
+            from modules.logistics.checkin.models import RosterFilters
+
+            incident_id = incident_context.get_active_incident_id()
+            if incident_id:
+                rows = fetch_roster(RosterFilters())
+                for row in rows:
+                    if str(getattr(row, "person_id", "") or "") != raw:
+                        continue
+                    team = str(getattr(row, "team", "") or "").strip()
+                    role = str(getattr(row, "role", "") or "").strip()
+                    if team:
+                        return team
+                    if role:
+                        return _ics_position_abbreviation(role)
+        except Exception:
+            pass
+        try:
+            from modules.logistics.checkin import repository as ci_repo
+
+            ident = ci_repo.get_person_identity(raw)
+            if ident:
+                if getattr(ident, "home_unit", None):
+                    return str(ident.home_unit)
+                if getattr(ident, "primary_role", None):
+                    return _ics_position_abbreviation(str(ident.primary_role))
+        except Exception:
+            pass
+        return ""
+
+    def _narrative_position_display(self, row: Dict[str, Any]) -> str:
+        raw_position = str(row.get("team_num") or "").strip()
+        if raw_position:
+            if " " in raw_position:
+                return _ics_position_abbreviation(raw_position)
+            return raw_position
+        return self._position_for_person(row.get("entered_by"))
+
     # --- Attachments ---
     def load_attachments(self) -> None:
         try:
@@ -1742,9 +2069,11 @@ class TaskDetailWindow(QWidget):
         for r in rows:
             items = []
             items.append(QStandardItem(str(r.get("filename") or "")))
-            items.append(QStandardItem(str(r.get("type") or "")))
-            items.append(QStandardItem(str(r.get("uploaded_by") or "")))
-            items.append(QStandardItem(str(_fmt_ts(r.get("timestamp") or ""))))
+            type_item = QStandardItem(str(r.get("type") or "Other"))
+            type_item.setEditable(True)
+            items.append(type_item)
+            items.append(QStandardItem(_resolve_person_display(r.get("uploaded_by") or "")))
+            items.append(QStandardItem(str(_fmt_ts_compact(r.get("timestamp") or ""))))
             try:
                 sizeb = int(r.get("size_bytes") or 0)
                 size_txt = f"{max(1, sizeb//1024)} KB" if sizeb else ""
@@ -2016,20 +2345,22 @@ class TaskDetailWindow(QWidget):
         self._nar_model.removeRows(0, self._nar_model.rowCount())
         for r in rows:
             rid = int(r.get("id") or 0)
-            ts = _fmt_ts(r.get("timestamp"))
+            raw_ts = str(r.get("timestamp") or "")
+            ts = _fmt_ts_compact(raw_ts)
             entry = str(r.get("narrative") or "")
-            by = str(r.get("entered_by") or "")
-            team = str(r.get("team_num") or "")
+            by = _resolve_person_display(r.get("entered_by_display") or r.get("entered_by") or "")
+            position = self._narrative_position_display(r)
             crit = 1 if (r.get("critical") in (1, "1", True, "true", "True")) else 0
             items = [
                 QStandardItem(str(rid)),
                 QStandardItem(ts),
                 QStandardItem(entry),
                 QStandardItem(by),
-                QStandardItem(team),
+                QStandardItem(position),
                 QStandardItem("Yes" if crit else "No"),
             ]
             items[0].setData(rid, Qt.EditRole)
+            items[1].setData(raw_ts, Qt.UserRole + 10)
             # Ensure display shows Yes/No and edit role carries 1/0
             items[5].setData("Yes" if crit else "No", Qt.DisplayRole)
             items[5].setData(int(crit), Qt.EditRole)
@@ -2044,10 +2375,10 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
         # Default widths
-        self._nar_table.setColumnWidth(1, 120)  # Date/Time (UTC)
-        self._nar_table.setColumnWidth(3, 120)  # Entered By
+        self._nar_table.setColumnWidth(1, 105)  # Date/Time (UTC)
+        self._nar_table.setColumnWidth(3, 140)  # Entered By
         self._nar_table.setColumnWidth(4, 120)  # Team
-        self._nar_table.setColumnWidth(5, 50)   # Critical
+        self._nar_table.setColumnWidth(5, 88)   # Critical
         try:
             self._nar_table.setColumnWidth(6, 50) # Action ("214+")
         except Exception:
@@ -2078,13 +2409,27 @@ class TaskDetailWindow(QWidget):
             "taskid": self._task_id,
             "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "narrative": text,
-            "entered_by": "",
-            "team_num": "",
+            "entered_by": self._active_user_identifier(),
+            "team_num": self._position_for_person(self._active_user_identifier()),
             "critical": 1 if (getattr(crit_widget, 'isChecked', lambda: False)() or getattr(crit_widget, 'currentIndex', lambda: 0)() == 1) else 0,
         }
         try:
             ib = self._ib()
             ib.createTaskNarrative(payload)
+            try:
+                from utils.audit import write_audit
+
+                write_audit(
+                    "task.narrative.add",
+                    {
+                        "task_id": int(self._task_id),
+                        "entered_by": payload.get("entered_by"),
+                        "critical": payload.get("critical"),
+                        "text": text,
+                    },
+                )
+            except Exception:
+                pass
             try:
                 entry_widget.clear()
             except Exception:
@@ -2097,9 +2442,8 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
             self.load_narrative()
-        except Exception:
-            # Ignore failures silently for now
-            pass
+        except Exception as e:
+            QMessageBox.warning(self, "Narrative", f"Could not add narrative entry: {e}")
 
     def _add_top_entry_to_ics214(self) -> None:
         try:
@@ -2492,8 +2836,34 @@ class TaskDetailWindow(QWidget):
                 return
         except Exception:
             return
+        if getattr(self, "_narrative_critical_sync", False):
+            return
         for r in range(start_row, end_row + 1):
             self._apply_row_critical_highlight(r)
+            try:
+                rid = int(self._nar_model.item(r, 0).text())
+                critical = 1 if self._is_row_critical(r) else 0
+                self._narrative_critical_sync = True
+                ok = bool(self._ib().updateTaskNarrative(rid, {"critical": critical}))
+                if not ok:
+                    raise RuntimeError("Narrative update did not persist")
+                try:
+                    from utils.audit import write_audit
+
+                    write_audit(
+                        "task.narrative.critical.update",
+                        {"task_id": int(self._task_id), "narrative_id": rid, "critical": critical},
+                    )
+                except Exception:
+                    pass
+            except Exception as e:
+                QMessageBox.warning(self, "Narrative", f"Could not save the Critical flag: {e}")
+                try:
+                    self.load_narrative()
+                except Exception:
+                    pass
+            finally:
+                self._narrative_critical_sync = False
 
     # --- Save/Load Header Ops ---
     def _save_header(self) -> None:
@@ -3533,19 +3903,25 @@ class TaskDetailWindow(QWidget):
         for r in rows:
             rid = int(r.get("int_id") or r.get("id") or 0)
             sortie = str(r.get("sortie_number") or "")
-            debriefer = str(r.get("debriefer_id") or "")
+            debriefer = _resolve_person_display(r.get("debriefer_id") or "")
             types_keys = list(r.get("types") or [])
             types_disp = ", ".join(labels.get(k, k) for k in types_keys)
             status = str(r.get("status") or "Draft")
-            flag = "Yes" if (r.get("flagged_for_review") in (True, 1, "1")) else "No"
-            updated = _fmt_ts(r.get("updated_at"))
+            review_state = "Reviewed" if str(r.get("status") or "").strip().lower() == "reviewed" else (
+                "Pending Review" if (r.get("flagged_for_review") in (True, 1, "1")) else ""
+            )
+            reviewed_by = _resolve_person_display(r.get("reviewed_by") or "")
+            reviewed_at = _fmt_ts_compact(r.get("reviewed_at"))
+            updated = _fmt_ts_compact(r.get("updated_at"))
             row = [
                 QStandardItem(str(rid)),
                 QStandardItem(sortie),
                 QStandardItem(debriefer),
                 QStandardItem(types_disp),
                 QStandardItem(status),
-                QStandardItem(flag),
+                QStandardItem(review_state),
+                QStandardItem(reviewed_by),
+                QStandardItem(reviewed_at),
                 QStandardItem(updated),
             ]
             row[0].setData(rid, Qt.EditRole)
@@ -3572,6 +3948,98 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         self._on_debrief_selection_changed()
+        try:
+            self.load_linked_clues()
+        except Exception:
+            pass
+
+    def load_linked_clues(self) -> None:
+        self._clue_model.removeRows(0, self._clue_model.rowCount())
+        try:
+            from utils import incident_context
+            from modules.operations.taskings.repository import list_task_debriefs
+            from modules.intel.repositories.intel_items_repo import IntelItemsRepository
+        except Exception:
+            self._clue_empty_lbl.setText("Intel module is unavailable.")
+            return
+
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            self._clue_empty_lbl.setText("No active incident.")
+            return
+        try:
+            repo = IntelItemsRepository(str(incident_id))
+            debriefs = list_task_debriefs(int(self._task_id)) or []
+        except Exception:
+            debriefs = []
+            repo = None
+        seen: set[str] = set()
+        row_count = 0
+        for d in debriefs:
+            debrief_id = int(d.get("int_id") or d.get("id") or 0)
+            for clue_id in list(d.get("linked_clue_ids") or []):
+                clue_key = str(clue_id or "").strip()
+                if not clue_key or clue_key in seen or repo is None:
+                    continue
+                seen.add(clue_key)
+                try:
+                    clue = repo.get(clue_key)
+                except Exception:
+                    clue = None
+                title = getattr(clue, "title", None) or f"(missing clue {clue_key})"
+                priority = getattr(clue, "priority", None) or ""
+                status = getattr(clue, "status", None) or ""
+                updated = _fmt_ts_compact(getattr(clue, "updated_at", None) or "")
+                items = [
+                    QStandardItem(clue_key),
+                    QStandardItem(str(title)),
+                    QStandardItem(str(priority)),
+                    QStandardItem(str(status)),
+                    QStandardItem(updated),
+                    QStandardItem(str(debrief_id)),
+                ]
+                items[0].setData(clue, Qt.UserRole)
+                self._clue_model.appendRow(items)
+                row_count += 1
+        self._clue_empty_lbl.setText(
+            "No linked clues found for this task." if row_count == 0 else f"Linked clues from debrief references: {row_count}"
+        )
+
+    def _open_selected_clue(self) -> None:
+        try:
+            idx = self._clue_table.currentIndex()
+            if not idx.isValid():
+                QMessageBox.information(self, "Linked Clues", "Select a clue row first.")
+                return
+            row = idx.row()
+            clue = self._clue_model.item(row, 0).data(Qt.UserRole)
+            clue_id = str(self._clue_model.item(row, 0).text() or "")
+            if clue is None:
+                from utils import incident_context
+                from modules.intel.repositories.intel_items_repo import IntelItemsRepository
+
+                incident_id = incident_context.get_active_incident_id()
+                if not incident_id:
+                    QMessageBox.information(self, "Linked Clues", "No active incident.")
+                    return
+                clue = IntelItemsRepository(str(incident_id)).get(clue_id)
+            if clue is None:
+                QMessageBox.information(self, "Linked Clues", f"Clue {clue_id} could not be loaded.")
+                return
+            from utils import incident_context
+            from modules.intel.services.intel_service import IntelService
+            from modules.intel.windows.intel_item_detail_window import IntelItemDetailWindow
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                QMessageBox.information(self, "Linked Clues", "No active incident.")
+                return
+            win = IntelItemDetailWindow(clue, IntelService(str(incident_id)), parent=self)
+            win.show()
+            win.raise_()
+            self._clue_detail_win = win
+        except Exception as e:
+            QMessageBox.warning(self, "Linked Clues", f"Could not open clue detail: {e}")
 
     def _selected_debrief_row(self) -> int:
         try:

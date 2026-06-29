@@ -89,6 +89,7 @@ def get_team(team_id: int) -> Optional[Team]:
         team_type=doc.get("team_type") or "GT",
         operational_unit_id=_parse_int(doc.get("operational_unit_id")),
         readiness_status=doc.get("readiness_status") or "Unknown",
+        ci_status=doc.get("ci_status") or "Available",
         needs_attention=bool(doc.get("needs_attention")),
         last_comm_ts=comm_dt,
     )
@@ -116,6 +117,7 @@ def save_team(team: Team, *, clear_operational_unit: bool = False) -> Team:
         "aircraft_json": json.dumps(list(getattr(team, "aircraft", []) or [])),
         "team_type": getattr(team, "team_type", None),
         "readiness_status": getattr(team, "readiness_status", None),
+        "ci_status": getattr(team, "ci_status", None) or "Available",
         "needs_attention": bool(getattr(team, "needs_attention", False)),
     }
     data = {k: v for k, v in data.items() if v is not None}
@@ -161,3 +163,82 @@ def find_team_ids_by_label(label: str) -> list[int]:
         return [int(r.get("int_id") or 0) for r in results]
     except Exception:
         return []
+
+
+def _checkin_base() -> str:
+    from utils import incident_context
+    v = incident_context.get_active_incident_id()
+    if not v:
+        raise RuntimeError("No active incident")
+    return f"/api/incidents/{v}/checkin"
+
+
+# ---------------------------------------------------------------------------
+# Team check-in / disband (ICS-211 workflow)
+# ---------------------------------------------------------------------------
+
+
+def get_checked_in_teams() -> list[dict[str, Any]]:
+    """List checked-in, non-disbanded teams for the Team Status Board."""
+    try:
+        return _client().get(
+            f"{_checkin_base()}/teams/checked-state",
+            params={"checked_in": True, "include_disbanded": False},
+        ) or []
+    except Exception:
+        return []
+
+
+def get_unchecked_teams() -> list[dict[str, Any]]:
+    """List teams that are not checked in (for planning/inbound views)."""
+    try:
+        return _client().get(
+            f"{_checkin_base()}/teams/checked-state",
+            params={"checked_in": False, "include_disbanded": False},
+        ) or []
+    except Exception:
+        return []
+
+
+def check_in_team(
+    team_id: int,
+    *,
+    keep_together: bool = True,
+    checked_in_by: Optional[str] = None,
+    checkin_notes: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
+    """Check in a team. If keep_together=False, also disband."""
+    try:
+        return _client().post(
+            f"{_checkin_base()}/teams/{team_id}/checkin",
+            json={
+                "keep_together": keep_together,
+                "checked_in_by": checked_in_by,
+                "checkin_notes": checkin_notes,
+            },
+        )
+    except Exception:
+        return None
+
+
+def disband_team(
+    team_id: int,
+    *,
+    disbanded_by: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
+    """Disband a team (separate from check-in)."""
+    try:
+        return _client().post(
+            f"{_checkin_base()}/teams/{team_id}/disband",
+            json={"disbanded_by": disbanded_by},
+        )
+    except Exception:
+        return None
+
+
+def set_team_ci_status(team_id: int, ci_status: str) -> None:
+    """Set a CIStatus on a team for planning visibility."""
+    try:
+        _client().patch(f"{_base()}/teams/{team_id}", json={"ci_status": ci_status})
+    except Exception:
+        pass

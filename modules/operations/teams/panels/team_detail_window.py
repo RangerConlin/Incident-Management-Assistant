@@ -672,6 +672,17 @@ class TeamDetailBridge(QObject):
         self._team.readiness_status = str(readiness_status or "Unknown")
         self.teamChanged.emit()
 
+    @Slot(str)
+    def setCheckinStatus(self, ci_status: str) -> None:
+        try:
+            normalized = str(ci_status or "Available").strip() or "Available"
+            self._team.ci_status = normalized
+            if self._team.team_id:
+                team_repo.set_team_ci_status(int(self._team.team_id), normalized)
+            self.teamChanged.emit()
+        except Exception as e:
+            self.error.emit(f"Failed to set check-in status: {e}")
+
     # ---- Asset list providers (QML binds to these) ----
     @Slot(result='QVariant')
     def groundMembers(self) -> list[dict]:
@@ -1826,10 +1837,12 @@ class TeamDetailWindow(QMainWindow):
         self._personnel_tab = QWidget()
         self._assets_tab = QWidget()
         self._equipment_tab = QWidget()
+        self._logistics_tab = QWidget()
         self._logs_tab = QWidget()
         self._tabs.addTab(self._personnel_tab, "Personnel (Ground)")
         self._tabs.addTab(self._assets_tab, "Vehicles")
         self._tabs.addTab(self._equipment_tab, "Equipment")
+        self._tabs.addTab(self._logistics_tab, "Logistics")
         self._tabs.addTab(self._logs_tab, "Logs")
 
         personnel_layout = QVBoxLayout(self._personnel_tab)
@@ -1887,6 +1900,30 @@ class TeamDetailWindow(QMainWindow):
         apply_statusboard_table_behavior(self._equipment_table)
         equipment_layout.addWidget(self._equipment_table)
 
+        logistics_layout = QVBoxLayout(self._logistics_tab)
+        logistics_layout.setContentsMargins(0, 0, 0, 0)
+        logistics_layout.setSpacing(8)
+        logistics_form = QFormLayout()
+        logistics_form.setLabelAlignment(Qt.AlignRight)
+        self._logistics_ci_status = QComboBox()
+        self._logistics_ci_status.addItems(["Available", "Assigned", "Checked In", "Pending", "Enroute", "Out of Service"])
+        self._logistics_request_status = QLabel("Link a resource request to show status here.")
+        logistics_form.addRow("Check-In Status", self._logistics_ci_status)
+        logistics_form.addRow("Resource Requests", self._logistics_request_status)
+        logistics_layout.addLayout(logistics_form)
+        logistics_bar = QHBoxLayout()
+        self._logistics_refresh_button = QPushButton("Refresh")
+        self._logistics_link_request_button = QPushButton("Link Request")
+        logistics_bar.addWidget(self._logistics_refresh_button)
+        logistics_bar.addWidget(self._logistics_link_request_button)
+        logistics_bar.addStretch()
+        logistics_layout.addLayout(logistics_bar)
+        self._logistics_table = QTableWidget()
+        self._logistics_table.setAlternatingRowColors(True)
+        self._logistics_table.verticalHeader().setVisible(False)
+        apply_statusboard_table_behavior(self._logistics_table)
+        logistics_layout.addWidget(self._logistics_table)
+
         # Logs tab: ICS-214 for this team
         logs_layout = QVBoxLayout(self._logs_tab)
         logs_layout.setContentsMargins(0, 0, 0, 0)
@@ -1931,6 +1968,9 @@ class TeamDetailWindow(QMainWindow):
 
         self._aircraft_combo.popupAboutToBeShown.connect(self._refresh_aircraft_options)
         self._aircraft_combo.currentIndexChanged.connect(self._handle_aircraft_selected)
+        self._logistics_refresh_button.clicked.connect(self._refresh_logistics_tab)
+        self._logistics_ci_status.currentTextChanged.connect(self._handle_logistics_ci_status_changed)
+        self._logistics_link_request_button.clicked.connect(self._handle_logistics_link_request)
         # Logs actions
         self._btn_214_refresh.clicked.connect(self._load_team_ics214)
         self._btn_214_export.clicked.connect(self._export_team_ics214)
@@ -2231,6 +2271,7 @@ class TeamDetailWindow(QMainWindow):
         self._populate_assets_table(self._asset_cache)
         self._update_aircraft_assignment_display()
         self._populate_equipment_table(self._equipment_cache)
+        self._refresh_logistics_tab()
         self._update_assistance_ui()
         self._update_member_detail_button()
         self._apply_status_palette()
@@ -2850,6 +2891,72 @@ class TeamDetailWindow(QMainWindow):
             if col == 3:
                 mode = QHeaderView.Stretch
             header.setSectionResizeMode(col, mode)
+
+    def _refresh_logistics_tab(self) -> None:
+        team = getattr(self, "_team", None)
+        ci_status = str(getattr(team, "ci_status", "") or "Unknown").strip() or "Unknown"
+        self._logistics_ci_status.blockSignals(True)
+        idx = self._logistics_ci_status.findText(ci_status, Qt.MatchFixedString)
+        if idx >= 0:
+            self._logistics_ci_status.setCurrentIndex(idx)
+        self._logistics_ci_status.blockSignals(False)
+
+        request_status = str(getattr(team, "resource_request_status", "") or "").strip() or "Unlinked"
+        self._logistics_request_status.setText(request_status)
+
+        headers = ["Request ID", "Status", "Resource", "Assigned To", "Notes"]
+        self._logistics_table.clear()
+        self._logistics_table.setColumnCount(len(headers))
+        self._logistics_table.setHorizontalHeaderLabels(headers)
+
+        rows: list[dict[str, Any]] = []
+        try:
+            from modules.logistics.resource_status.repository import ResourceStatusRepository
+
+            team_id = getattr(team, "team_id", None)
+            if team_id is not None:
+                item = ResourceStatusRepository().get_by_source("team", str(team_id))
+                if item is not None:
+                    rows.append(item.to_row())
+        except Exception:
+            rows = []
+
+        self._logistics_table.setRowCount(len(rows))
+        for row, item in enumerate(rows):
+            values = [
+                str(item.get("id") or ""),
+                str(item.get("status") or ""),
+                str(item.get("resource_name") or item.get("resource_type") or ""),
+                str(item.get("assigned_to") or ""),
+                str(item.get("notes") or ""),
+            ]
+            for col, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                if col == 0:
+                    cell.setTextAlignment(Qt.AlignCenter)
+                self._logistics_table.setItem(row, col, cell)
+
+        header = self._logistics_table.horizontalHeader()
+        for col in range(len(headers)):
+            mode = QHeaderView.ResizeToContents
+            if col in (2, 4):
+                mode = QHeaderView.Stretch
+            header.setSectionResizeMode(col, mode)
+
+    def _handle_logistics_ci_status_changed(self, status: str) -> None:
+        if getattr(self, "_updating", False):
+            return
+        try:
+            self._bridge.setCheckinStatus(status)
+        except Exception:
+            pass
+
+    def _handle_logistics_link_request(self) -> None:
+        QMessageBox.information(
+            self,
+            "Resource Requests",
+            "Resource request linking is scaffolded and will be connected to the request module next.",
+        )
 
     def _update_assistance_ui(self) -> None:
         needs_assist = bool(getattr(self._bridge, "needsAssistActive", False))

@@ -85,15 +85,14 @@ class IncidentBridge(QObject):
                 cur = con.execute(sql, params)
                 rows = cur.fetchall()
                 # Resolve entered_by to a displayable name when it looks like
-                # a numeric id. entered_by stores a master personnel id, not
-                # a local SQLite row, so resolve via the master-id-aware
-                # identity chain (master roster + incident check-in copy)
-                # rather than querying this incident's local personnel table.
+                # a numeric id, but preserve the raw stored value for callers
+                # that need to derive org-chart position or team context.
                 try:
                     from modules.logistics.checkin import repository as ci_repo
                     names_cache: dict[int, str] = {}
                     for r in rows:
                         eb = r.get("entered_by")
+                        r["entered_by_display"] = eb
                         uid: int | None = None
                         try:
                             uid = int(eb)
@@ -101,7 +100,7 @@ class IncidentBridge(QObject):
                             uid = None
                         if uid is not None:
                             if uid in names_cache:
-                                r["entered_by"] = names_cache[uid]
+                                r["entered_by_display"] = names_cache[uid]
                             else:
                                 try:
                                     ident = ci_repo.get_person_identity(str(uid))
@@ -109,7 +108,7 @@ class IncidentBridge(QObject):
                                 except Exception:
                                     disp = str(uid)
                                 names_cache[uid] = disp
-                                r["entered_by"] = disp
+                                r["entered_by_display"] = disp
                 except Exception:
                     pass
                 try:

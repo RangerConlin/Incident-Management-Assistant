@@ -45,6 +45,17 @@ class Team:
     route: Optional[str] = None
     # Attention flag (aka "needs assistance")
     needs_attention: bool = False
+    # Team check-in / disband state (ICS-211 workflow)
+    checked_in: bool = False
+    checked_in_at: Optional[str] = None
+    checked_in_by: Optional[str] = None  # user_id
+    disbanded: bool = False
+    disbanded_at: Optional[str] = None
+    disbanded_by: Optional[str] = None  # user_id
+    checkin_notes: Optional[str] = None
+    bulk_checkin_id: Optional[str] = None
+    # Optional CIStatus for planning visibility (e.g., "Pending", "Enroute")
+    ci_status: Optional[str] = "Available"
 
     def to_db_dict(self) -> Dict[str, Any]:
         """Serialize to a dict suitable for DB operations.
@@ -81,6 +92,7 @@ class Team:
             "team_type": self.team_type,
             "resource_type_id": self.resource_type_id,
             "readiness_status": self.readiness_status or "Unknown",
+            "ci_status": self.ci_status or "Available",
             "radio_ids": self.radio_ids,
             "route": self.route,
             "needs_attention": 1 if bool(self.needs_attention) else 0,
@@ -116,6 +128,7 @@ class Team:
             "resource_type_id": self.resource_type_id,
             "operational_unit_id": self.operational_unit_id,
             "readiness_status": self.readiness_status,
+            "ci_status": self.ci_status,
             "radio_ids": self.radio_ids,
             "route": self.route,
             "needs_attention": bool(self.needs_attention),
