@@ -16,11 +16,10 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QLineEdit, QLabel,
     QToolBar, QFormLayout, QSpinBox, QLineEdit as QLE, QComboBox, QPushButton,
-    QMessageBox
+    QMessageBox, QCheckBox
 )
 
 from modules.personnel.models import cert_catalog
-from modules.personnel.models.cert_catalog import CertType
 from modules.personnel.services import cert_seeder
 from utils.app_settings import DEV_MODE
 
@@ -65,10 +64,9 @@ class DevCertCatalogEditor(QWidget):
         v.addWidget(tb)
 
         body = QHBoxLayout()
-        # Left: category tree + search
         left = QVBoxLayout()
         self.txt_search = QLineEdit()
-        self.txt_search.setPlaceholderText("Search...")
+        self.txt_search.setPlaceholderText("Search code, name, category, org, or tags...")
         self.txt_search.textChanged.connect(self._rebuild_tree)
         left.addWidget(self.txt_search)
         self.tree = QTreeWidget()
@@ -77,7 +75,6 @@ class DevCertCatalogEditor(QWidget):
         left.addWidget(self.tree)
         body.addLayout(left, 2)
 
-        # Right: details form
         right = QVBoxLayout()
         form = QFormLayout()
         self.spn_id = QSpinBox()
@@ -92,6 +89,7 @@ class DevCertCatalogEditor(QWidget):
         self.spn_parent.setRange(0, 999999)
         self.le_tags = QLE()
         self.le_tags.setPlaceholderText("Comma-separated tags, e.g. LSAR_TL, OPERATIONS")
+        self.chk_medical = QCheckBox("Counts as medical for medic checkoff")
         form.addRow("ID:", self.spn_id)
         form.addRow("Code:", self.le_code)
         form.addRow("Name:", self.le_name)
@@ -99,12 +97,12 @@ class DevCertCatalogEditor(QWidget):
         form.addRow("Issuing Org:", self.le_org)
         form.addRow("Parent ID:", self.spn_parent)
         form.addRow("Tags:", self.le_tags)
+        form.addRow("Medical:", self.chk_medical)
         right.addLayout(form)
 
         body.addLayout(right, 3)
         v.addLayout(body)
 
-        # Wire toolbar actions
         act_new.triggered.connect(self._on_new)
         act_dup.triggered.connect(self._on_duplicate)
         act_save.triggered.connect(self._on_save)
@@ -120,9 +118,19 @@ class DevCertCatalogEditor(QWidget):
         q = (self.txt_search.text() or "").strip().lower()
         cats: dict[str, QTreeWidgetItem] = {}
         for i, item in enumerate(self._items):
-            text = f"{item['code']} - {item['name']}"
-            if q and (q not in item['code'].lower() and q not in item['name'].lower()):
+            tags_text = ",".join([str(t) for t in item.get("tags") or []])
+            haystack = " ".join([
+                str(item.get("code") or ""),
+                str(item.get("name") or ""),
+                str(item.get("category") or ""),
+                str(item.get("issuing_org") or ""),
+                tags_text,
+                "medical" if item.get("is_medical") else "",
+            ]).lower()
+            if q and q not in haystack:
                 continue
+            suffix = " (medical)" if item.get("is_medical") else ""
+            text = f"{item['code']} - {item['name']}{suffix}"
             cat = item["category"]
             parent = cats.get(cat)
             if parent is None:
@@ -158,6 +166,7 @@ class DevCertCatalogEditor(QWidget):
         self.le_tags.setText(
             ", ".join([str(t) for t in (item.get("tags") or [])])
         )
+        self.chk_medical.setChecked(bool(item.get("is_medical")))
 
     def _collect_from_form(self) -> Dict[str, Any]:
         tags = [t.strip().upper().replace(" ", "_") for t in self.le_tags.text().split(",") if t.strip()]
@@ -170,6 +179,7 @@ class DevCertCatalogEditor(QWidget):
             "issuing_org": self.le_org.text().strip(),
             "parent_id": int(parent_id) if parent_id else None,
             "tags": tuple(tags),
+            "is_medical": self.chk_medical.isChecked(),
         }
 
     def _next_id_for_category(self, category: str) -> int:
@@ -190,6 +200,7 @@ class DevCertCatalogEditor(QWidget):
             "issuing_org": "",
             "parent_id": None,
             "tags": tuple(),
+            "is_medical": False,
         }
         self._items.append(new_item)
         self._items.sort(key=lambda x: (x["category"], x["code"]))
@@ -199,7 +210,7 @@ class DevCertCatalogEditor(QWidget):
         if self._selected_index is None:
             return
         src = dict(self._items[self._selected_index])
-        src["id"] = self._next_id_for_category(src["category"])  # new ID
+        src["id"] = self._next_id_for_category(src["category"])
         src["code"] = f"{src['code']}-COPY"
         self._items.append(src)
         self._items.sort(key=lambda x: (x["category"], x["code"]))
@@ -209,11 +220,9 @@ class DevCertCatalogEditor(QWidget):
         if self._selected_index is None:
             return
         updated = self._collect_from_form()
-        # Basic validation
         if not updated["code"] or not updated["name"]:
             QMessageBox.warning(self, "Validation", "Code and Name are required.")
             return
-        # Warn if ID changed for an existing entry
         prev_id = int(self._items[self._selected_index]["id"])
         if prev_id != int(updated["id"]):
             QMessageBox.information(
@@ -236,14 +245,13 @@ class DevCertCatalogEditor(QWidget):
         self._rebuild_tree()
 
     def _on_generate(self) -> None:
-        # Render a minimal code template for cert_catalog.py
         lines: List[str] = []
         lines.append('"""Generated certification catalog. Edit via Dev Editor."""')
         lines.append("from __future__ import annotations")
         lines.append("from dataclasses import dataclass")
         lines.append("from typing import Optional, List, Tuple")
         lines.append("")
-        lines.append(f"CATALOG_VERSION = \"{cert_catalog.CATALOG_VERSION}\"")
+        lines.append(f"CATALOG_VERSION = {cert_catalog.CATALOG_VERSION!r}")
         lines.append("")
         lines.append("@dataclass(frozen=True)")
         lines.append("class CertType:")
@@ -254,16 +262,17 @@ class DevCertCatalogEditor(QWidget):
         lines.append("    issuing_org: str")
         lines.append("    parent_id: Optional[int] = None")
         lines.append("    tags: Tuple[str, ...] = tuple()")
+        lines.append("    is_medical: bool = False")
         lines.append("")
         lines.append("CATALOG: List[CertType] = [")
-        # Order by category, then code
         for it in sorted(self._items, key=lambda x: (x["category"], x["code"])):
             pid = it["parent_id"]
             pid_str = f", parent_id={pid}" if pid else ""
             tags = tuple(str(t) for t in (it.get("tags") or ()))
             tags_str = f", tags={tags!r}" if tags else ""
+            med_str = ", is_medical=True" if it.get("is_medical") else ""
             lines.append(
-                f"    CertType({int(it['id'])}, {it['code']!r}, {it['name']!r}, {it['category']!r}, {it['issuing_org']!r}{pid_str}{tags_str}),"
+                f"    CertType({int(it['id'])}, {it['code']!r}, {it['name']!r}, {it['category']!r}, {it['issuing_org']!r}{pid_str}{tags_str}{med_str}),"
             )
         lines.append("]")
         lines.append("")
