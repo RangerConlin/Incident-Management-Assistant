@@ -10,32 +10,14 @@ from sarapp_db.schemas.common import TimestampedDocument
 
 
 class PersonnelCertification(BaseModel):
-    """Embedded certification record stored directly on a personnel document."""
+    """Embedded certification record stored directly on a personnel document.
 
-    id: Optional[int] = None
-    cert_type_id: Optional[int] = None
-    code: str = ""
-    name: str = ""
-    category: str = ""
-    issuing_org: str = ""
-    parent_id: Optional[int] = None
-    tags: List[str] = Field(default_factory=list)
+    Keep this intentionally small. Catalog display data and medic-checkoff flags
+    live on the certification catalog entry.
+    """
 
-    # 0=None, 1=Trainee, 2=Qualified, 3=Evaluator
-    level: int = 0
-
-    issue_date: str = ""
-    expiration: str = ""
-    expiration_date: str = ""
-    docs: str = ""
-    attachment_url: str = ""
-
-    verification_status: str = ""
-    verified_by: str = ""
-    verified_at: str = ""
-    source: str = "manual"
-    notes: str = ""
-    updated_at: str = ""
+    cert_type_id: int
+    level: int = 0  # 0=None, 1=Trainee, 2=Qualified, 3=Evaluator
 
 
 class PersonnelDocument(TimestampedDocument):
@@ -53,10 +35,8 @@ class PersonnelDocument(TimestampedDocument):
     radio_id: Optional[str] = None
     status: str = "available"  # available | deployed | unavailable | inactive
 
-    # Certification data is intentionally embedded here instead of stored as a
-    # separate relationship collection. The catalog remains a lookup source for
-    # cert definitions; the person's current qualification record lives with the
-    # person.
+    # Person-owned certifications. Each entry stores only the catalog type and
+    # the person's current level. All other cert details come from the catalog.
     certifications: List[PersonnelCertification] = Field(default_factory=list)
 
     # Deprecated legacy field retained for older records/imports.
