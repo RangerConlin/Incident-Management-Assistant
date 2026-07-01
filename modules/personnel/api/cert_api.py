@@ -1,7 +1,8 @@
 """Personnel certification API for UI usage.
 
-This API reads the catalog from the MongoDB master DB and permits editing
-of personnel certification levels and attachments.
+This API reads the catalog from the MongoDB master DB and edits embedded
+personnel certification levels. A personnel cert stores only cert_type_id and
+level; display data comes from the catalog.
 """
 
 from __future__ import annotations
@@ -35,7 +36,11 @@ def list_tags_for_cert(cert_type_id: int) -> list[str]:
 
 
 def list_personnel_certs(personnel_id: int) -> List[Dict[str, Any]]:
-    """Return the person's certifications from the API."""
+    """Return the person's certifications from the API.
+
+    The API returns catalog-enriched rows for UI display, but the stored
+    personnel document only contains cert_type_id and level.
+    """
     try:
         return api_client.get(f"/api/master/certifications/personnel/{personnel_id}") or []
     except Exception:
@@ -46,14 +51,18 @@ def set_personnel_cert(
     personnel_id: int,
     cert_type_id: int,
     level: int,
-    attachment_url: str | None,
+    attachment_url: str | None = None,
 ) -> None:
-    """Insert or update a person's certification record via API."""
+    """Insert or update a person's certification level via API.
+
+    attachment_url is accepted for backward compatibility with older callers but
+    is intentionally not sent or stored.
+    """
     try:
         lvl = max(0, min(3, int(level)))
         api_client.post(
             f"/api/master/certifications/personnel/{personnel_id}/{cert_type_id}",
-            json={"level": lvl, "attachment_url": attachment_url},
+            json={"level": lvl},
         )
     except Exception:
         pass
@@ -90,7 +99,6 @@ def person_meets_profile(personnel_id: int, profile_code: str) -> bool:
     except Exception:
         certs = []
 
-    # Highest level per certification type
     max_levels: dict[int, int] = {}
     for c in certs:
         try:
@@ -107,17 +115,14 @@ def person_meets_profile(personnel_id: int, profile_code: str) -> bool:
             tags: set[str] = set(list_tags_for_cert(cert_type_id) or [])
         except Exception:
             tags = set()
-        # Must include all required tags if specified
         if prof.all_tags and not all(t in tags for t in prof.all_tags):
             continue
-        # Must include at least one from any_tags if specified
         if prof.any_tags and not any(t in tags for t in prof.any_tags):
             continue
         return True
     return False
 
 
-# Guard catalog writes (not exposed here, but ensure consistency if added later)
 def ensure_catalog_write_allowed() -> None:
     if not DEV_MODE:
         raise PermissionError("Catalog mutations are blocked in production build")
