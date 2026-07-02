@@ -14,8 +14,31 @@ from PySide6.QtGui import QColor, QBrush
 from modules.intel.models.intel_items import (
     IntelItem, ITEM_TYPES, PRIORITY_VALUES, CONFIDENCE_VALUES, TREND_VALUES,
 )
+from modules.intel.models.leads import Lead
 from modules.intel.services.intel_service import IntelService
 from utils.table_view_styles import apply_statusboard_table_behavior
+
+
+def _color_blob(hex_color: str, label: str) -> str:
+    return (
+        f'<span style="color: {hex_color}; font-size: 16px; vertical-align: middle;">&#9679;</span> '
+        f'<span style="vertical-align: middle;">{label}</span>'
+    )
+
+
+def _source_label(item: IntelItem, leads_by_id: dict[str, Lead]) -> str:
+    """Best available readable source string for the Source column."""
+    if item.source_lead_id:
+        lead = leads_by_id.get(item.source_lead_id)
+        if lead:
+            return f"{lead.display_number} — {lead.title}"
+        return "Lead"
+    if item.created_by:
+        return item.created_by
+    latest = item.latest_observation
+    if latest and latest.source_team:
+        return latest.source_team
+    return "—"
 
 _ROW_COLORS: dict[str, QColor] = {
     "critical":   QColor(180, 40,  40,  130),
@@ -117,13 +140,14 @@ class _NewItemDialog(QDialog):
 class IntelItemsTab(QWidget):
     open_item_detail = Signal(object)
 
-    _COLS = ["Type", "Title", "Priority", "Confidence", "Trend", "Obs", "Location", "Updated", "Actions"]
+    _COLS = ["Type", "Title", "Status", "Priority", "Confidence", "Trend", "Obs", "Source", "Location", "Updated", "Actions"]
 
     def __init__(self, service: IntelService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._service = service
         self._items: list[IntelItem] = []
         self._filtered: list[IntelItem] = []
+        self._leads_by_id: dict[str, Lead] = {}
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
@@ -174,11 +198,24 @@ class IntelItemsTab(QWidget):
         self._table.setHorizontalHeaderLabels(self._COLS)
         apply_statusboard_table_behavior(self._table)
         self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self._table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)
+        self._table.horizontalHeader().setSectionResizeMode(8, QHeaderView.Stretch)
         self._table.verticalHeader().setVisible(False)
         self._table.setSortingEnabled(True)
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
+        legend = QLabel(
+            "  ".join([
+                _color_blob("#b42828", "Critical"),
+                _color_blob("#c87814", "High"),
+                _color_blob("#d0b000", "Medium"),
+                _color_blob("#1e50b4", "Low"),
+                _color_blob("#28a050", "Improving"),
+                _color_blob("#646464", "Archived"),
+            ])
+        )
+        legend.setTextFormat(Qt.RichText)
+        legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
+        layout.addWidget(legend)
 
         self.refresh()
 
@@ -186,6 +223,8 @@ class IntelItemsTab(QWidget):
         if self._service is None:
             return
         self._items = self._service.items.list()
+        leads = self._service.leads.list()
+        self._leads_by_id = {lead.id: lead for lead in leads}
         self._apply_filter()
 
     def _apply_filter(self) -> None:
@@ -208,8 +247,9 @@ class IntelItemsTab(QWidget):
         for row, item in enumerate(self._filtered):
             cells = [
                 item.item_type or "", item.title,
-                item.priority or "", item.confidence or "", item.trend or "",
-                str(item.observation_count), item.location_text or "",
+                item.status or "", item.priority or "", item.confidence or "", item.trend or "",
+                str(item.observation_count), _source_label(item, self._leads_by_id),
+                item.location_text or "",
                 item.updated_at[:16].replace("T", " ") if item.updated_at else "",
             ]
             color = _row_color(item)
@@ -229,7 +269,7 @@ class IntelItemsTab(QWidget):
             self._table.setCellWidget(row, len(self._COLS) - 1, actions)
             self._table.setRowHeight(row, 30)
 
-        for col in (0, 2, 3, 4, 5, 7):
+        for col in (0, 2, 3, 4, 5, 6, 9):
             self._table.resizeColumnToContents(col)
         self._table.setColumnWidth(len(self._COLS) - 1, 70)
         self._table.setSortingEnabled(True)

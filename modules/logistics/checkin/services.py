@@ -56,10 +56,10 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
         title="Personnel",
         master_table="personnel",
         incident_table="personnel",
-        id_column="id",
+        id_column="person_record",
         sort_column="name",
         display_columns=(
-            ("id", "ID"),
+            ("person_id", "ID"),
             ("name", "Name"),
             ("role", "Role"),
             ("rank", "Rank"),
@@ -72,7 +72,7 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
             FieldSpec("callsign", "Callsign"),
             FieldSpec("phone", "Phone"),
         ),
-        id_field=FieldSpec("id", "Personnel ID", required=True, placeholder="e.g., 10001"),
+        id_field=None,
         autoincrement=True,
     ),
     "vehicle": EntityConfig(
@@ -80,23 +80,24 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
         title="Vehicle",
         master_table="vehicles",
         incident_table="vehicles",
-        id_column="id",
-        sort_column="id",
+        id_column="vehicle_record",
+        sort_column="vehicle_id",
         display_columns=(
-            ("id", "ID"),
+            ("vehicle_id", "ID"),
             ("make", "Make"),
             ("model", "Model"),
             ("resource_type_id", "Resource Type"),
             ("status_id", "Status"),
         ),
         form_fields=(
+            FieldSpec("vehicle_id", "Vehicle ID", required=True, placeholder="e.g., Engine 2"),
             FieldSpec("make", "Make"),
             FieldSpec("model", "Model"),
             FieldSpec("license_plate", "License Plate"),
             FieldSpec("resource_type_id", "Resource Type"),
             FieldSpec("status_id", "Status"),
         ),
-        id_field=FieldSpec("id", "Vehicle ID", required=True),
+        id_field=FieldSpec("vehicle_id", "Vehicle ID", required=True),
         autoincrement=False,
     ),
     "equipment": EntityConfig(
@@ -104,10 +105,10 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
         title="Equipment",
         master_table="equipment",
         incident_table="equipment",
-        id_column="id",
+        id_column="equipment_record",
         sort_column="name",
         display_columns=(
-            ("id", "ID"),
+            ("equipment_id", "ID"),
             ("name", "Name"),
             ("type", "Type"),
             ("resource_type_id", "Resource Type"),
@@ -115,6 +116,7 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
         ),
         form_fields=(
             FieldSpec("name", "Name", required=True),
+            FieldSpec("equipment_id", "Equipment ID"),
             FieldSpec("type", "Type"),
             FieldSpec("serial_number", "Serial Number"),
             FieldSpec("resource_type_id", "Resource Type"),
@@ -127,16 +129,16 @@ ENTITY_CONFIG: Dict[str, EntityConfig] = {
         title="Aircraft",
         master_table="aircraft",
         incident_table="aircraft",
-        id_column="id",
-        sort_column="tail_number",
+        id_column="aircraft_record",
+        sort_column="aircraft_id",
         display_columns=(
-            ("id", "ID"),
-            ("tail_number", "Tail Number"),
+            ("aircraft_id", "Tail Number"),
             ("type", "Type"),
+            ("callsign", "Callsign"),
             ("status", "Status"),
         ),
         form_fields=(
-            FieldSpec("tail_number", "Tail Number", required=True),
+            FieldSpec("aircraft_id", "Tail Number", required=True),
             FieldSpec("type", "Type", required=True),
             FieldSpec("callsign", "Callsign"),
             FieldSpec("base", "Base Location"),
@@ -189,13 +191,13 @@ def get_entity_config(entity_type: str) -> EntityConfig:
 class CheckInService:
     """API-backed facade that manages master and incident resource check-in."""
 
-    def _has_active_org_assignment(self, person_id: str) -> bool:
+    def _has_active_org_assignment(self, person_record: int) -> bool:
         incident_id = _incident_id()
-        if not incident_id or not person_id:
+        if not incident_id or not person_record:
             return False
         try:
             rows = _client().get(
-                f"/api/incidents/{incident_id}/org/assignments/by-person/{person_id}",
+                f"/api/incidents/{incident_id}/org/assignments/by-person/{person_record}",
                 params={"active_only": True},
             ) or []
         except Exception:
@@ -241,11 +243,13 @@ class CheckInService:
         record = row or {}
         if any(record.get(field) not in (None, "", [], {}) for field in ASSIGNED_HINT_FIELDS):
             return "Assigned"
-        if self._is_on_incident_team(resource_type, record.get("id") or record.get("person_id") or record_id):
+        config = ENTITY_CONFIG.get(resource_type)
+        rec_id = record.get(config.id_column) if config else None
+        if self._is_on_incident_team(resource_type, rec_id or record_id):
             return "Assigned"
         if resource_type == "personnel":
-            person_id = str(record.get("id") or record.get("person_id") or record_id or "").strip()
-            if person_id and self._has_active_org_assignment(person_id):
+            prec = int(record.get("person_record") or record_id or 0)
+            if prec and self._has_active_org_assignment(prec):
                 return "Assigned"
         return "Available"
 
@@ -347,17 +351,17 @@ class CheckInService:
                 from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
                 from datetime import datetime
                 now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
-                pid = str(doc.get("id") or doc.get("person_id") or record_id)
-                if pid:
+                prec = int(doc.get("person_record") or record_id or 0)
+                if prec:
                     existing = None
                     try:
-                        existing = ci_repo.fetch_checkin(pid)
+                        existing = ci_repo.fetch_checkin(prec)
                     except Exception:
                         pass
                     if existing is None:
-                        default_status = self.default_arrival_status("personnel", doc, record_id=pid)
+                        default_status = self.default_arrival_status("personnel", doc, record_id=prec)
                         rec = CheckInRecord(
-                            person_id=pid,
+                            person_record=prec,
                             status=CIStatus.normalize(default_status),
                             arrival_time=now_iso,
                             location=Location.ICP,
@@ -418,9 +422,11 @@ class CheckInService:
         exact_matches = []
         for row in results:
             candidates = [
-                str(row.get(config.id_column) or "").strip().lower(),
+                str(row.get("person_id") or "").strip().lower(),
+                str(row.get("vehicle_id") or "").strip().lower(),
+                str(row.get("equipment_id") or "").strip().lower(),
+                str(row.get("aircraft_id") or "").strip().lower(),
                 str(row.get("callsign") or "").strip().lower(),
-                str(row.get("tail_number") or "").strip().lower(),
                 str(row.get("serial_number") or "").strip().lower(),
                 str(row.get("license_plate") or "").strip().lower(),
             ]

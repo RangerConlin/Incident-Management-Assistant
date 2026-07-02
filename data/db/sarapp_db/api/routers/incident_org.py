@@ -412,7 +412,7 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
 
 class AddAssignmentRequest(BaseModel):
     position_id: int
-    personnel_id: Optional[str] = None
+    person_record: Optional[int] = None
     display_name: str
     assignment_type: str = "primary"
     start_time: Optional[str] = None
@@ -435,7 +435,7 @@ def _assignment_to_dict(doc: dict) -> dict[str, Any]:
         "assignment_id": doc["assignment_id"],
         "incident_id": doc["incident_id"],
         "position_id": doc["position_id"],
-        "personnel_id": doc.get("personnel_id"),
+        "person_record": doc.get("person_record"),
         "display_name": doc.get("display_name", ""),
         "assignment_type": assignment_type,
         "start_time": doc.get("start_time"),
@@ -469,7 +469,7 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
         "assignment_id": aid,
         "incident_id": incident_id,
         "position_id": body.position_id,
-        "personnel_id": body.personnel_id,
+        "person_record": body.person_record,
         "display_name": body.display_name,
         "assignment_type": atype,
         "start_time": start,
@@ -484,7 +484,7 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
         "incident_id": incident_id,
         "assignment_id": aid,
         "position_id": body.position_id,
-        "personnel_id": body.personnel_id,
+        "person_record": body.person_record,
         "display_name": body.display_name,
         "assignment_type": atype,
         "action": "assigned",
@@ -514,7 +514,7 @@ def end_assignment(incident_id: str, assignment_id: int, body: EndAssignmentRequ
         "incident_id": incident_id,
         "assignment_id": assignment_id,
         "position_id": doc["position_id"],
-        "personnel_id": doc.get("personnel_id"),
+        "person_record": doc.get("person_record"),
         "display_name": doc.get("display_name", ""),
         "assignment_type": doc.get("assignment_type", "primary"),
         "action": "removed",
@@ -542,14 +542,14 @@ def list_assignments(
     return [_assignment_to_dict(d) for d in docs]
 
 
-@router.get("/{incident_id}/org/assignments/by-person/{personnel_id}")
+@router.get("/{incident_id}/org/assignments/by-person/{person_record}")
 def list_assignments_for_person(
     incident_id: str,
-    personnel_id: str,
+    person_record: int,
     active_only: bool = True,
 ) -> list[dict[str, Any]]:
     repo = _assignments_repo(incident_id)
-    filt: dict[str, Any] = {"incident_id": incident_id, "personnel_id": personnel_id}
+    filt: dict[str, Any] = {"incident_id": incident_id, "person_record": person_record}
     if active_only:
         filt["end_time"] = None
     docs = repo.find_many(filt, sort=[("position_id", 1), ("start_time", 1)])
@@ -572,7 +572,7 @@ def list_assignment_history(
             "incident_id": d["incident_id"],
             "assignment_id": d.get("assignment_id"),
             "position_id": d["position_id"],
-            "personnel_id": d.get("personnel_id"),
+            "person_record": d.get("person_record"),
             "display_name": d.get("display_name", ""),
             "assignment_type": normalize_assignment_type(d.get("assignment_type", "primary")),
             "action": d.get("action", ""),

@@ -11,12 +11,12 @@ class ApprovalInboxPanel(QtWidgets.QWidget):
     def __init__(
         self,
         incident_id: str,
-        personnel_id: str,
+        person_record: int,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._incident_id = incident_id
-        self._personnel_id = personnel_id
+        self._person_record = person_record
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -50,7 +50,7 @@ class ApprovalInboxPanel(QtWidgets.QWidget):
         from modules.approvals.service import ApprovalService
         service = ApprovalService(self._incident_id)
         try:
-            items = service.pending_for_person(self._personnel_id)
+            items = service.pending_for_person(self._person_record)
         except Exception:
             items = []
         self._populate(items)

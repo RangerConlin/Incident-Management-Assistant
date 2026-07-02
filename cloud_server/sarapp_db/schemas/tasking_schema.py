@@ -21,7 +21,7 @@ class TaskDocument(TimestampedDocument):
     operational_period_id: Optional[str] = None
     linked_objective_ids: List[str] = Field(default_factory=list)
     assigned_team_ids: List[str] = Field(default_factory=list)
-    assigned_personnel_ids: List[str] = Field(default_factory=list)
+    assigned_person_records: List[int] = Field(default_factory=list)
     assigned_vehicle_ids: List[str] = Field(default_factory=list)
     search_area: Optional[str] = None
     latitude: Optional[float] = None

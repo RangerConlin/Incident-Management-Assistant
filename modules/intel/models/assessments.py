@@ -72,4 +72,7 @@ class Assessment:
             "summary": self.summary,
             "findings": self.findings,
             "recommendations": self.recommendations,
+            "linked_subject_ids": self.linked_subject_ids,
+            "linked_item_ids": self.linked_item_ids,
+            "created_by": self.created_by,
         }

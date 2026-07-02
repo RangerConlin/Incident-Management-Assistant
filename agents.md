@@ -15,6 +15,7 @@
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
 - No `backend/` directory. Files belong under the existing root/module structure such as `modules/`, `lan_server/`, `cloud_server/`, `server/`, or `data/` as appropriate.
+- `cloud_server/` is a duplicated copy of the LAN server implementation and is not a direct change target. Do not modify files under `cloud_server/`. Apply all server/API/database changes to the active LAN server source under `data/db/sarapp_db/` only.
 - Database framework belongs under `data/`, not `core/`.
 - Never create demo/fake data; only migrate or use data that already exists.
 - Never wire MongoDB directly into the UI. Architecture is UI -> API server -> MongoDB.

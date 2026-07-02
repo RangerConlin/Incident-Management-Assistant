@@ -10,13 +10,15 @@ from pydantic import BaseModel
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.mongo.int_id import _ensure_record_ids, next_record_id
 
 router = APIRouter()
+
+_RECORD_FIELD = "aircraft_record"
 
 
 class AircraftRepository(BaseRepository):
     collection_name = MasterCollections.AIRCRAFT
-    # Keyed by sequential `int_id`, not `_id`; no `deleted` field — hard deletes.
     soft_deletes = False
 
 
@@ -24,18 +26,11 @@ def _repo() -> AircraftRepository:
     return AircraftRepository(get_master_db())
 
 
-def _ensure_int_ids(repo: AircraftRepository) -> None:
-    col = repo._col
-    for doc in col.find({"int_id": {"$exists": False}}):
-        max_doc = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
-        next_id = (max_doc["int_id"] + 1) if max_doc else 1
-        col.update_one({"_id": doc["_id"]}, {"$set": {"int_id": next_id}})
-
-
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
-    d["id"] = d.get("int_id")
+    d["aircraft_record"] = d.get("aircraft_record")
+    d["aircraft_id"] = d.get("aircraft_id") or d.get("tail_number") or ""
     return d
 
 
@@ -46,18 +41,18 @@ def list_aircraft(
     type_filter: str = Query(""),
 ) -> list[dict[str, Any]]:
     repo = _repo()
-    _ensure_int_ids(repo)
+    _ensure_record_ids(repo._col, _RECORD_FIELD)
     query: dict[str, Any] = {}
     if status:
         query["status"] = status
     if type_filter:
         query["type"] = type_filter
-    docs = repo.find_many(query, sort=[("tail_number", 1)])
+    docs = repo.find_many(query, sort=[("aircraft_id", 1)])
     if search.strip():
         t = search.strip().lower()
         docs = [
             d for d in docs
-            if t in (d.get("tail_number") or "").lower()
+            if t in (d.get("aircraft_id") or d.get("tail_number") or "").lower()
             or t in (d.get("callsign") or "").lower()
             or t in (d.get("make") or "").lower()
             or t in (d.get("model") or "").lower()
@@ -66,16 +61,16 @@ def list_aircraft(
     return [_normalize(d) for d in docs]
 
 
-@router.get("/{aircraft_id}")
-def get_aircraft(aircraft_id: int) -> dict[str, Any]:
-    doc = _repo().find_one({"int_id": aircraft_id})
+@router.get("/{aircraft_record}")
+def get_aircraft(aircraft_record: int) -> dict[str, Any]:
+    doc = _repo().find_one({_RECORD_FIELD: aircraft_record})
     if not doc:
         raise HTTPException(status_code=404, detail="Aircraft not found")
     return _normalize(doc)
 
 
 class AircraftBody(BaseModel):
-    tail_number: str
+    aircraft_id: str  # tail number / user-visible ID
     callsign: str = ""
     type: str = "Helicopter"
     make: str = ""
@@ -117,39 +112,38 @@ class AircraftBody(BaseModel):
 @router.post("", status_code=201)
 def create_aircraft(body: AircraftBody) -> dict[str, Any]:
     repo = _repo()
-    _ensure_int_ids(repo)
-    max_doc = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
-    next_id = (max_doc["int_id"] + 1) if max_doc else 1
+    next_id = next_record_id(repo._col, _RECORD_FIELD)
+    data = body.model_dump()
+    data["aircraft_id"] = (data.get("aircraft_id") or "").strip().upper()
     doc: dict[str, Any] = {
-        "int_id": next_id,
-        **body.model_dump(),
-        "tail_number": body.tail_number.strip().upper(),
+        _RECORD_FIELD: next_id,
+        **data,
     }
     doc = repo.insert_one(doc)
     return _normalize(doc)
 
 
-@router.patch("/{aircraft_id}")
+@router.patch("/{aircraft_record}")
 def update_aircraft(
-    aircraft_id: int, body: dict[str, Any] = Body(...)
+    aircraft_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"int_id": aircraft_id})
+    existing = repo.find_one({_RECORD_FIELD: aircraft_record})
     if not existing:
         raise HTTPException(status_code=404, detail="Aircraft not found")
-    body.pop("int_id", None)
+    body.pop(_RECORD_FIELD, None)
     body.pop("_id", None)
-    if "tail_number" in body and body["tail_number"]:
-        body["tail_number"] = body["tail_number"].strip().upper()
+    if "aircraft_id" in body and body["aircraft_id"]:
+        body["aircraft_id"] = body["aircraft_id"].strip().upper()
     repo.update_one(existing["_id"], body)
     doc = repo.find_by_id(existing["_id"])
     return _normalize(doc)
 
 
-@router.delete("/{aircraft_id}", status_code=204)
-def delete_aircraft(aircraft_id: int) -> None:
+@router.delete("/{aircraft_record}", status_code=204)
+def delete_aircraft(aircraft_record: int) -> None:
     repo = _repo()
-    existing = repo.find_one({"int_id": aircraft_id})
+    existing = repo.find_one({_RECORD_FIELD: aircraft_record})
     if not existing:
         raise HTTPException(status_code=404, detail="Aircraft not found")
     repo.delete_one(existing["_id"])
@@ -160,10 +154,10 @@ class SetStatusRequest(BaseModel):
     notes: str = ""
 
 
-@router.patch("/{aircraft_id}/status")
-def set_aircraft_status(aircraft_id: int, body: SetStatusRequest) -> dict[str, Any]:
+@router.patch("/{aircraft_record}/status")
+def set_aircraft_status(aircraft_record: int, body: SetStatusRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"int_id": aircraft_id})
+    existing = repo.find_one({_RECORD_FIELD: aircraft_record})
     if not existing:
         raise HTTPException(status_code=404, detail="Aircraft not found")
     update: dict[str, Any] = {"status": body.status.strip() or "Available"}
@@ -180,10 +174,10 @@ class AssignTeamRequest(BaseModel):
     team_name: str | None = None
 
 
-@router.patch("/{aircraft_id}/assignment")
-def set_aircraft_assignment(aircraft_id: int, body: AssignTeamRequest) -> dict[str, Any]:
+@router.patch("/{aircraft_record}/assignment")
+def set_aircraft_assignment(aircraft_record: int, body: AssignTeamRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"int_id": aircraft_id})
+    existing = repo.find_one({_RECORD_FIELD: aircraft_record})
     if not existing:
         raise HTTPException(status_code=404, detail="Aircraft not found")
     update: dict[str, Any] = {

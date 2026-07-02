@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QDateTimeEdit,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -60,7 +61,8 @@ class ICS211CheckInWindow(QWidget):
         self._org_combos: dict[str, QComboBox] = {}
         self._pickers: dict[str, QComboBox] = {}
         self._reporting_inputs: dict[str, QLineEdit] = {}
-        self._ldw_statuses: dict[str, QComboBox] = {}
+        self._ldw_datetimes: dict[str, QDateTimeEdit] = {}
+        self._ldw_enabled: dict[str, QCheckBox] = {}
         self._ldw_notes: dict[str, QLineEdit] = {}
         self._checkin_notes: dict[str, QLineEdit] = {}
         self._active_selection: dict[str, dict[str, Any]] = {}
@@ -104,28 +106,38 @@ class ICS211CheckInWindow(QWidget):
     def _build_resource_tab(self, resource_type: str) -> QWidget:
         tab = QWidget(self)
         outer = QVBoxLayout(tab)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(12)
+
+        top_actions = QHBoxLayout()
+        top_actions.setSpacing(8)
+        check_btn = QPushButton("Check In Selected")
+        check_btn.clicked.connect(lambda _, rt=resource_type: self._check_in_current(rt))
+        clear_btn = QPushButton("Clear")
+        clear_btn.clicked.connect(lambda _, rt=resource_type: self._clear_tab(rt))
+        top_actions.addWidget(check_btn)
+        top_actions.addWidget(clear_btn)
+        top_actions.addStretch(1)
+        outer.addLayout(top_actions)
 
         section1 = self._section_frame("Fast Check-In")
         form1 = QHBoxLayout()
+        form1.setSpacing(8)
         self._id_inputs[resource_type] = QLineEdit()
         self._id_inputs[resource_type].setPlaceholderText(self._lookup_placeholder(resource_type))
         self._id_inputs[resource_type].returnPressed.connect(lambda rt=resource_type: self._lookup_resource(rt))
         search_btn = QPushButton("Search")
         search_btn.clicked.connect(lambda _, rt=resource_type: self._lookup_resource(rt))
-        check_btn = QPushButton("Check In Selected")
-        check_btn.clicked.connect(lambda _, rt=resource_type: self._check_in_current(rt))
-        clear_btn = QPushButton("Clear")
-        clear_btn.clicked.connect(lambda _, rt=resource_type: self._clear_tab(rt))
         form1.addWidget(self._id_inputs[resource_type], 2)
         form1.addWidget(search_btn)
-        form1.addWidget(check_btn)
-        form1.addWidget(clear_btn)
         section1.layout().addLayout(form1)
         section1.layout().addWidget(self._preview_label(resource_type))
         outer.addWidget(section1)
+        outer.addSpacing(8)
 
         section2 = self._section_frame("Select Existing Record")
         org_row = QHBoxLayout()
+        org_row.setSpacing(8)
         org_combo = make_org_combo()
         org_combo.setCurrentIndex(-1)
         org_combo.currentTextChanged.connect(lambda _: self._refresh_resource_picker(resource_type))
@@ -137,14 +149,41 @@ class ICS211CheckInWindow(QWidget):
         picker.currentIndexChanged.connect(lambda _: self._populate_preview_from_picker(resource_type))
         load_btn = QPushButton("Load Records")
         load_btn.clicked.connect(lambda _, rt=resource_type: self._refresh_resource_picker(rt))
-        ldw_status = QComboBox()
-        ldw_status.addItems(["", "None", "Limited", "Duty Restricted", "Unavailable"])
-        ldw_notes = QLineEdit()
-        ldw_notes.setPlaceholderText("LDW notes")
+        section2.layout().addWidget(self._section_row("Organization:", org_combo, load_btn))
+        section2.layout().addWidget(self._section_row("Record:", picker))
+        outer.addWidget(section2)
+
+        outer.addSpacing(12)
+
+        section3 = self._section_frame("Reporting / LDW")
+        ldw_dt = QDateTimeEdit(self)
+        ldw_dt.setCalendarPopup(True)
+        ldw_dt.setDisplayFormat("yyyy-MM-dd HH:mm")
+        ldw_dt.setDateTime(datetime.now().astimezone())
+        ldw_dt.setEnabled(False)
+        ldw_enable = QCheckBox("Set LDW")
+        ldw_enable.setChecked(False)
+        ldw_enable.toggled.connect(ldw_dt.setEnabled)
         reporting = QLineEdit()
         reporting.setPlaceholderText("Reporting location")
+        ldw_notes = QLineEdit()
+        ldw_notes.setPlaceholderText("LDW notes")
         notes = QLineEdit()
         notes.setPlaceholderText("Check-in notes")
+        section3.layout().addWidget(QLabel("Reporting Location:"))
+        section3.layout().addWidget(reporting)
+        ldw_row = QHBoxLayout()
+        ldw_row.setSpacing(8)
+        ldw_row.addWidget(ldw_enable)
+        ldw_row.addWidget(ldw_dt)
+        ldw_row.addWidget(ldw_notes, 1)
+        section3.layout().addLayout(ldw_row)
+        section3.layout().addWidget(notes)
+        outer.addWidget(section3)
+
+        outer.addSpacing(12)
+
+        section4 = self._section_frame("Status Actions")
         status_preview = QLabel("Select or search a record to see its current status.")
         status_preview.setFrameShape(QFrame.StyledPanel)
         status_preview.setWordWrap(True)
@@ -163,46 +202,49 @@ class ICS211CheckInWindow(QWidget):
         actions.addWidget(prep_btn)
         actions.addWidget(cancel_btn)
         actions.addStretch(1)
-        org_row.addWidget(QLabel("Organization:"))
-        org_row.addWidget(org_combo, 1)
-        org_row.addWidget(load_btn)
-        section2.layout().addLayout(org_row)
-        sel_row = QHBoxLayout()
-        sel_row.addWidget(QLabel("Record:"))
-        sel_row.addWidget(picker, 1)
-        section2.layout().addLayout(sel_row)
-        section2.layout().addWidget(QLabel("Reporting Location:"))
-        section2.layout().addWidget(reporting)
-        ldw_row = QHBoxLayout()
-        ldw_row.addWidget(QLabel("LDW:"))
-        ldw_row.addWidget(ldw_status)
-        ldw_row.addWidget(ldw_notes, 1)
-        section2.layout().addLayout(ldw_row)
-        section2.layout().addWidget(notes)
-        section2.layout().addLayout(actions)
-        section2.layout().addWidget(QLabel("Loaded Record Preview"))
         preview = QLabel("Ready")
         preview.setFrameShape(QFrame.StyledPanel)
         preview.setWordWrap(True)
-        section2.layout().addWidget(preview)
-        section2.layout().addWidget(status_preview)
-        outer.addWidget(section2)
+        section4.layout().addLayout(actions)
+        section4.layout().addWidget(QLabel("Loaded Record Preview"))
+        section4.layout().addWidget(preview)
+        section4.layout().addWidget(status_preview)
+        outer.addWidget(section4)
 
-        section4 = self._section_frame("Add New Record")
+        outer.addSpacing(12)
+
+        section5 = self._section_frame("Add New Record")
         add_btn = QPushButton(self._create_button_text(resource_type))
         add_btn.clicked.connect(lambda _, rt=resource_type: self._open_create_dialog(rt))
-        section4.layout().addWidget(add_btn)
-        outer.addWidget(section4)
+        section5.layout().addWidget(add_btn)
+        outer.addWidget(section5)
 
         self._org_combos[resource_type] = org_combo
         self._pickers[resource_type] = picker
         self._reporting_inputs[resource_type] = reporting
-        self._ldw_statuses[resource_type] = ldw_status
+        self._ldw_datetimes[resource_type] = ldw_dt
+        self._ldw_enabled[resource_type] = ldw_enable
         self._ldw_notes[resource_type] = ldw_notes
         self._checkin_notes[resource_type] = notes
         self._previews[resource_type] = preview
         self._refresh_resource_picker(resource_type, populate=False)
         return tab
+
+    def _section_row(
+        self,
+        label_text: str,
+        field: QWidget,
+        button: QWidget | None = None,
+    ) -> QWidget:
+        row = QWidget(self)
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(QLabel(label_text))
+        layout.addWidget(field, 1)
+        if button is not None:
+            layout.addWidget(button)
+        return row
 
     def _build_team_tab(self) -> QWidget:
         tab = QWidget(self)
@@ -464,20 +506,21 @@ class ICS211CheckInWindow(QWidget):
         records = self._list_records(resource_type, org)
         for row in records:
             picker.addItem(self._display_text(resource_type, row), row)
+        picker.setCurrentIndex(-1)
+        picker.setCurrentText("")
         picker.blockSignals(False)
-        if populate and picker.count():
-            picker.setCurrentIndex(0)
-            self._populate_preview_from_picker(resource_type)
-        elif not populate:
+        if not populate or not records:
+            self._previews[resource_type].setText("No record selected.")
+        else:
             self._previews[resource_type].setText("No record selected.")
 
     def _display_text(self, resource_type: str, row: dict[str, Any]) -> str:
         if resource_type == "personnel":
-            return f"{row.get('name') or ''} ({row.get('id') or row.get('person_id') or ''})"
+            return f"{row.get('name') or ''} ({row.get('person_id') or ''})"
         if resource_type == "vehicle":
-            return f"{row.get('license_plate') or row.get('id') or ''} {row.get('type_id') or row.get('type') or ''}".strip()
+            return f"{row.get('vehicle_id') or row.get('license_plate') or ''} {row.get('type_id') or row.get('type') or ''}".strip()
         if resource_type == "aircraft":
-            return f"{row.get('tail_number') or ''} {row.get('callsign') or ''}".strip()
+            return f"{row.get('aircraft_id') or row.get('tail_number') or ''} {row.get('callsign') or ''}".strip()
         return f"{row.get('name') or row.get('serial_number') or row.get('id') or ''}"
 
     def _list_records(self, resource_type: str, org: str) -> list[dict[str, Any]]:
@@ -505,11 +548,10 @@ class ICS211CheckInWindow(QWidget):
             self._previews[resource_type].setText(self._describe_record(resource_type, row))
 
     def _selected_ldw_payload(self, resource_type: str) -> dict[str, Any]:
-        status = self._ldw_statuses[resource_type].currentText().strip() or None
         notes = self._ldw_notes[resource_type].text().strip() or None
         payload: dict[str, Any] = {}
-        if status:
-            payload["ldw_status"] = status
+        if self._ldw_enabled[resource_type].isChecked():
+            payload["ldw_date"] = self._ldw_datetimes[resource_type].dateTime().toString(Qt.ISODate)
         if notes:
             payload["ldw_notes"] = notes
         return payload
@@ -525,7 +567,12 @@ class ICS211CheckInWindow(QWidget):
             identifier = self._record_identifier(resource_type, row)
             if resource_type == "personnel":
                 self._checkin_service.transition_to_checked_in(str(identifier))
-                self._checkin_service.update_ldw(str(identifier), ldw_notes=self._ldw_notes[resource_type].text().strip() or None)
+                ldw_payload = self._selected_ldw_payload(resource_type)
+                self._checkin_service.update_ldw(
+                    str(identifier),
+                    ldw_date=ldw_payload.get("ldw_date"),
+                    ldw_notes=ldw_payload.get("ldw_notes"),
+                )
             else:
                 arrival_status = self._checkin_service.default_arrival_status(
                     resource_type,
@@ -559,6 +606,8 @@ class ICS211CheckInWindow(QWidget):
         self._reporting_inputs[resource_type].clear()
         self._checkin_notes[resource_type].clear()
         self._ldw_notes[resource_type].clear()
+        self._ldw_enabled[resource_type].setChecked(False)
+        self._ldw_datetimes[resource_type].setDateTime(datetime.now().astimezone())
         if not keep_preview:
             self._previews[resource_type].setText("Ready")
         self._id_inputs[resource_type].setFocus()

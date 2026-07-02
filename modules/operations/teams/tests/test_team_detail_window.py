@@ -281,8 +281,8 @@ def test_team_bridge_open_selected_member_uses_selected_id(
             return None
 
     class _FakeDialog:
-        def __init__(self, _parent, personnel_id: str) -> None:
-            opened.append(personnel_id)
+        def __init__(self, _parent, person_record: int) -> None:
+            opened.append(person_record)
             self.finished = _FakeFinishedSignal()
 
         def open(self) -> None:
@@ -295,7 +295,7 @@ def test_team_bridge_open_selected_member_uses_selected_id(
     bridge.setSelectedMember("101")
     bridge.openSelectedMember()
 
-    assert opened == ["101"]
+    assert opened == [101]
 
 
 def test_team_bridge_does_not_remove_member_from_other_team(

@@ -56,3 +56,35 @@ class AssessmentsRepository:
             return True
         except APIError:
             return False
+
+    def link_subject(self, assessment_id: str, subject_id: str) -> Optional[Assessment]:
+        current = self.get(assessment_id)
+        if current is None:
+            return None
+        ids = list(current.linked_subject_ids or [])
+        if subject_id not in ids:
+            ids.append(subject_id)
+        return self.update(assessment_id, {"linked_subject_ids": ids})
+
+    def unlink_subject(self, assessment_id: str, subject_id: str) -> Optional[Assessment]:
+        current = self.get(assessment_id)
+        if current is None:
+            return None
+        ids = [s for s in (current.linked_subject_ids or []) if s != subject_id]
+        return self.update(assessment_id, {"linked_subject_ids": ids})
+
+    def link_item(self, assessment_id: str, item_id: str) -> Optional[Assessment]:
+        current = self.get(assessment_id)
+        if current is None:
+            return None
+        ids = list(current.linked_item_ids or [])
+        if item_id not in ids:
+            ids.append(item_id)
+        return self.update(assessment_id, {"linked_item_ids": ids})
+
+    def unlink_item(self, assessment_id: str, item_id: str) -> Optional[Assessment]:
+        current = self.get(assessment_id)
+        if current is None:
+            return None
+        ids = [i for i in (current.linked_item_ids or []) if i != item_id]
+        return self.update(assessment_id, {"linked_item_ids": ids})

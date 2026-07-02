@@ -6,23 +6,37 @@ from typing import Optional
 
 
 _ENTITY_LABELS = {
-    "subject": "Subject",
-    "lead": "Lead",
-    "item": "Intel Item",
+    "subject":    "Subject",
+    "lead":       "Lead",
+    "item":       "Intel Item",
     "assessment": "Assessment",
-    "report": "Report",
+    "report":     "Report",
     "observation": "Observation",
+    "attachment": "Attachment",
+    "form":       "Form",
 }
 
 _EVENT_LABELS = {
-    "created": "Created",
-    "updated": "Updated",
-    "archived": "Archived",
-    "deleted": "Deleted",
-    "converted": "Converted",
-    "closed": "Closed",
-    "observation_added": "Observation Added",
+    "created":             "Created",
+    "updated":             "Updated",
+    "archived":            "Archived",
+    "deleted":             "Deleted",
+    "converted":           "Converted",
+    "closed":              "Closed",
+    "completed":           "Completed",
+    "rejected":            "Rejected",
+    "reopened":            "Reopened",
+    "assigned":            "Assigned",
+    "status_changed":      "Status Changed",
+    "priority_changed":    "Priority Changed",
+    "linked":              "Linked",
+    "unlinked":            "Unlinked",
+    "observation_added":   "Observation Added",
     "observation_updated": "Observation Updated",
+    "attachment_added":    "Attachment Added",
+    "attachment_removed":  "Attachment Removed",
+    "form_linked":         "Form Linked",
+    "form_unlinked":       "Form Unlinked",
 }
 
 
@@ -55,5 +69,5 @@ class IntelLogEntry:
             event_type=data.get("event_type", ""),
             summary=data.get("summary", ""),
             actor=data.get("actor"),
-            timestamp=data.get("timestamp", ""),
+            timestamp=data.get("timestamp") or data.get("logged_at", ""),
         )

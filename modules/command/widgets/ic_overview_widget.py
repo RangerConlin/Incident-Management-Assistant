@@ -228,7 +228,7 @@ class AlertsCard(OverviewCard):
             team_label = QLabel(alert.get("team_name") or "Unknown team", row_widget)
             team_label.setProperty("role", "muted")
             row_layout.addWidget(team_label)
-            last_check = timefmt.humanize_relative(alert.get("last_checkin_ts"), default="â€”")
+            last_check = timefmt.humanize_relative(alert.get("last_checkin_ts"), default="—")
             time_label = QLabel(last_check, row_widget)
             time_label.setProperty("role", "subtle")
             row_layout.addWidget(time_label)
@@ -314,7 +314,7 @@ class TeamsCard(OverviewCard):
                 % (bg_color, fg_color)
             )
             layout.addWidget(status_label)
-            checkin = QLabel(timefmt.humanize_relative(team.get("last_checkin_ts"), default="â€”"), row)
+            checkin = QLabel(timefmt.humanize_relative(team.get("last_checkin_ts"), default="—"), row)
             checkin.setProperty("role", "subtle")
             layout.addWidget(checkin)
             alert_container = QHBoxLayout()
@@ -391,7 +391,7 @@ class TasksCard(OverviewCard):
             title_font.setBold(True)
             title.setFont(title_font)
             layout.addWidget(title)
-            due_label = QLabel(timefmt.humanize_relative(task.get("due_time"), default="â€”"), row)
+            due_label = QLabel(timefmt.humanize_relative(task.get("due_time"), default="—"), row)
             due_label.setProperty("role", "subtle")
             layout.addWidget(due_label)
             assigned = QLabel(task.get("assigned_to") or "Unassigned", row)
@@ -413,7 +413,7 @@ class CommsCard(OverviewCard):
         super().__init__("Comms", app_icons.icon_card_comms(), parent)
         self._active_label = QLabel("0", self)
         self._remarks_label = QLabel("0", self)
-        self._last_updated_label = QLabel("â€”", self)
+        self._last_updated_label = QLabel("—", self)
 
         top = QHBoxLayout()
         top.setSpacing(tokens.SMALL_PADDING)
@@ -444,7 +444,7 @@ class CommsCard(OverviewCard):
         remarks_count = sum(1 for ch in channels if (ch.get("remarks") or "").strip())
         self._remarks_label.setText(str(remarks_count))
         last = max((ch.get("last_updated") for ch in channels if ch.get("last_updated")), default=None)
-        self._last_updated_label.setText(timefmt.humanize_relative(last, default="â€”"))
+        self._last_updated_label.setText(timefmt.humanize_relative(last, default="—"))
 
         for i in reversed(range(self._list_layout.count())):
             item = self._list_layout.itemAt(i)
@@ -736,7 +736,7 @@ class ICOverviewWidget(QWidget):
         # Left cluster
         left = QVBoxLayout()
         left.setSpacing(tokens.TINY_PADDING)
-        self._incident_name_label = QLabel("â€”", container)
+        self._incident_name_label = QLabel("—", container)
         name_font = QFont()
         name_font.setBold(True)
         name_font.setPointSize(name_font.pointSize() + 2)
@@ -744,7 +744,7 @@ class ICOverviewWidget(QWidget):
         left.addWidget(self._incident_name_label)
         info_row = QHBoxLayout()
         info_row.setSpacing(tokens.SMALL_PADDING)
-        self._incident_number_label = QLabel("#â€”", container)
+        self._incident_number_label = QLabel("#—", container)
         self._incident_number_label.setProperty("role", "subtle")
         info_row.addWidget(self._incident_number_label)
         self._status_label = QLabel("", container)
@@ -864,8 +864,8 @@ class ICOverviewWidget(QWidget):
                 self._clock_timer.stop()
 
     def _update_header(self, header: dict[str, Any]) -> None:
-        self._incident_name_label.setText(header.get("incident_name") or "â€”")
-        number = header.get("incident_number") or "â€”"
+        self._incident_name_label.setText(header.get("incident_name") or "—")
+        number = header.get("incident_number") or "—"
         self._incident_number_label.setText(f"#{number}")
         status = header.get("status") or "Unknown"
         self._status_label.setText(status)

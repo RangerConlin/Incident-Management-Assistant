@@ -7,13 +7,20 @@ observations directly from this window without returning to the items list.
 
 from __future__ import annotations
 
+import logging
+import os
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QFrame, QTabWidget, QDialog,
     QFormLayout, QTextEdit, QComboBox, QDialogButtonBox,
-    QSizePolicy,
+    QSizePolicy, QTableWidget, QTableWidgetItem, QHeaderView,
+    QFileDialog, QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QUrl
 
 from modules.intel.models.intel_items import (
     IntelItem, Observation,
@@ -24,6 +31,8 @@ from modules.intel.widgets.status_chip import StatusChip
 from modules.intel.widgets.trend_indicator import TrendIndicator
 from modules.intel.widgets.observation_entry_dialog import ObservationEntryDialog
 from modules.intel.services.intel_service import IntelService
+
+_log = logging.getLogger(__name__)
 
 
 class _ObservationRow(CardWidget):
@@ -139,6 +148,20 @@ class _EditItemDialog(QDialog):
         self.accept()
 
 
+def _link_button(label: str, callback) -> QPushButton:
+    """Return a QPushButton styled as a hyperlink."""
+    btn = QPushButton(label)
+    btn.setFlat(True)
+    btn.setCursor(Qt.PointingHandCursor)
+    btn.setStyleSheet(
+        "QPushButton { color: palette(link); text-align: left; padding: 2px 0; "
+        "border: none; font-size: 13px; }"
+        "QPushButton:hover { text-decoration: underline; }"
+    )
+    btn.clicked.connect(callback)
+    return btn
+
+
 class IntelItemDetailWindow(QMainWindow):
     """Modeless window showing full detail for a single Intel Item.
 
@@ -159,7 +182,7 @@ class IntelItemDetailWindow(QMainWindow):
         self._service = service
 
         self.setWindowTitle(f"Intel Item: {item.title}")
-        self.resize(760, 580)
+        self.resize(760, 620)
         self.setAttribute(Qt.WA_DeleteOnClose)
 
         central = QWidget()
@@ -174,8 +197,9 @@ class IntelItemDetailWindow(QMainWindow):
         self._observations_tab = self._build_observations_tab()
         self._tabs.addTab(self._observations_tab, f"Observations ({item.observation_count})")
         self._tabs.addTab(self._build_links_tab(), "Links")
-        self._tabs.addTab(QWidget(), "Attachments")
-        self._tabs.addTab(QWidget(), "History")
+        self._attachments_widget = self._build_attachments_tab()
+        self._tabs.addTab(self._attachments_widget, "Attachments")
+        self._tabs.addTab(self._build_history_tab(), "History")
         root.addWidget(self._tabs)
 
     def _build_header(self) -> QWidget:
@@ -247,7 +271,33 @@ class IntelItemDetailWindow(QMainWindow):
             sep = QFrame()
             sep.setFrameShape(QFrame.HLine)
             layout.addWidget(sep)
-            layout.addWidget(row("Source Lead", item.source_lead_id))
+
+            lead_label = "Source Lead"
+            lead_display = item.source_lead_id
+            lead_obj = None
+            try:
+                lead_obj = self._service.leads.get(item.source_lead_id)
+            except Exception:
+                pass
+            if lead_obj:
+                lead_display = f"{lead_obj.display_number} — {lead_obj.title}"
+
+            r = QWidget()
+            h = QHBoxLayout(r)
+            h.setContentsMargins(0, 2, 0, 2)
+            lbl = QLabel(lead_label + ":")
+            lbl.setStyleSheet("font-weight: 600; min-width: 130px;")
+            lbl.setAlignment(Qt.AlignRight | Qt.AlignTop)
+            if lead_obj:
+                lo = lead_obj
+                btn = _link_button(lead_display, lambda _, l=lo: self._open_lead(l))
+                h.addWidget(lbl)
+                h.addWidget(btn, 1)
+            else:
+                val = QLabel(lead_display)
+                h.addWidget(lbl)
+                h.addWidget(val, 1)
+            layout.addWidget(r)
 
         if item.notes:
             sep2 = QFrame()
@@ -270,7 +320,6 @@ class IntelItemDetailWindow(QMainWindow):
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(10)
 
-        # Add observation toolbar
         obs_toolbar = QHBoxLayout()
         count_lbl = QLabel(
             f"{self._item.observation_count} observation"
@@ -284,7 +333,6 @@ class IntelItemDetailWindow(QMainWindow):
         obs_toolbar.addWidget(add_btn)
         layout.addLayout(obs_toolbar)
 
-        # Timeline
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -306,11 +354,7 @@ class IntelItemDetailWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
 
-        # Sort chronologically (oldest first for a timeline)
-        obs_sorted = sorted(
-            self._item.observations,
-            key=lambda o: o.observed_at,
-        )
+        obs_sorted = sorted(self._item.observations, key=lambda o: o.observed_at)
         if not obs_sorted:
             no_obs = QLabel("No observations yet. Add the first observation.")
             no_obs.setStyleSheet("color: palette(placeholderText); font-size: 13px;")
@@ -319,26 +363,292 @@ class IntelItemDetailWindow(QMainWindow):
             return
 
         for obs in obs_sorted:
-            row = _ObservationRow(obs)
-            self._obs_layout.addWidget(row)
+            self._obs_layout.addWidget(_ObservationRow(obs))
 
     def _build_links_tab(self) -> QWidget:
+        """Links tab with human-readable subject/task/lead display and navigation."""
         w = QWidget()
         layout = QVBoxLayout(w)
         layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignTop)
+
         item = self._item
+        has_any = False
+
+        # Linked subjects
         if item.linked_subject_ids:
-            layout.addWidget(QLabel(f"Linked Subjects ({len(item.linked_subject_ids)})"))
+            has_any = True
+            subj_lbl = QLabel(f"Linked Subjects ({len(item.linked_subject_ids)})")
+            subj_lbl.setStyleSheet("font-weight: 700; font-size: 13px;")
+            layout.addWidget(subj_lbl)
             for sid in item.linked_subject_ids:
-                layout.addWidget(QLabel(f"  • {sid}"))
+                subject = None
+                try:
+                    subject = self._service.subjects.get(sid)
+                except Exception:
+                    pass
+                if subject:
+                    display = f"{subject.name} — {subject.subject_type}"
+                    btn = _link_button(f"  • {display}", lambda _, s=subject: self._open_subject(s))
+                    layout.addWidget(btn)
+                else:
+                    layout.addWidget(QLabel(f"  • Unknown subject — {sid}"))
+
+        # Linked tasks
         if item.linked_task_ids:
-            layout.addWidget(QLabel(f"Linked Tasks ({len(item.linked_task_ids)})"))
+            has_any = True
+            sep = QFrame()
+            sep.setFrameShape(QFrame.HLine)
+            layout.addWidget(sep)
+            task_lbl = QLabel(f"Linked Tasks ({len(item.linked_task_ids)})")
+            task_lbl.setStyleSheet("font-weight: 700; font-size: 13px;")
+            layout.addWidget(task_lbl)
             for tid in item.linked_task_ids:
-                layout.addWidget(QLabel(f"  • {tid}"))
-        if not item.linked_subject_ids and not item.linked_task_ids:
+                task_display = None
+                task_int_id = None
+                try:
+                    task_int_id = int(tid)
+                    from modules.operations.taskings.repository import get_task
+                    task = get_task(task_int_id)
+                    task_display = f"{task.task_id} — {task.title}"
+                except Exception:
+                    pass
+                if task_display and task_int_id is not None:
+                    _tid = task_int_id
+                    btn = _link_button(
+                        f"  • {task_display}",
+                        lambda _, t=_tid: self._open_task(t),
+                    )
+                    layout.addWidget(btn)
+                else:
+                    layout.addWidget(QLabel(f"  • Task — {tid}"))
+
+        if not has_any:
             layout.addWidget(QLabel("No linked records."))
+
         layout.addStretch()
         return w
+
+    def _build_attachments_tab(self) -> QWidget:
+        """Attachments tab — real file attachment management for Intel Items."""
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(8)
+
+        toolbar = QHBoxLayout()
+        add_btn = QPushButton("+ Add Attachment")
+        add_btn.clicked.connect(self._add_attachment)
+        toolbar.addStretch()
+        toolbar.addWidget(add_btn)
+        layout.addLayout(toolbar)
+
+        att_cols = ["Name", "Type", "Size", "Uploaded", "By", "Notes", ""]
+        self._att_table = QTableWidget()
+        self._att_table.setColumnCount(len(att_cols))
+        self._att_table.setHorizontalHeaderLabels(att_cols)
+        self._att_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._att_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._att_table.verticalHeader().setVisible(False)
+        self._att_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._att_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+        layout.addWidget(self._att_table)
+        legend = QLabel("Legend: row colors reflect attachment type/status context.")
+        legend.setStyleSheet("color: palette(placeholderText); font-size: 11px;")
+        layout.addWidget(legend)
+
+        self._refresh_attachments()
+        return w
+
+    def _refresh_attachments(self) -> None:
+        from modules.intel.services.intel_attachments import list_attachments
+        try:
+            atts = list_attachments(self._item.id, self._service.incident_id)
+        except Exception as exc:
+            _log.warning("Could not load attachments: %s", exc)
+            atts = []
+
+        self._att_table.setRowCount(len(atts))
+        for row, att in enumerate(atts):
+            size_kb = att.get("size", 0) // 1024
+            size_str = f"{size_kb} KB" if size_kb > 0 else "< 1 KB"
+            uploaded_at = att.get("uploaded_at", "")[:16].replace("T", " ")
+            self._att_table.setItem(row, 0, QTableWidgetItem(att.get("display_name") or att.get("filename", "")))
+            self._att_table.setItem(row, 1, QTableWidgetItem(att.get("mime_type", "")))
+            self._att_table.setItem(row, 2, QTableWidgetItem(size_str))
+            self._att_table.setItem(row, 3, QTableWidgetItem(uploaded_at))
+            self._att_table.setItem(row, 4, QTableWidgetItem(att.get("uploaded_by", "")))
+            self._att_table.setItem(row, 5, QTableWidgetItem(att.get("notes", "")))
+
+            actions = QWidget()
+            al = QHBoxLayout(actions)
+            al.setContentsMargins(2, 1, 2, 1)
+            al.setSpacing(4)
+            att_id = att.get("id")
+            open_btn = QPushButton("Open")
+            open_btn.setFixedHeight(22)
+            open_btn.clicked.connect(lambda _, aid=att_id: self._open_attachment(aid))
+            remove_btn = QPushButton("Remove")
+            remove_btn.setFixedHeight(22)
+            remove_btn.clicked.connect(lambda _, aid=att_id: self._remove_attachment(aid))
+            al.addWidget(open_btn)
+            al.addWidget(remove_btn)
+            self._att_table.setCellWidget(row, 6, actions)
+            self._att_table.setRowHeight(row, 28)
+
+        self._att_table.setColumnWidth(6, 120)
+
+        if not atts:
+            self._att_table.setRowCount(1)
+            placeholder = QTableWidgetItem("No attachments yet.")
+            placeholder.setForeground(self._att_table.palette().placeholderText())
+            self._att_table.setItem(0, 0, placeholder)
+
+    def _add_attachment(self) -> None:
+        from modules.intel.services.intel_attachments import add_attachment
+        path, _ = QFileDialog.getOpenFileName(self, "Select Attachment")
+        if not path:
+            return
+        result = add_attachment(
+            item_id=self._item.id,
+            source_path=path,
+            display_name=Path(path).name,
+            uploaded_by="",
+            incident_id=self._service.incident_id,
+        )
+        if result.get("added"):
+            if result.get("warning"):
+                QMessageBox.information(self, "Large File", result["warning"])
+            self._write_log("attachment_added", f"Attachment added: {Path(path).name}")
+            self._refresh_attachments()
+        else:
+            QMessageBox.warning(self, "Attachment Error", result.get("error", "Could not add attachment."))
+
+    def _open_attachment(self, attachment_id: int) -> None:
+        from modules.intel.services.intel_attachments import get_attachment_path
+        p = get_attachment_path(self._item.id, attachment_id, self._service.incident_id)
+        if p:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(p))
+        else:
+            QMessageBox.warning(self, "Not Found", "Attachment file could not be located.")
+
+    def _remove_attachment(self, attachment_id: int) -> None:
+        from modules.intel.services.intel_attachments import remove_attachment, list_attachments
+        atts = list_attachments(self._item.id, self._service.incident_id)
+        att = next((a for a in atts if a.get("id") == attachment_id), None)
+        name = att.get("display_name") or att.get("filename", "") if att else ""
+        reply = QMessageBox.question(
+            self, "Remove Attachment",
+            f"Remove '{name}'? The file will be deleted.",
+            QMessageBox.Yes | QMessageBox.Cancel,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        if remove_attachment(self._item.id, attachment_id, self._service.incident_id):
+            self._write_log("attachment_removed", f"Attachment removed: {name}")
+            self._refresh_attachments()
+
+    def _build_history_tab(self) -> QWidget:
+        """History tab — Intel Log entries for this Intel Item."""
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(8)
+
+        hist_cols = ["Time", "Event", "Actor", "Summary"]
+        self._hist_table = QTableWidget()
+        self._hist_table.setColumnCount(len(hist_cols))
+        self._hist_table.setHorizontalHeaderLabels(hist_cols)
+        self._hist_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._hist_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._hist_table.verticalHeader().setVisible(False)
+        self._hist_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        layout.addWidget(self._hist_table)
+
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.clicked.connect(self._refresh_history)
+        layout.addWidget(refresh_btn, alignment=Qt.AlignRight)
+
+        self._refresh_history()
+        return w
+
+    def _refresh_history(self) -> None:
+        try:
+            entries = self._service.log.list(
+                entity_type="item",
+                entity_id=self._item.id,
+                limit=200,
+            )
+        except Exception as exc:
+            _log.warning("Could not load history: %s", exc)
+            entries = []
+
+        self._hist_table.setRowCount(len(entries))
+        for row, entry in enumerate(entries):
+            ts = entry.timestamp[:16].replace("T", " ") if entry.timestamp else ""
+            self._hist_table.setItem(row, 0, QTableWidgetItem(ts))
+            self._hist_table.setItem(row, 1, QTableWidgetItem(entry.event_label))
+            self._hist_table.setItem(row, 2, QTableWidgetItem(entry.actor or "system"))
+            self._hist_table.setItem(row, 3, QTableWidgetItem(entry.summary))
+            self._hist_table.setRowHeight(row, 26)
+
+        for col in (0, 1, 2):
+            self._hist_table.resizeColumnToContents(col)
+
+        if not entries:
+            self._hist_table.setRowCount(1)
+            placeholder = QTableWidgetItem("No history entries found.")
+            placeholder.setForeground(self._hist_table.palette().placeholderText())
+            self._hist_table.setItem(0, 0, placeholder)
+
+    def _write_log(self, event_type: str, summary: str) -> None:
+        """Write an Intel Log entry for an action taken on this item."""
+        try:
+            from utils.api_client import api_client
+            api_client.post(
+                f"/api/incidents/{self._service.incident_id}/intel/log",
+                json={
+                    "entity_type": "item",
+                    "entity_id": self._item.id,
+                    "event_type": event_type,
+                    "summary": summary,
+                    "actor": "user",
+                },
+            )
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Navigation helpers
+
+    def _open_subject(self, subject) -> None:
+        try:
+            from modules.intel.windows.subject_detail_window import SubjectDetailWindow
+            win = SubjectDetailWindow(subject, self._service, parent=self)
+            win.show()
+            win.raise_()
+        except Exception as exc:
+            _log.warning("Could not open subject detail: %s", exc)
+
+    def _open_lead(self, lead) -> None:
+        try:
+            from modules.intel.windows.lead_detail_window import LeadDetailWindow
+            win = LeadDetailWindow(lead, self._service, parent=self)
+            win.show()
+            win.raise_()
+        except Exception as exc:
+            _log.warning("Could not open lead detail: %s", exc)
+
+    def _open_task(self, task_id: int) -> None:
+        try:
+            from modules.operations.taskings.windows import open_task_detail_window
+            open_task_detail_window(task_id)
+        except Exception as exc:
+            _log.warning("Could not open task detail: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Actions
 
     def _add_observation(self) -> None:
         dlg = ObservationEntryDialog(self._item.title, self)
@@ -347,7 +657,6 @@ class IntelItemDetailWindow(QMainWindow):
             if updated:
                 self._item = updated
                 self._refresh_observations()
-                # Update the observations tab label
                 self._tabs.setTabText(
                     1,
                     f"Observations ({updated.observation_count})"
@@ -361,7 +670,6 @@ class IntelItemDetailWindow(QMainWindow):
             if updated:
                 self._item = updated
                 self.item_updated.emit(updated)
-                # Refresh header in-place
                 self._header_title_lbl.setText(updated.title)
                 self._header_priority_chip.set_value(updated.priority)
                 self._header_confidence_chip.set_value(updated.confidence)

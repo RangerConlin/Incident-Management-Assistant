@@ -11,8 +11,11 @@ from pydantic import BaseModel
 from sarapp_db.mongo.mongo_client import get_client
 from sarapp_db.mongo.database_manager import DB_MASTER
 from sarapp_db.mongo.collection_names import MasterCollections
+from sarapp_db.mongo.int_id import _ensure_record_ids, next_record_id
 
 router = APIRouter()
+
+_RECORD_FIELD = "vehicle_record"
 
 _DEFAULT_STATUSES = ["Available", "In Service", "Out of Service", "Retired"]
 _DEFAULT_TYPES = ["Passenger Vehicle", "Utility", "Support", "Other"]
@@ -26,32 +29,16 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _ensure_vehicle_ids(col) -> None:
-    for doc in col.find({"vehicle_id": {"$exists": False}}):
-        max_doc = col.find_one({"vehicle_id": {"$exists": True}}, sort=[("vehicle_id", -1)])
-        next_id = (max_doc["vehicle_id"] + 1) if max_doc else 1
-        col.update_one({"_id": doc["_id"]}, {"$set": {"vehicle_id": next_id}})
-
-
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
-    d["id"] = d.get("vehicle_id")
+    d["vehicle_record"] = d.get("vehicle_record")
+    d["vehicle_id"] = d.get("vehicle_id") or ""
     return d
 
 
-def _find_by_ref(col, ref_id: str) -> dict[str, Any] | None:
-    """Look up a vehicle by its id/reference number.
-
-    The reference number is user-editable and may be a legacy auto-assigned
-    int or an arbitrary string, so try both forms.
-    """
-    doc = col.find_one({"vehicle_id": ref_id})
-    if doc:
-        return doc
-    if str(ref_id).isdigit():
-        return col.find_one({"vehicle_id": int(ref_id)})
-    return None
+def _find_by_record(col, vehicle_record: int) -> dict[str, Any] | None:
+    return col.find_one({_RECORD_FIELD: vehicle_record})
 
 
 @router.get("")
@@ -61,18 +48,19 @@ def list_vehicles(
     type_filter: str = Query(""),
 ) -> list[dict[str, Any]]:
     col = _col()
-    _ensure_vehicle_ids(col)
+    _ensure_record_ids(col, _RECORD_FIELD)
     query: dict[str, Any] = {}
     if status_filter:
         query["status_id"] = status_filter
     if type_filter:
         query["type_id"] = type_filter
-    docs = list(col.find(query).sort("make", 1))
+    docs = list(col.find(query).sort("vehicle_id", 1))
     if search.strip():
         t = search.strip().lower()
         docs = [
             d for d in docs
-            if t in (d.get("vin") or "").lower()
+            if t in (d.get("vehicle_id") or "").lower()
+            or t in (d.get("vin") or "").lower()
             or t in (d.get("license_plate") or "").lower()
             or t in (d.get("make") or "").lower()
             or t in (d.get("model") or "").lower()
@@ -103,16 +91,16 @@ def list_vehicle_statuses() -> list[dict[str, Any]]:
     return entries
 
 
-@router.get("/{vehicle_id}")
-def get_vehicle(vehicle_id: str) -> dict[str, Any]:
-    doc = _find_by_ref(_col(), vehicle_id)
+@router.get("/{vehicle_record}")
+def get_vehicle(vehicle_record: int) -> dict[str, Any]:
+    doc = _find_by_record(_col(), vehicle_record)
     if not doc:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return _normalize(doc)
 
 
 class VehicleBody(BaseModel):
-    id: str | None = None
+    vehicle_id: str = ""  # user-entered ID (e.g. "Engine 2", "Unit 7")
     vin: str = ""
     license_plate: str = ""
     year: int | None = None
@@ -129,21 +117,11 @@ class VehicleBody(BaseModel):
 @router.post("", status_code=201)
 def create_vehicle(body: VehicleBody) -> dict[str, Any]:
     col = _col()
-    _ensure_vehicle_ids(col)
-
-    requested_id = body.id.strip() if body.id else None
-    if requested_id:
-        if _find_by_ref(col, requested_id):
-            raise HTTPException(status_code=409, detail="Vehicle ID is already in use")
-        next_id: Any = requested_id
-    else:
-        max_doc = col.find_one({"vehicle_id": {"$exists": True}}, sort=[("vehicle_id", -1)])
-        next_id = (max_doc["vehicle_id"] + 1) if max_doc else 1
-
+    next_id = next_record_id(col, _RECORD_FIELD)
     now = _utcnow()
     doc: dict[str, Any] = {
-        "vehicle_id": next_id,
-        **body.model_dump(exclude={"id"}),
+        _RECORD_FIELD: next_id,
+        **body.model_dump(),
         "created_at": now,
         "updated_at": now,
     }
@@ -152,38 +130,27 @@ def create_vehicle(body: VehicleBody) -> dict[str, Any]:
     return _normalize(doc)
 
 
-@router.patch("/{vehicle_id}")
+@router.patch("/{vehicle_record}")
 def update_vehicle(
-    vehicle_id: str, body: dict[str, Any] = Body(...)
+    vehicle_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
     col = _col()
-    existing = _find_by_ref(col, vehicle_id)
+    existing = _find_by_record(col, vehicle_record)
     if not existing:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    body.pop("vehicle_id", None)
+    body.pop(_RECORD_FIELD, None)
     body.pop("_id", None)
-    new_ref = body.pop("id", None)
-    if new_ref is not None:
-        new_ref = str(new_ref).strip() or None
-
-    update_fields = dict(body)
-    if new_ref and new_ref != str(existing.get("vehicle_id")):
-        other = _find_by_ref(col, new_ref)
-        if other and other["_id"] != existing["_id"]:
-            raise HTTPException(status_code=409, detail="Vehicle ID is already in use")
-        update_fields["vehicle_id"] = new_ref
-
-    update_fields["updated_at"] = _utcnow()
-    col.update_one({"_id": existing["_id"]}, {"$set": update_fields})
+    body["updated_at"] = _utcnow()
+    col.update_one({"_id": existing["_id"]}, {"$set": body})
     doc = col.find_one({"_id": existing["_id"]})
     return _normalize(doc)
 
 
-@router.delete("/{vehicle_id}", status_code=204)
-def delete_vehicle(vehicle_id: str) -> None:
+@router.delete("/{vehicle_record}", status_code=204)
+def delete_vehicle(vehicle_record: int) -> None:
     col = _col()
-    existing = _find_by_ref(col, vehicle_id)
+    existing = _find_by_record(col, vehicle_record)
     if not existing:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     col.delete_one({"_id": existing["_id"]})

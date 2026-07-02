@@ -59,14 +59,21 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     return d
 
 
+_RECORD_FIELD = {
+    "personnel": "person_record",
+    "vehicle": "vehicle_record",
+    "aircraft": "aircraft_record",
+    "equipment": "equipment_record",
+}
+
+
 def _get_master_record(resource_type: str, resource_id: str) -> dict[str, Any]:
     cname = _MASTER_COLLECTION.get(resource_type)
     if not cname:
         raise HTTPException(status_code=400, detail=f"Unknown resource type: {resource_type}")
+    record_field = _RECORD_FIELD.get(resource_type, "person_record")
     repo = _master_repo(cname)
-    doc = (
-        repo.find_one({"int_id": int(resource_id)}) if resource_id.isdigit() else None
-    ) or repo.find_one({"id": resource_id}) or repo.find_one({"person_id": resource_id}) or repo.find_one({"tail_number": resource_id.upper()})
+    doc = repo.find_one({record_field: int(resource_id)}) if resource_id.isdigit() else None
     if not doc:
         raise HTTPException(status_code=404, detail=f"{resource_type} {resource_id} not found in master")
     doc.pop("_id", None)

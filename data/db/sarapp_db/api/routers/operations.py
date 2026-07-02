@@ -99,27 +99,20 @@ def _find_air_ops_branch_position_id(incident_id: str) -> Optional[int]:
     return doc.get("position_id") if doc else None
 
 
-def _find_incident_person(incident_id: str, master_id) -> Optional[dict]:
-    """Look up an incident-scoped personnel copy by master id.
-
-    Falls back to the legacy ``sqlite_id`` field for any copies that
-    predate the master-id rekey, so older incidents don't 404 outright.
-    """
+def _find_incident_person(incident_id: str, person_record) -> Optional[dict]:
+    """Look up an incident-scoped personnel copy by person_record."""
     col = _personnel(incident_id)
     try:
-        doc = col.find_one({"master_id": int(master_id)})
+        return col.find_one({"person_record": int(person_record)})
     except (TypeError, ValueError):
-        doc = None
-    if not doc:
-        doc = col.find_one({"sqlite_id": str(master_id)})
-    return doc
+        return None
 
 
 def _resolve_leader(incident_id: str, team_doc: dict) -> tuple[str, str]:
     """Return (leader_name, leader_phone) resolved from personnel if needed."""
     leader_name = team_doc.get("leader_name") or ""
     leader_phone = team_doc.get("leader_phone") or team_doc.get("phone") or ""
-    pid = team_doc.get("leader_personnel_id") or team_doc.get("team_leader")
+    pid = team_doc.get("leader_person_record") or team_doc.get("leader_personnel_id")
     if pid and (not leader_name or not leader_phone):
         p = _find_incident_person(incident_id, pid)
         if p:
@@ -177,7 +170,7 @@ TS_STATUS_COLS = {
 
 def _normalize_incident_person(doc: dict) -> dict:
     return {
-        "id": doc.get("master_id") if doc.get("master_id") is not None else doc.get("sqlite_id"),
+        "person_record": doc.get("person_record"),
         "name": doc.get("name") or "",
         "rank": doc.get("rank"),
         "callsign": doc.get("callsign"),
@@ -187,7 +180,7 @@ def _normalize_incident_person(doc: dict) -> dict:
         "email": doc.get("email"),
         "organization": doc.get("organization") or doc.get("unit"),
         "home_unit": doc.get("organization") or doc.get("unit"),
-        "badge_number": doc.get("badge_number"),
+        "person_id": doc.get("person_id") or doc.get("badge_number") or "",
         "is_medic": bool(doc.get("is_medic", False)),
     }
 
@@ -200,20 +193,20 @@ def _normalize_incident_person(doc: dict) -> dict:
 # left as raw collection writes, unchanged, deliberately out of this pass's
 # scope.
 
-@router.get("/incidents/{incident_id}/operations/personnel/{master_id}")
-def get_incident_person(incident_id: str, master_id: str) -> dict:
-    doc = _find_incident_person(incident_id, master_id)
+@router.get("/incidents/{incident_id}/operations/personnel/{person_record}")
+def get_incident_person(incident_id: str, person_record: int) -> dict:
+    doc = _find_incident_person(incident_id, person_record)
     if not doc:
-        raise HTTPException(404, f"Person {master_id} not found in incident {incident_id}")
+        raise HTTPException(404, f"Person {person_record} not found in incident {incident_id}")
     return _normalize_incident_person(doc)
 
 
-@router.patch("/incidents/{incident_id}/operations/personnel/{master_id}")
-def update_incident_person(incident_id: str, master_id: str, body: dict[str, Any]) -> dict:
+@router.patch("/incidents/{incident_id}/operations/personnel/{person_record}")
+def update_incident_person(incident_id: str, person_record: int, body: dict[str, Any]) -> dict:
     col = _personnel(incident_id)
-    doc = _find_incident_person(incident_id, master_id)
+    doc = _find_incident_person(incident_id, person_record)
     if not doc:
-        raise HTTPException(404, f"Person {master_id} not found in incident {incident_id}")
+        raise HTTPException(404, f"Person {person_record} not found in incident {incident_id}")
     updates = {k: v for k, v in body.items() if k in ("is_medic", "rank")}
     if updates:
         col.update_one({"_id": doc["_id"]}, {"$set": updates})
@@ -234,8 +227,8 @@ def sync_incident_personnel_from_master(incident_id: str) -> dict:
     incident_col = _personnel(incident_id)
     master_col = get_master_db()[MasterCollections.PERSONNEL]
     updated = 0
-    for copy_doc in incident_col.find({"master_id": {"$exists": True}}):
-        master_doc = master_col.find_one({"int_id": copy_doc["master_id"]})
+    for copy_doc in incident_col.find({"person_record": {"$exists": True}}):
+        master_doc = master_col.find_one({"person_record": copy_doc["person_record"]})
         if not master_doc:
             continue
         sync_fields = {
@@ -247,7 +240,7 @@ def sync_incident_personnel_from_master(incident_id: str) -> dict:
             "email": master_doc.get("email"),
             "organization": master_doc.get("home_unit") or master_doc.get("organization"),
             "unit": master_doc.get("home_unit") or master_doc.get("unit"),
-            "badge_number": master_doc.get("badge_number"),
+            "person_id": master_doc.get("person_id") or "",
             "is_medic": bool(master_doc.get("is_medic", False)),
         }
         incident_col.update_one({"_id": copy_doc["_id"]}, {"$set": sync_fields})
@@ -970,7 +963,7 @@ def list_task_personnel(incident_id: str, task_id: int) -> list[dict]:
     out: list[dict] = []
     for team in _task_team_docs(incident_id, task_id):
         team_name = team.get("name") or f"Team {team.get('int_id')}"
-        member_ids = _parse_id_list(team.get("members_json") or team.get("member_personnel_ids"))
+        member_ids = _parse_id_list(team.get("members_json") or team.get("member_person_records") or team.get("member_personnel_ids"))
         for pid in member_ids:
             person = _find_incident_person(incident_id, pid)
             if not person:

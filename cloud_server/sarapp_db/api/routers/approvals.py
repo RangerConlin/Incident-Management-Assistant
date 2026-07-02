@@ -72,7 +72,7 @@ class SaveRecordRequest(BaseModel):
 
 class PendingRequest(BaseModel):
     roles: list[str]
-    personnel_id: str
+    person_record: int
 
 
 class EntityStatusRequest(BaseModel):
@@ -192,7 +192,7 @@ def pending_for_roles(incident_id: str, body: PendingRequest) -> list[dict[str, 
                 continue
             resolved = step.get("resolved_actor_id")
             role = step.get("role", "")
-            if resolved == body.personnel_id or role in body.roles:
+            if resolved == body.person_record or role in body.roles:
                 results.append({
                     "entity_type": doc["entity_type"],
                     "entity_id": doc["entity_id"],

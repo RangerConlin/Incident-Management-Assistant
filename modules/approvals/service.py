@@ -69,7 +69,7 @@ class ApprovalService:
         self,
         instance: ApprovalInstance,
         step_id: str,
-        personnel_id: str,
+        person_record: int,
         assignment_type: str,
     ) -> bool:
         step = self._get_step(instance, step_id)
@@ -77,7 +77,7 @@ class ApprovalService:
             return False
         if step.kind == "ack":
             return True
-        if step.resolved_actor_id and step.resolved_actor_id != personnel_id:
+        if step.resolved_actor_id is not None and step.resolved_actor_id != person_record:
             return False
         spec = spec_registry.get(instance.entity_type)
         if spec is None:
@@ -133,16 +133,16 @@ class ApprovalService:
     # ------------------------------------------------------------------
     # Inbox query
 
-    def pending_for_person(self, personnel_id: str) -> list[dict]:
+    def pending_for_person(self, person_record: int) -> list[dict]:
         from modules.command.incident_organization.controller import IncidentOrganizationController
         org = IncidentOrganizationController(self.incident_id)
-        assignments = org.list_assignments_for_person(personnel_id, active_only=True)
+        assignments = org.list_assignments_for_person(person_record, active_only=True)
         held_roles: set[str] = set()
         for a in assignments:
             pos = org.get_position(a.position_id)
             if pos:
                 held_roles.add(pos.title)
-        return self.repo.pending_for_roles(list(held_roles), personnel_id)
+        return self.repo.pending_for_roles(list(held_roles), person_record)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -171,13 +171,14 @@ class ApprovalService:
             step.resolved_role = resolved_role
             self._notify_actor(step, actor_id)
 
-    def _notify_actor(self, step: StepInstance, actor_id: Optional[str]) -> None:
+    def _notify_actor(self, step: StepInstance, actor_id: Optional[int]) -> None:
         """Alert the current user when an approval step activates for them."""
-        if not actor_id:
+        if actor_id is None:
             return
         try:
             from utils.state import AppState
-            if str(AppState.get_active_user_id() or "") != str(actor_id):
+            uid = AppState.get_active_user_id()
+            if not (uid and str(uid).isdigit() and int(uid) == actor_id):
                 return
             from notifications.services import get_notifier
             from notifications.models import Notification
@@ -206,7 +207,7 @@ class ApprovalService:
                 continue
             assignments = org.list_assignments(match.id, active_only=True)
             if assignments:
-                return assignments[0].personnel_id, candidate_role
+                return assignments[0].person_record, candidate_role
         return None, None
 
     def _advance(self, instance: ApprovalInstance, now: str) -> None:

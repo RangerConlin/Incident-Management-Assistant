@@ -25,7 +25,7 @@ def _start_api_session(
     username: str | None = None,
     display_name: str | None = None,
     role: str | None = None,
-    personnel_id: str | None = None,
+    person_record: int | None = None,
     incident_id: str | None = None,
     mode: str | None = None,
 ) -> str | None:
@@ -37,7 +37,7 @@ def _start_api_session(
             "username": str(username or user_id),
             "display_name": display_name or str(username or user_id),
             "badge_number": str(username or user_id),
-            "personnel_id": personnel_id,
+            "person_record": person_record,
             "role": role or "",
             "incident_id": incident_id,
             "mode": mode or "",
@@ -60,7 +60,8 @@ def start_session(
     username: str | None = None,
     display_name: str | None = None,
     role: str | None = None,
-    personnel_id: str | None = None,
+    person_record: int | None = None,
+    personnel_id: str | None = None,  # legacy alias, ignored
     incident_id: str | None = None,
     mode: str | None = None,
 ) -> int | None:
@@ -69,7 +70,7 @@ def start_session(
         username=username,
         display_name=display_name,
         role=role,
-        personnel_id=personnel_id,
+        person_record=person_record,
         incident_id=incident_id,
         mode=mode,
     )

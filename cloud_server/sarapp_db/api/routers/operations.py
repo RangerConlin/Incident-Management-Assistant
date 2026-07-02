@@ -51,6 +51,22 @@ def _new_id() -> str:
     return uuid.uuid4().hex
 
 
+def _audit_entry(field_changed: str, old_value: Any, new_value: Any, changed_by: str = "") -> dict:
+    return {
+        "ts_utc": _now(),
+        "field_changed": field_changed,
+        "old_value": "" if old_value is None else str(old_value),
+        "new_value": "" if new_value is None else str(new_value),
+        "changed_by_display": changed_by or "",
+    }
+
+
+def _push_task_audit(tasks_repo: "TasksRepository", task_doc_id: str, entries: list[dict]) -> None:
+    """Append Task Log entries for the Log tab's audit trail (doc['audit'])."""
+    if entries:
+        tasks_repo.apply_update(task_doc_id, {"$push": {"audit": {"$each": entries}}})
+
+
 # Read-only raw collection access — no broadcast needed for reads, so these
 # keep talking to the collection directly rather than through a repository.
 def _tasks(incident_id: str):
@@ -83,27 +99,20 @@ def _find_air_ops_branch_position_id(incident_id: str) -> Optional[int]:
     return doc.get("position_id") if doc else None
 
 
-def _find_incident_person(incident_id: str, master_id) -> Optional[dict]:
-    """Look up an incident-scoped personnel copy by master id.
-
-    Falls back to the legacy ``sqlite_id`` field for any copies that
-    predate the master-id rekey, so older incidents don't 404 outright.
-    """
+def _find_incident_person(incident_id: str, person_record) -> Optional[dict]:
+    """Look up an incident-scoped personnel copy by person_record."""
     col = _personnel(incident_id)
     try:
-        doc = col.find_one({"master_id": int(master_id)})
+        return col.find_one({"person_record": int(person_record)})
     except (TypeError, ValueError):
-        doc = None
-    if not doc:
-        doc = col.find_one({"sqlite_id": str(master_id)})
-    return doc
+        return None
 
 
 def _resolve_leader(incident_id: str, team_doc: dict) -> tuple[str, str]:
     """Return (leader_name, leader_phone) resolved from personnel if needed."""
     leader_name = team_doc.get("leader_name") or ""
     leader_phone = team_doc.get("leader_phone") or team_doc.get("phone") or ""
-    pid = team_doc.get("leader_personnel_id") or team_doc.get("team_leader")
+    pid = team_doc.get("leader_person_record") or team_doc.get("leader_personnel_id")
     if pid and (not leader_name or not leader_phone):
         p = _find_incident_person(incident_id, pid)
         if p:
@@ -161,7 +170,7 @@ TS_STATUS_COLS = {
 
 def _normalize_incident_person(doc: dict) -> dict:
     return {
-        "id": doc.get("master_id") if doc.get("master_id") is not None else doc.get("sqlite_id"),
+        "person_record": doc.get("person_record"),
         "name": doc.get("name") or "",
         "rank": doc.get("rank"),
         "callsign": doc.get("callsign"),
@@ -171,7 +180,7 @@ def _normalize_incident_person(doc: dict) -> dict:
         "email": doc.get("email"),
         "organization": doc.get("organization") or doc.get("unit"),
         "home_unit": doc.get("organization") or doc.get("unit"),
-        "badge_number": doc.get("badge_number"),
+        "person_id": doc.get("person_id") or doc.get("badge_number") or "",
         "is_medic": bool(doc.get("is_medic", False)),
     }
 
@@ -184,20 +193,20 @@ def _normalize_incident_person(doc: dict) -> dict:
 # left as raw collection writes, unchanged, deliberately out of this pass's
 # scope.
 
-@router.get("/incidents/{incident_id}/operations/personnel/{master_id}")
-def get_incident_person(incident_id: str, master_id: str) -> dict:
-    doc = _find_incident_person(incident_id, master_id)
+@router.get("/incidents/{incident_id}/operations/personnel/{person_record}")
+def get_incident_person(incident_id: str, person_record: int) -> dict:
+    doc = _find_incident_person(incident_id, person_record)
     if not doc:
-        raise HTTPException(404, f"Person {master_id} not found in incident {incident_id}")
+        raise HTTPException(404, f"Person {person_record} not found in incident {incident_id}")
     return _normalize_incident_person(doc)
 
 
-@router.patch("/incidents/{incident_id}/operations/personnel/{master_id}")
-def update_incident_person(incident_id: str, master_id: str, body: dict[str, Any]) -> dict:
+@router.patch("/incidents/{incident_id}/operations/personnel/{person_record}")
+def update_incident_person(incident_id: str, person_record: int, body: dict[str, Any]) -> dict:
     col = _personnel(incident_id)
-    doc = _find_incident_person(incident_id, master_id)
+    doc = _find_incident_person(incident_id, person_record)
     if not doc:
-        raise HTTPException(404, f"Person {master_id} not found in incident {incident_id}")
+        raise HTTPException(404, f"Person {person_record} not found in incident {incident_id}")
     updates = {k: v for k, v in body.items() if k in ("is_medic", "rank")}
     if updates:
         col.update_one({"_id": doc["_id"]}, {"$set": updates})
@@ -218,8 +227,8 @@ def sync_incident_personnel_from_master(incident_id: str) -> dict:
     incident_col = _personnel(incident_id)
     master_col = get_master_db()[MasterCollections.PERSONNEL]
     updated = 0
-    for copy_doc in incident_col.find({"master_id": {"$exists": True}}):
-        master_doc = master_col.find_one({"int_id": copy_doc["master_id"]})
+    for copy_doc in incident_col.find({"person_record": {"$exists": True}}):
+        master_doc = master_col.find_one({"person_record": copy_doc["person_record"]})
         if not master_doc:
             continue
         sync_fields = {
@@ -231,7 +240,7 @@ def sync_incident_personnel_from_master(incident_id: str) -> dict:
             "email": master_doc.get("email"),
             "organization": master_doc.get("home_unit") or master_doc.get("organization"),
             "unit": master_doc.get("home_unit") or master_doc.get("unit"),
-            "badge_number": master_doc.get("badge_number"),
+            "person_id": master_doc.get("person_id") or "",
             "is_medic": bool(master_doc.get("is_medic", False)),
         }
         incident_col.update_one({"_id": copy_doc["_id"]}, {"$set": sync_fields})
@@ -267,6 +276,7 @@ def create_task(incident_id: str, body: dict[str, Any]) -> dict:
         "priority": body.get("priority", "Medium"),
         "status": body.get("status", "Draft"),
         "location": body.get("location"),
+        "location_facility_id": body.get("location_facility_id"),
         "assignment": body.get("assignment"),
         "team_leader": body.get("team_leader"),
         "team_phone": body.get("team_phone"),
@@ -294,14 +304,30 @@ def get_task(incident_id: str, task_id: int) -> dict:
     return _strip(doc)
 
 
+_AUDIT_FIELD_LABELS = {
+    "task_id": "Task ID", "title": "Title", "category": "Category", "task_type": "Type",
+    "priority": "Priority", "status": "Status", "location": "Location", "location_facility_id": "Location Facility", "assignment": "Assignment",
+}
+
+
 @router.patch("/incidents/{incident_id}/operations/tasks/{task_id}")
 def update_task(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
     repo = _tasks_repo(incident_id)
     doc = _find_by_int_id(repo, task_id)
     if not doc:
         raise HTTPException(404, f"Task {task_id} not found")
+    body = dict(body)
     body.pop("int_id", None)
-    repo.update_one(doc["_id"], body)
+    changed_by = str(body.pop("changed_by", "") or "")
+    entries = [
+        _audit_entry(label, doc.get(field), new_val, changed_by)
+        for field, label in _AUDIT_FIELD_LABELS.items()
+        if field in body and (new_val := body[field]) != doc.get(field)
+    ]
+    update: dict[str, Any] = {"$set": body}
+    if entries:
+        update["$push"] = {"audit": {"$each": entries}}
+    repo.apply_update(doc["_id"], update)
     return _strip(repo.find_by_id(doc["_id"]))
 
 
@@ -540,7 +566,16 @@ def set_team_status(incident_id: str, team_id: int, body: dict[str, Any]) -> dic
             for i in range(len(tt_list) - 1, -1, -1):
                 if tt_list[i].get("team_id") == team_id:
                     if not tt_list[i].get(col_name):
-                        tasks_repo.update_one(task["_id"], {f"task_teams.{i}.{col_name}": now})
+                        entry = _audit_entry(
+                            f"Team Status ({tt_list[i].get('team_name') or team_id})",
+                            _team_status_from_tt(tt_list[i]),
+                            display,
+                            str(body.get("changed_by") or ""),
+                        )
+                        tasks_repo.apply_update(
+                            task["_id"],
+                            {"$set": {f"task_teams.{i}.{col_name}": now}, "$push": {"audit": entry}},
+                        )
                     break
 
     teams_repo.update_one(team["_id"], updates)
@@ -698,6 +733,29 @@ def add_task_team(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
     team_name = team.get("name") if team else None
     leader_name, leader_contact = _resolve_leader(incident_id, team or {})
 
+    # A team can only be actively on one task at a time. If it's still
+    # parked on a previous task (current_task_id wasn't cleared because the
+    # caller never called remove_task_team), strip it from there now so it
+    # doesn't show as assigned to both.
+    if team is not None:
+        previous_task_ref = team.get("current_task_id")
+        if previous_task_ref is not None and previous_task_ref != task_id:
+            previous_task = (
+                tasks_repo.find_one({"task_id": previous_task_ref})
+                if isinstance(previous_task_ref, str)
+                else _find_by_int_id(tasks_repo, previous_task_ref)
+            )
+            if previous_task is not None and previous_task["_id"] != task["_id"]:
+                tasks_repo.apply_update(
+                    previous_task["_id"],
+                    {
+                        "$pull": {
+                            "task_teams": {"team_id": team_id},
+                            "active_team_ids": team_id,
+                        }
+                    },
+                )
+
     tt = {
         "id": tt_id,
         "team_id": team_id,
@@ -716,7 +774,13 @@ def add_task_team(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
     }
     tasks_repo.apply_update(
         task["_id"],
-        {"$push": {"task_teams": tt}, "$addToSet": {"active_team_ids": team_id}},
+        {
+            "$push": {
+                "task_teams": tt,
+                "audit": {"$each": [_audit_entry("Team", None, tt["team_name"], str(body.get("changed_by") or ""))]},
+            },
+            "$addToSet": {"active_team_ids": team_id},
+        },
     )
     # Update team's current_task_id
     if team is not None:
@@ -758,24 +822,40 @@ def set_task_team_status(incident_id: str, task_id: int, tt_id: int, body: dict[
         if team:
             teams_repo.update_one(team["_id"], {"status": display, "status_updated": now})
 
+    entry = _audit_entry(
+        f"Team Status ({tt_list[idx].get('team_name') or team_id})",
+        _team_status_from_tt(tt_list[idx]),
+        display,
+        str(body.get("changed_by") or ""),
+    )
     if updates:
-        tasks_repo.update_one(task["_id"], updates)
+        tasks_repo.apply_update(task["_id"], {"$set": updates, "$push": {"audit": entry}})
+    else:
+        tasks_repo.apply_update(task["_id"], {"$push": {"audit": entry}})
 
     return {"ok": True, "status_key": status_key, "team_id": team_id}
 
 
 @router.patch("/incidents/{incident_id}/operations/tasks/{task_id}/teams/{tt_id}/primary")
-def set_primary_team(incident_id: str, task_id: int, tt_id: int) -> dict:
+def set_primary_team(incident_id: str, task_id: int, tt_id: int, body: dict[str, Any] | None = None) -> dict:
     repo = _tasks_repo(incident_id)
     task = _find_by_int_id(repo, task_id)
     if not task:
         raise HTTPException(404)
     tt_list = task.get("task_teams") or []
     updates = {}
+    new_primary_name = None
     for i, tt in enumerate(tt_list):
-        updates[f"task_teams.{i}.is_primary"] = tt.get("id") == tt_id
-    if updates:
-        repo.update_one(task["_id"], updates)
+        is_new_primary = tt.get("id") == tt_id
+        updates[f"task_teams.{i}.is_primary"] = is_new_primary
+        if is_new_primary:
+            new_primary_name = tt.get("team_name")
+    update: dict[str, Any] = {"$set": updates} if updates else {}
+    if new_primary_name is not None:
+        entry = _audit_entry("Primary Team", None, new_primary_name, str((body or {}).get("changed_by") or ""))
+        update["$push"] = {"audit": entry}
+    if update:
+        repo.apply_update(task["_id"], update)
     return {"ok": True}
 
 
@@ -789,12 +869,20 @@ def update_sortie_id(incident_id: str, task_id: int, tt_id: int, body: dict[str,
     idx = next((i for i, t in enumerate(tt_list) if t.get("id") == tt_id), None)
     if idx is None:
         raise HTTPException(404)
-    repo.update_one(task["_id"], {f"task_teams.{idx}.sortie_id": body.get("sortie_id")})
+    old_sortie = tt_list[idx].get("sortie_id")
+    new_sortie = body.get("sortie_id")
+    update: dict[str, Any] = {"$set": {f"task_teams.{idx}.sortie_id": new_sortie}}
+    if new_sortie != old_sortie:
+        team_name = tt_list[idx].get("team_name")
+        update["$push"] = {
+            "audit": _audit_entry(f"Sortie Number ({team_name})", old_sortie, new_sortie, str(body.get("changed_by") or ""))
+        }
+    repo.apply_update(task["_id"], update)
     return {"ok": True}
 
 
 @router.delete("/incidents/{incident_id}/operations/tasks/{task_id}/teams/{tt_id}")
-def remove_task_team(incident_id: str, task_id: int, tt_id: int) -> dict:
+def remove_task_team(incident_id: str, task_id: int, tt_id: int, changed_by: str = "") -> dict:
     tasks_repo = _tasks_repo(incident_id)
     teams_repo = _teams_repo(incident_id)
     task = _find_by_int_id(tasks_repo, task_id)
@@ -807,7 +895,12 @@ def remove_task_team(incident_id: str, task_id: int, tt_id: int) -> dict:
     pull_spec: dict[str, Any] = {"task_teams": {"id": tt_id}}
     if removed_team_id is not None:
         pull_spec["active_team_ids"] = removed_team_id
-    tasks_repo.apply_update(task["_id"], {"$pull": pull_spec})
+    update: dict[str, Any] = {"$pull": pull_spec}
+    if removed_tt is not None:
+        update["$push"] = {
+            "audit": _audit_entry("Team", removed_tt.get("team_name"), None, changed_by)
+        }
+    tasks_repo.apply_update(task["_id"], update)
     # If was primary and others remain, promote the first remaining
     if was_primary:
         task2 = tasks_repo.find_by_id(task["_id"])
@@ -870,7 +963,7 @@ def list_task_personnel(incident_id: str, task_id: int) -> list[dict]:
     out: list[dict] = []
     for team in _task_team_docs(incident_id, task_id):
         team_name = team.get("name") or f"Team {team.get('int_id')}"
-        member_ids = _parse_id_list(team.get("members_json") or team.get("member_personnel_ids"))
+        member_ids = _parse_id_list(team.get("members_json") or team.get("member_person_records") or team.get("member_personnel_ids"))
         for pid in member_ids:
             person = _find_incident_person(incident_id, pid)
             if not person:

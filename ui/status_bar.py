@@ -129,7 +129,7 @@ class AppStatusBar(QtWidgets.QStatusBar):
 
             result = api_client.post(
                 f"/api/incidents/{incident_id}/approvals/pending",
-                json={"roles": roles, "personnel_id": str(personnel_id)},
+                json={"roles": roles, "person_record": int(personnel_id)},
             ) or []
             self._set_approvals(len(result))
         except Exception:

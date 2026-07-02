@@ -36,6 +36,10 @@ from PySide6QtAds import (
 )
 
 
+# ===== Dev mode — flip this to enable developer tools =====
+DEV_MODE = True
+# ==========================================================
+
 # Respect saved dock layouts (ADS perspectives) across sessions
 # Set to True only for one-off debugging to reset layout on startup.
 FORCE_DEFAULT_LAYOUT = False
@@ -95,9 +99,8 @@ try:
 except Exception:  # pragma: no cover - optional at runtime
     shiboken6 = None  # type: ignore[assignment]
 
-# Development mode toggle (prevents NameError later);
-# enable with env var IMA_DEV_MODE=true/1/on
-DEV_MODE = str(os.getenv("IMA_DEV_MODE", "")).strip().lower() in {"1", "true", "yes", "on"}
+import utils.app_settings as _app_settings
+_app_settings.DEV_MODE = DEV_MODE
 
 
 _SIZE_RE = re.compile(r"\s+\d+×\d+$")
@@ -1561,8 +1564,9 @@ class MainWindow(QMainWindow):
     def open_planning_approvals(self) -> None:
         from modules.approvals.panels.approval_inbox_panel import ApprovalInboxPanel
         incident_id = AppState.get_active_incident()
-        personnel_id = str(AppState.get_active_user_id() or "")
-        panel = ApprovalInboxPanel(incident_id=incident_id, personnel_id=personnel_id)
+        _uid = AppState.get_active_user_id()
+        person_record = int(_uid) if _uid and str(_uid).isdigit() else 0
+        panel = ApprovalInboxPanel(incident_id=incident_id, person_record=person_record)
         panel.load()
         panel.item_activated.connect(self._on_approval_item_activated)
         self._open_panel(panel, title="Pending Approvals")
@@ -3786,7 +3790,6 @@ if __name__ == "__main__":
             username=DEBUG_USER_ID,
             display_name=DEBUG_USER_ID,
             role=DEBUG_ROLE,
-            personnel_id=DEBUG_USER_ID,
             incident_id=DEBUG_INCIDENT_ID,
             mode="offline-debug",
         )
@@ -3842,14 +3845,6 @@ if __name__ == "__main__":
     except Exception:
         _theme_manager = None  # type: ignore[assignment]
         _theme_bridge = None   # type: ignore[assignment]
-
-    # Seed the certification catalog mirror on app start (idempotent)
-    try:
-        from modules.personnel.services.cert_seeder import sync as _cert_sync
-        _changed, _msg = _cert_sync()
-        print(f"[catalog] {_msg}")
-    except Exception as e:
-        print(f"[catalog] Seeder failed: {e}")
 
     win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
     # Share the app-level theme objects with the window (used to inject into legacy UI contexts)

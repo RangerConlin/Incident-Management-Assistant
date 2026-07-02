@@ -30,7 +30,6 @@ from utils.edit_window_kit import (
     ExportDialog,
     FieldSpec,
     ImportWizard,
-    PaginationControls,
     run_async,
     write_export_file,
 )
@@ -57,8 +56,8 @@ def _clamp_level(value: Any) -> int:
 
 # ----------------------------- UI: Personnel Table Model ----------------------
 class _PersonnelTableModel(QtCore.QAbstractTableModel):
-    HEADERS = ["ID", "Name", "Callsign", "Role", "Organization", "Email", "Phone"]
-    KEYS = ["id", "name", "callsign", "primary_role", "home_unit", "email", "phone"]
+    HEADERS = ["ID", "Name", "Callsign", "Rank", "Organization", "Email", "Phone"]
+    KEYS = ["person_id", "name", "callsign", "rank", "home_unit", "email", "phone"]
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -225,12 +224,12 @@ class _CertLevelDialog(QtWidgets.QDialog):
 
 # ----------------------------- UI: Detail Dialog ------------------------------
 class PersonnelDetailDialog(QtWidgets.QDialog):
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None, personnel_id: Optional[str] = None):
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None, person_record: Optional[int] = None):
         super().__init__(parent)
-        self.setWindowTitle("Edit Personnel Record" if personnel_id else "Add New Personnel")
+        self.setWindowTitle("Edit Personnel Record" if person_record else "Add New Personnel")
         self.resize(760, 640)
         self.setModal(True)
-        self.personnel_id = personnel_id or ""
+        self.person_record: Optional[int] = person_record
         self._photo_path = ""
         self._local_certs: list[dict[str, int]] = []
         self._catalog: list[dict[str, Any]] = []
@@ -260,16 +259,13 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         layout.addWidget(self.tabs, 1)
         layout.addLayout(btn_row)
 
-        if self.personnel_id:
+        if self.person_record:
             self._load_all()
 
     # ----------------- Catalog helpers -----------------
     def _load_catalog(self) -> None:
-        from utils.api_client import api_client
-        try:
-            self._catalog = api_client.get("/api/master/certifications/types") or []
-        except Exception:
-            self._catalog = []
+        from modules.personnel.api.cert_api import list_catalog
+        self._catalog = list_catalog()
         self._catalog_by_id.clear()
         self._catalog_by_code.clear()
         for cert in self._catalog:
@@ -325,11 +321,8 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         box = QtWidgets.QGroupBox("Basic Information")
         grid = QtWidgets.QGridLayout(box)
 
-        self.txt_id = QtWidgets.QLineEdit()
-        self.txt_id.setPlaceholderText("Auto-assigned")
-        self.txt_id.setReadOnly(True)
-        self.txt_badge = QtWidgets.QLineEdit()
-        self.txt_badge.setPlaceholderText("Badge / Employee #")
+        self.txt_person_id = QtWidgets.QLineEdit()
+        self.txt_person_id.setPlaceholderText("Personnel ID / Badge #")
         self.txt_name = QtWidgets.QLineEdit()
         self.txt_callsign = QtWidgets.QLineEdit()
         self.txt_role = QtWidgets.QLineEdit()
@@ -344,8 +337,8 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.btn_photo.setFixedWidth(80)
         self.btn_photo.clicked.connect(self._choose_photo)
 
-        grid.addWidget(QtWidgets.QLabel("Internal ID:"), 0, 0)
-        grid.addWidget(self.txt_id, 0, 1)
+        grid.addWidget(QtWidgets.QLabel("ID:"), 0, 0)
+        grid.addWidget(self.txt_person_id, 0, 1)
         grid.addWidget(QtWidgets.QLabel("Name:"), 0, 2)
         grid.addWidget(self.txt_name, 0, 3)
         grid.addWidget(QtWidgets.QLabel("Callsign:"), 0, 4)
@@ -364,13 +357,11 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         grid.addWidget(self.txt_phone, 2, 3)
         grid.addWidget(self.chk_medic, 2, 4)
 
-        grid.addWidget(QtWidgets.QLabel("Badge #:"), 3, 0)
-        grid.addWidget(self.txt_badge, 3, 1)
-        grid.addWidget(QtWidgets.QLabel("Notes:"), 3, 4)
+        grid.addWidget(QtWidgets.QLabel("Notes:"), 3, 0)
         notes_row = QtWidgets.QHBoxLayout()
         notes_row.addWidget(self.txt_notes)
         notes_row.addWidget(self.btn_photo)
-        grid.addLayout(notes_row, 3, 5)
+        grid.addLayout(notes_row, 3, 1, 1, 5)
 
         grid.setColumnStretch(1, 2)
         grid.setColumnStretch(3, 2)
@@ -465,15 +456,14 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
     def _load_all(self) -> None:
         from utils.api_client import api_client
         try:
-            doc = api_client.get(f"/api/master/personnel/{self.personnel_id}")
+            doc = api_client.get(f"/api/master/personnel/{self.person_record}")
         except Exception:
             doc = None
         if not doc:
             self._photo_path = ""
             return
 
-        self.txt_id.setText(str(doc.get("id") or ""))
-        self.txt_badge.setText(doc.get("badge_number") or "")
+        self.txt_person_id.setText(doc.get("person_id") or "")
         self.txt_name.setText(doc.get("name") or "")
         self.txt_callsign.setText(doc.get("callsign") or "")
         self.txt_role.setText(doc.get("primary_role") or doc.get("role") or "")
@@ -538,7 +528,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             "home_unit": self.txt_org.currentText().strip(),
             "email": self.txt_email.text().strip(),
             "phone": self.txt_phone.text().strip(),
-            "badge_number": self.txt_badge.text().strip(),
+            "person_id": self.txt_person_id.text().strip(),
             "is_medic": self.chk_medic.isChecked(),
             "notes": self.txt_notes.text().strip(),
             "photo_url": self._photo_path,
@@ -567,20 +557,18 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             "certifications": self._minimal_certs_for_save(),
         }
         try:
-            if self.personnel_id:
+            if self.person_record:
                 from utils import incident_context
                 active_incident_id = incident_context.get_active_incident_id()
                 params = {"active_incident_id": active_incident_id} if active_incident_id else None
-                result = api_client.put(f"/api/master/personnel/{self.personnel_id}", json=doc, params=params)
-                normalized_id = str(result.get("id") or self.personnel_id)
+                result = api_client.put(f"/api/master/personnel/{self.person_record}", json=doc, params=params)
+                self.person_record = int(result.get("person_record") or self.person_record)
             else:
                 result = api_client.post("/api/master/personnel", json=doc)
-                normalized_id = str(result.get("id") or "")
+                self.person_record = int(result.get("person_record") or 0) or None
         except APIError as exc:
             QtWidgets.QMessageBox.warning(self, "Save Failed", str(exc))
             return
-        self.personnel_id = normalized_id
-        self.txt_id.setText(normalized_id)
         self.accept()
 
     def _choose_photo(self) -> None:
@@ -644,8 +632,6 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         self._all_records: list[dict[str, Any]] = []
         self._filtered_records: list[dict[str, Any]] = []
         self._search_text = ""
-        self._page = 1
-        self._page_size = 20
 
         self._build_ui()
         self.refresh()
@@ -783,9 +769,6 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
 
         card_layout.addLayout(self.table_stack, stretch=1)
 
-        self.pagination = PaginationControls(self)
-        card_layout.addWidget(self.pagination)
-
         outer.addWidget(card)
 
         self._debounce = QtCore.QTimer(self)
@@ -804,9 +787,6 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         selection_model = self.table.selectionModel()
         if selection_model:
             selection_model.selectionChanged.connect(self._update_buttons)
-
-        self.pagination.pageRequested.connect(self._on_page_requested)
-        self.pagination.pageSizeChanged.connect(self._on_page_size_changed)
 
     # ----- Data loading ----------------------------------------------------
     def refresh(self) -> None:
@@ -832,16 +812,11 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         else:
             self._filtered_records = list(self._all_records)
         self.reset_button.setVisible(bool(needle))
-        self._page = 1
         self._render_page()
 
     def _render_page(self) -> None:
+        self._model.set_records(self._filtered_records)
         total = len(self._filtered_records)
-        max_page = max(1, -(-total // self._page_size)) if self._page_size else 1
-        self._page = min(max(1, self._page), max_page)
-        start = (self._page - 1) * self._page_size
-        self._model.set_records(self._filtered_records[start:start + self._page_size])
-        self.pagination.update_state(total=total, page=self._page, page_size=self._page_size)
 
         if total == 0:
             if self._search_text.strip():
@@ -860,15 +835,6 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         self.search_edit.clear()
         self._search_text = ""
         self._apply_filters()
-
-    def _on_page_requested(self, page: int) -> None:
-        self._page = page
-        self._render_page()
-
-    def _on_page_size_changed(self, page_size: int) -> None:
-        self._page_size = page_size
-        self._page = 1
-        self._render_page()
 
     # ----- Selection ------------------------------------------------------
     def _selected_record(self) -> Optional[dict[str, Any]]:
@@ -899,8 +865,10 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         record = self._selected_record()
         if not record:
             return
-        pid = str(record.get("id") or "")
-        dialog = PersonnelDetailDialog(parent=self, personnel_id=pid)
+        prec = record.get("person_record")
+        if not prec:
+            return
+        dialog = PersonnelDetailDialog(parent=self, person_record=int(prec))
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             self.refresh()
             self._show_toast("Personnel saved", f"'{record.get('name', '')}' updated.")
@@ -910,13 +878,16 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         record = self._selected_record()
         if not record:
             return
-        name = record.get("name") or record.get("id", "")
+        prec = record.get("person_record")
+        name = record.get("name") or record.get("person_id", "")
+        if not prec:
+            return
         if QtWidgets.QMessageBox.question(
             self, "Confirm Delete", f"Delete '{name}'? This cannot be undone."
         ) != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         try:
-            api_client.delete(f"/api/master/personnel/{record['id']}")
+            api_client.delete(f"/api/master/personnel/{prec}")
         except APIError as exc:
             QtWidgets.QMessageBox.warning(self, "Delete Failed", str(exc))
             return

@@ -51,7 +51,7 @@ def test_second_primary_allowed_for_incident_commander() -> None:
         id=10,
         incident_id="TEST-123",
         position_id=5,
-        personnel_id="1",
+        person_record=1,
         display_name="Alex IC",
         assignment_type=ASSIGNMENT_TYPE_PRIMARY,
     )
@@ -84,7 +84,7 @@ def test_second_primary_rejected_for_other_command_positions() -> None:
         id=10,
         incident_id="TEST-123",
         position_id=6,
-        personnel_id="1",
+        person_record=1,
         display_name="Alex OSC",
         assignment_type=ASSIGNMENT_TYPE_PRIMARY,
     )
@@ -143,7 +143,7 @@ def test_list_assignments_remaps_legacy_deputy_nodes_to_parent_position() -> Non
         id=10,
         incident_id="TEST-123",
         position_id=6,
-        personnel_id="1",
+        person_record=1,
         display_name="Jordan Deputy",
         assignment_type=ASSIGNMENT_TYPE_PRIMARY,
     )

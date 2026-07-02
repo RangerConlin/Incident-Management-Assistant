@@ -38,8 +38,8 @@ class ApprovalRepository:
             instance.to_dict(),
         )
 
-    def pending_for_roles(self, roles: list[str], personnel_id: str) -> list[dict[str, Any]]:
-        return self._post("/pending", {"roles": roles, "personnel_id": personnel_id})
+    def pending_for_roles(self, roles: list[str], person_record: int) -> list[dict[str, Any]]:
+        return self._post("/pending", {"roles": roles, "person_record": person_record})
 
     # ------------------------------------------------------------------
     # Records

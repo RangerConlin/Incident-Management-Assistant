@@ -389,12 +389,11 @@ class LoginDialog(QDialog):
                 username=self.username_edit.text().strip(),
                 display_name=self.username_edit.text().strip(),
                 role=role,
-                personnel_id=user_id,
                 incident_id=str(incident_number),
                 mode="cloud",
             )
             write_audit("session.start", {"session_id": sid}, prefer_mission=False)
-            write_audit("login.success", {"role": role, "personnel_id": user_id}, prefer_mission=False)
+            write_audit("login.success", {"role": role, "user_id": user_id}, prefer_mission=False)
             write_audit("incident.select", {"number": incident_number})
         except Exception:
             pass

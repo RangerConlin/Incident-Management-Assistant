@@ -54,7 +54,7 @@ class StepInstance:
     kind: StepKind
     order: int
     status: StepStatus = "waiting"
-    resolved_actor_id: Optional[str] = None
+    resolved_actor_id: Optional[int] = None
     resolved_role: Optional[str] = None  # may differ from role if escalated
     activated_at: Optional[str] = None
     completed_at: Optional[str] = None
@@ -82,7 +82,7 @@ class StepInstance:
             kind=d.get("kind", "sequential"),
             order=d.get("order", 0),
             status=d.get("status", "waiting"),
-            resolved_actor_id=d.get("resolved_actor_id"),
+            resolved_actor_id=int(d["resolved_actor_id"]) if d.get("resolved_actor_id") is not None else None,
             resolved_role=d.get("resolved_role"),
             activated_at=d.get("activated_at"),
             completed_at=d.get("completed_at"),

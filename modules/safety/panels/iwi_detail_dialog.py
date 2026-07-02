@@ -1081,10 +1081,11 @@ class IWIDetailDialog(QDialog):
             from modules.approvals.service import ApprovalService
             svc = ApprovalService(self._incident_id)
             instance = svc.get("iwi_report", self._report_id)
-            personnel_id = str(AppState.get_active_user_id() or "")
+            uid_ = AppState.get_active_user_id()
+            person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
             assignment_type = self._resolve_assignment_type()
             if instance:
-                self._approval_timeline.set_state(instance, personnel_id, assignment_type)
+                self._approval_timeline.set_state(instance, person_record, assignment_type)
                 self._submit_approval_btn.setEnabled(instance.status == "not_started")
             else:
                 self._approval_timeline.set_state(None)
@@ -1100,9 +1101,10 @@ class IWIDetailDialog(QDialog):
             from modules.approvals.service import ApprovalService
             svc = ApprovalService(self._incident_id)
             instance = svc.start("iwi_report", self._report_id)
-            personnel_id = str(AppState.get_active_user_id() or "")
+            uid_ = AppState.get_active_user_id()
+            person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
             assignment_type = self._resolve_assignment_type()
-            self._approval_timeline.set_state(instance, personnel_id, assignment_type)
+            self._approval_timeline.set_state(instance, person_record, assignment_type)
             self._submit_approval_btn.setEnabled(False)
         except Exception as exc:
             QMessageBox.critical(self, "Submission Failed", str(exc))
@@ -1116,19 +1118,20 @@ class IWIDetailDialog(QDialog):
             instance = svc.get("iwi_report", self._report_id)
             if not instance:
                 return
-            personnel_id = str(AppState.get_active_user_id() or "")
+            uid_ = AppState.get_active_user_id()
+            person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
             assignment_type = self._resolve_assignment_type()
             step = next((s for s in instance.steps if s.step_id == step_id), None)
             role_at_time = (step.resolved_role or step.role) if step else ""
             updated = svc.sign(
                 instance,
                 step_id=step_id,
-                actor_id=personnel_id,
+                actor_id=person_record,
                 role_at_time=role_at_time,
                 assignment_type=assignment_type or "primary",
                 action="approved",
             )
-            self._approval_timeline.set_state(updated, personnel_id, assignment_type)
+            self._approval_timeline.set_state(updated, person_record, assignment_type)
             if updated.status in ("approved", "rejected"):
                 self._load()
         except Exception as exc:
@@ -1138,11 +1141,12 @@ class IWIDetailDialog(QDialog):
         """Return the assignment type (primary/deputy/trainee) for the active user, defaulting to 'primary'."""
         try:
             from modules.command.incident_organization.controller import IncidentOrganizationController
-            personnel_id = str(AppState.get_active_user_id() or "")
-            if not personnel_id:
+            uid_ = AppState.get_active_user_id()
+            person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
+            if not person_record:
                 return "primary"
             org = IncidentOrganizationController(self._incident_id)
-            assignments = org.list_assignments_for_person(personnel_id, active_only=True)
+            assignments = org.list_assignments_for_person(person_record, active_only=True)
             if assignments:
                 return getattr(assignments[0], "assignment_type", "primary") or "primary"
         except Exception:

@@ -45,7 +45,7 @@ _WATCHED_COLLECTIONS = {_TEAMS_COLLECTION, _TASKS_COLLECTION, _PERSONNEL_COLLECT
 def _resolve_leader(team_doc: dict[str, Any], personnel_by_master_id: dict[Any, dict[str, Any]]) -> tuple[str, str]:
     leader_name = team_doc.get("leader_name") or ""
     leader_phone = team_doc.get("leader_phone") or team_doc.get("phone") or ""
-    pid = team_doc.get("leader_personnel_id") or team_doc.get("team_leader")
+    pid = team_doc.get("leader_person_record") or team_doc.get("leader_personnel_id") or team_doc.get("team_leader")
     if pid and (not leader_name or not leader_phone):
         try:
             person = personnel_by_master_id.get(int(pid))
@@ -156,10 +156,10 @@ class TeamTaskDesk(QObject):
         tasks_by_task_id = {t.get("task_id"): t for t in tasks if t.get("task_id")}
         personnel_by_master_id: dict[Any, dict[str, Any]] = {}
         for person in personnel:
-            master_id = person.get("master_id")
-            if master_id is not None:
+            prec = person.get("person_record") or person.get("master_id")
+            if prec is not None:
                 try:
-                    personnel_by_master_id[int(master_id)] = person
+                    personnel_by_master_id[int(prec)] = person
                 except (TypeError, ValueError):
                     pass
         incident_created_at = None

@@ -45,8 +45,9 @@ class NotificationCenterPanel(QWidget):
     def _build_approvals_tab(self) -> None:
         from modules.approvals.panels.approval_inbox_panel import ApprovalInboxPanel
         incident_id = AppState.get_active_incident()
-        personnel_id = str(AppState.get_active_user_id() or "")
-        panel = ApprovalInboxPanel(incident_id=incident_id, personnel_id=personnel_id, parent=self)
+        _uid = AppState.get_active_user_id()
+        person_record = int(_uid) if _uid and str(_uid).isdigit() else 0
+        panel = ApprovalInboxPanel(incident_id=incident_id, person_record=person_record, parent=self)
         panel.load()
         self._approvals_panel = panel
         self.tabs.addTab(panel, "Approvals")

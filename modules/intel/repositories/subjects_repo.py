@@ -46,9 +46,9 @@ class SubjectsRepository:
         except APIError:
             return None
 
-    def update(self, subject_id: str, subject: Subject) -> Optional[Subject]:
+    def update(self, subject_id: str, updates: dict) -> Optional[Subject]:
         try:
-            data = api_client.patch(f"{self._base}/{subject_id}", json=subject.to_api_dict())
+            data = api_client.patch(f"{self._base}/{subject_id}", json=updates)
             return Subject.from_api(data)
         except APIError:
             return None

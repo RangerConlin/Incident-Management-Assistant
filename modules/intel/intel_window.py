@@ -106,6 +106,10 @@ class IntelWindow(QMainWindow):
                 self._open_assessment_detail
             )
 
+        # Log tab navigation
+        if hasattr(self._log_tab, "navigate_to_record"):
+            self._log_tab.navigate_to_record.connect(self._open_record_from_log)
+
     def load_incident(self, incident_id: Optional[str]) -> None:
         """Swap in a new incident without closing the window."""
         self._incident_id = incident_id
@@ -156,7 +160,60 @@ class IntelWindow(QMainWindow):
         win.show()
         win.raise_()
 
+    def _open_record_from_log(self, entity_type: str, entity_id: str) -> None:
+        """Open the detail window for a record referenced by a log entry."""
+        if not self._service:
+            return
+        try:
+            if entity_type == "lead":
+                record = self._service.leads.get(entity_id)
+                if record:
+                    self._open_lead_detail(record)
+            elif entity_type in ("item", "observation"):
+                # observation entity_id is the parent item's id
+                record = self._service.items.get(entity_id)
+                if record:
+                    self._open_item_detail(record)
+            elif entity_type == "subject":
+                record = self._service.subjects.get(entity_id)
+                if record:
+                    self._open_subject_detail(record)
+            elif entity_type == "assessment":
+                record = self._service.assessments.get(entity_id)
+                if record:
+                    self._open_assessment_detail(record)
+        except Exception:
+            pass  # silently skip if record no longer exists
+
     def _on_convert_lead(self, lead) -> None:
-        """After a lead is converted, refresh leads + items tabs."""
-        self._leads_tab.refresh()
-        self._items_tab.refresh()
+        """Create an Intel Item from the lead and mark the lead as converted."""
+        if not self._service:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        from modules.intel.models.intel_items import IntelItem
+
+        _VALID_PRIORITIES = {"Critical", "High", "Medium", "Low"}
+        notes_parts = [p for p in (lead.summary, lead.notes) if p]
+        item = IntelItem(
+            id="",
+            incident_id=self._incident_id,
+            item_type="Other",
+            title=lead.title,
+            priority=lead.priority if lead.priority in _VALID_PRIORITIES else "Medium",
+            notes="\n\n".join(notes_parts) or None,
+            location_text=lead.location_text,
+            source_lead_id=lead.id,
+            linked_subject_ids=[lead.source_subject_id] if lead.source_subject_id else [],
+        )
+        updated_lead, created_item = self._service.convert_lead_to_item(lead, item)
+        if created_item:
+            self._leads_tab.refresh()
+            self._items_tab.refresh()
+            self._log_tab.refresh()
+        else:
+            QMessageBox.warning(
+                self,
+                "Conversion Failed",
+                "Could not create an Intel Item from this lead.\n"
+                "The lead has not been marked as converted.",
+            )

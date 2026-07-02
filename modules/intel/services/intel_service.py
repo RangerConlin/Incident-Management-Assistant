@@ -67,7 +67,9 @@ class IntelService:
         """Convert a lead into a new Subject, preserving the relationship."""
         created = self.subjects.create(subject)
         if created:
-            updated_lead = self.leads.convert(lead.id, "subject", actor=actor)
+            updated_lead = self.leads.convert(
+                lead.id, "subject", target_id=created.id, actor=actor
+            )
             return updated_lead, created
         return None, None
 
@@ -78,7 +80,9 @@ class IntelService:
         item.source_lead_id = lead.id
         created = self.items.create(item)
         if created:
-            updated_lead = self.leads.convert(lead.id, "item", actor=actor)
+            updated_lead = self.leads.convert(
+                lead.id, "item", target_id=created.id, actor=actor
+            )
             return updated_lead, created
         return None, None
 
@@ -88,6 +92,8 @@ class IntelService:
         """Convert a lead into a new Assessment, preserving the relationship."""
         created = self.assessments.create(assessment)
         if created:
-            updated_lead = self.leads.convert(lead.id, "assessment", actor=actor)
+            updated_lead = self.leads.convert(
+                lead.id, "assessment", target_id=created.id, actor=actor
+            )
             return updated_lead, created
         return None, None

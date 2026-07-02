@@ -89,12 +89,21 @@ class LeadsRepository:
         except APIError:
             return False
 
-    def convert(self, lead_id: str, target_type: str, actor: str = "system") -> Optional[Lead]:
-        """Mark the lead as converted (client still creates the target record separately)."""
+    def convert(
+        self,
+        lead_id: str,
+        target_type: str,
+        target_id: Optional[str] = None,
+        actor: str = "system",
+    ) -> Optional[Lead]:
+        """Mark the lead as converted and record the id of the created target record."""
+        payload: dict = {"target_type": target_type, "actor": actor}
+        if target_id:
+            payload["target_id"] = target_id
         try:
             data = api_client.post(
                 f"{self._base}/{lead_id}/convert",
-                json={"target_type": target_type, "actor": actor},
+                json=payload,
             )
             return Lead.from_api(data)
         except APIError:

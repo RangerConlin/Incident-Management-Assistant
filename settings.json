@@ -136,6 +136,18 @@
     "statusboard.task.columns.widths": {
         "assigned_teams": 116,
         "number": 156,
-        "name": 131
+        "name": 131,
+        "category": 24,
+        "task_type": 24,
+        "due_datetime": 24,
+        "created_at": 24,
+        "updated_at": 24,
+        "created_by": 24,
+        "operational_period": 24,
+        "primary_team": 24,
+        "team_count": 24,
+        "sortie_count": 24,
+        "last_activity_at": 24,
+        "linked_strategy_summary": 24
     }
 }

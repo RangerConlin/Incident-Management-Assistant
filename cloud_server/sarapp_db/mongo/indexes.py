@@ -26,6 +26,17 @@ def _ensure_index(collection, keys, **kwargs) -> None:
         logger.warning("Index conflict on '%s': %s", collection.name, exc)
 
 
+def _drop_index_if_exists(collection, index_name: str) -> None:
+    """Drop a named index if it exists; no-op otherwise."""
+    try:
+        existing = {info["name"] for info in collection.index_information().values()}
+        if index_name in existing:
+            collection.drop_index(index_name)
+            logger.info("Dropped stale index '%s' from '%s'", index_name, collection.name)
+    except OperationFailure as exc:
+        logger.warning("Could not drop index '%s' from '%s': %s", index_name, collection.name, exc)
+
+
 # ---------------------------------------------------------------------------
 # Incident database indexes
 # ---------------------------------------------------------------------------
@@ -74,7 +85,7 @@ def _create_tasks_indexes(incident_db: Database) -> None:
     _ensure_index(tasks, [("linked_objective_ids", ASCENDING)])
     # Embedded assignment arrays — indexed for lookup by assigned resource
     _ensure_index(tasks, [("assigned_teams.team_id", ASCENDING)])
-    _ensure_index(tasks, [("assigned_personnel.personnel_id", ASCENDING)])
+    _ensure_index(tasks, [("assigned_personnel.person_record", ASCENDING)])
     _ensure_index(tasks, [("assigned_vehicles.vehicle_id", ASCENDING)])
     _ensure_index(tasks, [("updated_at", DESCENDING)])
     _ensure_index(tasks, [("deleted", ASCENDING)])
@@ -255,7 +266,7 @@ def _create_incident_organization_indexes(incident_db: Database) -> None:
     _ensure_index(org, [("incident_id", ASCENDING)])
     _ensure_index(org, [("version_id", ASCENDING)], unique=True)
     _ensure_index(org, [("op_period_id", ASCENDING)])
-    _ensure_index(org, [("assignments.person_id", ASCENDING)])
+    _ensure_index(org, [("assignments.person_record", ASCENDING)])
     _ensure_index(org, [("assignments.position_id", ASCENDING)])
 
     positions = incident_db[IncidentCollections.ORG_POSITIONS]
@@ -267,7 +278,7 @@ def _create_incident_organization_indexes(incident_db: Database) -> None:
     _ensure_index(assignments, [("incident_id", ASCENDING)])
     _ensure_index(assignments, [("assignment_id", ASCENDING)], unique=True)
     _ensure_index(assignments, [("position_id", ASCENDING)])
-    _ensure_index(assignments, [("personnel_id", ASCENDING)])
+    _ensure_index(assignments, [("person_record", ASCENDING)])
     _ensure_index(assignments, [("end_time", ASCENDING)])
 
 
@@ -399,7 +410,9 @@ def create_master_indexes(master_db: Database) -> None:
 
 def _create_personnel_indexes(master_db: Database) -> None:
     personnel = master_db[MasterCollections.PERSONNEL]
-    _ensure_index(personnel, [("personnel_id", ASCENDING)], unique=True)
+    # Drop stale unique index from old schema that used personnel_id instead of person_id
+    _drop_index_if_exists(personnel, "personnel_id_1")
+    _ensure_index(personnel, [("person_record", ASCENDING)], unique=True)
     _ensure_index(personnel, [("last_name", ASCENDING)])
     _ensure_index(personnel, [("organization", ASCENDING)])
     _ensure_index(personnel, [("status", ASCENDING)])
@@ -440,7 +453,8 @@ def _create_hazard_types_indexes(master_db: Database) -> None:
 
 def _create_vehicles_indexes(master_db: Database) -> None:
     vehicles = master_db[MasterCollections.VEHICLES]
-    _ensure_index(vehicles, [("vehicle_id", ASCENDING)], unique=True)
+    _ensure_index(vehicles, [("vehicle_record", ASCENDING)], unique=True)
+    _ensure_index(vehicles, [("vehicle_id", ASCENDING)])
     _ensure_index(vehicles, [("organization", ASCENDING)])
     _ensure_index(vehicles, [("status_id", ASCENDING)])
     _ensure_index(vehicles, [("type_id", ASCENDING)])
@@ -448,7 +462,7 @@ def _create_vehicles_indexes(master_db: Database) -> None:
 
 def _create_aircraft_indexes(master_db: Database) -> None:
     aircraft = master_db[MasterCollections.AIRCRAFT]
-    _ensure_index(aircraft, [("aircraft_id", ASCENDING)], unique=True)
+    _ensure_index(aircraft, [("aircraft_record", ASCENDING)], unique=True)
     _ensure_index(aircraft, [("agency", ASCENDING)])
     _ensure_index(aircraft, [("status", ASCENDING)])
     _ensure_index(aircraft, [("aircraft_type", ASCENDING)])
@@ -456,7 +470,7 @@ def _create_aircraft_indexes(master_db: Database) -> None:
 
 def _create_equipment_indexes(master_db: Database) -> None:
     equipment = master_db[MasterCollections.EQUIPMENT]
-    _ensure_index(equipment, [("equipment_id", ASCENDING)], unique=True)
+    _ensure_index(equipment, [("equipment_record", ASCENDING)], unique=True)
     _ensure_index(equipment, [("agency", ASCENDING)])
     _ensure_index(equipment, [("status", ASCENDING)])
     _ensure_index(equipment, [("equipment_type", ASCENDING)])

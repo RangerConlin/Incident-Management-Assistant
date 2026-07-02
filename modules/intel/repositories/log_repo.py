@@ -18,6 +18,7 @@ class IntelLogRepository:
     def list(
         self,
         entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
         event_type: Optional[str] = None,
         since: Optional[str] = None,
         until: Optional[str] = None,
@@ -26,6 +27,8 @@ class IntelLogRepository:
         params: dict = {"limit": limit}
         if entity_type:
             params["entity_type"] = entity_type
+        if entity_id:
+            params["entity_id"] = entity_id
         if event_type:
             params["event_type"] = event_type
         if since:

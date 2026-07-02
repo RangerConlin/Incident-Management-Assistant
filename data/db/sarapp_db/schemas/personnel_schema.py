@@ -23,7 +23,8 @@ class PersonnelCertification(BaseModel):
 class PersonnelDocument(TimestampedDocument):
     """A responder or staff member in the agency master roster."""
 
-    personnel_id: str  # Stable agency-assigned identifier; indexed
+    person_record: int  # Auto-assigned internal integer key; unique index; never shown to users
+    person_id: str = ""  # User-entered visible ID (badge number, employee number, etc.)
     first_name: str = ""
     last_name: str = ""
     display_name: Optional[str] = None
@@ -38,8 +39,5 @@ class PersonnelDocument(TimestampedDocument):
     # Person-owned certifications. Each entry stores only the catalog type and
     # the person's current level. All other cert details come from the catalog.
     certifications: List[PersonnelCertification] = Field(default_factory=list)
-
-    # Deprecated legacy field retained for older records/imports.
-    certification_ids: List[str] = Field(default_factory=list)
 
     notes: Optional[str] = None

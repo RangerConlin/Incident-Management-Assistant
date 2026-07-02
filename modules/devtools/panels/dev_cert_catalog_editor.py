@@ -1,15 +1,15 @@
 """Developer-only Certification Catalog Editor (Qt Widgets).
 
-Allows developers to view and edit the hardcoded certification catalog in
-memory and regenerate the `modules/personnel/models/cert_catalog.py` file.
+Allows developers to view and edit the hardcoded certification catalog and
+write changes directly to modules/personnel/models/cert_catalog.py.
 In production builds this panel should not be exposed by menus.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import asdict
 from typing import Dict, Any, List
-import os
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
 )
 
 from modules.personnel.models import cert_catalog
-from modules.personnel.services import cert_seeder
 from utils.app_settings import DEV_MODE
 
 
@@ -28,9 +27,82 @@ CATEGORY_BUCKETS = {
     "ICS/NIMS": 1000,
     "Medical": 2000,
     "SAR": 3000,
-    "Radio": 4000,
-    "Safety": 5000,
+    "Aviation": 3100,
+    "CAP ES": 6000,
+    "Incident Staff": 4000,
+    "Radio": 5000,
 }
+
+_CATALOG_PATH = os.path.join("modules", "personnel", "models", "cert_catalog.py")
+
+
+def _write_catalog(items: List[Dict[str, Any]], version: str) -> None:
+    """Write the catalog list back to cert_catalog.py."""
+    lines: List[str] = []
+    lines.append('"""Hardcoded certification catalog (authoritative in production).')
+    lines.append("")
+    lines.append("This module defines the certification catalog used by the application.")
+    lines.append("The code catalog is the single source of truth.")
+    lines.append("")
+    lines.append("Notes")
+    lines.append("- IDs are stable integers and MUST NOT be reused once shipped. Bump")
+    lines.append("  CATALOG_VERSION any time entries change.")
+    lines.append("- Tags allow grouping certifications into qualification profiles.")
+    lines.append('- is_medical is the direct source of truth for the medic checkoff."""')
+    lines.append("")
+    lines.append("from __future__ import annotations")
+    lines.append("")
+    lines.append("from dataclasses import dataclass")
+    lines.append("from typing import List, Optional, Tuple")
+    lines.append("")
+    lines.append("")
+    lines.append(f"CATALOG_VERSION = {version!r}")
+    lines.append("")
+    lines.append("")
+    lines.append("@dataclass(frozen=True)")
+    lines.append("class CertType:")
+    lines.append('    """Immutable certification type record."""')
+    lines.append("")
+    lines.append("    id: int")
+    lines.append("    code: str")
+    lines.append("    name: str")
+    lines.append("    category: str")
+    lines.append("    issuing_org: str")
+    lines.append("    parent_id: Optional[int] = None")
+    lines.append("    tags: Tuple[str, ...] = tuple()")
+    lines.append("    is_medical: bool = False")
+    lines.append("")
+    lines.append("")
+    lines.append("CATALOG: List[CertType] = [")
+
+    current_cat = None
+    for it in sorted(items, key=lambda x: (x["category"], x["code"])):
+        cat = it["category"]
+        if cat != current_cat:
+            lines.append(f"    # --- {cat} ---")
+            current_cat = cat
+        pid = it.get("parent_id")
+        pid_str = f", parent_id={pid}" if pid else ""
+        tags = tuple(str(t) for t in (it.get("tags") or ()))
+        tags_str = f", tags={tags!r}" if tags else ""
+        med_str = ", is_medical=True" if it.get("is_medical") else ""
+        lines.append(
+            f"    CertType({int(it['id'])}, {it['code']!r}, {it['name']!r}, "
+            f"{cat!r}, {it['issuing_org']!r}{pid_str}{tags_str}{med_str}),"
+        )
+
+    lines.append("]")
+    lines.append("")
+    lines.append("")
+    lines.append("__all__ = [")
+    lines.append('    "CATALOG_VERSION",')
+    lines.append('    "CertType",')
+    lines.append('    "CATALOG",')
+    lines.append("]")
+    lines.append("")
+
+    with open(_CATALOG_PATH, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 
 class DevCertCatalogEditor(QWidget):
@@ -52,15 +124,13 @@ class DevCertCatalogEditor(QWidget):
         act_dup = QAction("Duplicate", self)
         act_save = QAction("Save", self)
         act_delete = QAction("Delete", self)
+        act_write = QAction("Write to File", self)
         tb.addAction(act_new)
         tb.addAction(act_dup)
         tb.addAction(act_save)
         tb.addAction(act_delete)
         tb.addSeparator()
-        act_gen = QAction("Generate Code", self)
-        tb.addAction(act_gen)
-        act_sync = QAction("Sync to DB", self)
-        tb.addAction(act_sync)
+        tb.addAction(act_write)
         v.addWidget(tb)
 
         body = QHBoxLayout()
@@ -82,7 +152,9 @@ class DevCertCatalogEditor(QWidget):
         self.le_code = QLE()
         self.le_name = QLE()
         self.cmb_cat = QComboBox()
-        for cat in CATEGORY_BUCKETS.keys():
+        self.le_cat_custom = QLE()
+        self.le_cat_custom.setPlaceholderText("Or type a custom category")
+        for cat in sorted(set(it["category"] for it in self._items)):
             self.cmb_cat.addItem(cat)
         self.le_org = QLE()
         self.spn_parent = QSpinBox()
@@ -94,6 +166,7 @@ class DevCertCatalogEditor(QWidget):
         form.addRow("Code:", self.le_code)
         form.addRow("Name:", self.le_name)
         form.addRow("Category:", self.cmb_cat)
+        form.addRow("", self.le_cat_custom)
         form.addRow("Issuing Org:", self.le_org)
         form.addRow("Parent ID:", self.spn_parent)
         form.addRow("Tags:", self.le_tags)
@@ -107,8 +180,7 @@ class DevCertCatalogEditor(QWidget):
         act_dup.triggered.connect(self._on_duplicate)
         act_save.triggered.connect(self._on_save)
         act_delete.triggered.connect(self._on_delete)
-        act_gen.triggered.connect(self._on_generate)
-        act_sync.triggered.connect(self._on_sync)
+        act_write.triggered.connect(self._on_write)
 
         self._rebuild_tree()
 
@@ -161,21 +233,21 @@ class DevCertCatalogEditor(QWidget):
         self.le_code.setText(str(item["code"]))
         self.le_name.setText(str(item["name"]))
         self.cmb_cat.setCurrentText(str(item["category"]))
+        self.le_cat_custom.clear()
         self.le_org.setText(str(item["issuing_org"]))
         self.spn_parent.setValue(int(item.get("parent_id") or 0))
-        self.le_tags.setText(
-            ", ".join([str(t) for t in (item.get("tags") or [])])
-        )
+        self.le_tags.setText(", ".join([str(t) for t in (item.get("tags") or [])]))
         self.chk_medical.setChecked(bool(item.get("is_medical")))
 
     def _collect_from_form(self) -> Dict[str, Any]:
         tags = [t.strip().upper().replace(" ", "_") for t in self.le_tags.text().split(",") if t.strip()]
         parent_id = self.spn_parent.value() or None
+        cat = self.le_cat_custom.text().strip() or self.cmb_cat.currentText()
         return {
             "id": int(self.spn_id.value()),
             "code": self.le_code.text().strip(),
             "name": self.le_name.text().strip(),
-            "category": self.cmb_cat.currentText(),
+            "category": cat,
             "issuing_org": self.le_org.text().strip(),
             "parent_id": int(parent_id) if parent_id else None,
             "tags": tuple(tags),
@@ -226,8 +298,7 @@ class DevCertCatalogEditor(QWidget):
         prev_id = int(self._items[self._selected_index]["id"])
         if prev_id != int(updated["id"]):
             QMessageBox.information(
-                self,
-                "ID Change",
+                self, "ID Change",
                 "Changing IDs can break references. Proceeding with the new ID.",
             )
         self._items[self._selected_index] = updated
@@ -244,50 +315,13 @@ class DevCertCatalogEditor(QWidget):
         self._selected_index = None
         self._rebuild_tree()
 
-    def _on_generate(self) -> None:
-        lines: List[str] = []
-        lines.append('"""Generated certification catalog. Edit via Dev Editor."""')
-        lines.append("from __future__ import annotations")
-        lines.append("from dataclasses import dataclass")
-        lines.append("from typing import Optional, List, Tuple")
-        lines.append("")
-        lines.append(f"CATALOG_VERSION = {cert_catalog.CATALOG_VERSION!r}")
-        lines.append("")
-        lines.append("@dataclass(frozen=True)")
-        lines.append("class CertType:")
-        lines.append("    id: int")
-        lines.append("    code: str")
-        lines.append("    name: str")
-        lines.append("    category: str")
-        lines.append("    issuing_org: str")
-        lines.append("    parent_id: Optional[int] = None")
-        lines.append("    tags: Tuple[str, ...] = tuple()")
-        lines.append("    is_medical: bool = False")
-        lines.append("")
-        lines.append("CATALOG: List[CertType] = [")
-        for it in sorted(self._items, key=lambda x: (x["category"], x["code"])):
-            pid = it["parent_id"]
-            pid_str = f", parent_id={pid}" if pid else ""
-            tags = tuple(str(t) for t in (it.get("tags") or ()))
-            tags_str = f", tags={tags!r}" if tags else ""
-            med_str = ", is_medical=True" if it.get("is_medical") else ""
-            lines.append(
-                f"    CertType({int(it['id'])}, {it['code']!r}, {it['name']!r}, {it['category']!r}, {it['issuing_org']!r}{pid_str}{tags_str}{med_str}),"
-            )
-        lines.append("]")
-        lines.append("")
-        out_path = os.path.join("modules", "personnel", "models", "cert_catalog.py")
+    def _on_write(self) -> None:
         try:
-            with open(out_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines))
+            _write_catalog(self._items, cert_catalog.CATALOG_VERSION)
         except Exception as e:
-            QMessageBox.critical(self, "Generate Code", f"Failed to write file:\n{e}")
+            QMessageBox.critical(self, "Write to File", f"Failed to write {_CATALOG_PATH}:\n{e}")
             return
-        QMessageBox.information(self, "Generate Code", f"Wrote {out_path}")
-
-    def _on_sync(self) -> None:
-        changed, msg = cert_seeder.sync()
-        QMessageBox.information(self, "Catalog Seeder", msg)
+        QMessageBox.information(self, "Write to File", f"Saved to {_CATALOG_PATH}")
 
 
 __all__ = ["DevCertCatalogEditor"]

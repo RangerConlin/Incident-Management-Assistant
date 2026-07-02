@@ -33,7 +33,7 @@ def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
         except Exception:
             member_ids = []
     if not member_ids:
-        for v in (team_doc.get("member_personnel_ids") or []):
+        for v in (team_doc.get("member_person_records") or team_doc.get("member_personnel_ids") or []):
             try:
                 member_ids.append(int(v))
             except (TypeError, ValueError):

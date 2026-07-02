@@ -139,9 +139,10 @@ class UIFlags:
 
 @dataclass(slots=True)
 class PersonnelIdentity:
-    """Read-only person identity from ``master.db``."""
+    """Read-only person identity from the master personnel API."""
 
-    person_id: str
+    person_record: int
+    person_id: str  # User-visible ID (badge number, employee number, etc.)
     name: str
     primary_role: Optional[str] = None
     phone: Optional[str] = None
@@ -153,17 +154,6 @@ class PersonnelIdentity:
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "PersonnelIdentity":
-        """Create an identity object from a SQLite row.
-
-        The production ``master.db`` bundled with the application predates the
-        new typed schema introduced for the reworked Check-In module and uses a
-        slightly different set of column names (for example ``role`` instead of
-        ``primary_role`` and ``contact`` instead of ``phone``).  When reading
-        from the database we therefore need to gracefully fall back to the
-        legacy column names so that the UI can operate on existing datasets
-        without requiring a migration.
-        """
-
         primary_role = row.get("primary_role") or row.get("role") or row.get("rank")
         phone = row.get("phone") or row.get("contact")
         home_unit = row.get("home_unit") or row.get("unit")
@@ -172,7 +162,8 @@ class PersonnelIdentity:
         is_medic = row.get("is_medic")
 
         return cls(
-            person_id=str(row["id"]),
+            person_record=int(row.get("person_record") or 0),
+            person_id=str(row.get("person_id") or ""),
             name=row.get("name") or "",
             primary_role=primary_role,
             phone=phone,
@@ -188,7 +179,7 @@ class PersonnelIdentity:
 class CheckInRecord:
     """A persisted incident check-in row."""
 
-    person_id: str
+    person_record: int
     status: CIStatus
     arrival_time: str
     location: Location
@@ -222,7 +213,7 @@ class CheckInRecord:
             "Available" if canonical_status in _DERIVED_CHECKED_IN_STATUSES else "Pending"
         )
         return {
-            "person_id": self.person_id,
+            "person_record": self.person_record,
             "status": canonical_status,
             "ci_status": ci_status,
             "personnel_status": personnel_status,
@@ -250,7 +241,7 @@ class CheckInRecord:
     def from_row(cls, row: Dict[str, Any]) -> "CheckInRecord":
         raw_status = row.get("status") or row.get("ci_status") or row.get("planning_status") or "Pending"
         return cls(
-            person_id=row["person_id"],
+            person_record=int(row.get("person_record") or 0),
             status=CIStatus.normalize(raw_status),
             arrival_time=row["arrival_time"],
             location=Location.normalize(row["location"]),
@@ -288,7 +279,8 @@ class CheckInRecord:
 class RosterRow:
     """Row returned by ``getRoster`` for the roster table."""
 
-    person_id: str
+    person_record: int
+    person_id: str  # User-visible ID
     name: str
     role: Optional[str]
     team: Optional[str]
@@ -303,6 +295,7 @@ class RosterRow:
 
     def as_table_row(self) -> Dict[str, Any]:
         return {
+            "person_record": self.person_record,
             "person_id": self.person_id,
             "name": self.name,
             "role": self.role,
@@ -333,7 +326,7 @@ class HistoryItem:
 class CheckInUpsert:
     """Payload accepted by :func:`upsertCheckIn`."""
 
-    person_id: str
+    person_record: int
     ci_status: CIStatus
     arrival_time: str
     location: Location
@@ -361,7 +354,7 @@ class CheckInUpsert:
             self.override_personnel_status or (base.personnel_status if base else PersonnelStatus.PENDING)
         )
         record = CheckInRecord(
-            person_id=self.person_id,
+            person_record=self.person_record,
             ci_status=self.ci_status,
             personnel_status=personnel_status,
             arrival_time=self.arrival_time,
@@ -398,7 +391,7 @@ class CheckInUpsert:
 
     def to_queue_payload(self) -> Dict[str, Any]:
         payload = {
-            "person_id": self.person_id,
+            "person_record": self.person_record,
             "ci_status": self.ci_status.value,
             "arrival_time": self.arrival_time,
             "location": self.location.value,
@@ -422,7 +415,7 @@ class CheckInUpsert:
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "CheckInUpsert":
         return cls(
-            person_id=payload["person_id"],
+            person_record=int(payload["person_record"]),
             ci_status=CIStatus.normalize(payload["ci_status"]),
             arrival_time=payload["arrival_time"],
             location=Location.normalize(payload["location"]),
@@ -461,7 +454,7 @@ class RosterFilters:
             self.q = self.q.strip()
         if self.role == "All":
             self.role = None
-        if self.team in {"All", "â€”", ""}:
+        if self.team in {“All”, “—“, “”}:
             self.team = None
 
     @classmethod

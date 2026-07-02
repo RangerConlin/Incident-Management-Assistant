@@ -226,7 +226,7 @@ class IncidentOrganizationController:
             id=None,
             incident_id=self.incident_id,
             position_id=position_id,
-            personnel_id=self._optional_text(values.get("personnel_id")),
+            person_record=int(values["person_record"]) if values.get("person_record") is not None else None,
             display_name=str(values.get("display_name", "")).strip(),
             assignment_type=normalize_assignment_type(values.get("assignment_type")),
             start_time=self._optional_text(values.get("start_time")),
@@ -282,7 +282,7 @@ class IncidentOrganizationController:
                         id=assignment.id,
                         incident_id=assignment.incident_id,
                         position_id=parent_position_id,
-                        personnel_id=assignment.personnel_id,
+                        person_record=assignment.person_record,
                         display_name=assignment.display_name,
                         assignment_type=assignment_type,
                         start_time=assignment.start_time,
@@ -303,9 +303,9 @@ class IncidentOrganizationController:
         return normalized
 
     def list_assignments_for_person(
-        self, personnel_id: str, *, active_only: bool = True
+        self, person_record: int, *, active_only: bool = True
     ) -> list[PositionAssignment]:
-        return self.repo.list_assignments_for_person(personnel_id, active_only=active_only)
+        return self.repo.list_assignments_for_person(person_record, active_only=active_only)
 
     def list_assignment_history(self, position_id: int | None = None):
         return self.repo.list_assignment_history(position_id)
@@ -452,7 +452,7 @@ class IncidentOrganizationController:
             assignments_by_position[assignment.position_id].append(
                 {
                     "id": assignment.id,
-                    "personnel_id": assignment.personnel_id,
+                    "person_record": assignment.person_record,
                     "display_name": assignment.display_name,
                     "assignment_type": assignment.assignment_type,
                     "start_time": assignment.start_time,

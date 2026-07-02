@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections
@@ -246,6 +246,7 @@ def _map_subject(doc: Dict[str, Any]) -> Dict[str, Any]:
         "email": doc.get("email"),
         "address": doc.get("address"),
         "organization": doc.get("organization"),
+        "relationship_to_incident": doc.get("relationship_to_incident"),
         # Medical
         "medical_conditions": doc.get("medical_conditions"),
         "medications": doc.get("medications"),
@@ -253,12 +254,46 @@ def _map_subject(doc: Dict[str, Any]) -> Dict[str, Any]:
         # Experience / behavior
         "outdoor_experience": doc.get("outdoor_experience"),
         "behavioral_notes": doc.get("behavioral_notes"),
+        "communication_needs": doc.get("communication_needs"),
+        "sensory_considerations": doc.get("sensory_considerations"),
+        "routine_habits": doc.get("routine_habits"),
+        "wandering_history": doc.get("wandering_history"),
+        "favorite_places": doc.get("favorite_places"),
+        "triggers_or_stressors": doc.get("triggers_or_stressors"),
+        "recent_changes": doc.get("recent_changes"),
         "equipment_description": doc.get("equipment_description"),
         "clothing_description": doc.get("clothing_description"),
         "vehicle_description": doc.get("vehicle_description"),
         # Witness / contact specifics
-        "reliability": doc.get("reliability"),
-        "initial_report": doc.get("initial_report"),
+        "treatment_given": doc.get("treatment_given"),
+        "transport_required": doc.get("transport_required"),
+        "transport_method": doc.get("transport_method"),
+        "transport_destination": doc.get("transport_destination"),
+        "disposition": doc.get("disposition"),
+        # Vehicle-specific
+        "plate": doc.get("plate"),
+        "plate_state": doc.get("plate_state"),
+        "make": doc.get("make"),
+        "model": doc.get("model"),
+        "year": doc.get("year"),
+        "color": doc.get("color"),
+        "vin": doc.get("vin"),
+        "owner_or_operator": doc.get("owner_or_operator"),
+        # Aircraft-specific
+        "tail_number": doc.get("tail_number"),
+        "aircraft_type": doc.get("aircraft_type"),
+        "make_model": doc.get("make_model"),
+        "color_markings": doc.get("color_markings"),
+        "pilot_or_operator": doc.get("pilot_or_operator"),
+        "route_or_last_contact": doc.get("route_or_last_contact"),
+        "departure_point": doc.get("departure_point"),
+        "destination": doc.get("destination"),
+        "occupants": doc.get("occupants"),
+        "fuel_endurance": doc.get("fuel_endurance"),
+        "elt_survival_gear": doc.get("elt_survival_gear"),
+        "remarks": doc.get("remarks"),
+        # General description
+        "description": doc.get("description"),
         # Links
         "linked_item_ids": doc.get("linked_item_ids", []),
         "linked_task_ids": doc.get("linked_task_ids", []),
@@ -293,16 +328,51 @@ class SubjectCreate(BaseModel):
     email: Optional[str] = None
     address: Optional[str] = None
     organization: Optional[str] = None
+    relationship_to_incident: Optional[str] = None
     medical_conditions: Optional[str] = None
     medications: Optional[str] = None
     mobility_limitations: Optional[str] = None
     outdoor_experience: Optional[str] = None
     behavioral_notes: Optional[str] = None
+    communication_needs: Optional[str] = None
+    sensory_considerations: Optional[str] = None
+    routine_habits: Optional[str] = None
+    wandering_history: Optional[str] = None
+    favorite_places: Optional[str] = None
+    triggers_or_stressors: Optional[str] = None
+    recent_changes: Optional[str] = None
     equipment_description: Optional[str] = None
     clothing_description: Optional[str] = None
     vehicle_description: Optional[str] = None
-    reliability: Optional[str] = None
-    initial_report: Optional[str] = None
+    treatment_given: Optional[str] = None
+    transport_required: Optional[str] = None
+    transport_method: Optional[str] = None
+    transport_destination: Optional[str] = None
+    disposition: Optional[str] = None
+    # Vehicle-specific
+    plate: Optional[str] = None
+    plate_state: Optional[str] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
+    year: Optional[int] = None
+    color: Optional[str] = None
+    vin: Optional[str] = None
+    owner_or_operator: Optional[str] = None
+    # Aircraft-specific
+    tail_number: Optional[str] = None
+    aircraft_type: Optional[str] = None
+    make_model: Optional[str] = None
+    color_markings: Optional[str] = None
+    pilot_or_operator: Optional[str] = None
+    route_or_last_contact: Optional[str] = None
+    departure_point: Optional[str] = None
+    destination: Optional[str] = None
+    occupants: Optional[str] = None
+    fuel_endurance: Optional[str] = None
+    elt_survival_gear: Optional[str] = None
+    remarks: Optional[str] = None
+    # General description
+    description: Optional[str] = None
     linked_item_ids: List[str] = Field(default_factory=list)
     linked_task_ids: List[str] = Field(default_factory=list)
     notes: Optional[str] = None
@@ -403,15 +473,30 @@ def _map_lead(doc: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": doc.get("created_at", ""),
         "updated_at": doc.get("updated_at", ""),
         "deleted": doc.get("deleted", False),
+        # Structured source fields
+        "source_category": doc.get("source_category"),
+        "source_display": doc.get("source_display"),
+        "source_ref_type": doc.get("source_ref_type"),
+        "source_ref_id": doc.get("source_ref_id"),
+        "source_subject_id": doc.get("source_subject_id"),
+        "source_team_id": doc.get("source_team_id"),
+        "source_team_name": doc.get("source_team_name"),
+        "source_staff_id": doc.get("source_staff_id"),
+        "source_agency": doc.get("source_agency"),
+        "source_role": doc.get("source_role"),
+        "source_contact_name": doc.get("source_contact_name"),
+        "source_phone": doc.get("source_phone"),
+        "source_email": doc.get("source_email"),
+        "source_address": doc.get("source_address"),
+        "source_contact_method": doc.get("source_contact_method"),
+        "source_notes": doc.get("source_notes"),
+        "source_reliability": doc.get("source_reliability"),
+        "information_confidence": doc.get("information_confidence"),
     }
 
 
 def _next_lead_number(incident_id: str) -> int:
     repo = _leads_repo(incident_id)
-    top = repo.find_one(
-        {"incident_id": incident_id, "lead_number": {"$exists": True}},
-        include_deleted=True,
-    )
     docs = repo.find_many(
         {"incident_id": incident_id, "lead_number": {"$exists": True}},
         sort=[("lead_number", -1)], limit=1, include_deleted=True,
@@ -433,6 +518,25 @@ class LeadCreate(BaseModel):
     assigned_team_id: Optional[int] = None  # numeric team id for ICS-214 linkage
     notes: Optional[str] = None
     created_by: str = ""
+    # Structured source fields
+    source_category: Optional[str] = None
+    source_display: Optional[str] = None
+    source_ref_type: Optional[str] = None
+    source_ref_id: Optional[str] = None
+    source_subject_id: Optional[str] = None
+    source_team_id: Optional[int] = None
+    source_team_name: Optional[str] = None
+    source_staff_id: Optional[str] = None
+    source_agency: Optional[str] = None
+    source_role: Optional[str] = None
+    source_contact_name: Optional[str] = None
+    source_phone: Optional[str] = None
+    source_email: Optional[str] = None
+    source_address: Optional[str] = None
+    source_contact_method: Optional[str] = None
+    source_notes: Optional[str] = None
+    source_reliability: Optional[str] = None
+    information_confidence: Optional[str] = None
 
 
 class LeadUpdate(BaseModel):
@@ -447,10 +551,31 @@ class LeadUpdate(BaseModel):
     assigned_to: Optional[str] = None
     assigned_team_id: Optional[int] = None
     notes: Optional[str] = None
+    actor: str = "system"
+    # Structured source fields
+    source_category: Optional[str] = None
+    source_display: Optional[str] = None
+    source_ref_type: Optional[str] = None
+    source_ref_id: Optional[str] = None
+    source_subject_id: Optional[str] = None
+    source_team_id: Optional[int] = None
+    source_team_name: Optional[str] = None
+    source_staff_id: Optional[str] = None
+    source_agency: Optional[str] = None
+    source_role: Optional[str] = None
+    source_contact_name: Optional[str] = None
+    source_phone: Optional[str] = None
+    source_email: Optional[str] = None
+    source_address: Optional[str] = None
+    source_contact_method: Optional[str] = None
+    source_notes: Optional[str] = None
+    source_reliability: Optional[str] = None
+    information_confidence: Optional[str] = None
 
 
 class LeadConvert(BaseModel):
     target_type: str  # "subject", "item", "assessment"
+    target_id: Optional[str] = None  # id of the created target record
     actor: str = "system"
 
 
@@ -485,7 +610,7 @@ def create_lead(incident_id: str, data: LeadCreate):
     }
     saved = repo.insert_one(doc)
     _write_log(incident_id, "lead", saved["_id"], "created",
-               f"Lead #{lead_number} created: {data.title}", data.created_by or "system")
+               f"L-{lead_number:03d} created: {data.title}", data.created_by or "system")
     return _map_lead(saved)
 
 
@@ -501,14 +626,32 @@ def get_lead(incident_id: str, lead_id: str):
 @router.patch("/incidents/{incident_id}/intel/leads/{lead_id}")
 def update_lead(incident_id: str, lead_id: str, data: LeadUpdate):
     repo = _leads_repo(incident_id)
-    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    updates = {k: v for k, v in data.model_dump().items()
+               if v is not None and k != "actor"}
     existing = repo.find_one({"_id": lead_id, "incident_id": incident_id}, include_deleted=True)
     if not existing:
         raise HTTPException(status_code=404, detail="Lead not found")
     repo.update_one(lead_id, updates, extra_filter={"incident_id": incident_id})
     result = repo.find_by_id(lead_id, include_deleted=True)
-    _write_log(incident_id, "lead", lead_id, "updated",
-               f"Lead #{result.get('lead_number')} updated: {result.get('title')}")
+    actor = data.actor or "system"
+    ln = result.get("lead_number", 0)
+    disp = f"L-{ln:03d}" if ln else "Lead"
+    title = result.get("title", "")
+    if "assigned_to" in updates and updates.get("assigned_to"):
+        _write_log(incident_id, "lead", lead_id, "assigned",
+                   f"{disp} assigned to {updates['assigned_to']}: {title}", actor)
+    elif updates.get("status") == "Rejected":
+        _write_log(incident_id, "lead", lead_id, "rejected",
+                   f"{disp} rejected: {title}", actor)
+    elif "status" in updates:
+        _write_log(incident_id, "lead", lead_id, "status_changed",
+                   f"{disp} status changed to {updates['status']}: {title}", actor)
+    elif "priority" in updates:
+        _write_log(incident_id, "lead", lead_id, "priority_changed",
+                   f"{disp} priority changed to {updates['priority']}: {title}", actor)
+    else:
+        _write_log(incident_id, "lead", lead_id, "updated",
+                   f"{disp} updated: {title}", actor)
     return _map_lead(result)
 
 
@@ -519,8 +662,10 @@ def close_lead(incident_id: str, lead_id: str):
     if not existing:
         raise HTTPException(status_code=404, detail="Lead not found")
     repo.update_one(lead_id, {"deleted": True, "status": "Closed"}, extra_filter={"incident_id": incident_id})
+    ln = existing.get("lead_number", 0)
+    disp = f"L-{ln:03d}" if ln else "Lead"
     _write_log(incident_id, "lead", lead_id, "closed",
-               f"Lead #{existing.get('lead_number')} closed")
+               f"{disp} closed: {existing.get('title', '')}")
 
 
 @router.post("/incidents/{incident_id}/intel/leads/{lead_id}/convert")
@@ -530,13 +675,20 @@ def convert_lead(incident_id: str, lead_id: str, data: LeadConvert):
     existing = repo.find_one({"_id": lead_id, "incident_id": incident_id}, include_deleted=True)
     if not existing:
         raise HTTPException(status_code=404, detail="Lead not found")
-    repo.update_one(lead_id, {
+    update: Dict[str, Any] = {
         "status": "Converted",
         "converted_to_type": data.target_type,
-    }, extra_filter={"incident_id": incident_id})
+    }
+    if data.target_id:
+        update["converted_to_id"] = data.target_id
+    repo.update_one(lead_id, update, extra_filter={"incident_id": incident_id})
     result = repo.find_by_id(lead_id, include_deleted=True)
+    ln = result.get("lead_number", 0)
+    disp = f"L-{ln:03d}" if ln else "Lead"
+    target_labels = {"item": "Intel Item", "subject": "Subject", "assessment": "Assessment"}
+    target_label = target_labels.get(data.target_type, data.target_type.title())
     _write_log(incident_id, "lead", lead_id, "converted",
-               f"Lead #{result.get('lead_number')} converted to {data.target_type}", data.actor)
+               f"{disp} converted to {target_label}: {result.get('title', '')}", data.actor)
     return _map_lead(result)
 
 
@@ -701,8 +853,29 @@ def update_item(incident_id: str, item_id: str, data: IntelItemUpdate):
         raise HTTPException(status_code=404, detail="Intel item not found")
     repo.update_one(item_id, updates, extra_filter={"incident_id": incident_id})
     result = repo.find_by_id(item_id, include_deleted=True)
-    _write_log(incident_id, "item", item_id, "updated",
-               f"Intel Item updated: {result.get('title')}", data.actor)
+    actor = data.actor or "system"
+    title = result.get("title", "")
+    item_type = result.get("item_type", "")
+    if "status" in updates and updates["status"] != existing.get("status"):
+        new_status = updates["status"]
+        if new_status == "Archived":
+            _write_log(incident_id, "item", item_id, "archived",
+                       f"Intel Item archived: {title}", actor)
+        else:
+            _write_log(incident_id, "item", item_id, "status_changed",
+                       f"Intel Item status changed to {new_status}: {title}", actor)
+    elif "priority" in updates and updates["priority"] != existing.get("priority"):
+        _write_log(incident_id, "item", item_id, "priority_changed",
+                   f"Intel Item priority changed to {updates['priority']}: {title}", actor)
+    elif "linked_subject_ids" in updates:
+        _write_log(incident_id, "item", item_id, "linked",
+                   f"Subject links updated on Intel Item: {title}", actor)
+    elif "linked_task_ids" in updates:
+        _write_log(incident_id, "item", item_id, "linked",
+                   f"Task links updated on Intel Item: {title}", actor)
+    else:
+        _write_log(incident_id, "item", item_id, "updated",
+                   f"Intel Item updated: {title} ({item_type})", actor)
     return _map_item(result)
 
 
@@ -749,8 +922,9 @@ def add_observation(incident_id: str, item_id: str, data: ObservationCreate):
     result = repo._col.find_one({"_id": item_id, "incident_id": incident_id})
     if result:
         repo._broadcast("updated", item_id, result)
-    _write_log(incident_id, "item", item_id, "observation_added",
-               f"Observation added to: {result.get('title')}", data.actor)
+    obs_summary = data.summary[:80] if data.summary else ""
+    _write_log(incident_id, "observation", item_id, "observation_added",
+               f"Observation added to Intel Item: {result.get('title', '')} — {obs_summary}", data.actor)
     return _map_item(result)
 
 
@@ -775,8 +949,12 @@ def update_observation(incident_id: str, item_id: str, obs_id: str, data: Observ
     if not result:
         raise HTTPException(status_code=404, detail="Intel item or observation not found")
     repo._broadcast("updated", item_id, result)
-    _write_log(incident_id, "item", item_id, "observation_updated",
-               f"Observation updated on: {result.get('title')}")
+    obs_sum = next(
+        (o.get("summary", "") for o in (result.get("observations") or []) if o.get("obs_id") == obs_id),
+        "",
+    )
+    _write_log(incident_id, "observation", item_id, "observation_updated",
+               f"Observation updated on Intel Item: {result.get('title', '')} — {obs_sum[:80]}")
     return _map_item(result)
 
 
@@ -785,23 +963,25 @@ def update_observation(incident_id: str, item_id: str, obs_id: str, data: Observ
 # ===========================================================================
 
 def _map_assessment(doc: Dict[str, Any]) -> Dict[str, Any]:
+    # summary/findings/analyst are the canonical field names.
+    # Fall back to legacy narrative/author for records written by older code.
     return {
         "id": doc.get("_id"),
         "incident_id": doc.get("incident_id"),
         "assessment_number": doc.get("assessment_number"),
         "title": doc.get("title", ""),
-        "narrative": doc.get("narrative", ""),
-        "confidence": doc.get("confidence", "Medium"),
-        "status": doc.get("status", "Draft"),
+        "summary": doc.get("summary") or doc.get("narrative", ""),
+        "findings": doc.get("findings", ""),
         "recommendations": doc.get("recommendations"),
+        "analyst": doc.get("analyst") or doc.get("author", ""),
+        "status": doc.get("status", "Draft"),
         "linked_subject_ids": doc.get("linked_subject_ids", []),
         "linked_item_ids": doc.get("linked_item_ids", []),
         "linked_task_ids": doc.get("linked_task_ids", []),
-        "author": doc.get("author", ""),
         "notes": doc.get("notes"),
+        "created_by": doc.get("created_by", ""),
         "created_at": doc.get("created_at", ""),
         "updated_at": doc.get("updated_at", ""),
-        "published_at": doc.get("published_at"),
         "deleted": doc.get("deleted", False),
     }
 
@@ -818,23 +998,28 @@ def _next_assessment_number(incident_id: str) -> int:
 
 class AssessmentCreate(BaseModel):
     title: str
-    narrative: str = ""
-    confidence: str = "Medium"
-    status: str = "Draft"
+    summary: str = ""
+    findings: str = ""
     recommendations: Optional[str] = None
+    status: str = "Draft"
+    analyst: str = ""
     linked_subject_ids: List[str] = Field(default_factory=list)
     linked_item_ids: List[str] = Field(default_factory=list)
     linked_task_ids: List[str] = Field(default_factory=list)
-    author: str = ""
     notes: Optional[str] = None
+    created_by: str = ""
+    # Legacy field aliases kept for records written by older code
+    narrative: str = ""
+    author: str = ""
 
 
 class AssessmentUpdate(BaseModel):
     title: Optional[str] = None
-    narrative: Optional[str] = None
-    confidence: Optional[str] = None
-    status: Optional[str] = None
+    summary: Optional[str] = None
+    findings: Optional[str] = None
     recommendations: Optional[str] = None
+    status: Optional[str] = None
+    analyst: Optional[str] = None
     linked_subject_ids: Optional[List[str]] = None
     linked_item_ids: Optional[List[str]] = None
     linked_task_ids: Optional[List[str]] = None
@@ -867,7 +1052,8 @@ def create_assessment(incident_id: str, data: AssessmentCreate):
     }
     saved = repo.insert_one(doc)
     _write_log(incident_id, "assessment", saved["_id"], "created",
-               f"Assessment A-{num} created: {data.title}", data.author or "system")
+               f"Assessment A-{num:03d} created: {data.title}",
+               data.analyst or data.author or data.created_by or "system")
     return _map_assessment(saved)
 
 
@@ -884,16 +1070,53 @@ def get_assessment(incident_id: str, assessment_id: str):
 def update_assessment(incident_id: str, assessment_id: str, data: AssessmentUpdate):
     repo = _assessments_repo(incident_id)
     updates = {k: v for k, v in data.model_dump().items() if v is not None and k != "actor"}
-    if updates.get("status") == "Published" and "published_at" not in updates:
-        updates["published_at"] = _utcnow()
     existing = repo.find_one({"_id": assessment_id, "incident_id": incident_id}, include_deleted=True)
     if not existing:
         raise HTTPException(status_code=404, detail="Assessment not found")
     repo.update_one(assessment_id, updates, extra_filter={"incident_id": incident_id})
     result = repo.find_by_id(assessment_id, include_deleted=True)
-    _write_log(incident_id, "assessment", assessment_id, "updated",
-               f"Assessment A-{result.get('assessment_number')} updated: {result.get('title')}",
-               data.actor)
+    num = result.get("assessment_number", 0)
+    num_str = f"A-{num:03d}"
+    title = result.get("title", "")
+    new_status = updates.get("status")
+    old_status = existing.get("status", "")
+    # Determine event type and summary
+    if new_status and new_status != old_status:
+        _status_lower = (new_status or "").lower()
+        if _status_lower == "complete":
+            event_type = "completed"
+            summary = f"{num_str} marked complete: {title}"
+        elif _status_lower == "archived":
+            event_type = "archived"
+            summary = f"{num_str} archived: {title}"
+        else:
+            event_type = "status_changed"
+            summary = f"{num_str} status changed to {new_status}: {title}"
+        _write_log(incident_id, "assessment", assessment_id, event_type, summary, data.actor)
+    # Log link changes for subjects
+    old_subs = set(existing.get("linked_subject_ids") or [])
+    raw_subs = updates.get("linked_subject_ids")
+    new_subs = set(raw_subs) if raw_subs is not None else old_subs
+    for sid in new_subs - old_subs:
+        _write_log(incident_id, "assessment", assessment_id, "linked",
+                   f"{num_str} linked to Subject {sid}", data.actor)
+    for sid in old_subs - new_subs:
+        _write_log(incident_id, "assessment", assessment_id, "unlinked",
+                   f"{num_str} unlinked from Subject {sid}", data.actor)
+    # Log link changes for intel items
+    old_items = set(existing.get("linked_item_ids") or [])
+    raw_items = updates.get("linked_item_ids")
+    new_items = set(raw_items) if raw_items is not None else old_items
+    for iid in new_items - old_items:
+        _write_log(incident_id, "assessment", assessment_id, "linked",
+                   f"{num_str} linked to Intel Item {iid}", data.actor)
+    for iid in old_items - new_items:
+        _write_log(incident_id, "assessment", assessment_id, "unlinked",
+                   f"{num_str} unlinked from Intel Item {iid}", data.actor)
+    # General update log if no status change triggered a specific event
+    if not new_status or new_status == old_status:
+        _write_log(incident_id, "assessment", assessment_id, "updated",
+                   f"{num_str} updated: {title}", data.actor)
     return _map_assessment(result)
 
 
@@ -916,7 +1139,9 @@ def archive_assessment(incident_id: str, assessment_id: str):
 def get_intel_log(
     incident_id: str,
     entity_type: Optional[str] = Query(None),
+    entity_id: Optional[str] = Query(None),
     event_type: Optional[str] = Query(None),
+    actor: Optional[str] = Query(None),
     since: Optional[str] = Query(None),   # ISO datetime string
     until: Optional[str] = Query(None),
     limit: int = Query(200),
@@ -925,8 +1150,12 @@ def get_intel_log(
     q: Dict[str, Any] = {"incident_id": incident_id}
     if entity_type:
         q["entity_type"] = entity_type
+    if entity_id:
+        q["entity_id"] = entity_id
     if event_type:
         q["event_type"] = event_type
+    if actor:
+        q["actor"] = actor
     time_filter: Dict[str, str] = {}
     if since:
         time_filter["$gte"] = since
@@ -944,10 +1173,29 @@ def get_intel_log(
             "event_type": d.get("event_type"),
             "summary": d.get("summary"),
             "actor": d.get("actor"),
-            "logged_at": d.get("logged_at"),
+            "timestamp": d.get("logged_at"),
         }
         for d in docs
     ]
+
+
+@router.post("/incidents/{incident_id}/intel/log", status_code=201)
+def write_intel_log_entry(
+    incident_id: str,
+    body: Dict[str, Any] = Body(...),
+):
+    """Write a single Intel Log entry.  Intended for client-side actions
+    (e.g. file-system attachment adds/removes) that the server cannot log
+    automatically."""
+    entity_type = body.get("entity_type", "")
+    entity_id = body.get("entity_id", "")
+    event_type = body.get("event_type", "")
+    summary = body.get("summary", "")
+    actor = body.get("actor", "system")
+    if not (entity_type and entity_id and event_type and summary):
+        raise HTTPException(status_code=422, detail="entity_type, entity_id, event_type, and summary are required")
+    _write_log(incident_id, entity_type, entity_id, event_type, summary, actor)
+    return {"ok": True}
 
 
 # ===========================================================================

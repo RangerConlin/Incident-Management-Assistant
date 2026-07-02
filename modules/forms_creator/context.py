@@ -160,7 +160,7 @@ class FormDataContext:
             # Director" title) above, so either path populates the same
             # organization.air_operations_branch_director.name binding.
             data["organization"]["air_operations_branch_director"] = {
-                "name": air_ops["director_name"], "personnel_id": "", "title": "Air Operations Branch Director",
+                "name": air_ops["director_name"], "person_record": None, "title": "Air Operations Branch Director",
             }
         data["prepared_by"]     = self._build_prepared_by()
 
@@ -337,7 +337,7 @@ class FormDataContext:
                     if key and key not in seen:
                         result[key] = {
                             "name": row.get("display_name") or "",
-                            "personnel_id": row.get("personnel_id") or "",
+                            "person_record": row.get("person_record"),
                             "title": title,
                         }
                         seen.add(key)
@@ -345,7 +345,7 @@ class FormDataContext:
                 pass
         for key in self._ORG_POSITIONS.values():
             if key not in result:
-                result[key] = {"name": "", "personnel_id": "", "title": ""}
+                result[key] = {"name": "", "person_record": None, "title": ""}
         return result
 
     # ------------------------------------------------------------------
@@ -372,19 +372,21 @@ class FormDataContext:
             for row in assignments:
                 if row.get("position_id") not in ic_position_ids:
                     continue
-                personnel_id = row.get("personnel_id")
+                prec = row.get("person_record")
                 agency = ""
-                if personnel_id and personnel_id in personnel_by_id:
-                    agency = personnel_by_id[personnel_id].get("home_unit") or ""
+                if prec is not None:
+                    person = personnel_by_id.get(int(prec))
+                    if person:
+                        agency = person.get("home_unit") or ""
                 result.append({"agency": agency, "name": row.get("display_name") or ""})
             return result
         except Exception:
             return []
 
-    def _personnel_by_id(self) -> dict[str, dict[str, Any]]:
+    def _personnel_by_id(self) -> dict[int, dict[str, Any]]:
         try:
             rows = _get("/api/master/personnel") or []
-            return {str(r.get("id")): r for r in rows if r.get("id")}
+            return {int(r["person_record"]): r for r in rows if r.get("person_record") is not None}
         except Exception:
             return {}
 

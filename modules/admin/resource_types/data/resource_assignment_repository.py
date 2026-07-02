@@ -86,25 +86,25 @@ class ApiResourceAssignmentRepository:
     def get_available_resources_by_type(self, resource_type_id: int) -> dict:
         return {"personnel": [], "team": [], "vehicle": [], "equipment": []}
 
-    def get_personnel_resource_types(self, personnel_id) -> list:
+    def get_personnel_resource_types(self, person_record: int) -> list:
         try:
             from utils.api_client import api_client
-            doc = api_client.get(f"/api/master/personnel/{personnel_id}")
+            doc = api_client.get(f"/api/master/personnel/{person_record}")
             return doc.get("resource_types") or []
         except Exception:
             return []
 
-    def set_personnel_resource_types(self, personnel_id, resource_type_ids, primary_resource_type_id=None, notes_by_resource_type=None) -> None:
+    def set_personnel_resource_types(self, person_record: int, resource_type_ids, primary_resource_type_id=None, notes_by_resource_type=None) -> None:
         try:
             from utils.api_client import api_client
-            api_client.patch(f"/api/master/personnel/{personnel_id}", json={"resource_types": list(resource_type_ids)})
+            api_client.patch(f"/api/master/personnel/{person_record}", json={"resource_types": list(resource_type_ids)})
         except Exception:
             pass
 
-    def get_personnel_capabilities(self, personnel_id) -> list:
+    def get_personnel_capabilities(self, person_record: int) -> list:
         try:
             from utils.api_client import api_client
-            doc = api_client.get(f"/api/master/personnel/{personnel_id}")
+            doc = api_client.get(f"/api/master/personnel/{person_record}")
             return doc.get("capabilities") or []
         except Exception:
             return []

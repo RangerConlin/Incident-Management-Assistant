@@ -11,7 +11,6 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QMessageBox, QInputDialog, Q
 from .panels.template_debug_panel import TemplateDebugPanel
 from .panels.profile_manager_panel import ProfileManagerPanel
 from .panels.dev_cert_catalog_editor import DevCertCatalogEditor
-from modules.personnel.services import cert_seeder
 
 
 def attach_dev_menu(main_window):
@@ -87,7 +86,7 @@ def attach_dev_menu(main_window):
         v = QVBoxLayout(dlg)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(panel)
-        dlg.adjustSize()
+        dlg.resize(900, 600)
         dlg.exec()
 
     act_cert_editor.triggered.connect(_open_cert_editor)
@@ -107,16 +106,6 @@ def attach_dev_menu(main_window):
 
     act_forms.triggered.connect(_open_forms)
     dev_menu.addAction(act_forms)
-
-    # Rerun Catalog Seeder
-    act_seed = QAction("Rerun Catalog Seeder", main_window)
-
-    def _run_seed():
-        changed, msg = cert_seeder.sync()
-        QMessageBox.information(main_window, "Catalog Seeder", msg)
-
-    act_seed.triggered.connect(_run_seed)
-    dev_menu.addAction(act_seed)
 
     # Sync Local -> Cloud MongoDB
     act_cloud_sync = QAction("Sync Local -> Cloud…", main_window)

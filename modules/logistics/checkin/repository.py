@@ -29,7 +29,8 @@ def _incident_base(incident_id: str) -> str:
 
 def _identity_from_doc(doc: dict) -> PersonnelIdentity:
     return PersonnelIdentity(
-        person_id=str(doc.get("id") or doc.get("person_id") or ""),
+        person_record=int(doc.get("person_record") or 0),
+        person_id=str(doc.get("person_id") or ""),
         name=doc.get("name") or "",
         primary_role=doc.get("primary_role") or doc.get("role"),
         phone=doc.get("phone"),
@@ -45,15 +46,8 @@ def _identity_from_doc(doc: dict) -> PersonnelIdentity:
 # Master lookups
 # ---------------------------------------------------------------------------
 
-def get_person_identity(person_id: str) -> Optional[PersonnelIdentity]:
-    """Resolve a person's display identity.
-
-    Team membership and other incident-scoped references use the id of the
-    incident's own ``incident_personnel`` check-in copy, not the master
-    roster id, so look there first and only fall back to the master
-    collection (e.g. for a person referenced before any check-in copy
-    exists).
-    """
+def get_person_identity(person_record: int) -> Optional[PersonnelIdentity]:
+    """Resolve a person's display identity by person_record (internal integer key)."""
     try:
         from utils import incident_context
         incident_id = incident_context.get_active_incident_id()
@@ -61,13 +55,13 @@ def get_person_identity(person_id: str) -> Optional[PersonnelIdentity]:
         incident_id = None
     if incident_id:
         try:
-            doc = _client().get(f"/api/incidents/{incident_id}/operations/personnel/{person_id}")
+            doc = _client().get(f"/api/incidents/{incident_id}/operations/personnel/{person_record}")
             if doc:
                 return _identity_from_doc(doc)
         except Exception:
             pass
     try:
-        doc = _client().get(f"{_BASE_PERSONNEL}/{person_id}")
+        doc = _client().get(f"{_BASE_PERSONNEL}/{person_record}")
         return _identity_from_doc(doc) if doc else None
     except Exception:
         return None
@@ -144,6 +138,7 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
             grayed=bool(ui_flags_data.get("grayed")),
         )
         result.append(RosterRow(
+            person_record=int(row.get("person_record") or 0),
             person_id=row.get("person_id") or "",
             name=row.get("name") or "",
             role=row.get("role"),
@@ -164,13 +159,13 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
 # Check-in persistence
 # ---------------------------------------------------------------------------
 
-def fetch_checkin(person_id: str) -> Optional[CheckInRecord]:
+def fetch_checkin(person_record: int) -> Optional[CheckInRecord]:
     from utils import incident_context
     incident_id = incident_context.get_active_incident_id()
     if not incident_id:
         return None
     try:
-        doc = _client().get(f"{_incident_base(incident_id)}/{person_id}")
+        doc = _client().get(f"{_incident_base(incident_id)}/{person_record}")
         return CheckInRecord.from_row(doc) if doc else None
     except Exception:
         return None
@@ -183,7 +178,7 @@ def save_checkin(record: CheckInRecord) -> CheckInRecord:
         return record
     payload = record.to_payload()
     try:
-        _client().put(f"{_incident_base(incident_id)}/{record.person_id}", json=payload)
+        _client().put(f"{_incident_base(incident_id)}/{record.person_record}", json=payload)
     except Exception:
         pass
     return record
@@ -193,13 +188,13 @@ def save_checkin(record: CheckInRecord) -> CheckInRecord:
 # History helpers
 # ---------------------------------------------------------------------------
 
-def log_history(person_id: str, actor: str, event_type: str, payload: Dict) -> None:
+def log_history(person_record: int, actor: str, event_type: str, payload: Dict) -> None:
     from utils import incident_context
     incident_id = incident_context.get_active_incident_id()
     if not incident_id:
         return
     entry = {
-        "person_id": person_id,
+        "person_record": person_record,
         "actor": actor,
         "event_type": event_type,
         "payload": payload,
@@ -210,13 +205,13 @@ def log_history(person_id: str, actor: str, event_type: str, payload: Dict) -> N
         pass
 
 
-def list_history(person_id: str) -> List[HistoryItem]:
+def list_history(person_record: int) -> List[HistoryItem]:
     from utils import incident_context
     incident_id = incident_context.get_active_incident_id()
     if not incident_id:
         return []
     try:
-        docs = _client().get(f"{_incident_base(incident_id)}/history/{person_id}") or []
+        docs = _client().get(f"{_incident_base(incident_id)}/history/{person_record}") or []
     except Exception:
         return []
     result = []
@@ -231,9 +226,9 @@ def list_history(person_id: str) -> List[HistoryItem]:
     return result
 
 
-def has_activity(person_id: str) -> bool:
+def has_activity(person_record: int) -> bool:
     activity_events = {"ASSIGNMENT_CHANGE", "NOTE", "LOCATION_CHANGE"}
-    items = list_history(person_id)
+    items = list_history(person_record)
     return any(item.event_type in activity_events for item in items)
 
 

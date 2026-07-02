@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMenu,
@@ -85,8 +86,11 @@ def _load_resource_kind_options() -> list[str]:
         return _DEFAULT_RESOURCE_KINDS
 
 
-# Classifications rendered in this window's tree
+# Classifications rendered as structural nodes in this window's tree
 _UNIT_CLASSIFICATIONS = {"branch", "division", "group"}
+
+# Position classifications that are shown as leaf children under unit nodes
+_STAFF_CLASSIFICATIONS = {"position"}
 
 # Resource type labels
 _RESOURCE_TYPE_LABELS = {
@@ -584,6 +588,16 @@ class OperationsSectionWindow(QDialog):
         self.unit_staffing.setWordWrap(True)
         right_layout.addWidget(self.unit_staffing)
 
+        staff_buttons = QHBoxLayout()
+        self.btn_assign_personnel = QPushButton("Assign Personnel…", right)
+        self.btn_assign_personnel.clicked.connect(self._assign_personnel)
+        staff_buttons.addWidget(self.btn_assign_personnel)
+        self.btn_remove_personnel = QPushButton("Remove Assignment…", right)
+        self.btn_remove_personnel.clicked.connect(self._remove_personnel)
+        staff_buttons.addWidget(self.btn_remove_personnel)
+        staff_buttons.addStretch(1)
+        right_layout.addLayout(staff_buttons)
+
         right_layout.addWidget(QLabel("Assigned Resources", right))
 
         self.resources_table = QTableWidget(right)
@@ -615,6 +629,8 @@ class OperationsSectionWindow(QDialog):
         splitter.setStretchFactor(1, 3)
 
         self._set_resource_panel_enabled(False)
+        self.btn_assign_personnel.setEnabled(False)
+        self.btn_remove_personnel.setEnabled(False)
 
     # ------------------------------------------------------------------
     def _refresh(self) -> None:
@@ -669,50 +685,27 @@ class OperationsSectionWindow(QDialog):
             ]
             return ", ".join(primary_names) if primary_names else ""
 
+        staff_font = QFont()
+        staff_font.setItalic(True)
+
         def _add_unit_children(parent_item: QTreeWidgetItem, parent_id: int | None) -> None:
             for pos in children.get(parent_id, []):
-                if pos.classification not in _UNIT_CLASSIFICATIONS:
-                    continue
                 assignment_text = _build_assignment_text(pos.id or 0)
                 item = QTreeWidgetItem([pos.title, assignment_text])
                 item.setData(0, Qt.UserRole, pos.id)
+                item.setData(0, Qt.UserRole + 1, pos.classification)
                 if pos.classification == "branch":
                     item.setFont(0, branch_font)
-                _add_unit_children(item, pos.id)
+                    _add_unit_children(item, pos.id)
+                elif pos.classification in _UNIT_CLASSIFICATIONS:
+                    _add_unit_children(item, pos.id)
+                elif pos.classification in _STAFF_CLASSIFICATIONS:
+                    item.setFont(0, staff_font)
+                else:
+                    continue
                 parent_item.addChild(item)
 
         _add_unit_children(root_item, ops_id)
-
-        # Also surface any branches/divisions not under the ops section
-        all_unit_ids = {
-            p.id for p in positions if p.classification in _UNIT_CLASSIFICATIONS
-        }
-        shown_ids: set[int] = set()
-
-        def _collect_shown(item: QTreeWidgetItem) -> None:
-            uid = item.data(0, Qt.UserRole)
-            if uid is not None:
-                shown_ids.add(uid)
-            for i in range(item.childCount()):
-                _collect_shown(item.child(i))
-
-        _collect_shown(root_item)
-
-        orphan_ids = all_unit_ids - shown_ids
-        if orphan_ids:
-            other_item = QTreeWidgetItem(["Other Units", ""])
-            other_item.setData(0, Qt.UserRole, None)
-            other_font = QFont()
-            other_font.setItalic(True)
-            other_item.setFont(0, other_font)
-            self.tree.addTopLevelItem(other_item)
-            for pos in positions:
-                if pos.id in orphan_ids:
-                    assignment_text = _build_assignment_text(pos.id or 0)
-                    item = QTreeWidgetItem([pos.title, assignment_text])
-                    item.setData(0, Qt.UserRole, pos.id)
-                    other_item.addChild(item)
-            other_item.setExpanded(True)
 
         self.tree.expandAll()
         self.tree.resizeColumnToContents(0)
@@ -731,11 +724,19 @@ class OperationsSectionWindow(QDialog):
             return None
         return items[0].data(Qt.UserRole)
 
+    def _selected_classification(self) -> str | None:
+        items = self.tree.selectedItems()
+        if not items:
+            return None
+        return items[0].data(0, Qt.UserRole + 1)
+
     def _handle_unit_selected(self) -> None:
         unit_id = self._selected_unit_id()
         is_unit = unit_id is not None and unit_id in self._positions_by_id
         self.btn_edit.setEnabled(is_unit)
         self.btn_deactivate.setEnabled(is_unit)
+        self.btn_assign_personnel.setEnabled(is_unit)
+        self.btn_remove_personnel.setEnabled(is_unit)
         self._set_resource_panel_enabled(is_unit)
 
         if not is_unit:
@@ -811,6 +812,16 @@ class OperationsSectionWindow(QDialog):
         menu = QMenu(self)
         unit_id = self._selected_unit_id()
         pos = self._positions_by_id.get(unit_id or 0)
+
+        action_assign_personnel = menu.addAction("Assign Personnel…")
+        action_assign_personnel.setEnabled(unit_id is not None)
+        action_assign_personnel.triggered.connect(self._assign_personnel)
+
+        action_remove_personnel = menu.addAction("Remove Assignment…")
+        action_remove_personnel.setEnabled(unit_id is not None)
+        action_remove_personnel.triggered.connect(self._remove_personnel)
+
+        menu.addSeparator()
 
         action_add_branch = menu.addAction("Add Branch…")
         action_add_branch.triggered.connect(self._add_branch)
@@ -989,6 +1000,59 @@ class OperationsSectionWindow(QDialog):
         if confirm != QMessageBox.Yes:
             return
         self.controller.deactivate_position(unit_id)
+        self._refresh()
+        self.structure_changed.emit()
+
+    def _assign_personnel(self) -> None:
+        unit_id = self._selected_unit_id()
+        if not unit_id or unit_id not in self._positions_by_id:
+            return
+        from ..panels.incident_organization_panel import UnifiedAssignmentDialog
+        pos = self._positions_by_id[unit_id]
+        dialog = UnifiedAssignmentDialog(self.incident_id, pos.title, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        values = dialog.result_values()
+        if values is None:
+            return
+        try:
+            self.controller.assign_person(unit_id, values)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Assign Personnel", str(exc))
+            return
+        self._refresh()
+        self.structure_changed.emit()
+
+    def _remove_personnel(self) -> None:
+        unit_id = self._selected_unit_id()
+        if not unit_id or unit_id not in self._positions_by_id:
+            return
+        assignments = self._assignments_by_position.get(unit_id, [])
+        if not assignments:
+            QMessageBox.information(self, "Remove Assignment", "No active assignments on this position.")
+            return
+        if len(assignments) == 1:
+            asgn = assignments[0]
+        else:
+            items = [
+                f"{a.display_name} ({a.assignment_type})" for a in assignments
+            ]
+            choice, ok = QInputDialog.getItem(
+                self, "Remove Assignment", "Select assignment to remove:", items, 0, False
+            )
+            if not ok:
+                return
+            idx = items.index(choice)
+            asgn = assignments[idx]
+        confirm = QMessageBox.question(
+            self,
+            "Remove Assignment",
+            f"Remove {asgn.display_name} from this position?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        self.controller.remove_assignment(asgn.id)
         self._refresh()
         self.structure_changed.emit()
 

@@ -776,7 +776,7 @@ class TeamDetailBridge(QObject):
                 team_id = getattr(r, 'team_id', None)
                 if team_id in (None, '', '-'):  # treat missing/placeholder as unassigned
                     out.append({
-                        'id': getattr(r, 'person_id', None),
+                        'id': getattr(r, 'person_record', None),
                         'name': getattr(r, 'name', ''),
                         'role': getattr(r, 'role', ''),
                         'callsign': getattr(r, 'callsign', ''),
@@ -863,7 +863,7 @@ class TeamDetailBridge(QObject):
                 return
             from ui.personnel import PersonnelDetailDialog
 
-            dialog = PersonnelDetailDialog(None, personnel_id=str(self._selected_member_id))
+            dialog = PersonnelDetailDialog(None, person_record=int(self._selected_member_id))
             self._member_detail_dialog = dialog
             dialog.finished.connect(lambda *_: setattr(self, "_member_detail_dialog", None))
             dialog.open()
@@ -914,7 +914,7 @@ class TeamDetailBridge(QObject):
                     base = None
                     if base is None:
                         try:
-                            ident = ci_repo.get_person_identity(str(pid)) if ci_repo else None
+                            ident = ci_repo.get_person_identity(int(pid)) if ci_repo else None
                         except Exception:
                             ident = None
                         if ident:
@@ -961,7 +961,7 @@ class TeamDetailBridge(QObject):
                         org = ''
                     if not org:
                         try:
-                            ident = ci_repo.get_person_identity(str(rec.get('id')))
+                            ident = ci_repo.get_person_identity(int(rec.get('person_record') or 0))
                         except Exception:
                             ident = None
                         if ident and getattr(ident, 'home_unit', None):
@@ -1136,16 +1136,16 @@ class TeamDetailBridge(QObject):
                 from modules.logistics.checkin import repository as ci_repo
                 from modules.logistics.checkin.models import CheckInRecord, CIStatus, PersonnelStatus, Location
                 now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
-                rec = ci_repo.fetch_checkin(str(pid))
+                rec = ci_repo.fetch_checkin(int(pid))
                 if rec is None:
                     ident = None
                     try:
-                        ident = ci_repo.get_person_identity(str(pid))
+                        ident = ci_repo.get_person_identity(int(pid))
                     except Exception:
                         ident = None
                     person_name = getattr(ident, 'name', None) or getattr(ident, 'full_name', None)
                     rec = CheckInRecord(
-                        person_id=str(pid),
+                        person_record=int(pid),
                         ci_status=CIStatus.CHECKED_IN,
                         personnel_status=PersonnelStatus.ASSIGNED,
                         arrival_time=now_iso,
@@ -1184,7 +1184,7 @@ class TeamDetailBridge(QObject):
             # Also sync Check-In record to clear team assignment
             try:
                 from modules.logistics.checkin import repository as ci_repo
-                rec = ci_repo.fetch_checkin(str(person_id))
+                rec = ci_repo.fetch_checkin(int(person_id))
                 if rec is not None:
                     rec.team_id = None
                     try:

@@ -17,8 +17,8 @@ class TeamDocument(TimestampedDocument):
     team_type: Optional[str] = None  # Ground | K9 | Dive | Technical | etc.
     status: str = "available"  # available | deployed | unavailable | inactive
     ci_status: str = "Available"  # Available | Checked In | Pending | Enroute | etc.
-    member_personnel_ids: List[str] = Field(default_factory=list)
-    leader_personnel_id: Optional[str] = None
+    member_person_records: List[int] = Field(default_factory=list)
+    leader_person_record: Optional[int] = None
     agency: Optional[str] = None
     radio_channel: Optional[str] = None
     vehicle_ids: List[str] = Field(default_factory=list)

@@ -574,13 +574,13 @@ class UnifiedAssignmentDialog(QDialog):
         person = self._resolve_person()
         if person is None:
             return
-        pid = person.get("id") or person.get("person_id") or person.get("int_id")
+        pid = person.get("person_record") or person.get("id") or person.get("int_id")
         name = person.get("name") or person.get("display_name") or ""
         if not name:
             QMessageBox.warning(self, "Assign", "No person name available.")
             return
         self._result = {
-            "personnel_id": str(pid) if pid is not None else None,
+            "person_record": int(pid) if pid is not None else None,
             "display_name": name,
             "assignment_type": normalize_assignment_type(self.type_combo.currentText()),
             "operational_period": self.period_edit.text().strip() or None,
@@ -1302,7 +1302,7 @@ class IncidentOrganizationPanel(QWidget):
         person = self._pool_rows[row]
         try:
             _, warnings = self._ensure_controller().assign_person(position_id, {
-                "personnel_id": person.get("id"),
+                "person_record": int(person.get("person_record") or 0) or None,
                 "display_name": str(person.get("name") or ""),
                 "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })

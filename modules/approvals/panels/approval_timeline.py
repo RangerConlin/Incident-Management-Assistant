@@ -27,7 +27,7 @@ class ApprovalTimeline(QtWidgets.QWidget):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._state: ApprovalInstance | None = None
-        self._current_personnel_id: str | None = None
+        self._current_person_record: int | None = None
         self._current_assignment_type: str | None = None
         self._setup_ui()
 
@@ -49,11 +49,11 @@ class ApprovalTimeline(QtWidgets.QWidget):
     def set_state(
         self,
         state: ApprovalInstance | None,
-        personnel_id: str | None = None,
+        person_record: int | None = None,
         assignment_type: str | None = None,
     ) -> None:
         self._state = state
-        self._current_personnel_id = personnel_id
+        self._current_person_record = person_record
         self._current_assignment_type = assignment_type
         self._refresh()
 
@@ -86,7 +86,7 @@ class ApprovalTimeline(QtWidgets.QWidget):
 
             can_sign = (
                 step.status == "active"
-                and self._current_personnel_id is not None
+                and self._current_person_record is not None
                 and self._state is not None
             )
             if can_sign:
@@ -95,7 +95,7 @@ class ApprovalTimeline(QtWidgets.QWidget):
                 if step.kind == "ack":
                     can_sign = True
                 elif step.resolved_actor_id:
-                    can_sign = step.resolved_actor_id == self._current_personnel_id
+                    can_sign = step.resolved_actor_id == self._current_person_record
 
             if can_sign:
                 btn = QtWidgets.QPushButton("Sign")

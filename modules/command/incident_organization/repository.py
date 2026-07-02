@@ -127,7 +127,7 @@ class ApiIncidentOrganizationRepository:
     def add_assignment(self, assignment: PositionAssignment) -> int:
         body = {
             "position_id": assignment.position_id,
-            "personnel_id": assignment.personnel_id,
+            "person_record": assignment.person_record,
             "display_name": assignment.display_name,
             "assignment_type": assignment.assignment_type,
             "start_time": assignment.start_time,
@@ -163,12 +163,12 @@ class ApiIncidentOrganizationRepository:
         return [self._doc_to_assignment(d) for d in docs]
 
     def list_assignments_for_person(
-        self, personnel_id: str, *, active_only: bool = True
+        self, person_record: int, *, active_only: bool = True
     ) -> list[PositionAssignment]:
         from utils.api_client import api_client
         params: dict = {"active_only": str(active_only).lower()}
         docs = api_client.get(
-            self._base + f"/assignments/by-person/{personnel_id}", params=params
+            self._base + f"/assignments/by-person/{person_record}", params=params
         )
         return [self._doc_to_assignment(d) for d in docs]
 
@@ -232,7 +232,7 @@ class ApiIncidentOrganizationRepository:
             id=doc.get("id") or doc.get("assignment_id"),
             incident_id=doc.get("incident_id", ""),
             position_id=int(doc.get("position_id", 0)),
-            personnel_id=doc.get("personnel_id"),
+            person_record=int(doc["person_record"]) if doc.get("person_record") is not None else None,
             display_name=doc.get("display_name", ""),
             assignment_type=normalize_assignment_type(
                 doc.get("assignment_type", ASSIGNMENT_TYPE_PRIMARY)
@@ -253,7 +253,7 @@ class ApiIncidentOrganizationRepository:
             incident_id=doc.get("incident_id", ""),
             assignment_id=doc.get("assignment_id"),
             position_id=int(doc.get("position_id", 0)),
-            personnel_id=doc.get("personnel_id"),
+            person_record=int(doc["person_record"]) if doc.get("person_record") is not None else None,
             display_name=doc.get("display_name", ""),
             assignment_type=normalize_assignment_type(
                 doc.get("assignment_type", ASSIGNMENT_TYPE_PRIMARY)

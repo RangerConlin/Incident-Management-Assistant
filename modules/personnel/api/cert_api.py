@@ -11,40 +11,72 @@ from typing import List, Dict, Any
 
 from utils.api_client import api_client
 from utils.app_settings import DEV_MODE
+from modules.personnel.models.cert_catalog import CATALOG
 from modules.personnel.models.validation_profiles import PROFILES, get_profile
 
 
 def list_catalog(filter_text: str = "", category: str | None = None) -> List[Dict[str, Any]]:
-    """List catalog types from the API with optional filters."""
-    try:
-        params = {}
-        if filter_text:
-            params["search"] = filter_text
-        certs = api_client.get("/api/master/certifications/types", params=params) or []
-        if category:
-            certs = [c for c in certs if c.get("category") == category]
-        return certs
-    except Exception:
-        return []
+    """Return certification types from the hardcoded catalog."""
+    results = [
+        {
+            "id": ct.id,
+            "int_id": ct.id,
+            "code": ct.code,
+            "name": ct.name,
+            "category": ct.category,
+            "issuing_org": ct.issuing_org,
+            "parent_id": ct.parent_id,
+            "tags": list(ct.tags),
+            "is_medical": ct.is_medical,
+        }
+        for ct in CATALOG
+    ]
+    if category:
+        results = [c for c in results if c["category"] == category]
+    if filter_text:
+        ft = filter_text.lower()
+        results = [
+            c for c in results
+            if ft in c["code"].lower() or ft in c["name"].lower()
+            or ft in c["category"].lower() or ft in c["issuing_org"].lower()
+        ]
+    return sorted(results, key=lambda c: (c["category"], c["code"]))
 
 
 def list_tags_for_cert(cert_type_id: int) -> list[str]:
-    try:
-        return api_client.get(f"/api/master/certifications/types/{cert_type_id}/tags") or []
-    except Exception:
-        return []
+    for ct in CATALOG:
+        if ct.id == cert_type_id:
+            return list(ct.tags)
+    return []
 
 
 def list_personnel_certs(personnel_id: int) -> List[Dict[str, Any]]:
-    """Return the person's certifications from the API.
-
-    The API returns catalog-enriched rows for UI display, but the stored
-    personnel document only contains cert_type_id and level.
-    """
+    """Return a person's certifications enriched with catalog display data."""
     try:
-        return api_client.get(f"/api/master/certifications/personnel/{personnel_id}") or []
+        rows = api_client.get(f"/api/master/certifications/personnel/{personnel_id}") or []
     except Exception:
         return []
+    catalog_by_id = {ct.id: ct for ct in CATALOG}
+    result = []
+    for row in rows:
+        try:
+            cert_type_id = int(row["cert_type_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        ct = catalog_by_id.get(cert_type_id)
+        result.append({
+            "cert_type_id": cert_type_id,
+            "id": cert_type_id,
+            "level": int(row.get("level") or 0),
+            "code": ct.code if ct else "",
+            "name": ct.name if ct else "",
+            "category": ct.category if ct else "",
+            "issuing_org": ct.issuing_org if ct else "",
+            "parent_id": ct.parent_id if ct else None,
+            "tags": list(ct.tags) if ct else [],
+            "is_medical": ct.is_medical if ct else False,
+        })
+    return sorted(result, key=lambda c: (c["category"], c["code"]))
 
 
 def set_personnel_cert(

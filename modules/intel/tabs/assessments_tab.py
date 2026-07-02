@@ -15,10 +15,18 @@ from modules.intel.models.assessments import Assessment, AssessmentStatus, ASSES
 from modules.intel.services.intel_service import IntelService
 from utils.table_view_styles import apply_statusboard_table_behavior
 
+
+def _color_blob(hex_color: str, label: str) -> str:
+    return (
+        f'<span style="color: {hex_color}; font-size: 16px; vertical-align: middle;">&#9679;</span> '
+        f'<span style="vertical-align: middle;">{label}</span>'
+    )
+
 _ROW_COLORS: dict[str, QColor] = {
-    "draft":     QColor(30,  80,  180, 110),
-    "finalized": QColor(40,  160, 80,  100),
-    "archived":  QColor(100, 100, 100, 80),
+    "draft":       QColor(30,  80,  180, 110),
+    "in progress": QColor(20,  120, 200, 100),
+    "complete":    QColor(40,  160, 80,  100),
+    "archived":    QColor(100, 100, 100, 80),
 }
 
 
@@ -50,17 +58,21 @@ class _NewAssessmentDialog(QDialog):
         form.addRow("Title *", self._title)
 
         self._summary = QTextEdit()
-        self._summary.setPlaceholderText("Situation narrative and analytical findings")
+        self._summary.setPlaceholderText(
+            "Brief analytical summary — what question or situation is this assessment addressing?"
+        )
         self._summary.setMinimumHeight(80)
         form.addRow("Summary", self._summary)
 
         self._findings = QTextEdit()
-        self._findings.setPlaceholderText("Analytical findings")
+        self._findings.setPlaceholderText("What the available Intel records indicate")
         self._findings.setMinimumHeight(60)
         form.addRow("Findings", self._findings)
 
         self._recommendations = QTextEdit()
-        self._recommendations.setPlaceholderText("Recommended actions")
+        self._recommendations.setPlaceholderText(
+            "Recommended actions or considerations for planning/command"
+        )
         self._recommendations.setMinimumHeight(60)
         form.addRow("Recommendations", self._recommendations)
 
@@ -128,6 +140,10 @@ class AssessmentsTab(QWidget):
         toolbar.addWidget(new_btn)
         layout.addLayout(toolbar)
 
+        subtitle = QLabel("Analytical products — findings and recommendations from linked Intel records")
+        subtitle.setStyleSheet("color: palette(placeholderText); font-size: 12px;")
+        layout.addWidget(subtitle)
+
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         layout.addWidget(sep)
@@ -142,6 +158,17 @@ class AssessmentsTab(QWidget):
         self._table.setSortingEnabled(True)
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
+        legend = QLabel(
+            "  ".join([
+                _color_blob("#1e50b4", "Draft"),
+                _color_blob("#149664", "In Progress"),
+                _color_blob("#28a050", "Complete"),
+                _color_blob("#646464", "Archived"),
+            ])
+        )
+        legend.setTextFormat(Qt.RichText)
+        legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
+        layout.addWidget(legend)
 
         self.refresh()
 

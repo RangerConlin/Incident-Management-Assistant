@@ -66,10 +66,10 @@ def get_team(team_id: int) -> Optional[Team]:
         comm_dt = _dt.fromisoformat(comm_ts) if comm_ts else None
     except Exception:
         comm_dt = None
-    raw_leader = doc.get("team_leader") or doc.get("leader_personnel_id")
+    raw_leader = doc.get("leader_person_record") or doc.get("team_leader") or doc.get("leader_personnel_id")
     leader_id = _parse_int(raw_leader)
     current_task_id = _parse_int(doc.get("current_task_id"))
-    members = _parse_int_list(doc.get("members_json") or doc.get("member_personnel_ids"))
+    members = _parse_int_list(doc.get("members_json") or doc.get("member_person_records") or doc.get("member_personnel_ids"))
     return Team(
         team_id=int(doc.get("int_id") or team_id),
         name=doc.get("name") or f"Team {team_id}",
