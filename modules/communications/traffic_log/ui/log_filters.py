@@ -202,7 +202,7 @@ class LogFilterPanel(QWidget):
         self.channel_combo.clear()
         self.channel_combo.addItem("Any", None)
         for channel in channels:
-            label = str(channel.get("display_name") or channel.get("name") or "")
+            label = str(channel.get("channel_name") or channel.get("name") or "")
             self.channel_combo.addItem(label, channel.get("id"))
         if current:
             idx = self.channel_combo.findData(current)

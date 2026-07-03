@@ -197,6 +197,8 @@ def get_profile(incident_id: str) -> dict[str, Any]:
         "end_time": doc.get("end_time") or "",
         "icp_location": doc.get("icp_address") or doc.get("icp_location") or "",
         "icp_facility_id": doc.get("icp_facility_id") or "",
+        "latitude": doc.get("latitude"),
+        "longitude": doc.get("longitude"),
         "is_training": bool(doc.get("is_training", False)),
     }
 
@@ -211,6 +213,8 @@ class PatchProfileRequest(BaseModel):
     end_time: Optional[str] = None
     icp_location: Optional[str] = None
     icp_facility_id: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     is_training: Optional[bool] = None
 
 
@@ -248,6 +252,10 @@ def patch_profile(incident_id: str, body: PatchProfileRequest) -> dict[str, Any]
     elif "icp_facility_id" in data and not data["icp_facility_id"]:
         update["latitude"] = None
         update["longitude"] = None
+    if "latitude" in data and "icp_facility_id" not in data:
+        update["latitude"] = data["latitude"]
+    if "longitude" in data and "icp_facility_id" not in data:
+        update["longitude"] = data["longitude"]
     if not update:
         raise HTTPException(400, "No valid fields provided")
     existing = repo.find_one({"incident_id": incident_id})

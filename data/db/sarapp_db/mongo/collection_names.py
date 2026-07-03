@@ -200,6 +200,7 @@ class IncidentCollections:
     PLANNED_NOTIFICATIONS = "planned_notifications"
 
     # Logistics
+    RESOURCE_STATUS = "resource_status"
     LOGISTICS_RESOURCE_STATUS_ITEMS = "logistics_resource_status_items"
     LOGISTICS_RESOURCE_REQUESTS = "logistics_resource_requests"
     FACILITIES = "facilities"
@@ -270,3 +271,9 @@ class IncidentCollections:
     FINANCE_APPROVALS = "finance_approvals"
     FINANCE_ATTACHMENTS = "finance_attachments"
     WEATHER_DATA = "weather_data"
+
+    # Task narrative entries (ICS-214 activity log per task)
+    TASK_NARRATIVES = "task_narratives"
+
+    # IAP packages (forms embedded as array within each package document)
+    IAP_PACKAGES = "iap_packages"

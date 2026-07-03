@@ -206,7 +206,7 @@ def _api_doc_to_hazard_type(doc: dict[str, Any]) -> HazardType:
     return HazardType(
         id=int_id,
         name=doc.get("name", ""),
-        display_name=doc.get("display_name", ""),
+        hazard_name=doc.get("hazard_name") or doc.get("name", ""),
         category=doc.get("category", "Other"),
         source=doc.get("source", "AHJ Custom"),
         owner_agency=doc.get("owner_agency", ""),
@@ -357,7 +357,7 @@ def _hazard_type_to_api_doc(ht: HazardType | dict[str, Any]) -> dict[str, Any]:
         return ht
     return {
         "name": ht.name,
-        "display_name": ht.display_name,
+        "hazard_name": ht.hazard_name,
         "category": ht.category,
         "source": ht.source,
         "owner_agency": ht.owner_agency,

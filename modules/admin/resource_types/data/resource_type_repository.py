@@ -303,7 +303,7 @@ def _api_doc_to_resource_type(doc: dict[str, Any]) -> ResourceType:
     return ResourceType(
         id=rt_id,
         name=doc.get("name", ""),
-        planning_display_name=doc.get("planning_display_name", ""),
+        resource_name=doc.get("resource_name") or doc.get("name", ""),
         category=doc.get("category", "Other"),
         source=doc.get("source", "AHJ Custom"),
         owner_agency=doc.get("owner_agency", ""),
@@ -351,7 +351,7 @@ def _api_doc_to_resource_type(doc: dict[str, Any]) -> ResourceType:
 def _resource_type_to_api_doc(rt: ResourceType) -> dict[str, Any]:
     return {
         "name": rt.name,
-        "planning_display_name": rt.planning_display_name,
+        "resource_name": rt.resource_name,
         "category": rt.category,
         "source": rt.source,
         "owner_agency": rt.owner_agency,

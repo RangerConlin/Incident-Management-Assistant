@@ -2,17 +2,19 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Dict, List, Optional, Sequence
 
 from .models import (
     CheckInRecord,
+    CIStatus,
     HistoryItem,
+    Location,
     PersonnelIdentity,
+    PersonnelStatus,
     QueueItem,
     RosterFilters,
     RosterRow,
-    CIStatus,
-    PersonnelStatus,
 )
 
 _BASE_PERSONNEL = "/api/master/personnel"
@@ -36,7 +38,6 @@ def _identity_from_doc(doc: dict) -> PersonnelIdentity:
         phone=doc.get("phone"),
         callsign=doc.get("callsign"),
         certifications=doc.get("certifications"),
-        home_unit=doc.get("home_unit"),
         rank=doc.get("rank"),
         is_medic=doc.get("is_medic"),
     )
@@ -159,14 +160,67 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
 # Check-in persistence
 # ---------------------------------------------------------------------------
 
+def _resource_status_to_checkin(doc: dict) -> CheckInRecord:
+    """Convert a resource_status document to CheckInRecord shape."""
+    raw_status = doc.get("status") or "Pending"
+    # resource_status uses "Checked In"; CIStatus uses "CheckedIn"
+    if raw_status == "Checked In":
+        raw_status = "CheckedIn"
+    elif raw_status == "NoShow":
+        raw_status = "Not Coming"
+    try:
+        ci_status = CIStatus.normalize(raw_status)
+    except ValueError:
+        ci_status = CIStatus.PENDING
+
+    arrival = (
+        doc.get("checked_in_time")
+        or doc.get("created_at")
+        or datetime.now().astimezone().isoformat(timespec="seconds")
+    )
+    location_str = doc.get("location") or "ICP"
+    try:
+        location = Location.normalize(location_str)
+    except ValueError:
+        location = Location.ICP
+
+    return CheckInRecord(
+        person_record=int(doc.get("record_id") or 0),
+        status=ci_status,
+        ci_status=ci_status,
+        arrival_time=arrival,
+        location=location,
+        notes=doc.get("notes"),
+        created_at=doc.get("created_at"),
+        updated_at=doc.get("updated_at"),
+    )
+
+
+_CHECKED_IN_STATUSES = {
+    "Checked In",
+    "Assigned",
+    "Available",
+    "Out of Service",
+    "Preparing for Demobilization",
+}
+
+_CISTATUS_TO_RS = {
+    "CheckedIn": "Checked In",
+    "NoShow": "Not Coming",
+}
+
+
 def fetch_checkin(person_record: int) -> Optional[CheckInRecord]:
     from utils import incident_context
     incident_id = incident_context.get_active_incident_id()
     if not incident_id:
         return None
     try:
-        doc = _client().get(f"{_incident_base(incident_id)}/{person_record}")
-        return CheckInRecord.from_row(doc) if doc else None
+        doc = _client().get(
+            f"/api/incidents/{incident_id}/resource-status/by-entity",
+            params={"entity_type": "personnel", "record_id": str(person_record)},
+        )
+        return _resource_status_to_checkin(doc) if doc else None
     except Exception:
         return None
 
@@ -176,9 +230,38 @@ def save_checkin(record: CheckInRecord) -> CheckInRecord:
     incident_id = incident_context.get_active_incident_id()
     if not incident_id:
         return record
-    payload = record.to_payload()
+
+    ci_value = record.status.value
+    rs_status = _CISTATUS_TO_RS.get(ci_value, ci_value)
+
+    resource_name = str(record.person_record)
+    person_id: Optional[str] = None
     try:
-        _client().put(f"{_incident_base(incident_id)}/{record.person_record}", json=payload)
+        master = _client().get(f"/api/master/personnel/{record.person_record}")
+        if master:
+            resource_name = master.get("name") or str(record.person_record)
+            person_id = master.get("person_id") or None
+    except Exception:
+        pass
+
+    payload: dict = {
+        "entity_type": "personnel",
+        "record_id": record.person_record,
+        "resource_id": person_id or str(record.person_record),
+        "resource_name": resource_name,
+        "resource_type": "Personnel",
+        "status": rs_status,
+        "changed_by": "Check-In",
+    }
+    if record.notes:
+        payload["notes"] = record.notes
+    if rs_status in _CHECKED_IN_STATUSES and record.arrival_time:
+        payload["checked_in_time"] = record.arrival_time
+    if record.location:
+        payload["location"] = record.location.value
+
+    try:
+        _client().post(f"/api/incidents/{incident_id}/resource-status", json=payload)
     except Exception:
         pass
     return record

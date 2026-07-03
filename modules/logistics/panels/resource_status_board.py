@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt, Signal
-from PySide6.QtGui import QColor, QBrush
+
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QMenu,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -33,8 +34,7 @@ from PySide6.QtWidgets import (
 
 from modules.logistics.facilities import FacilityPicker
 from modules.logistics.facilities.service import FacilitiesService
-from styles.styles import subscribe_theme
-from utils.incident_cache import incident_cache
+from styles.styles import resource_status_colors, subscribe_theme
 from utils.table_view_styles import apply_statusboard_table_behavior
 
 from modules.logistics.resource_status import RESOURCE_STATUSES, ResourceBoardFilters
@@ -42,17 +42,14 @@ from modules.logistics.resource_status.models import ResourceItem, format_displa
 from modules.logistics.resource_status.service import ResourceStatusService, get_service
 from modules.logistics.checkin.services import get_service as get_checkin_service
 from modules.logistics.checkin.services import ENTITY_CONFIG
+from modules.statusboards.resource_status_desk import get_resource_status_desk
+from modules.operations.teams.windows import open_team_detail_window
+from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog, VehicleRepository
+from modules.logistics.aircraft.panels.aircraft_inventory_window import AircraftInventoryWindow, AircraftRepository
+from ui.personnel import PersonnelDetailDialog
+from utils import incident_context
+from utils.api_client import api_client
 
-
-STATUS_BRUSHES: dict[str, tuple[str, str]] = {
-    "Pending": ("#fff8e1", "#5d4037"),
-    "Enroute": ("#e3f2fd", "#0d47a1"),
-    "Checked In": ("#e8f5e9", "#1b5e20"),
-    "Assigned": ("#ede7f6", "#4527a0"),
-    "Available": ("#e0f2f1", "#004d40"),
-    "Out of Service": ("#fbe9e7", "#bf360c"),
-    "Demobilized": ("#eceff1", "#37474f"),
-}
 
 
 @dataclass(slots=True)
@@ -124,12 +121,12 @@ class ResourceStatusTableModel(QAbstractTableModel):
             return str(value)
 
         if role == Qt.BackgroundRole:
-            bg, _ = STATUS_BRUSHES.get(item.status, ("#ffffff", "#212121"))
-            return QBrush(QColor(bg))
+            entry = resource_status_colors().get(item.status)
+            return entry["bg"] if entry else None
 
         if role == Qt.ForegroundRole:
-            _, fg = STATUS_BRUSHES.get(item.status, ("#ffffff", "#212121"))
-            return QBrush(QColor(fg))
+            entry = resource_status_colors().get(item.status)
+            return entry["fg"] if entry else None
 
         if role == Qt.TextAlignmentRole and column in {"eta_utc", "checked_in_time", "last_updated"}:
             return int(Qt.AlignCenter | Qt.AlignVCenter)
@@ -356,23 +353,13 @@ class ResourceStatusBoard(QWidget):
 
         self.setWindowTitle("Logistics — Resource Status Board")
         self._build_ui()
-        self.refresh()
         try:
-            subscribe_theme(self, lambda *_: self._table.viewport().update())
+            subscribe_theme(self, lambda *_: self._model.layoutChanged.emit())
         except Exception:
             pass
-        # Live updates: re-pull whenever any tracked resource record changes.
-        # `list_resources()` also re-runs the source sync, so this stays a
-        # single call into existing service logic rather than a client-side
-        # join — there is no separate "raw resource document" to apply here.
-        try:
-            incident_cache.changed.connect(self._on_cache_changed)
-        except Exception:
-            pass
-
-    def _on_cache_changed(self, collection: str, op: str, doc_id: str) -> None:
-        if collection == "logistics_resource_status_items":
-            self.refresh()
+        self._desk = get_resource_status_desk()
+        self._desk.resource_rows_changed.connect(self._render_rows)
+        self._render_rows(self._desk.resource_rows())
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -391,7 +378,7 @@ class ResourceStatusBoard(QWidget):
         self.status_filter.addItem("All")
         self.status_filter.addItems(RESOURCE_STATUSES)
         self.resource_type_filter = QComboBox()
-        self.resource_type_filter.addItem("All")
+        self.resource_type_filter.addItems(["All", "Personnel", "Vehicle", "Aircraft", "Equipment"])
         self.assignment_filter = QComboBox()
         self.assignment_filter.addItems(["All", "Assigned", "Unassigned"])
         self.eta_filter = QComboBox()
@@ -430,6 +417,8 @@ class ResourceStatusBoard(QWidget):
         self._table.setAlternatingRowColors(False)
         apply_statusboard_table_behavior(self._table, stretch_last_section=True)
         self._table.doubleClicked.connect(lambda *_: self._edit_selected())
+        self._table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._show_table_context_menu)
         header = self._table.horizontalHeader()
         header.setSectionsClickable(True)
         header.setSortIndicatorShown(True)
@@ -445,24 +434,21 @@ class ResourceStatusBoard(QWidget):
         self.add_button.clicked.connect(self._add_resource)
         self.edit_button.clicked.connect(self._edit_selected)
         self.refresh_button.clicked.connect(self.refresh)
+        self._source_windows: list[QWidget] = []
 
     def refresh(self) -> None:
-        items = self._service.list_resources()
+        self._render_rows(self._desk.resource_rows())
+
+    def _render_rows(self, rows: list[dict]) -> None:
+        items = []
+        for row in rows:
+            try:
+                items.append(ResourceItem.from_row(row))
+            except Exception:
+                pass
         self._model.set_items(items)
-        self._refresh_resource_type_filter(items)
         self._apply_filters()
         self._table.resizeRowsToContents()
-
-    def _refresh_resource_type_filter(self, items: list[ResourceItem]) -> None:
-        current = self.resource_type_filter.currentText() if hasattr(self, "resource_type_filter") else "All"
-        values = sorted({item.resource_type for item in items if item.resource_type})
-        self.resource_type_filter.blockSignals(True)
-        self.resource_type_filter.clear()
-        self.resource_type_filter.addItem("All")
-        self.resource_type_filter.addItems(values)
-        index = self.resource_type_filter.findText(current)
-        self.resource_type_filter.setCurrentIndex(index if index >= 0 else 0)
-        self.resource_type_filter.blockSignals(False)
 
     def _apply_filters(self) -> None:
         self._proxy.set_filters(
@@ -481,6 +467,119 @@ class ResourceStatusBoard(QWidget):
             return None
         source_index = self._proxy.mapToSource(index)
         return self._model.item_at(source_index.row())
+
+    def _show_table_context_menu(self, pos) -> None:
+        index = self._table.indexAt(pos)
+        if not index.isValid():
+            return
+        self._table.setCurrentIndex(index)
+        item = self._selected_item()
+        if item is None:
+            return
+
+        menu = QMenu(self)
+        act_edit = menu.addAction("Edit Resource")
+        act_open_team = None
+        if item.assigned_to:
+            act_open_team = menu.addAction("Open Team")
+        menu.addSeparator()
+        status_actions: dict[Any, str] = {}
+        for status in ("Requested", "Ordered", "Enroute", "Available", "Assigned", "Cancelled", "Pending"):
+            action = menu.addAction(status)
+            action.setEnabled(status != item.status)
+            status_actions[action] = status
+        act_refresh = menu.addAction("Refresh")
+        chosen = menu.exec(self._table.viewport().mapToGlobal(pos))
+
+        if chosen in status_actions:
+            self._set_status_for_item(item, status_actions[chosen])
+        elif act_open_team is not None and chosen == act_open_team:
+            self._open_team_for_item(item)
+        elif chosen == act_edit:
+            self._open_source_record(item)
+        elif chosen == act_refresh:
+            self.refresh()
+
+    def _set_status_for_item(self, item: ResourceItem, status: str) -> None:
+        try:
+            self._service.update_resource(item.id, {"status": status}, actor_name="Desktop Logistics")
+        except Exception as exc:
+            QMessageBox.critical(self, "Unable to Update Status", str(exc))
+            return
+        self.refresh()
+        self.dataChangedForWorkflow.emit(item.id)
+
+    def _open_team_for_item(self, item: ResourceItem) -> None:
+        team_name = (item.assigned_to or item.assignment_reference or "").strip()
+        if not team_name:
+            QMessageBox.information(self, "Open Team", "This resource is not assigned to a team.")
+            return
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            QMessageBox.information(self, "Open Team", "No active incident is selected.")
+            return
+        try:
+            teams = api_client.get(f"/api/incidents/{incident_id}/operations/teams") or []
+        except Exception as exc:
+            QMessageBox.warning(self, "Open Team", str(exc))
+            return
+
+        match = next(
+            (
+                team for team in teams
+                if str(team.get("team_id")) == team_name
+                or str(team.get("name") or "").strip().lower() == team_name.lower()
+            ),
+            None,
+        )
+        if not match:
+            QMessageBox.information(self, "Open Team", f"Could not resolve team '{team_name}'.")
+            return
+        team_id = match.get("team_id")
+        if team_id is None:
+            QMessageBox.information(self, "Open Team", "That team record does not have an ID.")
+            return
+        open_team_detail_window(int(team_id))
+
+    def _open_source_record(self, item: ResourceItem) -> None:
+        entity_type = (item.source_entity_type or "").strip()
+        source_id = (item.source_record_id or "").strip()
+        if not entity_type or not source_id:
+            QMessageBox.information(self, "Open Source Record", "This row does not have source metadata.")
+            return
+        try:
+            if entity_type == "personnel":
+                dialog = PersonnelDetailDialog(None, person_record=int(source_id))
+            elif entity_type == "vehicle":
+                dialog = VehicleEditDialog(vehicle_id=source_id, repository=VehicleRepository(), parent=self)
+            elif entity_type == "aircraft":
+                dialog = AircraftInventoryWindow(repository=AircraftRepository(), parent=self)
+            else:
+                QMessageBox.information(
+                    self,
+                    "Open Source Record",
+                    f"No opener is available for {entity_type} records yet.",
+                )
+                return
+            self._source_windows.append(dialog)
+            try:
+                dialog.destroyed.connect(lambda *_: self._cleanup_source_window(dialog))
+            except Exception:
+                pass
+            if hasattr(dialog, "open") and callable(getattr(dialog, "open")):
+                dialog.open()
+            elif hasattr(dialog, "exec") and callable(getattr(dialog, "exec")):
+                dialog.exec()
+            else:
+                dialog.show()
+        except Exception as exc:
+            QMessageBox.warning(self, "Open Source Record", str(exc))
+
+    def _cleanup_source_window(self, window: QWidget) -> None:
+        try:
+            self._source_windows.remove(window)
+        except ValueError:
+            pass
 
 
     def _edit_selected(self) -> None:

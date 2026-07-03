@@ -144,6 +144,9 @@ _TASK_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "
 _TEAM_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "TEAM_STATUS")
 _TEAM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "TEAM_STATUS")
 
+_RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "RESOURCE_STATUS")
+_RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "RESOURCE_STATUS")
+
 _light_team_types = _build_team_types(_LIGHT_PROFILE)
 _dark_team_types = _build_team_types(_DARK_PROFILE)
 if not _dark_team_types:
@@ -197,6 +200,10 @@ def team_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TASK_STATUS_LIGHT if THEME_NAME == "light" else _TASK_STATUS_DARK
+
+
+def resource_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _RESOURCE_STATUS_LIGHT if THEME_NAME == "light" else _RESOURCE_STATUS_DARK
 
 
 def _qobject_is_valid(obj: object | None) -> bool:
@@ -274,5 +281,6 @@ __all__ = [
     "subscribe_theme",
     "team_status_colors",
     "task_status_colors",
+    "resource_status_colors",
     "TEAM_TYPE_COLORS",
 ]

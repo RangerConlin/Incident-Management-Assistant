@@ -57,7 +57,6 @@ def _normalize_person(doc: dict[str, Any] | None) -> dict[str, Any] | None:
     person_id = next((clean[k] for k in ("person_id", "int_id", "id") if clean.get(k) is not None), None)
     clean["id"] = str(person_id) if person_id is not None else None
     clean["primary_role"] = clean.get("primary_role") or clean.get("role") or clean.get("rank")
-    clean["home_unit"] = clean.get("home_unit") or clean.get("unit")
     return clean
 
 

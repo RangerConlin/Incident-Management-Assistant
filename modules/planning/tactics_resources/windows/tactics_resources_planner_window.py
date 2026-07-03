@@ -408,7 +408,8 @@ class TacticsResourcesPlannerWindow(QWidget):
         self._open_detail(wa.id)
 
     def _open_detail(self, work_assignment_id: int) -> None:
-        # Raise existing window if already open
+        import shiboken6
+        self._open_detail_windows = [w for w in self._open_detail_windows if shiboken6.isValid(w)]
         for win in self._open_detail_windows:
             if not win.isVisible():
                 self._open_detail_windows.remove(win)

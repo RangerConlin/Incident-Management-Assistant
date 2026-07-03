@@ -107,7 +107,7 @@ class PersonnelPicker(QWidget):
             for value in [
                 str(result.get("callsign") or ""),
                 str(result.get("primary_role") or ""),
-                str(result.get("home_unit") or ""),
+                str(result.get("organization") or ""),
             ]
             if value
         )

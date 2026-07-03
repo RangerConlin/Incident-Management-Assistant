@@ -28,7 +28,7 @@ class ApiResourceAssignmentRepository:
         try:
             from utils.api_client import api_client
             doc = api_client.get(f"/api/resource-types/{resource_type_id}")
-            return str(doc.get("planning_display_name") or doc.get("name") or "")
+            return str(doc.get("resource_name") or doc.get("name") or "")
         except Exception:
             return ""
 

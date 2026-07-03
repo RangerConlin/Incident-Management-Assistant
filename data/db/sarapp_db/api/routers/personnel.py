@@ -31,9 +31,8 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d["person_record"] = d.get("person_record")
     d["person_id"] = d.get("person_id") or ""
     d["primary_role"] = d.get("primary_role") or d.get("role") or d.get("rank")
-    d["phone"] = d.get("phone") or d.get("contact")
-    d["home_unit"] = d.get("home_unit") or d.get("unit")
-    d["certifications"] = d.get("certifications") or d.get("certs")
+    d["phone"] = d.get("phone")
+    d["certifications"] = d.get("certifications") or []
     d["is_medic"] = bool(d.get("is_medic", False))
     d["incident_history"] = d.get("incident_history") or []
     return d
@@ -41,6 +40,18 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
 
 def _find_person(col, record_id: int):
     return col.find_one({_RECORD_FIELD: record_id})
+
+
+def _matches_personnel_search(doc: dict[str, Any], term: str) -> bool:
+    if not term:
+        return True
+    haystack = "|".join(filter(None, [
+        str(doc.get("person_id") or ""),
+        str(doc.get("name") or ""),
+        str(doc.get("callsign") or ""),
+        str(doc.get("phone") or ""),
+    ])).lower()
+    return term.lower() in haystack
 
 
 @router.get("/search")
@@ -53,17 +64,10 @@ def search_personnel(
     if not term:
         docs = list(col.find().sort("name", 1).limit(limit))
         return [_normalize(d) for d in docs]
-    t = term.lower()
     docs = list(col.find().sort("name", 1))
     results = []
     for d in docs:
-        haystack = "|".join(filter(None, [
-            d.get("person_id") or "",
-            d.get("name") or "",
-            d.get("callsign") or "",
-            d.get("phone") or "",
-        ])).lower()
-        if t in haystack:
+        if _matches_personnel_search(d, term):
             results.append(_normalize(d))
         if len(results) >= limit:
             break
@@ -77,15 +81,15 @@ def list_personnel(
 ) -> list[dict[str, Any]]:
     col = _col()
     _ensure_record_ids(col, _RECORD_FIELD)
-    docs = list(col.find().sort("name", 1).limit(limit))
     if search.strip():
-        t = search.strip().lower()
-        docs = [
-            d for d in docs
-            if t in (d.get("name") or "").lower()
-            or t in (d.get("person_id") or "").lower()
-            or t in (d.get("callsign") or "").lower()
-        ]
+        docs = []
+        for d in col.find().sort("name", 1):
+            if _matches_personnel_search(d, search):
+                docs.append(d)
+            if len(docs) >= limit:
+                break
+    else:
+        docs = list(col.find().sort("name", 1).limit(limit))
     return [_normalize(d) for d in docs]
 
 
@@ -143,8 +147,7 @@ def update_person(
                 "role": updated.get("primary_role") or updated.get("role"),
                 "phone": updated.get("phone"),
                 "email": updated.get("email"),
-                "organization": updated.get("home_unit") or updated.get("organization"),
-                "unit": updated.get("home_unit") or updated.get("unit"),
+                "organization": updated.get("organization"),
                 "person_id": updated.get("person_id") or "",
                 "is_medic": bool(updated.get("is_medic", False)),
             }

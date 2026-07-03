@@ -180,7 +180,7 @@ class TaskStatusPanel(QWidget):
                 QTableWidgetItem(task.number),
                 QTableWidgetItem(task.name),
                 QTableWidgetItem(", ".join(task.assigned_teams)),
-                QTableWidgetItem(task.status),
+                QTableWidgetItem(str(task.status).title()),
                 QTableWidgetItem(task.priority),
                 QTableWidgetItem(task.location)
         ]
@@ -430,6 +430,8 @@ class TaskStatusPanel(QWidget):
                 return str(value)
         if isinstance(value, (list, tuple)):
             return ", ".join(str(v) for v in value if v not in (None, ""))
+        if spec.get("key") == "status":
+            return str(value).title()
         return str(value)
 
     def _persist_filters(self) -> None:

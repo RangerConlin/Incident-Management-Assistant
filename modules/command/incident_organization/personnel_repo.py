@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from typing import Callable, Iterable, Sequence
 
-from utils.db import get_master_conn
-
-
 class ApiPersonnelPoolRepository:
     """Personnel search backed by the SARApp API (MongoDB)."""
 
@@ -25,12 +22,10 @@ class ApiPersonnelPoolRepository:
                     "id": r.get("id"),
                     "name": r.get("name", ""),
                     "callsign": r.get("callsign", ""),
-                    "phone": r.get("contact", "") or r.get("phone", ""),
-                    "agency": r.get("home_unit", "") or r.get("agency", ""),
+                    "phone": r.get("phone", ""),
+                    "organization": r.get("organization", ""),
                 }
                 for r in results
             ]
         except Exception:
             return []
-
-

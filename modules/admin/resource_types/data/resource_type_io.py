@@ -38,7 +38,7 @@ CAPABILITY_CSV_FIELDS = [
 
 RESOURCE_TYPE_CSV_FIELDS = [
     "name",
-    "planning_display_name",
+    "resource_name",
     "category",
     "source",
     "owner_agency",
@@ -155,7 +155,7 @@ def export_resource_types_csv(
             writer.writerow(
                 {
                     "name": row.get("name", ""),
-                    "planning_display_name": row.get("planning_display_name", ""),
+                    "resource_name": row.get("resource_name") or row.get("name", ""),
                     "category": row.get("category", ""),
                     "source": row.get("source", ""),
                     "owner_agency": row.get("owner_agency", ""),
@@ -242,7 +242,7 @@ def import_resource_types_csv(
                 rt = ResourceType(
                     id=existing.id if existing else None,
                     name=name,
-                    planning_display_name=row.get("planning_display_name", "").strip(),
+                    resource_name=row.get("resource_name", "").strip(),
                     category=category,
                     source=source,
                     owner_agency=row.get("owner_agency", "").strip(),

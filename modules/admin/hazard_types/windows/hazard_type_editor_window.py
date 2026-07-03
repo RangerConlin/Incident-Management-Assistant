@@ -210,7 +210,7 @@ class HazardTypeEditorWindow(QDialog):
         record = self.hazard_type
         widget = QWidget()
         self.name_edit = QLineEdit(record.name if record else "")
-        self.display_edit = QLineEdit(record.display_name if record else "")
+        self.display_edit = QLineEdit(record.hazard_name if record else "")
         self.category_combo = QComboBox()
         self.category_combo.addItems(HAZARD_CATEGORIES)
         self.source_combo = QComboBox()
@@ -658,7 +658,7 @@ class HazardTypeEditorWindow(QDialog):
         return HazardType(
             id=self.hazard_type.id if self.hazard_type else None,
             name=self.name_edit.text(),
-            display_name=self.display_edit.text(),
+            hazard_name=self.display_edit.text(),
             category=self.category_combo.currentText(),
             source=self.source_combo.currentText(),
             owner_agency=self.owner_edit.text(),

@@ -448,7 +448,7 @@ class _MeetingDetailWindow(QDialog):
         attendees = self._repository.list_attendees(meeting.id or 0)
         self.attendees_table.setRowCount(len(attendees))
         for row, att in enumerate(attendees):
-            attendee_item = QTableWidgetItem(att.display_name)
+            attendee_item = QTableWidgetItem(att.attendee_name)
             attendee_item.setData(Qt.UserRole, att.id)
             self.attendees_table.setItem(row, 0, attendee_item)
             self.attendees_table.setItem(row, 1, QTableWidgetItem(att.requirement_status.title()))
@@ -1291,7 +1291,7 @@ class MeetingsPanel(QWidget):
             if attendee.attendee_type == "role" and attendee.role:
                 if self._resolve_role_actor_id(attendee.role) == active_user_id:
                     return True
-            elif attendee.display_name.strip().lower() == active_user_id.lower():
+            elif attendee.attendee_name.strip().lower() == active_user_id.lower():
                 return True
         return False
 

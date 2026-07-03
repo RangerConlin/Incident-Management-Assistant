@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
@@ -12,6 +13,7 @@ from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollecti
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 DERIVED_CHECKED_IN_STATUSES = {
     "Available",
     "Assigned",
@@ -74,7 +76,6 @@ def _normalize_person(doc: dict[str, Any]) -> dict[str, Any]:
     d["person_id"] = d.get("person_id") or ""
     d["primary_role"] = d.get("primary_role") or d.get("role") or d.get("rank")
     d["phone"] = d.get("phone") or d.get("contact")
-    d["home_unit"] = d.get("home_unit") or d.get("unit")
     return d
 
 
@@ -169,63 +170,83 @@ def fetch_roster(
     team: str = Query(""),
     include_no_show: bool = Query(False),
 ) -> list[dict[str, Any]]:
-    repo = _checkins_repo(incident_id)
-    query: dict[str, Any] = {}
-    if ci_status and ci_status != "All":
-        query["ci_status"] = ci_status
-    if personnel_status and personnel_status != "All":
-        query["personnel_status"] = personnel_status
-    if team and team not in ("All", "—", ""):
-        query["team_id"] = team
-    if not include_no_show:
-        query["ci_status"] = {"$ne": "NoShow"} if "ci_status" not in query else query["ci_status"]
+    """Return the personnel roster from resource_status (entity_type=personnel)."""
+    from sarapp_db.mongo.collection_names import IncidentCollections
+    from sarapp_db.mongo.database_manager import get_incident_db
 
-    docs = repo.find_many(query, sort=[("updated_at", -1)])
+    rs_col = get_incident_db(incident_id)[IncidentCollections.RESOURCE_STATUS]
+    rs_query: dict[str, Any] = {"entity_type": "personnel", "deleted": {"$ne": True}}
+
+    if not include_no_show:
+        rs_query["status"] = {"$nin": ["Cancelled"]}
+
+    rs_docs = list(rs_col.find(rs_query, sort=[("updated_at", -1)]))
     personnel_repo = _personnel_repo()
     result = []
 
-    for d in docs:
-        prec = d.get(_PERSON_RECORD)
-        identity = personnel_repo.find_one({_PERSON_RECORD: prec}) if prec is not None else None
+    for d in rs_docs:
+        prec = d.get("record_id")
+        if prec is None:
+            continue
+        try:
+            prec = int(prec)
+        except (TypeError, ValueError):
+            pass
 
+        identity = personnel_repo.find_one({_PERSON_RECORD: prec}) if prec is not None else None
         if identity is None and prec is not None:
             identity = {_PERSON_RECORD: prec, "name": str(prec)}
 
-        name = (identity or {}).get("name") or str(prec or "")
+        name = d.get("resource_name") or (identity or {}).get("name") or str(prec or "")
         visible_id = (identity or {}).get("person_id") or ""
+        callsign = (identity or {}).get("callsign") or ""
+        phone = (identity or {}).get("phone") or ""
+
         if q:
             t = q.strip().lower()
-            callsign = d.get("incident_callsign") or (identity or {}).get("callsign") or ""
-            phone = d.get("incident_phone") or (identity or {}).get("phone") or ""
-            haystack = "|".join(filter(None, [
-                visible_id, name, callsign, phone
-            ])).lower()
+            haystack = "|".join(filter(None, [visible_id, name, callsign, phone])).lower()
             if t not in haystack:
                 continue
 
-        row_role = d.get("role_on_team") or (identity or {}).get("primary_role") or (identity or {}).get("role")
-        if role and role != "All" and row_role != role:
-            continue
+        row_status = d.get("status") or "Pending"
+        assigned_to = d.get("assigned_to")
 
-        ci_st = d.get("ci_status", "")
-        team_label = d.get("team_name") or d.get("team_id") or "—"
+        if ci_status and ci_status not in ("All", ""):
+            # Map legacy CIStatus values to resource_status canonical values
+            _ci_map = {"CheckedIn": "Checked In"}
+            canonical = _ci_map.get(ci_status, ci_status)
+            if row_status != canonical:
+                continue
+
+        if role and role != "All":
+            row_role = (identity or {}).get("primary_role") or (identity or {}).get("role")
+            if row_role != role:
+                continue
+
+        if team and team not in ("All", "—", ""):
+            if not assigned_to or team.lower() not in str(assigned_to).lower():
+                continue
+
+        is_demob = row_status == "Demobilized"
+        is_not_coming = row_status == "Cancelled"
 
         result.append({
             _PERSON_RECORD: prec,
             "person_id": visible_id,
             "name": name,
-            "role": row_role,
-            "team": team_label,
-            "team_id": d.get("team_id"),
-            "phone": (identity or {}).get("phone") or d.get("incident_phone"),
-            "callsign": d.get("incident_callsign") or (identity or {}).get("callsign"),
-            "status": d.get("status") or d.get("ci_status") or d.get("planning_status") or "Pending",
-            "checked_in": _is_checked_in_status(d.get("status") or d.get("ci_status") or d.get("planning_status")),
+            "role": (identity or {}).get("primary_role") or (identity or {}).get("role"),
+            "team": assigned_to or "—",
+            "team_id": None,
+            "phone": phone,
+            "callsign": callsign,
+            "status": row_status,
+            "ci_status": "CheckedIn" if row_status == "Checked In" else row_status,
+            "checked_in": _is_checked_in_status(row_status),
             "updated_at": d.get("updated_at"),
-            "row_class": "row-demob" if str(d.get("status") or ci_st) == "Demobilized" else None,
+            "row_class": "row-demob" if is_demob else None,
             "ui_flags": {
-                "hidden_by_default": str(d.get("status") or ci_st) == "NoShow",
-                "grayed": str(d.get("status") or ci_st) == "Demobilized",
+                "hidden_by_default": is_not_coming,
+                "grayed": is_demob,
             },
         })
 
@@ -251,6 +272,12 @@ def save_checkin(
     incident_id: str, person_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
     repo = _checkins_repo(incident_id)
+    logger.info(
+        "checkin save start incident_id=%s person_record=%s body_keys=%s",
+        incident_id,
+        person_record,
+        sorted(body.keys()),
+    )
     body.pop("_id", None)
     body[_PERSON_RECORD] = person_record
 
@@ -259,9 +286,20 @@ def save_checkin(
 
     existing = repo.find_one({_PERSON_RECORD: person_record})
     if existing:
+        logger.info(
+            "checkin save updating incident_id=%s person_record=%s existing_id=%s",
+            incident_id,
+            person_record,
+            existing.get("_id"),
+        )
         repo.update_one(existing["_id"], body)
         doc = repo.find_by_id(existing["_id"])
     else:
+        logger.info(
+            "checkin save inserting incident_id=%s person_record=%s",
+            incident_id,
+            person_record,
+        )
         doc = repo.insert_one(body)
 
     # Mirror contact fields back to master personnel and keep incident_personnel in sync.
@@ -284,6 +322,12 @@ def save_checkin(
 
             if updates:
                 personnel_repo.update_one(ident["_id"], updates)
+                logger.info(
+                    "checkin save mirrored personnel fields incident_id=%s person_record=%s update_keys=%s",
+                    incident_id,
+                    person_record,
+                    sorted(updates.keys()),
+                )
 
             from sarapp_db.mongo.client import get_db
             incident_personnel_col = get_db(f"sarapp_incident_{incident_id}")["incident_personnel"]
@@ -296,17 +340,32 @@ def save_checkin(
                 "role": updates.get("primary_role", ident.get("primary_role") or ident.get("role")),
                 "phone": updates.get("phone", ident.get("phone")),
                 "email": ident.get("email"),
-                "organization": ident.get("home_unit") or ident.get("organization"),
-                "unit": ident.get("home_unit") or ident.get("unit"),
+                "organization": ident.get("organization"),
                 "person_id": ident.get("person_id") or "",
                 "is_medic": bool(ident.get("is_medic", False)),
             }
             incident_personnel_col.update_one(
                 {_PERSON_RECORD: person_record}, {"$set": copy_fields}, upsert=True
             )
+            logger.info(
+                "checkin save upserted incident_personnel incident_id=%s person_record=%s",
+                incident_id,
+                person_record,
+            )
     except Exception:
+        logger.exception(
+            "checkin save mirror failed incident_id=%s person_record=%s",
+            incident_id,
+            person_record,
+        )
         pass
 
+    logger.info(
+        "checkin save complete incident_id=%s person_record=%s doc_keys=%s",
+        incident_id,
+        person_record,
+        sorted(doc.keys()) if isinstance(doc, dict) else None,
+    )
     return _normalize_checkin(doc)
 
 
@@ -437,7 +496,7 @@ def list_planning_status_resources(
     status: str = Query(""),
 ) -> list[dict[str, Any]]:
     repo = _checkins_repo(incident_id)
-    planning_stati = ["Requested", "Ordered", "Enroute", "Expected", "Cancelled", "Not Coming", "Pending", "Staged"]
+    planning_stati = ["Requested", "Ordered", "Enroute", "Available", "Assigned", "Cancelled", "Pending", "Staged"]
     clause: dict[str, Any] = {"$in": planning_stati}
     if status and status in planning_stati:
         clause = status
@@ -450,11 +509,35 @@ def list_planning_status_resources(
     return result
 
 
+@router.patch("/{person_record}")
+def patch_checkin(
+    incident_id: str, person_record: int, body: dict[str, Any] = Body(...)
+) -> dict[str, Any]:
+    repo = _checkins_repo(incident_id)
+    existing = repo.find_one({_PERSON_RECORD: person_record})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Check-in record not found")
+    patch = {k: v for k, v in body.items() if k not in ("_id", _PERSON_RECORD)}
+    if not patch:
+        raise HTTPException(status_code=400, detail="No updatable fields provided")
+    patch.setdefault("updated_at", _utcnow())
+    repo.update_one(existing["_id"], patch)
+    doc = repo.find_by_id(existing["_id"])
+    doc.pop("_id", None)
+    return _normalize_checkin(doc)
+
+
 @router.patch("/{person_record}/status")
 def patch_checkin_status(
     incident_id: str, person_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
     repo = _checkins_repo(incident_id)
+    logger.info(
+        "checkin status patch start incident_id=%s person_record=%s body_keys=%s",
+        incident_id,
+        person_record,
+        sorted(body.keys()),
+    )
     existing = repo.find_one({_PERSON_RECORD: person_record})
     if not existing:
         raise HTTPException(status_code=404, detail="Check-in record not found")
@@ -474,6 +557,12 @@ def patch_checkin_status(
     repo.update_one(existing["_id"], patch)
     doc = repo.find_by_id(existing["_id"])
     doc.pop("_id", None)
+    logger.info(
+        "checkin status patch complete incident_id=%s person_record=%s status=%s",
+        incident_id,
+        person_record,
+        patch.get("status"),
+    )
     return doc
 
 

@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 from typing import Any, Optional
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -35,6 +37,8 @@ from notifications.services.notifier import get_notifier
 
 from modules.operations.teams.data.repository import get_team
 from modules.logistics.checkin.services import CheckInService, get_service
+
+logger = logging.getLogger(__name__)
 
 CHECKED_IN_STATUSES = {
     "Available",
@@ -71,6 +75,10 @@ class ICS211CheckInWindow(QWidget):
         self._build_ui()
         self.refresh()
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._center_on_screen()
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         header = QLabel("ICS-211 Check-In")
@@ -102,6 +110,16 @@ class ICS211CheckInWindow(QWidget):
         if op_period:
             return f"Incident: {incident_id} | Operational Period: {op_period}"
         return f"Incident: {incident_id}"
+
+    def _center_on_screen(self) -> None:
+        window = self.windowHandle()
+        screen = window.screen() if window and window.screen() is not None else QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        frame = self.frameGeometry()
+        frame.moveCenter(available.center())
+        self.move(frame.topLeft())
 
     def _build_resource_tab(self, resource_type: str) -> QWidget:
         tab = QWidget(self)
@@ -189,15 +207,12 @@ class ICS211CheckInWindow(QWidget):
         status_preview.setWordWrap(True)
         status_preview.setMinimumHeight(48)
         actions = QHBoxLayout()
-        expected_btn = QPushButton("Mark Expected")
-        expected_btn.clicked.connect(lambda _, rt=resource_type: self._set_status(rt, "Expected"))
         enroute_btn = QPushButton("Mark Enroute")
         enroute_btn.clicked.connect(lambda _, rt=resource_type: self._set_status(rt, "Enroute"))
         prep_btn = QPushButton("Prep Demob")
         prep_btn.clicked.connect(lambda _, rt=resource_type: self._set_status(rt, "Preparing for Demobilization"))
-        cancel_btn = QPushButton("Mark Cancelled / Not Coming")
+        cancel_btn = QPushButton("Mark Cancelled")
         cancel_btn.clicked.connect(lambda _, rt=resource_type: self._set_status(rt, "Cancelled"))
-        actions.addWidget(expected_btn)
         actions.addWidget(enroute_btn)
         actions.addWidget(prep_btn)
         actions.addWidget(cancel_btn)
@@ -266,8 +281,6 @@ class ICS211CheckInWindow(QWidget):
 
         self.team_checkin_btn = QPushButton("Open Team Check-In Confirmation")
         self.team_checkin_btn.clicked.connect(self._open_team_confirmation)
-        self.team_expected_btn = QPushButton("Mark Team Expected")
-        self.team_expected_btn.clicked.connect(lambda: self._set_team_planning("Expected"))
         self.team_enroute_btn = QPushButton("Mark Team Enroute")
         self.team_enroute_btn.clicked.connect(lambda: self._set_team_planning("Enroute"))
         layout.addWidget(self.team_checkin_btn)
@@ -286,7 +299,7 @@ class ICS211CheckInWindow(QWidget):
     def _lookup_placeholder(self, resource_type: str) -> str:
         return {
             "personnel": "Scan/enter ID, CAPID, name, or callsign",
-            "vehicle": "Scan/enter vehicle ID, plate, or unit",
+            "vehicle": "Scan/enter vehicle ID, plate, or organization",
             "aircraft": "Scan/enter tail number or callsign",
             "equipment": "Scan/enter asset tag, serial number, or name",
         }.get(resource_type, "Scan/enter identifier")
@@ -320,23 +333,26 @@ class ICS211CheckInWindow(QWidget):
         if not typed:
             self._previews[resource_type].setText("Enter an identifier to search.")
             return
-        current = self._find_incident_record(resource_type, typed)
-        if current:
-            self._show_lookup(resource_type, current)
-            return
-        matches = self._search_master_records(resource_type, typed)
-        if len(matches) == 1:
-            self._show_lookup(resource_type, LookupResult(matches[0], resource_type))
-        elif len(matches) > 1:
-            chosen = self._resolve_match(resource_type, matches)
-            if chosen is not None:
-                self._show_lookup(resource_type, LookupResult(chosen, resource_type))
+        try:
+            current = self._find_incident_record(resource_type, typed)
+            if current:
+                self._show_lookup(resource_type, LookupResult(current, resource_type))
+                return
+            matches = self._search_master_records(resource_type, typed)
+            if len(matches) == 1:
+                self._show_lookup(resource_type, LookupResult(matches[0], resource_type))
+            elif len(matches) > 1:
+                chosen = self._resolve_match(resource_type, matches)
+                if chosen is not None:
+                    self._show_lookup(resource_type, LookupResult(chosen, resource_type))
+                else:
+                    self._previews[resource_type].setText(
+                        "Multiple matches found. Use the resolver to choose the correct record."
+                    )
             else:
-                self._previews[resource_type].setText(
-                    "Multiple matches found. Use the resolver to choose the correct record."
-                )
-        else:
-            self._previews[resource_type].setText(f"No match for '{typed}'. Use Add New Record.")
+                self._previews[resource_type].setText(f"No match for '{typed}'. Use Add New Record.")
+        except Exception as exc:
+            self._previews[resource_type].setText(f"Search failed: {exc}")
 
     def _show_lookup(self, resource_type: str, result: LookupResult) -> None:
         self._active_selection[resource_type] = result.record
@@ -347,9 +363,9 @@ class ICS211CheckInWindow(QWidget):
         status = self._status_summary(record)
         if resource_type == "personnel":
             return " | ".join(filter(None, [
-                f"ID: {record.get('id') or record.get('person_id')}",
+                f"ID: {record.get('person_id') or record.get('id')}",
                 record.get("name"),
-                record.get("organization") or record.get("unit"),
+                record.get("organization"),
                 record.get("phone"),
                 record.get("primary_role") or record.get("role"),
                 status,
@@ -380,7 +396,7 @@ class ICS211CheckInWindow(QWidget):
 
     def _status_summary(self, record: dict[str, Any]) -> str:
         status = record.get("status") or "Pending"
-        checked_in = status in CHECKED_IN_STATUSES
+        checked_in = record["_checked_in"] if "_checked_in" in record else status in CHECKED_IN_STATUSES
         return f"Status: {status} | Checked In: {'Yes' if checked_in else 'No'}"
 
     def _find_incident_record(self, resource_type: str, typed: str) -> Optional[dict[str, Any]]:
@@ -423,7 +439,7 @@ class ICS211CheckInWindow(QWidget):
         tokens = {
             str(row.get("id") or "").strip().lower(),
             str(row.get("name") or "").strip().lower(),
-            str(row.get("organization") or row.get("unit") or "").strip().lower(),
+            str(row.get("organization") or "").strip().lower(),
             str(row.get("callsign") or "").strip().lower(),
             str(row.get("tail_number") or "").strip().lower(),
             str(row.get("license_plate") or "").strip().lower(),
@@ -481,9 +497,9 @@ class ICS211CheckInWindow(QWidget):
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setRowCount(len(matches))
         for row_idx, row in enumerate(matches):
-            table.setItem(row_idx, 0, QTableWidgetItem(str(row.get("id") or row.get("person_id") or row.get("vehicle_id") or row.get("tail_number") or "")))
+            table.setItem(row_idx, 0, QTableWidgetItem(str(row.get("person_id") or row.get("id") or row.get("vehicle_id") or row.get("tail_number") or "")))
             table.setItem(row_idx, 1, QTableWidgetItem(str(row.get("name") or row.get("callsign") or row.get("resource_name") or "")))
-            table.setItem(row_idx, 2, QTableWidgetItem(str(row.get("organization") or row.get("unit") or "")))
+            table.setItem(row_idx, 2, QTableWidgetItem(str(row.get("organization") or "")))
             table.setItem(row_idx, 3, QTableWidgetItem(self._status_summary(row)))
         table.resizeColumnsToContents()
         layout.addWidget(table)
@@ -534,7 +550,7 @@ class ICS211CheckInWindow(QWidget):
             rows = []
         for row in rows:
             if org:
-                text = str(row.get("organization") or row.get("unit") or "")
+                text = str(row.get("organization") or "")
                 if org.lower() not in text.lower():
                     continue
             records.append(row)
@@ -565,8 +581,23 @@ class ICS211CheckInWindow(QWidget):
             return
         try:
             identifier = self._record_identifier(resource_type, row)
+            logger.info(
+                "check-in window submit resource_type=%s identifier=%s has_person_record=%s row_keys=%s",
+                resource_type,
+                identifier,
+                bool(row.get("person_record")),
+                sorted(row.keys()),
+            )
             if resource_type == "personnel":
-                self._checkin_service.transition_to_checked_in(str(identifier))
+                result = self._checkin_service.transition_to_checked_in(str(identifier))
+                logger.info(
+                    "check-in window personnel result resource_type=%s identifier=%s "
+                    "result_status=%s result_checked_in=%s",
+                    resource_type,
+                    identifier,
+                    result.get("status") if isinstance(result, dict) else None,
+                    result.get("checked_in") if isinstance(result, dict) else None,
+                )
                 ldw_payload = self._selected_ldw_payload(resource_type)
                 self._checkin_service.update_ldw(
                     str(identifier),
@@ -586,20 +617,31 @@ class ICS211CheckInWindow(QWidget):
                     "reporting_location": self._reporting_inputs[resource_type].text().strip() or None,
                     **self._selected_ldw_payload(resource_type),
                 })
+                logger.info(
+                    "check-in window asset check-in submitted resource_type=%s identifier=%s arrival_status=%s",
+                    resource_type,
+                    identifier,
+                    arrival_status,
+                )
             self._previews[resource_type].setText(self._describe_record(resource_type, row) + "\nChecked in.")
             self._clear_tab(resource_type, keep_preview=True)
             self.refresh()
         except Exception as exc:
+            logger.exception(
+                "check-in window submit failed resource_type=%s identifier=%s",
+                resource_type,
+                locals().get("identifier"),
+            )
             QMessageBox.warning(self, "Check-In", str(exc))
 
     def _record_identifier(self, resource_type: str, row: dict[str, Any]) -> Any:
         if resource_type == "personnel":
-            return row.get("id") or row.get("person_id")
+            return row.get("person_record") or row.get("id") or row.get("person_id")
         if resource_type == "vehicle":
-            return row.get("id") or row.get("vehicle_id")
+            return row.get("vehicle_record") or row.get("id") or row.get("vehicle_id")
         if resource_type == "aircraft":
-            return row.get("id") or row.get("int_id") or row.get("tail_number")
-        return row.get("id") or row.get("int_id")
+            return row.get("aircraft_record") or row.get("id") or row.get("int_id") or row.get("tail_number")
+        return row.get("equipment_record") or row.get("id") or row.get("int_id")
 
     def _clear_tab(self, resource_type: str, keep_preview: bool = False) -> None:
         self._id_inputs[resource_type].clear()
@@ -654,7 +696,8 @@ class ICS211CheckInWindow(QWidget):
         payload["organization"] = org.currentText().strip()
         if resource_type == "personnel":
             payload.setdefault("name", "")
-            payload.setdefault("id", payload.get("id") or payload.get("person_id") or "")
+            payload.setdefault("person_id", payload.get("id") or payload.get("person_id") or "")
+            payload.pop("id", None)
         try:
             created = self._checkin_service.create_master_record(resource_type, payload)
             self._previews[resource_type].setText(self._describe_record(resource_type, created) + "\nCreated.")
@@ -664,7 +707,7 @@ class ICS211CheckInWindow(QWidget):
 
     def _create_fields(self, resource_type: str) -> list[tuple[str, str]]:
         if resource_type == "personnel":
-            return [("Name *", "name"), ("ID / Local ID", "id"), ("Phone", "phone"), ("Role", "role")]
+            return [("Name *", "name"), ("ID / Local ID", "person_id"), ("Phone", "phone"), ("Role", "role")]
         if resource_type == "vehicle":
             return [("Vehicle ID", "id"), ("Type", "type_id"), ("Plate", "license_plate")]
         if resource_type == "aircraft":

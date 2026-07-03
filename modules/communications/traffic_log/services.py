@@ -112,7 +112,7 @@ class CommsLogService:
                     return [
                         {
                             "id": ch.get("id"),
-                            "display_name": ch.get("channel") or ch.get("display_name") or "",
+                            "channel_name": ch.get("channel") or ch.get("channel_name") or "",
                             "name": ch.get("channel") or "",
                             "function": ch.get("function", ""),
                         }

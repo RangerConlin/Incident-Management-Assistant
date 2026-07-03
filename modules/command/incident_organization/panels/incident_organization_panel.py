@@ -575,13 +575,15 @@ class UnifiedAssignmentDialog(QDialog):
         if person is None:
             return
         pid = person.get("person_record") or person.get("id") or person.get("int_id")
-        name = person.get("name") or person.get("display_name") or ""
+        name = person.get("name") or " ".join(
+            part for part in (str(person.get("first_name") or "").strip(), str(person.get("last_name") or "").strip()) if part
+        )
         if not name:
             QMessageBox.warning(self, "Assign", "No person name available.")
             return
         self._result = {
             "person_record": int(pid) if pid is not None else None,
-            "display_name": name,
+            "person_name": name,
             "assignment_type": normalize_assignment_type(self.type_combo.currentText()),
             "operational_period": self.period_edit.text().strip() or None,
             "notes": self.notes_edit.text().strip() or None,
@@ -964,7 +966,7 @@ class IncidentOrganizationPanel(QWidget):
 
                 # Build summary of assignments for display
                 primary_names = [
-                    a.display_name for a in pos_assignments
+                    a.person_name for a in pos_assignments
                     if normalize_assignment_type(a.assignment_type) == ASSIGNMENT_TYPE_PRIMARY
                 ]
                 assignment_display = ", ".join(primary_names) if primary_names else ""
@@ -1060,7 +1062,7 @@ class IncidentOrganizationPanel(QWidget):
             assignments,
             key=lambda a: (
                 _ASSIGNMENT_ORDER.get(normalize_assignment_type(a.assignment_type), 99),
-                a.display_name.lower(),
+                a.person_name.lower(),
             ),
         )
 
@@ -1068,7 +1070,7 @@ class IncidentOrganizationPanel(QWidget):
         for row, assignment in enumerate(sorted_assignments):
             assignment_type = normalize_assignment_type(assignment.assignment_type)
             values = [
-                assignment.display_name,
+                assignment.person_name,
                 _ASSIGNMENT_LABELS.get(assignment_type, assignment_type.replace("_", " ").title()),
                 assignment.operational_period or "",
                 assignment.notes or "",
@@ -1303,7 +1305,16 @@ class IncidentOrganizationPanel(QWidget):
         try:
             _, warnings = self._ensure_controller().assign_person(position_id, {
                 "person_record": int(person.get("person_record") or 0) or None,
-                "display_name": str(person.get("name") or ""),
+                "person_name": str(
+                    person.get("name")
+                    or " ".join(
+                        part for part in (
+                            str(person.get("first_name") or "").strip(),
+                            str(person.get("last_name") or "").strip(),
+                        )
+                        if part
+                    )
+                ),
                 "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })
         except ValueError as exc:

@@ -56,7 +56,7 @@ def _search_matches(doc: dict[str, Any], text: str) -> str | None:
     t = text.lower()
     for field, label in (
         ("name", "name"),
-        ("planning_display_name", "display name"),
+        ("resource_name", "resource name"),
         ("category", "category"),
         ("source", "source"),
         ("owner_agency", "agency"),
@@ -128,7 +128,7 @@ def search_resource_types(
             rt_id_str = doc.get("resource_type_id", "")
             results.append({
                 "resource_type_id": int(rt_id_str) if rt_id_str.isdigit() else None,
-                "resource_type_text": doc.get("planning_display_name") or doc.get("name", ""),
+                "resource_type_text": doc.get("resource_name") or doc.get("name", ""),
                 "category": doc.get("category", ""),
                 "source": doc.get("source", ""),
                 "owner_agency": doc.get("owner_agency", ""),
@@ -166,7 +166,7 @@ def list_capabilities(
 
 class SaveResourceTypeRequest(BaseModel):
     name: str
-    planning_display_name: str = ""
+    resource_name: str = ""
     category: str = "Other"
     source: str = "AHJ Custom"
     owner_agency: str = ""
@@ -276,8 +276,8 @@ def clone_resource_type(resource_type_id: str) -> dict[str, Any]:
     clone["_id"] = _new_id()
     clone["resource_type_id"] = str(new_int_id)
     clone["name"] = f"{base_name} Copy {copy_num}"
-    pdn = original.get("planning_display_name", base_name)
-    clone["planning_display_name"] = f"{pdn} Copy {copy_num}".strip()
+    pdn = original.get("resource_name", base_name)
+    clone["resource_name"] = f"{pdn} Copy {copy_num}".strip()
     clone["created_at"] = now
     clone["updated_at"] = now
     clone["created_by"] = ""

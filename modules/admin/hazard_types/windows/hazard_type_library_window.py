@@ -114,7 +114,7 @@ class HazardTypeTableModel(QAbstractTableModel):
     ]
     keys = [
         "name",
-        "display_name",
+        "hazard_name",
         "category",
         "source",
         "default_risk_level",

@@ -70,6 +70,23 @@ def test_create_and_check_in_personnel(temp_data_dir: Path) -> None:
     assert incident_row["callsign"] == "ECHO1"
 
 
+def test_transition_to_checked_in_creates_record_when_missing(temp_data_dir: Path) -> None:
+    service = services.CheckInService()
+    created = service.create_master_record(
+        "personnel",
+        {"id": 1002, "name": "Bravo Example", "role": "Rescue", "callsign": "BRAVO"},
+    )
+
+    result = service.transition_to_checked_in(str(created["id"]))
+    assert result is not None
+    assert result["person_record"] == int(created["id"])
+    assert result["status"] in {"CheckedIn", "Checked In", "Assigned", "Available"}
+
+    incident_row = _incident_row(temp_data_dir, "personnel", int(created["id"]))
+    assert incident_row["name"] == "Bravo Example"
+    assert incident_row["callsign"] == "BRAVO"
+
+
 def test_search_master_records_filters_and_marks(temp_data_dir: Path) -> None:
     service = services.CheckInService()
     first = service.create_master_record(
@@ -89,6 +106,67 @@ def test_search_master_records_filters_and_marks(temp_data_dir: Path) -> None:
     service.check_in("personnel", str(first["id"]))
     checked_results = service.search_master_records("personnel", "Charlie")
     assert checked_results[0]["_checked_in"] is True
+
+
+def test_search_master_records_supports_exact_personnel_id(temp_data_dir: Path) -> None:
+    service = services.CheckInService()
+    created = service.create_master_record(
+        "personnel",
+        {"id": 405021, "name": "Id Lookup", "role": "Support", "callsign": "INDIA"},
+    )
+
+    results = service.search_master_records("personnel", "405021")
+    assert len(results) == 1
+    assert results[0]["id"] == created["id"]
+    assert results[0]["name"] == "Id Lookup"
+
+
+@pytest.mark.parametrize(
+    ("query", "expected_name"),
+    [
+        ("Charlie", "Charlie Search"),
+        ("ALPHA", "Charlie Search"),
+        ("555-0100", "Contact Lookup"),
+        ("405021", "Id Lookup"),
+    ],
+)
+def test_search_master_records_supports_demographic_fields(
+    temp_data_dir: Path, query: str, expected_name: str
+) -> None:
+    service = services.CheckInService()
+    service.create_master_record(
+        "personnel",
+        {
+            "id": 405021,
+            "name": "Id Lookup",
+            "role": "Support",
+            "callsign": "INDIA",
+            "phone": "405-021-0000",
+        },
+    )
+    service.create_master_record(
+        "personnel",
+        {
+            "id": 2001,
+            "name": "Charlie Search",
+            "role": "Ground",
+            "callsign": "ALPHA",
+            "phone": "405-111-2222",
+        },
+    )
+    service.create_master_record(
+        "personnel",
+        {
+            "id": 2002,
+            "name": "Contact Lookup",
+            "role": "Logistics",
+            "callsign": "BRAVO",
+            "phone": "555-0100",
+        },
+    )
+
+    results = service.search_master_records("personnel", query)
+    assert any(row["name"] == expected_name for row in results)
 
 
 def test_check_in_with_overrides_updates_incident_only(temp_data_dir: Path) -> None:

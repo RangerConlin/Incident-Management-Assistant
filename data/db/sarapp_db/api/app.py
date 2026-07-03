@@ -56,8 +56,10 @@ def create_app(server_info_fn=None) -> FastAPI:
     # -------------------------------------------------------------------------
     from sarapp_db.api.routers import objectives
     from sarapp_db.api.routers import auth_sessions
+    from sarapp_db.api.routers import audit
     app.include_router(objectives.router, prefix="/api/objectives", tags=["objectives"])
     app.include_router(auth_sessions.router, prefix="/api/auth", tags=["auth"])
+    app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
 
     from sarapp_db.api.routers import hazard_types
     app.include_router(hazard_types.router, prefix="/api/hazard-types", tags=["hazard-types"])
@@ -107,6 +109,13 @@ def create_app(server_info_fn=None) -> FastAPI:
 
     from sarapp_db.api.routers import liaison
     app.include_router(liaison.router, prefix="/api", tags=["liaison"])
+
+    from sarapp_db.api.routers import resource_status as resource_status_router
+    app.include_router(
+        resource_status_router.router,
+        prefix="/api/incidents/{incident_id}/resource-status",
+        tags=["resource-status"],
+    )
 
     from sarapp_db.api.routers import logistics_resource_status
     app.include_router(logistics_resource_status.router, prefix="/api", tags=["logistics"])
@@ -175,6 +184,12 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import approvals
     app.include_router(reference_library.router, prefix="/api/master/reference-library", tags=["reference-library"])
     app.include_router(approvals.router, prefix="/api", tags=["approvals"])
+
+    from sarapp_db.api.routers import task_narratives
+    app.include_router(task_narratives.router, prefix="/api", tags=["narratives"])
+
+    from sarapp_db.api.routers import iap
+    app.include_router(iap.router, prefix="/api", tags=["iap"])
 
     from sarapp_db.api.routers import safety_templates
     app.include_router(safety_templates.router, prefix="/api/master/safety-templates", tags=["safety"])

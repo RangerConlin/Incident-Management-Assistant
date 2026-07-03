@@ -82,7 +82,7 @@ class MeetingsService:
             self.repository.add_attendee(
                 MeetingAttendee(
                     meeting_id=meeting.id,
-                    display_name=role,
+                    attendee_name=role,
                     role=role,
                     requirement_status="required",
                     attendance_status="invited",
@@ -92,7 +92,7 @@ class MeetingsService:
             self.repository.add_attendee(
                 MeetingAttendee(
                     meeting_id=meeting.id,
-                    display_name=role,
+                    attendee_name=role,
                     role=role,
                     requirement_status="optional",
                     attendance_status="invited",
@@ -227,7 +227,7 @@ class MeetingsService:
                     "name": meeting.title,
                     "purpose": meeting.title,
                     "location": meeting.virtual_link or meeting.location,
-                    "participants": ", ".join(a.display_name for a in attendees),
+                    "participants": ", ".join(a.attendee_name for a in attendees),
                     "status": meeting.status,
                     "meeting_id": meeting.id,
                 }

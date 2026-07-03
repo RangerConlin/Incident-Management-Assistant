@@ -203,7 +203,7 @@ class LogEntryWindow(QMainWindow):
         self._channel_filter.clear()
         self._channel_filter.addItem("All Channels", None)
         for ch in self._channels:
-            label = ch.get("display_name") or ch.get("channel") or ""
+            label = ch.get("channel_name") or ch.get("channel") or ""
             self._channel_filter.addItem(label, ch.get("id"))
         self._channel_filter.blockSignals(False)
 

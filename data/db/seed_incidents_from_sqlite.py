@@ -1050,7 +1050,7 @@ def seed_personnel(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
         "phone": r.get("phone") or r.get("contact"),
         "email": r.get("email"),
         "unit": r.get("unit"),
-        "organization": r.get("organization", r.get("unit")),
+        "organization": r.get("organization"),
         "team_id": f"{inc_number}-TEAM-{r['team_id']}" if r.get("team_id") else None,
         "is_medic": bool(r.get("is_medic", 0)),
         "deleted": False,

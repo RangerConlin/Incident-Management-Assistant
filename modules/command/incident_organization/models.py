@@ -86,7 +86,7 @@ class PositionAssignment:
     incident_id: str
     position_id: int
     person_record: Optional[int]
-    display_name: str
+    person_name: str
     assignment_type: str = ASSIGNMENT_TYPE_PRIMARY
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -106,7 +106,7 @@ class AssignmentHistoryEntry:
     assignment_id: Optional[int]
     position_id: int
     person_record: Optional[int]
-    display_name: str
+    person_name: str
     assignment_type: str
     action: str
     effective_time: Optional[str]

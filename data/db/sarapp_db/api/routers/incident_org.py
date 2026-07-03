@@ -8,8 +8,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from modules.command.incident_organization.models import normalize_assignment_type
-from sarapp_db.mongo.database_manager import get_incident_db
-from sarapp_db.mongo.collection_names import IncidentCollections
+from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
+from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
@@ -40,6 +40,11 @@ class OrgSnapshotsRepository(BaseRepository):
     soft_deletes = False
 
 
+class MasterPersonnelRepository(BaseRepository):
+    collection_name = MasterCollections.PERSONNEL
+    soft_deletes = False
+
+
 def _positions_repo(incident_id: str) -> OrgPositionsRepository:
     return OrgPositionsRepository(get_incident_db(incident_id))
 
@@ -60,6 +65,10 @@ def _snapshots_repo(incident_id: str) -> OrgSnapshotsRepository:
     return OrgSnapshotsRepository(get_incident_db(incident_id))
 
 
+def _personnel_repo() -> MasterPersonnelRepository:
+    return MasterPersonnelRepository(get_master_db())
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -68,6 +77,13 @@ def _next_int_id(repo: BaseRepository, id_field: str) -> int:
     docs = repo.find_many({}, sort=None)
     ids = [doc[id_field] for doc in docs if isinstance(doc.get(id_field), int)]
     return max(ids, default=0) + 1
+
+
+def _require_person(person_record: int) -> dict[str, Any]:
+    doc = _personnel_repo().find_one({"person_record": person_record})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Person {person_record} not found")
+    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -412,8 +428,8 @@ def apply_template_payload(incident_id: str, body: ApplyTemplateRequest) -> list
 
 class AddAssignmentRequest(BaseModel):
     position_id: int
-    person_record: Optional[int] = None
-    display_name: str
+    person_record: int
+    person_name: str
     assignment_type: str = "primary"
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -436,7 +452,7 @@ def _assignment_to_dict(doc: dict) -> dict[str, Any]:
         "incident_id": doc["incident_id"],
         "position_id": doc["position_id"],
         "person_record": doc.get("person_record"),
-        "display_name": doc.get("display_name", ""),
+        "person_name": doc.get("person_name", ""),
         "assignment_type": assignment_type,
         "start_time": doc.get("start_time"),
         "end_time": doc.get("end_time"),
@@ -460,6 +476,10 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
     atype = normalize_assignment_type(body.assignment_type)
     if atype not in _VALID_ASSIGNMENT_TYPES:
         raise HTTPException(400, f"Invalid assignment type: {body.assignment_type}")
+    _require_person(body.person_record)
+    person_name = body.person_name.strip()
+    if not person_name:
+        raise HTTPException(status_code=400, detail="person_name is required")
     asgn_repo = _assignments_repo(incident_id)
     hist_repo = _history_repo(incident_id)
     now = _utc_now()
@@ -470,7 +490,7 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
         "incident_id": incident_id,
         "position_id": body.position_id,
         "person_record": body.person_record,
-        "display_name": body.display_name,
+        "person_name": person_name,
         "assignment_type": atype,
         "start_time": start,
         "end_time": body.end_time,
@@ -485,7 +505,7 @@ def add_assignment(incident_id: str, body: AddAssignmentRequest) -> dict[str, An
         "assignment_id": aid,
         "position_id": body.position_id,
         "person_record": body.person_record,
-        "display_name": body.display_name,
+        "person_name": person_name,
         "assignment_type": atype,
         "action": "assigned",
         "effective_time": start,
@@ -515,7 +535,7 @@ def end_assignment(incident_id: str, assignment_id: int, body: EndAssignmentRequ
         "assignment_id": assignment_id,
         "position_id": doc["position_id"],
         "person_record": doc.get("person_record"),
-        "display_name": doc.get("display_name", ""),
+        "person_name": doc.get("person_name", ""),
         "assignment_type": doc.get("assignment_type", "primary"),
         "action": "removed",
         "effective_time": effective,
@@ -573,7 +593,7 @@ def list_assignment_history(
             "assignment_id": d.get("assignment_id"),
             "position_id": d["position_id"],
             "person_record": d.get("person_record"),
-            "display_name": d.get("display_name", ""),
+            "person_name": d.get("person_name", ""),
             "assignment_type": normalize_assignment_type(d.get("assignment_type", "primary")),
             "action": d.get("action", ""),
             "effective_time": d.get("effective_time"),

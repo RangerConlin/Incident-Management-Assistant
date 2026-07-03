@@ -101,7 +101,7 @@ def list_attachments(
 def add_attachment(
     item_id: str,
     source_path: str,
-    display_name: str = "",
+    attachment_name: str = "",
     uploaded_by: str = "",
     notes: str = "",
     incident_id: Optional[str] = None,
@@ -138,7 +138,7 @@ def add_attachment(
     record: Dict[str, Any] = {
         "id": att_id,
         "filename": filename,
-        "display_name": display_name or filename,
+        "attachment_name": attachment_name or filename,
         "mime_type": mime_type,
         "size": size,
         "uploaded_at": _utcnow(),

@@ -157,3 +157,14 @@ Cost Summary
 **************************************************************************************************************
 [Dockable Widgets]
     - Button widget that can be customized to launch a specific screen
+
+**************************************************************************************************************
+[Tech Debt / Infrastructure]
+    - Remove legacy checkins, check_in_out, checkin_history, and logistics_resource_status_items collections
+      and their routers once resource_status is confirmed stable and all callers are migrated.
+      See Design Documents/legacycode.md for removal conditions and verification steps.
+    - ResourceStatusDesk._sync_org_assignments() is live (incident_org.py was already on BaseRepository).
+      Follow-up: verify end_assignment correctly clears assigned_to/assignment_reference in resource_status
+      when a person is removed from a position.
+    - Remove CIStatus enum (modules/logistics/checkin/models.py) after all callers are confirmed
+      migrated to RESOURCE_STATUSES from resource_status/models.py.

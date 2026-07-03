@@ -52,7 +52,7 @@ class Meeting:
 class MeetingAttendee:
     id: Optional[int] = None
     meeting_id: Optional[int] = None
-    display_name: str = ""
+    attendee_name: str = ""
     attendee_type: str = "role"
     role: str = ""
     requirement_status: str = "required"
@@ -126,7 +126,7 @@ def _attendee_from_dict(d: dict) -> MeetingAttendee:
     return MeetingAttendee(
         id=d.get("id"),
         meeting_id=d.get("meeting_id"),
-        display_name=str(d.get("display_name") or ""),
+        attendee_name=str(d.get("attendee_name") or ""),
         attendee_type=str(d.get("attendee_type") or "role"),
         role=str(d.get("role") or ""),
         requirement_status=str(d.get("requirement_status") or "required"),

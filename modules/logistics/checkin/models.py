@@ -21,7 +21,6 @@ _RESOURCE_FLOW_STATUSES = {
     "Preparing for Demobilization",
     "Demobilized",
     "Cancelled",
-    "Not Coming",
 }
 _DERIVED_CHECKED_IN_STATUSES = {
     "Assigned",
@@ -33,7 +32,8 @@ _DERIVED_CHECKED_IN_STATUSES = {
 
 
 class CIStatus(str, Enum):
-    """Backward-compatible status enum used by existing roster payloads."""
+    """Deprecated: all status values now live in resource_status/models.py RESOURCE_STATUSES.
+    Retained for import compatibility; do not use in new code."""
 
     CHECKED_IN = "CheckedIn"
     PENDING = "Pending"
@@ -48,7 +48,6 @@ class CIStatus(str, Enum):
     DEMOBILIZED = "Demobilized"
     NO_SHOW = "NoShow"
     CANCELLED = "Cancelled"
-    NOT_COMING = "Not Coming"
 
     @classmethod
     def normalize(cls, value: str) -> "CIStatus":
@@ -148,16 +147,14 @@ class PersonnelIdentity:
     phone: Optional[str] = None
     callsign: Optional[str] = None
     certifications: Optional[str] = None
-    home_unit: Optional[str] = None
     rank: Optional[str] = None
     is_medic: Optional[bool] = None
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "PersonnelIdentity":
         primary_role = row.get("primary_role") or row.get("role") or row.get("rank")
-        phone = row.get("phone") or row.get("contact")
-        home_unit = row.get("home_unit") or row.get("unit")
-        certifications = row.get("certifications") or row.get("certs")
+        phone = row.get("phone")
+        certifications = row.get("certifications")
         rank = row.get("rank")
         is_medic = row.get("is_medic")
 
@@ -169,7 +166,6 @@ class PersonnelIdentity:
             phone=phone,
             callsign=row.get("callsign"),
             certifications=certifications,
-            home_unit=home_unit,
             rank=rank,
             is_medic=is_medic,
         )
@@ -454,7 +450,7 @@ class RosterFilters:
             self.q = self.q.strip()
         if self.role == "All":
             self.role = None
-        if self.team in {“All”, “—“, “”}:
+        if self.team in {"All", "—", ""}:
             self.team = None
 
     @classmethod

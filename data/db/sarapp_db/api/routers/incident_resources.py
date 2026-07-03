@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
-from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollections
+from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
@@ -28,6 +28,10 @@ _MASTER_COLLECTION = {
 }
 
 
+class ResourceStatusRepository(BaseRepository):
+    collection_name = IncidentCollections.RESOURCE_STATUS
+
+
 class CheckInOutRepository(BaseRepository):
     collection_name = IncidentCollections.CHECK_IN_OUT
     soft_deletes = False
@@ -35,6 +39,10 @@ class CheckInOutRepository(BaseRepository):
 
 class _MasterLookupRepository(BaseRepository):
     pass
+
+
+def _rs_repo(incident_id: str) -> ResourceStatusRepository:
+    return ResourceStatusRepository(get_incident_db(incident_id))
 
 
 def _incident_repo(incident_id: str) -> CheckInOutRepository:
@@ -84,16 +92,29 @@ def _get_master_record(resource_type: str, resource_id: str) -> dict[str, Any]:
 # List checked-in resources
 # ---------------------------------------------------------------------------
 
+_ENTITY_TYPE_MAP: dict[str, str] = {
+    "personnel": "personnel",
+    "vehicle": "vehicle",
+    "aircraft": "aircraft",
+    "equipment": "equipment",
+}
+
+_CHECKED_IN_STATUSES = {
+    "Checked In", "Assigned", "Available", "Out of Service", "Preparing for Demobilization",
+}
+
+
 @router.get("")
 def list_resources(
     incident_id: str,
     resource_type: str = Query(""),
 ) -> list[dict[str, Any]]:
-    repo = _incident_repo(incident_id)
+    repo = _rs_repo(incident_id)
     query: dict[str, Any] = {}
     if resource_type:
-        query["resource_type"] = resource_type
-    docs = repo.find_many(query, sort=[("checked_in_at", 1)])
+        entity_type = _ENTITY_TYPE_MAP.get(resource_type.lower(), resource_type.lower())
+        query["entity_type"] = entity_type
+    docs = repo.find_many(query, sort=[("resource_name", 1)])
     return [_normalize(d) for d in docs]
 
 
@@ -102,23 +123,27 @@ def get_checked_ids(
     incident_id: str,
     resource_type: str = Query(""),
 ) -> list[str]:
-    repo = _incident_repo(incident_id)
+    repo = _rs_repo(incident_id)
     query: dict[str, Any] = {}
     if resource_type:
-        query["resource_type"] = resource_type
+        entity_type = _ENTITY_TYPE_MAP.get(resource_type.lower(), resource_type.lower())
+        query["entity_type"] = entity_type
     docs = repo.find_many(query)
-    return [str(d["resource_id"]) for d in docs if d.get("resource_id") is not None]
+    return [
+        str(d["record_id"])
+        for d in docs
+        if d.get("record_id") is not None and str(d.get("status") or "") in _CHECKED_IN_STATUSES
+    ]
 
 
 @router.get("/{resource_type}/{resource_id}")
 def get_resource(
     incident_id: str, resource_type: str, resource_id: str
 ) -> dict[str, Any]:
-    repo = _incident_repo(incident_id)
-    doc = repo.find_one({
-        "resource_type": resource_type,
-        "resource_id": resource_id,
-    })
+    repo = _rs_repo(incident_id)
+    entity_type = _ENTITY_TYPE_MAP.get(resource_type.lower(), resource_type.lower())
+    rid = int(resource_id) if resource_id.isdigit() else resource_id
+    doc = repo.find_one({"entity_type": entity_type, "record_id": rid})
     if not doc:
         raise HTTPException(status_code=404, detail="Resource not checked in")
     return _normalize(doc)
@@ -128,6 +153,21 @@ def get_resource(
 # Check in (copy master record to incident)
 # ---------------------------------------------------------------------------
 
+def _resource_display_name(resource_type: str, master_doc: dict[str, Any], resource_id: str) -> str:
+    if resource_type == "vehicle":
+        return (
+            master_doc.get("callsign")
+            or master_doc.get("license_plate")
+            or " ".join(str(v) for v in [master_doc.get("year"), master_doc.get("make"), master_doc.get("model")] if v)
+            or resource_id
+        )
+    if resource_type == "aircraft":
+        return master_doc.get("callsign") or master_doc.get("tail_number") or master_doc.get("aircraft_id") or resource_id
+    if resource_type == "equipment":
+        return master_doc.get("name") or master_doc.get("serial_number") or resource_id
+    return master_doc.get("name") or resource_id
+
+
 @router.post("/{resource_type}/{resource_id}", status_code=201)
 def check_in_resource(
     incident_id: str,
@@ -135,36 +175,52 @@ def check_in_resource(
     resource_id: str,
     overrides: dict[str, Any] = Body(default={}),
 ) -> dict[str, Any]:
+    if resource_type == "personnel":
+        raise HTTPException(status_code=400, detail="Personnel use the /checkin endpoint")
+
     master_doc = _get_master_record(resource_type, resource_id)
     master_doc.pop("_id", None)
 
-    # Apply overrides (cannot change id fields)
-    id_keys = {"int_id", "id", "person_id", "tail_number"}
-    for k, v in overrides.items():
-        if k not in id_keys:
-            master_doc[k] = v
-
+    entity_type = _ENTITY_TYPE_MAP.get(resource_type.lower(), resource_type.lower())
+    rid = int(resource_id) if resource_id.isdigit() else resource_id
+    resource_name = _resource_display_name(resource_type, master_doc, resource_id)
+    status = str(overrides.get("status") or "Checked In")
     now = _utcnow()
-    repo = _incident_repo(incident_id)
-    doc = {
-        "resource_type": resource_type,
-        "resource_id": resource_id,
-        **master_doc,
-        "_checked_in": True,
-        "checked_in_at": now,
-    }
-    # Atomic upsert keyed on (resource_type, resource_id), not `_id` — not
-    # expressible via BaseRepository's generic methods, so we drop to the
-    # raw collection and broadcast ourselves, mirroring update_one's pattern.
-    query = {"resource_type": resource_type, "resource_id": resource_id}
-    repo._col.replace_one(query, doc, upsert=True)
-    saved = repo._col.find_one(query)
+
+    repo = _rs_repo(incident_id)
+    existing = repo.find_one({"entity_type": entity_type, "record_id": rid})
+
+    if existing:
+        # Update status if it changed
+        updates: dict[str, Any] = {"updated_at": now}
+        if status != existing.get("status"):
+            updates["status"] = status
+            entry = {"status": status, "timestamp": now, "changed_by": overrides.get("changed_by") or "Check-In"}
+            repo.apply_update(existing["_id"], {"$set": updates, "$push": {"status_log": entry}})
+        else:
+            repo.update_one(existing["_id"], updates)
+        saved = repo.find_by_id(existing["_id"])
+    else:
+        doc = {
+            "entity_type": entity_type,
+            "record_id": rid,
+            "resource_name": resource_name,
+            "resource_type": resource_type.title(),
+            "status": status,
+            "status_log": [{"status": status, "timestamp": now, "changed_by": overrides.get("changed_by") or "Check-In"}],
+            "checked_in_time": now,
+            "created_at": now,
+            "updated_at": now,
+            "eta_utc": overrides.get("eta_utc"),
+            "location": overrides.get("location") or master_doc.get("location"),
+            "notes": overrides.get("notes"),
+        }
+        saved = repo.insert_one(doc)
+
     if saved:
-        repo._broadcast("updated", saved["_id"], saved)
         saved.pop("_id", None)
         return saved
-    doc.pop("_id", None)
-    return doc
+    return {"entity_type": entity_type, "record_id": rid, "status": status}
 
 
 # ---------------------------------------------------------------------------

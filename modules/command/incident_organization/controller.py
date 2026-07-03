@@ -160,7 +160,7 @@ class IncidentOrganizationController:
                 "sort_order": 0,
             })
             self.assign_person(director_pos_id, {
-                "display_name": director_name.strip(),
+                "person_name": director_name.strip(),
                 "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })
         return branch_id
@@ -199,7 +199,7 @@ class IncidentOrganizationController:
                 "sort_order": 0,
             })
             self.assign_person(sup_pos_id, {
-                "display_name": supervisor_name.strip(),
+                "person_name": supervisor_name.strip(),
                 "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })
         return unit_id
@@ -222,12 +222,15 @@ class IncidentOrganizationController:
         staffing decisions can proceed while still being visible to users.
         """
 
+        if values.get("person_record") is None:
+            raise ValueError("Select a personnel record before assigning to an organization position.")
+
         assignment = PositionAssignment(
             id=None,
             incident_id=self.incident_id,
             position_id=position_id,
-            person_record=int(values["person_record"]) if values.get("person_record") is not None else None,
-            display_name=str(values.get("display_name", "")).strip(),
+            person_record=int(values["person_record"]),
+            person_name=str(values.get("person_name") or "").strip(),
             assignment_type=normalize_assignment_type(values.get("assignment_type")),
             start_time=self._optional_text(values.get("start_time")),
             end_time=None,
@@ -235,7 +238,7 @@ class IncidentOrganizationController:
             assigned_by=self._optional_text(values.get("assigned_by")),
             notes=self._optional_text(values.get("notes")),
         )
-        if not assignment.display_name:
+        if not assignment.person_name:
             raise ValueError("Assigned personnel name is required")
         position = self.repo.get_position(position_id)
         if position is None:
@@ -283,7 +286,7 @@ class IncidentOrganizationController:
                         incident_id=assignment.incident_id,
                         position_id=parent_position_id,
                         person_record=assignment.person_record,
-                        display_name=assignment.display_name,
+                        person_name=assignment.person_name,
                         assignment_type=assignment_type,
                         start_time=assignment.start_time,
                         end_time=assignment.end_time,
@@ -398,7 +401,7 @@ class IncidentOrganizationController:
                 level="warning",
                 code="qualification_review",
                 message=(
-                    f"Review qualifications for {assignment.display_name}: "
+                    f"Review qualifications for {assignment.person_name}: "
                     f"{', '.join(position.required_qualifications)} required."
                 ),
                 position_id=position_id,
@@ -453,7 +456,7 @@ class IncidentOrganizationController:
                 {
                     "id": assignment.id,
                     "person_record": assignment.person_record,
-                    "display_name": assignment.display_name,
+                    "person_name": assignment.person_name,
                     "assignment_type": assignment.assignment_type,
                     "start_time": assignment.start_time,
                     "end_time": assignment.end_time,

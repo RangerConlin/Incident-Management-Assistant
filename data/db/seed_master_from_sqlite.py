@@ -184,7 +184,6 @@ def seed_personnel(cur: sqlite3.Cursor, master_db) -> None:
             "phone": r["phone"] or r["contact"],
             "email": r["email"],
             "organization": r["organization"],
-            "unit": r["unit"],
             "notes": r["notes"],
             "photo_url": r["photo_url"],
             "emergency_contact_name": r["emergency_contact_name"],

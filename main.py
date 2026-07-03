@@ -55,9 +55,6 @@ DEBUG_ROLE = "Incident Commander"
 from utils.state import AppState
 from bridge.settings_bridge import SettingsBridge
 from utils.settingsmanager import SettingsManager
-from bridge.catalog_bridge import CatalogBridge
-from bridge.incident_bridge import IncidentBridge
-from models.sqlite_table_model import SqliteTableModel
 # 'os' imported earlier for env setup
 from utils.theme_manager import ThemeManager
 from bridge.theme_bridge import ThemeBridge
@@ -3711,7 +3708,7 @@ if __name__ == "__main__":
 
     def _on_quit():
         try:
-            sid = AppState.get_active_session_id()
+            sid = AppState.get_active_api_session_id()
             if sid is not None:
                 end_session()
                 write_audit("session.end", {"session_id": sid}, prefer_mission=False)

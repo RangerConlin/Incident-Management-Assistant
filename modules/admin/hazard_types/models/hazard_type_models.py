@@ -117,7 +117,7 @@ class HazardType:
     """Master hazard type definition stored in the master database."""
 
     name: str
-    display_name: str = ""
+    hazard_name: str = ""
     category: str = "Other"
     source: str = "AHJ Custom"
     owner_agency: str = ""

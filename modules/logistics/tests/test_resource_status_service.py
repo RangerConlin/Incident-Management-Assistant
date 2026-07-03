@@ -29,7 +29,7 @@ def resource_status_app_client():
 
     for incident_id in ("resource-status-test", "resource-sync"):
         db = get_incident_db(incident_id)
-        db[IncidentCollections.LOGISTICS_RESOURCE_STATUS_ITEMS].delete_many({})
+        db[IncidentCollections.RESOURCE_STATUS].delete_many({})
 
     app = create_app()
     api_client.configure_test_transport(app)
@@ -81,9 +81,9 @@ def test_create_and_update_resource_logs_audit(tmp_path: Path, monkeypatch, reso
     assert created.destination_facility_id == "fac-1"
     assert updated.status == "Enroute"
     assert updated.checkin_facility_id == "fac-2"
-    audit_entries = service.list_audit_entries(created.id)
-    fields = {entry["field_name"] for entry in audit_entries}
-    assert {"status", "eta_utc", "assigned_to", "checkin_facility_id"}.issubset(fields)
+    # Per-field audit entries are replaced by status_log embedded in the resource_status document.
+    # list_audit_entries() now returns [] — status history is available via the /resource-status/{id} response.
+    assert service.list_audit_entries(created.id) == []
     assert db_path.exists()
 
 

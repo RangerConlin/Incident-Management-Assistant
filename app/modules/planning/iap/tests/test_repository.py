@@ -1,118 +1,124 @@
-"""Tests for the SQLite-backed IAP repository."""
+"""Integration tests for the IAP API router (replaces SQLite repository tests).
 
+These tests require a running MongoDB instance at SARAPP_MONGO_URI
+(default: mongodb://localhost:27017) and follow the same pattern as
+data/db/sarapp_db/api/routers/tests/test_weather.py.
+"""
 from __future__ import annotations
 
-import sqlite3
-from datetime import datetime, timedelta
+import sys
+import pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[5]))
 
-from app.modules.planning.iap.models.iap_models import FormInstance, IAPPackage
-from app.modules.planning.iap.models.repository import IAPRepository
+import os
+os.environ.setdefault("SARAPP_MONGO_URI", "mongodb://localhost:27017")
 
+from fastapi.testclient import TestClient
+from sarapp_db.api.app import create_app
+from sarapp_db.mongo.database_manager import get_incident_db
 
-def _build_package() -> IAPPackage:
-    start = datetime(2025, 9, 23, 7, 0, 0)
-    end = start + timedelta(hours=12)
-    package = IAPPackage(
-        incident_id="TEST-INC",
-        op_number=2,
-        op_start=start,
-        op_end=end,
-    )
-    package.forms.append(
-        FormInstance(
-            form_id="ICS-202",
-            title="Incident Objectives",
-            op_number=2,
-            fields={"incident_name": "Test Incident"},
-        )
-    )
-    package.forms.append(
-        FormInstance(
-            form_id="ICS-205",
-            title="Communications Plan",
-            op_number=2,
-            fields={"nets": ["TAC-1"]},
-        )
-    )
-    return package
+INCIDENT_ID = "TEST-IAP-REPO"
 
 
-def test_initialize_creates_tables(tmp_path) -> None:
-    repo = IAPRepository(tmp_path / "incident.db")
-    repo.initialize()
+def _cleanup(db):
+    db["iap_packages"].delete_many({"incident_id": INCIDENT_ID})
 
-    with sqlite3.connect(tmp_path / "incident.db") as conn:
-        tables = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'iap_%'"
-            ).fetchall()
+
+def test_iap_package_crud():
+    db = get_incident_db(INCIDENT_ID)
+    _cleanup(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        base = f"/api/incidents/{INCIDENT_ID}/iap"
+
+        # List — empty
+        res = client.get(f"{base}/packages")
+        assert res.status_code == 200
+        assert res.json() == []
+
+        # Create package via PUT (upsert)
+        pkg_payload = {
+            "incident_id": INCIDENT_ID,
+            "op_start": "2025-09-23T07:00:00",
+            "op_end": "2025-09-23T19:00:00",
+            "status": "draft",
+            "notes": "",
         }
-    assert {"iap_packages", "iap_forms", "iap_changelog"}.issubset(tables)
+        res = client.put(f"{base}/packages/1", json=pkg_payload)
+        assert res.status_code == 200
+        pkg = res.json()
+        assert pkg["op_number"] == 1
+        assert pkg["status"] == "draft"
+        assert pkg["forms"] == []
 
+        # Add a form
+        form_payload = {
+            "form_id": "ICS-202",
+            "title": "Incident Objectives",
+            "op_number": 1,
+            "fields": {"incident_name": "Test Incident"},
+        }
+        res = client.put(f"{base}/packages/1/forms/ICS-202", json=form_payload)
+        assert res.status_code == 200
+        pkg = res.json()
+        assert len(pkg["forms"]) == 1
+        assert pkg["forms"][0]["form_id"] == "ICS-202"
+        assert pkg["forms"][0]["fields"]["incident_name"] == "Test Incident"
 
-def test_save_and_load_package_roundtrip(tmp_path) -> None:
-    repo = IAPRepository(tmp_path / "incident.db")
-    package = _build_package()
+        # Add a second form
+        form2 = {
+            "form_id": "ICS-205",
+            "title": "Communications Plan",
+            "op_number": 1,
+            "fields": {"nets": ["TAC-1"]},
+            "display_order": 1,
+        }
+        res = client.put(f"{base}/packages/1/forms/ICS-205", json=form2)
+        assert res.status_code == 200
+        pkg = res.json()
+        assert len(pkg["forms"]) == 2
 
-    repo.save_package(package)
-    repo.save_forms(package, package.forms)
+        # Get package — full detail
+        res = client.get(f"{base}/packages/1")
+        assert res.status_code == 200
+        pkg = res.json()
+        assert pkg["op_number"] == 1
+        assert len(pkg["forms"]) == 2
 
-    loaded = repo.get_package("TEST-INC", 2)
-    assert loaded.incident_id == package.incident_id
-    assert loaded.op_number == package.op_number
-    assert loaded.status == "draft"
-    assert len(loaded.forms) == 2
-    assert loaded.get_form("ICS-205").fields["nets"] == ["TAC-1"]
+        # Update form order
+        res = client.put(f"{base}/packages/1/forms-order", json={"order": ["ICS-205", "ICS-202"]})
+        assert res.status_code == 200
+        pkg = res.json()
+        assert [f["form_id"] for f in pkg["forms"]] == ["ICS-205", "ICS-202"]
 
+        # Delete a form
+        res = client.delete(f"{base}/packages/1/forms/ICS-205")
+        assert res.status_code == 204
 
-def test_list_packages_orders_by_op(tmp_path) -> None:
-    repo = IAPRepository(tmp_path / "incident.db")
-    pkg_one = _build_package()
-    pkg_one.op_number = 1
-    pkg_one.forms = [FormInstance(form_id="ICS-202", title="Objectives", op_number=1)]
-    pkg_two = _build_package()
-    repo.save_package(pkg_two)
-    repo.save_forms(pkg_two, pkg_two.forms)
-    repo.save_package(pkg_one)
-    repo.save_forms(pkg_one, pkg_one.forms)
+        res = client.get(f"{base}/packages/1")
+        pkg = res.json()
+        assert len(pkg["forms"]) == 1
+        assert pkg["forms"][0]["form_id"] == "ICS-202"
 
-    packages = repo.list_packages("TEST-INC")
-    assert [pkg.op_number for pkg in packages] == [1, 2]
+        # Create second package
+        pkg2 = {**pkg_payload, "op_start": "2025-09-23T19:00:00", "op_end": "2025-09-24T07:00:00"}
+        client.put(f"{base}/packages/2", json=pkg2)
 
+        # List — ordered by op_number
+        res = client.get(f"{base}/packages")
+        assert res.status_code == 200
+        pkgs = res.json()
+        assert [p["op_number"] for p in pkgs] == [1, 2]
 
-def test_delete_form_removes_row(tmp_path) -> None:
-    repo = IAPRepository(tmp_path / "incident.db")
-    package = _build_package()
+        # Update package status
+        updated = {**pkg_payload, "status": "published", "version_tag": "OP1-FINAL-v1"}
+        res = client.put(f"{base}/packages/1", json=updated)
+        assert res.status_code == 200
+        assert res.json()["status"] == "published"
 
-    repo.save_package(package)
-    repo.save_forms(package, package.forms)
-    repo.delete_form(package, "ICS-205")
+        # 404 for unknown package
+        res = client.get(f"{base}/packages/99")
+        assert res.status_code == 404
 
-    reloaded = repo.get_package("TEST-INC", 2)
-    assert reloaded.get_form("ICS-205") is None
-    assert [form.form_id for form in reloaded.forms] == ["ICS-202"]
-
-
-def test_update_form_order_persists(tmp_path) -> None:
-    repo = IAPRepository(tmp_path / "incident.db")
-    package = _build_package()
-
-    repo.save_package(package)
-    repo.save_forms(package, package.forms)
-    repo.update_form_order(package, ["ICS-205", "ICS-202"])
-
-    reloaded = repo.get_package("TEST-INC", 2)
-    assert [form.form_id for form in reloaded.forms] == ["ICS-205", "ICS-202"]
-
-
-def test_incident_name_lookup(tmp_path) -> None:
-    master_db = tmp_path / "master.db"
-    with sqlite3.connect(master_db) as conn:
-        conn.execute("CREATE TABLE incidents (id INTEGER PRIMARY KEY, number TEXT, name TEXT)")
-        conn.execute("INSERT INTO incidents (number, name) VALUES (?, ?)", ("TEST-INC", "Test Incident"))
-        conn.commit()
-
-    repo = IAPRepository(tmp_path / "incident.db", master_db)
-    assert repo.incident_name("TEST-INC") == "Test Incident"
-    assert repo.incident_name("UNKNOWN") is None
+    _cleanup(db)

@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from modules.logistics.resource_requests.api.service import ResourceRequestService
 from modules.logistics.resource_requests.models.enums import Priority, RequestStatus
-from utils import incident_db
+from utils import incident_context
 
 MASTER_SUPPLIERS = [
     ("S1", "Mountain Outfitters", "Kelly Ridge", "555-0100", "kelly@outfitters.test", "123 Summit Rd", "Backcountry gear"),
@@ -123,7 +123,7 @@ def seed_incident(incident_id: str) -> None:
 def main() -> None:
     master_path = Path("data") / "master.db"
     seed_master(master_path)
-    incident_db.set_active_incident_id("TRAINING-001")
+    incident_context.set_active_incident("TRAINING-001")
     seed_incident("TRAINING-001")
 
 

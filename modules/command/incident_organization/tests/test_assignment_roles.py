@@ -30,7 +30,7 @@ def test_assignment_docs_return_normalized_role() -> None:
             "assignment_id": 12,
             "incident_id": "TEST-123",
             "position_id": 7,
-            "display_name": "Jordan Planner",
+            "person_name": "Jordan Planner",
             "assignment_type": "assistant",
         }
     )
@@ -52,7 +52,7 @@ def test_second_primary_allowed_for_incident_commander() -> None:
         incident_id="TEST-123",
         position_id=5,
         person_record=1,
-        display_name="Alex IC",
+        person_name="Alex IC",
         assignment_type=ASSIGNMENT_TYPE_PRIMARY,
     )
     controller.repo = SimpleNamespace(
@@ -64,7 +64,7 @@ def test_second_primary_allowed_for_incident_commander() -> None:
 
     assignment_id, warnings = controller.assign_person(
         5,
-        {"display_name": "Jordan IC", "assignment_type": "primary"},
+        {"person_record": 2, "person_name": "Jordan IC", "assignment_type": "primary"},
     )
 
     assert assignment_id == 99
@@ -85,7 +85,7 @@ def test_second_primary_rejected_for_other_command_positions() -> None:
         incident_id="TEST-123",
         position_id=6,
         person_record=1,
-        display_name="Alex OSC",
+        person_name="Alex OSC",
         assignment_type=ASSIGNMENT_TYPE_PRIMARY,
     )
     controller.repo = SimpleNamespace(
@@ -95,7 +95,21 @@ def test_second_primary_rejected_for_other_command_positions() -> None:
     )
 
     with pytest.raises(ValueError, match="only allowed for Incident Commander"):
-        controller.assign_person(5, {"display_name": "Jordan IC", "assignment_type": "primary"})
+        controller.assign_person(
+            5,
+            {"person_record": 2, "person_name": "Jordan IC", "assignment_type": "primary"},
+        )
+
+
+def test_assign_person_requires_person_record() -> None:
+    controller = IncidentOrganizationController.__new__(IncidentOrganizationController)
+    controller.incident_id = "TEST-123"
+
+    with pytest.raises(ValueError, match="Select a personnel record"):
+        controller.assign_person(
+            5,
+            {"person_name": "Jordan IC", "assignment_type": "primary"},
+        )
 
 
 def test_list_positions_hides_legacy_deputy_nodes() -> None:
@@ -144,7 +158,7 @@ def test_list_assignments_remaps_legacy_deputy_nodes_to_parent_position() -> Non
         incident_id="TEST-123",
         position_id=6,
         person_record=1,
-        display_name="Jordan Deputy",
+        person_name="Jordan Deputy",
         assignment_type=ASSIGNMENT_TYPE_PRIMARY,
     )
     controller.repo = SimpleNamespace(
@@ -157,4 +171,4 @@ def test_list_assignments_remaps_legacy_deputy_nodes_to_parent_position() -> Non
     assert len(assignments) == 1
     assert assignments[0].position_id == 5
     assert assignments[0].assignment_type == ASSIGNMENT_TYPE_DEPUTY
-    assert assignments[0].display_name == "Jordan Deputy"
+    assert assignments[0].person_name == "Jordan Deputy"

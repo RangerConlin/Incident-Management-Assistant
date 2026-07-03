@@ -90,7 +90,7 @@ class ResourceType:
     """Master resource type definition stored in the master database."""
 
     name: str
-    planning_display_name: str = ""
+    resource_name: str = ""
     category: str = "Other"
     source: str = "AHJ Custom"
     owner_agency: str = ""

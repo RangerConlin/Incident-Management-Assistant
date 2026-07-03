@@ -243,7 +243,7 @@ class QuickEntryWidget(QWidget):
         self.channel_combo.clear()
         self.channel_combo.addItem("— Channel —", None)
         for ch in channels:
-            label = ch.get("display_name") or ch.get("channel") or ch.get("name") or ""
+            label = ch.get("channel_name") or ch.get("channel") or ch.get("name") or ""
             self.channel_combo.addItem(label, ch.get("id"))
 
     def set_channel(self, channel_id) -> None:

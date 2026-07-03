@@ -27,9 +27,7 @@ class PersonnelDocument(TimestampedDocument):
     person_id: str = ""  # User-entered visible ID (badge number, employee number, etc.)
     first_name: str = ""
     last_name: str = ""
-    display_name: Optional[str] = None
     organization: Optional[str] = None
-    agency: Optional[str] = None
     title: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None

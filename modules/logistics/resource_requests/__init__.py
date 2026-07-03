@@ -47,30 +47,28 @@ def get_service(incident_id: Optional[str] = None) -> ResourceRequestService:
     ----------
     incident_id:
         Optional identifier for the incident database.  When omitted we fall
-        back to :func:`utils.incident_db.get_active_incident_id`.  The service
-        will create the underlying database file if it does not yet exist to
-        support offline-first behaviour mandated by the spec.
+        back to the active incident tracked by AppState / incident_context.
     """
-    from utils import incident_db
-
     resolved_id = str(incident_id) if incident_id is not None else None
 
     if resolved_id:
-        incident_db.set_active_incident_id(resolved_id)
         _sync_contexts(resolved_id)
     else:
         resolved_id = _get_active_incident_from_state()
 
         if not resolved_id:
-            existing = incident_db.get_active_incident_id()
-            resolved_id = str(existing) if existing else None
+            try:
+                from utils import incident_context
+                existing = incident_context.get_active_incident_id()
+                resolved_id = str(existing) if existing else None
+            except Exception:
+                pass
 
         if not resolved_id:
             raise RuntimeError(
                 "Active incident is not set. Select or open an incident before using Resource Requests."
             )
 
-        incident_db.set_active_incident_id(resolved_id)
         _sync_contexts(resolved_id)
 
     from utils import incident_storage

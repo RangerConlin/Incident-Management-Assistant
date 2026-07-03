@@ -1,19 +1,12 @@
-"""Persistence layer for the IAP Builder.
+"""Persistence layer for the IAP Builder — API-backed implementation.
 
-This module provides a minimal yet functional repository that persists
-Incident Action Plan (IAP) packages and their forms in the active incident's
-SQLite database.  The implementation intentionally focuses on the operations
-required by the initial UI scaffolding – storing and retrieving packages and
-forms.  Audit history and validation hooks will be layered in during later
-milestones.
+All reads and writes go through the API server
+(``/api/incidents/{id}/iap/packages``), which stores data in MongoDB.
+The SQLite incident.db is no longer accessed by this module.
 """
-
 from __future__ import annotations
 
 import json
-import os
-import sqlite3
-from pathlib import Path
 from datetime import datetime
 from typing import Iterable, List, Optional
 
@@ -22,330 +15,137 @@ from .iap_models import FormInstance, IAPPackage
 __all__ = ["IAPRepository"]
 
 
+def _parse_dt(value: str | None) -> datetime:
+    if value:
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            pass
+    return datetime.utcnow()
+
+
+def _serialize_dt(value: datetime) -> str:
+    return value.replace(microsecond=0).isoformat()
+
+
+def _pkg_from_doc(doc: dict) -> IAPPackage:
+    package = IAPPackage(
+        incident_id=doc["incident_id"],
+        op_number=int(doc["op_number"]),
+        op_start=_parse_dt(doc.get("op_start")),
+        op_end=_parse_dt(doc.get("op_end")),
+        created_at=_parse_dt(doc.get("created_at")),
+        status=doc.get("status", "draft"),
+        notes=doc.get("notes") or "",
+        version_tag=doc.get("version_tag"),
+        published_pdf_path=doc.get("published_pdf_path"),
+    )
+    forms = []
+    for i, fd in enumerate(doc.get("forms") or []):
+        forms.append(FormInstance(
+            form_id=fd["form_id"],
+            title=fd.get("title", ""),
+            op_number=int(fd.get("op_number", package.op_number)),
+            revision=int(fd.get("revision", 0)),
+            fields=fd.get("fields") or {},
+            attachments=fd.get("attachments") or [],
+            status=fd.get("status", "draft"),
+            last_updated=_parse_dt(fd.get("last_updated")),
+            display_order=int(fd.get("display_order", i)),
+        ))
+    package.forms = forms
+    return package
+
+
 class IAPRepository:
-    """Encapsulates read/write operations for IAP packages and forms."""
+    """Reads and writes IAP data through the incident API."""
 
-    def __init__(self, incident_db: Path, master_db: Path | None = None):
-        self.incident_db = Path(incident_db)
-        self.incident_db.parent.mkdir(parents=True, exist_ok=True)
-        self.master_db = Path(master_db) if master_db else None
-        self._initialized = False
+    def __init__(self, incident_id: str):
+        self.incident_id = incident_id
 
-    # -- lifecycle -----------------------------------------------------------------
     def initialize(self) -> None:
-        """Ensure the required SQLite tables exist."""
-
-        with self._connect() as conn:
-            conn.execute("PRAGMA foreign_keys = ON")
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS iap_packages (
-                    incident_id TEXT NOT NULL,
-                    op_number INTEGER NOT NULL,
-                    op_start TEXT NOT NULL,
-                    op_end TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'draft',
-                    notes TEXT DEFAULT '',
-                    version_tag TEXT,
-                    published_pdf_path TEXT,
-                    PRIMARY KEY (incident_id, op_number)
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS iap_forms (
-                    incident_id TEXT NOT NULL,
-                    op_number INTEGER NOT NULL,
-                    form_id TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    revision INTEGER NOT NULL DEFAULT 0,
-                    status TEXT NOT NULL DEFAULT 'draft',
-                    last_updated TEXT NOT NULL,
-                    fields_json TEXT,
-                    attachments_json TEXT,
-                    display_order INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (incident_id, op_number, form_id),
-                    FOREIGN KEY (incident_id, op_number)
-                        REFERENCES iap_packages(incident_id, op_number)
-                        ON DELETE CASCADE
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS iap_changelog (
-                    incident_id TEXT NOT NULL,
-                    op_number INTEGER NOT NULL,
-                    form_id TEXT NOT NULL,
-                    ts TEXT NOT NULL,
-                    user_id TEXT,
-                    field TEXT,
-                    old_value TEXT,
-                    new_value TEXT
-                )
-                """
-            )
-            columns = {
-                row[1]
-                for row in conn.execute("PRAGMA table_info(iap_forms)")
-            }
-            if "display_order" not in columns:
-                conn.execute(
-                    "ALTER TABLE iap_forms ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"
-                )
-            conn.commit()
-        self._initialized = True
+        """No-op — schema is managed by the API/MongoDB layer."""
 
     # -- package operations ---------------------------------------------------------
-    def list_packages(self, incident_id: str) -> List[IAPPackage]:
-        """Return all packages for ``incident_id`` ordered by operational period."""
 
-        self._ensure_initialized()
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT incident_id, op_number, op_start, op_end, created_at,
-                       status, notes, version_tag, published_pdf_path
-                FROM iap_packages
-                WHERE incident_id = ?
-                ORDER BY op_number
-                """,
-                (incident_id,),
-            ).fetchall()
-            packages = [self._row_to_package(row) for row in rows]
-            for package in packages:
-                package.forms = self._load_forms(conn, package.incident_id, package.op_number)
-            return packages
+    def list_packages(self, incident_id: str) -> List[IAPPackage]:
+        from utils.api_client import api_client
+        docs = api_client.get(f"/api/incidents/{incident_id}/iap/packages") or []
+        return [_pkg_from_doc(d) for d in docs]
 
     def get_package(self, incident_id: str, op_number: int) -> IAPPackage:
-        """Fetch a single package for ``incident_id`` and ``op_number``."""
-
-        self._ensure_initialized()
-        with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT incident_id, op_number, op_start, op_end, created_at,
-                       status, notes, version_tag, published_pdf_path
-                FROM iap_packages
-                WHERE incident_id = ? AND op_number = ?
-                """,
-                (incident_id, op_number),
-            ).fetchone()
-            if row is None:
-                raise KeyError(f"No IAP package for incident {incident_id!r} OP {op_number}")
-            package = self._row_to_package(row)
-            package.forms = self._load_forms(conn, incident_id, op_number)
-            return package
+        from utils.api_client import api_client
+        doc = api_client.get(f"/api/incidents/{incident_id}/iap/packages/{op_number}")
+        if not doc:
+            raise KeyError(f"No IAP package for incident {incident_id!r} OP {op_number}")
+        return _pkg_from_doc(doc)
 
     def save_package(self, package: IAPPackage) -> IAPPackage:
-        """Insert or update ``package`` in the database."""
-
-        self._ensure_initialized()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO iap_packages (
-                    incident_id, op_number, op_start, op_end, created_at,
-                    status, notes, version_tag, published_pdf_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(incident_id, op_number) DO UPDATE SET
-                    op_start = excluded.op_start,
-                    op_end = excluded.op_end,
-                    status = excluded.status,
-                    notes = excluded.notes,
-                    version_tag = excluded.version_tag,
-                    published_pdf_path = excluded.published_pdf_path
-                """,
-                (
-                    package.incident_id,
-                    package.op_number,
-                    self._serialize_dt(package.op_start),
-                    self._serialize_dt(package.op_end),
-                    self._serialize_dt(package.created_at),
-                    package.status,
-                    package.notes,
-                    package.version_tag,
-                    package.published_pdf_path,
-                ),
-            )
-            conn.commit()
+        from utils.api_client import api_client
+        payload = {
+            "incident_id": package.incident_id,
+            "op_start": _serialize_dt(package.op_start),
+            "op_end": _serialize_dt(package.op_end),
+            "created_at": _serialize_dt(package.created_at),
+            "status": package.status,
+            "notes": package.notes,
+            "version_tag": package.version_tag,
+            "published_pdf_path": package.published_pdf_path,
+        }
+        api_client.put(
+            f"/api/incidents/{package.incident_id}/iap/packages/{package.op_number}",
+            json=payload,
+        )
         return package
 
     # -- form operations ------------------------------------------------------------
-    def save_form(self, package: IAPPackage, form: FormInstance) -> FormInstance:
-        """Persist ``form`` as part of ``package``."""
 
-        self._ensure_initialized()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO iap_forms (
-                    incident_id, op_number, form_id, title, revision, status,
-                    last_updated, fields_json, attachments_json, display_order
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(incident_id, op_number, form_id) DO UPDATE SET
-                    title = excluded.title,
-                    revision = excluded.revision,
-                    status = excluded.status,
-                    last_updated = excluded.last_updated,
-                    fields_json = excluded.fields_json,
-                    attachments_json = excluded.attachments_json,
-                    display_order = excluded.display_order
-                """,
-                (
-                    package.incident_id,
-                    package.op_number,
-                    form.form_id,
-                    form.title,
-                    form.revision,
-                    form.status,
-                    self._serialize_dt(form.last_updated),
-                    json.dumps(form.fields or {}),
-                    json.dumps(form.attachments or []),
-                    form.display_order,
-                ),
-            )
-            conn.commit()
+    def save_form(self, package: IAPPackage, form: FormInstance) -> FormInstance:
+        from utils.api_client import api_client
+        payload = {
+            "form_id": form.form_id,
+            "title": form.title,
+            "op_number": package.op_number,
+            "revision": form.revision,
+            "status": form.status,
+            "last_updated": _serialize_dt(form.last_updated),
+            "fields": form.fields or {},
+            "attachments": form.attachments or [],
+            "display_order": form.display_order,
+        }
+        api_client.put(
+            f"/api/incidents/{package.incident_id}/iap/packages/{package.op_number}/forms/{form.form_id}",
+            json=payload,
+        )
         return form
 
     def save_forms(self, package: IAPPackage, forms: Iterable[FormInstance]) -> None:
-        """Bulk persist forms."""
-
         for index, form in enumerate(forms):
             form.display_order = index
             self.save_form(package, form)
 
     def delete_form(self, package: IAPPackage, form_id: str) -> None:
-        """Remove ``form_id`` from the given ``package``."""
-
-        self._ensure_initialized()
-        with self._connect() as conn:
-            conn.execute(
-                "DELETE FROM iap_forms WHERE incident_id = ? AND op_number = ? AND form_id = ?",
-                (package.incident_id, package.op_number, form_id),
-            )
-            conn.commit()
+        from utils.api_client import api_client
+        api_client.delete(
+            f"/api/incidents/{package.incident_id}/iap/packages/{package.op_number}/forms/{form_id}"
+        )
 
     def update_form_order(self, package: IAPPackage, order: List[str]) -> None:
-        """Persist ``order`` for ``package`` in the database."""
-
-        self._ensure_initialized()
-        with self._connect() as conn:
-            for index, form_id in enumerate(order):
-                conn.execute(
-                    """
-                    UPDATE iap_forms
-                    SET display_order = ?
-                    WHERE incident_id = ? AND op_number = ? AND form_id = ?
-                    """,
-                    (index, package.incident_id, package.op_number, form_id),
-                )
-            conn.commit()
+        from utils.api_client import api_client
+        api_client.put(
+            f"/api/incidents/{package.incident_id}/iap/packages/{package.op_number}/forms-order",
+            json={"order": order},
+        )
 
     def changelog_for_form(self, form_id: int) -> List[dict]:
-        """Return change log entries for the database row ``form_id``."""
-
-        # Change log support will be implemented in a later milestone.
         return []
 
     # -- metadata helpers -----------------------------------------------------------
+
     def incident_name(self, incident_id: str) -> Optional[str]:
-        """Look up the human friendly incident name from the master database."""
-
-        if not self.master_db or not self.master_db.exists():
-            return None
         try:
-            with sqlite3.connect(os.fspath(self.master_db)) as conn:
-                conn.row_factory = sqlite3.Row
-                row = conn.execute(
-                    "SELECT name FROM incidents WHERE number = ? LIMIT 1",
-                    (incident_id,),
-                ).fetchone()
-                if row and row["name"]:
-                    return str(row["name"])
-        except sqlite3.Error:
+            from utils.api_client import api_client
+            doc = api_client.get(f"/api/incidents/{incident_id}/profile") or {}
+            return doc.get("name") or None
+        except Exception:
             return None
-        return None
-
-    # -- internal utilities --------------------------------------------------------
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(os.fspath(self.incident_db))
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout=3000")
-        return conn
-
-    def _ensure_initialized(self) -> None:
-        if not self._initialized:
-            self.initialize()
-
-    def _load_forms(self, conn: sqlite3.Connection, incident_id: str, op_number: int) -> List[FormInstance]:
-        rows = conn.execute(
-            """
-            SELECT form_id, title, revision, status, last_updated,
-                   fields_json, attachments_json, display_order
-            FROM iap_forms
-            WHERE incident_id = ? AND op_number = ?
-            ORDER BY display_order, form_id
-            """,
-            (incident_id, op_number),
-        ).fetchall()
-        forms: List[FormInstance] = []
-        for index, row in enumerate(rows):
-            fields = self._decode_json(row["fields_json"], {})
-            attachments = self._decode_json(row["attachments_json"], [])
-            last_updated = self._parse_dt(row["last_updated"])
-            try:
-                display_order = int(row["display_order"])
-            except (KeyError, TypeError, ValueError):
-                display_order = index
-            forms.append(
-                FormInstance(
-                    form_id=row["form_id"],
-                    title=row["title"],
-                    op_number=op_number,
-                    revision=int(row["revision"]),
-                    fields=fields,
-                    attachments=attachments,
-                    status=row["status"],
-                    last_updated=last_updated,
-                    display_order=display_order,
-                )
-            )
-        return forms
-
-    def _row_to_package(self, row: sqlite3.Row) -> IAPPackage:
-        return IAPPackage(
-            incident_id=row["incident_id"],
-            op_number=int(row["op_number"]),
-            op_start=self._parse_dt(row["op_start"]),
-            op_end=self._parse_dt(row["op_end"]),
-            created_at=self._parse_dt(row["created_at"]),
-            status=row["status"],
-            notes=row["notes"] or "",
-            version_tag=row["version_tag"],
-            published_pdf_path=row["published_pdf_path"],
-        )
-
-    @staticmethod
-    def _parse_dt(value: str | None) -> datetime:
-        if value:
-            try:
-                return datetime.fromisoformat(value)
-            except ValueError:
-                pass
-        return datetime.utcnow()
-
-    @staticmethod
-    def _serialize_dt(value: datetime) -> str:
-        return value.replace(microsecond=0).isoformat()
-
-    @staticmethod
-    def _decode_json(payload: str | None, default: object) -> object:
-        if not payload:
-            return default
-        try:
-            return json.loads(payload)
-        except json.JSONDecodeError:
-            return default

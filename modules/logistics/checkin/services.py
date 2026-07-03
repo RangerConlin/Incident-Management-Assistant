@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import json
+import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+
+logger = logging.getLogger(__name__)
 
 CHECKED_IN_STATUSES = {
     "Available",
@@ -188,6 +193,23 @@ def get_entity_config(entity_type: str) -> EntityConfig:
     return _get_config(entity_type)
 
 
+def _name_from_master(entity_type: str, master: dict[str, Any], record_id: Any) -> str:
+    if entity_type == "personnel":
+        return master.get("name") or str(record_id)
+    if entity_type == "vehicle":
+        return (
+            master.get("callsign")
+            or master.get("license_plate")
+            or " ".join(str(v) for v in [master.get("year"), master.get("make"), master.get("model")] if v)
+            or str(record_id)
+        )
+    if entity_type == "aircraft":
+        return master.get("callsign") or master.get("tail_number") or master.get("aircraft_id") or str(record_id)
+    if entity_type == "equipment":
+        return master.get("name") or master.get("serial_number") or str(record_id)
+    return str(record_id)
+
+
 class CheckInService:
     """API-backed facade that manages master and incident resource check-in."""
 
@@ -259,18 +281,22 @@ class CheckInService:
             return set()
         try:
             rows = _client().get(
-                f"{_incident_base(incident_id)}",
-                params={"resource_type": entity_type},
+                f"/api/incidents/{incident_id}/resource-status",
+                params={"entity_type": entity_type},
             ) or []
-            config = _get_config(entity_type)
             checked_ids: set[str] = set()
             for row in rows:
                 if str(row.get("status") or "").strip() in CHECKED_IN_STATUSES:
-                    identifier = row.get(config.id_column)
-                    if identifier is not None:
-                        checked_ids.add(str(identifier))
+                    record_id = row.get("record_id")
+                    if record_id is not None:
+                        checked_ids.add(str(record_id))
+            logger.info(
+                "_checked_in_ids entity_type=%s total=%d checked_in=%d",
+                entity_type, len(rows), len(checked_ids),
+            )
             return checked_ids
         except Exception:
+            logger.exception("_checked_in_ids failed entity_type=%s", entity_type)
             return set()
 
     def _mark_checked_in(self, entity_type: str, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -302,22 +328,27 @@ class CheckInService:
     def create_master_record(self, entity_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         config = _get_config(entity_type)
         base = _MASTER_BASE[entity_type]
+        payload = dict(data)
+        if entity_type == "personnel":
+            visible_id = str(payload.pop("id", "") or payload.get("person_id") or "").strip()
+            if visible_id:
+                payload["person_id"] = visible_id
 
         # Validate required fields
         if config.id_field is not None:
-            supplied = data.get(config.id_column)
+            supplied = payload.get(config.id_column)
             supplied_str = supplied.strip() if isinstance(supplied, str) else str(supplied) if supplied is not None else ""
             if config.id_field.required and not supplied_str:
                 raise ValueError(f"{config.id_field.label} is required")
 
         for field in config.form_fields:
-            raw = data.get(field.name)
+            raw = payload.get(field.name)
             text = raw.strip() if isinstance(raw, str) else raw
             if field.required and not text:
                 raise ValueError(f"{field.label} is required")
 
         try:
-            doc = _client().post(base, json=data)
+            doc = _client().post(base, json=payload)
         except Exception as exc:
             raise ValueError(str(exc)) from exc
 
@@ -333,54 +364,114 @@ class CheckInService:
         incident_id = _incident_id()
         if not incident_id:
             raise RuntimeError("No active incident")
+        logger.info(
+            "check-in start entity_type=%s incident_id=%s record_id=%s overrides_keys=%s",
+            entity_type,
+            incident_id,
+            record_id,
+            sorted((overrides or {}).keys()),
+        )
+
+        if entity_type == "personnel":
+            # Personnel check-in writes directly to the checkins collection.
+            # check_in_out is legacy for personnel and no longer written here.
+            from . import repository as ci_repo
+            from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
+            now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
+            prec = int(record_id)
+            master = None
+            try:
+                master = _client().get(f"/api/master/personnel/{prec}") or {}
+            except Exception:
+                master = {}
+            default_status = self.default_arrival_status("personnel", master, record_id=prec)
+            ci_status = CIStatus.normalize((overrides or {}).get("status") or default_status)
+            personnel_status = PersonnelStatus.ASSIGNED if ci_status.value == "Assigned" else PersonnelStatus.AVAILABLE
+            arrival = (overrides or {}).get("arrival_time") or now_iso
+            existing = None
+            try:
+                existing = ci_repo.fetch_checkin(prec)
+            except Exception:
+                pass
+            if existing is None:
+                rec = CheckInRecord(
+                    person_record=prec,
+                    status=ci_status,
+                    arrival_time=arrival,
+                    location=Location.ICP,
+                    incident_callsign=master.get("callsign"),
+                    incident_phone=master.get("phone") or master.get("contact"),
+                    team_id=master.get("team_id"),
+                    role_on_team=master.get("role") or master.get("primary_role"),
+                    ci_status=ci_status,
+                    personnel_status=personnel_status,
+                )
+            else:
+                existing.status = ci_status
+                existing.ci_status = ci_status
+                existing.personnel_status = personnel_status
+                existing.arrival_time = arrival
+                rec = existing
+            try:
+                ci_repo.save_checkin(rec)
+                logger.info(
+                    "check-in personnel checkins saved incident_id=%s person_record=%s status=%s",
+                    incident_id, prec, ci_status.value,
+                )
+            except Exception:
+                logger.exception(
+                    "check-in personnel checkins save failed incident_id=%s person_record=%s",
+                    incident_id, prec,
+                )
+            doc = {**master, "_checked_in": True, "person_record": prec}
+            return doc
+
+        # Non-personnel resources: write to resource_status collection.
+        master: dict[str, Any] = {}
+        try:
+            master = _client().get(f"{_MASTER_BASE[entity_type]}/{record_id}") or {}
+        except Exception:
+            pass
+
+        resource_name = _name_from_master(entity_type, master, record_id)
+        arrival_status = self.default_arrival_status(entity_type, master, record_id=record_id)
+
+        # Visible ID for the Resource ID column on the board
+        _visible_id_field = {"vehicle": "vehicle_id", "aircraft": "aircraft_id", "equipment": "equipment_id"}
+        visible_id = master.get(_visible_id_field.get(entity_type, "")) or None
+
+        rid = int(record_id) if str(record_id).isdigit() else record_id
+        payload: dict[str, Any] = {
+            "entity_type": entity_type,
+            "record_id": rid,
+            "resource_id": visible_id or str(record_id),
+            "resource_name": resource_name,
+            "resource_type": entity_type.title(),
+            "status": (overrides or {}).get("status") or arrival_status,
+            "changed_by": "Check-In",
+        }
+        if master.get("location") or (overrides or {}).get("location"):
+            payload["location"] = (overrides or {}).get("location") or master.get("location")
 
         try:
             doc = _client().post(
-                f"{_incident_base(incident_id)}/{entity_type}/{record_id}",
-                json=overrides or {},
+                f"/api/incidents/{incident_id}/resource-status",
+                json=payload,
             )
         except Exception as exc:
+            logger.exception(
+                "check-in post failed entity_type=%s incident_id=%s record_id=%s",
+                entity_type,
+                incident_id,
+                record_id,
+            )
             raise ValueError(str(exc)) from exc
 
+        logger.info(
+            "check-in post succeeded entity_type=%s incident_id=%s record_id=%s",
+            entity_type, incident_id, record_id,
+        )
         doc["_checked_in"] = True
-
-        # For personnel check-ins, also create a roster record
-        if entity_type == "personnel":
-            try:
-                from . import repository as ci_repo
-                from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
-                from datetime import datetime
-                now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
-                prec = int(doc.get("person_record") or record_id or 0)
-                if prec:
-                    existing = None
-                    try:
-                        existing = ci_repo.fetch_checkin(prec)
-                    except Exception:
-                        pass
-                    if existing is None:
-                        default_status = self.default_arrival_status("personnel", doc, record_id=prec)
-                        rec = CheckInRecord(
-                            person_record=prec,
-                            status=CIStatus.normalize(default_status),
-                            arrival_time=now_iso,
-                            location=Location.ICP,
-                            incident_callsign=doc.get("callsign"),
-                            incident_phone=doc.get("phone") or doc.get("contact"),
-                            team_id=doc.get("team_id"),
-                            role_on_team=doc.get("role") or doc.get("primary_role"),
-                            ci_status=CIStatus.normalize(default_status),
-                            personnel_status=PersonnelStatus.ASSIGNED if default_status == "Assigned" else PersonnelStatus.AVAILABLE,
-                        )
-                    else:
-                        rec = existing
-                    try:
-                        ci_repo.save_checkin(rec)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
         return doc
 
     def get_checked_in_record(self, entity_type: str, record_id: Any) -> Optional[Dict[str, Any]]:
@@ -388,7 +479,10 @@ class CheckInService:
         if not incident_id:
             return None
         try:
-            return _client().get(f"{_incident_base(incident_id)}/{entity_type}/{record_id}")
+            return _client().get(
+                f"/api/incidents/{incident_id}/resource-status/by-entity",
+                params={"entity_type": entity_type, "record_id": str(record_id)},
+            )
         except Exception:
             return None
 
@@ -458,7 +552,7 @@ class CheckInService:
         org_lower = organization.strip().lower()
         filtered = []
         for r in records:
-            org_val = str(r.get("organization") or r.get("unit") or r.get("home_unit") or "")
+            org_val = str(r.get("organization") or "")
             if org_lower in org_val.lower():
                 filtered.append(r)
         return filtered
@@ -495,14 +589,23 @@ class CheckInService:
     # ------------------------------------------------------------------
 
     def set_planning_status(self, person_id: str, planning_status: str) -> Optional[Dict[str, Any]]:
-        """Set the linear resource-flow status on a check-in record."""
+        """Set the linear resource-flow status on a resource_status record."""
         incident_id = _incident_id()
         if not incident_id:
             return None
         try:
+            doc = _client().get(
+                f"/api/incidents/{incident_id}/resource-status/by-entity",
+                params={"entity_type": "personnel", "record_id": str(person_id)},
+            )
+            if not doc:
+                return None
+            item_id = doc.get("id")
+            if not item_id:
+                return None
             return _client().patch(
-                f"/api/incidents/{incident_id}/checkin/{person_id}/status",
-                json={"status": planning_status},
+                f"/api/incidents/{incident_id}/resource-status/{item_id}/status",
+                json={"status": planning_status, "changed_by": "Planning"},
             )
         except Exception:
             return None
@@ -530,17 +633,62 @@ class CheckInService:
             },
             record_id=person_id,
         )
+        if existing is None:
+            try:
+                logger.info(
+                    "transition_to_checked_in creating incident record person_id=%s incident_id=%s arrival_time=%s",
+                    person_id,
+                    incident_id,
+                    now,
+                )
+                created = self.check_in(
+                    "personnel",
+                    person_id,
+                    overrides={
+                        "status": status,
+                        "arrival_time": now,
+                        "updated_at": now,
+                    },
+                )
+                logger.info(
+                    "transition_to_checked_in created incident record person_id=%s incident_id=%s result_keys=%s",
+                    person_id,
+                    incident_id,
+                    sorted(created.keys()) if isinstance(created, dict) else None,
+                )
+                return created
+            except Exception:
+                logger.exception(
+                    "transition_to_checked_in create fallback failed person_id=%s incident_id=%s",
+                    person_id,
+                    incident_id,
+                )
+                return None
         try:
-            return _client().patch(
-                f"/api/incidents/{incident_id}/checkin/{person_id}",
-                json={
-                    "status": status,
-                    "arrival_time": now,
-                    "updated_at": now,
-                },
+            rs_doc = _client().get(
+                f"/api/incidents/{incident_id}/resource-status/by-entity",
+                params={"entity_type": "personnel", "record_id": str(person_id)},
+            )
+            item_id = (rs_doc or {}).get("id")
+            if not item_id:
+                raise ValueError("No resource_status doc found for person")
+            result = _client().patch(
+                f"/api/incidents/{incident_id}/resource-status/{item_id}/status",
+                json={"status": status, "changed_by": "Check-In Transition"},
+            )
+            logger.info(
+                "transition_to_checked_in patched resource_status person_id=%s incident_id=%s status=%s",
+                person_id, incident_id, status,
             )
         except Exception:
+            logger.exception(
+                "transition_to_checked_in patch failed person_id=%s incident_id=%s",
+                person_id,
+                incident_id,
+            )
             return None
+
+        return result
 
     # ------------------------------------------------------------------
     # Team check-in / disband

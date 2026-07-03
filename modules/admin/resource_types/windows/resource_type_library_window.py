@@ -61,7 +61,7 @@ ACTIVE_COLORS: dict[str, tuple[str, str]] = {
 
 FIELDS: list[FieldSpec] = [
     FieldSpec("name", "Name", required=True),
-    FieldSpec("planning_display_name", "Planning Display Name"),
+    FieldSpec("resource_name", "Resource Name"),
     FieldSpec("category", "Category"),
     FieldSpec("source", "Source"),
     FieldSpec("owner_agency", "Owner Agency"),
@@ -87,7 +87,7 @@ class ResourceTypeTableModel(QAbstractTableModel):
     ]
     keys = [
         "name",
-        "planning_display_name",
+        "resource_name",
         "category",
         "source",
         "owner_agency",
@@ -505,7 +505,7 @@ class ResourceTypeLibraryWindow(QWidget):
         def _import_row(payload: dict[str, Any]) -> Any:
             resource_type = ResourceType(
                 name=payload["name"],
-                planning_display_name=payload.get("planning_display_name", ""),
+                resource_name=payload.get("resource_name", ""),
                 category=payload.get("category") or "Other",
                 source=payload.get("source") or "AHJ Custom",
                 owner_agency=payload.get("owner_agency", ""),

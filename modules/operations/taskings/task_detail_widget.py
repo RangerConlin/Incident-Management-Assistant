@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QPushButton,
     QTabWidget,
-    QTabBar,
     QScrollArea,
     QSplitter,
     QTableView,
@@ -198,50 +197,169 @@ def _ics_position_abbreviation(title: str) -> str:
     return "".join(letters) or text.upper()
 
 
-class _WrappingTabBar(QTabBar):
-    """Compact tab bar that grows to two rows when width gets tight."""
+class _MultiRowTabBar(QWidget):
+    """Tab bar that wraps into multiple rows and stretches tabs to fill width."""
+
+    tabClicked = Signal(int)
+
+    _TAB_H = 28
+    _TAB_MIN_W = 72
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setExpanding(False)
-        self.setUsesScrollButtons(False)
-        self.setDrawBase(True)
+        self._buttons: list[QPushButton] = []
+        self._current = -1
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._apply_style()
 
-    def tabSizeHint(self, index: int):  # type: ignore[override]
-        size = super().tabSizeHint(index)
+    def _apply_style(self) -> None:
         try:
-            width = max(110, min(180, size.width() + 18))
-            size.setWidth(width)
-            size.setHeight(max(size.height(), 28))
+            from utils.styles import get_palette
+            pal = get_palette()
+            bg = pal.get("bg_raised", pal.get("bg", QColor("#2b3044")))
+            fg = pal.get("fg", QColor("#e0e0e0"))
+            sel_bg = pal.get("accent", QColor("#5CA3FF"))
+            sel_fg = QColor("#ffffff")
+            hover_bg = pal.get("ctrl_bg", pal.get("bg", QColor("#3a4358")))
+            bg_n = bg.name() if isinstance(bg, QColor) else "#2b3044"
+            fg_n = fg.name() if isinstance(fg, QColor) else "#e0e0e0"
+            sel_bg_n = sel_bg.name() if isinstance(sel_bg, QColor) else "#5CA3FF"
+            sel_fg_n = sel_fg.name()
+            hover_n = hover_bg.name() if isinstance(hover_bg, QColor) else "#3a4358"
         except Exception:
-            pass
-        return size
+            bg_n, fg_n, sel_bg_n, sel_fg_n, hover_n = "#2b3044", "#e0e0e0", "#5CA3FF", "#ffffff", "#3a4358"
+        self._btn_style_normal = (
+            f"QPushButton {{ background: {bg_n}; color: {fg_n}; border: none;"
+            f" border-bottom: 2px solid transparent; padding: 0 6px;"
+            f" font-size: 12px; }}"
+            f"QPushButton:hover {{ background: {hover_n}; }}"
+        )
+        self._btn_style_selected = (
+            f"QPushButton {{ background: {hover_n}; color: {sel_bg_n}; border: none;"
+            f" border-bottom: 2px solid {sel_bg_n}; padding: 0 6px;"
+            f" font-weight: 600; font-size: 12px; }}"
+        )
+        for i, btn in enumerate(self._buttons):
+            btn.setStyleSheet(self._btn_style_selected if i == self._current else self._btn_style_normal)
 
-    def hasHeightForWidth(self) -> bool:  # type: ignore[override]
-        return True
+    def addTab(self, label: str) -> int:
+        idx = len(self._buttons)
+        btn = QPushButton(label, self)
+        btn.setCheckable(False)
+        btn.setFlat(True)
+        btn.setFixedHeight(self._TAB_H)
+        btn.setStyleSheet(self._btn_style_normal if hasattr(self, "_btn_style_normal") else "")
+        btn.clicked.connect(lambda _checked=False, i=idx: self.setCurrentIndex(i))
+        self._buttons.append(btn)
+        btn.show()
+        self._do_layout()
+        if idx == 0:
+            self._current = 0
+            btn.setStyleSheet(getattr(self, "_btn_style_selected", ""))
+        return idx
 
-    def heightForWidth(self, width: int) -> int:  # type: ignore[override]
-        if width <= 0 or self.count() == 0:
-            return super().sizeHint().height()
-        row_width = 0
-        rows = 1
-        row_height = 0
-        for idx in range(self.count()):
-            size = self.tabSizeHint(idx)
-            tab_width = size.width()
-            if row_width and row_width + tab_width > width:
-                rows += 1
-                row_width = 0
-            row_width += tab_width
-            row_height = max(row_height, size.height())
-        return max(row_height * rows + 6, row_height)
+    def setCurrentIndex(self, idx: int) -> None:
+        if not (0 <= idx < len(self._buttons)):
+            return
+        prev = self._current
+        self._current = idx
+        if prev != idx:
+            if 0 <= prev < len(self._buttons):
+                self._buttons[prev].setStyleSheet(getattr(self, "_btn_style_normal", ""))
+            self._buttons[idx].setStyleSheet(getattr(self, "_btn_style_selected", ""))
+            self.tabClicked.emit(idx)
+
+    def currentIndex(self) -> int:
+        return self._current
+
+    def count(self) -> int:
+        return len(self._buttons)
+
+    def _do_layout(self) -> None:
+        if not self._buttons:
+            self.setFixedHeight(0)
+            return
+        w = max(self.width(), 1)
+        n = len(self._buttons)
+        h = self._TAB_H
+        min_w = self._TAB_MIN_W
+        import math
+        # How many rows do we need so every tab is at least min_w wide?
+        num_rows = max(1, math.ceil(n * min_w / w))
+        per_row = math.ceil(n / num_rows)
+        rows: list[list[int]] = []
+        row: list[int] = []
+        for i in range(n):
+            row.append(i)
+            if len(row) >= per_row and i < n - 1:
+                rows.append(row)
+                row = []
+        rows.append(row)
+        for r_idx, row_idxs in enumerate(rows):
+            cnt = len(row_idxs)
+            tab_w = w // cnt
+            remainder = w - tab_w * cnt
+            x = 0
+            y = r_idx * h
+            for c_idx, btn_idx in enumerate(row_idxs):
+                w_this = tab_w + (1 if c_idx < remainder else 0)
+                self._buttons[btn_idx].setGeometry(x, y, w_this, h)
+                x += w_this
+        self.setFixedHeight(len(rows) * h)
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        try:
-            self.setFixedHeight(self.heightForWidth(max(1, self.width())))
-        except Exception:
-            pass
+        self._do_layout()
+
+    def minimumSizeHint(self):  # type: ignore[override]
+        from PySide6.QtCore import QSize
+        return QSize(self._TAB_MIN_W, self._TAB_H)
+
+    def sizeHint(self):  # type: ignore[override]
+        from PySide6.QtCore import QSize
+        return QSize(self._TAB_MIN_W * max(1, len(self._buttons)), self._TAB_H)
+
+
+class _MultiRowTabWidget(QWidget):
+    """QTabWidget replacement with a wrapping, stretching multi-row tab bar."""
+
+    currentChanged = Signal(int)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        from PySide6.QtWidgets import QStackedWidget
+        self._tab_bar = _MultiRowTabBar(self)
+        self._stack = QStackedWidget(self)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+        lay.addWidget(self._tab_bar)
+        lay.addWidget(self._stack, 1)
+        self._tab_bar.tabClicked.connect(self._on_tab_clicked)
+
+    def addTab(self, widget: QWidget, label: str) -> int:
+        self._stack.addWidget(widget)
+        idx = self._tab_bar.addTab(label)
+        if idx == 0:
+            self._stack.setCurrentIndex(0)
+        return idx
+
+    def _on_tab_clicked(self, idx: int) -> None:
+        self._stack.setCurrentIndex(idx)
+        self.currentChanged.emit(idx)
+
+    def setCurrentIndex(self, idx: int) -> None:
+        self._tab_bar.setCurrentIndex(idx)
+        self._stack.setCurrentIndex(idx)
+
+    def currentIndex(self) -> int:
+        return self._tab_bar.currentIndex()
+
+    def count(self) -> int:
+        return self._tab_bar.count()
+
+    def tabBar(self) -> _MultiRowTabBar:
+        return self._tab_bar
 
 
 class TaskDetailWindow(QWidget):
@@ -485,16 +603,8 @@ class TaskDetailWindow(QWidget):
         _top_layout.addLayout(nar_quick_top)
 
         # Tabs (bottom half of splitter)
-        tabs = QTabWidget(self)
+        tabs = _MultiRowTabWidget(self)
         self._tabs = tabs
-        try:
-            tabs.setTabBar(_WrappingTabBar(tabs))
-            tabs.setUsesScrollButtons(False)
-            tabs.setDocumentMode(False)
-            tabs.tabBar().setExpanding(False)
-            tabs.tabBar().setElideMode(Qt.ElideNone)
-        except Exception:
-            pass
 
         # Build splitter: scrollable top half + tabs
         _top_scroll = QScrollArea(self)
@@ -2344,7 +2454,7 @@ class TaskDetailWindow(QWidget):
             rows = []
         self._nar_model.removeRows(0, self._nar_model.rowCount())
         for r in rows:
-            rid = int(r.get("id") or 0)
+            rid = str(r.get("id") or "")
             raw_ts = str(r.get("timestamp") or "")
             ts = _fmt_ts_compact(raw_ts)
             entry = str(r.get("narrative") or "")
@@ -2841,7 +2951,7 @@ class TaskDetailWindow(QWidget):
         for r in range(start_row, end_row + 1):
             self._apply_row_critical_highlight(r)
             try:
-                rid = int(self._nar_model.item(r, 0).text())
+                rid = self._nar_model.item(r, 0).text()
                 critical = 1 if self._is_row_critical(r) else 0
                 self._narrative_critical_sync = True
                 ok = bool(self._ib().updateTaskNarrative(rid, {"critical": critical}))

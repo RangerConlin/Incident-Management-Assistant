@@ -18,6 +18,7 @@
 - `cloud_server/` is a duplicated copy of the LAN server implementation and is not a direct change target. Do not modify files under `cloud_server/`. Apply all server/API/database changes to the active LAN server source under `data/db/sarapp_db/` only.
 - Database framework belongs under `data/`, not `core/`.
 - Never create demo/fake data; only migrate or use data that already exists.
+- Do not add backward-compatibility shims, alias fields, or legacy fallback reads/writes in production code. If a data shape change needs help, use a one-time conversion/migration script to rewrite existing data into the new canonical format, then keep the app code on the canonical shape only.
 - Never wire MongoDB directly into the UI. Architecture is UI -> API server -> MongoDB.
 - `SARAPP_MONGO_URI` is never hardcoded; read it from the environment only.
 - All incident-database writes go through a `sarapp_db.mongo.repository.BaseRepository` subclass. Routers must never call `insert_one`/`update_one`/`delete_one` directly on a raw collection.
@@ -40,7 +41,7 @@
 - Prefer PySide6 widgets for UI work and open panels through established factories so ADS behavior stays consistent.
 - UI code uses `utils/api_client.py`; do not add direct DB access to widgets or bridges.
 - The shared FastAPI surface is `data/db/sarapp_db/api/app.py`; keep architecture notes and new server-facing work aligned with that entry point.
-- When touching incident/master routers under `data/db/sarapp_db/api/routers/`, mirror equivalent changes under `cloud_server/sarapp_db/api/routers/`.
+- When touching incident/master routers under `data/db/sarapp_db/api/routers/`, do NOT mirror changes to `cloud_server/`; the cloud server is synced from the LAN server prior to packaging.
 
 ## Testing Expectations
 - Run or update relevant `pytest` coverage with each code change.

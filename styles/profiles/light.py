@@ -114,6 +114,16 @@ TEAM_STATUS: Dict[str, Dict[str, str]] = {
     "complete":         {"bg": "#2E7D32", "fg": "#ffffff"},
 }
 
+RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
+    "Pending":        {"bg": "#fff8e1", "fg": "#5d4037"},
+    "Enroute":        {"bg": "#e3f2fd", "fg": "#0d47a1"},
+    "Checked In":     {"bg": "#e8f5e9", "fg": "#1b5e20"},
+    "Assigned":       {"bg": "#ede7f6", "fg": "#4527a0"},
+    "Available":      {"bg": "#e0f2f1", "fg": "#004d40"},
+    "Out of Service": {"bg": "#fbe9e7", "fg": "#bf360c"},
+    "Demobilized":    {"bg": "#eceff1", "fg": "#37474f"},
+}
+
 TASK_STATUS: Dict[str, Dict[str, str]] = {
     "created":          {"bg": "#90A4AE", "fg": "#1a1a1a"},
     "planned":          {"bg": "#CE93D8", "fg": "#1a1a1a"},
@@ -140,6 +150,7 @@ __all__ = [
     "NAMED_COLORS",
     "PALETTE",
     "SURFACE",
+    "RESOURCE_STATUS",
     "TEAM_STATUS",
     "TASK_STATUS",
     "TEAM_TYPE_COLORS",

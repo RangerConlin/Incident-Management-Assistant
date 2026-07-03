@@ -63,7 +63,7 @@ class Meeting:
 @dataclass(slots=True)
 class MeetingAttendee:
     meeting_id: int
-    display_name: str
+    attendee_name: str
     attendee_type: str = "role"
     role: str = ""
     requirement_status: str = "required"

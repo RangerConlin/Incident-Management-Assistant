@@ -102,12 +102,12 @@ class TaskingsBridge(QObject):
             "critical_flag": bool(mapped["critical"]),
         }
 
-    @Slot(int, int, result=bool)
-    def deleteNarrative(self, task_id: int, entry_id: int) -> bool:  # noqa: N802
+    @Slot(int, str, result=bool)
+    def deleteNarrative(self, task_id: int, entry_id: str) -> bool:  # noqa: N802
         from bridge.incident_bridge import IncidentBridge
         try:
             ib = IncidentBridge()
-            return bool(ib.deleteTaskNarrative(int(entry_id)))
+            return bool(ib.deleteTaskNarrative(str(entry_id)))
         except Exception:
             return False
 

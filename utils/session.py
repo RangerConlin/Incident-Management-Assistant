@@ -1,22 +1,10 @@
 from __future__ import annotations
 
-import sqlite3
-from datetime import datetime, timezone
 import socket
 from typing import Any
 
-from utils.context import master_db
+from utils.audit import write_audit
 from utils.state import AppState
-from utils.audit import now_utc_iso, write_audit
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS user_sessions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  login_utc TEXT NOT NULL,
-  logout_utc TEXT
-)
-"""
 
 
 def _start_api_session(
@@ -32,7 +20,7 @@ def _start_api_session(
     try:
         from utils.api_client import api_client
 
-        payload = {
+        payload: dict[str, Any] = {
             "user_id": str(user_id),
             "username": str(username or user_id),
             "display_name": display_name or str(username or user_id),
@@ -61,11 +49,11 @@ def start_session(
     display_name: str | None = None,
     role: str | None = None,
     person_record: int | None = None,
-    personnel_id: str | None = None,  # legacy alias, ignored
+    personnel_id: str | None = None,  # legacy param, unused
     incident_id: str | None = None,
     mode: str | None = None,
-) -> int | None:
-    _start_api_session(
+) -> str | None:
+    return _start_api_session(
         user_id=str(user_id),
         username=username,
         display_name=display_name,
@@ -74,48 +62,20 @@ def start_session(
         incident_id=incident_id,
         mode=mode,
     )
-    try:
-        legacy_user_id = int(user_id)
-    except (TypeError, ValueError):
-        return None
-
-    conn = master_db()
-    conn.execute(SCHEMA)
-    cur = conn.execute(
-        "INSERT INTO user_sessions (user_id, login_utc) VALUES (?, ?)",
-        (legacy_user_id, now_utc_iso()),
-    )
-    session_id = int(cur.lastrowid)
-    conn.commit()
-    conn.close()
-    AppState.set_active_session_id(session_id)
-    return session_id
 
 
 def end_session() -> None:
     api_session_id = AppState.get_active_api_session_id()
-    if api_session_id:
-        try:
-            from utils.api_client import api_client
-
-            api_client.post(f"/api/auth/sessions/{api_session_id}/logout")
-        except Exception as exc:
-            write_audit("presence.session_end_failed", {"error": str(exc)}, prefer_mission=False)
-        finally:
-            AppState.set_active_api_session_id(None)
-
-    session_id = AppState.get_active_session_id()
-    if not session_id:
+    if not api_session_id:
         return
-    conn = master_db()
-    conn.execute(SCHEMA)
-    conn.execute(
-        "UPDATE user_sessions SET logout_utc = ? WHERE id = ? AND logout_utc IS NULL",
-        (now_utc_iso(), int(session_id)),
-    )
-    conn.commit()
-    conn.close()
-    AppState.set_active_session_id(None)
+    try:
+        from utils.api_client import api_client
+
+        api_client.post(f"/api/auth/sessions/{api_session_id}/logout")
+    except Exception as exc:
+        write_audit("presence.session_end_failed", {"error": str(exc)}, prefer_mission=False)
+    finally:
+        AppState.set_active_api_session_id(None)
 
 
 __all__ = ["start_session", "end_session"]

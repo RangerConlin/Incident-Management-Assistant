@@ -39,13 +39,6 @@ class AppState:
         except Exception as e:
             # Non-fatal: selection UI should still work; DB-backed views may error until set
             logger.warning("[state] failed to sync incident_context: %s", e)
-        # Keep incident_db (legacy SQLite helper) in sync
-        try:
-            from utils import incident_db
-
-            incident_db.set_active_incident_id(normalized_incident_id)
-        except Exception as e:
-            logger.warning("[state] failed to sync incident_db: %s", e)
         # Emit Qt signal for interested panels
         try:
             from utils.app_signals import app_signals

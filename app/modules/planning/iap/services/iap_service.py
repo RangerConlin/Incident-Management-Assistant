@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -48,13 +47,12 @@ class IAPService:
         base_output_dir: Optional[Path] = None,
         incident_id: Optional[str] = None,
     ):
-        data_root = Path(os.environ.get("CHECKIN_DATA_DIR", "data"))
         output_dir = base_output_dir or incident_storage.incidents_root()
         self.exporter = exporter or IAPPacketExporter(output_dir)
         self.autofill_engine = autofill_engine or AutofillEngine()
         self.incident_id = incident_id
         if repository is None:
-            repository = self._build_repository(incident_id, data_root)
+            repository = self._build_repository(incident_id)
         self.repository = repository
 
     # ------------------------------------------------------------------ public API
@@ -228,23 +226,14 @@ class IAPService:
         return incident_id
 
     # ------------------------------------------------------------------ internals
-    def _build_repository(self, incident_id: Optional[str], data_root: Path) -> Optional[IAPRepository]:
-        incident_path: Optional[Path]
-        if incident_id:
-            paths = incident_storage.resolve_incident_paths_by_identifier(incident_id)
-            if paths is None:
-                raise RuntimeError(f"Unknown incident: {incident_id}")
-            incident_path = paths.incident_db
-        else:
-            try:
-                incident_path = incident_context.get_active_incident_db_path()
-            except RuntimeError:
-                _LOGGER.warning("IAP repository unavailable – no active incident selected.")
-                return None
-        master_path = data_root / "master.db"
-        repository = IAPRepository(incident_path, master_path)
-        repository.initialize()
-        return repository
+    def _build_repository(self, incident_id: Optional[str]) -> Optional[IAPRepository]:
+        iid = incident_id
+        if not iid:
+            iid = incident_context.get_active_incident_id()
+        if not iid:
+            _LOGGER.warning("IAP repository unavailable – no active incident selected.")
+            return None
+        return IAPRepository(iid)
 
     def _require_repository(self) -> IAPRepository:
         if not self.repository:

@@ -162,7 +162,7 @@ class ResourceTypeEditorWindow(QDialog):
         record = self.resource_type
         widget = QWidget()
         self.name_edit = QLineEdit(record.name if record else "")
-        self.display_edit = QLineEdit(record.planning_display_name if record else "")
+        self.display_edit = QLineEdit(record.resource_name if record else "")
         self.category_combo = QComboBox()
         self.category_combo.addItems(RESOURCE_CATEGORIES)
         self.source_combo = QComboBox()
@@ -462,7 +462,7 @@ class ResourceTypeEditorWindow(QDialog):
         return ResourceType(
             id=self.resource_type.id if self.resource_type else None,
             name=self.name_edit.text(),
-            planning_display_name=self.display_edit.text(),
+            resource_name=self.display_edit.text(),
             category=self.category_combo.currentText(),
             source=self.source_combo.currentText(),
             owner_agency=self.owner_edit.text(),

@@ -128,7 +128,7 @@ class ApiIncidentOrganizationRepository:
         body = {
             "position_id": assignment.position_id,
             "person_record": assignment.person_record,
-            "display_name": assignment.display_name,
+            "person_name": assignment.person_name,
             "assignment_type": assignment.assignment_type,
             "start_time": assignment.start_time,
             "end_time": assignment.end_time,
@@ -233,7 +233,7 @@ class ApiIncidentOrganizationRepository:
             incident_id=doc.get("incident_id", ""),
             position_id=int(doc.get("position_id", 0)),
             person_record=int(doc["person_record"]) if doc.get("person_record") is not None else None,
-            display_name=doc.get("display_name", ""),
+            person_name=doc.get("person_name", ""),
             assignment_type=normalize_assignment_type(
                 doc.get("assignment_type", ASSIGNMENT_TYPE_PRIMARY)
             ),
@@ -254,7 +254,7 @@ class ApiIncidentOrganizationRepository:
             assignment_id=doc.get("assignment_id"),
             position_id=int(doc.get("position_id", 0)),
             person_record=int(doc["person_record"]) if doc.get("person_record") is not None else None,
-            display_name=doc.get("display_name", ""),
+            person_name=doc.get("person_name", ""),
             assignment_type=normalize_assignment_type(
                 doc.get("assignment_type", ASSIGNMENT_TYPE_PRIMARY)
             ),

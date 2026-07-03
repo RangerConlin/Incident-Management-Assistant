@@ -679,7 +679,7 @@ class OperationsSectionWindow(QDialog):
             """Build inline assignment text showing only the primary assignee."""
             pos_assignments = self._assignments_by_position.get(pos_id, [])
             primary_names = [
-                a.display_name
+                a.person_name
                 for a in pos_assignments
                 if normalize_assignment_type(a.assignment_type) == ASSIGNMENT_TYPE_PRIMARY
             ]
@@ -774,7 +774,7 @@ class OperationsSectionWindow(QDialog):
             ASSIGNMENT_TYPE_RELIEF,
         ):
             names = [
-                a.display_name
+                a.person_name
                 for a in assignments
                 if normalize_assignment_type(a.assignment_type) == at
             ]
@@ -871,7 +871,7 @@ class OperationsSectionWindow(QDialog):
                 ]
                 if director_positions:
                     self.controller.assign_person(director_positions[0].id or 0, {
-                        "display_name": v["deputy_name"],
+                        "person_name": v["deputy_name"],
                         "assignment_type": "deputy",
                     })
         except ValueError as exc:
@@ -911,7 +911,7 @@ class OperationsSectionWindow(QDialog):
                 ]
                 if director_positions:
                     self.controller.assign_person(director_positions[0].id or 0, {
-                        "display_name": v["deputy_name"],
+                        "person_name": v["deputy_name"],
                         "assignment_type": "deputy",
                     })
         except ValueError as exc:
@@ -1035,7 +1035,7 @@ class OperationsSectionWindow(QDialog):
             asgn = assignments[0]
         else:
             items = [
-                f"{a.display_name} ({a.assignment_type})" for a in assignments
+                f"{a.person_name} ({a.assignment_type})" for a in assignments
             ]
             choice, ok = QInputDialog.getItem(
                 self, "Remove Assignment", "Select assignment to remove:", items, 0, False
@@ -1047,7 +1047,7 @@ class OperationsSectionWindow(QDialog):
         confirm = QMessageBox.question(
             self,
             "Remove Assignment",
-            f"Remove {asgn.display_name} from this position?",
+            f"Remove {asgn.person_name} from this position?",
             QMessageBox.Yes | QMessageBox.No,
         )
         if confirm != QMessageBox.Yes:

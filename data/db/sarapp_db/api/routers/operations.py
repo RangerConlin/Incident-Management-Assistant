@@ -178,8 +178,7 @@ def _normalize_incident_person(doc: dict) -> dict:
         "primary_role": doc.get("role"),
         "phone": doc.get("phone"),
         "email": doc.get("email"),
-        "organization": doc.get("organization") or doc.get("unit"),
-        "home_unit": doc.get("organization") or doc.get("unit"),
+        "organization": doc.get("organization"),
         "person_id": doc.get("person_id") or doc.get("badge_number") or "",
         "is_medic": bool(doc.get("is_medic", False)),
     }
@@ -238,8 +237,7 @@ def sync_incident_personnel_from_master(incident_id: str) -> dict:
             "role": master_doc.get("primary_role") or master_doc.get("role"),
             "phone": master_doc.get("phone"),
             "email": master_doc.get("email"),
-            "organization": master_doc.get("home_unit") or master_doc.get("organization"),
-            "unit": master_doc.get("home_unit") or master_doc.get("unit"),
+            "organization": master_doc.get("organization"),
             "person_id": master_doc.get("person_id") or "",
             "is_medic": bool(master_doc.get("is_medic", False)),
         }
@@ -977,7 +975,7 @@ def list_task_personnel(incident_id: str, task_id: int) -> list[dict]:
                 "id": person.get("master_id") if person.get("master_id") is not None else person.get("sqlite_id"),
                 "rank": person.get("rank") or "",
                 "role": person.get("role") or "",
-                "organization": person.get("organization") or person.get("unit") or "",
+                "organization": person.get("organization") or "",
                 "phone": person.get("phone") or "",
                 "team_name": team_name,
             })

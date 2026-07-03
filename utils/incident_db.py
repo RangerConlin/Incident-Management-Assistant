@@ -1,43 +1,36 @@
+"""Incident SQLite file lifecycle management.
+
+This module manages the per-incident SQLite file on disk — creating it from
+the template, validating its schema, and bootstrapping the spatial database.
+It does NOT read or write operational data; active data now lives in MongoDB.
+
+The only SQLite table still actively read by live app code is `narrative_entries`
+(used by bridge/incident_bridge.py for task narrative / ICS 214 entries until
+that is migrated to the API).
+
+Active incident ID state lives in utils/incident_context.py.
+Use incident_context.get_active_incident_id() / set_active_incident() instead
+of importing this module for state purposes.
+"""
 from __future__ import annotations
 
 import shutil
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from modules.gis.services.schema_bootstrap import ensure_spatial_schema
 from . import incident_storage
 
-_active_incident_id: Optional[str] = None
-
-_REQUIRED_INCIDENT_TABLES = {
-    "agency_contacts",
-    "assignment_air",
-    "assignment_ground",
-    "attachments",
-    "audit_logs",
-    "debriefs",
-    "equipment",
-    "narrative_entries",
-    "operationalperiods",
-    "personnel",
-    "planning_logs",
-    "planning_notes",
-    "task_personnel",
-    "task_teams",
-    "task_vehicles",
-    "tasks",
-    "teams",
-    "vehicles",
-}
-
-
-def _sanitize_incident_number(incident_number: str) -> str:
-    return incident_storage.sanitize_incident_name(incident_number, fallback="incident")
+# All operational data is now served by MongoDB.  The SQLite incident.db is
+# still created from template.db for the spatial bootstrap and for the IAP
+# exporter output path, but no tables are required to be present for the app
+# to function.  Leave this set empty; keep the validation call site so it can
+# be populated again if a future feature needs a SQLite-only table.
+_REQUIRED_INCIDENT_TABLES: set[str] = set()
 
 
 def get_incident_database_path(incident_number: str) -> Path:
-    safe_number = _sanitize_incident_number(incident_number)
+    safe_number = incident_storage.sanitize_incident_name(incident_number, fallback="incident")
     if not safe_number:
         raise ValueError("Incident number is required to create an incident database.")
     resolved = incident_storage.resolve_incident_paths_by_identifier(safe_number)
@@ -53,7 +46,7 @@ def get_incident_database_path(incident_number: str) -> Path:
 
 
 def get_spatial_database_path(incident_number: str) -> Path:
-    safe_number = _sanitize_incident_number(incident_number)
+    safe_number = incident_storage.sanitize_incident_name(incident_number, fallback="incident")
     resolved = incident_storage.resolve_incident_paths_by_identifier(safe_number)
     if resolved is not None:
         return resolved.spatial_db
@@ -68,17 +61,14 @@ def get_spatial_database_path(incident_number: str) -> Path:
 
 def get_template_database_path() -> Path:
     candidates: list[Path] = []
-
     explicit = incident_storage.data_root() / "incidents" / "template.db"
     candidates.append(explicit)
     repo_template = Path(__file__).resolve().parents[1] / "data" / "incidents" / "template.db"
     if repo_template not in candidates:
         candidates.append(repo_template)
-
     for candidate in candidates:
         if candidate.is_file():
             return candidate
-
     searched = "\n - ".join(str(path) for path in candidates)
     raise FileNotFoundError(
         "Incident database template was not found. "
@@ -92,100 +82,6 @@ def _table_names(conn: sqlite3.Connection) -> set[str]:
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     ).fetchall()
     return {str(row[0]) for row in rows}
-
-
-def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
-    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
-    if column not in cols:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
-
-
-def _ensure_notifications_schema(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS notifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts INTEGER,
-            title TEXT,
-            message TEXT,
-            severity TEXT,
-            source TEXT,
-            entity_type TEXT,
-            entity_id TEXT,
-            toast_mode TEXT,
-            toast_duration_ms INTEGER
-        )
-        """
-    )
-    _ensure_column(conn, "notifications", "toast_mode", "TEXT")
-    _ensure_column(conn, "notifications", "toast_duration_ms", "INTEGER")
-
-
-def _ensure_schema_compatibility(conn: sqlite3.Connection) -> None:
-    _ensure_notifications_schema(conn)
-
-    tables = _table_names(conn)
-    if "teams" in tables:
-        team_columns = {
-            "name": "TEXT",
-            "status": "TEXT",
-            "status_updated": "TEXT",
-            "current_task_id": "INTEGER",
-            "needs_attention": "BOOLEAN DEFAULT 0",
-            "callsign": "TEXT",
-            "role": "TEXT",
-            "priority": "INTEGER",
-            "leader_phone": "TEXT",
-            "phone": "TEXT",
-            "notes": "TEXT",
-            "primary_task": "TEXT",
-            "assignment": "TEXT",
-            "last_known_lat": "REAL",
-            "last_known_lon": "REAL",
-            "route": "TEXT",
-            "members_json": "TEXT",
-            "vehicles_json": "TEXT",
-            "equipment_json": "TEXT",
-            "aircraft_json": "TEXT",
-            "comms_preset_id": "INTEGER",
-            "radio_ids": "TEXT",
-            "team_type": "TEXT",
-            "last_comm_ping": "TEXT",
-            "emergency_flag": "BOOLEAN",
-            "last_checkin_at": "TEXT",
-            "checkin_reference_at": "TEXT",
-        }
-        for column, decl in team_columns.items():
-            _ensure_column(conn, "teams", column, decl)
-
-    if "tasks" in tables:
-        task_columns = {
-            "category": "TEXT",
-            "task_type": "TEXT",
-            "assignment": "TEXT",
-            "team_leader": "TEXT",
-            "team_phone": "TEXT",
-        }
-        for column, decl in task_columns.items():
-            _ensure_column(conn, "tasks", column, decl)
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS incident_meta (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            icp_address TEXT,
-            icp_lat REAL,
-            icp_lon REAL,
-            updated_at TEXT
-        )
-        """
-    )
-    cur = conn.execute("SELECT COUNT(*) FROM incident_meta")
-    count = int(cur.fetchone()[0])
-    if count == 0:
-        conn.execute("INSERT INTO incident_meta (id) VALUES (1)")
-
-    conn.commit()
 
 
 def _validate_initialized_schema(conn: sqlite3.Connection) -> None:
@@ -227,7 +123,6 @@ def initialize_incident_database(
 
     try:
         with sqlite3.connect(path) as conn:
-            _ensure_schema_compatibility(conn)
             _validate_initialized_schema(conn)
     except Exception as exc:
         try:
@@ -263,21 +158,11 @@ def ensure_incident_database(incident_number: str) -> Path:
         )
 
     with sqlite3.connect(paths.incident_db) as conn:
-        _ensure_schema_compatibility(conn)
         _validate_initialized_schema(conn)
 
     _bootstrap_spatial_database(paths.spatial_db)
     incident_storage.write_incident_manifest(paths, metadata)
     return paths.incident_db
-
-
-def set_active_incident_id(value: object | None) -> None:
-    global _active_incident_id
-    _active_incident_id = None if value is None else str(value)
-
-
-def get_active_incident_id() -> Optional[str]:
-    return _active_incident_id
 
 
 def create_incident_database(incident_number: str, *, incident_name: str | None = None) -> Path:

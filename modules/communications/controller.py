@@ -23,7 +23,7 @@ from .models.incident_repo import ApiIncidentRepository
 class MasterListModel(QAbstractListModel):
     """List model exposing channels from the master database."""
 
-    roles = ["id", "display_name", "function", "rx_freq", "tx_freq", "mode", "band"]
+    roles = ["id", "channel_name", "function", "rx_freq", "tx_freq", "mode", "band"]
 
     def __init__(self, rows: List[Dict[str, Any]] | None = None, parent=None):
         super().__init__(parent)
@@ -37,7 +37,7 @@ class MasterListModel(QAbstractListModel):
             return None
         row = self._rows[index.row()]
         if role == Qt.DisplayRole:
-            return row.get("display_name")
+            return row.get("channel_name")
         base = Qt.UserRole + 1
         if role >= base:
             i = role - base

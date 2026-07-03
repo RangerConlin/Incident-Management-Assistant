@@ -173,24 +173,25 @@ def tasks_getDueSoon() -> List[Dict[str, Any]]:
 
 def personnel_getAvailabilitySummary() -> Dict[str, int]:
     try:
-        conn = _incident_conn()
-        if conn is None:
-            raise RuntimeError("no conn")
-        with conn:
-            if not _table_exists(conn, "checkins"):
-                raise RuntimeError("no checkins table")
-            rows = conn.execute(
-                "SELECT ci_status, COUNT(*) AS cnt FROM checkins GROUP BY ci_status"
-            ).fetchall()
-            counts: Dict[str, int] = {}
-            for row in rows:
-                counts[str(row["ci_status"]).lower()] = int(row["cnt"])
-            return {
-                "checked_in": counts.get("checked in", counts.get("checked_in", 0)),
-                "assigned": counts.get("assigned", 0),
-                "available": counts.get("available", 0),
-                "checked_out": counts.get("checked out", counts.get("checked_out", 0)),
-            }
+        from utils import incident_context
+        from utils.api_client import api_client
+        iid = incident_context.get_active_incident_id()
+        if not iid:
+            raise RuntimeError("no active incident")
+        docs = api_client.get(
+            f"/api/incidents/{iid}/resource-status",
+            params={"entity_type": "personnel"},
+        ) or []
+        counts: Dict[str, int] = {}
+        for doc in docs:
+            status = str(doc.get("status") or "").lower()
+            counts[status] = counts.get(status, 0) + 1
+        return {
+            "checked_in": counts.get("checked in", 0),
+            "assigned": counts.get("assigned", 0),
+            "available": counts.get("available", 0),
+            "checked_out": counts.get("demobilized", 0),
+        }
     except Exception:
         return {"available": 18, "assigned": 22, "unavailable": 3, "pending": 2}
 
