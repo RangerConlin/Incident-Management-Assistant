@@ -62,6 +62,8 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_weather_indexes(incident_db)
     _create_facilities_indexes(incident_db)
     _create_resource_status_indexes(incident_db)
+    _create_task_narratives_indexes(incident_db)
+    _create_sitrep_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
 
@@ -521,3 +523,40 @@ def _create_equipment_indexes(master_db: Database) -> None:
     _ensure_index(equipment, [("agency", ASCENDING)])
     _ensure_index(equipment, [("status", ASCENDING)])
     _ensure_index(equipment, [("equipment_type", ASCENDING)])
+
+
+def _create_task_narratives_indexes(incident_db: Database) -> None:
+    narratives = incident_db[IncidentCollections.TASK_NARRATIVES]
+    _ensure_index(narratives, [("task_id", ASCENDING), ("timestamp", DESCENDING)],
+                  name="task_narratives_task_ts")
+
+
+def _create_sitrep_indexes(incident_db: Database) -> None:
+    sitreps = incident_db[IncidentCollections.SITREPS]
+    _ensure_index(sitreps, [("incident_id", ASCENDING)])
+    _ensure_index(sitreps, [("sitrep_number", DESCENDING)])
+    _ensure_index(sitreps, [("status", ASCENDING)])
+    _ensure_index(sitreps, [("audience", ASCENDING)])
+    _ensure_index(sitreps, [("operational_period_id", ASCENDING)])
+    _ensure_index(sitreps, [("created_at", DESCENDING)])
+    _ensure_index(sitreps, [("deleted", ASCENDING)])
+    _ensure_index(
+        sitreps,
+        [("incident_id", ASCENDING), ("sitrep_number", ASCENDING)],
+        unique=True,
+        sparse=True,
+        name="sitrep_number_unique_per_incident",
+    )
+
+    events = incident_db[IncidentCollections.SITREP_EVENTS]
+    _ensure_index(events, [("incident_id", ASCENDING)])
+    _ensure_index(events, [("sitrep_id", ASCENDING)])
+    _ensure_index(events, [("timestamp", DESCENDING)])
+    _ensure_index(events, [("event_type", ASCENDING)])
+    _ensure_index(events, [("impact", ASCENDING)])
+    _ensure_index(events, [("include_in_sitrep", ASCENDING)])
+    _ensure_index(events, [("deleted", ASCENDING)])
+
+    distributions = incident_db[IncidentCollections.SITREP_DISTRIBUTIONS]
+    _ensure_index(distributions, [("sitrep_id", ASCENDING)])
+    _ensure_index(distributions, [("distributed_at", DESCENDING)])

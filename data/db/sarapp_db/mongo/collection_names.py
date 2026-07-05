@@ -93,7 +93,7 @@ class IncidentCollections:
     # Teams — incident-specific team assignments and composition
     TEAMS = "teams"
 
-    # Tasks — team, personnel, vehicle assignments, and narrative all embedded inside each task document
+    # Tasks — team, personnel, and vehicle assignments embedded inside each task document
     TASKS = "tasks"
 
     # Resources
@@ -277,3 +277,8 @@ class IncidentCollections:
 
     # IAP packages (forms embedded as array within each package document)
     IAP_PACKAGES = "iap_packages"
+
+    # SITREP — situation reports and significant events
+    SITREPS = "sitreps"
+    SITREP_EVENTS = "sitrep_events"
+    SITREP_DISTRIBUTIONS = "sitrep_distributions"

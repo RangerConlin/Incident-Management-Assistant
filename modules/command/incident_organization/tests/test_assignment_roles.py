@@ -14,7 +14,11 @@ from modules.command.incident_organization.models import (
     PositionAssignment,
     normalize_assignment_type,
 )
-from modules.command.incident_organization.repository import ApiIncidentOrganizationRepository
+from modules.command.incident_organization.repository import (
+    ApiIncidentOrganizationRepository,
+    _default_organization_templates,
+)
+from modules.command.incident_organization.windows.ops_section_window import _assignment_display_text
 
 
 def test_normalize_assignment_type_keeps_assistant_distinct() -> None:
@@ -172,3 +176,18 @@ def test_list_assignments_remaps_legacy_deputy_nodes_to_parent_position() -> Non
     assert assignments[0].position_id == 5
     assert assignments[0].assignment_type == ASSIGNMENT_TYPE_DEPUTY
     assert assignments[0].person_name == "Jordan Deputy"
+
+
+def test_operations_template_excludes_logistics_support_branches() -> None:
+    templates = _default_organization_templates()
+    expanded = next(template for template in templates if template.name == "Type 3 Incident (Expanded)")
+    titles = {str(item.get("title") or "") for item in expanded.payload}
+
+    assert "Support Branch" not in titles
+    assert "Service Branch" not in titles
+
+
+def test_branch_assignment_display_includes_secondary_roles() -> None:
+    assert _assignment_display_text("assistant", "Casey", classification="branch") == "Assistant Director: Casey"
+    assert _assignment_display_text("deputy", "Jordan", classification="branch") == "Deputy Director: Jordan"
+    assert _assignment_display_text("trainee", "Taylor", classification="branch") == "Trainee: Taylor"

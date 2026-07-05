@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-__all__ = ["get_dashboard_panel", "get_team_assignments_panel"]
+__all__ = ["get_dashboard_panel"]
 
 def _make_panel(title: str, body: str) -> QWidget:
     w = QWidget()
@@ -16,11 +16,4 @@ def get_dashboard_panel(incident_id: object | None = None) -> QWidget:
     return _make_panel(
         "Operations Dashboard",
         f"Operations overview — incident: {incident_id}",
-    )
-
-def get_team_assignments_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Team Assignments."""
-    return _make_panel(
-        "Team Assignments",
-        f"Manage team assignments — incident: {incident_id}",
     )

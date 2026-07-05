@@ -20,6 +20,10 @@ def _weather_repo(incident_id: str) -> WeatherDataRepository:
     return WeatherDataRepository(get_incident_db(incident_id))
 
 
+class WeatherLocationCodesModel(BaseModel):
+    codes: list[Dict[str, Any]] = []
+
+
 class WeatherSettingsModel(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -29,6 +33,35 @@ class WeatherSettingsModel(BaseModel):
     active_location_preset: Optional[str] = None
     location_presets: Optional[list[Dict[str, Any]]] = None
     weather_payload: Optional[Dict[str, Any]] = None
+
+
+@router.get("/incidents/{incident_id}/weather/location-codes")
+def get_weather_location_codes(incident_id: str) -> Dict[str, Any]:
+    """Return resolved NWS location codes (office/grid/stations) for the incident."""
+    repo = _weather_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "key": "location_codes"})
+    codes = (doc or {}).get("codes") or []
+    return {"codes": [item for item in codes if isinstance(item, dict)]}
+
+
+@router.post("/incidents/{incident_id}/weather/location-codes")
+def update_weather_location_codes(
+    incident_id: str, payload: WeatherLocationCodesModel
+) -> Dict[str, Any]:
+    """Persist resolved NWS location codes for the incident."""
+    repo = _weather_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id, "key": "location_codes"})
+    update_data = {
+        "incident_id": incident_id,
+        "key": "location_codes",
+        "codes": payload.codes,
+    }
+    if doc:
+        repo.update_one(doc["_id"], update_data)
+        updated = repo.find_one({"_id": doc["_id"]})
+    else:
+        updated = repo.insert_one(update_data)
+    return {"codes": (updated or {}).get("codes") or []}
 
 
 @router.get("/incidents/{incident_id}/weather")

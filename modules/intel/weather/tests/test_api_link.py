@@ -329,6 +329,7 @@ def test_request_hwo_publishes_payload(monkeypatch, qapp):
 
     assert updates
     assert updates[-1]["hwo"]["office"] == "ILN"
+    assert updates[-1]["hwo"]["text"] == "Hazardous Weather Outlook text"
 
 
 def test_location_preset_accessors_round_trip(qapp):
@@ -347,4 +348,3 @@ def test_location_preset_accessors_round_trip(qapp):
 
     assert api.active_location_preset() == "facility:fac-1"
     assert api.location_presets()[0]["label"] == "Staging Alpha"
-    assert updates[-1]["hwo"]["text"] == "Hazardous Weather Outlook text"

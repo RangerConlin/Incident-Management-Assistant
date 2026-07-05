@@ -8,8 +8,6 @@ Incident Organization
 
 SITREP Window
 
-Set ICP Location
-
 **************************************************************************************************************
 [Planning]
 Planning Dashboard
@@ -33,8 +31,6 @@ Weather
 Operations Dashboard
 
 Operations Section Organization
-
-Team Assignments
 
 Team Status Board
 

@@ -19,18 +19,24 @@ _NWS_POINTS_URL = "https://api.weather.gov/points"
 class NoaaForecastProvider(ForecastProvider):
     """Fetch a short point forecast from the NWS API."""
 
-    def fetch_forecast(self, latitude: float, longitude: float) -> List[ForecastPeriod]:
+    def fetch_forecast(
+        self,
+        latitude: float,
+        longitude: float,
+        forecast_url: str | None = None,
+    ) -> List[ForecastPeriod]:
         points_url, headers = _forecast_endpoint_and_headers()
         try:
             client = get_shared_client()
-            points_resp = client.get(
-                f"{points_url}/{latitude:.4f},{longitude:.4f}",
-                headers=headers,
-            )
-            points_resp.raise_for_status()
-            points_payload = points_resp.json()
-            properties = points_payload.get("properties") or {}
-            forecast_url = properties.get("forecast") or properties.get("forecastHourly")
+            if not forecast_url:
+                points_resp = client.get(
+                    f"{points_url}/{latitude:.4f},{longitude:.4f}",
+                    headers=headers,
+                )
+                points_resp.raise_for_status()
+                points_payload = points_resp.json()
+                properties = points_payload.get("properties") or {}
+                forecast_url = properties.get("forecast") or properties.get("forecastHourly")
             if not forecast_url:
                 return []
             forecast_resp = client.get(forecast_url, headers=headers)

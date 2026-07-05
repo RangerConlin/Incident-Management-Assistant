@@ -16,7 +16,7 @@ from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtCore import Qt
 from datetime import datetime
 from utils.styles import task_status_colors, subscribe_theme, get_palette
-from utils.itemview_delegates import RowOutlineSelectionDelegate
+from utils.itemview_delegates import RowOutlineSelectionDelegate, RowOutlineTableWidget
 from utils.audit import write_audit
 
 
@@ -64,7 +64,7 @@ class TaskStatusPanel(QWidget):
         hb.addWidget(btn_new)
         hb.addStretch(1)
 
-        self.table = QTableWidget()
+        self.table = RowOutlineTableWidget()
         # Make table read-only; edits go through context menus / detail windows
         try:
             self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)

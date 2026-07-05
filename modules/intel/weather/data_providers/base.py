@@ -59,8 +59,13 @@ class ForecastProvider(ABC):
     """Interface for multi-day forecast data."""
 
     @abstractmethod
-    def fetch_forecast(self, latitude: float, longitude: float) -> List[ForecastPeriod]:
-        """Retrieve a forecast for the provided coordinates."""
+    def fetch_forecast(
+        self,
+        latitude: float,
+        longitude: float,
+        forecast_url: Optional[str] = None,
+    ) -> List[ForecastPeriod]:
+        """Retrieve a forecast for the coordinates, optionally via a pre-resolved gridpoint URL."""
 
 
 class AdvisoryProvider(ABC):

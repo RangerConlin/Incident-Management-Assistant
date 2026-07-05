@@ -266,6 +266,10 @@ class TeamBoard(QFrame):
 # ---------------------------- Task Board ---------------------------------- #
 
 
+class TaskBoard(QFrame):
+    """Read-only task status board for projection."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         self._widths_applied = False
         super().__init__(parent)
         self.setObjectName("ProjectionTaskBoard")
@@ -279,7 +283,7 @@ class TeamBoard(QFrame):
 
         self.table = QTableWidget(self)
         fnt = self.table.font()
-        fnt.setPointSize(max(14, fnt.pointSize()+6))
+        fnt.setPointSize(max(14, fnt.pointSize() + 6))
         self.table.setFont(fnt)
         self.table.setEditTriggers(self.table.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(self.table.SelectionMode.NoSelection)
@@ -356,6 +360,38 @@ class TeamBoard(QFrame):
             self.table.setColumnWidth(2, 320)
             self.table.setColumnWidth(3, 120)
             self.table.setColumnWidth(4, 160)
+        except Exception:
+            pass
+
+    def _settings_group(self) -> str:
+        return f"projection_dashboard/{self.objectName()}/column_widths"
+
+    def _apply_saved_widths(self) -> None:
+        if self._widths_applied:
+            return
+        self._widths_applied = True
+        try:
+            widths = _settings().value(self._settings_group(), [])
+            if isinstance(widths, str):
+                widths = [part for part in widths.split(",") if part]
+            if not isinstance(widths, list):
+                return
+            for index, width in enumerate(widths):
+                if index >= self.table.columnCount() - 1:
+                    break
+                size = int(width)
+                if size > 0:
+                    self.table.setColumnWidth(index, size)
+        except Exception:
+            pass
+
+    def _on_section_resized(self, _logical_index: int, _old_size: int, _new_size: int) -> None:
+        try:
+            widths = [
+                self.table.columnWidth(index)
+                for index in range(self.table.columnCount() - 1)
+            ]
+            _settings().setValue(self._settings_group(), widths)
         except Exception:
             pass
 
@@ -612,7 +648,7 @@ class ProjectionDashboard(QWidget):
         top.addWidget(self.clock)
         outer.addLayout(top)
 
-                # Main content: resizable splitters
+        # Main content: resizable splitters
         body_splitter = QSplitter(Qt.Vertical, self)
 
         boards_splitter = QSplitter(Qt.Vertical, body_splitter)

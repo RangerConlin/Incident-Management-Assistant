@@ -293,14 +293,6 @@ def _default_organization_templates() -> list[OrganizationTemplate]:
         {"key": "situation_unit", "parent_key": "planning", "title": _catalog_title("situation_unit_leader", "Situation Unit Leader"), "classification": "position"},
         {"key": "documentation_unit", "parent_key": "planning", "title": _catalog_title("documentation_unit_leader", "Documentation Unit Leader"), "classification": "position"},
         {"key": "demob_unit", "parent_key": "planning", "title": _catalog_title("demobilization_unit_leader", "Demobilization Unit Leader"), "classification": "position"},
-        {"key": "support_branch", "parent_key": "logistics", "title": "Support Branch", "classification": "branch"},
-        {"key": "supply_unit", "parent_key": "support_branch", "title": _catalog_title("supply_unit_leader", "Supply Unit Leader"), "classification": "position"},
-        {"key": "facilities_unit", "parent_key": "support_branch", "title": _catalog_title("facilities_unit_leader", "Facilities Unit Leader"), "classification": "position"},
-        {"key": "ground_support_unit", "parent_key": "support_branch", "title": _catalog_title("ground_support_unit_leader", "Ground Support Unit Leader"), "classification": "position"},
-        {"key": "service_branch", "parent_key": "logistics", "title": "Service Branch", "classification": "branch"},
-        {"key": "communications_unit", "parent_key": "service_branch", "title": _catalog_title("communications_unit_leader", "Communications Unit Leader"), "classification": "position"},
-        {"key": "medical_unit", "parent_key": "service_branch", "title": _catalog_title("medical_unit_leader", "Medical Unit Leader"), "classification": "position"},
-        {"key": "food_unit", "parent_key": "service_branch", "title": _catalog_title("food_unit_leader", "Food Unit Leader"), "classification": "position"},
         {"key": "time_unit", "parent_key": "finance", "title": _catalog_title("time_unit_leader", "Time Unit Leader"), "classification": "position"},
         {"key": "procurement_unit", "parent_key": "finance", "title": _catalog_title("procurement_unit_leader", "Procurement Unit Leader"), "classification": "position"},
         {"key": "comp_claims_unit", "parent_key": "finance", "title": _catalog_title("compensation_claims_unit_leader", "Compensation/Claims Unit Leader"), "classification": "position"},
@@ -367,8 +359,8 @@ def _default_organization_templates() -> list[OrganizationTemplate]:
                 "Basic structure plus deputies, an Air Operations Branch "
                 "(flagged so it correctly populates the dedicated Air Ops "
                 "field on ICS 203/207 instead of being counted as a numbered "
-                "branch), Support/Service Branches under Logistics, and the "
-                "standard Planning/Finance units."
+                "branch), and the standard Planning/Finance units. Operations "
+                "display stays limited to the Operations Section structure."
             ),
             payload=expanded_payload,
         ),

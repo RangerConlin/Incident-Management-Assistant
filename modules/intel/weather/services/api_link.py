@@ -75,6 +75,12 @@ class WeatherApiManager(QObject):
         interval = int(self._api_config.get("polling_minutes", 10))
         self.configure_polling(interval)
         self._load_cached_payloads()
+        try:
+            from .location_codes import NwsLocationCodeService
+
+            NwsLocationCodeService.instance()
+        except Exception:
+            LOGGER.exception("Failed to start NWS location code service")
         LOGGER.info("WeatherApiManager initialised with %s minute polling", interval)
 
     @classmethod
@@ -180,8 +186,14 @@ class WeatherApiManager(QObject):
         self._save_settings_to_server(latitude=latitude, longitude=longitude)
 
     def request_hwo(self, latitude: float, longitude: float) -> None:
+        hints = self._location_hints(latitude, longitude)
         self._run_async(
-            functools.partial(self._hwo_provider.fetch_hwo, latitude, longitude),
+            functools.partial(
+                self._hwo_provider.fetch_hwo,
+                latitude,
+                longitude,
+                office=hints.get("office"),
+            ),
             self._on_hwo_result,
             "hwo",
         )
@@ -189,8 +201,14 @@ class WeatherApiManager(QObject):
 
     def request_forecast(self, latitude: float, longitude: float, label: str = "") -> None:
         location_key = self._forecast_key(latitude, longitude)
+        hints = self._location_hints(latitude, longitude)
         self._run_async(
-            functools.partial(self._forecast_provider.fetch_forecast, latitude, longitude),
+            functools.partial(
+                self._forecast_provider.fetch_forecast,
+                latitude,
+                longitude,
+                forecast_url=hints.get("forecast_url"),
+            ),
             functools.partial(
                 self._on_forecast_result,
                 location_key=location_key,
@@ -507,6 +525,16 @@ class WeatherApiManager(QObject):
                 QTimer.singleShot(0, lambda: self.fetchFailed.emit(context, exc))
 
         future.add_done_callback(_done)
+
+    @staticmethod
+    def _location_hints(latitude: float, longitude: float) -> Dict[str, Any]:
+        """Return pre-resolved NWS location codes for the coordinate, if known."""
+        try:
+            from .location_codes import NwsLocationCodeService
+
+            return NwsLocationCodeService.instance().codes_for(latitude, longitude) or {}
+        except Exception:  # noqa: BLE001
+            return {}
 
     def _merge_station_codes(self, icao_codes: Iterable[str]) -> list[str]:
         merged = self.station_codes()

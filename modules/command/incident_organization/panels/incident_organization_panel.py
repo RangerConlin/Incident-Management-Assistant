@@ -79,7 +79,9 @@ _ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
         "relief": "Relief",
     },
     "branch": {
-        "deputy": "Deputy",
+        "deputy": "Deputy Director",
+        "assistant": "Assistant Director",
+        "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
         "relief": "Relief",
     },
@@ -965,11 +967,23 @@ class IncidentOrganizationPanel(QWidget):
                 pos_assignments = self._assignments_by_position.get(pos_id, [])
 
                 # Build summary of assignments for display
-                primary_names = [
-                    a.person_name for a in pos_assignments
-                    if normalize_assignment_type(a.assignment_type) == ASSIGNMENT_TYPE_PRIMARY
-                ]
-                assignment_display = ", ".join(primary_names) if primary_names else ""
+                def _assignment_piece(a: PositionAssignment) -> str | None:
+                    assignment_type = normalize_assignment_type(a.assignment_type)
+                    if position.classification in {"division", "group"} and assignment_type in {
+                        ASSIGNMENT_TYPE_DEPUTY,
+                        ASSIGNMENT_TYPE_ASSISTANT,
+                        ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+                    }:
+                        return None
+                    return _assignment_display_text(
+                        assignment_type,
+                        a.person_name,
+                        classification=position.classification,
+                    )
+
+                assignment_display = ", ".join(
+                    piece for piece in (_assignment_piece(a) for a in pos_assignments) if piece
+                )
 
                 item_summary = summary.get(pos_id)
                 status = item_summary.staffing_status if item_summary else "unknown"

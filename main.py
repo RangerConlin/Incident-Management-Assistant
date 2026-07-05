@@ -736,8 +736,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_cmd, "Incident Objectives (ICS-202)", None, "command.objectives")
         self._add_action(m_cmd, "Incident Organization", None, "command.staff_org")
         self._add_action(m_cmd, "Situation Report (ICS-209)", None, "command.sitrep")
-        m_cmd.addSeparator()
-        self._add_action(m_cmd, "Set ICP Location", None, "command.icp_location")
 
         # ----- Planning -----
         m_plan = mb.addMenu("Planning")
@@ -760,7 +758,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_ops.addSeparator()
         self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
-        self._add_action(m_ops, "Team Assignments", None, "operations.team_assignments")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
 
@@ -1061,7 +1058,6 @@ class MainWindow(QMainWindow):
             "command.objectives": self.open_command_objectives,
             "command.staff_org": self.open_command_staff_org,
             "command.sitrep": self.open_command_sitrep,
-            "command.icp_location": self.open_command_icp_location,
 
             # ----- Planning -----
             "planning.unit_log": self.open_planning_unit_log,
@@ -1086,7 +1082,6 @@ class MainWindow(QMainWindow):
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
             "operations.section_org": self.open_operations_section_org,
-            "operations.team_assignments": self.open_operations_team_assignments,
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
             "operations.narrative": self.open_operations_narrative,
@@ -1649,16 +1644,6 @@ class MainWindow(QMainWindow):
             ui_factories.open_current_forecast_window()
         except Exception as e:
             QMessageBox.critical(self, "Weather", f"Failed to open Current & Forecast window:\n{e}")
-    def open_command_icp_location(self) -> None:
-        """Open the ICP Location window for the active incident."""
-        try:
-            from modules.command.windows.icp_location_window import IcpLocationWindow
-        except Exception as e:
-            QMessageBox.critical(self, "ICP Location", f"Failed to load ICP Location window:\n{e}")
-            return
-        window = IcpLocationWindow(self)
-        window.show()
-        window.raise_()
     def open_operations_unit_log(self) -> None:
         from modules import ics214
         incident_id = AppState.get_active_incident()
@@ -1927,12 +1912,6 @@ class MainWindow(QMainWindow):
         win.show()
         win.raise_()
         win.activateWindow()
-
-    def open_operations_team_assignments(self) -> None:
-        from modules import operations
-        incident_id = AppState.get_active_incident()
-        panel = operations.get_team_assignments_panel(incident_id)
-        self._open_panel(panel, title="Team Assignments")
 
     def open_operations_team_status(self) -> None:
 

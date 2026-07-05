@@ -4,11 +4,12 @@
 This document is the long-form roadmap and design archive for Incident Management Assistant/SARApp. The current desktop application is PySide6 widget-first and ADS-docked. Do not add new QML, NiceGUI, Tkinter, or Electron UI surfaces when extending the program. Some older bridge/model names and comments still reference QML because they support legacy compatibility or were not renamed during migration.
 
 Current implementation highlights:
-  - `main.py` creates the PySide6 `QMainWindow`, ADS dock manager, menu tree, default docks, layout template management, profile switching, theme wiring and module launch handlers.
-  - `AppState` in `utils/state.py` is the UI/session source of truth for active incident, user, role and operational period. `AppState.set_active_incident()` synchronizes `utils.incident_context` and emits `app_signals.incidentChanged`.
-  - Active incident persistence is SQLite-first: shared catalogs live in `data/master.db`; incident data lives under `data/incidents/<id>.db`; `CHECKIN_DATA_DIR` can redirect storage for tests or deployments.
-  - Modules use PySide6 widgets, repositories/services, dataclasses or Pydantic/SQLModel schemas, and FastAPI routers where a REST boundary is useful.
-  - Active module surface includes Command, Planning, Operations, Logistics, Communications, ICS-214, Forms, Forms Creator, Intel, Weather, GIS/spatial services, Medical, Safety/CAP ORM, Liaison, Public Information, Finance/Admin, admin catalogs, Reference Library, Notifications, UI Customization, SAR Toolkit, Disaster Toolkit, Planned Event Toolkit, Initial Response and Projection Dashboard.
+  - `main.py` builds the PySide6 `QMainWindow`, ADS dock manager, menu tree, default docks, layout template management, profile switching, theme wiring, and module launch handlers.
+  - `AppState` in `utils/state.py` is the UI/session source of truth for active incident, user, role, and operational period. `AppState.set_active_incident()` synchronizes `utils.incident_context` and emits `app_signals.incidentChanged`.
+  - The build is now API-first and Mongo-backed for core app data: widgets call `utils/api_client.py`, the shared FastAPI surface lives in `data/db/sarapp_db/api/app.py`, and incident/master data is routed through MongoDB repositories.
+  - Legacy SQLite still exists in a few narrow places for compatibility, tests, or transitional storage, but it is no longer the primary architecture target.
+  - The current file scaffold is module-centric: `modules/<area>/panels`, `widgets`, `services`, `repository` or `data`, `api`, plus shared app layers in `utils/`, `bridge/`, `ui/`, `styles/`, and `data/db/sarapp_db/`.
+  - Active module surface includes Command, Planning, Operations, Logistics, Communications, Forms, Forms Creator, Intel, Weather, GIS/spatial services, Medical, Safety/CAP ORM, Liaison, Public Information, Finance/Admin, admin catalogs, Reference Library, Notifications, UI Customization, SAR Toolkit, Disaster Toolkit, Planned Event Toolkit, Initial Response, and related cross-module utilities.
   - ADS layouts persist in `settings/ads_perspectives.ini`; `FORCE_DEFAULT_LAYOUT` in `main.py` should only be used temporarily to troubleshoot layout state.
   - Text files must remain UTF-8 without BOM and LF line endings. Run `python scripts/encoding_audit.py --summary` before committing broad doc/template changes.
 
@@ -82,41 +83,40 @@ Target Users:
 ### System Architecture
 Frontend:
   - Developed with PySide6 Qt Widgets and Python application logic.
-  - Qt Advanced Docking System (PySide6-QtAds) provides dockable panels, floating workspaces and persisted layout perspectives.
-  - New UI work must be implemented as PySide6 widgets. No new QML, NiceGUI, Tkinter or Electron surfaces should be introduced.
-  - Modular UI layout with each module having its own:
-o	models/ or data/ for class definitions, schemas and repositories
-o	panels/, widgets/, ui/ or windows.py for PySide6 widgets and launch factories
-o	services.py for business logic that should remain testable outside the widget layer
-  - Supports:
-o	Modeless windows
-o	Multi-monitor layouts
-o	User-selectable themes (dark mode, light mode, and custom color profiles)
-  - Client-side IncidentCache (in-memory): populated from server snapshot on incident load; kept current by WebSocket events. All UI reads from cache (zero network cost). Writes go to server via HTTP POST; server broadcasts the change event to all connected clients.
+  - Qt Advanced Docking System (PySide6-QtAds) provides dockable panels, floating workspaces, and persisted layout perspectives.
+  - New UI work must be implemented as PySide6 widgets. No new QML, NiceGUI, Tkinter, or Electron surfaces should be introduced.
+  - The practical scaffold is module-first:
+    - `modules/<module_name>/panels/` for dockable and modeless views
+    - `modules/<module_name>/widgets/` for supporting dialogs and embedded controls
+    - `modules/<module_name>/services.py` for testable workflows
+    - `modules/<module_name>/repository.py` or `data/` for persistence boundaries
+    - optional `api/` or `windows/` subpackages where a module needs them
+  - Shared UI and app support lives in `bridge/`, `ui/`, `styles/`, `notifications/`, `panels/`, and `utils/`.
+  - Supports modeless windows, multi-monitor layouts, and user-selectable themes.
 Backend:
-  - Python FastAPI server (sarapp_server.py / SARAppServerManager) with uvicorn. Routers mounted under /api. Spawned automatically as a subprocess when the client enters offline mode.
-  - HTTP client: httpx.Client singleton (utils/api_client.py) with persistent connection pool (keepalive_expiry=None). All modules call api_client — no direct DB access from UI code.
-  - MongoDB (PyMongo, not async Motor) — three logical databases:
-o	sarapp_system — server/app configuration
-o	sarapp_master — agency-wide reference data (personnel, vehicles, equipment, templates, etc.)
-o	sarapp_incident_<id> — one per incident; all incident data, audit trail, forms
-  - WebSocket hub (planned, post-cutover): FastAPI WebSocket endpoint per incident. Server broadcasts typed change events to all connected clients when any write occurs. Client IncidentCache applies events and emits Qt signals to update panels without polling.
-  - Resilience / offline capability (planned): each client machine runs a local MongoDB node. In LAN mode the local node is a replica of the central server. On disconnection the client transparently reads/writes to its local node. MongoDB replica set replication syncs the nodes when connectivity is restored. This eliminates disconnection crashes and gives full read/write capability offline.
+  - Python FastAPI server surface lives in `data/db/sarapp_db/api/app.py` and is mounted under `/api`.
+  - `utils/api_client.py` is the desktop-to-server boundary. UI code should not touch MongoDB directly.
+  - MongoDB is the active backend for core data, with repositories under `data/db/sarapp_db/` providing the canonical write path.
+  - Logical databases remain:
+    - `sarapp_system` for server/app configuration
+    - `sarapp_master` for agency-wide reference data
+    - `sarapp_incident_<id>` for per-incident operational data, audit trail, and forms
+  - WebSocket/incident-cache synchronization remains a planned direction rather than the current primary runtime contract.
+  - Offline and resilience work is still evolving; the current build should be read as API-first rather than local-replica-first.
 File System & Data:
-  - Root-Level Folders
-o	/data : All databases and uploads
-o	/modules : All feature-specific logic and UI (subfolders for each module)
-o	/profiles : Deployable profile manifests, templates and assets
-o	/settings : User settings and ADS layout perspectives
-  - Each module folder contains:
-o	modules/<module_name>/models/ – Python classes and datatypes
-o	modules/<module_name>/panels/ – Qt Widget panels (tables, editors, status boards)
-o	modules/<module_name>/widgets/ – Additional Qt Widget dialogs/windows
-o	modules/<module_name>/services.py – Business logic and workflows
-o	modules/<module_name>/repository.py or data/ – Persistence boundary
-o	modules/<module_name>/api.py – Optional FastAPI router
-  - Drag-and-drop upload interface for:
-o	Documents, ICS forms, media (photos, video, and audio), other attachments
+  - Root-level folders:
+    - `/data` for databases, server assets, and uploads
+    - `/modules` for feature-specific logic and UI
+    - `/profiles` for deployable profile manifests, templates, and assets
+    - `/settings` for user settings and ADS layout perspectives
+  - The current repository also uses shared support folders such as `bridge/`, `ui/`, `styles/`, `notifications/`, `utils/`, `server/`, and `lan_server/`.
+  - Each module folder generally contains:
+    - `models/` or `data/` for class definitions, schemas, and repositories
+    - `panels/`, `widgets/`, `ui/`, or `windows/` for PySide6 UI
+    - `services.py` for business logic and workflows
+    - `repository.py` or `data/` for persistence boundaries
+    - `api.py` or `api/` when a module exposes router-facing helpers
+  - Drag-and-drop upload support exists for documents, ICS forms, media, and other attachments where the module needs it
 Security & Permissions:
   - Role-based UI permissions
 o	User role affects visible modules, context menu options, and edit rights

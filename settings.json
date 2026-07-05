@@ -117,8 +117,10 @@
         "rules": [],
         "matchAll": true
     },
-    "statusboard.team.textSize": "large",
-    "statusboard.team.columns.hidden": [],
+    "statusboard.team.fontPointSize": 9,
+    "statusboard.team.columns.hidden": [
+        "vehicle"
+    ],
     "lastIncidentNumber": "2025-FAIR",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
@@ -131,7 +133,8 @@
         "status": 93,
         "assignment": 270,
         "location": 94,
-        "last_updated": 57
+        "last_updated": 57,
+        "vehicle": 24
     },
     "statusboard.task.columns.widths": {
         "assigned_teams": 116,

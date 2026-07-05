@@ -1030,7 +1030,49 @@ def list_task_aircraft(incident_id: str, task_id: int) -> list[dict]:
 def list_task_comms(incident_id: str, task_id: int) -> list[dict]:
     col = _tasks(incident_id)
     doc = col.find_one({"int_id": task_id})
-    return doc.get("comms") or [] if doc else []
+    comms = (doc.get("comms") or []) if doc else []
+
+    # Join channel details from the incident channels plan so the UI gets
+    # name, frequencies, tones, mode, etc. rather than just incident_channel_id.
+    channels_by_id: dict[int, dict] = {}
+    try:
+        from sarapp_db.api.routers.communications import (
+            _incident_channels_repo,
+            _master_channels_by_id,
+            _map_incident_channel,
+            _radio_channels_repo,
+        )
+        master_by_id = _master_channels_by_id(_radio_channels_repo())
+        for ch_doc in _incident_channels_repo(incident_id).find_many(
+            {"incident_id": incident_id, "deleted": {"$ne": True}}
+        ):
+            ch_doc.pop("_id", None)
+            mapped = _map_incident_channel(ch_doc, master_by_id)
+            ch_id = mapped.get("id")
+            if ch_id is not None:
+                channels_by_id[int(ch_id)] = mapped
+    except Exception:
+        pass
+
+    result = []
+    for comm in comms:
+        ch_id = comm.get("incident_channel_id")
+        ch: dict = channels_by_id.get(int(ch_id), {}) if ch_id is not None else {}
+        result.append({
+            "id": comm.get("id"),
+            "incident_channel_id": ch_id,
+            "channel_name": ch.get("channel", ""),
+            "zone": ch.get("system", ""),
+            "channel_number": ch.get("id"),
+            "function": comm.get("function") or ch.get("function", ""),
+            "rx_frequency": ch.get("rx_freq"),
+            "rx_tone": ch.get("rx_tone"),
+            "tx_frequency": ch.get("tx_freq"),
+            "tx_tone": ch.get("tx_tone"),
+            "mode": ch.get("mode", ""),
+            "remarks": comm.get("remarks") or "",
+        })
+    return result
 
 
 @router.post("/incidents/{incident_id}/operations/tasks/{task_id}/comms", status_code=201)
@@ -1096,52 +1138,6 @@ def save_task_assignment(incident_id: str, task_id: int, body: dict[str, Any]) -
     repo.update_one(task["_id"], {"task_assignment": body})
     updated = repo.find_by_id(task["_id"])
     return updated.get("task_assignment") or {}
-
-
-# ---------------------------------------------------------------------------
-# Task narratives
-# ---------------------------------------------------------------------------
-
-@router.get("/incidents/{incident_id}/operations/tasks/{task_id}/narrative")
-def list_task_narrative(incident_id: str, task_id: int) -> list[dict]:
-    col = _tasks(incident_id)
-    doc = col.find_one({"int_id": task_id}, {"narrative": 1})
-    entries = sorted(
-        (doc or {}).get("narrative") or [],
-        key=lambda e: e.get("timestamp", ""),
-    )
-    return entries
-
-
-@router.post("/incidents/{incident_id}/operations/tasks/{task_id}/narrative", status_code=201)
-def add_task_narrative(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
-    repo = _tasks_repo(incident_id)
-    task = _find_by_int_id(repo, task_id)
-    if not task:
-        raise HTTPException(404)
-    entry = {
-        "id": _new_id(),
-        "timestamp": body.get("timestamp") or _now(),
-        "narrative": body.get("narrative") or body.get("text") or "",
-        "entered_by": body.get("entered_by") or "",
-        "team_id": body.get("team_id"),
-        "team_num": body.get("team_num") or "",
-        "critical": bool(body.get("critical", False)),
-        "source": body.get("source", "manual"),
-    }
-    repo.apply_update(task["_id"], {"$push": {"narrative": entry}})
-    return entry
-
-
-@router.delete(
-    "/incidents/{incident_id}/operations/tasks/{task_id}/narrative/{entry_id}",
-    status_code=204,
-)
-def delete_task_narrative(incident_id: str, task_id: int, entry_id: str) -> None:
-    repo = _tasks_repo(incident_id)
-    task = _find_by_int_id(repo, task_id)
-    if task:
-        repo.apply_update(task["_id"], {"$pull": {"narrative": {"id": entry_id}}})
 
 
 # ---------------------------------------------------------------------------

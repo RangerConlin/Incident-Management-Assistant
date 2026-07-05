@@ -44,28 +44,35 @@ class IncidentBridge(QObject):
             if teamFilter:
                 params["team"] = teamFilter
             rows = api_client.get(f"/api/incidents/{iid}/narratives", params=params) or []
-            # Resolve entered_by to a display name when it looks like a numeric id
+            # Resolve entered_by to a display name.
+            # entered_by is stored as a stringified person_record integer.
+            # get_person_identity() requires an int, so we convert before calling.
+            # Non-numeric values are left as-is (they may already be a display name).
             try:
                 from modules.logistics.checkin import repository as ci_repo
                 names_cache: dict[str, str] = {}
                 for r in rows:
                     eb = r.get("entered_by")
                     r["entered_by_display"] = eb
-                    try:
-                        uid = int(eb)
-                    except Exception:
+                    if not eb:
                         continue
-                    key = str(uid)
+                    key = str(eb)
                     if key in names_cache:
                         r["entered_by_display"] = names_cache[key]
-                    else:
-                        try:
-                            ident = ci_repo.get_person_identity(str(uid))
-                            disp = ident.name if ident and ident.name else key
-                        except Exception:
-                            disp = key
-                        names_cache[key] = disp
-                        r["entered_by_display"] = disp
+                        continue
+                    try:
+                        uid = int(key)
+                    except (ValueError, TypeError):
+                        # Not a numeric ID — treat the raw value as the display name
+                        names_cache[key] = key
+                        continue
+                    try:
+                        ident = ci_repo.get_person_identity(uid)
+                        disp = ident.name if ident and getattr(ident, "name", None) else key
+                    except Exception:
+                        disp = key
+                    names_cache[key] = disp
+                    r["entered_by_display"] = disp
             except Exception:
                 pass
             return rows

@@ -12,13 +12,15 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QToolButton,
     QDialog,
+    QWidgetAction,
+    QSpinBox,
 )
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QEvent, QByteArray
 from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage, QFont, QFontMetrics
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
 from utils.styles import team_status_colors, subscribe_theme, get_palette
-from utils.itemview_delegates import RowOutlineSelectionDelegate, IconWithOutlineDelegate
+from utils.itemview_delegates import RowOutlineSelectionDelegate, IconWithOutlineDelegate, RowOutlineTableWidget
 from utils.audit import write_audit
 from datetime import datetime, timezone
 from typing import Callable, Any, Optional
@@ -274,9 +276,9 @@ class TeamStatusPanel(QWidget):
             btn_filters.setPopupMode(QToolButton.InstantPopup)
         except Exception:
             pass
-        self._text_size: str = "medium"
+        self._font_point_size: int = 12
         self._settings_btn = btn_filters
-        self._load_text_size()
+        self._load_font_point_size()
         hb.addWidget(btn_filters)
 
         btn_open = QPushButton("Open Detail")
@@ -289,7 +291,7 @@ class TeamStatusPanel(QWidget):
         hb.addWidget(btn_new)
         hb.addStretch(1)
 
-        self.table = QTableWidget()
+        self.table = RowOutlineTableWidget()
         # Make table read-only; edits go through context menus / detail windows
         try:
             self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -332,10 +334,10 @@ class TeamStatusPanel(QWidget):
             self._outline_delegate = None
 
         # Set column headers: Needs Assistance at far left; Last Update at far right
-        self.table.setColumnCount(10)
+        self.table.setColumnCount(11)
         headers = [
             "Needs Assistance", "Sortie #", "Team Name", "Team Type", "Team Leader", "Contact #",
-            "Status", "Assignment", "Location", "Last Update"
+            "Status", "Assignment", "Location", "Last Update", "Vehicle",
         ]
         self.table.setHorizontalHeaderLabels(headers)
         # Column registry for visibility settings (exclude col 0 - alert icon)
@@ -349,6 +351,7 @@ class TeamStatusPanel(QWidget):
             (7, "assignment", headers[7]),
             (8, "location", headers[8]),
             (9, "last_updated", headers[9]),
+            (10, "vehicle", headers[10]),
         ]
         try:
             hdr = self.table.horizontalHeader()
@@ -477,6 +480,7 @@ class TeamStatusPanel(QWidget):
             "team_id": getattr(team, "team_id", None),
             "task_id": getattr(team, "current_task_id", None),
             "tt_id": getattr(team, "tt_id", None),
+            "vehicle": self._format_team_vehicle(team),
         }
         self._add_team_row(data)
 
@@ -539,6 +543,7 @@ class TeamStatusPanel(QWidget):
             str(data.get("assignment", "")),
             str(data.get("location", "")),
             last_up,
+            str(data.get("vehicle", "")),
         ]
         for offset, text in enumerate(column_texts, start=1):
             item = QTableWidgetItem(text)
@@ -569,6 +574,16 @@ class TeamStatusPanel(QWidget):
             item.setForeground(QBrush(QColor("#000000") if base.lightness() > 128 else QColor("#ffffff")))
         except Exception:
             pass
+
+    def _format_team_vehicle(self, team) -> str:
+        team_type = str(getattr(team, "team_type", "") or "").strip().upper()
+        if team_type.startswith("AIR"):
+            ids = getattr(team, "aircraft", None) or []
+        else:
+            ids = getattr(team, "vehicles", None) or []
+        if isinstance(ids, (list, tuple)):
+            return ", ".join(str(value).strip() for value in ids if str(value).strip())
+        return str(ids or "").strip()
 
     def _apply_identity_roles(self, item: QTableWidgetItem, data: dict) -> None:
         role_keys = (
@@ -1105,50 +1120,43 @@ class TeamStatusPanel(QWidget):
         widths_menu.addAction("Reset Saved Widths", self._reset_saved_column_widths)
         menu.addMenu(widths_menu)
         size_menu = QMenu("Text Size", menu)
-        self._size_actions = {}
-        for label in ("small", "medium", "large"):
-            act = size_menu.addAction(label.title(), lambda l=label: self._set_text_size(l))
-            act.setCheckable(True)
-            self._size_actions[label] = act
+        size_widget = QWidgetAction(size_menu)
+        size_spin = QSpinBox(size_menu)
+        size_spin.setRange(8, 20)
+        size_spin.setSuffix(" pt")
+        size_spin.setValue(self._font_point_size)
+        size_spin.valueChanged.connect(self._set_font_point_size)
+        size_widget.setDefaultWidget(size_spin)
+        size_menu.addAction(size_widget)
         menu.addMenu(size_menu)
         self._settings_btn.setMenu(menu)
-        self._update_text_size_checks()
         try:
             self._update_column_checks()
         except Exception:
             pass
 
-    def _update_text_size_checks(self) -> None:
-        try:
-            for k, a in getattr(self, "_size_actions", {}).items():
-                a.setChecked(k == self._text_size)
-        except Exception:
-            pass
-
-    def _set_text_size(self, label: str) -> None:
-        self._text_size = label if label in ("small", "medium", "large") else "medium"
-        self._persist_text_size()
+    def _set_font_point_size(self, value: int) -> None:
+        self._font_point_size = int(value)
+        self._persist_font_point_size()
         self._apply_text_size()
-        self._update_text_size_checks()
 
-    def _persist_text_size(self) -> None:
+    def _persist_font_point_size(self) -> None:
         try:
             from utils.settingsmanager import SettingsManager
-            SettingsManager().set("statusboard.team.textSize", self._text_size)
+            SettingsManager().set("statusboard.team.fontPointSize", self._font_point_size)
         except Exception:
             pass
 
-    def _load_text_size(self) -> None:
+    def _load_font_point_size(self) -> None:
         try:
             from utils.settingsmanager import SettingsManager
-            self._text_size = SettingsManager().get("statusboard.team.textSize", "medium") or "medium"
+            self._font_point_size = int(SettingsManager().get("statusboard.team.fontPointSize", 12))
             self._apply_text_size()
         except Exception:
             pass
 
     def _apply_text_size(self) -> None:
-        size_map = {"small": 10, "medium": 12, "large": 14}
-        pt = size_map.get(self._text_size, 12)
+        pt = self._font_point_size
         try:
             f = QFont(self.table.font())
             f.setPointSize(pt)

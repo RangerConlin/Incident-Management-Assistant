@@ -428,7 +428,11 @@ class WeatherSummaryPage(QWidget):
                 }
             )
 
-        for facility in self._facility_service.list_facilities(status="active"):
+        try:
+            facilities = self._facility_service.list_facilities(status="active")
+        except Exception:
+            facilities = []
+        for facility in facilities:
             if facility.latitude is None or facility.longitude is None:
                 continue
             add_preset(

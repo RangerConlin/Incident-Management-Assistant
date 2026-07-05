@@ -111,7 +111,6 @@ Add entries below this line.
 ### utils/incident_meta.py — ICP location in SQLite
 - Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
 - `get_icp_location()` now calls `GET /api/incidents/{id}/profile`.
-- `set_icp_location()` now calls `PATCH /api/incidents/{id}/profile` with `icp_location`, `latitude`, `longitude`.
 - Profile PATCH extended to accept direct `latitude`/`longitude` fields (not facility-only).
 - Profile GET extended to return `latitude` and `longitude` fields.
 

@@ -72,8 +72,7 @@ def get_iap_builder_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_sitrep_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Situation Report."""
-    return _make_panel(
-        "Situation Report",
-        f"SITREP - incident: {incident_id}",
-    )
+    """Return the Situation Report (ICS-209) panel (owned by the command sitrep submodule)."""
+    from modules.command.sitrep import get_sitrep_panel as _sitrep
+
+    return _sitrep(str(incident_id) if incident_id is not None else None)

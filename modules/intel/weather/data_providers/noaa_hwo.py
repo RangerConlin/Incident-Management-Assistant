@@ -24,19 +24,23 @@ class NoaaHwoProvider:
     shape, with a fallback query form to improve compatibility.
     """
 
-    def fetch_hwo(self, latitude: float, longitude: float) -> Dict[str, Any] | None:
+    def fetch_hwo(
+        self, latitude: float, longitude: float, office: str | None = None
+    ) -> Dict[str, Any] | None:
         points_url, products_url, headers = _hwo_endpoints_and_headers()
+        office = (office or "").strip().upper()
         try:
             client = get_shared_client()
-            points_resp = client.get(
-                f"{points_url}/{latitude:.4f},{longitude:.4f}",
-                headers=headers,
-            )
-            points_resp.raise_for_status()
-            point_props = (points_resp.json() or {}).get("properties") or {}
-            office = str(point_props.get("cwa") or point_props.get("forecastOffice") or "").strip().upper()
-            if office.startswith("https://api.weather.gov/offices/"):
-                office = office.rsplit("/", 1)[-1].strip().upper()
+            if not office:
+                points_resp = client.get(
+                    f"{points_url}/{latitude:.4f},{longitude:.4f}",
+                    headers=headers,
+                )
+                points_resp.raise_for_status()
+                point_props = (points_resp.json() or {}).get("properties") or {}
+                office = str(point_props.get("cwa") or point_props.get("forecastOffice") or "").strip().upper()
+                if office.startswith("HTTPS://API.WEATHER.GOV/OFFICES/"):
+                    office = office.rsplit("/", 1)[-1].strip().upper()
             if not office:
                 return None
 
@@ -75,9 +79,10 @@ class NoaaHwoProvider:
 
     @staticmethod
     def _fetch_latest_product_by_location(client, products_url: str, office: str, headers: Dict[str, str]) -> Dict[str, Any] | None:
+        # NB: this endpoint rejects a "limit" query parameter with HTTP 400;
+        # results are newest-first so the first entry is the latest product.
         resp = client.get(
             f"{products_url}/types/HWO/locations/{office}",
-            params={"limit": 1},
             headers=headers,
         )
         if resp.status_code >= 400:
@@ -88,9 +93,11 @@ class NoaaHwoProvider:
 
     @staticmethod
     def _fetch_latest_product_by_query(client, products_url: str, office: str, headers: Dict[str, str]) -> Dict[str, Any] | None:
+        # The "office" filter requires a 4-letter WMO id; the CWA from the
+        # points endpoint is 3 letters, so filter by "location" instead.
         resp = client.get(
             products_url,
-            params={"type": "HWO", "limit": 1, "office": office},
+            params={"type": "HWO", "limit": 1, "location": office},
             headers=headers,
         )
         if resp.status_code >= 400:

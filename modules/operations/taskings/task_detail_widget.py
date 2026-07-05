@@ -85,6 +85,12 @@ def _fmt_ts_compact(ts: str | None) -> str:
 
 class _YesNoDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):  # type: ignore[override]
+        bg = index.data(Qt.BackgroundRole)
+        if bg is not None:
+            try:
+                painter.fillRect(option.rect, bg)
+            except Exception:
+                pass
         combo = QStyleOptionComboBox()
         combo.rect = option.rect.adjusted(2, 2, -2, -2)
         combo.currentText = str(index.data(Qt.DisplayRole) or "No")
@@ -203,7 +209,7 @@ class _MultiRowTabBar(QWidget):
     tabClicked = Signal(int)
 
     _TAB_H = 28
-    _TAB_MIN_W = 72
+    _TAB_MIN_W = 110
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -275,36 +281,50 @@ class _MultiRowTabBar(QWidget):
     def count(self) -> int:
         return len(self._buttons)
 
+    def _natural_width(self, btn: QPushButton) -> int:
+        """Text-based preferred width for a tab button."""
+        try:
+            fm = btn.fontMetrics()
+            return max(self._TAB_MIN_W, fm.horizontalAdvance(btn.text()) + 28)
+        except Exception:
+            return self._TAB_MIN_W
+
     def _do_layout(self) -> None:
         if not self._buttons:
             self.setFixedHeight(0)
             return
         w = max(self.width(), 1)
-        n = len(self._buttons)
         h = self._TAB_H
-        min_w = self._TAB_MIN_W
+        n = len(self._buttons)
+
+        natural: list[int] = [self._natural_width(b) for b in self._buttons]
+
+        # How many rows do we need so every tab is at least _TAB_MIN_W wide?
         import math
-        # How many rows do we need so every tab is at least min_w wide?
-        num_rows = max(1, math.ceil(n * min_w / w))
-        per_row = math.ceil(n / num_rows)
+        tabs_per_row = max(1, w // self._TAB_MIN_W)
+        num_rows = max(1, math.ceil(n / tabs_per_row))
+
+        # Distribute tabs as evenly as possible across rows (no greedy packing)
+        base, extra = divmod(n, num_rows)
         rows: list[list[int]] = []
-        row: list[int] = []
-        for i in range(n):
-            row.append(i)
-            if len(row) >= per_row and i < n - 1:
-                rows.append(row)
-                row = []
-        rows.append(row)
+        idx = 0
+        for r in range(num_rows):
+            count = base + (1 if r < extra else 0)
+            rows.append(list(range(idx, idx + count)))
+            idx += count
+
+        # Position each tab: scale proportionally to text width within its row
         for r_idx, row_idxs in enumerate(rows):
-            cnt = len(row_idxs)
-            tab_w = w // cnt
-            remainder = w - tab_w * cnt
+            total_nat = sum(natural[i] for i in row_idxs)
             x = 0
             y = r_idx * h
             for c_idx, btn_idx in enumerate(row_idxs):
-                w_this = tab_w + (1 if c_idx < remainder else 0)
-                self._buttons[btn_idx].setGeometry(x, y, w_this, h)
-                x += w_this
+                if c_idx == len(row_idxs) - 1:
+                    tab_w = w - x
+                else:
+                    tab_w = max(self._TAB_MIN_W, round(natural[btn_idx] / total_nat * w))
+                self._buttons[btn_idx].setGeometry(x, y, tab_w, h)
+                x += tab_w
         self.setFixedHeight(len(rows) * h)
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
@@ -317,7 +337,8 @@ class _MultiRowTabBar(QWidget):
 
     def sizeHint(self):  # type: ignore[override]
         from PySide6.QtCore import QSize
-        return QSize(self._TAB_MIN_W * max(1, len(self._buttons)), self._TAB_H)
+        total = sum(self._natural_width(b) for b in self._buttons) if self._buttons else self._TAB_MIN_W
+        return QSize(total, self._TAB_H)
 
 
 class _MultiRowTabWidget(QWidget):
@@ -1176,7 +1197,7 @@ class TaskDetailWindow(QWidget):
                     row_id = it.data(_Qt.UserRole)
                     from modules.operations.taskings.repository import update_task_comm_for_task
                     if row_id is not None:
-                        update_task_comm_for_task(int(self._task_id), int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
+                        update_task_comm_for_task(int(self._parent_w._task_id), int(row_id), incident_channel_id=int(selected_id) if selected_id is not None else None)
                     # Trigger reload to refresh read-only columns
                     self._parent_w.load_comms()
                 except Exception as e:
@@ -1210,7 +1231,7 @@ class TaskDetailWindow(QWidget):
                     row_id = it.data(_Qt.UserRole)
                     from modules.operations.taskings.repository import update_task_comm_for_task
                     if row_id is not None:
-                        update_task_comm_for_task(int(self._task_id), int(row_id), function=value)
+                        update_task_comm_for_task(int(self._parent_w._task_id), int(row_id), function=value)
                     # Update display
                     model.setData(index, value, _Qt.DisplayRole)
                 except Exception as e:
@@ -1474,7 +1495,7 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         clue_layout.addWidget(self._clue_table, 1)
-        tabs.addTab(clue_content, "Linked Clues")
+        tabs.addTab(clue_content, "Intel")
         # Deferred: a dedicated Locations tab needs a stable task-linked location
         # repository surface beyond debrief-linked clues and the task header.
         # Insert Log tab (ICS-214, Task Log, Team Log) and remove placeholder if present
@@ -1912,7 +1933,45 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
 
+    def _priority_combo_color(self, priority: str | None) -> tuple[str, str]:
+        """Return (bg_hex, fg_hex) for the given priority label."""
+        key = str(priority or "").strip().lower()
+        mapping = {
+            "critical": ("#b71c1c", "#ffffff"),
+            "high":     ("#e65100", "#ffffff"),
+            "medium":   ("#f9a825", "#111111"),
+            "low":      ("#1b5e20", "#ffffff"),
+        }
+        return mapping.get(key, ("", ""))
+
+    def _apply_priority_style(self, priority: str | None) -> None:
+        combo = getattr(self, "_prio", None)
+        if combo is None:
+            return
+        try:
+            bg, fg = self._priority_combo_color(priority)
+            if bg:
+                combo.setStyleSheet(
+                    "QComboBox {"
+                    f" background-color: {bg};"
+                    f" color: {fg};"
+                    " font-weight: 600;"
+                    " border: 1px solid rgba(0, 0, 0, 0.28);"
+                    " border-radius: 4px;"
+                    " padding: 4px 6px;"
+                    "}"
+                    " QComboBox::drop-down { border: none; }"
+                )
+            else:
+                combo.setStyleSheet("")
+        except Exception:
+            pass
+
     def _on_priority_changed(self, value: str) -> None:
+        try:
+            self._apply_priority_style(value)
+        except Exception:
+            pass
         if getattr(self, '_loading_header', False):
             return
         self._persist_header_fields({'priority': value})
@@ -2390,6 +2449,10 @@ class TaskDetailWindow(QWidget):
                         if hasattr(self, '_stat'):
                             current_status = self._stat.currentText()
                         self._apply_status_background(current_status)
+                    except Exception:
+                        pass
+                    try:
+                        self._apply_priority_style(self._prio.currentText() if hasattr(self, '_prio') else prio_val)
                     except Exception:
                         pass
                     try:

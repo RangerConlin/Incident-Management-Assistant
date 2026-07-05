@@ -21,9 +21,13 @@ def get_icp_location() -> Optional[IcpLocation]:
         from utils.api_client import api_client
 
         doc = api_client.get(f"/api/incidents/{incident_id}/profile") or {}
-        address = doc.get("icp_location") or ""
-        lat = doc.get("latitude")
-        lon = doc.get("longitude")
+        facility_id = str(doc.get("icp_facility_id") or "")
+        if not facility_id:
+            return None
+        facility = api_client.get(f"/api/incidents/{incident_id}/facilities/{facility_id}") or {}
+        address = str(facility.get("name") or facility.get("address") or "")
+        lat = facility.get("latitude")
+        lon = facility.get("longitude")
         if not address or lat is None or lon is None:
             return None
         return IcpLocation(address=address, latitude=float(lat), longitude=float(lon))
@@ -31,25 +35,4 @@ def get_icp_location() -> Optional[IcpLocation]:
         return None
 
 
-def set_icp_location(address: str, latitude: float, longitude: float) -> None:
-    incident_id = incident_context.get_active_incident_id()
-    if not incident_id:
-        raise RuntimeError("No active incident")
-    from utils.api_client import api_client
-
-    api_client.patch(
-        f"/api/incidents/{incident_id}/profile",
-        json={"icp_location": address, "latitude": float(latitude), "longitude": float(longitude)},
-    )
-
-    try:
-        from utils.app_signals import app_signals
-
-        app_signals.icpLocationChanged.emit(
-            {"address": address, "lat": float(latitude), "lon": float(longitude)}
-        )
-    except Exception:
-        pass
-
-
-__all__ = ["IcpLocation", "get_icp_location", "set_icp_location"]
+__all__ = ["IcpLocation", "get_icp_location"]

@@ -272,7 +272,7 @@ class FormDataContext:
                     "number": doc.get("number", "") or doc.get("incident_number", ""),
                     "type": doc.get("type", "") or doc.get("incident_type", ""),
                     "description": doc.get("description", ""),
-                    "icp_location": doc.get("icp_location", "") or doc.get("location", ""),
+                    "icp_location": icp_facility_name,
                     "icp_facility_id": icp_facility_id,
                     "icp_facility_name": icp_facility_name,
                     "start_time": doc.get("start_time", "") or doc.get("start_date", ""),

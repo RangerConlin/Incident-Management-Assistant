@@ -30,6 +30,20 @@ def _strip(doc: dict[str, Any]) -> dict[str, Any]:
     return doc
 
 
+def _id_query(entry_id: str) -> dict[str, Any]:
+    """Return a filter that matches either a string _id or an ObjectId _id.
+
+    Documents inserted through the repository have UUID4 string _ids.
+    Documents migrated from the old embedded array have ObjectId _ids.
+    Trying both avoids a 404 on the migrated entries.
+    """
+    try:
+        from bson import ObjectId
+        return {"_id": {"$in": [entry_id, ObjectId(entry_id)]}}
+    except Exception:
+        return {"_id": entry_id}
+
+
 class NarrativeCreate(BaseModel):
     task_id: int
     timestamp: str
@@ -97,14 +111,19 @@ def update_narrative(
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "No fields to update")
-    if not repo.update_one(entry_id, updates):
+    doc = repo.find_one(_id_query(entry_id))
+    if not doc:
         raise HTTPException(404, f"Narrative entry '{entry_id}' not found")
-    doc = repo.find_one({"_id": entry_id})
-    return _strip(doc)
+    actual_id = doc["_id"]
+    repo.apply_update(actual_id, {"$set": updates})
+    updated = repo.find_one({"_id": actual_id})
+    return _strip(updated)
 
 
 @router.delete("/incidents/{incident_id}/narratives/{entry_id}", status_code=204)
 def delete_narrative(incident_id: str, entry_id: str) -> None:
     repo = _repo(incident_id)
-    if not repo.delete_one(entry_id):
+    doc = repo.find_one(_id_query(entry_id))
+    if not doc:
         raise HTTPException(404, f"Narrative entry '{entry_id}' not found")
+    repo.delete_one(doc["_id"])

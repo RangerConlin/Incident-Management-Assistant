@@ -200,4 +200,7 @@ def create_app(server_info_fn=None) -> FastAPI:
     from sarapp_db.api.routers import incident_stream
     app.include_router(incident_stream.router, prefix="/api", tags=["incident-cache"])
 
+    from sarapp_db.api.routers import sitrep
+    app.include_router(sitrep.router, prefix="/api", tags=["sitrep"])
+
     return app

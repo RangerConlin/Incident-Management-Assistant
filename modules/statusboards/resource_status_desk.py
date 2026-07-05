@@ -177,11 +177,11 @@ class ResourceStatusDesk(QObject):
 
         teams = self._fetch_team_docs()
         existing_docs = self._fetch_resource_status_docs()
-        existing_keys: set[tuple[str, Any]] = {
+        existing_by_key: dict[tuple[str, Any], dict[str, Any]] = {
             (
                 d.get("entity_type", ""),
                 int(d.get("record_id")) if str(d.get("record_id") or "").isdigit() else d.get("record_id"),
-            )
+            ): d
             for d in existing_docs
             if d.get("record_id") is not None
         }
@@ -205,10 +205,9 @@ class ResourceStatusDesk(QObject):
                         continue
                     record_id = int(ref_id) if str(ref_id).isdigit() else ref_id
                     key = (entity_type, record_id)
-                    if key in existing_keys:
-                        continue
 
                     # Look up master record for display name and source metadata.
+                    master: dict[str, Any] = {}
                     resource_name = str(record_id)
                     source_entity_type = entity_type
                     source_record_id: Any = record_id
@@ -234,13 +233,58 @@ class ResourceStatusDesk(QObject):
                     except Exception:
                         pass
 
+                    desired_status = "Assigned" if team_status in _ACTIVE_STATUSES else team_status
+
+                    existing = existing_by_key.get(key)
+                    if existing is not None:
+                        rs_id = str(existing.get("id") or existing.get("_id") or "")
+                        if not rs_id:
+                            continue
+                        patch: dict[str, Any] = {}
+                        if existing.get("assigned_to") != team_name:
+                            patch["assigned_to"] = team_name
+                        if existing.get("resource_name") != resource_name:
+                            patch["resource_name"] = resource_name
+                        if existing.get("resource_type") != entity_type.title():
+                            patch["resource_type"] = entity_type.title()
+                        visible_id = None
+                        if entity_type == "personnel":
+                            visible_id = master.get("person_id") or source_record_id
+                        elif entity_type == "vehicle":
+                            visible_id = master.get("vehicle_id") or source_record_id
+                        elif entity_type == "aircraft":
+                            visible_id = master.get("aircraft_id") or source_record_id
+                        elif entity_type == "equipment":
+                            visible_id = master.get("equipment_id") or source_record_id
+                        if visible_id and str(existing.get("resource_id") or "") != str(visible_id):
+                            patch["resource_id"] = str(visible_id)
+                        if patch:
+                            try:
+                                api_client.patch(
+                                    f"/api/incidents/{incident_id}/resource-status/{rs_id}",
+                                    json=patch,
+                                )
+                            except Exception:
+                                pass
+
+                        current_status = str(existing.get("status") or "").strip()
+                        if desired_status == "Assigned" and current_status in _ACTIVE_STATUSES:
+                            try:
+                                api_client.patch(
+                                    f"/api/incidents/{incident_id}/resource-status/{rs_id}/status",
+                                    json={"status": "Assigned", "changed_by": "Desk Sync"},
+                                )
+                            except Exception:
+                                pass
+                        continue
+
                     try:
                         payload = {
                             "entity_type": entity_type,
                             "record_id": record_id,
                             "resource_name": resource_name,
                             "resource_type": entity_type.title(),
-                            "status": "Assigned" if team_status in _ACTIVE_STATUSES else team_status,
+                            "status": desired_status,
                             "assigned_to": team_name,
                             "changed_by": "Desk Sync",
                         }
@@ -259,7 +303,7 @@ class ResourceStatusDesk(QObject):
                             f"/api/incidents/{incident_id}/resource-status",
                             json=payload,
                         )
-                        existing_keys.add(key)
+                        existing_by_key[key] = payload
                     except Exception:
                         pass
 
@@ -355,6 +399,7 @@ class ResourceStatusDesk(QObject):
 
     def _rebuild(self) -> None:
         try:
+            self._backfill_resource_ids()
             docs = self._fetch_resource_status_docs()
             self._rows = [self._doc_to_row(d) for d in docs]
         except Exception:

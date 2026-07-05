@@ -100,7 +100,7 @@ _RESOURCE_TYPE_LABELS = {
 }
 
 # ICS support role titles by classification (mirrors incident_organization_panel.py)
-# Division/Group have no deputies (N/A per ICS standard).
+# Division/Group have no deputies, assistants, or staff assistants (N/A).
 # Incident Commander (command) has a Deputy only.
 # Command Staff positions can have assistants and staff assistants.
 # Section Chiefs have deputies, assistants, and staff assistants.
@@ -113,9 +113,15 @@ _ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
         "trainee": "Trainee",
         "relief": "Relief",
     },
-    "branch":  {"deputy": "Deputy Director", "trainee": "Trainee", "relief": "Relief"},
-    "division":{"trainee": "Trainee", "relief": "Relief"},
-    "group":   {"trainee": "Trainee", "relief": "Relief"},
+    "branch": {
+        "deputy": "Deputy Director",
+        "assistant": "Assistant Director",
+        "staff_assistant": "Staff Assistant",
+        "trainee": "Trainee",
+        "relief": "Relief",
+    },
+    "division": {"trainee": "Trainee", "relief": "Relief"},
+    "group": {"trainee": "Trainee", "relief": "Relief"},
     "unit":    {"trainee": "Trainee", "relief": "Relief"},
     "position": {
         "assistant": "Assistant",
@@ -385,6 +391,88 @@ class _AddDivisionGroupDialog(QDialog):
         }
 
 
+class _AddPositionDialog(QDialog):
+    def __init__(
+        self,
+        parent_candidates: list[OrganizationPosition],
+        preset_parent_id: int | None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Add Position")
+        self.setMinimumWidth(380)
+        layout = QFormLayout(self)
+
+        self.title_edit = QLineEdit(self)
+        self.title_edit.setPlaceholderText("e.g. Branch Director, Assistant, Trainee")
+        layout.addRow("Title *", self.title_edit)
+
+        self.parent_combo = QComboBox(self)
+        self._populate_parents(parent_candidates, preset_parent_id)
+        layout.addRow("Parent position / unit", self.parent_combo)
+
+        self.period_edit = QLineEdit(self)
+        self.period_edit.setPlaceholderText("Optional operational period")
+        layout.addRow("Operational period", self.period_edit)
+
+        self.qualifications_edit = QLineEdit(self)
+        self.qualifications_edit.setPlaceholderText("Optional, comma-separated")
+        layout.addRow("Required qualifications", self.qualifications_edit)
+
+        self.critical_check = QPushButton("Critical position", self)
+        self.critical_check.setCheckable(True)
+        layout.addRow("", self.critical_check)
+
+        self.custom_check = QPushButton("Custom AHJ-defined title/structure", self)
+        self.custom_check.setCheckable(True)
+        self.custom_check.setChecked(True)
+        layout.addRow("", self.custom_check)
+
+        self.air_ops_check = QPushButton("Air Operations Branch", self)
+        self.air_ops_check.setCheckable(True)
+        self.air_ops_check.setChecked(False)
+        layout.addRow("", self.air_ops_check)
+
+        self.notes_edit = QTextEdit(self)
+        self.notes_edit.setMaximumHeight(64)
+        layout.addRow("Notes", self.notes_edit)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        buttons.accepted.connect(self._handle_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def _populate_parents(
+        self,
+        candidates: list[OrganizationPosition],
+        preset_parent_id: int | None,
+    ) -> None:
+        self.parent_combo.addItem("— Top level / under Operations Section —", None)
+        for pos in candidates:
+            label = f"{pos.title}  ({pos.classification})"
+            self.parent_combo.addItem(label, pos.id)
+            if pos.id == preset_parent_id:
+                self.parent_combo.setCurrentIndex(self.parent_combo.count() - 1)
+
+    def _handle_accept(self) -> None:
+        if not self.title_edit.text().strip():
+            QMessageBox.warning(self, "Position", "Title is required.")
+            return
+        self.accept()
+
+    def values(self) -> dict:
+        return {
+            "title": self.title_edit.text().strip(),
+            "parent_id": self.parent_combo.currentData(),
+            "operational_period": self.period_edit.text().strip() or None,
+            "required_qualifications": self.qualifications_edit.text().strip() or None,
+            "is_critical": self.critical_check.isChecked(),
+            "is_custom": self.custom_check.isChecked(),
+            "is_air_ops": self.air_ops_check.isChecked(),
+            "notes": self.notes_edit.toPlainText().strip() or None,
+        }
+
+
 class _AssignResourceDialog(QDialog):
     """Pick a team and set its ICS resource kind for assignment to a division/group."""
 
@@ -533,6 +621,10 @@ class OperationsSectionWindow(QDialog):
         self.btn_add_div_group.clicked.connect(lambda: self._add_division_group(None))
         toolbar.addWidget(self.btn_add_div_group)
 
+        self.btn_add_position = QPushButton("Add Position…", self)
+        self.btn_add_position.clicked.connect(lambda: self._add_position(None))
+        toolbar.addWidget(self.btn_add_position)
+
         self.btn_edit = QPushButton("Edit…", self)
         self.btn_edit.clicked.connect(self._edit_selected)
         toolbar.addWidget(self.btn_edit)
@@ -675,22 +767,36 @@ class OperationsSectionWindow(QDialog):
         branch_font = QFont()
         branch_font.setBold(True)
 
-        def _build_assignment_text(pos_id: int) -> str:
-            """Build inline assignment text showing only the primary assignee."""
+        def _build_assignment_text(pos_id: int, classification: str) -> str:
+            """Build inline assignment text for the position lead and support staff."""
             pos_assignments = self._assignments_by_position.get(pos_id, [])
-            primary_names = [
-                a.person_name
-                for a in pos_assignments
-                if normalize_assignment_type(a.assignment_type) == ASSIGNMENT_TYPE_PRIMARY
-            ]
-            return ", ".join(primary_names) if primary_names else ""
+            pieces: list[str] = []
+            for assignment in pos_assignments:
+                assignment_type = normalize_assignment_type(assignment.assignment_type)
+                if assignment_type == ASSIGNMENT_TYPE_PRIMARY:
+                    pieces.append(assignment.person_name)
+                    continue
+                if classification in {"division", "group"} and assignment_type in {
+                    ASSIGNMENT_TYPE_DEPUTY,
+                    ASSIGNMENT_TYPE_ASSISTANT,
+                    ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+                }:
+                    continue
+                label = _assignment_display_text(
+                    assignment_type,
+                    assignment.person_name,
+                    classification=classification,
+                )
+                if label != assignment.person_name:
+                    pieces.append(label)
+            return ", ".join(pieces)
 
         staff_font = QFont()
         staff_font.setItalic(True)
 
         def _add_unit_children(parent_item: QTreeWidgetItem, parent_id: int | None) -> None:
             for pos in children.get(parent_id, []):
-                assignment_text = _build_assignment_text(pos.id or 0)
+                assignment_text = _build_assignment_text(pos.id or 0, pos.classification)
                 item = QTreeWidgetItem([pos.title, assignment_text])
                 item.setData(0, Qt.UserRole, pos.id)
                 item.setData(0, Qt.UserRole + 1, pos.classification)
@@ -841,6 +947,13 @@ class OperationsSectionWindow(QDialog):
                 lambda: self._add_division_group(None)
             )
 
+        action_add_pos = menu.addAction("Add Position…")
+        if pos:
+            action_add_pos.setText(f"Add Position under {pos.title}…")
+            action_add_pos.triggered.connect(lambda: self._add_position(unit_id))
+        else:
+            action_add_pos.triggered.connect(lambda: self._add_position(None))
+
         menu.exec(self.tree.mapToGlobal(point))
 
     # ------------------------------------------------------------------
@@ -942,6 +1055,33 @@ class OperationsSectionWindow(QDialog):
             )
         except ValueError as exc:
             QMessageBox.warning(self, "Add Division / Group", str(exc))
+            return
+        self._refresh()
+        self.structure_changed.emit()
+
+    def _add_position(self, preset_parent_id: int | None) -> None:
+        candidates = [p for p in self._positions_by_id.values() if p.id is not None]
+        dialog = _AddPositionDialog(candidates, preset_parent_id, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        v = dialog.values()
+        parent_id = v["parent_id"]
+        if parent_id is None:
+            parent_id = self.controller.get_ops_section_id()
+        try:
+            self.controller.add_position({
+                "title": v["title"],
+                "classification": "position",
+                "parent_position_id": parent_id,
+                "operational_period": v["operational_period"],
+                "required_qualifications": v["required_qualifications"],
+                "is_critical": v["is_critical"],
+                "is_custom": v["is_custom"],
+                "is_air_ops": v["is_air_ops"],
+                "notes": v["notes"],
+            })
+        except ValueError as exc:
+            QMessageBox.warning(self, "Add Position", str(exc))
             return
         self._refresh()
         self.structure_changed.emit()
