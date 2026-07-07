@@ -27,6 +27,25 @@ from .server_info import (
 logger = logging.getLogger(__name__)
 
 
+def build_cloud_url(base_url: str | None, connect_code: str | None) -> str | None:
+    """Combine a cloud router base URL and connect code into a tunnel URL.
+
+    The cloud router proxies field-device traffic at ``/r/<connect-code>/...``,
+    so a configured code is appended to the base URL. A base URL that already
+    contains a ``/r/<code>`` path (e.g. a full SARAPP_CLOUD_URL override) is
+    returned unchanged, as is a bare URL with no code (direct, router-less
+    cloud server).
+    """
+
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        return None
+    code = (connect_code or "").strip().upper()
+    if not code or "/r/" in base:
+        return base
+    return f"{base}/r/{code}"
+
+
 class SnapshotListener(Protocol):
     def __call__(self, snapshot: ConnectionSnapshot) -> None: ...
 
@@ -148,10 +167,13 @@ class ConnectionManager:
         from urllib.parse import urlparse
         _parsed = urlparse(self.cloud_url)
         _cloud_port = _parsed.port or (443 if _parsed.scheme == "https" else 80)
+        # Keep the full URL (scheme + host + any /r/<connect-code> path) as the
+        # host so ServerInfo.base_url routes API traffic through the cloud
+        # router's tunnel path instead of the bare hostname.
         cloud = ServerInfo(
             server_id="cloud",
             server_name="SARApp Cloud",
-            host=_parsed.hostname,
+            host=self.cloud_url.rstrip("/"),
             port=_cloud_port,
         )
         if not self._check_server_health(self.cloud_url.rstrip("/")):

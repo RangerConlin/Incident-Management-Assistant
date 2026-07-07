@@ -1,4 +1,6 @@
 {
+  "cloud_router_url": "",
+  "connect_code": "OURS-9165",
   "discovery_enabled": true,
   "discovery_port": 45454,
   "host": "0.0.0.0",

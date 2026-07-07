@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QGroupBox, QCheckBox, QScrollArea,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtGui import QBrush
 
 from modules.intel.models.leads import (
     Lead, LeadStatus, LeadPriority, LeadSourceCategory,
@@ -20,24 +20,18 @@ from modules.intel.models.leads import (
 )
 from modules.intel.services.intel_service import IntelService
 from utils.table_view_styles import apply_statusboard_table_behavior
-
-_ROW_COLORS: dict[str, QColor] = {
-    "unassigned_high":   QColor(180, 40,  40,  130),
-    "unassigned":        QColor(180, 100, 20,  110),
-    "new":               QColor(30,  80,  180, 100),
-    "assigned":          QColor(20,  100, 160, 90),
-    "converted":         QColor(40,  160, 80,  100),
-    "closed":            QColor(100, 100, 100, 75),
-}
+from utils.styles import intel_lead_status_colors, get_palette, subscribe_theme
 
 
-def _row_color(lead: Lead) -> QColor | None:
+def _row_color(lead: Lead) -> QBrush | None:
+    colors = intel_lead_status_colors()
     status = (lead.status or "").lower()
     if not lead.assigned_to and lead.priority in ("Critical", "High"):
-        return _ROW_COLORS["unassigned_high"]
+        return colors["unassigned_high"]["bg"]
     if not lead.assigned_to:
-        return _ROW_COLORS["unassigned"]
-    return _ROW_COLORS.get(status)
+        return colors["unassigned"]["bg"]
+    entry = colors.get(status)
+    return entry["bg"] if entry else None
 
 
 def _btn(label: str, callback, width: int = 52) -> QPushButton:
@@ -284,7 +278,7 @@ class _NewLeadDialog(QDialog):
     def _on_save(self) -> None:
         title = self._title.text().strip()
         if not title:
-            self._title.setStyleSheet("border: 1px solid #cf222e;")
+            self._title.setStyleSheet(f"border: 1px solid {get_palette()['error'].name()};")
             return
 
         cat = self._source_cat.currentText()
@@ -336,7 +330,7 @@ class _NewLeadDialog(QDialog):
 
         elif cat == LeadSourceCategory.PUBLIC_TIP:
             if not self._tip_name.text().strip():
-                self._tip_name.setStyleSheet("border: 1px solid #cf222e;")
+                self._tip_name.setStyleSheet(f"border: 1px solid {get_palette()['error'].name()};")
                 return
             source_contact_name = self._tip_name.text().strip()
             source_phone = self._tip_phone.text().strip() or None
@@ -542,21 +536,31 @@ class LeadsTab(QWidget):
         self._table.setSortingEnabled(True)
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
-        legend = QLabel(
+        self._legend = QLabel()
+        self._legend.setTextFormat(Qt.RichText)
+        self._legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
+        layout.addWidget(self._legend)
+        self._update_legend()
+
+        subscribe_theme(self, self._on_theme_changed)
+        self.refresh()
+
+    def _update_legend(self) -> None:
+        colors = intel_lead_status_colors()
+        self._legend.setText(
             "  ".join([
-                _color_blob("#b42828", "Unassigned Critical / High"),
-                _color_blob("#b46414", "Unassigned"),
-                _color_blob("#1e50b4", "New"),
-                _color_blob("#149664", "Assigned"),
-                _color_blob("#28a050", "Converted"),
-                _color_blob("#646464", "Closed"),
+                _color_blob(colors["unassigned_high"]["fg"].color().name(), "Unassigned Critical / High"),
+                _color_blob(colors["unassigned"]["fg"].color().name(), "Unassigned"),
+                _color_blob(colors["new"]["fg"].color().name(), "New"),
+                _color_blob(colors["assigned"]["fg"].color().name(), "Assigned"),
+                _color_blob(colors["converted"]["fg"].color().name(), "Converted"),
+                _color_blob(colors["closed"]["fg"].color().name(), "Closed"),
             ])
         )
-        legend.setTextFormat(Qt.RichText)
-        legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
-        layout.addWidget(legend)
 
-        self.refresh()
+    def _on_theme_changed(self, *_: object) -> None:
+        self._update_legend()
+        self._render()
 
     def refresh(self) -> None:
         if self._service is None:
@@ -604,8 +608,7 @@ class LeadsTab(QWidget):
                 l.assigned_to or "Unassigned",
                 l.updated_at[:16].replace("T", " ") if l.updated_at else "",
             ]
-            color = _row_color(l)
-            brush = QBrush(color) if color else None
+            brush = _row_color(l)
             for col, val in enumerate(cells):
                 item = QTableWidgetItem(val)
                 if brush:

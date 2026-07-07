@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from PySide6.QtCore import QObject
-from PySide6.QtWidgets import QCheckBox, QComboBox, QSlider, QSpinBox
+from PySide6.QtWidgets import QCheckBox, QComboBox, QLineEdit, QSlider, QSpinBox
 
 Setter = Callable[[str, Any], None]
 
@@ -53,6 +53,29 @@ def bind_spinbox(spin: QSpinBox, bridge: QObject, key: str, default: int = 0) ->
     spin.setValue(number)
     setter = _safe_setter(bridge)
     spin.valueChanged.connect(lambda val, setter=setter: setter(key, int(val)))
+
+
+def bind_lineedit(
+    edit: QLineEdit,
+    bridge: QObject,
+    key: str,
+    default: str = "",
+    *,
+    normalize: Callable[[str], str] | None = None,
+) -> None:
+    """Bind a line edit to a string setting, saving when editing finishes."""
+    value = _safe_get(bridge, key)
+    edit.setText(default if value is None else str(value))
+    setter = _safe_setter(bridge)
+
+    def _commit() -> None:
+        text = edit.text().strip()
+        if normalize is not None:
+            text = normalize(text)
+            edit.setText(text)
+        setter(key, text)
+
+    edit.editingFinished.connect(_commit)
 
 
 def bind_slider(slider: QSlider, bridge: QObject, key: str, default: int = 0) -> None:

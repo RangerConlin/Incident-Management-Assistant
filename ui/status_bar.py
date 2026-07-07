@@ -18,6 +18,7 @@ _CONNECTION_STYLES = {
 }
 
 _POLL_INTERVAL_MS = 30_000  # 30 seconds
+_INITIAL_POLL_DELAY_MS = 750
 
 
 class AppStatusBar(QtWidgets.QStatusBar):
@@ -82,8 +83,8 @@ class AppStatusBar(QtWidgets.QStatusBar):
 
     def start(self) -> None:
         """Begin polling. Call after the main window is fully initialised."""
-        self._poll_counts()
         self._poll_timer.start()
+        QtCore.QTimer.singleShot(_INITIAL_POLL_DELAY_MS, self._poll_counts)
 
     def stop(self) -> None:
         self._poll_timer.stop()

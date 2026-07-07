@@ -9,27 +9,21 @@ from PySide6.QtWidgets import (
     QDialogButtonBox, QScrollArea, QGroupBox,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtGui import QBrush
 
 from modules.intel.models.subjects import Subject, SUBJECT_TYPES, SubjectType
 from modules.intel.services.intel_service import IntelService
 from utils.table_view_styles import apply_statusboard_table_behavior
-
-# Row tint colors (ARGB — semi-transparent so text stays readable)
-_ROW_COLORS: dict[str, QColor] = {
-    "missing":  QColor(180, 40,  40,  120),
-    "located":  QColor(40,  160, 80,  100),
-    "deceased": QColor(100, 100, 100, 90),
-}
+from utils.styles import intel_subject_status_colors, subscribe_theme
 
 
-def _row_color(subject: Subject) -> QColor | None:
+def _row_color(subject: Subject) -> QBrush | None:
+    colors = intel_subject_status_colors()
     if subject.subject_type == SubjectType.MISSING_PERSON:
-        return _ROW_COLORS["missing"]
-    if (subject.status or "").lower() == "located":
-        return _ROW_COLORS["located"]
-    if (subject.status or "").lower() == "deceased":
-        return _ROW_COLORS["deceased"]
+        return colors["missing"]["bg"]
+    status = (subject.status or "").lower()
+    if status in colors:
+        return colors[status]["bg"]
     return None
 
 
@@ -500,18 +494,28 @@ class SubjectsTab(QWidget):
         self._table.setSortingEnabled(True)
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
-        legend = QLabel(
+        self._legend = QLabel()
+        self._legend.setTextFormat(Qt.RichText)
+        self._legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
+        layout.addWidget(self._legend)
+        self._update_legend()
+
+        subscribe_theme(self, self._on_theme_changed)
+        self.refresh()
+
+    def _update_legend(self) -> None:
+        status_colors = intel_subject_status_colors()
+        self._legend.setText(
             "  ".join([
-                _color_blob("#b42828", "Missing Person"),
-                _color_blob("#28a050", "Located"),
-                _color_blob("#646464", "Deceased"),
+                _color_blob(status_colors["missing"]["fg"].color().name(), "Missing Person"),
+                _color_blob(status_colors["located"]["fg"].color().name(), "Located"),
+                _color_blob(status_colors["deceased"]["fg"].color().name(), "Deceased"),
             ])
         )
-        legend.setTextFormat(Qt.RichText)
-        legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
-        layout.addWidget(legend)
 
-        self.refresh()
+    def _on_theme_changed(self, *_: object) -> None:
+        self._update_legend()
+        self._render()
 
     def refresh(self) -> None:
         if self._service is None:
@@ -548,8 +552,7 @@ class SubjectsTab(QWidget):
                 context, str(s.age) if s.age else "",
                 s.updated_at[:16].replace("T", " ") if s.updated_at else "",
             ]
-            color = _row_color(s)
-            brush = QBrush(color) if color else None
+            brush = _row_color(s)
             for col, val in enumerate(cells):
                 item = QTableWidgetItem(val)
                 if brush:

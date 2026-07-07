@@ -351,6 +351,7 @@ class _MultiRowTabWidget(QWidget):
         from PySide6.QtWidgets import QStackedWidget
         self._tab_bar = _MultiRowTabBar(self)
         self._stack = QStackedWidget(self)
+        self._labels: list[str] = []
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
@@ -361,6 +362,7 @@ class _MultiRowTabWidget(QWidget):
     def addTab(self, widget: QWidget, label: str) -> int:
         self._stack.addWidget(widget)
         idx = self._tab_bar.addTab(label)
+        self._labels.append(label)
         if idx == 0:
             self._stack.setCurrentIndex(0)
         return idx
@@ -379,6 +381,11 @@ class _MultiRowTabWidget(QWidget):
     def count(self) -> int:
         return self._tab_bar.count()
 
+    def tabText(self, idx: int) -> str:
+        if 0 <= idx < len(self._labels):
+            return self._labels[idx]
+        return ""
+
     def tabBar(self) -> _MultiRowTabBar:
         return self._tab_bar
 
@@ -389,6 +396,7 @@ class TaskDetailWindow(QWidget):
     def __init__(self, task_id: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._task_id = int(task_id)
+        self._loaded_sections: set[str] = set()
         # Title is updated after header load; keep minimal placeholder
         self.setWindowTitle("Task Detail")
 
@@ -1589,6 +1597,7 @@ class TaskDetailWindow(QWidget):
             self._btn_214_delete.clicked.connect(self._delete_ics214_entry)
             self._btn_214_edit.clicked.connect(self._edit_ics214_entry)
             self._btn_214_open_full.clicked.connect(self._open_full_ics214)
+            self._log_tabs.currentChanged.connect(lambda _i: self._load_current_log_tab())
             tabs.addTab(log_container, "Log")
             # Initial load deferred to _initial_load via QTimer
         except Exception:
@@ -1624,6 +1633,10 @@ class TaskDetailWindow(QWidget):
             self._wire_debrief_tab()
         except Exception:
             pass
+        try:
+            tabs.currentChanged.connect(self._on_main_tab_changed)
+        except Exception:
+            pass
         # Defer all data loads so the window paints before any API calls fire
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self._initial_load)
@@ -1654,58 +1667,66 @@ class TaskDetailWindow(QWidget):
         return "#ffffff"
 
     def _initial_load(self) -> None:
-        """Load all data after the window is shown (deferred from __init__)."""
+        """Load the first visible data after the window is shown.
+
+        Heavier secondary tabs load on first selection so opening a task
+        detail window does not block on every task-related endpoint.
+        """
         self._load_header()
+        self._load_section_once("Narrative")
+        self._load_section_once("Teams")
+
+    def _on_main_tab_changed(self, index: int) -> None:
         try:
-            self.load_narrative()
+            label = self._tabs.tabText(index)
+        except Exception:
+            label = ""
+        self._load_section_once(label)
+
+    def _load_section_once(self, label: str) -> None:
+        key = str(label or "").strip().lower()
+        if not key or key in self._loaded_sections:
+            return
+        loaders = {
+            "narrative": self.load_narrative,
+            "teams": self.load_teams,
+            "personnel": self.load_personnel,
+            "vehicles": self.load_vehicles,
+            "assignment details": self.load_assignment,
+            "communications": self.load_comms,
+            "debriefing": self.load_debriefs,
+            "attachments/forms": self.load_attachments,
+            "intel": self.load_linked_clues,
+            "planning": self._load_planning,
+            "log": self._load_current_log_tab,
+        }
+        loader = loaders.get(key)
+        if loader is None:
+            return
+        try:
+            loader()
+            self._loaded_sections.add(key)
         except Exception:
             pass
+
+    def _load_current_log_tab(self) -> None:
         try:
-            self.load_teams()
+            label = self._log_tabs.tabText(self._log_tabs.currentIndex())
         except Exception:
-            pass
+            label = ""
+        key = f"log:{label}".lower()
+        if key in self._loaded_sections:
+            return
         try:
-            self.load_personnel()
-        except Exception:
-            pass
-        try:
-            self.load_comms()
-        except Exception:
-            pass
-        try:
-            self.load_debriefs()
-        except Exception:
-            pass
-        try:
-            self.load_attachments()
-        except Exception:
-            pass
-        try:
-            self.load_linked_clues()
-        except Exception:
-            pass
-        try:
-            self.load_vehicles()
-        except Exception:
-            pass
-        try:
-            self.load_assignment()
-        except Exception:
-            pass
-        try:
-            self._load_planning()
-        except Exception:
-            pass
-        try:
-            self._load_ics214()
-        except Exception:
-            pass
-        try:
-            self._load_task_log()
-        except Exception:
-            pass
-        try:
-            self._load_team_log()
+            if label == "ICS-214":
+                self._load_ics214()
+            elif label == "Task Log":
+                self._load_task_log()
+            elif label == "Team Log":
+                self._load_team_log()
+            else:
+                return
+            self._loaded_sections.add(key)
         except Exception:
             pass
 

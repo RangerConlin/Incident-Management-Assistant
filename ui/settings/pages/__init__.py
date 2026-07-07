@@ -3,6 +3,7 @@
 from .general_page import GeneralPage
 from .incident_defaults_page import IncidentDefaultsPage
 from .communications_page import CommunicationsPage
+from .connection_page import ConnectionPage
 from .data_storage_page import DataStoragePage
 from .mapping_page import MappingPage
 from .personnel_page import PersonnelPage
@@ -15,6 +16,7 @@ __all__ = [
     "GeneralPage",
     "IncidentDefaultsPage",
     "CommunicationsPage",
+    "ConnectionPage",
     "DataStoragePage",
     "MappingPage",
     "PersonnelPage",

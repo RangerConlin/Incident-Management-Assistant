@@ -45,7 +45,7 @@ DEV_MODE = True
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"
@@ -149,11 +149,46 @@ def _get_incident_by_number(number: str | None) -> dict | None:
     if not number:
         return None
     try:
+        from utils.incident_cache import incident_cache
+        cached = incident_cache.active_incident()
+        if cached and str(number) in {
+            str(cached.get("id") or ""),
+            str(cached.get("incident_id") or ""),
+            str(cached.get("number") or ""),
+        }:
+            return cached
+    except Exception:
+        pass
+    try:
         from utils.api_client import api_client
         results = api_client.get("/api/incidents", params={"number": str(number)}) or []
-        return results[0] if results else None
+        incident = results[0] if results else None
+        if incident is None and str(number) == str(AppState.get_active_incident() or ""):
+            try:
+                incident = api_client.get(f"/api/incidents/{number}/profile")
+            except Exception:
+                incident = None
+        if incident:
+            try:
+                from utils.incident_cache import incident_cache
+                incident_cache.set_active_incident(incident)
+            except Exception:
+                pass
+        return incident
     except Exception:
         return None
+
+
+def _get_active_incident_cached() -> dict | None:
+    """Return active incident metadata from IncidentCache, falling back to API."""
+    try:
+        from utils.incident_cache import incident_cache
+        incident = incident_cache.active_incident()
+        if incident:
+            return incident
+    except Exception:
+        pass
+    return _get_incident_by_number(AppState.get_active_incident())
 
 
 def _qobject_is_alive(obj: object | None) -> bool:
@@ -223,8 +258,13 @@ class MainWindow(QMainWindow):
       - self._open_dock_widget(panel, title="...")
     Placeholders are fine if a real module/factory doesn't exist yet.
     """
-    def __init__(self, settings_manager: SettingsManager | None = None,
-                 settings_bridge: SettingsBridge | None = None):
+    def __init__(
+        self,
+        settings_manager: SettingsManager | None = None,
+        settings_bridge: SettingsBridge | None = None,
+        theme_manager: ThemeManager | None = None,
+        theme_bridge: ThemeBridge | None = None,
+    ):
         super().__init__()
         self._ems_window = None
         self._settings_window = None
@@ -236,6 +276,8 @@ class MainWindow(QMainWindow):
             settings_bridge = SettingsBridge(settings_manager)
         self.settings_manager = settings_manager
         self.settings_bridge = settings_bridge
+        self.theme_manager = theme_manager
+        self.theme_bridge = theme_bridge
 
         self.customization_repo = None
         if UICustomizationRepository is not None:
@@ -244,47 +286,7 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 logger.warning("Failed to initialize customization repository: %s", exc)
 
-        # Initialize theme manager/bridge using persisted setting
-        try:
-            app = QApplication.instance()
-            saved_theme = str(self.settings_bridge.getSetting('themeName') or 'system').lower()
-            if saved_theme == 'system':
-                from styles.profiles import get_profile_name
-                saved_theme = get_profile_name()
-            elif saved_theme not in {"light", "dark"}:
-                saved_theme = "light"
-            self.theme_manager = ThemeManager(app, initial_theme=saved_theme)
-            self.theme_bridge = ThemeBridge(self.theme_manager.tokens())
-            # Keep the status-color theme global (styles.styles.THEME_NAME) in lockstep
-            # with ThemeManager so there is a single light/dark source of truth.
-            from styles.styles import set_theme as _set_status_theme
-            _set_status_theme(saved_theme)
-            # Apply initial QSS derived from tokens
-            if app is not None:
-                app.setStyleSheet(global_qss(self.theme_manager.tokens()))
-            # Keep QSS and legacy UI bridge in sync with theme changes
-            self.theme_manager.themeChanged.connect(lambda name:
-                (_set_status_theme(name),
-                 self.theme_bridge.updateTokens(self.theme_manager.tokens()),
-                 app.setStyleSheet(global_qss(self.theme_manager.tokens())) if app is not None else None)
-            )
-            # React to settings changes (persisted toggle) to drive ThemeManager
-            try:
-                def _on_window_theme_changed(key, value, _tm=self.theme_manager):
-                    if key != 'themeName':
-                        return
-                    theme = str(value).lower()
-                    if theme == 'system':
-                        from styles.profiles import get_profile_name
-                        theme = get_profile_name()
-                    _tm.setTheme(theme)
-                self.settings_bridge.settingChanged.connect(_on_window_theme_changed)
-            except Exception:
-                pass
-        except Exception:
-            # Non-fatal; app will still run
-            self.theme_manager = None  # type: ignore[assignment]
-            self.theme_bridge = None   # type: ignore[assignment]
+        self._ensure_theme_context()
 
         if self.customization_repo and ui_customization_services and getattr(self, "theme_manager", None):
             try:
@@ -310,7 +312,7 @@ class MainWindow(QMainWindow):
         user_role = AppState.get_active_user_role()
         suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
         if active_number:
-            incident = _get_incident_by_number(active_number)
+            incident = _get_active_incident_cached()
             if incident:
                 title = f"SARApp - {incident['number']} | {incident['name']}{suffix}"
             else:
@@ -506,6 +508,49 @@ class MainWindow(QMainWindow):
         self._init_status_bar()
 
     # ----- Part 2.A: Physical Menu Builder ----------------------------------
+    def _ensure_theme_context(self) -> None:
+        """Use injected app-level theme objects, or create them for direct window use."""
+        try:
+            app = QApplication.instance()
+            if self.theme_manager is None:
+                saved_theme = str(self.settings_bridge.getSetting("themeName") or "system").lower()
+                if saved_theme == "system":
+                    from styles.profiles import get_profile_name
+                    saved_theme = get_profile_name()
+                elif saved_theme not in {"light", "dark"}:
+                    saved_theme = "light"
+                self.theme_manager = ThemeManager(app, initial_theme=saved_theme)
+            if self.theme_bridge is None and self.theme_manager is not None:
+                self.theme_bridge = ThemeBridge(self.theme_manager.tokens())
+
+            from styles.styles import set_theme as _set_status_theme
+
+            _set_status_theme(self.theme_manager.theme if self.theme_manager else "light")
+
+            if self.theme_manager is not None and self.theme_bridge is not None:
+                self.theme_manager.themeChanged.connect(
+                    lambda name: (
+                        _set_status_theme(name),
+                        self.theme_bridge.updateTokens(self.theme_manager.tokens()),
+                    )
+                )
+
+            try:
+                def _on_window_theme_changed(key, value, _tm=self.theme_manager):
+                    if key != "themeName" or _tm is None:
+                        return
+                    theme = str(value).lower()
+                    if theme == "system":
+                        from styles.profiles import get_profile_name
+                        theme = get_profile_name()
+                    _tm.setTheme(theme)
+                self.settings_bridge.settingChanged.connect(_on_window_theme_changed)
+            except Exception:
+                pass
+        except Exception:
+            self.theme_manager = None  # type: ignore[assignment]
+            self.theme_bridge = None  # type: ignore[assignment]
+
     def _add_action(self, menu: QMenu, text: str, keyseq: str | None, module_key: str):
         """Create a QAction, attach module_key, connect to router, and add to menu."""
         act = QAction(text, self)
@@ -987,7 +1032,7 @@ class MainWindow(QMainWindow):
             if incident is None:
                 incident_id = AppState.get_active_incident()
                 if incident_id:
-                    incident = _get_incident_by_number(incident_id)
+                    incident = _get_active_incident_cached()
                 else:
                     incident_number = AppState.get_active_incident()
                     incident = (
@@ -1203,8 +1248,8 @@ class MainWindow(QMainWindow):
         # Set as the active incident immediately
         try:
             from utils import incident_context
-            AppState.set_active_incident(meta.number)
-            incident_context.set_active_incident(str(meta.number))
+            AppState.set_active_incident(incident_id)
+            incident_context.set_active_incident(str(incident_id))
             self.update_title_with_active_incident()
         except Exception:
             logger.exception("Failed to set active incident context")
@@ -1237,10 +1282,10 @@ class MainWindow(QMainWindow):
         if dialog.exec() != QDialog.Accepted:
             return
 
-        number = dialog.selected_incident_number()
-        if not number:
+        incident_id = dialog.selected_incident_id()
+        if not incident_id:
             return
-        AppState.set_active_incident(number)
+        AppState.set_active_incident(incident_id)
         self.update_title_with_active_incident()
 
     def open_menu_save_incident(self) -> None:
@@ -3437,7 +3482,7 @@ class MainWindow(QMainWindow):
         user_role = AppState.get_active_user_role()
         suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
         if incident_number:
-            incident = _get_incident_by_number(incident_number)
+            incident = _get_active_incident_cached()
             if incident:
                 self.setWindowTitle(f"SARApp - {incident['number']}: {incident['name']}{suffix}")
             else:
@@ -3449,7 +3494,7 @@ class MainWindow(QMainWindow):
     def update_active_incident_label(self) -> None:
         """Update the status label and menu gates with the current incident."""
         incident_id = AppState.get_active_incident()
-        incident = _get_incident_by_number(incident_id) if incident_id else None
+        incident = _get_active_incident_cached() if incident_id else None
         user_id = AppState.get_active_user_id()
         user_role = AppState.get_active_user_role()
         if incident:
@@ -3581,6 +3626,32 @@ def _start_local_offline_mode(app: QApplication, manager: object | None = None) 
     return True
 
 
+# Default cloud server base URL — update this if the VPS address changes.
+# Overridable per-install via Settings → Connection (cloudServerUrl) or the
+# SARAPP_CLOUD_URL environment variable.
+_DEFAULT_CLOUD_URL = "http://srv1707346.hstgr.cloud:8765"
+
+
+def _resolve_cloud_url() -> str | None:
+    """Resolve the cloud fallback URL used when no LAN server is found.
+
+    Priority: SARAPP_CLOUD_URL env var (full URL, may already include a
+    /r/<connect-code> router path) > Settings (cloudServerUrl +
+    cloudConnectCode) > built-in default. When a connect code is configured,
+    it is appended as the cloud router's /r/<code> tunnel path.
+    """
+    from core.networking import build_cloud_url
+
+    env_url = (os.getenv("SARAPP_CLOUD_URL") or "").strip()
+    if env_url:
+        return env_url.rstrip("/")
+
+    settings = SettingsManager()
+    base_url = str(settings.get("cloudServerUrl") or "").strip() or _DEFAULT_CLOUD_URL
+    connect_code = str(settings.get("cloudConnectCode") or "").strip()
+    return build_cloud_url(base_url, connect_code)
+
+
 def _initialize_connectivity(app: QApplication, *, prompt_on_failure: bool = True) -> object | None:
     """Run SARApp's launch connectivity workflow before showing the main window.
 
@@ -3605,11 +3676,7 @@ def _initialize_connectivity(app: QApplication, *, prompt_on_failure: bool = Tru
         logger.warning("Connectivity framework unavailable: %s", exc)
         return None
 
-    # Cloud server URL — update this if the VPS address changes.
-    # Long-term: move this to the Settings UI (Menu → Settings → Connection).
-    _HARDCODED_CLOUD_URL = "http://srv1707346.hstgr.cloud:8765"
-    cloud_url = os.getenv("SARAPP_CLOUD_URL") or _HARDCODED_CLOUD_URL
-    manager = ConnectionManager(cloud_url=cloud_url)
+    manager = ConnectionManager(cloud_url=_resolve_cloud_url())
     local_controller = LocalServerController()
 
     # Keep launch delay short: one broadcast interval is enough to catch an
@@ -3686,6 +3753,12 @@ if __name__ == "__main__":
     app.installEventFilter(_size_title_filter)
 
     def _on_quit():
+        try:
+            from utils import incident_cache_loader
+
+            incident_cache_loader.shutdown()
+        except Exception:
+            pass
         try:
             sid = AppState.get_active_api_session_id()
             if sid is not None:
@@ -3793,44 +3866,16 @@ if __name__ == "__main__":
             saved = "light"
         _theme_manager = ThemeManager(app, initial_theme=saved)
         _theme_bridge = ThemeBridge(_theme_manager.tokens())
-        from styles.qss_helpers import global_qss as _global_qss
-        # Keep the status-color theme global (styles.styles.THEME_NAME) in lockstep
-        # with ThemeManager so there is a single light/dark source of truth.
-        from styles.styles import set_theme as _set_status_theme
-        _set_status_theme(saved)
-        app.setStyleSheet(_global_qss(_theme_manager.tokens()))
-        # Keep app QSS + bridge updated on theme changes
-        _theme_manager.themeChanged.connect(lambda name:
-            (_set_status_theme(name),
-             _theme_bridge.updateTokens(_theme_manager.tokens()),
-             app.setStyleSheet(_global_qss(_theme_manager.tokens())))
-        )
-        # React to settings bridge updates
-        try:
-            def _on_theme_setting_changed(key, value):
-                if key != 'themeName':
-                    return
-                theme = str(value).lower()
-                if theme == 'system':
-                    from styles.profiles import get_profile_name
-                    theme = get_profile_name()
-                _theme_manager.setTheme(theme)
-            settings_bridge.settingChanged.connect(_on_theme_setting_changed)
-        except Exception:
-            pass
     except Exception:
         _theme_manager = None  # type: ignore[assignment]
         _theme_bridge = None   # type: ignore[assignment]
 
-    win = MainWindow(settings_manager=settings_manager, settings_bridge=settings_bridge)
-    # Share the app-level theme objects with the window (used to inject into legacy UI contexts)
-    try:
-        if _theme_manager:
-            win.theme_manager = _theme_manager
-        if _theme_bridge:
-            win.theme_bridge = _theme_bridge
-    except Exception:
-        pass
+    win = MainWindow(
+        settings_manager=settings_manager,
+        settings_bridge=settings_bridge,
+        theme_manager=_theme_manager,
+        theme_bridge=_theme_bridge,
+    )
     from modules.devtools.dev_menu import attach_dev_menu
     attach_dev_menu(win)
     win.showMaximized()

@@ -105,6 +105,19 @@ class NewOrganizationDialog(QDialog):
         self._set_combo_data(self.org_type_combo, self.initial.get("organization_type_id"))
         self._set_combo_data(self.rank_structure_combo, self.initial.get("default_rank_structure_id"))
 
+        if (
+            default_parent_id is not None
+            and not self.initial.get("organization_type_id")
+            and not self.initial.get("default_rank_structure_id")
+        ):
+            parent = self.controller.get_organization(int(default_parent_id))
+            if parent:
+                self._set_combo_data(self.org_type_combo, parent.get("organization_type_id"))
+                self._set_combo_data(
+                    self.rank_structure_combo,
+                    parent.get("effective_rank_structure_id") or parent.get("default_rank_structure_id"),
+                )
+
     def _set_combo_data(self, combo: QComboBox, value: Any) -> None:
         idx = combo.findData(value)
         if idx >= 0:

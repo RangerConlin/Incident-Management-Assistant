@@ -106,7 +106,12 @@ def save_message(incident_id: str, payload: Dict[str, Any] = Body(...)):
     values.setdefault("related_incident_id", incident_id)
     values.setdefault("incident_id", incident_id)
     values.setdefault("published_at", "")
+    values.setdefault("published_by", "")
     values.setdefault("approved_by", "")
+    values.setdefault("approved_at", "")
+    values.setdefault("archived_by", "")
+    values.setdefault("archived_at", "")
+    values.setdefault("boilerplate", "")
     values.setdefault("deleted", False)
     user = str(values.pop("_revision_user", "") or "")
 
@@ -160,7 +165,11 @@ def set_message_status(incident_id: str, message_id: int, payload: Dict[str, Any
         "status": status,
         "updated_at": now,
         "published_at": now if status == "Published" else existing.get("published_at", ""),
+        "published_by": user if status == "Published" else existing.get("published_by", ""),
         "approved_by": user if status == "Approved" else existing.get("approved_by", ""),
+        "approved_at": now if status == "Approved" else existing.get("approved_at", ""),
+        "archived_by": user if status == "Archived" else existing.get("archived_by", ""),
+        "archived_at": now if status == "Archived" else existing.get("archived_at", ""),
     }
     col.update_one({"incident_id": incident_id, "id": int(message_id)}, {"$set": update})
     get_incident_db(incident_id)[IncidentCollections.PIO_APPROVALS].insert_one(
@@ -309,7 +318,7 @@ def summary_counts(incident_id: str):
     misinformation = db[IncidentCollections.PIO_MISINFORMATION_ITEMS]
     base = {"incident_id": incident_id, "deleted": {"$ne": True}}
     return {
-        "Pending Approvals": messages.count_documents({**base, "status": "Submitted for Review"}),
+        "Pending Approvals": messages.count_documents({**base, "status": "Pending Approval"}),
         "Draft Messages": messages.count_documents({**base, "status": "Draft"}),
         "Published / Released Messages": messages.count_documents({**base, "status": "Published"}),
         "Media Follow-Ups": media.count_documents({**base, "$or": [{"follow_up_needed": 1}, {"follow_up_needed": True}, {"status": "Follow-Up Needed"}]}),

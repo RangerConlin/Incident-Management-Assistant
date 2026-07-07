@@ -7,19 +7,25 @@ built out during the SQLite -> MongoDB cutover.
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 
-def create_app(server_info_fn=None) -> FastAPI:
+def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     """Create and configure the SARApp FastAPI application.
 
     Args:
         server_info_fn: Optional callable that returns a ServerInfo-compatible
             dict.  Each server type passes its own health/info payload function
             so /health reflects that server's live state.
+        request_log_fn: Optional callable receiving one dict per completed
+            HTTP request (timestamp, client, method, path, query, status,
+            duration_ms).  Used by the LAN server console's API traffic tab.
+            Must be fast and non-raising; WebSocket traffic is not captured.
     """
     app = FastAPI(
         title="SARApp API",
@@ -34,6 +40,28 @@ def create_app(server_info_fn=None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    if request_log_fn is not None:
+
+        @app.middleware("http")
+        async def _record_api_traffic(request: Request, call_next):
+            started = time.perf_counter()
+            response = await call_next(request)
+            try:
+                request_log_fn(
+                    {
+                        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                        "client": request.client.host if request.client else "",
+                        "method": request.method,
+                        "path": request.url.path,
+                        "query": request.url.query,
+                        "status": response.status_code,
+                        "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                    }
+                )
+            except Exception:  # noqa: BLE001 - logging must never break requests
+                pass
+            return response
 
     # -------------------------------------------------------------------------
     # Health / server-info (mirrors the old ThreadingHTTPServer endpoints)

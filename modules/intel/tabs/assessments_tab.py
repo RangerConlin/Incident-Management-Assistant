@@ -9,11 +9,12 @@ from PySide6.QtWidgets import (
     QTextEdit, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtGui import QBrush
 
 from modules.intel.models.assessments import Assessment, AssessmentStatus, ASSESSMENT_STATUSES
 from modules.intel.services.intel_service import IntelService
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import intel_assessment_status_colors, get_palette, subscribe_theme
 
 
 def _color_blob(hex_color: str, label: str) -> str:
@@ -22,16 +23,11 @@ def _color_blob(hex_color: str, label: str) -> str:
         f'<span style="vertical-align: middle;">{label}</span>'
     )
 
-_ROW_COLORS: dict[str, QColor] = {
-    "draft":       QColor(30,  80,  180, 110),
-    "in progress": QColor(20,  120, 200, 100),
-    "complete":    QColor(40,  160, 80,  100),
-    "archived":    QColor(100, 100, 100, 80),
-}
 
-
-def _row_color(a: Assessment) -> QColor | None:
-    return _ROW_COLORS.get((a.status or "").lower())
+def _row_color(a: Assessment) -> QBrush | None:
+    colors = intel_assessment_status_colors()
+    status = colors.get((a.status or "").lower())
+    return status["bg"] if status else None
 
 
 def _btn(label: str, callback, width: int = 52) -> "QPushButton":
@@ -88,7 +84,7 @@ class _NewAssessmentDialog(QDialog):
     def _on_save(self) -> None:
         title = self._title.text().strip()
         if not title:
-            self._title.setStyleSheet("border: 1px solid #cf222e;")
+            self._title.setStyleSheet(f"border: 1px solid {get_palette()['error'].name()};")
             return
         self.assessment = Assessment(
             id="", incident_id="",
@@ -158,19 +154,29 @@ class AssessmentsTab(QWidget):
         self._table.setSortingEnabled(True)
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
-        legend = QLabel(
+        self._legend = QLabel()
+        self._legend.setTextFormat(Qt.RichText)
+        self._legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
+        layout.addWidget(self._legend)
+        self._update_legend()
+
+        subscribe_theme(self, self._on_theme_changed)
+        self.refresh()
+
+    def _update_legend(self) -> None:
+        colors = intel_assessment_status_colors()
+        self._legend.setText(
             "  ".join([
-                _color_blob("#1e50b4", "Draft"),
-                _color_blob("#149664", "In Progress"),
-                _color_blob("#28a050", "Complete"),
-                _color_blob("#646464", "Archived"),
+                _color_blob(colors["draft"]["fg"].color().name(), "Draft"),
+                _color_blob(colors["in progress"]["fg"].color().name(), "In Progress"),
+                _color_blob(colors["complete"]["fg"].color().name(), "Complete"),
+                _color_blob(colors["archived"]["fg"].color().name(), "Archived"),
             ])
         )
-        legend.setTextFormat(Qt.RichText)
-        legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
-        layout.addWidget(legend)
 
-        self.refresh()
+    def _on_theme_changed(self, *_: object) -> None:
+        self._update_legend()
+        self._render()
 
     def refresh(self) -> None:
         if self._service is None:
@@ -203,8 +209,7 @@ class AssessmentsTab(QWidget):
                 findings_excerpt,
                 a.updated_at[:16].replace("T", " ") if a.updated_at else "",
             ]
-            color = _row_color(a)
-            brush = QBrush(color) if color else None
+            brush = _row_color(a)
             for col, val in enumerate(cells):
                 ti = QTableWidgetItem(val)
                 if brush:

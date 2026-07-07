@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 _ws_client: Optional[IncidentWebSocketClient] = None
 
+SNAPSHOT_MAX_MB = 150
+SNAPSHOT_MAX_COLLECTION_DOCS = 5000
+SNAPSHOT_MAX_HEAVY_COLLECTION_DOCS = 500
+
 
 def activate_incident(incident_id: Optional[str]) -> None:
     """Tear down the previous incident's cache/WS and bring up the new one."""
@@ -30,13 +34,32 @@ def activate_incident(incident_id: Optional[str]) -> None:
         return
 
     try:
-        snapshot = api_client.get(f"/api/incidents/{incident_id}/snapshot")
+        snapshot = api_client.get(
+            f"/api/incidents/{incident_id}/snapshot",
+            params={
+                "max_snapshot_mb": SNAPSHOT_MAX_MB,
+                "max_collection_docs": SNAPSHOT_MAX_COLLECTION_DOCS,
+                "max_heavy_collection_docs": SNAPSHOT_MAX_HEAVY_COLLECTION_DOCS,
+            },
+        )
     except APIError as exc:
         logger.warning("IncidentCache snapshot load failed for '%s': %s", incident_id, exc)
         incident_cache.clear()
         return
 
-    incident_cache.load_snapshot(incident_id, snapshot.get("collections", {}))
+    incident_cache.load_snapshot(
+        incident_id,
+        snapshot.get("collections", {}),
+        meta=snapshot.get("meta") or {},
+    )
+    telemetry = incident_cache.telemetry()
+    logger.info(
+        "IncidentCache active for '%s': %s docs, ~%s MB%s",
+        incident_id,
+        telemetry.get("total_docs", 0),
+        telemetry.get("estimated_mb", 0.0),
+        " (truncated)" if telemetry.get("snapshot_truncated") else "",
+    )
 
     # Initialize the active operational period from the server so it is
     # known program-wide immediately after incident selection.
@@ -65,3 +88,13 @@ def activate_incident(incident_id: Optional[str]) -> None:
 
     _ws_client = IncidentWebSocketClient(api_client.base_url, incident_id)
     _ws_client.start()
+
+
+def shutdown() -> None:
+    """Stop the active incident websocket client and clear cached data."""
+    global _ws_client
+
+    if _ws_client is not None:
+        _ws_client.stop()
+        _ws_client = None
+    incident_cache.clear()

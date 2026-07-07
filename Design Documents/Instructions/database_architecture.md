@@ -11,6 +11,9 @@
   - `indexes.py` for idempotent index creation
   - `database_manager.py` for `get_system_db()`, `get_master_db()`, and `get_incident_db(id)`
 - All UI code goes through `utils/api_client.py` (`httpx.Client` singleton). Do not add direct DB access from the UI layer.
+- Active incident UI reads should prefer `utils.incident_cache.incident_cache` when the needed collection is available there. The cache is loaded from a bounded `/api/incidents/{incident_id}/snapshot` response and kept current by WebSocket events. Do not bypass API writes; write through routers/repositories and let broadcasts update the cache.
+- Stable master/global lookup reads should use `utils.catalog_cache.catalog_cache` where practical, with explicit invalidation after catalog writes.
+- Do not cache large binary/export content in RAM by default. Heavy/history collections should be recent-only, capped, or paged.
 
 ## Templates And Config
 - Templates/forms live in `data/forms`, `data/templates`, and `profiles/`.

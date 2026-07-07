@@ -1,8 +1,8 @@
 """Login & incident selection dialog (PySide6 Widgets).
 
 This modal dialog is shown on startup to ensure the user selects/creates an
-incident and provides a User ID and Role for audit/documentation. Nothing else
-in the app should be accessible until this dialog is completed.
+incident and provides credentials plus a role for audit/documentation.
+Nothing else in the app should be accessible until this dialog is completed.
 """
 from __future__ import annotations
 
@@ -95,9 +95,7 @@ class IncidentSelectionDialog(QDialog):
 
         self._load_incidents()
         if self._default_incident_number:
-            idx = self.incident_combo.findData(self._default_incident_number)
-            if idx >= 0:
-                self.incident_combo.setCurrentIndex(idx)
+            self._select_incident(self._default_incident_number)
         self._update_continue_enabled()
 
     def _wrap(self, layout: QHBoxLayout) -> QWidget:
@@ -128,7 +126,17 @@ class IncidentSelectionDialog(QDialog):
 
         for it in self._incidents:
             label = f"{it.name or '(unnamed)'} - #{it.number}"
-            self.incident_combo.addItem(label, userData=it.number)
+            self.incident_combo.addItem(label, userData=it.incident_id)
+
+    def _select_incident(self, incident_key: str) -> None:
+        idx = self.incident_combo.findData(incident_key)
+        if idx >= 0:
+            self.incident_combo.setCurrentIndex(idx)
+            return
+        for row, item in enumerate(self._incidents):
+            if item.number == incident_key or item.incident_id == incident_key:
+                self.incident_combo.setCurrentIndex(row)
+                return
 
     def _on_create_new_incident(self) -> None:
         dlg = NewIncidentDialog(self)
@@ -139,9 +147,7 @@ class IncidentSelectionDialog(QDialog):
             except Exception:
                 pass
             self._load_incidents()
-            idx = self.incident_combo.findData(meta.number)
-            if idx >= 0:
-                self.incident_combo.setCurrentIndex(idx)
+            self._select_incident(incident_id)
             self._update_continue_enabled()
 
         dlg.created.connect(_created)
@@ -150,7 +156,7 @@ class IncidentSelectionDialog(QDialog):
     def _update_continue_enabled(self) -> None:
         self.btn_continue.setEnabled(self.incident_combo.currentData() is not None)
 
-    def selected_incident_number(self) -> str | None:
+    def selected_incident_id(self) -> str | None:
         value = self.incident_combo.currentData()
         return str(value) if value is not None else None
 
@@ -158,7 +164,7 @@ class IncidentSelectionDialog(QDialog):
 class LoginDialog(QDialog):
     """Modal startup splash for online sign-in, registration, or offline launch."""
 
-    sessionReady = Signal(str, str, str)  # (incident_number, user_id, role)
+    sessionReady = Signal(str, str, str)  # (incident_id, user_id, role)
     startOfflineRequested = Signal()
 
     def __init__(
@@ -167,7 +173,6 @@ class LoginDialog(QDialog):
         *,
         demo_mode: bool = False,
         default_incident_number: str | None = None,
-        default_user_id: str | None = None,
         api_available: bool = True,
     ) -> None:
         super().__init__(parent)
@@ -180,9 +185,6 @@ class LoginDialog(QDialog):
 
         self.incident_combo = QComboBox()
         self.btn_new_incident = QPushButton("Create New Incident")
-        self.user_id_edit = QLineEdit()
-        if default_user_id:
-            self.user_id_edit.setText(str(default_user_id))
         self.role_combo = QComboBox()
         self.role_combo.addItems(STATIC_ROLES)
 
@@ -229,7 +231,6 @@ class LoginDialog(QDialog):
         self.btn_start_offline.clicked.connect(self._request_offline_start)
         self.btn_new_incident.clicked.connect(self._on_create_new_incident)
         self.incident_combo.currentIndexChanged.connect(self._update_continue_enabled)
-        self.user_id_edit.textChanged.connect(self._update_continue_enabled)
         self.username_edit.textChanged.connect(self._update_continue_enabled)
         self.password_edit.textChanged.connect(self._update_continue_enabled)
         self.role_combo.currentIndexChanged.connect(self._update_continue_enabled)
@@ -240,9 +241,7 @@ class LoginDialog(QDialog):
         self._load_incidents()
         try:
             if self._default_incident_number:
-                idx = self.incident_combo.findData(self._default_incident_number)
-                if idx >= 0:
-                    self.incident_combo.setCurrentIndex(idx)
+                self._select_incident(self._default_incident_number)
         except Exception:
             pass
         self._update_continue_enabled()
@@ -251,13 +250,12 @@ class LoginDialog(QDialog):
         page = QWidget()
         page_layout = QVBoxLayout(page)
         form = QFormLayout()
-        form.addRow("Username / Badge #", self.username_edit)
+        form.addRow("Username", self.username_edit)
         form.addRow("Password", self.password_edit)
         row_inc = QHBoxLayout()
         row_inc.addWidget(self.incident_combo, 1)
         row_inc.addWidget(self.btn_new_incident)
         form.addRow(QLabel("Incident"), self._wrap(row_inc))
-        form.addRow("User ID", self.user_id_edit)
         form.addRow("Role", self.role_combo)
         page_layout.addLayout(form)
         page_layout.addWidget(self.buttons)
@@ -270,7 +268,7 @@ class LoginDialog(QDialog):
         form = QFormLayout()
         form.addRow("Org Code", self.org_code_edit)
         form.addRow("Name", self.register_name_edit)
-        form.addRow("Username / Badge #", self.register_username_edit)
+        form.addRow("Username", self.register_username_edit)
         form.addRow("Password", self.register_password_edit)
         page_layout.addLayout(form)
         row = QHBoxLayout()
@@ -305,7 +303,17 @@ class LoginDialog(QDialog):
 
         for it in self._incidents:
             label = f"{it.name or '(unnamed)'} - #{it.number}"
-            self.incident_combo.addItem(label, userData=it.number)
+            self.incident_combo.addItem(label, userData=it.incident_id)
+
+    def _select_incident(self, incident_key: str) -> None:
+        idx = self.incident_combo.findData(incident_key)
+        if idx >= 0:
+            self.incident_combo.setCurrentIndex(idx)
+            return
+        for row, item in enumerate(self._incidents):
+            if item.number == incident_key or item.incident_id == incident_key:
+                self.incident_combo.setCurrentIndex(row)
+                return
 
     def _on_create_new_incident(self) -> None:
         dlg = NewIncidentDialog(self)
@@ -316,9 +324,7 @@ class LoginDialog(QDialog):
             except Exception:
                 pass
             self._load_incidents()
-            idx = self.incident_combo.findData(meta.number)
-            if idx >= 0:
-                self.incident_combo.setCurrentIndex(idx)
+            self._select_incident(incident_id)
             self._update_continue_enabled()
 
         dlg.created.connect(_created)
@@ -333,7 +339,6 @@ class LoginDialog(QDialog):
             and (self.incident_combo.currentData() is not None)
             and (self.username_edit.text().strip() != "")
             and (self.password_edit.text().strip() != "")
-            and (self.user_id_edit.text().strip() != "")
             and (self.role_combo.currentText().strip() != "")
         )
         self.btn_continue.setEnabled(ok)
@@ -346,7 +351,7 @@ class LoginDialog(QDialog):
             self.register_password_edit.text().strip(),
         ]
         if not all(required):
-            QMessageBox.warning(self, "Missing Info", "Enter org code, name, username/badge number, and password.")
+            QMessageBox.warning(self, "Missing Info", "Enter org code, name, username, and password.")
             return
         QMessageBox.information(
             self,
@@ -370,35 +375,40 @@ class LoginDialog(QDialog):
         self.accept()
 
     def _accept(self) -> None:
-        incident_number = self.incident_combo.currentData()
-        user_id = self.user_id_edit.text().strip() or ""
+        incident_id = self.incident_combo.currentData()
+        # The username is the operator's person_id; keep using it as the active user identifier.
+        username = self.username_edit.text().strip() or ""
+        person_id = username
         role = self.role_combo.currentText().strip() or ""
 
         if not self._demo_mode:
-            if not incident_number or not user_id or not role or not self.username_edit.text().strip() or not self.password_edit.text().strip():
-                QMessageBox.warning(self, "Missing Info", "Please sign in, select an incident, and enter User ID and Role.")
+            if not incident_id or not person_id or not role or not self.password_edit.text().strip():
+                QMessageBox.warning(self, "Missing Info", "Please sign in, select an incident, and enter Username, Password, and Role.")
                 return
 
-        AppState.set_active_incident(incident_number)
-        AppState.set_active_user_id(user_id)
+        AppState.set_active_incident(incident_id)
+        AppState.set_active_user_id(person_id)
         AppState.set_active_user_role(role)
+
+        selected = next((item for item in self._incidents if item.incident_id == str(incident_id)), None)
+        incident_number = selected.number if selected is not None else str(incident_id)
 
         try:
             sid = start_session(
-                user_id,
-                username=self.username_edit.text().strip(),
-                display_name=self.username_edit.text().strip(),
+                person_id,
+                username=username,
+                display_name=username,
                 role=role,
-                incident_id=str(incident_number),
+                incident_id=str(incident_id),
                 mode="cloud",
             )
             write_audit("session.start", {"session_id": sid}, prefer_mission=False)
-            write_audit("login.success", {"role": role, "user_id": user_id}, prefer_mission=False)
-            write_audit("incident.select", {"number": incident_number})
+            write_audit("login.success", {"role": role, "user_id": person_id}, prefer_mission=False)
+            write_audit("incident.select", {"id": incident_id, "number": incident_number})
         except Exception:
             pass
 
-        self.sessionReady.emit(str(incident_number), user_id, role)
+        self.sessionReady.emit(str(incident_id), person_id, role)
         self.accept()
 
 

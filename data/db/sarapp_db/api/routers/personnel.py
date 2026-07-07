@@ -30,7 +30,7 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d.pop("_id", None)
     d["person_record"] = d.get("person_record")
     d["person_id"] = d.get("person_id") or ""
-    d["primary_role"] = d.get("primary_role") or d.get("role") or d.get("rank")
+    d["primary_role"] = d.get("primary_role") or d.get("role") or ""
     d["phone"] = d.get("phone")
     d["certifications"] = d.get("certifications") or []
     d["is_medic"] = bool(d.get("is_medic", False))

@@ -451,6 +451,7 @@ class _RecentReleasesPanel(QWidget):
 
 class PIOOverviewPanel(QWidget):
     navigate_to = Signal(str)
+    action_requested = Signal(str)
 
     def __init__(self, repo: PublicInformationRepository, parent=None):
         super().__init__(parent)
@@ -521,18 +522,18 @@ class PIOOverviewPanel(QWidget):
         bar.setSpacing(4)
         bar.setContentsMargins(0, 4, 0, 6)
         _actions = [
-            ("+ NEW RELEASE\nCreate Public Release",             "Messages / Releases", False),
-            ("≡ OPEN MEDIA LOG\nTrack Inquiries & Responses",    "Media Log",           False),
-            ("✎ DRAFT RESPONSE\nCreate Message / Statement",     "Messages / Releases", False),
-            ("✉ PUBLISH UPDATE\nSend to All Channels",           "Distribution Log",    True),
-            ("⊞ VIEW APPROVAL QUEUE\nReview & Approve Messages", "Messages / Releases", False),
+            ("+ NEW RELEASE\nCreate Public Release",             "new_release",        False),
+            ("≡ OPEN MEDIA LOG\nTrack Inquiries & Responses",    "media_log",          False),
+            ("✎ DRAFT RESPONSE\nCreate Release / Statement",     "draft_response",     False),
+            ("✉ PUBLISH UPDATE\nSend to All Channels",           "publish_update",     True),
+            ("⊞ VIEW APPROVAL QUEUE\nReview & Approve Releases", "approval_queue",     False),
         ]
-        for label, section, primary in _actions:
+        for label, action, primary in _actions:
             btn = QPushButton(label)
             btn.setStyleSheet(_ACTION_PRIMARY if primary else _ACTION_STYLE)
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             btn.setFixedHeight(58)
-            btn.clicked.connect(lambda _=False, s=section: self.navigate_to.emit(s))
+            btn.clicked.connect(lambda _=False, a=action: self.action_requested.emit(a))
             bar.addWidget(btn)
         root.addLayout(bar)
 

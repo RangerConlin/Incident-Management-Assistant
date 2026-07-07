@@ -6,6 +6,7 @@ from typing import Any, Optional
 from modules.public_information.services import PublicInformationRepository
 
 _pio_window = None
+_release_manager_window = None
 
 
 def open_pio_window(
@@ -54,6 +55,52 @@ def open_pio_window(
         _pio_window.activateWindow()
 
 
+def open_release_manager(
+    incident_id: Optional[str] = None,
+    current_user: Optional[dict[str, Any]] = None,
+    status_filter: Optional[str] = None,
+    parent=None,
+) -> None:
+    global _release_manager_window
+    from modules.public_information.panels.release_manager import ReleaseManagerWindow
+
+    try:
+        alive = _release_manager_window is not None and _release_manager_window.isVisible()
+    except RuntimeError:
+        alive = False
+        _release_manager_window = None
+
+    if not alive or getattr(_release_manager_window, "repo", None) is None or getattr(_release_manager_window.repo, "incident_id", None) != str(incident_id or "unassigned"):
+        _release_manager_window = ReleaseManagerWindow(
+            PublicInformationRepository(incident_id),
+            current_user,
+            parent,
+        )
+        _release_manager_window.show()
+
+    if _release_manager_window is not None:
+        if status_filter:
+            _release_manager_window.set_status_filter(status_filter)
+        _release_manager_window.refresh()
+        _release_manager_window.raise_()
+        _release_manager_window.activateWindow()
+
+
+def open_release_editor(
+    incident_id: Optional[str] = None,
+    current_user: Optional[dict[str, Any]] = None,
+    message: Optional[dict[str, Any]] = None,
+    defaults: Optional[dict[str, Any]] = None,
+    parent=None,
+) -> None:
+    from modules.public_information.dialogs.release_editor_dialog import ReleaseEditorDialog
+
+    repo = PublicInformationRepository(incident_id)
+    payload = dict(message or defaults or {})
+    dialog = ReleaseEditorDialog(repo, current_user, payload or None, parent)
+    dialog.exec()
+
+
 # ── legacy panel helpers (still used by main.py sub-menu items) ───────────────
 
 def get_public_information_panel(
@@ -62,6 +109,7 @@ def get_public_information_panel(
     parent=None,
 ):
     from modules.public_information.panels import PublicInformationDashboardPanel
+
     return PublicInformationDashboardPanel(incident_id, current_user, parent)
 
 
@@ -74,12 +122,14 @@ def get_public_info_panel(
 
 
 def get_media_releases_panel(incident_id: str | None = None, parent=None):
-    from modules.public_information.panels.message_manager import MessageManagerPanel
-    return MessageManagerPanel(PublicInformationRepository(incident_id), {}, parent)
+    from modules.public_information.panels.release_manager import ReleaseManagerPanel
+
+    return ReleaseManagerPanel(PublicInformationRepository(incident_id), {}, parent)
 
 
 def get_inquiries_panel(incident_id: str | None = None, parent=None):
     from modules.public_information.panels.simple_panels import MediaLogPanel
+
     return MediaLogPanel(PublicInformationRepository(incident_id), {}, parent)
 
 
@@ -90,4 +140,6 @@ __all__ = [
     "get_public_info_panel",
     "get_media_releases_panel",
     "get_inquiries_panel",
+    "open_release_manager",
+    "open_release_editor",
 ]

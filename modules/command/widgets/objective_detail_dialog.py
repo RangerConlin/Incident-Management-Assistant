@@ -36,6 +36,7 @@ from modules.command.models.objectives import (
     ObjectiveDetail,
 )
 from utils import incident_context
+from utils.styles import get_palette, subscribe_theme
 
 PRIORITY_COLORS = {
     "low": "#546e7a",
@@ -77,6 +78,7 @@ class ObjectiveDetailDialog(QDialog):
         self._detail: Optional[ObjectiveDetail] = None
         self._on_saved = on_saved
         self._detail_windows: list = []
+        self._field_labels: list = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -93,7 +95,18 @@ class ObjectiveDetailDialog(QDialog):
         self._build_narrative_tab()
         self._build_log_tab()
 
+        self._apply_styles()
+        subscribe_theme(self, lambda *_: self._apply_styles())
+
         self.adjustSize()
+
+    # ------------------------------------------------------------------
+    def _apply_styles(self) -> None:
+        pal = get_palette()
+        fg_muted = pal.get("fg_muted", pal["muted"]).name()
+        for label in self._field_labels:
+            label.setStyleSheet(f"color: {fg_muted}; font-weight: 600;")
+        self._updated_label.setStyleSheet(f"color: {fg_muted};")
 
     # ------------------------------------------------------------------
     def load_objective(self, objective_id: str) -> None:
@@ -127,7 +140,6 @@ class ObjectiveDetailDialog(QDialog):
         title_row.addStretch(1)
 
         self._updated_label = QLabel("–")
-        self._updated_label.setStyleSheet("color: palette(mid);")
         title_row.addWidget(self._updated_label)
         outer.addLayout(title_row)
 
@@ -175,10 +187,9 @@ class ObjectiveDetailDialog(QDialog):
         outer.addLayout(grid)
         return card
 
-    @staticmethod
-    def _field_label(text: str) -> QLabel:
+    def _field_label(self, text: str) -> QLabel:
         label = QLabel(text)
-        label.setStyleSheet("color: palette(mid); font-weight: 600;")
+        self._field_labels.append(label)
         return label
 
     def _build_action_bar(self) -> QWidget:

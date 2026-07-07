@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtGui import QBrush
 
 from modules.intel.models.intel_items import (
     IntelItem, ITEM_TYPES, PRIORITY_VALUES, CONFIDENCE_VALUES, TREND_VALUES,
@@ -17,6 +17,7 @@ from modules.intel.models.intel_items import (
 from modules.intel.models.leads import Lead
 from modules.intel.services.intel_service import IntelService
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import intel_item_status_colors, get_palette, subscribe_theme
 
 
 def _color_blob(hex_color: str, label: str) -> str:
@@ -40,26 +41,18 @@ def _source_label(item: IntelItem, leads_by_id: dict[str, Lead]) -> str:
         return latest.source_team
     return "—"
 
-_ROW_COLORS: dict[str, QColor] = {
-    "critical":   QColor(180, 40,  40,  130),
-    "high":       QColor(200, 120, 20,  110),
-    "worsening":  QColor(180, 80,  20,  110),
-    "improving":  QColor(40,  160, 80,  100),
-    "ruled_out":  QColor(100, 100, 100, 80),
-}
-
-
-def _row_color(item: IntelItem) -> QColor | None:
+def _row_color(item: IntelItem) -> QBrush | None:
+    colors = intel_item_status_colors()
     if (item.confidence or "").lower() == "ruled out":
-        return _ROW_COLORS["ruled_out"]
+        return colors["ruled_out"]["bg"]
     if (item.priority or "").lower() == "critical":
-        return _ROW_COLORS["critical"]
+        return colors["critical"]["bg"]
     if (item.trend or "").lower() == "worsening":
-        return _ROW_COLORS["worsening"]
+        return colors["worsening"]["bg"]
     if (item.priority or "").lower() == "high":
-        return _ROW_COLORS["high"]
+        return colors["high"]["bg"]
     if (item.trend or "").lower() == "improving":
-        return _ROW_COLORS["improving"]
+        return colors["improving"]["bg"]
     return None
 
 
@@ -122,7 +115,7 @@ class _NewItemDialog(QDialog):
     def _on_save(self) -> None:
         title = self._title.text().strip()
         if not title:
-            self._title.setStyleSheet("border: 1px solid #cf222e;")
+            self._title.setStyleSheet(f"border: 1px solid {get_palette()['error'].name()};")
             return
         self.item = IntelItem(
             id="", incident_id="",
@@ -203,21 +196,30 @@ class IntelItemsTab(QWidget):
         self._table.setSortingEnabled(True)
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
-        legend = QLabel(
+        self._legend = QLabel()
+        self._legend.setTextFormat(Qt.RichText)
+        self._legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
+        layout.addWidget(self._legend)
+        self._update_legend()
+
+        subscribe_theme(self, self._on_theme_changed)
+        self.refresh()
+
+    def _update_legend(self) -> None:
+        colors = intel_item_status_colors()
+        self._legend.setText(
             "  ".join([
-                _color_blob("#b42828", "Critical"),
-                _color_blob("#c87814", "High"),
-                _color_blob("#d0b000", "Medium"),
-                _color_blob("#1e50b4", "Low"),
-                _color_blob("#28a050", "Improving"),
-                _color_blob("#646464", "Archived"),
+                _color_blob(colors["critical"]["fg"].color().name(), "Critical"),
+                _color_blob(colors["high"]["fg"].color().name(), "High"),
+                _color_blob(colors["worsening"]["fg"].color().name(), "Worsening"),
+                _color_blob(colors["improving"]["fg"].color().name(), "Improving"),
+                _color_blob(colors["ruled_out"]["fg"].color().name(), "Ruled Out"),
             ])
         )
-        legend.setTextFormat(Qt.RichText)
-        legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
-        layout.addWidget(legend)
 
-        self.refresh()
+    def _on_theme_changed(self, *_: object) -> None:
+        self._update_legend()
+        self._render()
 
     def refresh(self) -> None:
         if self._service is None:
@@ -252,8 +254,7 @@ class IntelItemsTab(QWidget):
                 item.location_text or "",
                 item.updated_at[:16].replace("T", " ") if item.updated_at else "",
             ]
-            color = _row_color(item)
-            brush = QBrush(color) if color else None
+            brush = _row_color(item)
             for col, val in enumerate(cells):
                 ti = QTableWidgetItem(val)
                 if brush:

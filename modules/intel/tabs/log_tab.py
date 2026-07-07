@@ -8,11 +8,11 @@ from PySide6.QtWidgets import (
     QHeaderView, QAbstractItemView, QDateEdit,
 )
 from PySide6.QtCore import Qt, QDate, Signal
-from PySide6.QtGui import QColor, QBrush
 
 from modules.intel.models.log_entry import IntelLogEntry
 from modules.intel.services.intel_service import IntelService
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import intel_entity_colors, subscribe_theme
 
 
 def _color_blob(hex_color: str, label: str) -> str:
@@ -21,28 +21,6 @@ def _color_blob(hex_color: str, label: str) -> str:
         f'<span style="vertical-align: middle;">{label}</span>'
     )
 
-
-_ENTITY_ROW_BG: dict[str, QColor] = {
-    "subject":     QColor(180, 40,  40,  90),
-    "lead":        QColor(180, 140, 20,  80),
-    "item":        QColor(30,  100, 200, 80),
-    "assessment":  QColor(40,  160, 80,  70),
-    "observation": QColor(20,  140, 180, 70),
-    "attachment":  QColor(100, 60,  180, 70),
-    "report":      QColor(100, 100, 100, 60),
-    "form":        QColor(80,  120, 80,  60),
-}
-
-_ENTITY_FG: dict[str, str] = {
-    "subject":     "#cf4444",
-    "lead":        "#d29922",
-    "item":        "#4a9eff",
-    "assessment":  "#2da44e",
-    "observation": "#1ab0d0",
-    "attachment":  "#9b6fd4",
-    "report":      "#8b949e",
-    "form":        "#6da06d",
-}
 
 # Maps display label → (entity_type value, ...)
 _ENTITY_FILTER_ITEMS = [
@@ -168,19 +146,29 @@ class IntelLogTab(QWidget):
         self._table.setSortingEnabled(False)  # log is chronological, preserve order
         self._table.doubleClicked.connect(self._on_double_click)
         layout.addWidget(self._table)
-        legend = QLabel(
+        self._legend = QLabel()
+        self._legend.setTextFormat(Qt.RichText)
+        self._legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
+        layout.addWidget(self._legend)
+        self._update_legend()
+
+        subscribe_theme(self, self._on_theme_changed)
+        self.refresh()
+
+    def _update_legend(self) -> None:
+        colors = intel_entity_colors()
+        self._legend.setText(
             "  ".join([
-                _color_blob("#1e50b4", "Lead"),
-                _color_blob("#28a050", "Subject"),
-                _color_blob("#b42828", "Item"),
-                _color_blob("#646464", "Assessment"),
+                _color_blob(colors["lead"]["fg"].color().name(), "Lead"),
+                _color_blob(colors["subject"]["fg"].color().name(), "Subject"),
+                _color_blob(colors["item"]["fg"].color().name(), "Item"),
+                _color_blob(colors["assessment"]["fg"].color().name(), "Assessment"),
             ])
         )
-        legend.setTextFormat(Qt.RichText)
-        legend.setStyleSheet("font-size: 11px; color: palette(placeholderText);")
-        layout.addWidget(legend)
 
-        self.refresh()
+    def _on_theme_changed(self, *_: object) -> None:
+        self._update_legend()
+        self._render()
 
     def refresh(self) -> None:
         if self._service is None:
@@ -231,15 +219,15 @@ class IntelLogTab(QWidget):
                 e.summary or "",
                 e.actor or "",
             ]
-            bg = _ENTITY_ROW_BG.get(e.entity_type or "")
-            row_brush = QBrush(bg) if bg else None
-            fg = _ENTITY_FG.get(e.entity_type or "")
+            entity_colors = intel_entity_colors().get(e.entity_type or "")
+            row_brush = entity_colors["bg"] if entity_colors else None
+            fg_brush = entity_colors["fg"] if entity_colors else None
             for col, val in enumerate(cells):
                 item = QTableWidgetItem(val)
                 if row_brush:
                     item.setBackground(row_brush)
-                if fg and col == 2:
-                    item.setForeground(QColor(fg))
+                if fg_brush and col == 2:
+                    item.setForeground(fg_brush)
                 self._table.setItem(row, col, item)
             # Indicate navigable rows with a tooltip
             if e.entity_type in _NAVIGABLE_ENTITIES and e.entity_id:

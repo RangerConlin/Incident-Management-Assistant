@@ -15,6 +15,19 @@ from typing import Any
 
 import uvicorn
 
+if __package__ in (None, ""):
+    # Running as `python server_manager.py` from inside lan_server/ — put the
+    # repo root on sys.path so `lan_server.*`/`sarapp_db.*` imports resolve.
+    import _bootstrap
+
+    _bootstrap.ensure_repo_root_on_path()
+
+from lan_server.cloud_tunnel_client import (
+    CloudTunnelClient,
+    get_cloud_router_token,
+    get_cloud_router_url,
+    get_connect_code,
+)
 from lan_server.networking.discovery import DiscoveryBroadcaster
 from lan_server.networking.server_info import (
     DEFAULT_DISCOVERY_PORT,
@@ -44,9 +57,13 @@ class SARAppServerManager:
         version: str = SARAPP_VERSION,
         discovery_enabled: bool = True,
         discovery_port: int = DEFAULT_DISCOVERY_PORT,
+        cloud_router_url: str | None = None,
+        connect_code: str | None = None,
+        request_log_fn=None,
     ) -> None:
         self.host = host
         self.port = port
+        self._request_log_fn = request_log_fn
         self.discovery_enabled = discovery_enabled
         self.server_info = ServerInfo(
             server_id=server_id or _default_server_id(),
@@ -59,13 +76,24 @@ class SARAppServerManager:
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
         self._broadcaster = DiscoveryBroadcaster(self.server_info, port=discovery_port)
+        self._tunnel_client = CloudTunnelClient(
+            local_port=self.port,
+            server_id=self.server_info.server_id,
+            server_name=self.server_info.server_name,
+            cloud_router_url=cloud_router_url or get_cloud_router_url(),
+            token=get_cloud_router_token(),
+            connect_code=connect_code or get_connect_code(),
+        )
 
     def start(self) -> None:
         """Start the API server in a background thread and begin LAN discovery."""
         if self._thread and self._thread.is_alive():
             return
 
-        app = create_app(server_info_fn=self._server_info_payload)
+        app = create_app(
+            server_info_fn=self._server_info_payload,
+            request_log_fn=self._request_log_fn,
+        )
 
         config = uvicorn.Config(
             app,
@@ -104,10 +132,14 @@ class SARAppServerManager:
             self._broadcaster.server_info = self.server_info
             self._broadcaster.start()
 
+        self._tunnel_client.local_port = self.port
+        self._tunnel_client.start()
+
     def stop(self) -> None:
-        """Stop discovery then shut down the API server."""
+        """Stop discovery and the cloud tunnel, then shut down the API server."""
         self.server_info.status = ServerStatus.STOPPING
         self._broadcaster.stop()
+        self._tunnel_client.stop()
         if self._server is not None:
             self._server.should_exit = True
         if self._thread is not None:
@@ -122,6 +154,10 @@ class SARAppServerManager:
             "ok": self.server_info.status == ServerStatus.AVAILABLE,
             "server": self._server_info_payload(),
         }
+
+    @property
+    def tunnel_client(self) -> CloudTunnelClient:
+        return self._tunnel_client
 
 
 def main(argv: list[str] | None = None) -> int:

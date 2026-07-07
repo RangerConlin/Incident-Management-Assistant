@@ -15,7 +15,7 @@
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
 - No `backend/` directory. Files belong under the existing root/module structure such as `modules/`, `lan_server/`, `cloud_server/`, `server/`, or `data/` as appropriate.
-- `cloud_server/` is a duplicated copy of the LAN server implementation and is not a direct change target. Do not modify files under `cloud_server/`. Apply all server/API/database changes to the active LAN server source under `data/db/sarapp_db/` only.
+- `cloud_server/` is a stateless reverse-tunnel router, not a second backend. It has no MongoDB connection and runs no `sarapp_db` routers; LAN servers dial out to it and register under a connect code, and it forwards field-device HTTP/WebSocket traffic down that tunnel. The mirrored `cloud_server/sarapp_db/**` tree is unused legacy scaffolding (see `Design Documents/legacycode.md`) — new router code must not import it. Apply all incident/master router, schema, and database changes to the active LAN server source under `data/db/sarapp_db/` only; see `Design Documents/Instructions/cloud_router_architecture.md` for the router's own protocol and files.
 - Database framework belongs under `data/`, not `core/`.
 - Never create demo/fake data; only migrate or use data that already exists.
 - Do not add backward-compatibility shims, alias fields, or legacy fallback reads/writes in production code. If a data shape change needs help, use a one-time conversion/migration script to rewrite existing data into the new canonical format, then keep the app code on the canonical shape only.
@@ -23,6 +23,7 @@
 - `SARAPP_MONGO_URI` is never hardcoded; read it from the environment only.
 - All incident-database writes go through a `sarapp_db.mongo.repository.BaseRepository` subclass. Routers must never call `insert_one`/`update_one`/`delete_one` directly on a raw collection.
 - All tables must support user-resizable columns and show a clear outer border around the selected row; follow `Design Documents/Instructions/tabledesign.md` when creating or modifying tables.
+- Never hardcode colors (hex strings, `QColor(r, g, b[, a])`, etc.) in widget/panel code. Every color, including conditional/status row tints, badge chips, and legend swatches, must be defined in `styles/profiles/dark.py` and `styles/profiles/light.py` and consumed through an accessor in `styles/styles.py` (re-exported via `utils/styles.py`), following the existing `TEAM_STATUS`/`RESOURCE_STATUS`/`TASK_STATUS`/`INTEL_*` dict patterns. Widgets that recolor based on domain status must call `subscribe_theme` so they repaint on theme switch instead of only at construction time.
 
 ## Directory Orientation
 - `bridge/`: QObject bridges. Keep slots/signals friendly for widget bindings.
@@ -33,7 +34,7 @@
 - `data/db/sarapp_db/`: Installable MongoDB package with collection constants, indexes, database manager, and API routers.
 - `server/`: Built-in offline server runtime used by the desktop client.
 - `lan_server/`: Standalone LAN server runtime and console tooling.
-- `cloud_server/`: Headless cloud/server deployment runtime with its mirrored `sarapp_db` package tree.
+- `cloud_server/`: Headless cloud reverse-tunnel router (`cloud_server/router/`) plus an unused, retained-for-now mirrored `sarapp_db` package tree (see `Design Documents/legacycode.md`).
 
 ## Coding Defaults
 - Target Python 3.11.
@@ -41,7 +42,7 @@
 - Prefer PySide6 widgets for UI work and open panels through established factories so ADS behavior stays consistent.
 - UI code uses `utils/api_client.py`; do not add direct DB access to widgets or bridges.
 - The shared FastAPI surface is `data/db/sarapp_db/api/app.py`; keep architecture notes and new server-facing work aligned with that entry point.
-- When touching incident/master routers under `data/db/sarapp_db/api/routers/`, do NOT mirror changes to `cloud_server/`; the cloud server is synced from the LAN server prior to packaging.
+- When touching incident/master routers under `data/db/sarapp_db/api/routers/`, do NOT mirror changes to `cloud_server/`; the cloud router doesn't run those routers at all (see `Design Documents/Instructions/cloud_router_architecture.md`).
 
 ## Testing Expectations
 - Run or update relevant `pytest` coverage with each code change.
@@ -55,6 +56,7 @@
 - Database architecture and incident context: `Design Documents/Instructions/database_architecture.md`
 - API/router rules and mirroring requirements: `Design Documents/Instructions/api_router_rules.md`
 - Mongo cutover status snapshots: `Design Documents/Instructions/mongo_cutover_status.md`
+- IncidentCache/CatalogCache cutover status: `Design Documents/Instructions/cache_cutover_status.md`
 - Mongo schema decisions: `Design Documents/Instructions/mongodb_schema_decisions.md`
 - Desktop/UI patterns and runtime notes: `Design Documents/Instructions/ui_desktop_patterns.md`
 - Python coding standards: `Design Documents/Instructions/python_coding_standards.md`
@@ -62,6 +64,7 @@
 - Text encoding hygiene: `Design Documents/Instructions/text_encoding_hygiene.md`
 - Product structure, module inventory, and roadmap: `Design Documents/Instructions/product_structure.md`
 - Planned real-time architecture: `Design Documents/Instructions/realtime_architecture_roadmap.md`
+- Cloud router (reverse tunnel) architecture: `Design Documents/Instructions/cloud_router_architecture.md`
 
 ## Updating Instructions
 - `AGENTS.md` is the repo-wide entry point. Keep it short, stable, and limited to universal rules plus pointers to focused instruction docs.

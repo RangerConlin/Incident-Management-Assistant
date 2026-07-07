@@ -13,6 +13,7 @@ from typing import Any
 
 from lan_server.server_manager import SARAppServerManager
 
+from .api_traffic import ApiTrafficLog
 from .settings import ServerConsoleSettings
 
 
@@ -59,6 +60,19 @@ def fetch_health(base_url: str, *, timeout_seconds: float = 1.0) -> HealthCheckR
     return HealthCheckResult(status="Healthy" if payload.get("ok") and is_sarapp else "Error", ok=bool(payload.get("ok") and is_sarapp), payload=payload)
 
 
+def fetch_active_sessions(base_url: str, *, timeout_seconds: float = 1.0) -> list[dict[str, Any]]:
+    """List active client login sessions from the server's auth API.
+
+    Raises OSError-family/urllib errors on failure so callers can distinguish
+    "no clients" from "endpoint unreachable" (e.g. MongoDB down).
+    """
+
+    url = f"{base_url.rstrip('/')}/api/auth/sessions/active"
+    with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return payload if isinstance(payload, list) else []
+
+
 def check_port(settings: ServerConsoleSettings, *, timeout_seconds: float = 0.75) -> PortCheckResult:
     """Identify whether the configured port is free, SARApp, or another service."""
 
@@ -80,6 +94,8 @@ class ServerConsoleController:
         self.state = ConsoleServerState.STOPPED
         self.manager: SARAppServerManager | None = None
         self.last_error = ""
+        # One traffic log for the console's lifetime so restarts keep history.
+        self.traffic = ApiTrafficLog()
         self._lock = threading.Lock()
 
     def start(self) -> None:
@@ -99,6 +115,9 @@ class ServerConsoleController:
                 server_name=self.settings.server_name,
                 discovery_enabled=self.settings.discovery_enabled,
                 discovery_port=self.settings.discovery_port,
+                cloud_router_url=self.settings.cloud_router_url or None,
+                connect_code=self.settings.connect_code or None,
+                request_log_fn=self.traffic.record,
             )
             try:
                 self.manager.start()

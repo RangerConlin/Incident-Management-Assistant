@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QComboBox, QCompleter
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +47,14 @@ def make_org_combo(current_value: str = "") -> QComboBox:
     combo = QComboBox()
     combo.setEditable(True)
     combo.setInsertPolicy(QComboBox.NoInsert)
+    combo.setMaxVisibleItems(20)
     names = list_organization_names()
     combo.addItems(names)
+    completer = QCompleter(names, combo)
+    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchFlag.MatchContains)
+    completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+    combo.setCompleter(completer)
     current_value = (current_value or "").strip()
     if current_value:
         combo.setCurrentText(current_value)

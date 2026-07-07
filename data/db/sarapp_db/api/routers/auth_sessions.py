@@ -7,7 +7,7 @@ reuse the same records when password/token endpoints are added.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -21,9 +21,19 @@ router = APIRouter()
 
 _ACTIVE_STATUSES = {"online", "available", "busy", "away", "offline"}
 
+# Sessions whose last_seen_at is older than this are treated as abandoned
+# (client crashed or lost connectivity without a clean logout).  Clients
+# heartbeat every ~60s, so 5 minutes tolerates several missed beats.
+DEFAULT_ACTIVE_WITHIN_SECONDS = 300
+
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _cutoff_iso(seconds: int) -> str:
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=seconds)
+    return cutoff.isoformat(timespec="seconds")
 
 
 def _master_db():
@@ -73,14 +83,23 @@ def _find_person(identifier: Any) -> dict[str, Any] | None:
     return _personnel_col().find_one({"person_id": value})
 
 
+def _find_person_by_person_id(person_id: Any) -> dict[str, Any] | None:
+    if person_id is None:
+        return None
+    value = str(person_id).strip()
+    if not value:
+        return None
+    return _personnel_col().find_one({"person_id": value})
+
+
 def _resolve_person_record(body: dict[str, Any], existing_user: dict[str, Any] | None = None) -> int | None:
     explicit = body.get("person_record") or body.get("personnel_id") or (existing_user or {}).get("person_record")
     person = _find_person(explicit)
     if person:
         return int(person["person_record"]) if person.get("person_record") is not None else None
 
-    for candidate in (body.get("username"), body.get("user_id"), body.get("badge_number")):
-        person = _find_person(candidate)
+    for candidate in (body.get("username"), body.get("user_id")):
+        person = _find_person_by_person_id(candidate)
         if person and person.get("person_record") is not None:
             return int(person["person_record"])
     return None
@@ -117,11 +136,13 @@ def start_session(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     now = _utcnow()
     user_id = str(body.get("user_id") or username)
+    person_id = username
     existing_user = _users_col().find_one({"user_id": user_id}) or _users_col().find_one({"username": username})
     person_record = _resolve_person_record(body, existing_user)
     user_doc = {
         "user_id": user_id,
         "username": username,
+        "person_id": person_id,
         "display_name": body.get("display_name") or body.get("name") or username,
         "badge_number": body.get("badge_number") or username,
         "person_record": person_record,
@@ -137,6 +158,7 @@ def start_session(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         "session_id": str(uuid4()),
         "user_id": user_id,
         "username": username,
+        "person_id": person_id,
         "display_name": user_doc["display_name"],
         "person_record": person_record,
         "role": body.get("role") or "",
@@ -152,11 +174,29 @@ def start_session(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     return _session_response(session)
 
 
+def _sweep_abandoned_sessions(active_within_seconds: int) -> None:
+    """End sessions that stopped heartbeating without a clean logout.
+
+    Keeps /sessions/active honest after client crashes and cleans up historic
+    zombie records (ISO-8601 UTC strings compare correctly as text).
+    """
+
+    cutoff = _cutoff_iso(active_within_seconds)
+    now = _utcnow()
+    _sessions_col().update_many(
+        {"ended_at": None, "last_seen_at": {"$lt": cutoff}},
+        {"$set": {"status": "offline", "ended_at": now}},
+    )
+
+
 @router.get("/sessions/active")
 def list_active_sessions(
     incident_id: str | None = Query(None),
     include_offline: bool = Query(False),
+    active_within_seconds: int = Query(DEFAULT_ACTIVE_WITHIN_SECONDS, ge=0),
 ) -> list[dict[str, Any]]:
+    if active_within_seconds:
+        _sweep_abandoned_sessions(active_within_seconds)
     query: dict[str, Any] = {"ended_at": None}
     if incident_id:
         query["incident_id"] = incident_id
@@ -164,6 +204,19 @@ def list_active_sessions(
         query["status"] = {"$ne": "offline"}
     docs = list(_sessions_col().find(query).sort("last_seen_at", -1))
     return [_session_response(doc) for doc in docs]
+
+
+@router.post("/sessions/{session_id}/heartbeat")
+def heartbeat_session(session_id: str) -> dict[str, Any]:
+    """Refresh a session's last_seen_at so it stays out of the abandoned sweep."""
+
+    result = _sessions_col().update_one(
+        {"session_id": session_id, "ended_at": None},
+        {"$set": {"last_seen_at": _utcnow()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Active session not found")
+    return {"ok": True, "session_id": session_id}
 
 
 @router.patch("/sessions/{session_id}/status")

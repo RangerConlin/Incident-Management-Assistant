@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, List, Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -210,6 +210,10 @@ class CannedCommEntriesWindow(QMainWindow):
         self.setWindowTitle("Canned Communication Entries")
 
         self._entries: list[dict] = []
+        self._search_timer = QTimer(self)
+        self._search_timer.setInterval(250)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.timeout.connect(self.refresh_entries)
 
         central = QWidget(self)
         self.setCentralWidget(central)
@@ -257,14 +261,14 @@ class CannedCommEntriesWindow(QMainWindow):
         self.category_filter = QComboBox()
         self.category_filter.setMinimumWidth(140)
         self.category_filter.addItem("All")
-        self.category_filter.currentTextChanged.connect(lambda _: self.refresh_entries())
+        self.category_filter.currentTextChanged.connect(lambda _: self._populate_filtered_entries())
         toolbar.addWidget(self.category_filter)
 
         toolbar.addWidget(QLabel("Search:"))
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Filter by title or message…")
         self.search_input.setMinimumWidth(220)
-        self.search_input.textChanged.connect(self.refresh_entries)
+        self.search_input.textChanged.connect(lambda _: self._on_search_text_changed())
         toolbar.addWidget(self.search_input)
 
         layout.addLayout(toolbar)
@@ -357,10 +361,16 @@ class CannedCommEntriesWindow(QMainWindow):
             self.category_filter.setCurrentText(current_cat)
         self.category_filter.blockSignals(False)
 
+        self._populate_filtered_entries()
+
+    def _on_search_text_changed(self) -> None:
+        self._search_timer.start()
+
+    def _populate_filtered_entries(self) -> None:
         selected_cat = self.category_filter.currentText()
+        entries = list(self._entries)
         if selected_cat and selected_cat != "All":
             entries = [e for e in entries if (e.get("category") or "") == selected_cat]
-
         self._populate_table(entries)
 
     def _populate_table(self, entries: list[dict]) -> None:

@@ -281,6 +281,8 @@ class ICS211CheckInWindow(QWidget):
 
         self.team_checkin_btn = QPushButton("Open Team Check-In Confirmation")
         self.team_checkin_btn.clicked.connect(self._open_team_confirmation)
+        self.team_expected_btn = QPushButton("Mark Team Expected")
+        self.team_expected_btn.clicked.connect(lambda: self._set_team_planning("Expected"))
         self.team_enroute_btn = QPushButton("Mark Team Enroute")
         self.team_enroute_btn.clicked.connect(lambda: self._set_team_planning("Enroute"))
         layout.addWidget(self.team_checkin_btn)
@@ -731,12 +733,19 @@ class ICS211CheckInWindow(QWidget):
     def _set_team_planning(self, planning_status: str) -> None:
         team_id = self.team_combo.currentData()
         if team_id is None:
+            QMessageBox.information(self, "Team Planning", "Select a team first.")
+            return
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id:
+            QMessageBox.information(self, "Team Planning", "Open an incident before changing team status.")
             return
         try:
-            incident_id = incident_context.get_active_incident_id()
-            if incident_id:
-                api_client.patch(f"/api/incidents/{incident_id}/operations/teams/{team_id}", json={"status": planning_status})
+            api_client.patch(f"/api/incidents/{incident_id}/operations/teams/{team_id}", json={"status": planning_status})
             self._refresh_teams()
+            idx = self.team_combo.findData(team_id)
+            if idx >= 0:
+                self.team_combo.setCurrentIndex(idx)
+                self._update_team_preview()
         except Exception as exc:
             QMessageBox.warning(self, "Team Planning", str(exc))
 

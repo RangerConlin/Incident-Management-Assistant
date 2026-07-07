@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -33,6 +34,12 @@ class ServerConsoleSettings:
     port: int = DEFAULT_SERVER_PORT
     discovery_enabled: bool = True
     discovery_port: int = DEFAULT_DISCOVERY_PORT
+    # Cloud reverse-tunnel options.  Empty URL keeps tunneling disabled; an
+    # empty connect code lets the tunnel client auto-generate one.  The tunnel
+    # registration token stays env-only (SARAPP_CLOUD_ROUTER_TOKEN) and is
+    # deliberately never persisted here.
+    cloud_router_url: str = ""
+    connect_code: str = ""
 
     @property
     def health_host(self) -> str:
@@ -55,6 +62,8 @@ class ServerConsoleSettings:
             raise ValueError("Server name is required.")
         if not self.host.strip():
             raise ValueError("Host is required.")
+        validate_cloud_router_url(self.cloud_router_url)
+        validate_connect_code(self.connect_code)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize settings to a JSON-compatible dictionary."""
@@ -72,9 +81,34 @@ class ServerConsoleSettings:
             port=int(payload.get("port") or DEFAULT_SERVER_PORT),
             discovery_enabled=bool(payload.get("discovery_enabled", True)),
             discovery_port=int(payload.get("discovery_port") or DEFAULT_DISCOVERY_PORT),
+            cloud_router_url=str(payload.get("cloud_router_url") or "").strip(),
+            connect_code=str(payload.get("connect_code") or "").strip().upper(),
         )
         settings.validate()
         return settings
+
+
+_CONNECT_CODE_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9-]{2,31}$")
+
+
+def validate_cloud_router_url(value: str) -> str:
+    """Validate the optional cloud router tunnel-registration URL."""
+
+    url = value.strip()
+    if url and not url.startswith(("ws://", "wss://")):
+        raise ValueError("Cloud router URL must start with ws:// or wss://.")
+    return url
+
+
+def validate_connect_code(value: str) -> str:
+    """Validate the optional operator-chosen connect code (e.g. ABCD-1234)."""
+
+    code = value.strip().upper()
+    if code and not _CONNECT_CODE_PATTERN.match(code):
+        raise ValueError(
+            "Connect code must be 3-32 characters using letters, digits, and dashes."
+        )
+    return code
 
 
 def validate_port(value: int | str, *, field_name: str = "port") -> int:

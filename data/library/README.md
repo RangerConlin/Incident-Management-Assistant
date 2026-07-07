@@ -61,7 +61,7 @@ Several modules expose FastAPI routers backed by the same data layer. Routers ar
 
 - **Master vs incident scope.** `utils.context.master_db()` returns the persistent staff/equipment catalog, while `utils.context.require_incident_db()` opens the active incident database (set via `AppState.set_active_incident`).
 - **Active incident state.** `utils.state.AppState` is the UI/session source of truth. `AppState.set_active_incident()` synchronizes `utils.incident_context` and emits `app_signals.incidentChanged` for panels that need to refresh.
-- **Seeding objectives.** `scripts/seed_objectives.py` seeds example incident objectives if the table is empty, and `scripts/inspect_db.py` prints a summary of an incident database schema.
+- **Seeding objective templates.** `data/db/seed_objective_templates.py` seeds canonical SAR incident objective templates into `sarapp_master`, and `scripts/inspect_db.py` prints a summary of an incident database schema.
 - **Forms and templates.** Legacy templates live under `data/templates`, while profile-scoped templates live under `profiles/<id>/templates`. Use `modules/forms.FormRegistry` and `FormSession` for profile-aware export pipelines.
 - **Encoding hygiene.** Text files should remain UTF-8 without BOM and LF line endings. Run `python scripts/encoding_audit.py --summary` when touching imported docs, templates or generated text.
 

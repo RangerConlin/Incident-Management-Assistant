@@ -10,6 +10,10 @@ from PySide6.QtCore import Qt, QTimer, Signal
 
 from modules.intel.widgets.card_widget import CardWidget
 from modules.intel.services.intel_service import IntelService
+from utils.styles import (
+    intel_entity_colors, intel_priority_colors, intel_trend_colors,
+    intel_lead_status_colors, get_palette, subscribe_theme,
+)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -22,11 +26,15 @@ def _divider() -> QFrame:
 
 
 def _view_link(text: str) -> QPushButton:
+    from PySide6.QtGui import QColor
+
     btn = QPushButton(text)
     btn.setFlat(True)
+    base = intel_entity_colors()["item"]["fg"].color()
+    hover = QColor(base).lighter(130).name()
     btn.setStyleSheet(
-        "QPushButton { color: #4a9eff; font-size: 11px; text-align: left; padding: 0; }"
-        "QPushButton:hover { color: #79b8ff; text-decoration: underline; }"
+        f"QPushButton {{ color: {base.name()}; font-size: 11px; text-align: left; padding: 0; }}"
+        f"QPushButton:hover {{ color: {hover}; text-decoration: underline; }}"
     )
     btn.setCursor(Qt.PointingHandCursor)
     return btn
@@ -109,14 +117,6 @@ _ENTITY_ICONS = {
     "report": "📄",
 }
 
-_ENTITY_COLORS = {
-    "subject":    "#cf4444",
-    "lead":       "#d29922",
-    "item":       "#4a9eff",
-    "assessment": "#2da44e",
-    "report":     "#8b949e",
-}
-
 
 class _ActivityRow(QWidget):
     def __init__(self, entry: dict, parent: QWidget | None = None) -> None:
@@ -125,15 +125,22 @@ class _ActivityRow(QWidget):
         layout.setContentsMargins(0, 3, 0, 3)
         layout.setSpacing(8)
 
+        entity_colors = intel_entity_colors()
+        default_fg = entity_colors["report"]["fg"].color().name()
+
         ts = entry.get("timestamp", "")
         time_str = ts[11:16] if len(ts) >= 16 else ""
         time_lbl = QLabel(time_str)
-        time_lbl.setStyleSheet("color: #4a9eff; font-size: 11px; font-weight: 600; min-width: 38px;")
+        time_lbl.setStyleSheet(
+            f"color: {entity_colors['item']['fg'].color().name()}; font-size: 11px; font-weight: 600; min-width: 38px;"
+        )
         time_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         entity = entry.get("entity_type", "")
         icon_lbl = QLabel(_ENTITY_ICONS.get(entity, "•"))
-        icon_lbl.setStyleSheet(f"font-size: 13px; color: {_ENTITY_COLORS.get(entity, '#8b949e')};")
+        entry_colors = entity_colors.get(entity)
+        icon_color = entry_colors["fg"].color().name() if entry_colors else default_fg
+        icon_lbl.setStyleSheet(f"font-size: 13px; color: {icon_color};")
         icon_lbl.setFixedWidth(18)
         icon_lbl.setAlignment(Qt.AlignCenter)
 
@@ -148,18 +155,11 @@ class _ActivityRow(QWidget):
 
 # ── critical item row ─────────────────────────────────────────────────────────
 
-_PRIORITY_COLORS = {
-    "critical": ("#cf222e", "#3d1414"),
-    "high":     ("#d29922", "#3d2c08"),
-    "medium":   ("#338eda", "#0d2a42"),
-    "low":      ("#6e7781", "#1c2128"),
-}
-
-_TREND_LABELS = {
-    "worsening": ("Worsening", "#cf4444"),
-    "improving": ("Improving", "#2da44e"),
-    "stable":    ("Stable",    "#8b949e"),
-    "unknown":   ("Unknown",   "#8b949e"),
+_TREND_LABEL_TEXT = {
+    "worsening": "Worsening",
+    "improving": "Improving",
+    "stable":    "Stable",
+    "unknown":   "Unknown",
 }
 
 
@@ -183,8 +183,10 @@ class _CriticalItemRow(QWidget):
         info_col.addWidget(title_lbl)
         info_col.addWidget(type_lbl)
 
+        priority_colors = intel_priority_colors()
         priority = (item.get("priority") or "").lower()
-        fg, bg = _PRIORITY_COLORS.get(priority, ("#8b949e", "#1c2128"))
+        entry = priority_colors.get(priority, priority_colors["low"])
+        fg, bg = entry["fg"].color().name(), entry["bg"].color().name()
         chip = QLabel(priority.upper())
         chip.setStyleSheet(
             f"font-size: 10px; font-weight: 700; color: {fg}; background: {bg};"
@@ -199,8 +201,10 @@ class _CriticalItemRow(QWidget):
         time_lbl.setStyleSheet("font-size: 11px; color: palette(placeholderText); min-width: 38px;")
         time_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
+        trend_colors = intel_trend_colors()
         trend = (item.get("trend") or "unknown").lower()
-        trend_text, trend_color = _TREND_LABELS.get(trend, ("Unknown", "#8b949e"))
+        trend_text = _TREND_LABEL_TEXT.get(trend, "Unknown")
+        trend_color = trend_colors.get(trend, trend_colors["unknown"]).name()
         trend_lbl = QLabel(trend_text)
         trend_lbl.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {trend_color}; min-width: 60px;")
         trend_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -214,14 +218,6 @@ class _CriticalItemRow(QWidget):
 
 # ── lead snapshot row ─────────────────────────────────────────────────────────
 
-_LEAD_PRIORITY_COLORS = {
-    "critical": "#cf4444",
-    "high":     "#d29922",
-    "medium":   "#4a9eff",
-    "low":      "#8b949e",
-}
-
-
 class _LeadSnapshotRow(QWidget):
     def __init__(self, lead: dict, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -229,8 +225,9 @@ class _LeadSnapshotRow(QWidget):
         layout.setContentsMargins(0, 4, 0, 4)
         layout.setSpacing(8)
 
+        priority_colors = intel_priority_colors()
         priority = (lead.get("priority") or "").lower()
-        dot_color = _LEAD_PRIORITY_COLORS.get(priority, "#8b949e")
+        dot_color = priority_colors.get(priority, priority_colors["low"])["fg"].color().name()
         dot = QLabel("●")
         dot.setStyleSheet(f"font-size: 10px; color: {dot_color};")
         dot.setFixedWidth(14)
@@ -248,9 +245,14 @@ class _LeadSnapshotRow(QWidget):
         info_col.addWidget(title_lbl)
         info_col.addWidget(sub_lbl)
 
-        status = lead.get("status") or ""
-        status_color = "#d29922" if status.lower() == "new" else "#4a9eff" if status.lower() == "assigned" else "#8b949e"
-        status_lbl = QLabel(status)
+        lead_status_colors = intel_lead_status_colors()
+        status = (lead.get("status") or "").lower()
+        status_entry = lead_status_colors.get(status)
+        status_color = (
+            status_entry["fg"].color().name() if status_entry
+            else intel_entity_colors()["report"]["fg"].color().name()
+        )
+        status_lbl = QLabel(lead.get("status") or "")
         status_lbl.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {status_color};")
         status_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
@@ -292,10 +294,16 @@ class DashboardTab(QWidget):
         cards_row.setContentsMargins(0, 0, 0, 0)
         cards_row.setSpacing(10)
 
-        self._card_critical    = _SummaryCard("⚠️", "Critical Intel Items", "#cf222e", "View Items")
-        self._card_assessments = _SummaryCard("📋", "Open Assessments",     "#2da44e", "View Assessments")
-        self._card_worsening   = _SummaryCard("📉", "Worsening Trends",     "#d29922", "View Trends")
-        self._card_leads       = _SummaryCard("🔍", "Open Leads",           "#4a9eff", "View Leads")
+        priority_colors = intel_priority_colors()
+        entity_colors = intel_entity_colors()
+        self._card_critical    = _SummaryCard(
+            "⚠️", "Critical Intel Items", priority_colors["critical"]["fg"].color().name(), "View Items")
+        self._card_assessments = _SummaryCard(
+            "📋", "Open Assessments", entity_colors["assessment"]["fg"].color().name(), "View Assessments")
+        self._card_worsening   = _SummaryCard(
+            "📉", "Worsening Trends", priority_colors["high"]["fg"].color().name(), "View Trends")
+        self._card_leads       = _SummaryCard(
+            "🔍", "Open Leads", entity_colors["item"]["fg"].color().name(), "View Leads")
 
         self._card_critical.clicked_view.connect(lambda: self.navigate_to_tab.emit("items"))
         self._card_assessments.clicked_view.connect(lambda: self.navigate_to_tab.emit("assessments"))
@@ -381,6 +389,7 @@ class DashboardTab(QWidget):
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
 
+        subscribe_theme(self, lambda *_: self.refresh())
         self.refresh()
 
     # ── refresh ───────────────────────────────────────────────────────────────
@@ -390,18 +399,22 @@ class DashboardTab(QWidget):
             return
         data = self._service.get_dashboard()
 
+        priority_colors = intel_priority_colors()
+        entity_colors = intel_entity_colors()
+        zero_state = get_palette()["muted"].name()
+
         critical   = data.get("critical_items", 0)
         assessments = data.get("open_assessments", 0)
         worsening  = data.get("worsening_items", 0)
         leads      = data.get("open_leads", 0)
         self._card_critical.set_count(critical,
-            accent="#cf222e" if critical > 0 else "#6e7781")
+            accent=priority_colors["critical"]["fg"].color().name() if critical > 0 else zero_state)
         self._card_assessments.set_count(assessments,
-            accent="#2da44e" if assessments > 0 else "#6e7781")
+            accent=entity_colors["assessment"]["fg"].color().name() if assessments > 0 else zero_state)
         self._card_worsening.set_count(worsening,
-            accent="#d29922" if worsening > 0 else "#6e7781")
+            accent=priority_colors["high"]["fg"].color().name() if worsening > 0 else zero_state)
         self._card_leads.set_count(leads,
-            accent="#4a9eff" if leads > 0 else "#6e7781")
+            accent=entity_colors["item"]["fg"].color().name() if leads > 0 else zero_state)
 
         # Recent Activity
         self._clear_layout(self._activity_container)

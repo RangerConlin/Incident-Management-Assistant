@@ -1,6 +1,6 @@
 """SARApp connectivity framework."""
 
-from .connection_manager import ConnectionManager
+from .connection_manager import ConnectionManager, build_cloud_url
 from .discovery import DiscoveryBroadcaster, DiscoveryClient
 from .heartbeat import HeartbeatTracker
 from .local_server_controller import LocalServerController, LocalServerError, PortUnavailableError
@@ -29,4 +29,5 @@ __all__ = [
     "PortUnavailableError",
     "ServerInfo",
     "ServerStatus",
+    "build_cloud_url",
 ]

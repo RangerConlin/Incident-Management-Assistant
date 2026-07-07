@@ -27,6 +27,7 @@ def test_snapshot_and_live_broadcast_on_write():
         res = client.get(f"/api/incidents/{incident_id}/snapshot", params={"collections": "teams"})
         assert res.status_code == 200
         assert res.json()["collections"]["teams"] == []
+        assert res.json()["meta"]["collections"]["teams"]["loaded"] == 0
 
         with client.websocket_connect(f"/api/incidents/{incident_id}/ws") as ws:
             repo = _TeamsRepository(db)
@@ -49,5 +50,30 @@ def test_snapshot_and_live_broadcast_on_write():
 
         res2 = client.get(f"/api/incidents/{incident_id}/snapshot", params={"collections": "teams"})
         assert res2.json()["collections"]["teams"] == []  # soft-deleted, excluded from snapshot
+
+    db["teams"].delete_many({})
+
+
+def test_snapshot_reports_collection_truncation():
+    incident_id = "TESTCACHE_LIMITS"
+    db = get_incident_db(incident_id)
+    db["teams"].delete_many({})
+
+    repo = _TeamsRepository(db)
+    for index in range(3):
+        repo.insert_one({"name": f"Team {index + 1}"})
+
+    app = create_app()
+    with TestClient(app) as client:
+        res = client.get(
+            f"/api/incidents/{incident_id}/snapshot",
+            params={"collections": "teams", "max_collection_docs": 2},
+        )
+
+    payload = res.json()
+    assert res.status_code == 200
+    assert len(payload["collections"]["teams"]) == 2
+    assert payload["meta"]["collections"]["teams"]["total"] == 3
+    assert payload["meta"]["truncated"]["teams"]["reason"] == "collection document limit"
 
     db["teams"].delete_many({})

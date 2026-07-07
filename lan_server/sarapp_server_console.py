@@ -6,6 +6,10 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+import _bootstrap
+
+_bootstrap.ensure_repo_root_on_path()
+
 from server_console.console_window import ServerConsoleWindow
 
 

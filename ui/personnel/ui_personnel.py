@@ -16,8 +16,9 @@ Certification storage rule:
 """
 from __future__ import annotations
 
+import json
 import os
-import tempfile
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -36,8 +37,9 @@ from utils.edit_window_kit import (
 from utils.org_combo import make_org_combo
 
 
-_LEVEL_LABELS = ["None", "Trainee", "Qualified", "Evaluator"]
-_LEVEL_BY_LABEL = {label: i for i, label in enumerate(_LEVEL_LABELS)}
+_LEVEL_LABELS = ["Trainee", "Qualified", "Evaluator"]
+_LEVEL_VALUES = [1, 2, 3]
+_LEVEL_BY_LABEL = {label: value for label, value in zip(_LEVEL_LABELS, _LEVEL_VALUES)}
 STATE_CODES = [
     "", "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI",
     "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN",
@@ -52,6 +54,304 @@ def _clamp_level(value: Any) -> int:
         return max(0, min(3, int(value)))
     except (TypeError, ValueError):
         return 0
+
+
+def _level_label(level: Any) -> str:
+    clamped = _clamp_level(level)
+    if clamped <= 0:
+        clamped = 1
+    idx = clamped - 1
+    return _LEVEL_LABELS[idx] if 0 <= idx < len(_LEVEL_LABELS) else _LEVEL_LABELS[0]
+
+
+def _clean_text(value: Any) -> str:
+    return str(value).strip() if value not in (None, "") else ""
+
+
+def _bool_from_value(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value in (None, ""):
+        return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    return text in {"1", "true", "t", "yes", "y", "on"}
+
+
+def _format_certifications(
+    certs: Any,
+    catalog_by_id: dict[int, dict[str, Any]] | None = None,
+) -> str:
+    if not certs:
+        return ""
+    catalog_by_id = catalog_by_id or {}
+    parts: list[str] = []
+    for cert in certs:
+        if not isinstance(cert, dict):
+            continue
+        cert_type_id = cert.get("cert_type_id") or cert.get("id")
+        if cert_type_id in (None, ""):
+            continue
+        try:
+            cert_type_id_int = int(cert_type_id)
+        except (TypeError, ValueError):
+            continue
+        catalog_row = catalog_by_id.get(cert_type_id_int) or {}
+        code = _clean_text(catalog_row.get("code")) or str(cert_type_id_int)
+        level = _clamp_level(cert.get("level"))
+        parts.append(f"{code}:{level}")
+    return "; ".join(parts)
+
+
+def _parse_certifications(
+    value: Any,
+    catalog_by_code: dict[str, int] | None = None,
+) -> list[dict[str, int]]:
+    catalog_by_code = {k.upper(): v for k, v in (catalog_by_code or {}).items()}
+    if not value:
+        return []
+
+    raw_items: list[Any]
+    if isinstance(value, list):
+        raw_items = list(value)
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                parsed = None
+            else:
+                if isinstance(parsed, list):
+                    raw_items = parsed
+                    return _parse_certifications(raw_items, catalog_by_code)
+        raw_items = [part.strip() for part in re.split(r"[;\n|]+", text) if part.strip()]
+    else:
+        raw_items = [value]
+
+    rows: dict[int, dict[str, int]] = {}
+    for item in raw_items:
+        cert_type_id: int | None = None
+        level = 0
+
+        if isinstance(item, dict):
+            raw_cert = item.get("cert_type_id") or item.get("id") or item.get("code")
+            level = _clamp_level(item.get("level"))
+        else:
+            token = _clean_text(item)
+            if not token:
+                continue
+            if ":" in token:
+                raw_cert, level_text = token.split(":", 1)
+                level = _clamp_level(level_text)
+            elif "=" in token:
+                raw_cert, level_text = token.split("=", 1)
+                level = _clamp_level(level_text)
+            else:
+                raw_cert = token
+            raw_cert = _clean_text(raw_cert)
+
+        if isinstance(raw_cert, int):
+            cert_type_id = raw_cert
+        else:
+            raw_text = _clean_text(raw_cert)
+            if raw_text.isdigit():
+                cert_type_id = int(raw_text)
+            else:
+                cert_type_id = catalog_by_code.get(raw_text.upper())
+
+        if cert_type_id is None:
+            continue
+        rows[cert_type_id] = {
+            "cert_type_id": int(cert_type_id),
+            "level": level,
+        }
+
+    return sorted(rows.values(), key=lambda item: item["cert_type_id"])
+
+
+def _personnel_export_row(
+    doc: dict[str, Any],
+    catalog_by_id: dict[int, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    emergency = doc.get("emergency_info") or {}
+    contact = doc.get("contact_info") or {}
+    return {
+        "person_id": _clean_text(doc.get("person_id")),
+        "name": _clean_text(doc.get("name")),
+        "first_name": _clean_text(doc.get("first_name")),
+        "last_name": _clean_text(doc.get("last_name")),
+        "callsign": _clean_text(doc.get("callsign")),
+        "primary_role": _clean_text(doc.get("primary_role") or doc.get("role") or doc.get("title")),
+        "rank": _clean_text(doc.get("rank")),
+        "home_unit": _clean_text(doc.get("home_unit")),
+        "title": _clean_text(doc.get("title")),
+        "status": _clean_text(doc.get("status")) or "available",
+        "email": _clean_text(doc.get("email")),
+        "phone": _clean_text(doc.get("phone")),
+        "radio_id": _clean_text(doc.get("radio_id")),
+        "is_medic": "Yes" if _bool_from_value(doc.get("is_medic")) else "No",
+        "notes": _clean_text(doc.get("notes")),
+        "photo_url": _clean_text(doc.get("photo_url")),
+        "emergency_primary_name": _clean_text(emergency.get("primary_name")),
+        "emergency_primary_relationship": _clean_text(emergency.get("primary_relationship")),
+        "emergency_primary_phone": _clean_text(emergency.get("primary_phone")),
+        "emergency_secondary_name": _clean_text(emergency.get("secondary_name")),
+        "emergency_secondary_relationship": _clean_text(emergency.get("secondary_relationship")),
+        "emergency_secondary_phone": _clean_text(emergency.get("secondary_phone")),
+        "emergency_medical": _clean_text(emergency.get("medical")),
+        "emergency_blood_type": _clean_text(emergency.get("blood_type")),
+        "emergency_insurance": _clean_text(emergency.get("insurance")),
+        "contact_address1": _clean_text(contact.get("address1")),
+        "contact_address2": _clean_text(contact.get("address2")),
+        "contact_city": _clean_text(contact.get("city")),
+        "contact_state": _clean_text(contact.get("state")),
+        "contact_zip": _clean_text(contact.get("zip")),
+        "contact_work_phone": _clean_text(contact.get("work_phone")),
+        "contact_secondary_phone": _clean_text(contact.get("secondary_phone")),
+        "contact_pager_id": _clean_text(contact.get("pager_id")),
+        "contact_notes": _clean_text(contact.get("notes")),
+        "certifications": _format_certifications(doc.get("certifications"), catalog_by_id),
+    }
+
+
+def _build_personnel_import_payload(
+    row: dict[str, Any],
+    catalog_by_code: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    catalog_by_code = catalog_by_code or {}
+    name = _clean_text(row.get("name"))
+    first_name = _clean_text(row.get("first_name"))
+    last_name = _clean_text(row.get("last_name"))
+    if not name:
+        name = " ".join(part for part in (first_name, last_name) if part).strip()
+    if not name:
+        raise ValueError("Name is required.")
+
+    home_unit = _clean_text(row.get("home_unit"))
+    primary_role = _clean_text(row.get("primary_role"))
+    if not primary_role:
+        primary_role = _clean_text(row.get("role"))
+    if not primary_role:
+        primary_role = _clean_text(row.get("title"))
+
+    emergency = {
+        "primary_name": _clean_text(row.get("emergency_primary_name")),
+        "primary_relationship": _clean_text(row.get("emergency_primary_relationship")),
+        "primary_phone": _clean_text(row.get("emergency_primary_phone")),
+        "secondary_name": _clean_text(row.get("emergency_secondary_name")),
+        "secondary_relationship": _clean_text(row.get("emergency_secondary_relationship")),
+        "secondary_phone": _clean_text(row.get("emergency_secondary_phone")),
+        "medical": _clean_text(row.get("emergency_medical")),
+        "blood_type": _clean_text(row.get("emergency_blood_type")),
+        "insurance": _clean_text(row.get("emergency_insurance")),
+    }
+    emergency = {k: v for k, v in emergency.items() if v}
+
+    contact = {
+        "address1": _clean_text(row.get("contact_address1")),
+        "address2": _clean_text(row.get("contact_address2")),
+        "city": _clean_text(row.get("contact_city")),
+        "state": _clean_text(row.get("contact_state")),
+        "zip": _clean_text(row.get("contact_zip")),
+        "work_phone": _clean_text(row.get("contact_work_phone")),
+        "secondary_phone": _clean_text(row.get("contact_secondary_phone")),
+        "pager_id": _clean_text(row.get("contact_pager_id")),
+        "notes": _clean_text(row.get("contact_notes")),
+    }
+    contact = {k: v for k, v in contact.items() if v}
+
+    payload: dict[str, Any] = {
+        "person_id": _clean_text(row.get("person_id")),
+        "name": name,
+        "first_name": first_name,
+        "last_name": last_name,
+        "callsign": _clean_text(row.get("callsign")),
+        "primary_role": primary_role,
+        "rank": _clean_text(row.get("rank")),
+        "home_unit": home_unit,
+        "title": _clean_text(row.get("title")),
+        "status": _clean_text(row.get("status")) or "available",
+        "email": _clean_text(row.get("email")),
+        "phone": _clean_text(row.get("phone")),
+        "radio_id": _clean_text(row.get("radio_id")),
+        "is_medic": _bool_from_value(row.get("is_medic")),
+        "notes": _clean_text(row.get("notes")),
+        "photo_url": _clean_text(row.get("photo_url")),
+        "certifications": _parse_certifications(row.get("certifications"), catalog_by_code),
+    }
+    if first_name:
+        payload["first_name"] = first_name
+    if last_name:
+        payload["last_name"] = last_name
+    title = _clean_text(row.get("title"))
+    if title:
+        payload["title"] = title
+    if emergency:
+        payload["emergency_info"] = emergency
+    if contact:
+        payload["contact_info"] = contact
+    return payload
+
+
+def _default_export_directory() -> Path:
+    documents = QtCore.QStandardPaths.writableLocation(
+        QtCore.QStandardPaths.StandardLocation.DocumentsLocation
+    )
+    if documents:
+        return Path(documents)
+    return Path.home() / "Documents"
+
+
+def _list_master_organizations() -> list[dict[str, Any]]:
+    from modules.personnel.units_organizations.models.repository import UnitsOrganizationsRepository
+
+    return UnitsOrganizationsRepository().list_organizations(include_inactive=False)
+
+
+def _rank_display_text(rank_row: dict[str, Any]) -> str:
+    code = _clean_text(rank_row.get("rank_code"))
+    name = _clean_text(rank_row.get("rank_name") or rank_row.get("name"))
+    short = _clean_text(rank_row.get("short_display"))
+    if short:
+        return short
+    if code and name and code != name:
+        return f"{code} - {name}"
+    return name or code
+
+
+def _rank_value_text(rank_row: dict[str, Any]) -> str:
+    return _rank_display_text(rank_row)
+
+
+def _organization_rank_structure_id(org_row: dict[str, Any]) -> int | None:
+    value = org_row.get("effective_rank_structure_id")
+    if value is None:
+        value = org_row.get("default_rank_structure_id") or org_row.get("rank_structure_id")
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _rank_options_for_organization(org_name: str) -> list[dict[str, Any]]:
+    if not org_name.strip():
+        return []
+    rows = _list_master_organizations()
+    match = next((row for row in rows if str(row.get("name") or "").strip().lower() == org_name.strip().lower()), None)
+    if not match:
+        return []
+    structure_id = _organization_rank_structure_id(match)
+    if structure_id is None:
+        return []
+    from modules.personnel.units_organizations.models.repository import UnitsOrganizationsRepository
+
+    repo = UnitsOrganizationsRepository()
+    ranks = repo.list_ranks(structure_id)
+    return sorted(ranks, key=lambda row: (int(row.get("sort_order", 0) or 0), _clean_text(row.get("rank_code")), _clean_text(row.get("rank_name"))))
 
 
 # ----------------------------- UI: Personnel Table Model ----------------------
@@ -94,61 +394,82 @@ class _PersonnelTableModel(QtCore.QAbstractTableModel):
 
 
 # ----------------------------- Certification Dialogs --------------------------
+class _CertificationLevelDelegate(QtWidgets.QStyledItemDelegate):
+    def createEditor(self, parent, option, index):  # type: ignore[override]
+        combo = QtWidgets.QComboBox(parent)
+        combo.addItems(_LEVEL_LABELS)
+        return combo
+
+    def setEditorData(self, editor, index):  # type: ignore[override]
+        value = index.data(QtCore.Qt.ItemDataRole.UserRole)
+        if value is None:
+            value = index.data(QtCore.Qt.ItemDataRole.DisplayRole)
+        label = _level_label(value)
+        combo = editor
+        idx = combo.findText(label)
+        combo.setCurrentIndex(idx if idx >= 0 else 0)
+
+    def setModelData(self, editor, model, index):  # type: ignore[override]
+        combo = editor
+        label = combo.currentText().strip()
+        level = _LEVEL_BY_LABEL.get(label, 1)
+        model.setData(index, label, QtCore.Qt.ItemDataRole.DisplayRole)
+        model.setData(index, level, QtCore.Qt.ItemDataRole.UserRole)
+
+
 class _CertPickerDialog(QtWidgets.QDialog):
-    """Search the cert catalog, pick one certification, and set its level."""
+    """Pick multiple certifications and assign levels before importing them."""
 
     def __init__(self, catalog: list[dict[str, Any]], parent: Optional[QtWidgets.QWidget] = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Add Certification")
-        self.resize(760, 520)
+        self.setWindowTitle("Add Certifications")
+        self.resize(900, 560)
         self.setModal(True)
         self._all_certs = catalog
-        self._result: Optional[dict[str, Any]] = None
-
-        self.search_edit = QtWidgets.QLineEdit()
-        self.search_edit.setPlaceholderText("Search by code, name, category, organization, or tag...")
-
-        self.catalog_table = QtWidgets.QTableWidget(0, 4)
-        self.catalog_table.setHorizontalHeaderLabels(["Code", "Name", "Category", "Medical"])
-        self.catalog_table.horizontalHeader().setStretchLastSection(True)
-        self.catalog_table.setSelectionBehavior(QtWidgets.QTableWidget.SelectRows)
-        self.catalog_table.setSelectionMode(QtWidgets.QTableWidget.SingleSelection)
-        self.catalog_table.setEditTriggers(QtWidgets.QTableWidget.NoEditTriggers)
-        self.catalog_table.doubleClicked.connect(self._on_accept)
-
-        self.level_combo = QtWidgets.QComboBox()
-        self.level_combo.addItems(_LEVEL_LABELS)
-        self.level_combo.setCurrentIndex(2)
-
-        detail_form = QtWidgets.QFormLayout()
-        detail_form.addRow("Level:", self.level_combo)
-
-        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self._on_accept)
-        buttons.rejected.connect(self.reject)
+        self._selected: list[dict[str, Any]] = []
 
         layout = QtWidgets.QVBoxLayout(self)
+
         search_row = QtWidgets.QHBoxLayout()
         search_row.addWidget(QtWidgets.QLabel("Search:"))
+        self.search_edit = QtWidgets.QLineEdit()
+        self.search_edit.setPlaceholderText("Search by code, name, category, organization, or tag...")
         search_row.addWidget(self.search_edit, 1)
         layout.addLayout(search_row)
+
+        self.catalog_table = QtWidgets.QTableWidget(0, 4)
+        self.catalog_table.setHorizontalHeaderLabels(["Select", "Code", "Certification Name", "Level"])
+        self.catalog_table.verticalHeader().setVisible(False)
+        self.catalog_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.catalog_table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.catalog_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.catalog_table.horizontalHeader().setStretchLastSection(True)
+        self.catalog_table.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.catalog_table.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.catalog_table.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        self.catalog_table.horizontalHeader().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.catalog_table.setWordWrap(False)
         layout.addWidget(self.catalog_table, 1)
-        layout.addLayout(detail_form)
+
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setText("Import Selected")
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
         self.search_edit.textChanged.connect(self._filter)
         self._populate(self._all_certs)
 
     def _filter(self, text: str) -> None:
-        t = text.lower().strip()
+        needle = text.lower().strip()
         self._populate([
-            c for c in self._all_certs
-            if not t
-            or t in str(c.get("code") or "").lower()
-            or t in str(c.get("name") or "").lower()
-            or t in str(c.get("category") or "").lower()
-            or t in str(c.get("issuing_org") or "").lower()
-            or t in " ".join(str(tag) for tag in c.get("tags") or []).lower()
+            cert for cert in self._all_certs
+            if not needle
+            or needle in str(cert.get("code") or "").lower()
+            or needle in str(cert.get("name") or "").lower()
+            or needle in str(cert.get("category") or "").lower()
+            or needle in str(cert.get("issuing_org") or "").lower()
+            or needle in " ".join(str(tag) for tag in cert.get("tags") or []).lower()
         ])
 
     def _populate(self, certs: list[dict[str, Any]]) -> None:
@@ -156,70 +477,62 @@ class _CertPickerDialog(QtWidgets.QDialog):
         for cert in certs:
             row = self.catalog_table.rowCount()
             self.catalog_table.insertRow(row)
-            code_item = QtWidgets.QTableWidgetItem(cert.get("code") or "")
-            code_item.setData(QtCore.Qt.UserRole, cert)
-            self.catalog_table.setItem(row, 0, code_item)
-            self.catalog_table.setItem(row, 1, QtWidgets.QTableWidgetItem(cert.get("name") or ""))
-            self.catalog_table.setItem(row, 2, QtWidgets.QTableWidgetItem(cert.get("category") or ""))
-            self.catalog_table.setItem(row, 3, QtWidgets.QTableWidgetItem("Yes" if cert.get("is_medical") else ""))
+            cert_type_id = cert.get("cert_type_id") or cert.get("int_id") or cert.get("id")
+
+            check_item = QtWidgets.QTableWidgetItem()
+            check_item.setFlags(
+                QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsUserCheckable | QtCore.Qt.ItemFlag.ItemIsSelectable
+            )
+            check_item.setCheckState(QtCore.Qt.CheckState.Unchecked)
+            check_item.setData(QtCore.Qt.ItemDataRole.UserRole, cert)
+            self.catalog_table.setItem(row, 0, check_item)
+
+            code_item = QtWidgets.QTableWidgetItem(_clean_text(cert.get("code")))
+            code_item.setData(QtCore.Qt.ItemDataRole.UserRole, cert_type_id)
+            self.catalog_table.setItem(row, 1, code_item)
+
+            name_item = QtWidgets.QTableWidgetItem(_clean_text(cert.get("name")))
+            self.catalog_table.setItem(row, 2, name_item)
+
+            level_combo = QtWidgets.QComboBox()
+            level_combo.addItems(_LEVEL_LABELS)
+            level_combo.setCurrentIndex(0)
+            level_combo.currentIndexChanged.connect(lambda _idx, r=row: self._set_row_checked(r))
+            self.catalog_table.setCellWidget(row, 3, level_combo)
+
+    def _set_row_checked(self, row: int) -> None:
+        item = self.catalog_table.item(row, 0)
+        if item is not None and item.checkState() == QtCore.Qt.CheckState.Checked:
+            self.catalog_table.scrollToItem(item)
 
     def _on_accept(self) -> None:
-        row = self.catalog_table.currentRow()
-        if row < 0:
-            QtWidgets.QMessageBox.information(self, "Select Certification", "Pick a certification from the list.")
+        selected: list[dict[str, Any]] = []
+        for row in range(self.catalog_table.rowCount()):
+            item = self.catalog_table.item(row, 0)
+            if item is None or item.checkState() != QtCore.Qt.CheckState.Checked:
+                continue
+            cert = item.data(QtCore.Qt.ItemDataRole.UserRole) or {}
+            cert_type_id = cert.get("cert_type_id") or cert.get("int_id") or cert.get("id")
+            if cert_type_id is None:
+                continue
+            combo = self.catalog_table.cellWidget(row, 3)
+            level_text = combo.currentText().strip() if isinstance(combo, QtWidgets.QComboBox) else _LEVEL_LABELS[0]
+            selected.append({
+                "cert_type_id": int(cert_type_id),
+                "level": _LEVEL_BY_LABEL.get(level_text, 1),
+                "code": _clean_text(cert.get("code")),
+                "name": _clean_text(cert.get("name")),
+                "category": _clean_text(cert.get("category")),
+                "is_medical": bool(cert.get("is_medical")),
+            })
+        if not selected:
+            QtWidgets.QMessageBox.information(self, "Select Certifications", "Check at least one certification to import.")
             return
-        item = self.catalog_table.item(row, 0)
-        cert = item.data(QtCore.Qt.UserRole) if item else None
-        cert_type_id = cert.get("cert_type_id") or cert.get("int_id") or cert.get("id") if cert else None
-        if cert_type_id is None:
-            QtWidgets.QMessageBox.warning(self, "Invalid Certification", "Selected certification is missing a catalog ID.")
-            return
-        self._result = {
-            "cert_type_id": int(cert_type_id),
-            "level": _LEVEL_BY_LABEL.get(self.level_combo.currentText(), 0),
-        }
+        self._selected = selected
         self.accept()
 
-    def result_cert(self) -> Optional[dict[str, Any]]:
-        return self._result
-
-
-class _CertLevelDialog(QtWidgets.QDialog):
-    """Edit only the level for an existing personnel certification."""
-
-    def __init__(self, cert: dict[str, Any], catalog: dict[int, dict[str, Any]], parent: Optional[QtWidgets.QWidget] = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Edit Certification Level")
-        self.setModal(True)
-        self._cert = dict(cert)
-        cert_type_id = int(cert.get("cert_type_id") or 0)
-        catalog_row = catalog.get(cert_type_id, {})
-
-        name = catalog_row.get("name") or cert.get("name") or "Certification"
-        code = catalog_row.get("code") or cert.get("code") or str(cert_type_id)
-        name_label = QtWidgets.QLabel(f"<b>{code} - {name}</b>")
-
-        self.level_combo = QtWidgets.QComboBox()
-        self.level_combo.addItems(_LEVEL_LABELS)
-        self.level_combo.setCurrentIndex(_clamp_level(cert.get("level")))
-
-        form = QtWidgets.QFormLayout()
-        form.addRow(name_label)
-        form.addRow("Level:", self.level_combo)
-
-        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Save | QtWidgets.QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addWidget(buttons)
-
-    def updated_cert(self) -> dict[str, int]:
-        return {
-            "cert_type_id": int(self._cert.get("cert_type_id")),
-            "level": self.level_combo.currentIndex(),
-        }
+    def selected_certs(self) -> list[dict[str, Any]]:
+        return list(self._selected)
 
 
 # ----------------------------- UI: Detail Dialog ------------------------------
@@ -235,6 +548,13 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self._catalog: list[dict[str, Any]] = []
         self._catalog_by_id: dict[int, dict[str, Any]] = {}
         self._catalog_by_code: dict[str, dict[str, Any]] = {}
+        self._organization_rows: list[dict[str, Any]] = _list_master_organizations()
+        self._organization_by_name: dict[str, dict[str, Any]] = {
+            str(row.get("name") or "").strip().lower(): row
+            for row in self._organization_rows
+            if str(row.get("name") or "").strip()
+        }
+        self._rank_options_cache: dict[int, list[dict[str, Any]]] = {}
 
         self._load_catalog()
         basic_panel = self._build_basic_panel()
@@ -280,7 +600,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
                 self._catalog_by_code[code] = cert
 
     def _normalize_cert_rows(self, certs: list[dict[str, Any]]) -> list[dict[str, int]]:
-        rows: dict[int, dict[str, int]] = {}
+        rows: dict[int, dict[str, Any]] = {}
         for cert in certs or []:
             if not isinstance(cert, dict):
                 continue
@@ -292,22 +612,27 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
                 cert_type_id = int(cert_type_id)
             except (TypeError, ValueError):
                 continue
-            level = _clamp_level(cert.get("level"))
-            rows[cert_type_id] = {
+            level = max(1, _clamp_level(cert.get("level")))
+            existing = dict(rows.get(cert_type_id, {}))
+            existing.update({
                 "cert_type_id": cert_type_id,
-                "level": max(rows.get(cert_type_id, {}).get("level", 0), level),
-            }
+                "level": max(existing.get("level", 0), level),
+            })
+            for key in ("code", "name", "category", "is_medical"):
+                if cert.get(key) not in (None, ""):
+                    existing[key] = cert.get(key)
+            rows[cert_type_id] = existing
         return sorted(rows.values(), key=lambda c: c["cert_type_id"])
 
     def _cert_display(self, cert: dict[str, Any]) -> dict[str, Any]:
         cert_type_id = int(cert.get("cert_type_id") or 0)
         catalog_row = self._catalog_by_id.get(cert_type_id, {})
         return {
-            "code": catalog_row.get("code", str(cert_type_id)),
-            "name": catalog_row.get("name", ""),
-            "category": catalog_row.get("category", ""),
-            "is_medical": bool(catalog_row.get("is_medical")),
-            "level": _clamp_level(cert.get("level")),
+            "code": _clean_text(catalog_row.get("code") or cert.get("code") or str(cert_type_id)),
+            "name": _clean_text(catalog_row.get("name") or cert.get("name")),
+            "category": _clean_text(catalog_row.get("category") or cert.get("category")),
+            "is_medical": bool(catalog_row.get("is_medical") if catalog_row else cert.get("is_medical")),
+            "level": max(1, _clamp_level(cert.get("level"))),
         }
 
     def _minimal_certs_for_save(self) -> list[dict[str, int]]:
@@ -315,6 +640,143 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             {"cert_type_id": int(cert["cert_type_id"]), "level": _clamp_level(cert.get("level"))}
             for cert in self._normalize_cert_rows(self._local_certs)
         ]
+
+    def _sync_certs_from_table(self, *_args: Any) -> None:
+        certs: list[dict[str, Any]] = []
+        for row in range(self.tbl_certs.rowCount()):
+            code_item = self.tbl_certs.item(row, 0)
+            if code_item is None:
+                continue
+            cert = code_item.data(QtCore.Qt.ItemDataRole.UserRole) or {}
+            cert_type_id = cert.get("cert_type_id") or cert.get("int_id") or cert.get("id")
+            if cert_type_id is None:
+                continue
+            level_item = self.tbl_certs.item(row, 2)
+            level_text = level_item.text().strip() if level_item else ""
+            level = _LEVEL_BY_LABEL.get(level_text, 1)
+            try:
+                cert_type_id_int = int(cert_type_id)
+            except (TypeError, ValueError):
+                continue
+            cert_row = dict(cert)
+            cert_row["cert_type_id"] = cert_type_id_int
+            cert_row["level"] = level
+            certs.append(cert_row)
+        self._local_certs = self._normalize_cert_rows(certs)
+
+    def _set_rank_options(self, organization_name: str, current_rank: str = "") -> None:
+        current_rank = _clean_text(current_rank)
+        org_row = self._organization_by_name.get(organization_name.strip().lower()) if organization_name.strip() else None
+        if not org_row:
+            self.txt_rank.blockSignals(True)
+            self.txt_rank.clear()
+            if current_rank:
+                self.txt_rank.setCurrentText(current_rank)
+            else:
+                self.txt_rank.setCurrentIndex(-1)
+                self.txt_rank.clearEditText()
+            self.txt_rank.blockSignals(False)
+            return
+
+        structure_id = _organization_rank_structure_id(org_row)
+        if structure_id is None:
+            self.txt_rank.blockSignals(True)
+            self.txt_rank.clear()
+            if current_rank:
+                self.txt_rank.setCurrentText(current_rank)
+            else:
+                self.txt_rank.setCurrentIndex(-1)
+                self.txt_rank.clearEditText()
+            self.txt_rank.blockSignals(False)
+            return
+
+        ranks = self._rank_options_cache.get(structure_id)
+        if ranks is None:
+            from modules.personnel.units_organizations.models.repository import UnitsOrganizationsRepository
+
+            repo = UnitsOrganizationsRepository()
+            ranks = repo.list_ranks(structure_id)
+            self._rank_options_cache[structure_id] = ranks
+        self.txt_rank.blockSignals(True)
+        self.txt_rank.clear()
+        for rank in ranks:
+            display = _rank_display_text(rank)
+            if not display:
+                continue
+            self.txt_rank.addItem(display, display)
+        if current_rank and self.txt_rank.findText(current_rank) >= 0:
+            self.txt_rank.setCurrentText(current_rank)
+        elif current_rank:
+            self.txt_rank.setCurrentText(current_rank)
+        else:
+            self.txt_rank.setCurrentIndex(-1)
+            self.txt_rank.clearEditText()
+        self.txt_rank.blockSignals(False)
+
+    def _on_organization_changed(self, text: str) -> None:
+        if not text.strip():
+            self._set_rank_options("", self.txt_rank.currentText())
+            return
+        if text.strip().lower() in self._organization_by_name:
+            self._set_rank_options(text, self.txt_rank.currentText())
+
+    def _replace_certification_row(
+        self,
+        cert_type_id: int,
+        level: int,
+    ) -> None:
+        rows_to_remove: list[int] = []
+        for row in range(self.tbl_certs.rowCount()):
+            code_item = self.tbl_certs.item(row, 0)
+            if not code_item:
+                continue
+            cert = code_item.data(QtCore.Qt.ItemDataRole.UserRole) or {}
+            current_id = cert.get("cert_type_id") or cert.get("int_id") or cert.get("id")
+            if current_id is None:
+                continue
+            try:
+                if int(current_id) == int(cert_type_id):
+                    rows_to_remove.append(row)
+            except (TypeError, ValueError):
+                continue
+        for row in reversed(rows_to_remove):
+            self.tbl_certs.removeRow(row)
+
+        cert = next((row for row in self._catalog if int(row.get("cert_type_id") or row.get("int_id") or row.get("id") or -1) == int(cert_type_id)), None)
+        if cert is None:
+            cert = {
+                "cert_type_id": int(cert_type_id),
+                "code": f"Cert {cert_type_id}",
+                "name": "",
+                "category": "",
+                "is_medical": False,
+            }
+        row = self.tbl_certs.rowCount()
+        self.tbl_certs.insertRow(row)
+        code = _clean_text(cert.get("code"))
+        name = _clean_text(cert.get("name"))
+        code_item = QtWidgets.QTableWidgetItem(code)
+        code_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+        code_item.setData(QtCore.Qt.ItemDataRole.UserRole, cert)
+        self.tbl_certs.setItem(row, 0, code_item)
+
+        name_item = QtWidgets.QTableWidgetItem(name)
+        name_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+        self.tbl_certs.setItem(row, 1, name_item)
+
+        level_item = QtWidgets.QTableWidgetItem(_level_label(level))
+        level_item.setFlags(
+            QtCore.Qt.ItemFlag.ItemIsEnabled
+            | QtCore.Qt.ItemFlag.ItemIsSelectable
+            | QtCore.Qt.ItemFlag.ItemIsEditable
+        )
+        level_item.setData(QtCore.Qt.ItemDataRole.UserRole, _clamp_level(level) if _clamp_level(level) > 0 else 1)
+        self.tbl_certs.setItem(row, 2, level_item)
+        self._sync_certs_from_table()
+
+    def _selected_cert_row(self) -> int:
+        item = self.tbl_certs.currentItem()
+        return item.row() if item else -1
 
     # ----------------- Layout -----------------
     def _build_basic_panel(self) -> QtWidgets.QGroupBox:
@@ -327,8 +789,12 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_callsign = QtWidgets.QLineEdit()
         self.txt_role = QtWidgets.QLineEdit()
         self.txt_role.setPlaceholderText("e.g. Search Team Leader")
-        self.txt_rank = QtWidgets.QLineEdit()
+        self.txt_rank = QtWidgets.QComboBox()
+        self.txt_rank.setEditable(True)
+        self.txt_rank.setInsertPolicy(QtWidgets.QComboBox.InsertPolicy.NoInsert)
+        self.txt_rank.setMaxVisibleItems(20)
         self.txt_org = make_org_combo()
+        self.txt_org.editTextChanged.connect(self._on_organization_changed)
         self.txt_email = QtWidgets.QLineEdit()
         self.txt_phone = QtWidgets.QLineEdit()
         self.txt_notes = QtWidgets.QLineEdit()
@@ -426,12 +892,24 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(widget)
 
-        self.tbl_certs = QtWidgets.QTableWidget(0, 4)
-        self.tbl_certs.setHorizontalHeaderLabels(["Code", "Name", "Level", "Medical"])
-        self.tbl_certs.horizontalHeader().setStretchLastSection(True)
+        self.tbl_certs = QtWidgets.QTableWidget(0, 3)
+        self.tbl_certs.setHorizontalHeaderLabels(["Code", "Name", "Level"])
+        self.tbl_certs.verticalHeader().setVisible(False)
         self.tbl_certs.setSelectionBehavior(QtWidgets.QTableWidget.SelectRows)
         self.tbl_certs.setSelectionMode(QtWidgets.QTableWidget.SingleSelection)
-        self.tbl_certs.setEditTriggers(QtWidgets.QTableWidget.NoEditTriggers)
+        self.tbl_certs.setEditTriggers(
+            QtWidgets.QAbstractItemView.EditTrigger.DoubleClicked
+            | QtWidgets.QAbstractItemView.EditTrigger.EditKeyPressed
+            | QtWidgets.QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        self.tbl_certs.setSortingEnabled(True)
+        header = self.tbl_certs.horizontalHeader()
+        header.setSortIndicatorShown(True)
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        self.tbl_certs.setItemDelegateForColumn(2, _CertificationLevelDelegate(self.tbl_certs))
+        self.tbl_certs.itemChanged.connect(self._sync_certs_from_table)
 
         btns = QtWidgets.QHBoxLayout()
         self.btn_add_cert = QtWidgets.QPushButton("Add Certification")
@@ -467,8 +945,8 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_name.setText(doc.get("name") or "")
         self.txt_callsign.setText(doc.get("callsign") or "")
         self.txt_role.setText(doc.get("primary_role") or doc.get("role") or "")
-        self.txt_rank.setText(doc.get("rank") or "")
         self.txt_org.setCurrentText(doc.get("home_unit") or doc.get("organization") or "")
+        self._set_rank_options(self.txt_org.currentText(), doc.get("rank") or "")
         self.txt_email.setText(doc.get("email") or "")
         self.txt_phone.setText(doc.get("phone") or "")
         self.chk_medic.setChecked(bool(doc.get("is_medic")))
@@ -501,17 +979,35 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self._refresh_certs()
 
     def _refresh_certs(self) -> None:
+        self.tbl_certs.blockSignals(True)
         self.tbl_certs.setRowCount(0)
         self._local_certs = self._normalize_cert_rows(self._local_certs)
-        for i, cert in enumerate(self._local_certs):
+        for cert in self._local_certs:
             display = self._cert_display(cert)
             row = self.tbl_certs.rowCount()
             self.tbl_certs.insertRow(row)
-            self.tbl_certs.setItem(row, 0, QtWidgets.QTableWidgetItem(str(display["code"])))
-            self.tbl_certs.setItem(row, 1, QtWidgets.QTableWidgetItem(str(display["name"])))
-            self.tbl_certs.setItem(row, 2, QtWidgets.QTableWidgetItem(_LEVEL_LABELS[display["level"]]))
-            self.tbl_certs.setItem(row, 3, QtWidgets.QTableWidgetItem("Yes" if display["is_medical"] else ""))
-            self.tbl_certs.setVerticalHeaderItem(row, QtWidgets.QTableWidgetItem(str(i)))
+
+            code_item = QtWidgets.QTableWidgetItem(str(display["code"]))
+            code_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+            code_item.setData(QtCore.Qt.ItemDataRole.UserRole, dict(cert))
+            self.tbl_certs.setItem(row, 0, code_item)
+
+            name_item = QtWidgets.QTableWidgetItem(str(display["name"]))
+            name_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+            self.tbl_certs.setItem(row, 1, name_item)
+
+            level_item = QtWidgets.QTableWidgetItem(_level_label(display["level"]))
+            level_item.setFlags(
+                QtCore.Qt.ItemFlag.ItemIsEnabled
+                | QtCore.Qt.ItemFlag.ItemIsSelectable
+                | QtCore.Qt.ItemFlag.ItemIsEditable
+            )
+            level_item.setData(QtCore.Qt.ItemDataRole.UserRole, max(1, _clamp_level(display["level"])))
+            self.tbl_certs.setItem(row, 2, level_item)
+
+        self.tbl_certs.blockSignals(False)
+        self.tbl_certs.sortItems(0, QtCore.Qt.SortOrder.AscendingOrder)
+        self._sync_certs_from_table()
 
     # ----------------- Actions -----------------
     def _on_save(self) -> None:
@@ -524,7 +1020,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             "name": name,
             "callsign": self.txt_callsign.text().strip(),
             "primary_role": self.txt_role.text().strip(),
-            "rank": self.txt_rank.text().strip(),
+            "rank": self.txt_rank.currentText().strip(),
             "home_unit": self.txt_org.currentText().strip(),
             "email": self.txt_email.text().strip(),
             "phone": self.txt_phone.text().strip(),
@@ -582,41 +1078,67 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
     def _on_add_cert(self) -> None:
         dialog = _CertPickerDialog(self._catalog, parent=self)
         if dialog.exec() == QtWidgets.QDialog.Accepted:
-            cert = dialog.result_cert()
-            if cert:
-                self._local_certs = [c for c in self._local_certs if c["cert_type_id"] != cert["cert_type_id"]]
-                self._local_certs.append(cert)
-                self._refresh_certs()
+            for cert in dialog.selected_certs():
+                self._replace_certification_row(int(cert["cert_type_id"]), int(cert.get("level") or 1))
+            self.tbl_certs.sortItems(0, QtCore.Qt.SortOrder.AscendingOrder)
 
     def _on_edit_cert(self) -> None:
-        row = self.tbl_certs.currentRow()
-        if row < 0 or row >= len(self._local_certs):
+        row = self._selected_cert_row()
+        if row < 0:
             return
-        dialog = _CertLevelDialog(self._local_certs[row], self._catalog_by_id, parent=self)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
-            self._local_certs[row] = dialog.updated_cert()
-            self._refresh_certs()
+        item = self.tbl_certs.item(row, 2)
+        if item is None:
+            return
+        self.tbl_certs.setCurrentCell(row, 2)
+        self.tbl_certs.editItem(item)
 
     def _on_del_cert(self) -> None:
-        row = self.tbl_certs.currentRow()
-        if row < 0 or row >= len(self._local_certs):
+        row = self._selected_cert_row()
+        if row < 0:
             return
         if QtWidgets.QMessageBox.question(self, "Confirm", "Remove selected certification?") != QtWidgets.QMessageBox.Yes:
             return
-        self._local_certs.pop(row)
-        self._refresh_certs()
+        self.tbl_certs.removeRow(row)
+        self._sync_certs_from_table()
 
 
 # ----------------------------- UI: Inventory Window --------------------------
 PERSONNEL_FIELDS: list[FieldSpec] = [
+    FieldSpec("person_id", "Personnel ID"),
     FieldSpec("name", "Name", required=True),
+    FieldSpec("first_name", "First Name"),
+    FieldSpec("last_name", "Last Name"),
     FieldSpec("callsign", "Callsign"),
     FieldSpec("primary_role", "Role"),
     FieldSpec("rank", "Rank"),
     FieldSpec("home_unit", "Organization"),
+    FieldSpec("title", "Title"),
+    FieldSpec("status", "Status"),
     FieldSpec("email", "Email"),
     FieldSpec("phone", "Phone"),
+    FieldSpec("radio_id", "Radio ID"),
+    FieldSpec("is_medic", "Medic"),
     FieldSpec("notes", "Notes"),
+    FieldSpec("photo_url", "Photo URL"),
+    FieldSpec("emergency_primary_name", "Emergency Primary Name"),
+    FieldSpec("emergency_primary_relationship", "Emergency Primary Relationship"),
+    FieldSpec("emergency_primary_phone", "Emergency Primary Phone"),
+    FieldSpec("emergency_secondary_name", "Emergency Secondary Name"),
+    FieldSpec("emergency_secondary_relationship", "Emergency Secondary Relationship"),
+    FieldSpec("emergency_secondary_phone", "Emergency Secondary Phone"),
+    FieldSpec("emergency_medical", "Emergency Medical"),
+    FieldSpec("emergency_blood_type", "Emergency Blood Type"),
+    FieldSpec("emergency_insurance", "Emergency Insurance"),
+    FieldSpec("contact_address1", "Contact Address 1"),
+    FieldSpec("contact_address2", "Contact Address 2"),
+    FieldSpec("contact_city", "Contact City"),
+    FieldSpec("contact_state", "Contact State"),
+    FieldSpec("contact_zip", "Contact ZIP"),
+    FieldSpec("contact_work_phone", "Contact Work Phone"),
+    FieldSpec("contact_secondary_phone", "Contact Secondary Phone"),
+    FieldSpec("contact_pager_id", "Contact Pager / Radio ID"),
+    FieldSpec("contact_notes", "Contact Notes"),
+    FieldSpec("certifications", "Certifications"),
 ]
 _PERSONNEL_FIELD_LABELS = {spec.key: spec.label for spec in PERSONNEL_FIELDS}
 
@@ -896,9 +1418,17 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
 
     def _on_import(self) -> None:
         from utils.api_client import api_client
+        from modules.personnel.api.cert_api import list_catalog
+
+        catalog_by_code = {
+            str(cert.get("code") or "").strip().upper(): int(cert["id"])
+            for cert in list_catalog()
+            if cert.get("code") and cert.get("id") is not None
+        }
 
         def _import_row(payload: dict[str, Any]) -> Any:
-            return api_client.post("/api/master/personnel", json=payload)
+            doc = _build_personnel_import_payload(payload, catalog_by_code)
+            return api_client.post("/api/master/personnel", json=doc)
 
         wizard = ImportWizard(fields=PERSONNEL_FIELDS, import_row=_import_row, title="Import Personnel", parent=self)
         result = wizard.exec()
@@ -935,11 +1465,32 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         else:
             rows = list(self._all_records)
 
+        from modules.personnel.api.cert_api import list_catalog
+
+        catalog_by_id = {
+            int(cert["id"]): cert
+            for cert in list_catalog()
+            if cert.get("id") is not None
+        }
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        path = Path(tempfile.gettempdir()) / f"personnel-{scope}-{timestamp}.{file_format}"
+        suggested_name = f"personnel-{scope}-{timestamp}.{file_format}"
+        default_dir = _default_export_directory()
+        default_path = default_dir / suggested_name
+        file_filter = "CSV Files (*.csv);;Excel Workbook (*.xlsx);;All Files (*)"
+        path_text, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Export Personnel",
+            str(default_path),
+            file_filter,
+        )
+        if not path_text:
+            return
+        path = Path(path_text)
+        path = path.with_suffix(f".{file_format}")
 
         def _task() -> dict[str, Any]:
-            write_export_file(path, rows, fields, _PERSONNEL_FIELD_LABELS, file_format)
+            export_rows = [_personnel_export_row(row, catalog_by_id) for row in rows]
+            write_export_file(path, export_rows, fields, _PERSONNEL_FIELD_LABELS, file_format)
             return {"path": str(path), "count": len(rows)}
 
         self.export_button.setEnabled(False)

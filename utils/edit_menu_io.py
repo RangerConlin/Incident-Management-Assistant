@@ -450,25 +450,178 @@ class UnitsOrganizationsIO(_ApiIO):
     _list_endpoint = "/api/master/organizations"
     _create_endpoint = "/api/master/organizations"
     csv_fields = [
-        "name", "short_name", "org_type", "parent_name",
-        "address", "phone", "email", "notes",
+        "name",
+        "short_name",
+        "parent_name",
+        "parent_short_name",
+        "organization_type_name",
+        "rank_structure_name",
+        "is_active",
+        "external_id",
+        "callsign_prefix",
+        "sort_order",
+        "notes",
     ]
 
     def fetch_rows(self) -> list[dict[str, Any]]:
         rows = self._api().get(self._list_endpoint) or []
-        return [
-            {
-                "name": r.get("name", ""),
-                "short_name": r.get("short_name", ""),
-                "org_type": r.get("type") or r.get("org_type", ""),
-                "parent_name": r.get("parent_name", ""),
-                "address": r.get("address", ""),
-                "phone": r.get("phone", ""),
-                "email": r.get("email", ""),
-                "notes": r.get("notes", ""),
-            }
-            for r in rows
-        ]
+        by_id = {int(row["id"]): row for row in rows if row.get("id") is not None}
+        type_names = {
+            int(row["id"]): str(row.get("name", ""))
+            for row in (self._api().get("/api/master/types") or [])
+            if row.get("id") is not None
+        }
+        rank_structure_names = {
+            int(row["id"]): str(row.get("name", ""))
+            for row in (self._api().get("/api/master/rank-structures") or [])
+            if row.get("id") is not None
+        }
+        children_by_parent: dict[int | None, list[dict[str, Any]]] = {}
+        for row in rows:
+            parent_id = row.get("parent_organization_id")
+            children_by_parent.setdefault(parent_id, []).append(row)
+
+        def _sort_key(row: dict[str, Any]) -> tuple[int, str]:
+            return (int(row.get("sort_order", 0) or 0), str(row.get("name") or "").casefold())
+
+        for children in children_by_parent.values():
+            children.sort(key=_sort_key)
+
+        ordered_rows: list[dict[str, Any]] = []
+
+        def _walk(parent_id: int | None) -> None:
+            for row in children_by_parent.get(parent_id, []):
+                parent = by_id.get(row.get("parent_organization_id"))
+                ordered_rows.append(
+                    {
+                        "name": row.get("name", ""),
+                        "short_name": row.get("short_name", ""),
+                        "parent_name": parent.get("name", "") if parent else "",
+                        "parent_short_name": parent.get("short_name", "") if parent else "",
+                        "organization_type_name": type_names.get(int(row.get("organization_type_id") or 0), ""),
+                        "rank_structure_name": rank_structure_names.get(
+                            int(row.get("effective_rank_structure_id") or row.get("default_rank_structure_id") or 0),
+                            "",
+                        ),
+                        "is_active": 1 if row.get("is_active", 1) else 0,
+                        "external_id": row.get("external_id", "") or "",
+                        "callsign_prefix": row.get("callsign_prefix", "") or "",
+                        "sort_order": int(row.get("sort_order", 0) or 0),
+                        "notes": row.get("notes", "") or "",
+                    }
+                )
+                _walk(int(row["id"]))
+
+        _walk(None)
+        return ordered_rows
+
+    @staticmethod
+    def _name_key(name: str, short_name: str) -> str:
+        return f"{name.strip().casefold()}::{short_name.strip().casefold()}"
+
+    @staticmethod
+    def _to_int(value: Any) -> int | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        return int(text)
+
+    @staticmethod
+    def _to_bool_int(value: Any) -> int:
+        text = str(value).strip().casefold()
+        return 0 if text in {"0", "false", "no", "inactive"} else 1
+
+    def import_csv(self, path: Path) -> ImportResult:
+        with Path(path).open("r", newline="", encoding="utf-8-sig") as fh:
+            reader = csv.DictReader(fh)
+            if not reader.fieldnames:
+                return ImportResult(0, [], ["CSV file has no header row."])
+            rows = list(reader)
+
+        if not rows:
+            return ImportResult(0, [], [])
+
+        types = {
+            str(row.get("name", "")).strip().casefold(): int(row["id"])
+            for row in (self._api().get("/api/master/types") or [])
+            if row.get("id") is not None
+        }
+        rank_structures = {
+            str(row.get("name", "")).strip().casefold(): int(row["id"])
+            for row in (self._api().get("/api/master/rank-structures") or [])
+            if row.get("id") is not None
+        }
+
+        inserted = 0
+        skipped: list[str] = []
+        errors: list[str] = []
+        created_ids: dict[str, int] = {}
+        pending_parent_links: list[tuple[int, dict[str, str], int]] = []
+
+        for idx, raw in enumerate(rows, start=2):
+            try:
+                payload = self.map_csv_row(raw)
+                name = str(payload.get("name", "")).strip()
+                short_name = str(payload.get("short_name", "")).strip()
+                if not name:
+                    skipped.append(f"Row {idx}: missing name")
+                    continue
+
+                org_type_name = str(payload.get("organization_type_name", "")).strip()
+                org_type_id = types.get(org_type_name.casefold()) if org_type_name else None
+                if org_type_name and org_type_id is None:
+                    raise ValueError(f"Unknown organization type: {org_type_name}")
+
+                rank_name = str(payload.get("rank_structure_name", "")).strip()
+                rank_structure_id = rank_structures.get(rank_name.casefold()) if rank_name else None
+                if rank_name and rank_structure_id is None:
+                    raise ValueError(f"Unknown rank structure: {rank_name}")
+
+                create_payload: dict[str, Any] = {
+                    "name": name,
+                    "short_name": short_name,
+                    "organization_type_id": org_type_id,
+                    "default_rank_structure_id": rank_structure_id,
+                    "is_active": self._to_bool_int(payload.get("is_active", 1)),
+                    "notes": str(payload.get("notes", "")).strip(),
+                    "external_id": str(payload.get("external_id", "")).strip() or None,
+                    "callsign_prefix": str(payload.get("callsign_prefix", "")).strip() or None,
+                    "sort_order": self._to_int(payload.get("sort_order", 0)) or 0,
+                }
+
+                result = self._api().post(self._create_endpoint, json=create_payload) or {}
+                new_id = result.get("int_id")
+                if new_id is None:
+                    raise ValueError("Organization create endpoint did not return an id.")
+                inserted += 1
+                created_ids[self._name_key(name, short_name)] = int(new_id)
+                pending_parent_links.append((int(new_id), payload, idx))
+            except Exception as exc:
+                errors.append(f"Row {idx}: {exc}")
+
+        for org_id, payload, idx in pending_parent_links:
+            parent_name = str(payload.get("parent_name", "")).strip()
+            parent_short_name = str(payload.get("parent_short_name", "")).strip()
+            if not parent_name:
+                continue
+            parent_id = created_ids.get(self._name_key(parent_name, parent_short_name))
+            if parent_id is None:
+                errors.append(
+                    f"Row {idx}: unable to resolve parent '{parent_name}'"
+                    + (f" / '{parent_short_name}'" if parent_short_name else "")
+                )
+                continue
+            try:
+                self._api().patch(
+                    f"{self._create_endpoint}/{org_id}",
+                    json={"parent_organization_id": parent_id},
+                )
+            except Exception as exc:
+                errors.append(f"Row {idx}: {exc}")
+
+        return ImportResult(inserted, skipped, errors)
 
 
 # ---------------------------------------------------------------------------

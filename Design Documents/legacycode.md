@@ -122,6 +122,14 @@ Add entries below this line.
 - Status: ~~`legacy-compat-active`~~ **DELETED 2026-07-03**
 - `get_incident_engine()` and `with_incident_session()` had zero callers. `base.py` (3 lines, just `declarative_base()`) was only imported by `repository.py`. Both deleted.
 
+### cloud_server/sarapp_db/** — mirrored Mongo/router tree
+- Status: `legacy-compat-candidate`
+- Location: `cloud_server/sarapp_db/**` (routers, mongo client, schemas)
+- Purpose: was a full mirrored copy of `data/db/sarapp_db/` intended to let `cloud_server/` run as a second, self-hosted MongoDB-backed backend. `cloud_server/` was repurposed into a stateless reverse-tunnel router (see `Design Documents/Instructions/cloud_router_architecture.md`) that forwards field-device traffic to a LAN server instead of running its own backend, so this tree is no longer imported by anything under `cloud_server/router/`, `cloud_server/main.py`, or `cloud_server/server_manager.py`. Kept in place in case a future self-hosted cloud backend is wanted again.
+- Legacy Source: pre-router cloud-server design where `cloud_server/` mirrored the whole LAN server stack
+- Removal Condition: confirmed nothing imports `cloud_server.sarapp_db`, and the reverse-tunnel router model has been validated in production for a full incident deployment
+- Verification: grep for `cloud_server.sarapp_db` or `from sarapp_db` imports under `cloud_server/` outside of the mirrored tree itself
+
 ### app/modules/planning/iap/models/repository.py — IAP CRUD in SQLite
 - Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
 - SQLite removed. `IAPRepository` now calls `GET/PUT/DELETE /api/incidents/{id}/iap/packages`.

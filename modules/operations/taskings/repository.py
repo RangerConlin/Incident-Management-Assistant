@@ -41,6 +41,31 @@ def _client():
     return api_client
 
 
+def _cached_task_doc(task_id: int) -> Optional[Dict[str, Any]]:
+    """Return the active incident cache's task document when it is available."""
+    try:
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != _iid():
+            return None
+        for doc in incident_cache.get_all("tasks"):
+            try:
+                if int(doc.get("int_id") or 0) == int(task_id):
+                    return dict(doc)
+            except (TypeError, ValueError):
+                continue
+    except Exception:
+        return None
+    return None
+
+
+def _task_doc(task_id: int) -> Dict[str, Any]:
+    cached = _cached_task_doc(task_id)
+    if cached is not None:
+        return cached
+    return _client().get(f"{_base()}/tasks/{task_id}")
+
+
 def _priority_to_db(value: Any) -> int | None:
     if value is None:
         return None
@@ -91,10 +116,18 @@ def _team_status_from_tt(tt: dict) -> str:
 
 
 def get_task(task_id: int) -> Task:
-    doc = _client().get(f"{_base()}/tasks/{task_id}")
+    doc = _task_doc(task_id)
     priority = doc.get("priority", "")
     if isinstance(priority, int):
         priority = PRIORITY_MAP.get(priority, str(priority))
+    return _task_model_from_doc(doc, priority=priority)
+
+
+def _task_model_from_doc(doc: Dict[str, Any], *, priority: Any | None = None) -> Task:
+    if priority is None:
+        priority = doc.get("priority", "")
+        if isinstance(priority, int):
+            priority = PRIORITY_MAP.get(priority, str(priority))
     return Task(
         id=int(doc["int_id"]),
         task_id=doc.get("task_id") or f"T-{doc['int_id']}",
@@ -163,7 +196,23 @@ def _active_user_display() -> str:
 
 
 def list_task_teams(task_id: int) -> List[TaskTeam]:
-    rows = _client().get(f"{_base()}/tasks/{task_id}/teams")
+    cached = _cached_task_doc(task_id)
+    rows = None
+    if cached is not None:
+        rows = _task_team_rows_from_doc(cached, task_id)
+    if rows is None:
+        rows = _client().get(f"{_base()}/tasks/{task_id}/teams")
+    return _task_team_models(rows)
+
+
+def _task_team_rows_from_doc(doc: Dict[str, Any], task_id: int) -> List[Dict[str, Any]]:
+    return [
+        {"task_id": int(task_id), "team_id": tt.get("team_id"), **tt}
+        for tt in (doc.get("task_teams") or [])
+    ]
+
+
+def _task_team_models(rows: List[Dict[str, Any]]) -> List[TaskTeam]:
     out: List[TaskTeam] = []
     for r in rows:
         out.append(TaskTeam(
@@ -210,6 +259,9 @@ def list_task_aircraft(task_id: int) -> List[Dict[str, Any]]:
 
 
 def get_task_assignment(task_id: int) -> Dict[str, Any]:
+    cached = _cached_task_doc(task_id)
+    if cached is not None:
+        return dict(cached.get("task_assignment") or {})
     try:
         return _client().get(f"{_base()}/tasks/{task_id}/assignment")
     except Exception:
@@ -270,7 +322,7 @@ def _safe_text(value: Any) -> str:
 
 def _task_dict(task_id: int) -> dict[str, Any]:
     try:
-        return _client().get(f"{_base()}/tasks/{task_id}") or {}
+        return _task_doc(task_id) or {}
     except Exception:
         return {}
 
@@ -677,6 +729,16 @@ def list_audit_logs(
 ) -> List[Dict[str, Any]]:
     if task_id is None:
         return []
+    cached = _cached_task_doc(task_id)
+    if cached is not None:
+        rows = list(reversed(cached.get("audit") or []))[:limit]
+        return _filter_audit_rows(
+            rows,
+            search=search,
+            date_from=date_from,
+            date_to=date_to,
+            field_filter=field_filter,
+        )
     try:
         return _client().get(f"{_base()}/tasks/{task_id}/audit", params={"page_size": limit})
     except Exception:
@@ -838,6 +900,23 @@ def export_audit_as_214(
 
 
 def list_team_status_log(task_id: int) -> List[Dict[str, Any]]:
+    cached = _cached_task_doc(task_id)
+    if cached is not None:
+        return [
+            {
+                "tt_id": tt.get("id"),
+                "team_id": tt.get("team_id"),
+                "team_name": tt.get("team_name", ""),
+                "time_assigned": tt.get("time_assigned"),
+                "time_briefed": tt.get("time_briefed"),
+                "time_enroute": tt.get("time_enroute"),
+                "time_arrived": tt.get("time_arrived"),
+                "time_discovery": tt.get("time_discovery"),
+                "time_complete": tt.get("time_complete"),
+                "time_cleared": tt.get("time_cleared"),
+            }
+            for tt in (cached.get("task_teams") or [])
+        ]
     try:
         return _client().get(f"{_base()}/tasks/{task_id}/team-status-log")
     except Exception:
@@ -845,30 +924,15 @@ def list_team_status_log(task_id: int) -> List[Dict[str, Any]]:
 
 
 def get_task_detail(task_id: int) -> TaskDetail:
-    doc = _client().get(f"{_base()}/tasks/{task_id}")
+    doc = _task_doc(task_id)
     priority = doc.get("priority", "")
     if isinstance(priority, int):
         priority = PRIORITY_MAP.get(priority, str(priority))
-    task = Task(
-        id=int(doc["int_id"]),
-        task_id=doc.get("task_id") or f"T-{doc['int_id']}",
-        title=doc.get("title") or "",
-        description="",
-        category=doc.get("category") or "",
-        task_type=doc.get("task_type"),
-        priority=priority,
-        status=_task_status_to_key(doc.get("status")).title() if doc.get("status") else "",
-        location=doc.get("location") or "",
-        location_facility_id=doc.get("location_facility_id") or "",
-        created_by=doc.get("created_by") or "",
-        created_at=doc.get("created_at") or "",
-        assigned_to=None,
-        due_time=doc.get("due_time"),
-        assignment=doc.get("assignment") or "",
-        team_leader=doc.get("team_leader") or "",
-        team_phone=doc.get("team_phone") or "",
-    )
-    teams = list_task_teams(task.id)
+    task = _task_model_from_doc(doc, priority=priority)
+    if "task_teams" in doc:
+        teams = _task_team_models(_task_team_rows_from_doc(doc, task.id))
+    else:
+        teams = list_task_teams(task.id)
     return TaskDetail(task=task, teams=teams)
 
 

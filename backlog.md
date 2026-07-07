@@ -135,7 +135,8 @@ Expenses & Procurement
 Cost Summary
 
 **************************************************************************************************************
-[SAR Toolkit]
+[Personnel Edit Window]
+
 
 **************************************************************************************************************
 [Disaster Response Toolkit]
@@ -156,6 +157,10 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
+    - Optimization follow-up: profile Edit-menu windows and the task detail window to identify why modest datasets
+      are not opening faster; tie this to any decision about reusing/caching Edit windows.
+    - Sidebar: revisit large Edit-menu CSV import/export workflows with progress/cancel behavior and possible
+      bulk API endpoints if large catalog imports prove slow or freeze the UI.
     - Remove legacy checkins, check_in_out, checkin_history, and logistics_resource_status_items collections
       and their routers once resource_status is confirmed stable and all callers are migrated.
       See Design Documents/legacycode.md for removal conditions and verification steps.
@@ -164,3 +169,5 @@ Cost Summary
       when a person is removed from a position.
     - Remove CIStatus enum (modules/logistics/checkin/models.py) after all callers are confirmed
       migrated to RESOURCE_STATUSES from resource_status/models.py.
+  - Personnel export currently exports deep into the temporary folders - needs to export to documents by default and have a selctable export location
+    - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON. Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.

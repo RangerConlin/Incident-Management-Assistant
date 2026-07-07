@@ -23,6 +23,7 @@ def apply_merge_fields(text: str, message: dict[str, Any], template: dict[str, A
         "{release_subtitle}": message.get("subtitle", ""),
         "{release_body}": message.get("body", ""),
         "{next_update_time}": message.get("next_update_statement", ""),
+        "{boilerplate}": message.get("boilerplate", ""),
         "{public_summary}": message.get("body", "")[:500],
     }
     rendered = text or ""
@@ -42,14 +43,12 @@ def build_release_html(message: dict[str, Any] | None, template: dict[str, Any] 
         f"<h3>{escape(template.get('agency_name', '') or '')}</h3>" if template.get("agency_name") else "",
         f"<pre>{escape(header)}</pre>" if header else "",
         f"<p><strong>{escape(template.get('release_label', '') or message.get('type', ''))}</strong></p>",
-        f"<p>{escape(message.get('updated_at', ''))}</p>",
         f"<h1>{escape(message.get('title', ''))}</h1>",
         f"<h2>{escape(message.get('subtitle', ''))}</h2>" if message.get("subtitle") else "",
         f"<p><strong>{escape(message.get('dateline', ''))}</strong></p>" if message.get("dateline") else "",
         f"<div>{escape(message.get('body', '')).replace(chr(10), '<br>')}</div>",
-        f"<blockquote>{escape(message.get('quote_block', ''))}</blockquote>" if message.get("quote_block") else "",
-        f"<h3>Safety Instructions</h3><p>{escape(message.get('safety_instructions', ''))}</p>" if message.get("safety_instructions") else "",
         f"<p><strong>Next Update:</strong> {escape(message.get('next_update_statement', ''))}</p>" if message.get("next_update_statement") else "",
+        f"<pre>{escape(message.get('boilerplate', ''))}</pre>" if message.get("boilerplate") else "",
         f"<pre>{escape(contact)}</pre>" if contact else "",
         f"<pre>{escape(footer)}</pre>" if footer else "",
         f"<p><em>{escape(template.get('default_footer_disclaimer', '') or '')}</em></p>" if template.get("default_footer_disclaimer") else "",

@@ -96,7 +96,7 @@ TEAM_STATUS: Dict[str, Dict[str, str]] = {
     "break":            {"bg": "#6e2b75", "fg": "#f5f5f5"},
     "briefed":          {"bg": "#a88f1a", "fg": "#f5f5f5"},
     "crew rest":        {"bg": "#6e2b75", "fg": "#f5f5f5"},
-    "enroute":          {"bg": "#a88f1a", "fg": "#f5f5f5"},
+    "enroute":          {"bg": "#1aa8a8", "fg": "#f5f5f5"},
     "out of service":   {"bg": "#8c2f2f", "fg": "#f5f5f5"},
     "report writing":   {"bg": "#785b8f", "fg": "#f5f5f5"},
     "returning":        {"bg": "#1f6088", "fg": "#f5f5f5"},
@@ -108,13 +108,13 @@ TEAM_STATUS: Dict[str, Dict[str, str]] = {
 }
 
 RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
-    "Pending":        {"bg": "#4e3c00", "fg": "#ffe082"},
-    "Enroute":        {"bg": "#0d2a4a", "fg": "#90caf9"},
-    "Checked In":     {"bg": "#1b3a1f", "fg": "#a5d6a7"},
-    "Assigned":       {"bg": "#2a1a4e", "fg": "#ce93d8"},
-    "Available":      {"bg": "#003636", "fg": "#80cbc4"},
-    "Out of Service": {"bg": "#4a1200", "fg": "#ffab91"},
-    "Demobilized":    {"bg": "#1c2226", "fg": "#b0bec5"},
+    "Pending":        {"bg": "#4e3c00", "fg": "#dbdbdb"},
+    "Enroute":        {"bg": "#0d2a4a", "fg": "#dbdbdb"},
+    "Checked In":     {"bg": "#1b3a1f", "fg": "#dbdbdb"},
+    "Assigned":       {"bg": "#2a1a4e", "fg": "#dbdbdb"},
+    "Available":      {"bg": "#003636", "fg": "#dbdbdb"},
+    "Out of Service": {"bg": "#4a1200", "fg": "#dbdbdb"},
+    "Demobilized":    {"bg": "#1c2226", "fg": "#dbdbdb"},
 }
 
 TASK_STATUS: Dict[str, Dict[str, str]] = {
@@ -139,6 +139,68 @@ TEAM_TYPE_COLORS: Dict[str, str] = {
     "UTIL":     "#5a5a5a",
 }
 
+# Intel module — subject/assessment/item/lead row tints and entity/priority/
+# trend accents. "bg" is a semi-transparent row-tint overlay (ARGB hex);
+# "fg" is the solid accent used for legend dots and status text.
+INTEL_SUBJECT_STATUS: Dict[str, Dict[str, str]] = {
+    "missing":  {"bg": "#78b42828", "fg": "#b42828"},
+    "located":  {"bg": "#6428a050", "fg": "#28a050"},
+    "deceased": {"bg": "#5a646464", "fg": "#646464"},
+}
+
+INTEL_ASSESSMENT_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":       {"bg": "#6e1e50b4", "fg": "#1e50b4"},
+    "in progress": {"bg": "#641478c8", "fg": "#1478c8"},
+    "complete":    {"bg": "#6428a050", "fg": "#28a050"},
+    "archived":    {"bg": "#50646464", "fg": "#646464"},
+}
+
+INTEL_ITEM_STATUS: Dict[str, Dict[str, str]] = {
+    "critical":   {"bg": "#82b42828", "fg": "#b42828"},
+    "high":       {"bg": "#6ec87814", "fg": "#c87814"},
+    "worsening":  {"bg": "#6eb45014", "fg": "#b45014"},
+    "improving":  {"bg": "#6428a050", "fg": "#28a050"},
+    "ruled_out":  {"bg": "#50646464", "fg": "#646464"},
+}
+
+INTEL_LEAD_STATUS: Dict[str, Dict[str, str]] = {
+    "unassigned_high": {"bg": "#82b42828", "fg": "#b42828"},
+    "unassigned":      {"bg": "#6eb46414", "fg": "#b46414"},
+    "new":             {"bg": "#641e50b4", "fg": "#1e50b4"},
+    "assigned":        {"bg": "#5a1464a0", "fg": "#1464a0"},
+    "converted":       {"bg": "#6428a050", "fg": "#28a050"},
+    "closed":          {"bg": "#4b646464", "fg": "#646464"},
+}
+
+# Keyed by Intel log/dashboard entity_type. "fg" doubles as the icon/text
+# accent used on activity rows and legends.
+INTEL_ENTITY_COLORS: Dict[str, Dict[str, str]] = {
+    "subject":     {"bg": "#5ab42828", "fg": "#cf4444"},
+    "lead":        {"bg": "#50b48c14", "fg": "#d29922"},
+    "item":        {"bg": "#501e64c8", "fg": "#4a9eff"},
+    "assessment":  {"bg": "#4628a050", "fg": "#2da44e"},
+    "observation": {"bg": "#46148cb4", "fg": "#1ab0d0"},
+    "attachment":  {"bg": "#46643cb4", "fg": "#9b6fd4"},
+    "report":      {"bg": "#3c646464", "fg": "#8b949e"},
+    "form":        {"bg": "#3c507850", "fg": "#6da06d"},
+}
+
+# Opaque chip colors for the Intel dashboard's priority badges.
+INTEL_PRIORITY_COLORS: Dict[str, Dict[str, str]] = {
+    "critical": {"fg": "#cf222e", "bg": "#3d1414"},
+    "high":     {"fg": "#d29922", "bg": "#3d2c08"},
+    "medium":   {"fg": "#338eda", "bg": "#0d2a42"},
+    "low":      {"fg": "#6e7781", "bg": "#1c2128"},
+}
+
+# Flat trend accent used by the Intel dashboard's critical-item trend label.
+INTEL_TREND_COLORS: Dict[str, str] = {
+    "worsening": "#cf4444",
+    "improving": "#2da44e",
+    "stable":    "#8b949e",
+    "unknown":   "#8b949e",
+}
+
 __all__ = [
     "NAMED_COLORS",
     "PALETTE",
@@ -147,4 +209,11 @@ __all__ = [
     "TEAM_STATUS",
     "TASK_STATUS",
     "TEAM_TYPE_COLORS",
+    "INTEL_SUBJECT_STATUS",
+    "INTEL_ASSESSMENT_STATUS",
+    "INTEL_ITEM_STATUS",
+    "INTEL_LEAD_STATUS",
+    "INTEL_ENTITY_COLORS",
+    "INTEL_PRIORITY_COLORS",
+    "INTEL_TREND_COLORS",
 ]

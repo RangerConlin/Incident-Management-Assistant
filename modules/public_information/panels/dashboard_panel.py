@@ -6,8 +6,9 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QStackedWidget, QVBoxLayout, QWidget
 
-from modules.public_information.panels.message_manager import MessageManagerPanel
+from modules.public_information import open_release_editor, open_release_manager
 from modules.public_information.panels.overview_panel import PIOOverviewPanel
+from modules.public_information.panels.release_manager import ReleaseManagerPanel
 from modules.public_information.panels.simple_panels import (
     DistributionLogPanel,
     MediaLogPanel,
@@ -36,7 +37,7 @@ class PublicInformationDashboardPanel(QWidget):
         self._overview = PIOOverviewPanel(self.repo)
         self.sections: list[tuple[str, QWidget]] = [
             ("Overview", self._overview),
-            ("Messages / Releases", MessageManagerPanel(self.repo, self.current_user)),
+            ("Messages / Releases", ReleaseManagerPanel(self.repo, self.current_user)),
             ("Rumor / Misinformation", MisinformationPanel(self.repo)),
             ("Media Log", MediaLogPanel(self.repo, self.current_user)),
             ("Talking Points", TalkingPointsPanel(self.repo)),
@@ -51,6 +52,7 @@ class PublicInformationDashboardPanel(QWidget):
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.nav.currentRowChanged.connect(lambda _row: self._on_nav_change())
         self._overview.navigate_to.connect(self._navigate_by_name)
+        self._overview.action_requested.connect(self._handle_action_request)
         self.nav.setCurrentRow(0)
         body.addWidget(self.nav)
         body.addWidget(self.stack, 1)
@@ -68,6 +70,29 @@ class PublicInformationDashboardPanel(QWidget):
     def _on_nav_change(self) -> None:
         if self.nav.currentRow() == 0:
             self._overview.refresh()
+
+    def _handle_action_request(self, action: str) -> None:
+        match action:
+            case "new_release":
+                open_release_editor(self.repo.incident_id, self.current_user, parent=self)
+            case "draft_response":
+                open_release_editor(
+                    self.repo.incident_id,
+                    self.current_user,
+                    defaults={
+                        "status": "Draft",
+                        "type": "Holding Statement",
+                        "audience": "Media",
+                        "priority": "Normal",
+                    },
+                    parent=self,
+                )
+            case "approval_queue":
+                open_release_manager(self.repo.incident_id, self.current_user, "Pending Approval", parent=self)
+            case "publish_update":
+                self.nav.setCurrentRow(self._section_index["Distribution Log"])
+            case "media_log":
+                self.nav.setCurrentRow(self._section_index["Media Log"])
 
     def _integration_page(self) -> QWidget:
         page = QWidget()

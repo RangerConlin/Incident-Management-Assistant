@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.public_information import open_release_editor, open_release_manager
 from modules.public_information.panels.overview_panel import PIOOverviewPanel
 from modules.public_information.services import PublicInformationRepository
 
@@ -103,6 +104,7 @@ class PublicInformationWindow(QMainWindow):
         # ── overview panel ────────────────────────────────────────────────────
         self._overview = PIOOverviewPanel(self._repo)
         self._overview.navigate_to.connect(self._open_section)
+        self._overview.action_requested.connect(self._handle_action_request)
         root.addWidget(self._overview, 1)
 
     def _open_section(self, key: str) -> None:
@@ -127,7 +129,7 @@ class PublicInformationWindow(QMainWindow):
         win.show()
 
     def _build_panel(self, key: str) -> Optional[QWidget]:
-        from modules.public_information.panels.message_manager import MessageManagerPanel
+        from modules.public_information.panels.release_manager import ReleaseManagerPanel
         from modules.public_information.panels.simple_panels import (
             DistributionLogPanel,
             MediaLogPanel,
@@ -137,7 +139,7 @@ class PublicInformationWindow(QMainWindow):
         )
         match key:
             case "Messages / Releases":
-                return MessageManagerPanel(self._repo, self._current_user)
+                return ReleaseManagerPanel(self._repo, self._current_user)
             case "Rumor / Misinformation":
                 return MisinformationPanel(self._repo)
             case "Media Log":
@@ -159,3 +161,26 @@ class PublicInformationWindow(QMainWindow):
 
     def switch_to_section(self, key: str) -> None:
         self._open_section(key)
+
+    def _handle_action_request(self, action: str) -> None:
+        match action:
+            case "new_release":
+                open_release_editor(self._incident_id, self._current_user, parent=self)
+            case "draft_response":
+                open_release_editor(
+                    self._incident_id,
+                    self._current_user,
+                    defaults={
+                        "status": "Draft",
+                        "type": "Holding Statement",
+                        "audience": "Media",
+                        "priority": "Normal",
+                    },
+                    parent=self,
+                )
+            case "approval_queue":
+                open_release_manager(self._incident_id, self._current_user, "Pending Approval", parent=self)
+            case "publish_update":
+                self._open_section("Distribution Log")
+            case "media_log":
+                self._open_section("Media Log")

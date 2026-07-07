@@ -11,6 +11,13 @@ from .styles import (
     team_status_colors,
     task_status_colors,
     TEAM_TYPE_COLORS,
+    intel_subject_status_colors,
+    intel_assessment_status_colors,
+    intel_item_status_colors,
+    intel_lead_status_colors,
+    intel_entity_colors,
+    intel_priority_colors,
+    intel_trend_colors,
 )
 
 __all__ = [
@@ -24,4 +31,11 @@ __all__ = [
     'team_status_colors',
     'task_status_colors',
     'TEAM_TYPE_COLORS',
+    'intel_subject_status_colors',
+    'intel_assessment_status_colors',
+    'intel_item_status_colors',
+    'intel_lead_status_colors',
+    'intel_entity_colors',
+    'intel_priority_colors',
+    'intel_trend_colors',
 ]

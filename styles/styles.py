@@ -127,9 +127,13 @@ def _build_status(profile_module, attribute: str) -> Dict[str, Dict[str, QBrush]
     return mapping
 
 
-def _build_team_types(profile_module) -> Dict[str, QColor]:
-    data = getattr(profile_module, "TEAM_TYPE_COLORS", {})
+def _build_flat_colors(profile_module, attribute: str) -> Dict[str, QColor]:
+    data = getattr(profile_module, attribute, {})
     return {key: _ensure_qcolor(value) for key, value in data.items()}
+
+
+def _build_team_types(profile_module) -> Dict[str, QColor]:
+    return _build_flat_colors(profile_module, "TEAM_TYPE_COLORS")
 
 
 _LIGHT_PROFILE = load_profile("light")
@@ -146,6 +150,27 @@ _TEAM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "
 
 _RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "RESOURCE_STATUS")
 _RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "RESOURCE_STATUS")
+
+_INTEL_SUBJECT_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_SUBJECT_STATUS")
+_INTEL_SUBJECT_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_SUBJECT_STATUS")
+
+_INTEL_ASSESSMENT_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_ASSESSMENT_STATUS")
+_INTEL_ASSESSMENT_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_ASSESSMENT_STATUS")
+
+_INTEL_ITEM_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_ITEM_STATUS")
+_INTEL_ITEM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_ITEM_STATUS")
+
+_INTEL_LEAD_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_LEAD_STATUS")
+_INTEL_LEAD_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_LEAD_STATUS")
+
+_INTEL_ENTITY_COLORS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_ENTITY_COLORS")
+_INTEL_ENTITY_COLORS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_ENTITY_COLORS")
+
+_INTEL_PRIORITY_COLORS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_PRIORITY_COLORS")
+_INTEL_PRIORITY_COLORS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_PRIORITY_COLORS")
+
+_INTEL_TREND_COLORS_LIGHT: Dict[str, QColor] = _build_flat_colors(_LIGHT_PROFILE, "INTEL_TREND_COLORS")
+_INTEL_TREND_COLORS_DARK: Dict[str, QColor] = _build_flat_colors(_DARK_PROFILE, "INTEL_TREND_COLORS")
 
 _light_team_types = _build_team_types(_LIGHT_PROFILE)
 _dark_team_types = _build_team_types(_DARK_PROFILE)
@@ -204,6 +229,34 @@ def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def resource_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _RESOURCE_STATUS_LIGHT if THEME_NAME == "light" else _RESOURCE_STATUS_DARK
+
+
+def intel_subject_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _INTEL_SUBJECT_STATUS_LIGHT if THEME_NAME == "light" else _INTEL_SUBJECT_STATUS_DARK
+
+
+def intel_assessment_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _INTEL_ASSESSMENT_STATUS_LIGHT if THEME_NAME == "light" else _INTEL_ASSESSMENT_STATUS_DARK
+
+
+def intel_item_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _INTEL_ITEM_STATUS_LIGHT if THEME_NAME == "light" else _INTEL_ITEM_STATUS_DARK
+
+
+def intel_lead_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _INTEL_LEAD_STATUS_LIGHT if THEME_NAME == "light" else _INTEL_LEAD_STATUS_DARK
+
+
+def intel_entity_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _INTEL_ENTITY_COLORS_LIGHT if THEME_NAME == "light" else _INTEL_ENTITY_COLORS_DARK
+
+
+def intel_priority_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _INTEL_PRIORITY_COLORS_LIGHT if THEME_NAME == "light" else _INTEL_PRIORITY_COLORS_DARK
+
+
+def intel_trend_colors() -> Dict[str, QColor]:
+    return _INTEL_TREND_COLORS_LIGHT if THEME_NAME == "light" else _INTEL_TREND_COLORS_DARK
 
 
 def _qobject_is_valid(obj: object | None) -> bool:
@@ -283,4 +336,11 @@ __all__ = [
     "task_status_colors",
     "resource_status_colors",
     "TEAM_TYPE_COLORS",
+    "intel_subject_status_colors",
+    "intel_assessment_status_colors",
+    "intel_item_status_colors",
+    "intel_lead_status_colors",
+    "intel_entity_colors",
+    "intel_priority_colors",
+    "intel_trend_colors",
 ]
