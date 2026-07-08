@@ -22,16 +22,52 @@ class ApiFacilitiesRepository:
             raise RuntimeError("No active incident selected")
         return f"/api/incidents/{self.incident_id}/facilities"
 
+    def _cached_facility_docs(self) -> Optional[list[dict]]:
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != self.incident_id:
+            return None
+        return incident_cache.get_all("facilities")
+
+    def _cached_facility_doc(self, facility_id: str) -> Optional[dict]:
+        cached = self._cached_facility_docs()
+        if cached is None:
+            return None
+        for doc in cached:
+            if str(doc.get("_id")) == str(facility_id):
+                return dict(doc)
+        return None
+
+    @staticmethod
+    def _normalize_doc(doc: dict) -> dict:
+        return {**doc, "id": str(doc.get("id") or doc.get("_id") or "")}
+
     def list_facilities(
         self,
         *,
         facility_type: Optional[str] = None,
         status: Optional[str] = None,
     ) -> list[FacilityRecord]:
-        rows = api_client.get(self._base, params={"facility_type": facility_type, "status": status}) or []
+        cached = self._cached_facility_docs()
+        if cached is not None:
+            filtered = cached
+            if facility_type:
+                filtered = [d for d in filtered if d.get("facility_type") == facility_type]
+            if status:
+                filtered = [d for d in filtered if d.get("status") == status]
+            ordered = sorted(
+                filtered,
+                key=lambda d: (str(d.get("facility_type") or ""), str(d.get("name") or "")),
+            )
+            rows = [self._normalize_doc(d) for d in ordered]
+        else:
+            rows = api_client.get(self._base, params={"facility_type": facility_type, "status": status}) or []
         return [FacilityRecord.from_api(row) for row in rows]
 
     def get_facility(self, facility_id: str) -> FacilityRecord | None:
+        cached = self._cached_facility_doc(facility_id)
+        if cached is not None:
+            return FacilityRecord.from_api(self._normalize_doc(cached))
         try:
             row = api_client.get(f"{self._base}/{facility_id}")
         except Exception:

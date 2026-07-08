@@ -22,11 +22,26 @@ from ..models.resource_type_models import (
 
 ISO_TIMESTAMP = "%Y-%m-%dT%H:%M:%S"
 
+_CATALOG_TYPES = "resource_types"
+_CATALOG_CAPABILITIES = "resource_type_capabilities"
+
 
 def _now() -> str:
     """Return the timestamp format used by existing repository modules."""
 
     return datetime.now().strftime(ISO_TIMESTAMP)
+
+
+def _invalidate_resource_type_catalog() -> None:
+    """Call after any write that changes resource type documents."""
+    from utils.catalog_cache import catalog_cache
+    catalog_cache.invalidate(_CATALOG_TYPES)
+
+
+def _invalidate_capability_catalog() -> None:
+    """Call after any write that changes capability documents."""
+    from utils.catalog_cache import catalog_cache
+    catalog_cache.invalidate(_CATALOG_CAPABILITIES)
 
 
 class ApiResourceTypeRepository:
@@ -40,7 +55,6 @@ class ApiResourceTypeRepository:
         source: str = "All",
         active_filter: str = "Active",
     ) -> list[dict[str, Any]]:
-        from utils.api_client import api_client
         params: dict[str, Any] = {"active_filter": active_filter}
         if search_text:
             params["search_text"] = search_text
@@ -50,6 +64,15 @@ class ApiResourceTypeRepository:
             params["source"] = source
         if include_inactive:
             params["include_inactive"] = True
+
+        if not search_text:
+            # The library window's search box is live/debounced-as-you-type;
+            # only memoize the no-search "default view" load, not every
+            # keystroke's distinct query.
+            from utils.catalog_cache import catalog_cache
+            return catalog_cache.get(_CATALOG_TYPES, "/api/resource-types", params=params) or []
+
+        from utils.api_client import api_client
         return api_client.get("/api/resource-types", params=params) or []
 
     def search_resource_types(self, text: str, limit: int = 20) -> list[ResourceTypeSearchResult]:
@@ -73,10 +96,10 @@ class ApiResourceTypeRepository:
         ]
 
     def get_resource_type(self, resource_type_id: int) -> Optional[ResourceType]:
-        from utils.api_client import api_client
         from utils.api_client import APIError
+        from utils.catalog_cache import catalog_cache
         try:
-            doc = api_client.get(f"/api/resource-types/{resource_type_id}")
+            doc = catalog_cache.get(_CATALOG_TYPES, f"/api/resource-types/{resource_type_id}")
         except APIError as exc:
             if getattr(exc, "status_code", None) == 404:
                 return None
@@ -101,6 +124,7 @@ class ApiResourceTypeRepository:
             result = api_client.post("/api/resource-types", json=payload)
         else:
             result = api_client.put(f"/api/resource-types/{resource_type.id}", json=payload)
+        _invalidate_resource_type_catalog()
         return int(result["resource_type_id"])
 
     def replace_components(
@@ -111,10 +135,12 @@ class ApiResourceTypeRepository:
             f"/api/resource-types/{resource_type_id}/components",
             json={"components": [_component_to_dict(c) for c in components]},
         )
+        _invalidate_resource_type_catalog()
 
     def clone_resource_type(self, resource_type_id: int) -> int:
         from utils.api_client import api_client
         result = api_client.post(f"/api/resource-types/{resource_type_id}/clone")
+        _invalidate_resource_type_catalog()
         return int(result["resource_type_id"])
 
     def deactivate_resource_type(self, resource_type_id: int) -> None:
@@ -123,6 +149,7 @@ class ApiResourceTypeRepository:
             f"/api/resource-types/{resource_type_id}/active",
             json={"active": False},
         )
+        _invalidate_resource_type_catalog()
 
     def activate_resource_type(self, resource_type_id: int) -> None:
         from utils.api_client import api_client
@@ -130,6 +157,7 @@ class ApiResourceTypeRepository:
             f"/api/resource-types/{resource_type_id}/active",
             json={"active": True},
         )
+        _invalidate_resource_type_catalog()
 
     # Alias for windows that call set_resource_type_active directly
     def set_resource_type_active(self, resource_type_id: int, active: bool) -> None:
@@ -146,14 +174,14 @@ class ApiResourceTypeRepository:
         filters: Optional[dict[str, Any]] = None,
         include_inactive: bool = False,
     ) -> list[dict[str, Any]]:
-        from utils.api_client import api_client
+        from utils.catalog_cache import catalog_cache
         params: dict[str, Any] = {}
         if include_inactive:
             params["include_inactive"] = True
         f = filters or {}
         if f.get("category") and f["category"] != "All":
             params["category"] = f["category"]
-        return api_client.get("/api/resource-types/capabilities", params=params) or []
+        return catalog_cache.get(_CATALOG_CAPABILITIES, "/api/resource-types/capabilities", params=params) or []
 
     def get_capability(self, capability_id: int) -> Optional[dict[str, Any]]:
         caps = self.list_capabilities(include_inactive=True)
@@ -176,6 +204,7 @@ class ApiResourceTypeRepository:
         if capability.id is not None:
             payload["capability_id"] = str(capability.id)
         result = api_client.post("/api/resource-types/capabilities/save", json=payload)
+        _invalidate_capability_catalog()
         return int(result["id"])
 
     def deactivate_capability(self, capability_id: int) -> None:
@@ -184,6 +213,7 @@ class ApiResourceTypeRepository:
             f"/api/resource-types/capabilities/{capability_id}/active",
             json={"active": False},
         )
+        _invalidate_capability_catalog()
 
     def activate_capability(self, capability_id: int) -> None:
         from utils.api_client import api_client
@@ -191,6 +221,7 @@ class ApiResourceTypeRepository:
             f"/api/resource-types/capabilities/{capability_id}/active",
             json={"active": True},
         )
+        _invalidate_capability_catalog()
 
     def set_capability_active(self, capability_id: int, active: bool) -> None:
         if active:
@@ -217,6 +248,7 @@ class ApiResourceTypeRepository:
             payload = _resource_type_to_api_doc(rt)
             payload["capability_names"] = names
             api_client.put(f"/api/resource-types/{resource_type_id}", json=payload)
+            _invalidate_resource_type_catalog()
 
     # ------------------------------------------------------------------
     # Components (list / add / remove — used by component editor dialogs)
@@ -270,6 +302,7 @@ class ApiResourceTypeRepository:
         rt.aliases = aliases
         rt.id = resource_type_id
         api_client.put(f"/api/resource-types/{resource_type_id}", json=_resource_type_to_api_doc(rt))
+        _invalidate_resource_type_catalog()
 
     def replace_fema_mappings(
         self,
@@ -289,6 +322,7 @@ class ApiResourceTypeRepository:
         rt.fema_mappings = mappings
         rt.id = resource_type_id
         api_client.put(f"/api/resource-types/{resource_type_id}", json=_resource_type_to_api_doc(rt))
+        _invalidate_resource_type_catalog()
 
 
 def _to_int_id(id_str: str) -> Optional[int]:

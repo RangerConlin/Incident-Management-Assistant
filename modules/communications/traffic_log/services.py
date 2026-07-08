@@ -104,22 +104,27 @@ class CommsLogService:
     def list_channels(self) -> List[Dict[str, Any]]:
         """Return ICS-205 channels for the active incident, falling back to master list."""
         if self.repository.incident_id:
-            try:
-                from utils.api_client import api_client
-                plan = api_client.get(f"/api/incidents/{self.repository.incident_id}/channels-plan") or []
-                if plan:
-                    # Normalise to the same shape the entry widget expects
-                    return [
-                        {
-                            "id": ch.get("id"),
-                            "channel_name": ch.get("channel") or ch.get("channel_name") or "",
-                            "name": ch.get("channel") or "",
-                            "function": ch.get("function", ""),
-                        }
-                        for ch in plan
-                    ]
-            except Exception as exc:
-                logger.warning("Unable to fetch ICS-205 channel plan: %s", exc)
+            from modules.communications.channel_catalog import cached_channel_plan
+
+            plan = cached_channel_plan(self.repository.incident_id)
+            if plan is None:
+                try:
+                    from utils.api_client import api_client
+                    plan = api_client.get(f"/api/incidents/{self.repository.incident_id}/channels-plan") or []
+                except Exception as exc:
+                    logger.warning("Unable to fetch ICS-205 channel plan: %s", exc)
+                    plan = []
+            if plan:
+                # Normalise to the same shape the entry widget expects
+                return [
+                    {
+                        "id": ch.get("id"),
+                        "channel_name": ch.get("channel") or ch.get("channel_name") or "",
+                        "name": ch.get("channel") or "",
+                        "function": ch.get("function", ""),
+                    }
+                    for ch in plan
+                ]
         try:
             return self.master_repo.list_channels()
         except Exception as exc:

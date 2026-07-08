@@ -1062,6 +1062,7 @@ def list_task_comms(incident_id: str, task_id: int) -> list[dict]:
             "id": comm.get("id"),
             "incident_channel_id": ch_id,
             "channel_name": ch.get("channel", ""),
+            "channel_type": comm.get("channel_type") or "",
             "zone": ch.get("system", ""),
             "channel_number": ch.get("id"),
             "function": comm.get("function") or ch.get("function", ""),
@@ -1083,8 +1084,13 @@ def add_task_comm(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
         raise HTTPException(404)
     comms = task.get("comms") or []
     comm_id = (max((c.get("id") or 0) for c in comms) + 1) if comms else 1
-    comm = {"id": comm_id, "incident_channel_id": body.get("incident_channel_id"),
-            "function": body.get("function"), "remarks": body.get("remarks")}
+    comm = {
+        "id": comm_id,
+        "incident_channel_id": body.get("incident_channel_id"),
+        "channel_type": body.get("channel_type"),
+        "function": body.get("function"),
+        "remarks": body.get("remarks"),
+    }
     repo.apply_update(task["_id"], {"$push": {"comms": comm}})
     return {"id": comm_id, **comm}
 
@@ -1104,6 +1110,8 @@ def update_task_comm(incident_id: str, task_id: int, comm_id: int, body: dict[st
         updates[f"comms.{idx}.incident_channel_id"] = body["incident_channel_id"]
     if "function" in body:
         updates[f"comms.{idx}.function"] = body["function"]
+    if "channel_type" in body:
+        updates[f"comms.{idx}.channel_type"] = body["channel_type"]
     if updates:
         repo.update_one(task["_id"], updates)
     return {"ok": True}

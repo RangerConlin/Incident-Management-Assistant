@@ -238,6 +238,19 @@ class FormDataContext:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _person_organization(row: dict[str, Any]) -> str:
+        return str(row.get("organization") or row.get("home_unit") or row.get("agency") or "")
+
+    @classmethod
+    def _normalize_person_row(cls, row: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(row or {})
+        organization = cls._person_organization(normalized)
+        normalized["organization"] = organization
+        normalized["home_unit"] = organization
+        normalized["agency"] = organization
+        return normalized
+
     # ------------------------------------------------------------------
     # Incident
     # ------------------------------------------------------------------
@@ -377,7 +390,7 @@ class FormDataContext:
                 if prec is not None:
                     person = personnel_by_id.get(int(prec))
                     if person:
-                        agency = person.get("home_unit") or ""
+                        agency = self._person_organization(person)
                 result.append({"agency": agency, "name": row.get("display_name") or ""})
             return result
         except Exception:
@@ -385,7 +398,7 @@ class FormDataContext:
 
     def _personnel_by_id(self) -> dict[int, dict[str, Any]]:
         try:
-            rows = _get("/api/master/personnel") or []
+            rows = [self._normalize_person_row(r) for r in (_get("/api/master/personnel") or [])]
             return {int(r["person_record"]): r for r in rows if r.get("person_record") is not None}
         except Exception:
             return {}
@@ -1478,7 +1491,7 @@ class FormDataContext:
 
     def _build_personnel(self) -> list[dict[str, Any]]:
         try:
-            return _get("/api/master/personnel") or []
+            return [self._normalize_person_row(r) for r in (_get("/api/master/personnel") or [])]
         except Exception:
             return []
 

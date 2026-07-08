@@ -7,12 +7,9 @@ that used to live entirely server-side in
 `task-rows`). Boards read from this desk instead of polling those endpoints
 and instead of touching `incident_cache` directly.
 
-NOTE: as of this writing, `operations.py` does not yet broadcast changes to
-`teams`/`tasks` over the WebSocket (it predates `BaseRepository`), and those
-collections' documents lack the `deleted` field the snapshot endpoint filters
-on — so this desk will not see any team/task data, live or otherwise, until
-that router is retrofitted. The join logic here is written to be correct
-once that happens.
+`operations.py`'s `TasksRepository`/`TeamsRepository` are `BaseRepository`
+subclasses, so team/task writes broadcast over the WebSocket like any other
+collection and this desk sees them live via `_on_cache_changed`.
 """
 
 from __future__ import annotations

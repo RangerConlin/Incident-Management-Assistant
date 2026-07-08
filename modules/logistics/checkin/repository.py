@@ -288,15 +288,42 @@ def log_history(person_record: int, actor: str, event_type: str, payload: Dict) 
         pass
 
 
+def _cached_history_docs(incident_id: str, person_record: int) -> Optional[List[Dict]]:
+    """Return this person's check-in history from the incident cache, or
+    None if the cache can't answer for certain.
+
+    `checkin_history` is a heavy collection capped at a few hundred docs
+    incident-wide, so a single truncated/trimmed cache can silently be
+    missing this person's older entries even though *other* people's recent
+    entries pushed them out. Only trust the cache when it holds the
+    collection's complete contents; otherwise fall back to the server's
+    per-person query.
+    """
+    from utils.incident_cache import incident_cache
+
+    if incident_cache.incident_id != str(incident_id):
+        return None
+    if not incident_cache.is_collection_complete("checkin_history"):
+        return None
+    docs = [
+        doc for doc in incident_cache.get_all("checkin_history")
+        if doc.get("person_record") == person_record
+    ]
+    docs.sort(key=lambda d: str(d.get("ts") or ""), reverse=True)
+    return docs
+
+
 def list_history(person_record: int) -> List[HistoryItem]:
     from utils import incident_context
     incident_id = incident_context.get_active_incident_id()
     if not incident_id:
         return []
-    try:
-        docs = _client().get(f"{_incident_base(incident_id)}/history/{person_record}") or []
-    except Exception:
-        return []
+    docs = _cached_history_docs(incident_id, person_record)
+    if docs is None:
+        try:
+            docs = _client().get(f"{_incident_base(incident_id)}/history/{person_record}") or []
+        except Exception:
+            return []
     result = []
     for i, row in enumerate(docs):
         result.append(HistoryItem(

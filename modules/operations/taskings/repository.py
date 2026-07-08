@@ -235,19 +235,64 @@ def _task_team_models(rows: List[Dict[str, Any]]) -> List[TaskTeam]:
 
 
 def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
-    """Personnel list deferred until personnel module migrated."""
+    """Return task personnel plus personnel inherited from attached teams."""
+    rows: List[Dict[str, Any]] = []
     try:
-        return _client().get(f"{_base()}/tasks/{task_id}/personnel")
+        rows.extend(_client().get(f"{_base()}/tasks/{task_id}/personnel") or [])
     except Exception:
-        return []
+        pass
+    seen: set[str] = {str(r.get("id") or r.get("personnel_id") or r.get("name") or "") for r in rows}
+    for team in list_task_teams(task_id):
+        team_data = asdict(team) if is_dataclass(team) else dict(team)
+        team_id = team_data.get("team_id") or team_data.get("id")
+        if team_id in (None, ""):
+            continue
+        for person in fetch_team_personnel(int(team_id)):
+            key = str(person.get("id") or person.get("name") or "")
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            rows.append({
+                "active": True,
+                "id": person.get("id"),
+                "name": person.get("name") or person.get("identifier") or person.get("callsign") or "",
+                "rank": person.get("rank") or "",
+                "role": person.get("role") or "",
+                "organization": person.get("organization") or person.get("agency") or person.get("home_unit") or "",
+                "phone": person.get("phone") or "",
+                "team_name": team_data.get("team_name") or "",
+            })
+    return rows
 
 
 def list_task_vehicles(task_id: int) -> List[Dict[str, Any]]:
-    """Vehicles list deferred until vehicle module migrated."""
+    """Return task vehicles plus vehicles inherited from attached teams."""
+    rows: List[Dict[str, Any]] = []
     try:
-        return _client().get(f"{_base()}/tasks/{task_id}/vehicles")
+        rows.extend(_client().get(f"{_base()}/tasks/{task_id}/vehicles") or [])
     except Exception:
-        return []
+        pass
+    seen: set[str] = {str(r.get("id") or r.get("vehicle_id") or r.get("license_plate") or "") for r in rows}
+    for team in list_task_teams(task_id):
+        team_data = asdict(team) if is_dataclass(team) else dict(team)
+        team_id = team_data.get("team_id") or team_data.get("id")
+        if team_id in (None, ""):
+            continue
+        for vehicle in fetch_team_vehicles(int(team_id)):
+            key = str(vehicle.get("id") or vehicle.get("name") or vehicle.get("callsign") or "")
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            rows.append({
+                "active": True,
+                "id": vehicle.get("id"),
+                "license_plate": vehicle.get("license_plate") or vehicle.get("plate") or vehicle.get("callsign") or "",
+                "type": vehicle.get("type") or vehicle.get("name") or "",
+                "organization": vehicle.get("organization") or team_data.get("team_name") or "",
+            })
+    return rows
 
 
 def list_task_aircraft(task_id: int) -> List[Dict[str, Any]]:
@@ -344,6 +389,46 @@ def _build_pod_matrix(selected: Any) -> dict[str, str]:
     }
 
 
+def _sar104_channel_sort_key(row: dict[str, Any]) -> tuple[int, str]:
+    channel_type = _safe_text(row.get("channel_type")).lower()
+    function = _safe_text(row.get("function")).lower()
+    label = f"{channel_type} {function}"
+    if "command" in label or "primary" in label:
+        group = 0
+    elif "tactical" in label or "tac" in label:
+        group = 1
+    else:
+        group = 2
+    return (group, _safe_text(row.get("channel_name") or row.get("name") or row.get("channel")))
+
+
+def _task_channels_for_forms(task_id: int) -> list[dict[str, Any]]:
+    rows = list_task_comms(task_id) or []
+    rows = sorted(rows, key=_sar104_channel_sort_key)
+    channels: list[dict[str, Any]] = []
+    for row in rows:
+        name = _safe_text(row.get("channel_name") or row.get("name") or row.get("channel"))
+        rx_freq = _safe_text(row.get("rx_frequency") or row.get("rx_freq") or row.get("frequency"))
+        tx_freq = _safe_text(row.get("tx_frequency") or row.get("tx_freq"))
+        function = _safe_text(row.get("function") or row.get("channel_type"))
+        channels.append({
+            "id": row.get("incident_channel_id") or row.get("id") or "",
+            "channel_id": row.get("channel_id") or "",
+            "channel": name,
+            "name": name,
+            "function": function,
+            "channel_type": _safe_text(row.get("channel_type")),
+            "rx_freq": rx_freq,
+            "tx_freq": tx_freq,
+            "rx_tone": _safe_text(row.get("rx_tone")),
+            "tx_tone": _safe_text(row.get("tx_tone")),
+            "mode": _safe_text(row.get("mode")),
+            "remarks": _safe_text(row.get("remarks")),
+            "assignment": _safe_text(row.get("assignment")),
+        })
+    return channels
+
+
 def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]] = None) -> dict[str, Any]:
     task_doc = _task_dict(task_id)
     assignment = get_task_assignment(task_id) or {}
@@ -388,22 +473,40 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
             team_id = None
 
     full_team = get_team(team_id) if team_id is not None else None
-    full_team_dict = asdict(full_team) if full_team else {}
+    if is_dataclass(full_team):
+        full_team_dict = asdict(full_team)
+    elif isinstance(full_team, dict):
+        full_team_dict = dict(full_team)
+    else:
+        full_team_dict = {}
 
     resource_type_repo = ApiResourceAssignmentRepository()
     resource_type_id = full_team_dict.get("resource_type_id") if full_team_dict else None
-    resource_type_name = resource_type_repo.get_resource_type_name(resource_type_id)
+    resource_type_name = resource_type_repo.get_resource_type_name(resource_type_id) if resource_type_id else ""
 
     personnel_rows = fetch_team_personnel(team_id) if team_id is not None else []
     normalized_people: list[dict[str, Any]] = []
     for row in personnel_rows:
+        member_name = _safe_text(row.get("name") or row.get("identifier") or row.get("callsign"))
+        member_role = _safe_text(row.get("role"))
+        member_phone = _safe_text(row.get("phone"))
+        member_agency = _safe_text(row.get("organization") or row.get("agency") or row.get("home_unit"))
         normalized_people.append(
             {
                 "id": row.get("id"),
-                "member_name": _safe_text(row.get("name") or row.get("identifier") or row.get("callsign")),
-                "member_agency": _safe_text(row.get("organization") or row.get("agency") or row.get("home_unit")),
+                "member_id": _safe_text(row.get("id")),
+                "name": member_name,
+                "member_name": member_name,
+                "agency": member_agency,
+                "organization": member_agency,
+                "home_unit": member_agency,
+                "member_agency": member_agency,
                 "member_medic": bool(row.get("is_medic")),
-                "member_role": _safe_text(row.get("role")),
+                "role": member_role,
+                "member_role": member_role,
+                "phone": member_phone,
+                "member_phone": member_phone,
+                "callsign": _safe_text(row.get("callsign") or row.get("identifier")),
             }
         )
 
@@ -536,6 +639,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
 
     team_member_rows = normalized_people[:8]
     additional_names = ", ".join(row["member_name"] for row in normalized_people[8:] if row.get("member_name"))
+    capf109_member_rows = normalized_people[:13]
 
     attachments = []
     try:
@@ -550,6 +654,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         if any(term in _safe_text(row.get("filename")).lower() for term in ("debrief", "brief"))
     ]
     equipment_issued = []
+    vehicle_rows: list[dict[str, Any]] = []
     try:
         if team_id is not None:
             equipment_issued.extend(
@@ -557,13 +662,31 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
                 for row in fetch_team_equipment(team_id)
                 if _safe_text(row.get("name") or row.get("type"))
             )
+            for row in fetch_team_vehicles(team_id):
+                make = _safe_text(row.get("make"))
+                model = _safe_text(row.get("model"))
+                name = _safe_text(row.get("name") or " ".join(part for part in (make, model) if part))
+                vehicle_rows.append(
+                    {
+                        "id": row.get("id"),
+                        "vehicle_id": _safe_text(row.get("vehicle_id") or row.get("id")),
+                        "name": name,
+                        "make": make,
+                        "model": model,
+                        "type": _safe_text(row.get("type") or row.get("type_id")),
+                        "type_id": _safe_text(row.get("type_id") or row.get("type")),
+                        "license_plate": _safe_text(row.get("license_plate") or row.get("plate")),
+                        "callsign": _safe_text(row.get("callsign") or row.get("tags")),
+                    }
+                )
             equipment_issued.extend(
                 _safe_text(row.get("name") or row.get("callsign") or row.get("type"))
-                for row in fetch_team_vehicles(team_id)
+                for row in vehicle_rows
                 if _safe_text(row.get("name") or row.get("callsign") or row.get("type"))
             )
     except Exception:
         equipment_issued = []
+        vehicle_rows = []
 
     weather_config = {}
     try:
@@ -572,12 +695,16 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         weather_config = {}
     weather_payload = build_weather_form_payload(weather_config)
 
-    return {
+    context = {
         "task": task_payload,
         "team": team_payload,
+        "teams": [team_payload],
         "assignment": assignment_payload,
+        "tasks": [task_payload],
         "weather": weather_payload,
         "team_members": team_member_rows,
+        "personnel": capf109_member_rows,
+        "vehicles": vehicle_rows,
         "additional": {"names": additional_names},
         "subject": dict(assignment.get("subject") or {}) if isinstance(assignment.get("subject"), dict) else {},
         "radio_call": task_payload.get("radio_summary") or "",
@@ -596,9 +723,18 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         "resource_type": team_payload["resource_type"],
         "weather_summary": weather_payload.get("summary", ""),
     }
+    task_channels = _task_channels_for_forms(task_id)
+    if task_channels:
+        context["channels"] = task_channels
+    return context
 
 
 def list_incident_channels() -> List[Dict[str, Any]]:
+    from modules.communications.channel_catalog import cached_channel_plan
+
+    cached = cached_channel_plan(_iid())
+    if cached is not None:
+        return cached
     try:
         return _client().get(f"/api/incidents/{_iid()}/channels-plan")
     except Exception:
@@ -606,17 +742,55 @@ def list_incident_channels() -> List[Dict[str, Any]]:
 
 
 def list_task_comms(task_id: int) -> List[Dict[str, Any]]:
+    cached_task = _cached_task_doc(task_id)
+    if cached_task is not None:
+        from modules.communications.channel_catalog import cached_channel_plan
+
+        channel_plan = cached_channel_plan(_iid())
+        if channel_plan is not None:
+            channels_by_id = {row["id"]: row for row in channel_plan if row.get("id") is not None}
+            result = []
+            for comm in cached_task.get("comms") or []:
+                ch_id = comm.get("incident_channel_id")
+                ch: Dict[str, Any] = {}
+                if ch_id is not None:
+                    try:
+                        ch = channels_by_id.get(int(ch_id), {})
+                    except (TypeError, ValueError):
+                        ch = {}
+                result.append({
+                    "id": comm.get("id"),
+                    "incident_channel_id": ch_id,
+                    "channel_name": ch.get("channel", ""),
+                    "zone": ch.get("system", ""),
+                    "channel_number": ch.get("id"),
+                    "function": comm.get("function") or ch.get("function", ""),
+                    "rx_frequency": ch.get("rx_freq"),
+                    "rx_tone": ch.get("rx_tone"),
+                    "tx_frequency": ch.get("tx_freq"),
+                    "tx_tone": ch.get("tx_tone"),
+                    "mode": ch.get("mode", ""),
+                    "remarks": comm.get("remarks") or "",
+                })
+            return result
     try:
         return _client().get(f"{_base()}/tasks/{task_id}/comms")
     except Exception:
         return []
 
 
-def add_task_comm(task_id: int, incident_channel_id: Optional[int] = None, function: Optional[str] = None, remarks: Optional[str] = None) -> int:
+def add_task_comm(
+    task_id: int,
+    incident_channel_id: Optional[int] = None,
+    function: Optional[str] = None,
+    remarks: Optional[str] = None,
+    channel_type: Optional[str] = None,
+) -> int:
     result = _client().post(f"{_base()}/tasks/{task_id}/comms", json={
         "incident_channel_id": incident_channel_id,
         "function": function,
         "remarks": remarks,
+        "channel_type": channel_type,
     })
     row_id = int(result.get("id") or 0)
     try:
@@ -628,6 +802,7 @@ def add_task_comm(task_id: int, incident_channel_id: Optional[int] = None, funct
                 "incident_channel_id": incident_channel_id,
                 "function": function,
                 "remarks": remarks,
+                "channel_type": channel_type,
             },
         )
     except Exception:
@@ -640,12 +815,20 @@ def update_task_comm(row_id: int, incident_channel_id: Optional[int] = None, fun
     pass
 
 
-def update_task_comm_for_task(task_id: int, comm_id: int, incident_channel_id: Optional[int] = None, function: Optional[str] = None) -> None:
+def update_task_comm_for_task(
+    task_id: int,
+    comm_id: int,
+    incident_channel_id: Optional[int] = None,
+    function: Optional[str] = None,
+    channel_type: Optional[str] = None,
+) -> None:
     patch: dict = {}
     if incident_channel_id is not None:
         patch["incident_channel_id"] = incident_channel_id
     if function is not None:
         patch["function"] = function
+    if channel_type is not None:
+        patch["channel_type"] = channel_type
     if patch:
         _client().patch(f"{_base()}/tasks/{task_id}/comms/{comm_id}", json=patch)
         try:
@@ -667,7 +850,24 @@ def remove_task_comm_for_task(task_id: int, comm_id: int) -> None:
         pass
 
 
+def _cached_task_debriefs() -> Optional[List[Dict[str, Any]]]:
+    try:
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != _iid():
+            return None
+        return incident_cache.get_all("task_debriefs")
+    except Exception:
+        return None
+
+
 def list_task_debriefs(task_id: int) -> List[Dict[str, Any]]:
+    cached = _cached_task_debriefs()
+    if cached is not None:
+        return [
+            d for d in cached
+            if d.get("task_id") == task_id and not d.get("archived")
+        ]
     try:
         return _client().get(f"{_base()}/tasks/{task_id}/debriefs")
     except Exception:
@@ -703,6 +903,11 @@ def save_debrief_form(debrief_id: int, form_key: str, data: Dict[str, Any]) -> N
 
 
 def get_debrief(debrief_id: int) -> Dict[str, Any]:
+    cached = _cached_task_debriefs()
+    if cached is not None:
+        for doc in cached:
+            if doc.get("int_id") == debrief_id:
+                return doc
     try:
         return _client().get(f"{_base()}/debriefs/{debrief_id}")
     except Exception:
@@ -1043,20 +1248,38 @@ def delete_team(team_id: int) -> None:
     _client().delete(f"{_base()}/teams/{team_id}")
 
 
-def list_all_teams() -> List[Dict[str, Any]]:
+def _cached_all_teams() -> Optional[List[Dict[str, Any]]]:
+    """Return every cached team document for the active incident, if loaded."""
     try:
-        teams = _client().get(f"{_base()}/teams")
-        out = []
-        for t in teams:
-            out.append({
-                "team_id": int(t.get("int_id") or 0),
-                "team_name": t.get("name") or f"Team {t.get('int_id')}",
-                "team_leader": t.get("leader_name") or "",
-                "team_leader_phone": t.get("leader_phone") or t.get("phone") or "",
-            })
-        return out
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != _iid():
+            return None
+        return incident_cache.get_all("teams")
     except Exception:
-        return []
+        return None
+
+
+def list_all_teams() -> List[Dict[str, Any]]:
+    teams = _cached_all_teams()
+    if teams is None:
+        try:
+            teams = _client().get(f"{_base()}/teams")
+        except Exception:
+            return []
+    try:
+        teams = sorted(teams, key=lambda t: int(t.get("int_id") or 0))
+    except Exception:
+        pass
+    out = []
+    for t in teams:
+        out.append({
+            "team_id": int(t.get("int_id") or 0),
+            "team_name": t.get("name") or f"Team {t.get('int_id')}",
+            "team_leader": t.get("leader_name") or "",
+            "team_leader_phone": t.get("leader_phone") or t.get("phone") or "",
+        })
+    return out
 
 
 def create_task(
@@ -1090,8 +1313,44 @@ def create_task(
 
 # --- Planning linkage (objectives / strategies) -----------------------
 
+def _normalize_objective(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Mirror objectives.py's `_normalize` (seeded vs. new-schema field
+    fallbacks); pure function of the doc, safe to replicate client-side."""
+    d = dict(doc)
+    if not d.get("text"):
+        d["text"] = d.get("description") or ""
+    if not d.get("code"):
+        d["code"] = d.get("objective_id") or d.get("_id")
+    d.setdefault("display_order", 0)
+    d.setdefault("tags", d.get("tags_json") or [])
+    d.setdefault("narrative", None)
+    d.setdefault("task_links", [])
+    d.setdefault("audit", [])
+    d.setdefault("open_tasks", 0)
+    d.setdefault("total_tasks", 0)
+    return d
+
+
+def _cached_objectives() -> Optional[List[Dict[str, Any]]]:
+    try:
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != _iid():
+            return None
+        return incident_cache.get_all("incident_objectives")
+    except Exception:
+        return None
+
+
 def list_objectives() -> List[Dict[str, Any]]:
     """List incident objectives, for the Planning tab's Objective combo."""
+    cached = _cached_objectives()
+    if cached is not None:
+        ordered = sorted(
+            cached,
+            key=lambda d: (d.get("display_order") or 0, str(d.get("created_at") or "")),
+        )
+        return [_normalize_objective(d) for d in ordered]
     try:
         return _client().get("/api/objectives", params={"incident_id": _iid()}) or []
     except Exception:

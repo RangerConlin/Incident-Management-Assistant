@@ -21,12 +21,31 @@ def _catalog_title(key: str, fallback: str) -> str:
     position = get_position(key)
     return position.title if position else fallback
 
+
+def _sort_key(value: Any) -> tuple[bool, Any]:
+    """Sort ``None`` last regardless of the other values' type."""
+    return (value is None, value if value is not None else "")
+
+
+def _sorted_by(docs: list[dict], fields: Sequence[str]) -> list[dict]:
+    return sorted(docs, key=lambda d: tuple(_sort_key(d.get(f)) for f in fields))
+
+
 class ApiIncidentOrganizationRepository:
     """MongoDB-backed implementation via the SARApp API server."""
 
     def __init__(self, incident_id: str):
         self.incident_id = str(incident_id)
         self._base = f"/api/incidents/{self.incident_id}/org"
+
+    def _cached_docs(self, collection: str) -> Optional[list[dict]]:
+        """Return cached incident-scoped docs for ``collection``, or None if
+        the incident cache isn't loaded for this incident."""
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != self.incident_id:
+            return None
+        return incident_cache.get_all(collection)
 
     def _get(self, path: str, **params):
         from utils.api_client import api_client
@@ -72,7 +91,13 @@ class ApiIncidentOrganizationRepository:
         return int(result["position_id"])
 
     def list_positions(self, include_inactive: bool = False) -> list[OrganizationPosition]:
-        docs = self._get("/positions", include_inactive=str(include_inactive).lower())
+        cached = self._cached_docs("org_positions")
+        if cached is not None:
+            if not include_inactive:
+                cached = [d for d in cached if d.get("status", "active") == "active"]
+            docs = _sorted_by(cached, ("parent_position_id", "sort_order", "title"))
+        else:
+            docs = self._get("/positions", include_inactive=str(include_inactive).lower())
         return [self._doc_to_position(d) for d in docs]
 
     def get_position(self, position_id: int) -> OrganizationPosition | None:
@@ -88,11 +113,20 @@ class ApiIncidentOrganizationRepository:
     def list_operational_units(
         self, classifications: set[str] | None = None
     ) -> list[OrganizationPosition]:
-        from utils.api_client import api_client
-        params: dict = {}
-        if classifications:
-            params["classifications"] = ",".join(classifications)
-        docs = api_client.get(self._base + "/units", params=params if params else None)
+        cls_set = classifications or {"branch", "division", "group", "staging_area"}
+        cached = self._cached_docs("org_positions")
+        if cached is not None:
+            filtered = [
+                d for d in cached
+                if d.get("status") == "active" and d.get("classification") in cls_set
+            ]
+            docs = _sorted_by(filtered, ("sort_order", "title"))
+        else:
+            from utils.api_client import api_client
+            params: dict = {}
+            if classifications:
+                params["classifications"] = ",".join(classifications)
+            docs = api_client.get(self._base + "/units", params=params if params else None)
         return [self._doc_to_position(d) for d in docs]
 
     def deactivate_position(self, position_id: int) -> None:
@@ -155,31 +189,54 @@ class ApiIncidentOrganizationRepository:
     def list_assignments(
         self, position_id: int | None = None, *, active_only: bool = True
     ) -> list[PositionAssignment]:
-        from utils.api_client import api_client
-        params: dict = {"active_only": str(active_only).lower()}
-        if position_id is not None:
-            params["position_id"] = position_id
-        docs = api_client.get(self._base + "/assignments", params=params)
+        cached = self._cached_docs("org_assignments")
+        if cached is not None:
+            filtered = cached
+            if position_id is not None:
+                filtered = [d for d in filtered if d.get("position_id") == position_id]
+            if active_only:
+                filtered = [d for d in filtered if d.get("end_time") is None]
+            docs = _sorted_by(filtered, ("position_id", "start_time", "assignment_id"))
+        else:
+            from utils.api_client import api_client
+            params: dict = {"active_only": str(active_only).lower()}
+            if position_id is not None:
+                params["position_id"] = position_id
+            docs = api_client.get(self._base + "/assignments", params=params)
         return [self._doc_to_assignment(d) for d in docs]
 
     def list_assignments_for_person(
         self, person_record: int, *, active_only: bool = True
     ) -> list[PositionAssignment]:
-        from utils.api_client import api_client
-        params: dict = {"active_only": str(active_only).lower()}
-        docs = api_client.get(
-            self._base + f"/assignments/by-person/{person_record}", params=params
-        )
+        cached = self._cached_docs("org_assignments")
+        if cached is not None:
+            filtered = [d for d in cached if d.get("person_record") == person_record]
+            if active_only:
+                filtered = [d for d in filtered if d.get("end_time") is None]
+            docs = _sorted_by(filtered, ("position_id", "start_time"))
+        else:
+            from utils.api_client import api_client
+            params: dict = {"active_only": str(active_only).lower()}
+            docs = api_client.get(
+                self._base + f"/assignments/by-person/{person_record}", params=params
+            )
         return [self._doc_to_assignment(d) for d in docs]
 
     def list_assignment_history(
         self, position_id: int | None = None
     ) -> list[AssignmentHistoryEntry]:
-        from utils.api_client import api_client
-        params: dict = {}
-        if position_id is not None:
-            params["position_id"] = position_id
-        docs = api_client.get(self._base + "/history", params=params if params else None)
+        cached = self._cached_docs("org_history")
+        if cached is not None:
+            filtered = cached
+            if position_id is not None:
+                filtered = [d for d in filtered if d.get("position_id") == position_id]
+            docs = _sorted_by(filtered, ("created_at", "history_id"))
+        else:
+            from utils.api_client import api_client
+            params: dict = {}
+            if position_id is not None:
+                params["position_id"] = position_id
+            docs = api_client.get(self._base + "/history", params=params if params else None)
         return [self._doc_to_history(d) for d in docs]
 
     def replace_requirements(self, position_id: int, qualifications: Iterable[str]) -> None:

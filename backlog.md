@@ -21,8 +21,14 @@ Meeting Planner
 Individual Meeting Detail Windows
 
 Situation Report
-
+  - Move to under the command menu
+  
 Tactics and Resource Planner
+  - On the main table the objective isnt showing human readable
+  - Need to create and tie into logistics requests
+  - Expand assigned resources and tie into this and logistics requests in order to fill requests
+  - Log doesnt seem to be logging anything
+  - Theres a button for apply default hazards, but there doesnt seem to be a way to assign default hazards
 
 Weather
 
@@ -40,6 +46,11 @@ Task Board
 
 **************************************************************************************************************
 [Task Detail Window]
+  - Personnel and vehicles not populating from attached teams
+  - SAR 104 export leads to attribute error 
+  - Communications channels need a selector for channel type (primary/alternate/etc)
+  - Forms that fail to generate still create a record in the attachments table leading to more errors
+  - 104/109 exports need to be tied to a specific team somehow
 
 **************************************************************************************************************
 [Logistics]
@@ -90,6 +101,7 @@ Intel Logs
 Forms
 **************************************************************************************************************
 [Safety]
+  - Integrate USCG SPE/GAR model for ORM
 Safety Message ICS 208
 
 Incident Safety Analysis ICS 215A
@@ -107,7 +119,7 @@ Medical Plan ICS 206
 Agency Directory
 
 External Requests
-
+  - Mostly scaffold still, need to design further and expand into a workable module
 **************************************************************************************************************
 [PIO]
 PIO Dashboard

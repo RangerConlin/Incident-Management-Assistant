@@ -45,7 +45,7 @@ DEV_MODE = True
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"

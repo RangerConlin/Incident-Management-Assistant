@@ -30,11 +30,11 @@
     },
     {
       "pdf_field": "Text7",
-      "source": "tasks"
+      "source": "task.task_id"
     },
     {
       "pdf_field": "ComboBox1",
-      "source": "teams"
+      "source": "team.name"
     },
     {
       "pdf_field": "ComboBox2",
@@ -58,11 +58,11 @@
     },
     {
       "pdf_field": "Text12",
-      "source": "tasks.0.radio_primary"
+      "source": "radio_call"
     },
     {
       "pdf_field": "Text13",
-      "source": "vehicles"
+      "source": "vehicles.0.vehicle_id"
     },
     {
       "pdf_field": "Text14",
@@ -70,163 +70,163 @@
     },
     {
       "pdf_field": "member_id1",
-      "source": ""
+      "source": "personnel.0.member_name"
     },
     {
       "pdf_field": "member_role1",
-      "source": ""
+      "source": "personnel.0.member_role"
     },
     {
       "pdf_field": "member_phone1",
-      "source": ""
+      "source": "personnel.0.member_phone"
     },
     {
       "pdf_field": "member_id2",
-      "source": ""
+      "source": "personnel.1.member_name"
     },
     {
       "pdf_field": "member_role2",
-      "source": ""
+      "source": "personnel.1.member_role"
     },
     {
       "pdf_field": "member_phone2",
-      "source": ""
+      "source": "personnel.1.member_phone"
     },
     {
       "pdf_field": "member_id3",
-      "source": ""
+      "source": "personnel.2.member_name"
     },
     {
       "pdf_field": "member_role3",
-      "source": ""
+      "source": "personnel.2.member_role"
     },
     {
       "pdf_field": "member_phone3",
-      "source": ""
+      "source": "personnel.2.member_phone"
     },
     {
       "pdf_field": "member_id4",
-      "source": ""
+      "source": "personnel.3.member_name"
     },
     {
       "pdf_field": "member_role4",
-      "source": ""
+      "source": "personnel.3.member_role"
     },
     {
       "pdf_field": "member_phone4",
-      "source": ""
+      "source": "personnel.3.member_phone"
     },
     {
       "pdf_field": "member_id5",
-      "source": ""
+      "source": "personnel.4.member_name"
     },
     {
       "pdf_field": "member_role5",
-      "source": ""
+      "source": "personnel.4.member_role"
     },
     {
       "pdf_field": "member_phone5",
-      "source": ""
+      "source": "personnel.4.member_phone"
     },
     {
       "pdf_field": "member_id6",
-      "source": ""
+      "source": "personnel.5.member_name"
     },
     {
       "pdf_field": "member_role6",
-      "source": ""
+      "source": "personnel.5.member_role"
     },
     {
       "pdf_field": "member_phone6",
-      "source": ""
+      "source": "personnel.5.member_phone"
     },
     {
       "pdf_field": "member_id7",
-      "source": ""
+      "source": "personnel.6.member_name"
     },
     {
       "pdf_field": "member_role7",
-      "source": ""
+      "source": "personnel.6.member_role"
     },
     {
       "pdf_field": "member_phone7",
-      "source": ""
+      "source": "personnel.6.member_phone"
     },
     {
       "pdf_field": "member_id8",
-      "source": ""
+      "source": "personnel.7.member_name"
     },
     {
       "pdf_field": "member_role8",
-      "source": ""
+      "source": "personnel.7.member_role"
     },
     {
       "pdf_field": "member_phone8",
-      "source": ""
+      "source": "personnel.7.member_phone"
     },
     {
       "pdf_field": "member_id9",
-      "source": ""
+      "source": "personnel.8.member_name"
     },
     {
       "pdf_field": "member_role9",
-      "source": ""
+      "source": "personnel.8.member_role"
     },
     {
       "pdf_field": "member_phone9",
-      "source": ""
+      "source": "personnel.8.member_phone"
     },
     {
       "pdf_field": "member_id10",
-      "source": ""
+      "source": "personnel.9.member_name"
     },
     {
       "pdf_field": "member_role10",
-      "source": ""
+      "source": "personnel.9.member_role"
     },
     {
       "pdf_field": "member_phone10",
-      "source": ""
+      "source": "personnel.9.member_phone"
     },
     {
       "pdf_field": "member_id11",
-      "source": ""
+      "source": "personnel.10.member_name"
     },
     {
       "pdf_field": "member_role11",
-      "source": ""
+      "source": "personnel.10.member_role"
     },
     {
       "pdf_field": "member_phone11",
-      "source": ""
+      "source": "personnel.10.member_phone"
     },
     {
       "pdf_field": "member_id12",
-      "source": ""
+      "source": "personnel.11.member_name"
     },
     {
       "pdf_field": "member_role12",
-      "source": ""
+      "source": "personnel.11.member_role"
     },
     {
       "pdf_field": "member_phone12",
-      "source": ""
+      "source": "personnel.11.member_phone"
     },
     {
       "pdf_field": "member_id13",
-      "source": ""
+      "source": "personnel.12.member_name"
     },
     {
       "pdf_field": "member_role13",
-      "source": ""
+      "source": "personnel.12.member_role"
     },
     {
       "pdf_field": "member_phone13",
-      "source": ""
+      "source": "personnel.12.member_phone"
     },
     {
       "pdf_field": "assignment1",
-      "source": ""
+      "source": "task.assignment"
     },
     {
       "pdf_field": "Text55",
@@ -294,7 +294,7 @@
     },
     {
       "pdf_field": "assignment2",
-      "source": ""
+      "source": "assignment.ground.present_search_efforts"
     },
     {
       "pdf_field": "Text72",
@@ -461,15 +461,11 @@
     },
     {
       "pdf_field": "Team Leader Radio Call-sign",
-      "source": {
-        "literal": ""
-      }
+      "source": "team.callsign"
     },
     {
       "pdf_field": "Destination",
-      "source": {
-        "literal": ""
-      }
+      "source": "task.location"
     },
     {
       "pdf_field": "Sortie Number",
@@ -489,9 +485,7 @@
     },
     {
       "pdf_field": "Vehicle Call-Sign",
-      "source": {
-        "literal": ""
-      }
+      "source": "vehicles.0.callsign"
     },
     {
       "pdf_field": "Starting Mileage",
@@ -511,25 +505,19 @@
     },
     {
       "pdf_field": "Wing Assigned Veh ID No",
-      "source": ""
+      "source": "vehicles.0.vehicle_id"
     },
     {
       "pdf_field": "Other Equipment",
-      "source": {
-        "literal": ""
-      }
+      "source": "equipment_issued"
     },
     {
       "pdf_field": "Last Name, First Initial - Row 1",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.0.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 1",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.0.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 1",
@@ -539,15 +527,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 2",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.1.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 2",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.1.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 2",
@@ -557,15 +541,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 3",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.2.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 3",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.2.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 3",
@@ -575,15 +555,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 4",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.3.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 4",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.3.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 4",
@@ -593,15 +569,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 5",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.4.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 5",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.4.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 5",
@@ -611,15 +583,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 6",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.5.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 6",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.5.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 6",
@@ -629,15 +597,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 7",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.6.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 7",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.6.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 7",
@@ -647,15 +611,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 8",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.7.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 8",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.7.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 8",
@@ -665,15 +625,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 9",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.8.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 9",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.8.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 9",
@@ -683,15 +639,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 10",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.9.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 10",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.9.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 10",
@@ -701,15 +653,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 11",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.10.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 11",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.10.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 11",
@@ -719,15 +667,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 12",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.11.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 12",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.11.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 12",
@@ -737,15 +681,11 @@
     },
     {
       "pdf_field": "Last Name, First Initial - Row 13",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.12.member_name"
     },
     {
       "pdf_field": "ES Qualifications - Row 13",
-      "source": {
-        "literal": ""
-      }
+      "source": "personnel.12.member_role"
     },
     {
       "pdf_field": "Personal Equipment - Row 13",
@@ -755,15 +695,11 @@
     },
     {
       "pdf_field": "Time Team Reached Area",
-      "source": {
-        "literal": ""
-      }
+      "source": "team.arrival_ts"
     },
     {
       "pdf_field": "Primary Assignment Detailed Description - Line 1",
-      "source": {
-        "literal": ""
-      }
+      "source": "task.assignment"
     },
     {
       "pdf_field": "Primary Assignment Detailed Description - Line 2",
@@ -833,9 +769,7 @@
     },
     {
       "pdf_field": "In Field Reassignment Instructions Time Team - Line 1",
-      "source": {
-        "literal": ""
-      }
+      "source": "assignment.ground.present_search_efforts"
     },
     {
       "pdf_field": "In Field Reassignment Instructions Time Team - Line 2",
@@ -851,31 +785,23 @@
     },
     {
       "pdf_field": "Grid NumbersArea",
-      "source": {
-        "literal": ""
-      }
+      "source": "task.location"
     },
     {
       "pdf_field": "Base Radio Capability VHF",
-      "source": "tasks.0.radio_primary"
+      "source": "radio_call"
     },
     {
       "pdf_field": "UHF Freq",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.1.rx_freq"
     },
     {
       "pdf_field": "Base Call Sign",
-      "source": {
-        "literal": ""
-      }
+      "source": "channels.0.name"
     },
     {
       "pdf_field": "Base Phone Numbers(s)",
-      "source": {
-        "literal": ""
-      }
+      "source": "team.leader_phone"
     },
     {
       "pdf_field": "Restricted Areas",
@@ -909,15 +835,11 @@
     },
     {
       "pdf_field": "Weather Current",
-      "source": {
-        "literal": ""
-      }
+      "source": "weather.current.local"
     },
     {
       "pdf_field": "Weather Expected 24 hrs",
-      "source": {
-        "literal": ""
-      }
+      "source": "weather.forecast.local"
     },
     {
       "pdf_field": "Other",
@@ -934,25 +856,29 @@
     {
       "pdf_field": "ETD",
       "source": {
-        "literal": ""
+        "key": "team.enroute_ts",
+        "transform": "time_short"
       }
     },
     {
       "pdf_field": "ATD",
       "source": {
-        "literal": ""
+        "key": "team.enroute_ts",
+        "transform": "time_short"
       }
     },
     {
       "pdf_field": "ETA",
       "source": {
-        "literal": ""
+        "key": "task.due_time",
+        "transform": "time_short"
       }
     },
     {
       "pdf_field": "ATA",
       "source": {
-        "literal": ""
+        "key": "team.arrival_ts",
+        "transform": "time_short"
       }
     },
     {
@@ -1179,9 +1105,7 @@
     },
     {
       "pdf_field": "Team Leader",
-      "source": {
-        "literal": ""
-      }
+      "source": "team.leader_name"
     },
     {
       "pdf_field": "Text21",

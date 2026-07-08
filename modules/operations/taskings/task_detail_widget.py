@@ -921,7 +921,9 @@ class TaskDetailWindow(QWidget):
         teams_scroll = QScrollArea(self)
         teams_scroll.setWidgetResizable(True)
         teams_scroll.setWidget(teams_content)
-        tabs.addTab(teams_scroll, "Teams")
+        self._team_tabs = QTabWidget(self)
+        self._team_tabs.setDocumentMode(True)
+        self._team_tabs.addTab(teams_scroll, "Teams")
 
         # Personnel tab
         pers_content = QWidget(self)
@@ -976,7 +978,7 @@ class TaskDetailWindow(QWidget):
         pers_scroll = QScrollArea(self)
         pers_scroll.setWidgetResizable(True)
         pers_scroll.setWidget(pers_content)
-        tabs.addTab(pers_scroll, "Personnel")
+        self._team_tabs.addTab(pers_scroll, "Personnel")
 
         # Vehicles tab
         veh_content = QWidget(self)
@@ -1096,7 +1098,8 @@ class TaskDetailWindow(QWidget):
         veh_scroll = QScrollArea(self)
         veh_scroll.setWidgetResizable(True)
         veh_scroll.setWidget(veh_content)
-        tabs.addTab(veh_scroll, "Vehicles")
+        self._team_tabs.addTab(veh_scroll, "Vehicles")
+        tabs.addTab(self._team_tabs, "Teams")
         # Assignment Details tab (Ground/Air info to support CAPF 109, SAR 104, ICS 204)
         assign_widget = self._build_assignment_details_tab()
         tabs.addTab(assign_widget, "Assignment Details")
@@ -1121,6 +1124,7 @@ class TaskDetailWindow(QWidget):
         # Model and table
         self._comms_headers = [
             "Channel Name",
+            "Channel Type",
             "Zone",
             "Channel Number",
             "Function",
@@ -1245,10 +1249,42 @@ class TaskDetailWindow(QWidget):
                 except Exception as e:
                     QMessageBox.warning(self._parent_w, "Communications", f"Could not save channel function: {e}")
 
+        class _CommsTypeDelegate(_QStyledItemDelegate):
+            _TYPES = ["Primary", "Alternate", "Command", "Tactical", "Air/Ground", "Emergency", "Backup", "Other"]
+
+            def __init__(self, parent_w: QWidget):
+                super().__init__(parent_w)
+                self._parent_w = parent_w
+
+            def createEditor(self, parent, option, index):  # type: ignore[override]
+                cb = _QComboBox(parent)
+                cb.addItems(self._TYPES)
+                return cb
+
+            def setEditorData(self, editor, index):  # type: ignore[override]
+                txt = str(index.data(_Qt.DisplayRole) or "").strip().lower()
+                for i in range(editor.count()):
+                    if str(editor.itemText(i)).strip().lower() == txt:
+                        editor.setCurrentIndex(i)
+                        break
+
+            def setModelData(self, editor, model, index):  # type: ignore[override]
+                try:
+                    value = str(editor.currentText()).strip()
+                    it = model.item(index.row(), 0)
+                    row_id = it.data(_Qt.UserRole)
+                    from modules.operations.taskings.repository import update_task_comm_for_task
+                    if row_id is not None:
+                        update_task_comm_for_task(int(self._parent_w._task_id), int(row_id), channel_type=value)
+                    model.setData(index, value, _Qt.DisplayRole)
+                except Exception as e:
+                    QMessageBox.warning(self._parent_w, "Communications", f"Could not save channel type: {e}")
+
         # Install delegates
         try:
             self._comms_table.setItemDelegateForColumn(0, _CommsChannelDelegate(self))
-            self._comms_table.setItemDelegateForColumn(3, _CommsFunctionDelegate(self))
+            self._comms_table.setItemDelegateForColumn(1, _CommsTypeDelegate(self))
+            self._comms_table.setItemDelegateForColumn(4, _CommsFunctionDelegate(self))
         except Exception:
             pass
 
@@ -1478,9 +1514,15 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         clue_toolbar = QHBoxLayout()
+        self._clue_new_lead_btn = QPushButton("New Lead", self)
+        self._clue_new_item_btn = QPushButton("New Intel Item", self)
+        self._clue_new_subject_btn = QPushButton("New Subject", self)
         self._clue_open_btn = QPushButton("Open Selected", self)
         self._clue_refresh_btn = QPushButton("Refresh", self)
         self._clue_empty_lbl = QLabel("Linked clues come from existing task debrief references.", clue_content)
+        clue_toolbar.addWidget(self._clue_new_lead_btn)
+        clue_toolbar.addWidget(self._clue_new_item_btn)
+        clue_toolbar.addWidget(self._clue_new_subject_btn)
         clue_toolbar.addWidget(self._clue_open_btn)
         clue_toolbar.addWidget(self._clue_refresh_btn)
         clue_toolbar.addStretch(1)
@@ -1609,6 +1651,9 @@ class TaskDetailWindow(QWidget):
         self._att_delete_btn.clicked.connect(self._att_delete)
         self._att_generate_btn.clicked.connect(self._att_generate)
         self._att_refresh_btn.clicked.connect(self.load_attachments)
+        self._clue_new_lead_btn.clicked.connect(self._create_intel_lead)
+        self._clue_new_item_btn.clicked.connect(self._create_intel_item)
+        self._clue_new_subject_btn.clicked.connect(self._create_intel_subject)
         self._clue_open_btn.clicked.connect(self._open_selected_clue)
         self._clue_refresh_btn.clicked.connect(self.load_linked_clues)
         try:
@@ -1689,7 +1734,7 @@ class TaskDetailWindow(QWidget):
             return
         loaders = {
             "narrative": self.load_narrative,
-            "teams": self.load_teams,
+            "teams": self._load_team_group,
             "personnel": self.load_personnel,
             "vehicles": self.load_vehicles,
             "assignment details": self.load_assignment,
@@ -1729,6 +1774,11 @@ class TaskDetailWindow(QWidget):
             self._loaded_sections.add(key)
         except Exception:
             pass
+
+    def _load_team_group(self) -> None:
+        self.load_teams()
+        self.load_personnel()
+        self.load_vehicles()
 
     def _apply_status_background(self, status: str | None) -> None:
         try:
@@ -2390,6 +2440,9 @@ class TaskDetailWindow(QWidget):
             if cb204.isChecked(): forms.append("ICS 204")
             if cb109.isChecked(): forms.append("CAPF 109")
             if cb104.isChecked(): forms.append("SAR 104")
+            if not forms:
+                QMessageBox.information(self, "Generate Forms", "Select at least one form to generate.")
+                return
             # export and attach
             sel_index = team_combo.currentIndex()
             team_dict = None
@@ -2404,12 +2457,26 @@ class TaskDetailWindow(QWidget):
                     except Exception:
                         pass
             exports = export_assignment_forms(int(self._task_id), forms, team_dict)
-            files = [r.get("file_path") for r in exports if isinstance(r, dict) and r.get("file_path")]
+            from pathlib import Path
+            files = []
+            for row in exports:
+                if not isinstance(row, dict) or not row.get("file_path"):
+                    continue
+                path = Path(str(row.get("file_path")))
+                if path.exists() and path.is_file():
+                    files.append(path)
+            if not files:
+                QMessageBox.warning(self, "Generate Forms", "No form files were generated.")
+                return
             from modules.operations.taskings.attachments import attach_files
             res = attach_files(int(self._task_id), [str(p) for p in files], associated_team=team_dict)
+            if not res.get("added_ids"):
+                QMessageBox.warning(self, "Generate Forms", "Forms were generated, but could not be attached.")
+                return
             self.load_attachments()
-        except Exception:
-            pass
+            QMessageBox.information(self, "Generate Forms", f"Generated and attached {len(res.get('added_ids') or [])} form(s).")
+        except Exception as e:
+            QMessageBox.warning(self, "Generate Forms", f"Could not generate forms: {e}")
 
     def _att_delete(self) -> None:
         aid = self._selected_attachment_id()
@@ -3172,6 +3239,8 @@ class TaskDetailWindow(QWidget):
             ch_item.setData(rid, Qt.UserRole)
             ch_item.setData(r.get("incident_channel_id"), Qt.UserRole + 1)
 
+            type_item = QStandardItem(str(r.get("channel_type") or ""))
+            type_item.setEditable(True)
             zone_item = QStandardItem(str(r.get("zone") or "")); zone_item.setEditable(False)
             num = r.get("channel_number")
             num_item = QStandardItem(str(num if num is not None else "")); num_item.setEditable(False)
@@ -3185,6 +3254,7 @@ class TaskDetailWindow(QWidget):
 
             self._comms_model.appendRow([
                 ch_item,
+                type_item,
                 zone_item,
                 num_item,
                 func_item,
@@ -3198,7 +3268,7 @@ class TaskDetailWindow(QWidget):
 
         # Widths
         try:
-            defaults = [180, 100, 110, 130, 110, 110, 110, 110, 80, 240]
+            defaults = [180, 110, 100, 110, 130, 110, 110, 110, 110, 80, 240]
             for i, w in enumerate(defaults):
                 if i < self._comms_model.columnCount():
                     self._comms_table.setColumnWidth(i, int(w))
@@ -4198,6 +4268,69 @@ class TaskDetailWindow(QWidget):
         self._clue_empty_lbl.setText(
             "No linked clues found for this task." if row_count == 0 else f"Linked clues from debrief references: {row_count}"
         )
+
+    def _intel_service(self):
+        try:
+            from utils import incident_context
+            from modules.intel.services.intel_service import IntelService
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                QMessageBox.information(self, "Intel", "No active incident.")
+                return None
+            return IntelService(str(incident_id))
+        except Exception as e:
+            QMessageBox.warning(self, "Intel", f"Intel module is unavailable: {e}")
+            return None
+
+    def _create_intel_lead(self) -> None:
+        service = self._intel_service()
+        if service is None:
+            return
+        try:
+            from modules.intel.tabs.leads_tab import _NewLeadDialog
+
+            dlg = _NewLeadDialog(service, self)
+            if dlg.exec() == QDialog.Accepted and dlg.lead:
+                lead = dlg.lead
+                if dlg.subject_to_create:
+                    dlg.subject_to_create.incident_id = service.incident_id or ""
+                    created_subject = service.subjects.create(dlg.subject_to_create)
+                    if created_subject:
+                        lead.source_subject_id = created_subject.id
+                service.leads.create(lead)
+                QMessageBox.information(self, "Intel", "Lead created.")
+        except Exception as e:
+            QMessageBox.warning(self, "Intel", f"Could not create lead: {e}")
+
+    def _create_intel_item(self) -> None:
+        service = self._intel_service()
+        if service is None:
+            return
+        try:
+            from modules.intel.tabs.intel_items_tab import _NewItemDialog
+
+            dlg = _NewItemDialog(self)
+            if dlg.exec() == QDialog.Accepted and dlg.item:
+                service.items.create(dlg.item)
+                self.load_linked_clues()
+                QMessageBox.information(self, "Intel", "Intel item created.")
+        except Exception as e:
+            QMessageBox.warning(self, "Intel", f"Could not create intel item: {e}")
+
+    def _create_intel_subject(self) -> None:
+        service = self._intel_service()
+        if service is None:
+            return
+        try:
+            from modules.intel.tabs.subjects_tab import _NewSubjectDialog
+
+            dlg = _NewSubjectDialog(self)
+            if dlg.exec() == QDialog.Accepted and dlg.subject:
+                service.subjects.create(dlg.subject)
+                QMessageBox.information(self, "Intel", "Subject created.")
+        except Exception as e:
+            QMessageBox.warning(self, "Intel", f"Could not create subject: {e}")
 
     def _open_selected_clue(self) -> None:
         try:

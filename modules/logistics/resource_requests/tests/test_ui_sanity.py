@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+os.environ.setdefault("SARAPP_MONGO_URI", "mongodb://localhost:27017")
+
 try:  # pragma: no cover - import guard for CI environments without Qt libs
     from PySide6 import QtWidgets
 except ImportError:  # pragma: no cover
@@ -14,6 +16,8 @@ from modules.logistics.resource_requests.models.enums import Priority
 from modules.logistics.resource_requests.panels.request_detail_panel import ResourceRequestDetailPanel
 from modules.logistics.resource_requests.panels.request_list_panel import ResourceRequestListPanel
 from modules.logistics.resource_requests.panels.widgets.filters_bar import FiltersBar
+
+INCIDENT_ID = "ui-sanity-test"
 
 
 class _FakeService:
@@ -56,9 +60,29 @@ def qt_app():
     yield app
 
 
+@pytest.fixture()
+def resource_request_app_client():
+    """Points api_client at the real sarapp_db app in-process — resource
+    request reads/writes go through MongoDB via the API, not local SQLite."""
+    from sarapp_db.api.app import create_app
+    from sarapp_db.mongo.collection_names import IncidentCollections
+    from sarapp_db.mongo.database_manager import get_incident_db
+    from utils.api_client import api_client, DEFAULT_BASE_URL
+
+    db = get_incident_db(INCIDENT_ID)
+    db[IncidentCollections.LOGISTICS_RESOURCE_REQUESTS].delete_many({})
+
+    app = create_app()
+    api_client.configure_test_transport(app)
+    try:
+        yield api_client
+    finally:
+        api_client.configure(DEFAULT_BASE_URL)
+
+
 @pytest.fixture
-def service(tmp_path):
-    return ResourceRequestService("UI-INC", tmp_path / "incident.db")
+def service(resource_request_app_client):
+    return ResourceRequestService(INCIDENT_ID)
 
 
 def test_list_panel_loads(qt_app, service):

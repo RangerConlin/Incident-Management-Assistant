@@ -24,15 +24,31 @@ from ..models.hazard_type_models import (
     SafetyTemplateHazardEntry,
 )
 
+_CATALOG_HAZARD_TYPES = "hazard_types"
+_CATALOG_SAFETY_TEMPLATES = "safety_analysis_templates"
+
+
+def _invalidate_hazard_type_catalog() -> None:
+    """Call after any write that changes hazard type documents."""
+    from utils.catalog_cache import catalog_cache
+    catalog_cache.invalidate(_CATALOG_HAZARD_TYPES)
+
+
+def _invalidate_safety_template_catalog() -> None:
+    """Call after any write that changes safety analysis template documents."""
+    from utils.catalog_cache import catalog_cache
+    catalog_cache.invalidate(_CATALOG_SAFETY_TEMPLATES)
+
+
 class ApiHazardTypeRepository:
     """Drop-in replacement for HazardTypeRepository that calls the FastAPI server."""
 
     def list_hazard_types(self, filters: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
-        from utils.api_client import api_client
         f = filters or {}
         params: dict[str, Any] = {}
-        if f.get("search_text"):
-            params["search_text"] = f["search_text"]
+        search_text = f.get("search_text")
+        if search_text:
+            params["search_text"] = search_text
         if f.get("category") and f["category"] != "All":
             params["category"] = f["category"]
         if f.get("source") and f["source"] != "All":
@@ -43,6 +59,14 @@ class ApiHazardTypeRepository:
             params["active_filter"] = f["active_filter"]
         if f.get("include_inactive"):
             params["include_inactive"] = True
+
+        if not search_text:
+            # The library window's search box is live/debounced-as-you-type;
+            # only memoize the no-search "default view" load.
+            from utils.catalog_cache import catalog_cache
+            return catalog_cache.get(_CATALOG_HAZARD_TYPES, "/api/hazard-types", params=params) or []
+
+        from utils.api_client import api_client
         return api_client.get("/api/hazard-types", params=params) or []
 
     def search_hazard_types(
@@ -68,10 +92,10 @@ class ApiHazardTypeRepository:
         ]
 
     def get_hazard_type(self, hazard_type_id: int) -> Optional[HazardType]:
-        from utils.api_client import api_client
         from utils.api_client import APIError
+        from utils.catalog_cache import catalog_cache
         try:
-            doc = api_client.get(f"/api/hazard-types/{hazard_type_id}")
+            doc = catalog_cache.get(_CATALOG_HAZARD_TYPES, f"/api/hazard-types/{hazard_type_id}")
         except APIError as exc:
             if getattr(exc, "status_code", None) == 404:
                 return None
@@ -83,6 +107,7 @@ class ApiHazardTypeRepository:
     def create_hazard_type(self, data: HazardType | dict[str, Any]) -> int:
         from utils.api_client import api_client
         result = api_client.post("/api/hazard-types", json=_hazard_type_to_api_doc(data))
+        _invalidate_hazard_type_catalog()
         return int(result["hazard_type_id"])
 
     def update_hazard_type(self, hazard_type_id: int, data: HazardType | dict[str, Any]) -> int:
@@ -91,11 +116,13 @@ class ApiHazardTypeRepository:
             f"/api/hazard-types/{hazard_type_id}",
             json=_hazard_type_to_api_doc(data),
         )
+        _invalidate_hazard_type_catalog()
         return int(result["hazard_type_id"])
 
     def clone_hazard_type(self, hazard_type_id: int) -> int:
         from utils.api_client import api_client
         result = api_client.post(f"/api/hazard-types/{hazard_type_id}/clone")
+        _invalidate_hazard_type_catalog()
         return int(result["hazard_type_id"])
 
     def deactivate_hazard_type(self, hazard_type_id: int) -> None:
@@ -104,6 +131,7 @@ class ApiHazardTypeRepository:
             f"/api/hazard-types/{hazard_type_id}/active",
             json={"active": False},
         )
+        _invalidate_hazard_type_catalog()
 
     def reactivate_hazard_type(self, hazard_type_id: int) -> None:
         from utils.api_client import api_client
@@ -111,6 +139,7 @@ class ApiHazardTypeRepository:
             f"/api/hazard-types/{hazard_type_id}/active",
             json={"active": True},
         )
+        _invalidate_hazard_type_catalog()
 
     # Child-CRUD stubs kept for API surface compatibility; the full document
     # replace approach (create/update_hazard_type with embedded children) is
@@ -272,19 +301,26 @@ class ApiSafetyTemplateRepository:
         scenario_type: str = "All",
         include_inactive: bool = False,
     ) -> list[dict[str, Any]]:
-        from utils.api_client import api_client
         params: dict[str, Any] = {"include_inactive": include_inactive}
         if search_text:
             params["search_text"] = search_text
         if scenario_type and scenario_type != "All":
             params["scenario_type"] = scenario_type
+
+        if not search_text:
+            # The library window's search box is live/debounced-as-you-type;
+            # only memoize the no-search "default view" load.
+            from utils.catalog_cache import catalog_cache
+            return catalog_cache.get(_CATALOG_SAFETY_TEMPLATES, "/api/master/safety-templates", params=params) or []
+
+        from utils.api_client import api_client
         return api_client.get("/api/master/safety-templates", params=params) or []
 
     def get_template(self, template_id: int) -> Optional[SafetyAnalysisTemplate]:
-        from utils.api_client import api_client
         from utils.api_client import APIError
+        from utils.catalog_cache import catalog_cache
         try:
-            doc = api_client.get(f"/api/master/safety-templates/{template_id}")
+            doc = catalog_cache.get(_CATALOG_SAFETY_TEMPLATES, f"/api/master/safety-templates/{template_id}")
         except APIError as exc:
             if getattr(exc, "status_code", None) == 404:
                 return None
@@ -296,20 +332,24 @@ class ApiSafetyTemplateRepository:
     def create_template(self, data: dict[str, Any]) -> int:
         from utils.api_client import api_client
         result = api_client.post("/api/master/safety-templates", json=data)
+        _invalidate_safety_template_catalog()
         return int(result["template_id"])
 
     def update_template(self, template_id: int, data: dict[str, Any]) -> int:
         from utils.api_client import api_client
         result = api_client.put(f"/api/master/safety-templates/{template_id}", json=data)
+        _invalidate_safety_template_catalog()
         return int(result["template_id"])
 
     def delete_template(self, template_id: int) -> None:
         from utils.api_client import api_client
         api_client.delete(f"/api/master/safety-templates/{template_id}")
+        _invalidate_safety_template_catalog()
 
     def clone_template(self, template_id: int) -> int:
         from utils.api_client import api_client
         result = api_client.post(f"/api/master/safety-templates/{template_id}/clone")
+        _invalidate_safety_template_catalog()
         return int(result["template_id"])
 
     def set_active(self, template_id: int, active: bool) -> None:
@@ -318,6 +358,7 @@ class ApiSafetyTemplateRepository:
             f"/api/master/safety-templates/{template_id}/active",
             json={"active": active},
         )
+        _invalidate_safety_template_catalog()
 
 
 def _doc_to_template(doc: dict[str, Any]) -> SafetyAnalysisTemplate:

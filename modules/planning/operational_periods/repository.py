@@ -98,7 +98,18 @@ class OperationalPeriodRepository:
     def _base(self) -> str:
         return f"/api/incidents/{self.incident_id}/planning/operational-periods"
 
+    def _cached_docs(self) -> Optional[list[dict]]:
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != self.incident_id:
+            return None
+        return incident_cache.get_all("operational_periods")
+
     def list_periods(self) -> list[OperationalPeriodRecord]:
+        cached = self._cached_docs()
+        if cached is not None:
+            ordered = sorted(cached, key=lambda d: d.get("number") or 0)
+            return [_from_dict({**d, "id": d.get("id") or d.get("int_id")}) for d in ordered]
         try:
             return [_from_dict(d) for d in _client().get(self._base())]
         except Exception:
@@ -119,6 +130,11 @@ class OperationalPeriodRepository:
         return choices
 
     def get_period(self, period_id: int) -> OperationalPeriodRecord:
+        cached = self._cached_docs()
+        if cached is not None:
+            for doc in cached:
+                if doc.get("int_id") == period_id:
+                    return _from_dict({**doc, "id": doc.get("id") or doc.get("int_id")})
         d = _client().get(f"{self._base()}/{period_id}")
         return _from_dict(d)
 
@@ -171,6 +187,14 @@ class OperationalPeriodRepository:
         return record
 
     def get_active_period(self) -> Optional[OperationalPeriodRecord]:
+        cached = self._cached_docs()
+        if cached is not None:
+            active = [d for d in cached if d.get("status") == "Active"]
+            if not active:
+                return None
+            active.sort(key=lambda d: str(d.get("updated_at") or ""), reverse=True)
+            top = active[0]
+            return _from_dict({**top, "id": top.get("id") or top.get("int_id")})
         try:
             d = _client().get(f"{self._base()}/active")
             return _from_dict(d) if d else None

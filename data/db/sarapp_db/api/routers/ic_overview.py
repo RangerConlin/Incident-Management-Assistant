@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime
 from typing import Any, Optional
 
+from dateutil import parser as dateutil_parser
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -173,9 +174,8 @@ def _parse_dt(value: Any) -> Optional[datetime]:
     if isinstance(value, datetime):
         return value
     try:
-        from dateutil import parser as dp
-        return dp.parse(str(value))
-    except Exception:
+        return dateutil_parser.parse(str(value))
+    except (ValueError, OverflowError, TypeError):
         return None
 
 
@@ -334,16 +334,19 @@ def get_op_periods(incident_id: str) -> list[int]:
 @router.get("/{incident_id}/teams")
 def list_teams(incident_id: str, op_no: int = 1) -> list[dict[str, Any]]:
     repo = _teams_repo(incident_id)
-    docs = repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}})
+    # Team docs live in the per-incident database (get_incident_db) and are
+    # never stamped with an "incident_id" field of their own, unlike e.g.
+    # operational_periods docs - so this must not filter on that field.
+    docs = repo.find_many({"deleted": {"$ne": True}})
     result = []
     for doc in docs:
         last_ts = _parse_dt(doc.get("last_checkin_at"))
         result.append({
-            "team_id": doc.get("team_id", str(doc["_id"])),
+            "team_id": doc.get("int_id", str(doc["_id"])),
             "team_name": doc.get("name", ""),
             "status": doc.get("status", "Unknown"),
             "last_checkin_ts": last_ts.isoformat() if last_ts else None,
-            "needs_assistance": bool(doc.get("needs_assistance", False)),
+            "needs_assistance": bool(doc.get("needs_attention", False)),
             "emergency": bool(doc.get("emergency_flag", False)),
         })
     return result
@@ -377,7 +380,9 @@ def _norm_task_status(val: Any) -> str:
 @router.get("/{incident_id}/tasks/summary")
 def task_summary(incident_id: str, op_no: int = 1) -> dict[str, Any]:
     repo = _tasks_repo(incident_id)
-    docs = repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}})
+    # Task docs live in the per-incident database and are never stamped with
+    # their own "incident_id" field - see the matching note in list_teams().
+    docs = repo.find_many({"deleted": {"$ne": True}})
     counts: Counter = Counter()
     due_items: list[dict[str, Any]] = []
     for doc in docs:
@@ -388,9 +393,9 @@ def task_summary(incident_id: str, op_no: int = 1) -> dict[str, Any]:
             if due_ts:
                 assigned = doc.get("assignment") or ""
                 if not assigned:
-                    teams = doc.get("assigned_teams") or []
+                    teams = doc.get("task_teams") or []
                     if teams:
-                        assigned = teams[0].get("team_id", "")
+                        assigned = teams[0].get("team_name") or teams[0].get("team_id", "")
                 due_items.append({
                     "task_id": doc.get("task_number") or doc.get("task_id", ""),
                     "title": doc.get("title") or "Untitled",

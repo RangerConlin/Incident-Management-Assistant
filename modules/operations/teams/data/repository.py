@@ -53,11 +53,73 @@ def _parse_int_list(value: Any) -> list[int]:
     return result
 
 
-def get_team(team_id: int) -> Optional[Team]:
+def _active_incident_id() -> Optional[str]:
+    from utils import incident_context
+    return incident_context.get_active_incident_id()
+
+
+def _cached_team_doc(team_id: int) -> Optional[dict[str, Any]]:
+    """Return the active incident cache's team document when available."""
     try:
-        doc = _client().get(f"{_base()}/teams/{team_id}")
+        from utils.incident_cache import incident_cache
+
+        active_id = _active_incident_id()
+        if not active_id or incident_cache.incident_id != str(active_id):
+            return None
+        for doc in incident_cache.get_all("teams"):
+            try:
+                if int(doc.get("int_id") or 0) == int(team_id):
+                    return dict(doc)
+            except (TypeError, ValueError):
+                continue
     except Exception:
         return None
+    return None
+
+
+def _cached_all_teams() -> Optional[list[dict[str, Any]]]:
+    """Return every cached team document for the active incident, if loaded."""
+    try:
+        from utils.incident_cache import incident_cache
+
+        active_id = _active_incident_id()
+        if not active_id or incident_cache.incident_id != str(active_id):
+            return None
+        return incident_cache.get_all("teams")
+    except Exception:
+        return None
+
+
+def _cached_personnel_phone(person_record: Any) -> str:
+    """Best-effort phone lookup for a team leader from the cached incident roster.
+
+    Mirrors the server's ``_resolve_leader`` fallback (operations.py), which
+    fills in a missing team-level phone from the leader's personnel record.
+    """
+    if person_record in (None, ""):
+        return ""
+    try:
+        from utils.incident_cache import incident_cache
+
+        pid = int(person_record)
+        for doc in incident_cache.get_all("incident_personnel"):
+            try:
+                if int(doc.get("person_record") or 0) == pid:
+                    return str(doc.get("phone") or "")
+            except (TypeError, ValueError):
+                continue
+    except Exception:
+        return ""
+    return ""
+
+
+def get_team(team_id: int) -> Optional[Team]:
+    doc = _cached_team_doc(team_id)
+    if doc is None:
+        try:
+            doc = _client().get(f"{_base()}/teams/{team_id}")
+        except Exception:
+            return None
     if not doc:
         return None
     comm_ts = doc.get("last_comm_ping")
@@ -70,6 +132,7 @@ def get_team(team_id: int) -> Optional[Team]:
     leader_id = _parse_int(raw_leader)
     current_task_id = _parse_int(doc.get("current_task_id"))
     members = _parse_int_list(doc.get("members_json") or doc.get("member_person_records") or doc.get("member_personnel_ids"))
+    leader_phone = doc.get("leader_phone") or doc.get("phone") or _cached_personnel_phone(raw_leader)
     return Team(
         team_id=int(doc.get("int_id") or team_id),
         name=doc.get("name") or f"Team {team_id}",
@@ -77,7 +140,7 @@ def get_team(team_id: int) -> Optional[Team]:
         role=doc.get("role"),
         priority=doc.get("priority"),
         team_leader_id=leader_id,
-        team_leader_phone=doc.get("leader_phone") or doc.get("phone"),
+        team_leader_phone=leader_phone,
         notes=doc.get("notes"),
         status=doc.get("status") or "available",
         current_task_id=current_task_id,
@@ -178,8 +241,47 @@ def _checkin_base() -> str:
 # ---------------------------------------------------------------------------
 
 
+_DERIVED_CHECKED_IN_STATUSES = {
+    "Available",
+    "Assigned",
+    "Out of Service",
+    "Preparing for Demobilization",
+    "Checked In",
+}
+
+
+def _is_checked_in_status(status: Any) -> bool:
+    """Mirror checkin.py's `_is_checked_in_status`."""
+    return str(status or "").strip() in _DERIVED_CHECKED_IN_STATUSES
+
+
+def _teams_by_checkin_state(checked_in: bool, include_disbanded: bool) -> Optional[list[dict[str, Any]]]:
+    """Filter cached `teams` docs the same way checkin.py's
+    `/teams/checked-state` endpoint filters them, or None if the cache isn't
+    loaded for the active incident."""
+    cached = _cached_all_teams()
+    if cached is None:
+        return None
+    rows: list[dict[str, Any]] = []
+    for doc in cached:
+        is_checked_in = _is_checked_in_status(doc.get("status"))
+        if is_checked_in != checked_in:
+            continue
+        if not include_disbanded and doc.get("disbanded"):
+            continue
+        row = dict(doc)
+        row["checked_in"] = is_checked_in
+        row["disbanded"] = bool(doc.get("disbanded", False))
+        rows.append(row)
+    rows.sort(key=lambda d: str(d.get("name") or ""))
+    return rows
+
+
 def get_checked_in_teams() -> list[dict[str, Any]]:
     """List checked-in, non-disbanded teams for the Team Status Board."""
+    cached = _teams_by_checkin_state(checked_in=True, include_disbanded=False)
+    if cached is not None:
+        return cached
     try:
         return _client().get(
             f"{_checkin_base()}/teams/checked-state",
@@ -191,6 +293,9 @@ def get_checked_in_teams() -> list[dict[str, Any]]:
 
 def get_unchecked_teams() -> list[dict[str, Any]]:
     """List teams that are not checked in (for planning/inbound views)."""
+    cached = _teams_by_checkin_state(checked_in=False, include_disbanded=False)
+    if cached is not None:
+        return cached
     try:
         return _client().get(
             f"{_checkin_base()}/teams/checked-state",

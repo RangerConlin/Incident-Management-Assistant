@@ -408,7 +408,23 @@ class ResourceStatusDesk(QObject):
         self.resource_rows_changed.emit(list(self._rows))
 
     @staticmethod
+    def _cached_docs(collection: str) -> Optional[list[dict[str, Any]]]:
+        """Return cached docs for ``collection`` if the incident cache is
+        loaded for the active incident, else None so callers fall back to
+        the API."""
+        from utils import incident_context
+
+        incident_id = incident_context.get_active_incident_id()
+        if not incident_id or incident_cache.incident_id != str(incident_id):
+            return None
+        return incident_cache.get_all(collection)
+
+    @staticmethod
     def _fetch_resource_status_docs() -> list[dict[str, Any]]:
+        cached = ResourceStatusDesk._cached_docs(_RESOURCE_STATUS_COLLECTION)
+        if cached is not None:
+            return sorted(cached, key=lambda d: str(d.get("resource_name") or ""))
+
         from utils import incident_context
         from utils.api_client import api_client
 
@@ -423,6 +439,10 @@ class ResourceStatusDesk(QObject):
 
     @staticmethod
     def _fetch_team_docs() -> list[dict[str, Any]]:
+        cached = ResourceStatusDesk._cached_docs(_TEAMS_COLLECTION)
+        if cached is not None:
+            return cached
+
         from utils import incident_context
         from utils.api_client import api_client
 
@@ -437,6 +457,11 @@ class ResourceStatusDesk(QObject):
 
     @staticmethod
     def _fetch_org_assignments_docs() -> list[dict[str, Any]]:
+        # Mirrors the API's default active_only=True (end_time not set).
+        cached = ResourceStatusDesk._cached_docs(_ORG_ASSIGNMENTS_COLLECTION)
+        if cached is not None:
+            return [d for d in cached if d.get("end_time") is None]
+
         from utils import incident_context
         from utils.api_client import api_client
 
@@ -451,6 +476,11 @@ class ResourceStatusDesk(QObject):
 
     @staticmethod
     def _fetch_org_positions_docs() -> list[dict[str, Any]]:
+        # Mirrors the API's default include_inactive=False (status == "active").
+        cached = ResourceStatusDesk._cached_docs(_ORG_POSITIONS_COLLECTION)
+        if cached is not None:
+            return [d for d in cached if str(d.get("status") or "").lower() == "active"]
+
         from utils import incident_context
         from utils.api_client import api_client
 

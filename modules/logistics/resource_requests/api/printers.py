@@ -140,17 +140,29 @@ def render_summary_sheet(request_id: str) -> Path:
     pdf.drawString(40, y - 10, "Audit Trail (latest 5):")
     y -= 24
     for audit in record.get("audit", [])[-5:]:
-        pdf.drawString(
-            60,
-            y,
-            f"{audit['ts_utc']} - {audit['entity_type']}:{audit['field']} => {audit['new_value']}",
-        )
+        pdf.drawString(60, y, f"{audit.get('ts_utc', '-')} - {_describe_audit_entry(audit)}")
         y -= 12
 
     _draw_qr(pdf, data=json.dumps({"request_id": request_id, "summary": True}), x=460, y=40)
     pdf.showPage()
     pdf.save()
     return output_path
+
+
+def _describe_audit_entry(audit: dict) -> str:
+    """Summarise a Mongo-backed audit entry (event/actor_id/... shape)."""
+
+    event = audit.get("event", "update")
+    actor = audit.get("actor_id") or "unknown"
+    detail = ""
+    if event == "status_change":
+        detail = f"{audit.get('old')} -> {audit.get('new')}"
+    elif event == "update":
+        detail = ", ".join(audit.get("fields") or [])
+    elif audit.get("note"):
+        detail = audit["note"]
+    line = f"{event} by {actor}"
+    return f"{line}: {detail}" if detail else line
 
 
 def _wrap_text(text: str, width: int) -> list[str]:

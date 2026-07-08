@@ -51,16 +51,24 @@ def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
             ident = None
         if ident is None:
             continue
+        organization = (
+            getattr(ident, "home_unit", None)
+            or getattr(ident, "agency", None)
+            or getattr(ident, "organization", None)
+            or ""
+        )
         out.append({
             "id": pid,
-            "name": ident.name,
-            "role": ident.primary_role,
-            "phone": ident.phone,
-            "callsign": ident.callsign,
-            "identifier": ident.callsign,
-            "rank": ident.rank,
-            "organization": ident.home_unit,
-            "is_medic": bool(ident.is_medic),
+            "name": getattr(ident, "name", ""),
+            "role": getattr(ident, "primary_role", None) or "",
+            "phone": getattr(ident, "phone", None) or "",
+            "callsign": getattr(ident, "callsign", None) or "",
+            "identifier": getattr(ident, "callsign", None) or "",
+            "rank": getattr(ident, "rank", None) or "",
+            "organization": organization,
+            "home_unit": organization,
+            "agency": organization,
+            "is_medic": bool(getattr(ident, "is_medic", None)),
         })
     return out
 
@@ -110,11 +118,17 @@ def fetch_team_vehicles(team_id: int) -> List[Dict[str, Any]]:
         if not doc:
             continue
         name = " ".join(v for v in (doc.get("make"), doc.get("model")) if v).strip()
+        vehicle_id = doc.get("id")
         out.append({
-            "id": doc.get("id"),
-            "name": name or f"Vehicle {doc.get('id')}",
+            "id": vehicle_id,
+            "vehicle_id": vehicle_id,
+            "name": name or f"Vehicle {vehicle_id}",
+            "make": doc.get("make") or "",
+            "model": doc.get("model") or "",
+            "license_plate": doc.get("license_plate") or doc.get("plate") or "",
             "callsign": doc.get("tags") or "",
             "type": doc.get("type_id"),
+            "type_id": doc.get("type_id"),
         })
     return out
 

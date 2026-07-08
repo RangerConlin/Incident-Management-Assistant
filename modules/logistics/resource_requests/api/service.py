@@ -74,6 +74,8 @@ class ResourceRequestService:
 
     def change_status(self, request_id: str, status: str, actor_id: str, note: Optional[str] = None) -> None:
         new_status = validators.validate_status(status)
+        current = validators.validate_status(self.get_request(request_id)["status"])
+        validators.validate_status_transition(current, new_status)
         self._client().post(
             f"{self._base()}/{request_id}/status",
             json={"status": new_status.value, "actor_id": actor_id, "note": note},
@@ -124,16 +126,24 @@ class ResourceRequestService:
         request_id: Optional[str] = None,
     ) -> None:
         parsed_status = validators.validate_fulfillment_status(status)
+        # Only include fields the caller actually provided — the router treats
+        # a key's absence from the PATCH body as "leave unchanged", but a
+        # present key with a None value as "clear it". Always sending every
+        # keyword's default (None) would wipe fields like destination_location
+        # on a status-only update.
+        payload: Dict[str, object] = {"status": parsed_status.value}
+        if note is not None:
+            payload["note"] = note
+        if eta_utc is not None:
+            payload["eta_utc"] = eta_utc
+        if destination_location is not None:
+            payload["destination_location"] = destination_location
+        if destination_facility_id is not None:
+            payload["destination_facility_id"] = destination_facility_id
         if request_id:
             self._client().patch(
                 f"{self._base()}/{request_id}/fulfillments/{fulfillment_id}",
-                json={
-                    "status": parsed_status.value,
-                    "note": note,
-                    "eta_utc": eta_utc,
-                    "destination_location": destination_location,
-                    "destination_facility_id": destination_facility_id,
-                },
+                json=payload,
             )
             return
         # Fallback: search all requests for the matching fulfillment
@@ -147,13 +157,7 @@ class ResourceRequestService:
                 if f.get("id") == fulfillment_id:
                     self._client().patch(
                         f"{self._base()}/{rid}/fulfillments/{fulfillment_id}",
-                        json={
-                            "status": parsed_status.value,
-                            "note": note,
-                            "eta_utc": eta_utc,
-                            "destination_location": destination_location,
-                            "destination_facility_id": destination_facility_id,
-                        },
+                        json=payload,
                     )
                     return
         raise ValidationError(f"Unknown fulfillment record: {fulfillment_id}")

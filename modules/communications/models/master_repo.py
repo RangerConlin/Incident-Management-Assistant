@@ -36,7 +36,10 @@ class ApiMasterRepository:
 
     def create_channel(self, data: Dict[str, Any]) -> Dict[str, Any]:
         from utils.api_client import api_client
-        return api_client.post("/api/comms/master-channels", json=data)
+        from modules.communications.channel_catalog import invalidate_master_channels
+        result = api_client.post("/api/comms/master-channels", json=data)
+        invalidate_master_channels()
+        return result
 
 
 __all__ = ["ApiMasterRepository"]

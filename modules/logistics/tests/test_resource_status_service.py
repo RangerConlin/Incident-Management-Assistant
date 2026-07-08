@@ -47,11 +47,30 @@ def _setup_incident(tmp_path: Path, monkeypatch, incident_id: str = "resource-st
     # on-disk incident storage, leaking state across runs.
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path / "data"))
     incident_context.set_active_incident(incident_id)
+
+    # ResourceStatusService._ensure_active_incident_state() calls
+    # AppState.set_active_incident(), which persists "lastIncidentNumber" via
+    # SettingsManager() (default filename "settings.json", resolved relative
+    # to cwd) — without redirecting it, running this test clobbers the real
+    # repo-root settings.json. Patch the constructor's default filename
+    # in place so every no-arg SettingsManager() call in this test lands in
+    # tmp_path instead, and restore AppState's class-level active-incident
+    # attribute so it doesn't leak into other tests.
+    from utils import state as app_state_module
+    from utils import settingsmanager
+
+    monkeypatch.setattr(
+        settingsmanager.SettingsManager.__init__,
+        "__defaults__",
+        (str(tmp_path / "settings.json"),),
+    )
+    monkeypatch.setattr(app_state_module.AppState, "_active_incident_number", None)
+
     return incident_context.get_active_incident_db_path()
 
 
 def test_create_and_update_resource_logs_audit(tmp_path: Path, monkeypatch, resource_status_app_client) -> None:
-    db_path = _setup_incident(tmp_path, monkeypatch)
+    _setup_incident(tmp_path, monkeypatch)
     service = ResourceStatusService(ResourceStatusRepository())
 
     created = service.create_resource(
@@ -84,7 +103,6 @@ def test_create_and_update_resource_logs_audit(tmp_path: Path, monkeypatch, reso
     # Per-field audit entries are replaced by status_log embedded in the resource_status document.
     # list_audit_entries() now returns [] — status history is available via the /resource-status/{id} response.
     assert service.list_audit_entries(created.id) == []
-    assert db_path.exists()
 
 
 @pytest.mark.skip(

@@ -71,6 +71,12 @@ class IncidentCache(QObject):
             "max_heavy_collection_docs": DEFAULT_MAX_HEAVY_COLLECTION_DOCS,
             "heavy_collections": sorted(HEAVY_COLLECTIONS),
         }
+        # Collections that have ever dropped documents, either because the
+        # server's snapshot truncated them or because the client-side cap
+        # trimmed older docs after live updates. Once a name is in here, its
+        # cached view is not a complete picture of that collection for the
+        # rest of this incident session (until the next full snapshot load).
+        self._trimmed_collections: set[str] = set()
 
     # ------------------------------------------------------------------
     # Bulk load / clear
@@ -96,6 +102,7 @@ class IncidentCache(QObject):
                 name: {str(doc.get("_id")): doc for doc in docs if doc.get("_id") is not None}
                 for name, docs in collections.items()
             }
+            self._trimmed_collections = set((meta.get("truncated") or {}).keys())
             self._trim_all_locked()
         logger.info(
             "IncidentCache snapshot loaded for incident '%s' (%d collections, %.2f MB estimated).",
@@ -111,6 +118,7 @@ class IncidentCache(QObject):
             self._incident = None
             self._store = {}
             self._snapshot_meta = {}
+            self._trimmed_collections = set()
         self.snapshotLoaded.emit()
 
     @property
@@ -176,6 +184,19 @@ class IncidentCache(QObject):
             docs = list(self._store.get(collection, {}).values())
         return [d for d in docs if predicate(d)]
 
+    def is_collection_complete(self, collection: str) -> bool:
+        """True if ``collection`` holds every document for this incident.
+
+        False once anything has been dropped from it — either the server's
+        snapshot truncated it (byte budget or per-collection doc limit) or
+        the client-side cap trimmed older docs after live updates. Callers
+        that need an exact answer for a subset of a heavy/growing collection
+        (e.g. one person's full check-in history) should treat False as
+        "fall back to a targeted API query" rather than trusting the cache.
+        """
+        with self._lock:
+            return collection not in self._trimmed_collections
+
     def snapshot_meta(self) -> Dict[str, Any]:
         """Return server metadata describing snapshot caps and truncation."""
         with self._lock:
@@ -223,6 +244,7 @@ class IncidentCache(QObject):
             return
         for key in list(bucket.keys())[:overflow]:
             bucket.pop(key, None)
+        self._trimmed_collections.add(collection)
 
     def _collection_limit(self, collection: str) -> int:
         if collection in self._heavy_collections():

@@ -9,8 +9,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from utils.api_client import api_client
+from utils.catalog_cache import catalog_cache
 
 from .seed_data import seed_if_needed
+
+_CATALOG_ORG_TYPES = "organization_types"
+_CATALOG_RANK_STRUCTURES = "rank_structures"
+_CATALOG_ORGANIZATIONS = "organizations"
+_CATALOG_RANKS = "ranks"
 
 
 @dataclass(slots=True)
@@ -30,25 +36,25 @@ class UnitsOrganizationsRepository:
     # ---- Lookup helpers -------------------------------------------------------
     def list_organization_types(self, include_inactive: bool = True) -> list[dict[str, Any]]:
         try:
-            return api_client.get("/api/master/types") or []
+            return catalog_cache.get(_CATALOG_ORG_TYPES, "/api/master/types") or []
         except Exception:
             return []
 
     def list_rank_structures(self, include_inactive: bool = True) -> list[dict[str, Any]]:
         try:
-            return api_client.get("/api/master/rank-structures") or []
+            return catalog_cache.get(_CATALOG_RANK_STRUCTURES, "/api/master/rank-structures") or []
         except Exception:
             return []
 
     def list_organizations(self, include_inactive: bool = True) -> list[dict[str, Any]]:
         try:
-            return api_client.get("/api/master/organizations") or []
+            return catalog_cache.get(_CATALOG_ORGANIZATIONS, "/api/master/organizations") or []
         except Exception:
             return []
 
     def get_organization(self, organization_id: int) -> dict[str, Any] | None:
         try:
-            return api_client.get(f"/api/master/organizations/{organization_id}")
+            return catalog_cache.get(_CATALOG_ORGANIZATIONS, f"/api/master/organizations/{organization_id}")
         except Exception:
             return None
 
@@ -56,6 +62,7 @@ class UnitsOrganizationsRepository:
     def create_organization_type(self, payload: dict[str, Any]) -> int:
         try:
             result = api_client.post("/api/master/types", json=payload)
+            catalog_cache.invalidate(_CATALOG_ORG_TYPES)
             return result.get("int_id", 0) if result else 0
         except Exception:
             return 0
@@ -63,6 +70,7 @@ class UnitsOrganizationsRepository:
     def update_organization_type(self, type_id: int, payload: dict[str, Any]) -> None:
         try:
             api_client.patch(f"/api/master/types/{type_id}", json=payload)
+            catalog_cache.invalidate(_CATALOG_ORG_TYPES)
         except Exception:
             pass
 
@@ -70,6 +78,7 @@ class UnitsOrganizationsRepository:
     def create_rank_structure(self, payload: dict[str, Any]) -> int:
         try:
             result = api_client.post("/api/master/rank-structures", json=payload)
+            catalog_cache.invalidate(_CATALOG_RANK_STRUCTURES)
             return result.get("int_id", 0) if result else 0
         except Exception:
             return 0
@@ -77,13 +86,16 @@ class UnitsOrganizationsRepository:
     def update_rank_structure(self, rank_structure_id: int, payload: dict[str, Any]) -> None:
         try:
             api_client.patch(f"/api/master/rank-structures/{rank_structure_id}", json=payload)
+            catalog_cache.invalidate(_CATALOG_RANK_STRUCTURES)
         except Exception:
             pass
 
     # ---- Rank rows CRUD ------------------------------------------------------
     def list_ranks(self, rank_structure_id: int) -> list[dict[str, Any]]:
         try:
-            docs = api_client.get("/api/master/ranks", params={"structure_id": rank_structure_id}) or []
+            docs = catalog_cache.get(
+                _CATALOG_RANKS, "/api/master/ranks", params={"structure_id": rank_structure_id}
+            ) or []
         except Exception:
             return []
         # Translate the API's storage field names back to the names the
@@ -121,6 +133,7 @@ class UnitsOrganizationsRepository:
                     "sort_order": rank.get("sort_order", idx),
                     "is_active": rank.get("is_active", 1),
                 })
+            catalog_cache.invalidate(_CATALOG_RANKS)
         except Exception:
             pass
 
@@ -141,6 +154,8 @@ class UnitsOrganizationsRepository:
                 f"/api/master/rank-structures/{source_rank_structure_id}/duplicate",
                 json=body,
             )
+            catalog_cache.invalidate(_CATALOG_RANK_STRUCTURES)
+            catalog_cache.invalidate(_CATALOG_RANKS)
             return result.get("id", 0) if result else 0
         except Exception:
             return 0
@@ -149,6 +164,7 @@ class UnitsOrganizationsRepository:
     def create_organization(self, payload: dict[str, Any], changed_by: str = "system") -> int:
         try:
             result = api_client.post("/api/master/organizations", json=payload)
+            catalog_cache.invalidate(_CATALOG_ORGANIZATIONS)
             return result.get("int_id", 0) if result else 0
         except Exception:
             return 0
@@ -156,6 +172,7 @@ class UnitsOrganizationsRepository:
     def update_organization(self, organization_id: int, payload: dict[str, Any], changed_by: str = "system") -> None:
         try:
             api_client.patch(f"/api/master/organizations/{organization_id}", json=payload)
+            catalog_cache.invalidate(_CATALOG_ORGANIZATIONS)
         except Exception:
             pass
 
@@ -163,6 +180,7 @@ class UnitsOrganizationsRepository:
         """Delete an organization, soft-disable if it has child organizations."""
         try:
             api_client.delete(f"/api/master/organizations/{organization_id}")
+            catalog_cache.invalidate(_CATALOG_ORGANIZATIONS)
             return DeleteResult(True, "Organization deleted.")
         except Exception as e:
             return DeleteResult(False, str(e))
@@ -177,6 +195,7 @@ class UnitsOrganizationsRepository:
                 f"/api/master/organizations/{organization_id}/rank-structure-override",
                 json={"rank_structure_id": rank_structure_id},
             )
+            catalog_cache.invalidate(_CATALOG_ORGANIZATIONS)
         except Exception:
             pass
 

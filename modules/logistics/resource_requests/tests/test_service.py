@@ -1,19 +1,43 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
+
+os.environ.setdefault("SARAPP_MONGO_URI", "mongodb://localhost:27017")
 
 from modules.logistics.resource_requests.api import printers
 from modules.logistics.resource_requests.api.service import ResourceRequestService
 from modules.logistics.resource_requests.api.validators import ValidationError
 from modules.logistics.resource_requests.models.enums import ApprovalAction, FulfillmentStatus, Priority, RequestStatus
 
+INCIDENT_ID = "resource-request-test"
+
+
+@pytest.fixture()
+def resource_request_app_client():
+    """Points api_client at the real sarapp_db app in-process — resource
+    request reads/writes go through MongoDB via the API, not local SQLite."""
+    from sarapp_db.api.app import create_app
+    from sarapp_db.mongo.collection_names import IncidentCollections
+    from sarapp_db.mongo.database_manager import get_incident_db
+    from utils.api_client import api_client, DEFAULT_BASE_URL
+
+    db = get_incident_db(INCIDENT_ID)
+    db[IncidentCollections.LOGISTICS_RESOURCE_REQUESTS].delete_many({})
+
+    app = create_app()
+    api_client.configure_test_transport(app)
+    try:
+        yield api_client
+    finally:
+        api_client.configure(DEFAULT_BASE_URL)
+
 
 @pytest.fixture
-def service(tmp_path: Path) -> ResourceRequestService:
-    db_path = tmp_path / "incident.db"
-    return ResourceRequestService("TEST-INC", db_path)
+def service(resource_request_app_client) -> ResourceRequestService:
+    return ResourceRequestService(INCIDENT_ID)
 
 
 def _base_header(priority: Priority = Priority.ROUTINE) -> dict[str, object]:

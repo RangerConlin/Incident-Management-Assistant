@@ -683,7 +683,7 @@ def list_comms_contacts(incident_id: str):
     personnel_repo = _incident_personnel_repo(incident_id)
     suggestions: List[Dict[str, Any]] = []
 
-    for doc in teams_repo.find_many({"incident_id": incident_id, "deleted": {"$ne": True}}):
+    for doc in teams_repo.find_many({"deleted": {"$ne": True}}):
         doc.pop("_id", None)
         team_id_str = doc.get("team_id", "")
         int_id = _parse_ref_id(team_id_str, "-TEAM-")

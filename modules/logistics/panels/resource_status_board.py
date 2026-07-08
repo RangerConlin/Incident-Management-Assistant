@@ -48,7 +48,6 @@ from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDial
 from modules.logistics.aircraft.panels.aircraft_inventory_window import AircraftInventoryWindow, AircraftRepository
 from ui.personnel import PersonnelDetailDialog
 from utils import incident_context
-from utils.api_client import api_client
 
 
 
@@ -519,7 +518,8 @@ class ResourceStatusBoard(QWidget):
             QMessageBox.information(self, "Open Team", "No active incident is selected.")
             return
         try:
-            teams = api_client.get(f"/api/incidents/{incident_id}/operations/teams") or []
+            from modules.operations.taskings.repository import list_all_teams as _list_all_teams
+            teams = _list_all_teams()
         except Exception as exc:
             QMessageBox.warning(self, "Open Team", str(exc))
             return
@@ -528,7 +528,7 @@ class ResourceStatusBoard(QWidget):
             (
                 team for team in teams
                 if str(team.get("team_id")) == team_name
-                or str(team.get("name") or "").strip().lower() == team_name.lower()
+                or str(team.get("team_name") or "").strip().lower() == team_name.lower()
             ),
             None,
         )

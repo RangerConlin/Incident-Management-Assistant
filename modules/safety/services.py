@@ -12,6 +12,20 @@ from .print_ics_206 import generate as generate_ics206_pdf
 _flagged_callbacks: List[Callable[[schemas.SafetyReportRead], None]] = []
 
 
+def _cached_docs(incident_id: str, collection: str) -> Optional[List[dict]]:
+    """Return cached incident-scoped docs for ``collection``, or None if the
+    incident cache isn't loaded for this incident."""
+    from utils.incident_cache import incident_cache
+
+    if incident_cache.incident_id != str(incident_id):
+        return None
+    return incident_cache.get_all(collection)
+
+
+def _sorted_by_id(docs: List[dict]) -> List[dict]:
+    return sorted(docs, key=lambda d: d.get("id") if d.get("id") is not None else 0)
+
+
 def register_flagged_callback(cb: Callable[[schemas.SafetyReportRead], None]):
     _flagged_callbacks.append(cb)
 
@@ -33,6 +47,25 @@ def list_safety_reports(
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
 ) -> List[schemas.SafetyReportRead]:
+    cached = _cached_docs(incident_id, "safety_reports")
+    if cached is not None:
+        rows = cached
+        if severity:
+            rows = [r for r in rows if r.get("severity") == severity]
+        if flagged is not None:
+            rows = [r for r in rows if bool(r.get("flagged")) == flagged]
+        if start:
+            start_iso = start.isoformat()
+            rows = [r for r in rows if str(r.get("time") or "") >= start_iso]
+        if end:
+            end_iso = end.isoformat()
+            rows = [r for r in rows if str(r.get("time") or "") <= end_iso]
+        if q:
+            needle = q.lower()
+            rows = [r for r in rows if needle in str(r.get("notes") or "").lower()]
+        rows = _sorted_by_id(rows)
+        return [schemas.SafetyReportRead(**r) for r in rows]
+
     params: dict = {}
     if severity:
         params["severity"] = severity
@@ -77,6 +110,9 @@ def create_safety_report(incident_id: str, data: schemas.SafetyReportCreate) -> 
 # ---------------------------------------------------------------------------
 
 def list_medical_incidents(incident_id: str) -> List[schemas.MedicalIncidentRead]:
+    cached = _cached_docs(incident_id, "medical_incidents")
+    if cached is not None:
+        return [schemas.MedicalIncidentRead(**r) for r in _sorted_by_id(cached)]
     try:
         rows = api_client.get(f"/api/incidents/{incident_id}/medical/incidents") or []
         return [schemas.MedicalIncidentRead(**r) for r in rows]
@@ -104,6 +140,9 @@ def create_medical_incident(incident_id: str, data: schemas.MedicalIncidentCreat
 # ---------------------------------------------------------------------------
 
 def list_triage_entries(incident_id: str) -> List[schemas.TriageEntryRead]:
+    cached = _cached_docs(incident_id, "triage_entries")
+    if cached is not None:
+        return [schemas.TriageEntryRead(**r) for r in _sorted_by_id(cached)]
     try:
         rows = api_client.get(f"/api/incidents/{incident_id}/medical/triage") or []
         return [schemas.TriageEntryRead(**r) for r in rows]
@@ -121,6 +160,9 @@ def create_triage_entry(incident_id: str, data: schemas.TriageEntryCreate) -> sc
 # ---------------------------------------------------------------------------
 
 def list_hazard_zones(incident_id: str) -> List[schemas.HazardZoneRead]:
+    cached = _cached_docs(incident_id, "hazard_zones")
+    if cached is not None:
+        return [schemas.HazardZoneRead(**r) for r in _sorted_by_id(cached)]
     try:
         rows = api_client.get(f"/api/incidents/{incident_id}/safety/zones") or []
         return [schemas.HazardZoneRead(**r) for r in rows]
@@ -187,6 +229,15 @@ def list_iwi_reports(
     severity: Optional[str] = None,
     status: Optional[str] = None,
 ) -> List[dict]:
+    cached = _cached_docs(incident_id, "iwi_reports")
+    if cached is not None:
+        rows = cached
+        if severity:
+            rows = [r for r in rows if r.get("actual_severity") == severity]
+        if status:
+            rows = [r for r in rows if r.get("status") == status]
+        return _sorted_by_id(rows)
+
     params: dict = {}
     if severity:
         params["severity"] = severity
@@ -199,6 +250,11 @@ def list_iwi_reports(
 
 
 def get_iwi_report(incident_id: str, report_id: str) -> Optional[dict]:
+    cached = _cached_docs(incident_id, "iwi_reports")
+    if cached is not None:
+        for doc in cached:
+            if str(doc.get("_id")) == str(report_id):
+                return dict(doc)
     try:
         return api_client.get(f"/api/incidents/{incident_id}/safety/iwi/{report_id}")
     except Exception:
