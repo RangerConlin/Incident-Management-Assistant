@@ -20,9 +20,10 @@ import uuid
 from typing import Any, Callable
 
 from fastapi import FastAPI, Header, Request, Response, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from . import config
+from .dashboard import DASHBOARD_HTML
 from .metrics import metrics
 from .rate_limit import SlidingWindowLimiter
 from .registry import TunnelBackpressureError, TunnelConnection, TunnelUnavailableError, registry
@@ -265,14 +266,9 @@ def create_router_app(*, server_info_fn: Callable[[], dict[str, Any]] | None = N
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
         return None
 
-    @app.get("/admin/tunnels")
-    async def admin_tunnels(x_router_token: str | None = Header(default=None)) -> Response:
-        unauthorized = _require_admin_token(x_router_token)
-        if unauthorized is not None:
-            return unauthorized
-
+    def _tunnel_summaries() -> list[dict[str, Any]]:
         now = time.monotonic()
-        tunnels = [
+        return [
             {
                 "connect_code": connection.connect_code,
                 "server_id": connection.server_id,
@@ -284,7 +280,14 @@ def create_router_app(*, server_info_fn: Callable[[], dict[str, Any]] | None = N
             }
             for connection in registry.list_connections()
         ]
-        return JSONResponse({"tunnels": tunnels})
+
+    @app.get("/admin/tunnels")
+    async def admin_tunnels(x_router_token: str | None = Header(default=None)) -> Response:
+        unauthorized = _require_admin_token(x_router_token)
+        if unauthorized is not None:
+            return unauthorized
+
+        return JSONResponse({"tunnels": _tunnel_summaries()})
 
     @app.get("/admin/metrics")
     async def admin_metrics(x_router_token: str | None = Header(default=None)) -> Response:
@@ -295,5 +298,25 @@ def create_router_app(*, server_info_fn: Callable[[], dict[str, Any]] | None = N
         snapshot = metrics.snapshot()
         snapshot["active_tunnel_count"] = registry.active_tunnel_count()
         return JSONResponse(snapshot)
+
+    # --- Read-only status dashboard -----------------------------------
+    # Deliberately unauthenticated (unlike /admin/*): connect codes and
+    # server names aren't secret on their own (they're already meant to be
+    # shared out-of-band per the architecture doc), and this is a
+    # read-only summary — no ability to act on a tunnel from here. Uses its
+    # own /dashboard/data endpoint rather than reusing /admin/*, so the
+    # token-gated admin endpoints are untouched.
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard_page() -> str:
+        return DASHBOARD_HTML
+
+    @app.get("/dashboard/data")
+    async def dashboard_data() -> dict[str, Any]:
+        snapshot = metrics.snapshot()
+        return {
+            "active_tunnel_count": registry.active_tunnel_count(),
+            "tunnels": _tunnel_summaries(),
+            "metrics": snapshot,
+        }
 
     return app

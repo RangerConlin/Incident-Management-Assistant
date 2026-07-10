@@ -2,8 +2,35 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from datetime import datetime
+from typing import Callable
+
+
+class QtLogHandler(logging.Handler):
+    """Forwards stdlib ``logging`` records to a callback for display in the console.
+
+    The server engine (uvicorn, sarapp_db, the cloud tunnel client) logs
+    through the standard ``logging`` module on its own worker threads, but
+    the console UI had no handler attached, so those records went nowhere
+    visible. ``emit`` is called from whatever thread produced the log record;
+    the callback must itself be thread-safe (the console wires this to a Qt
+    signal, which safely marshals the call onto the UI thread).
+    """
+
+    def __init__(self, callback: Callable[[str], None]) -> None:
+        super().__init__()
+        self._callback = callback
+        self.setFormatter(
+            logging.Formatter("[%(asctime)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+        )
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self._callback(self.format(record))
+        except Exception:  # noqa: BLE001 - never let logging break the app
+            pass
 
 
 class ConsoleLogBuffer:

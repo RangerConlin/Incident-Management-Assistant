@@ -178,6 +178,39 @@ Both require the `X-Router-Token` header to match `SARAPP_CLOUD_ROUTER_TOKEN`.
   503s, 413s, ws channels opened, heartbeat timeouts, registration
   rejections, plus the current active tunnel count.
 
+## Status dashboard (unauthenticated)
+- `GET /dashboard` — a small self-contained HTML page (`cloud_server/router/dashboard.py`)
+  that polls `GET /dashboard/data` every 3s and renders connected LAN
+  servers plus the same counters as `/admin/metrics`.
+- `GET /dashboard/data` — the JSON this page polls: `active_tunnel_count`,
+  a `tunnels` list (same shape as `/admin/tunnels`), and a `metrics` object
+  (same shape as `/admin/metrics`).
+- **Deliberately not token-gated**, unlike `/admin/*` — a conscious choice
+  for ease of glancing at router health, not an oversight. It only exposes
+  connect codes, server names, and counts (all already low-sensitivity —
+  connect codes are shared out-of-band by design, see above) and has no
+  ability to act on a tunnel. If that tradeoff needs revisiting later, gate
+  it the same way as `/admin/*`.
+
+## Testing the mobile -> cloud -> LAN round trip
+The LAN server exposes `POST /api/diagnostics/echo` and `GET /api/diagnostics/echo`
+(`data/db/sarapp_db/api/routers/diagnostics.py`) — a no-op endpoint that
+touches no database and simply echoes back whatever JSON body was sent, plus
+a server-side UTC timestamp. Hit it through a connected tunnel:
+
+```
+curl -X POST https://<router-domain>/r/<connect_code>/api/diagnostics/echo \
+     -H "Content-Type: application/json" -d '{"ping": "hello"}'
+```
+
+A response containing your posted body back, with a fresh `server_time_utc`,
+confirms the full round trip: field device → cloud router → tunnel → LAN
+server → back. The `GET` variant lets the same check be done from a plain
+browser tab, including on a mobile device with no client beyond that. This
+is a connectivity check only — no auth, no incident context — so a `200`
+here proves the tunnel path is healthy, not that the LAN server's own
+auth/session layer is.
+
 ## Env vars
 | Variable | Set on | Purpose |
 | --- | --- | --- |

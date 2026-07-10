@@ -85,9 +85,11 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     from sarapp_db.api.routers import objectives
     from sarapp_db.api.routers import auth_sessions
     from sarapp_db.api.routers import audit
+    from sarapp_db.api.routers import diagnostics
     app.include_router(objectives.router, prefix="/api/objectives", tags=["objectives"])
     app.include_router(auth_sessions.router, prefix="/api/auth", tags=["auth"])
     app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
+    app.include_router(diagnostics.router, prefix="/api/diagnostics", tags=["diagnostics"])
 
     from sarapp_db.api.routers import hazard_types
     app.include_router(hazard_types.router, prefix="/api/hazard-types", tags=["hazard-types"])

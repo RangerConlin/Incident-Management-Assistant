@@ -14,3 +14,4 @@ PyYAML
 openpyxl
 pymongo>=4.6
 websocket-client
+python-dateutil>=2.8

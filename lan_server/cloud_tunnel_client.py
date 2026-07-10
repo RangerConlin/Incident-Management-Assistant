@@ -78,18 +78,27 @@ _HOP_BY_HOP_HEADERS = {
 }
 
 
+# DEV-ONLY fallback so local runs don't require exporting env vars every
+# time. SARAPP_CLOUD_ROUTER_URL / SARAPP_CLOUD_ROUTER_TOKEN still take
+# precedence when set, so this has no effect once the real env vars are
+# configured. Remove before any shared/production deployment — see
+# Design Documents/Instructions/cloud_router_architecture.md.
+_DEV_DEFAULT_ROUTER_URL = "wss://sarapp.arcadiacommandsolutions.com/tunnel/register"
+_DEV_DEFAULT_ROUTER_TOKEN = "1980ce0346cfb930309148c524856fac0645703f95ed6c91dd312b91687ade44"
+
+
 def get_cloud_router_url() -> str | None:
     """Read the cloud router's tunnel-registration URL from the environment."""
 
     url = os.environ.get(_ROUTER_URL_ENV_VAR, "").strip()
-    return url or None
+    return url or _DEV_DEFAULT_ROUTER_URL
 
 
 def get_cloud_router_token() -> str | None:
     """Read the shared secret proving this LAN server may register a tunnel."""
 
     token = os.environ.get(_ROUTER_TOKEN_ENV_VAR, "").strip()
-    return token or None
+    return token or _DEV_DEFAULT_ROUTER_TOKEN
 
 
 def get_connect_code() -> str | None:

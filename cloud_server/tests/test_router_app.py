@@ -317,6 +317,35 @@ def test_register_rate_limit_rejects_excess_attempts(monkeypatch) -> None:
     asyncio.run(_run())
 
 
+def test_dashboard_page_served_without_auth() -> None:
+    app = create_router_app()
+    client = TestClient(app)
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "SARApp Cloud Router" in response.text
+
+
+def test_dashboard_data_reflects_connected_tunnel_without_auth() -> None:
+    async def _run() -> None:
+        app = create_router_app()
+        tunnel = await _open_registered_tunnel(app, "TEST-DASH")
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            # No X-Router-Token header at all - this endpoint must not require it.
+            response = await client.get("/dashboard/data")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["active_tunnel_count"] == 1
+        assert any(t["connect_code"] == "TEST-DASH" for t in body["tunnels"])
+        assert "total_requests" in body["metrics"]
+
+        await tunnel.close()
+
+    asyncio.run(_run())
+
+
 def test_tunnel_registration_rejected_with_bad_token(monkeypatch) -> None:
     monkeypatch.setenv("SARAPP_CLOUD_ROUTER_TOKEN", "expected-secret")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import webbrowser
 from datetime import datetime, timezone
@@ -40,7 +41,7 @@ from .controller import (
     fetch_active_sessions,
     fetch_health,
 )
-from .log_model import ConsoleLogBuffer
+from .log_model import ConsoleLogBuffer, QtLogHandler
 from .settings import ServerConsoleSettings, ServerConsoleSettingsStore
 
 
@@ -68,6 +69,16 @@ class ServerConsoleWindow(QMainWindow):
         self._connect_signals()
         self._refresh_status()
         self._append_log("Server Console opened. Settings loaded.")
+
+        # Route the server engine's own logging (uvicorn, sarapp_db, the
+        # cloud tunnel client) into this log view too, not just the
+        # console's own start/stop/save messages.
+        self._log_handler = QtLogHandler(self.log_line.emit)
+        self._log_handler.setLevel(logging.INFO)
+        root_logger = logging.getLogger()
+        root_logger.addHandler(self._log_handler)
+        if root_logger.level == logging.NOTSET or root_logger.level > logging.INFO:
+            root_logger.setLevel(logging.INFO)
 
         # Periodic health monitoring updates labels without blocking the UI.
         self.health_timer = QTimer(self)
@@ -471,6 +482,10 @@ class ServerConsoleWindow(QMainWindow):
         if label.startswith("Stop"):
             self.started_label.setText("Not started")
         self._refresh_status()
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override signature
+        logging.getLogger().removeHandler(self._log_handler)
+        super().closeEvent(event)
 
     def _append_log(self, message: str) -> None:
         self._append_log_from_thread(self.logs.add(message))
