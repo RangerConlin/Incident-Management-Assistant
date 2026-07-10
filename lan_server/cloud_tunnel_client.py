@@ -34,8 +34,33 @@ _CONNECT_CODE_ENV_VAR = "SARAPP_CONNECT_CODE"
 
 _MIN_BACKOFF_SECONDS = 1.0
 _MAX_BACKOFF_SECONDS = 30.0
+_AUTH_REJECTION_BACKOFF_SECONDS = 60.0
 _REGISTER_TIMEOUT_SECONDS = 10.0
-_REQUEST_TIMEOUT_SECONDS = 30.0
+
+
+def _float_env(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, str(default)))
+    except ValueError:
+        return default
+
+
+# Mirrors cloud_server/router/config.py so both sides of the tunnel agree on
+# limits without needing separate env vars.
+_REQUEST_TIMEOUT_SECONDS = _float_env("SARAPP_ROUTER_REQUEST_TIMEOUT_SECONDS", 30.0)
+_MAX_REQUEST_BODY_BYTES = _int_env("SARAPP_ROUTER_MAX_BODY_BYTES", 20 * 1024 * 1024)
+_MAX_CONCURRENT_FRAMES = _int_env("SARAPP_ROUTER_MAX_PENDING_REQUESTS", 200)
+
+# WebSocket close codes the router uses to signal *why* a tunnel was closed
+# (see cloud_server/router/app.py); 1008 = policy violation (auth rejected).
+_AUTH_REJECTED_CLOSE_CODE = 1008
 
 # Headers that must be recomputed by the loopback HTTP client rather than
 # forwarded verbatim from the original field-device request.
@@ -110,6 +135,7 @@ class CloudTunnelClient:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
         self._ws_channels: dict[str, Any] = {}
+        self._frame_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_FRAMES)
 
     @property
     def enabled(self) -> bool:
@@ -158,18 +184,35 @@ class CloudTunnelClient:
         self._stop_event = asyncio.Event()
         backoff = _MIN_BACKOFF_SECONDS
         while not self._stop_event.is_set():
+            auth_rejected = False
             try:
                 await self._connect_once()
                 backoff = _MIN_BACKOFF_SECONDS
             except Exception as exc:  # noqa: BLE001 - never let the tunnel thread die
-                logger.warning("Cloud tunnel connection failed: %s", exc)
+                close_code = getattr(exc, "code", None)
+                close_reason = getattr(exc, "reason", None)
+                if close_code == _AUTH_REJECTED_CLOSE_CODE:
+                    auth_rejected = True
+                    logger.warning(
+                        "Cloud tunnel registration rejected (auth) - backing off %.0fs: %s",
+                        _AUTH_REJECTION_BACKOFF_SECONDS,
+                        exc,
+                    )
+                else:
+                    logger.warning(
+                        "Cloud tunnel connection failed (close_code=%s reason=%s): %s",
+                        close_code,
+                        close_reason,
+                        exc,
+                    )
             if self._stop_event.is_set():
                 break
+            wait_seconds = _AUTH_REJECTION_BACKOFF_SECONDS if auth_rejected else backoff
             try:
-                await asyncio.wait_for(self._stop_event.wait(), timeout=backoff)
+                await asyncio.wait_for(self._stop_event.wait(), timeout=wait_seconds)
             except asyncio.TimeoutError:
                 pass
-            backoff = min(backoff * 2, _MAX_BACKOFF_SECONDS)
+            backoff = _AUTH_REJECTION_BACKOFF_SECONDS if auth_rejected else min(backoff * 2, _MAX_BACKOFF_SECONDS)
 
     async def _connect_once(self) -> None:
         async with websockets.connect(self.cloud_router_url) as tunnel:
@@ -205,6 +248,7 @@ class CloudTunnelClient:
                 pass
 
     async def _pump(self, tunnel: Any) -> None:
+        self._frame_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_FRAMES)
         async for raw in tunnel:
             try:
                 frame = json.loads(raw)
@@ -212,13 +256,30 @@ class CloudTunnelClient:
                 continue
             frame_type = frame.get("type")
             if frame_type == "request":
-                asyncio.create_task(self._handle_request(tunnel, frame))
+                self._spawn_bounded(self._handle_request(tunnel, frame))
             elif frame_type == "ws_open":
-                asyncio.create_task(self._handle_ws_open(tunnel, frame))
+                self._spawn_bounded(self._handle_ws_open(tunnel, frame))
             elif frame_type == "ws_message":
-                asyncio.create_task(self._handle_ws_message(frame))
+                self._spawn_bounded(self._handle_ws_message(frame))
             elif frame_type == "ws_close":
-                asyncio.create_task(self._handle_ws_close(frame))
+                self._spawn_bounded(self._handle_ws_close(frame))
+            elif frame_type == "ping":
+                asyncio.create_task(self._send_pong(tunnel, frame.get("ts")))
+            else:
+                logger.warning("Ignoring unrecognized tunnel frame type: %r", frame_type)
+
+    async def _send_pong(self, tunnel: Any, ts: Any) -> None:
+        try:
+            await tunnel.send(json.dumps({"type": "pong", "ts": ts}))
+        except Exception:  # noqa: BLE001 - tunnel may be tearing down; nothing to do
+            pass
+
+    def _spawn_bounded(self, coro: Any) -> None:
+        async def _run_bounded() -> None:
+            async with self._frame_semaphore:
+                await coro
+
+        asyncio.create_task(_run_bounded())
 
     async def _handle_request(self, tunnel: Any, frame: dict[str, Any]) -> None:
         request_id = frame.get("request_id")
@@ -228,6 +289,23 @@ class CloudTunnelClient:
         headers = _filtered_headers(frame.get("headers") or {})
         body_b64 = frame.get("body")
         body = base64.b64decode(body_b64) if body_b64 else b""
+
+        if len(body) > _MAX_REQUEST_BODY_BYTES:
+            logger.warning(
+                "Rejecting oversized request body (%d bytes) for %s %s", len(body), method, path
+            )
+            await tunnel.send(
+                json.dumps(
+                    {
+                        "type": "response",
+                        "request_id": request_id,
+                        "status": 413,
+                        "headers": {},
+                        "body": base64.b64encode(b"Request body too large").decode("ascii"),
+                    }
+                )
+            )
+            return
 
         url = f"http://127.0.0.1:{self.local_port}{path}"
         if query:

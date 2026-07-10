@@ -13,9 +13,20 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import config
+
 
 class TunnelUnavailableError(Exception):
     """Raised when the tunnel disconnects while a request is in flight."""
+
+
+class TunnelBackpressureError(TunnelUnavailableError):
+    """Raised when a tunnel is at its concurrent request/channel cap.
+
+    Subclasses ``TunnelUnavailableError`` so callers that only catch the
+    broader error still get a safe fallback; ``app.py`` catches this first
+    to return a more specific ``503``.
+    """
 
 
 @dataclass
@@ -27,6 +38,7 @@ class TunnelConnection:
     server_name: str
     websocket: Any
     connected_at: float = field(default_factory=time.monotonic)
+    last_pong_at: float = field(default_factory=time.monotonic)
     pending_requests: dict[str, "asyncio.Future[dict[str, Any]]"] = field(default_factory=dict)
     ws_channels: dict[str, "asyncio.Queue[dict[str, Any]]"] = field(default_factory=dict)
     _send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -34,6 +46,12 @@ class TunnelConnection:
     async def _send(self, frame: dict[str, Any]) -> None:
         async with self._send_lock:
             await self.websocket.send_text(json.dumps(frame))
+
+    async def send_ping(self) -> None:
+        await self._send({"type": "ping", "ts": time.time()})
+
+    def record_pong(self, frame: dict[str, Any]) -> None:
+        self.last_pong_at = time.monotonic()
 
     async def send_request(
         self,
@@ -45,6 +63,8 @@ class TunnelConnection:
         headers: dict[str, str],
         body_b64: str,
     ) -> "asyncio.Future[dict[str, Any]]":
+        if len(self.pending_requests) >= config.MAX_PENDING_REQUESTS_PER_TUNNEL:
+            raise TunnelBackpressureError("LAN server tunnel is at its concurrent request limit")
         loop = asyncio.get_running_loop()
         future: "asyncio.Future[dict[str, Any]]" = loop.create_future()
         self.pending_requests[request_id] = future
@@ -68,6 +88,8 @@ class TunnelConnection:
             future.set_result(frame)
 
     def register_ws_channel(self, channel_id: str) -> "asyncio.Queue[dict[str, Any]]":
+        if len(self.ws_channels) >= config.MAX_WS_CHANNELS_PER_TUNNEL:
+            raise TunnelBackpressureError("LAN server tunnel is at its concurrent websocket channel limit")
         queue: "asyncio.Queue[dict[str, Any]]" = asyncio.Queue()
         self.ws_channels[channel_id] = queue
         return queue
@@ -94,7 +116,7 @@ class TunnelConnection:
     def dispatch_ws_close(self, frame: dict[str, Any]) -> None:
         queue = self.ws_channels.pop(frame.get("channel_id"), None)
         if queue is not None:
-            queue.put_nowait({"type": "closed"})
+            queue.put_nowait({"type": "closed", "reason": "remote_closed", "code": 1000})
 
     def close_ws_channel_locally(self, channel_id: str) -> None:
         self.ws_channels.pop(channel_id, None)
@@ -107,7 +129,7 @@ class TunnelConnection:
                 future.set_exception(TunnelUnavailableError("LAN server tunnel disconnected"))
         self.pending_requests.clear()
         for queue in self.ws_channels.values():
-            queue.put_nowait({"type": "closed"})
+            queue.put_nowait({"type": "closed", "reason": "tunnel_disconnected", "code": 1001})
         self.ws_channels.clear()
 
 
@@ -125,6 +147,12 @@ class TunnelRegistry:
 
     def get(self, connect_code: str) -> TunnelConnection | None:
         return self._connections.get(connect_code)
+
+    def active_tunnel_count(self) -> int:
+        return len(self._connections)
+
+    def list_connections(self) -> list[TunnelConnection]:
+        return list(self._connections.values())
 
 
 registry = TunnelRegistry()

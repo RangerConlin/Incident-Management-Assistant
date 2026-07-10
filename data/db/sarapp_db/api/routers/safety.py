@@ -36,6 +36,10 @@ class HazardZonesRepository(BaseRepository):
     collection_name = IncidentCollections.HAZARD_ZONES
 
 
+class HazardsRepository(BaseRepository):
+    collection_name = IncidentCollections.HAZARDS
+
+
 class CapOrmSummariesRepository(BaseRepository):
     collection_name = IncidentCollections.CAP_ORM_SUMMARIES
 
@@ -497,6 +501,173 @@ def approve_orm_form(incident_id: str, body: ApproveRequest):
     repo.update_one(form["_id"], updates)
     _log_audit(incident_id, "orm_form", form["id"], "approve", "status", form.get("status"), "approved")
     return repo.find_by_id(form["_id"]) or {}
+
+
+# ---------------------------------------------------------------------------
+# Canonical Hazard Register (Safety Risk Manager) — SPE scoring
+# ---------------------------------------------------------------------------
+
+SPE_SEVERITY_RANGE = (1, 5)
+SPE_PROBABILITY_RANGE = (1, 5)
+SPE_EXPOSURE_RANGE = (1, 4)
+
+# (score floor, degree, action) — highest floor that the score meets or exceeds wins.
+SPE_BANDS = (
+    (80, "Very High", "Discontinue / Stop"),
+    (60, "High", "Correct Immediately"),
+    (40, "Substantial", "Correction Required"),
+    (20, "Possible", "Attention Needed"),
+    (1, "Slight", "Possibly Acceptable"),
+)
+
+
+def _spe_score(severity: int, probability: int, exposure: int) -> int:
+    return severity * probability * exposure
+
+
+def _spe_band(score: int) -> tuple[str, str]:
+    for floor, degree, action in SPE_BANDS:
+        if score >= floor:
+            return degree, action
+    return SPE_BANDS[-1][1], SPE_BANDS[-1][2]
+
+
+class SpeAssessmentInput(BaseModel):
+    severity: int = Field(ge=SPE_SEVERITY_RANGE[0], le=SPE_SEVERITY_RANGE[1])
+    probability: int = Field(ge=SPE_PROBABILITY_RANGE[0], le=SPE_PROBABILITY_RANGE[1])
+    exposure: int = Field(ge=SPE_EXPOSURE_RANGE[0], le=SPE_EXPOSURE_RANGE[1])
+
+
+def _score_spe(assessment: Optional[SpeAssessmentInput]) -> Optional[dict[str, Any]]:
+    if assessment is None:
+        return None
+    score = _spe_score(assessment.severity, assessment.probability, assessment.exposure)
+    degree, action = _spe_band(score)
+    return {
+        "severity": assessment.severity,
+        "probability": assessment.probability,
+        "exposure": assessment.exposure,
+        "score": score,
+        "band": degree,
+        "action": action,
+    }
+
+
+class HazardLinks(BaseModel):
+    work_assignment_ids: list[int] = Field(default_factory=list)
+    task_ids: list[int] = Field(default_factory=list)
+    team_ids: list[int] = Field(default_factory=list)
+
+
+class HazardCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    hazard_type_id: Optional[str] = None
+    hazard_type_text: Optional[str] = None
+    source: Optional[str] = None
+    op_period_ids: list[int] = Field(default_factory=list)
+    location_text: Optional[str] = None
+    links: HazardLinks = Field(default_factory=HazardLinks)
+    control_measure: Optional[str] = None
+    mitigation_text: Optional[str] = None
+    ppe_text: Optional[str] = None
+    safety_message: Optional[str] = None
+    notes: Optional[str] = None
+    spe_initial: Optional[SpeAssessmentInput] = None
+    spe_residual: Optional[SpeAssessmentInput] = None
+    created_by: Optional[str] = None
+
+
+class HazardPatch(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    hazard_type_id: Optional[str] = None
+    hazard_type_text: Optional[str] = None
+    source: Optional[str] = None
+    op_period_ids: Optional[list[int]] = None
+    location_text: Optional[str] = None
+    links: Optional[HazardLinks] = None
+    control_measure: Optional[str] = None
+    mitigation_text: Optional[str] = None
+    ppe_text: Optional[str] = None
+    safety_message: Optional[str] = None
+    notes: Optional[str] = None
+    spe_initial: Optional[SpeAssessmentInput] = None
+    spe_residual: Optional[SpeAssessmentInput] = None
+    updated_by: Optional[str] = None
+
+
+def _hazards_register_repo(incident_id: str) -> HazardsRepository:
+    return HazardsRepository(get_incident_db(incident_id))
+
+
+@router.get("/incidents/{incident_id}/safety/hazards")
+def list_hazards(
+    incident_id: str,
+    op_period: Optional[int] = Query(None),
+    category: Optional[str] = None,
+    work_assignment_id: Optional[int] = Query(None),
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {}
+    if op_period is not None:
+        query["op_period_ids"] = op_period
+    if category:
+        query["category"] = category
+    if work_assignment_id is not None:
+        query["links.work_assignment_ids"] = work_assignment_id
+    repo = _hazards_register_repo(incident_id)
+    return _query_incident_docs(repo, incident_id, query)
+
+
+@router.post("/incidents/{incident_id}/safety/hazards", status_code=201)
+def create_hazard(incident_id: str, body: HazardCreate) -> dict[str, Any]:
+    payload = body.model_dump(exclude={"spe_initial", "spe_residual", "links"})
+    payload["links"] = body.links.model_dump()
+    payload["spe_initial"] = _score_spe(body.spe_initial)
+    payload["spe_residual"] = _score_spe(body.spe_residual)
+    now = _utcnow()
+    payload["created_at"] = now
+    payload["updated_at"] = now
+    repo = _hazards_register_repo(incident_id)
+    return _insert_incident_doc(repo, incident_id, payload)
+
+
+@router.get("/incidents/{incident_id}/safety/hazards/{hazard_id}")
+def get_hazard(incident_id: str, hazard_id: int) -> dict[str, Any]:
+    repo = _hazards_register_repo(incident_id)
+    doc = _find_by_int_id(repo, incident_id, hazard_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Hazard not found")
+    return doc
+
+
+@router.patch("/incidents/{incident_id}/safety/hazards/{hazard_id}")
+def update_hazard(incident_id: str, hazard_id: int, body: HazardPatch) -> dict[str, Any]:
+    repo = _hazards_register_repo(incident_id)
+    existing = _find_by_int_id(repo, incident_id, hazard_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Hazard not found")
+    updates = body.model_dump(exclude={"spe_initial", "spe_residual", "links"}, exclude_unset=True)
+    if body.links is not None:
+        updates["links"] = body.links.model_dump()
+    if "spe_initial" in body.model_fields_set:
+        updates["spe_initial"] = _score_spe(body.spe_initial)
+    if "spe_residual" in body.model_fields_set:
+        updates["spe_residual"] = _score_spe(body.spe_residual)
+    updates["updated_at"] = _utcnow()
+    repo.update_one(existing["_id"], updates)
+    return repo.find_by_id(existing["_id"]) or {}
+
+
+@router.delete("/incidents/{incident_id}/safety/hazards/{hazard_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_hazard(incident_id: str, hazard_id: int) -> Response:
+    repo = _hazards_register_repo(incident_id)
+    existing = _find_by_int_id(repo, incident_id, hazard_id)
+    if existing:
+        repo.soft_delete(existing["_id"])
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------

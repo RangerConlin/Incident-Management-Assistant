@@ -121,9 +121,9 @@ def _create_check_in_out_indexes(incident_db: Database) -> None:
 def _create_hazards_indexes(incident_db: Database) -> None:
     hazards = incident_db[IncidentCollections.HAZARDS]
     _ensure_index(hazards, [("incident_id", ASCENDING)])
-    _ensure_index(hazards, [("hazard_type", ASCENDING)])
-    _ensure_index(hazards, [("severity", ASCENDING)])
-    _ensure_index(hazards, [("status", ASCENDING)])  # active | mitigated | resolved
+    _ensure_index(hazards, [("hazard_type_id", ASCENDING)])
+    _ensure_index(hazards, [("op_period_ids", ASCENDING)])
+    _ensure_index(hazards, [("links.work_assignment_ids", ASCENDING)])
     _ensure_index(hazards, [("deleted", ASCENDING)])
 
 

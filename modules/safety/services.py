@@ -176,15 +176,6 @@ def create_hazard_zone(incident_id: str, data: schemas.HazardZoneCreate) -> sche
 
 
 # ---------------------------------------------------------------------------
-# CAP ORM
-# ---------------------------------------------------------------------------
-
-def create_cap_orm(incident_id: str, data: schemas.CapOrmCreate) -> schemas.CapOrmRead:
-    row = api_client.post(f"/api/incidents/{incident_id}/safety/caporm", json=data.dict())
-    return schemas.CapOrmRead(**row)
-
-
-# ---------------------------------------------------------------------------
 # ICS-206 Builder
 # ---------------------------------------------------------------------------
 
@@ -293,7 +284,6 @@ __all__ = [
     "create_triage_entry",
     "list_hazard_zones",
     "create_hazard_zone",
-    "create_cap_orm",
     "build_ics206",
     "list_iwi_reports",
     "get_iwi_report",

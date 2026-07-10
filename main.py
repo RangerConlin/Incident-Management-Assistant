@@ -854,7 +854,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Medical Plan ICS 206", None, "medical.206")
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
-        self._add_action(m_med, "CAP ORM CAPF-160", None, "safety.caporm")
+        self._add_action(m_med, "Safety Risk Manager", None, "safety.risk_manager")
         self._add_action(m_med, "Safety Incident Reports (IWI)", None, "safety.iwi")
         m_med.addSeparator()
         self._add_weather_menu_items(m_med, prefix="safety.weather")
@@ -1167,7 +1167,7 @@ class MainWindow(QMainWindow):
             "medical.206": self.open_medical_206,
             "safety.208": self.open_safety_208,
             "safety.215A": self.open_safety_215A,
-            "safety.caporm": self.open_safety_caporm,
+            "safety.risk_manager": self.open_safety_risk_manager,
             "safety.iwi": self.open_safety_iwi,
 
             "safety.weather.summary": self.open_weather_safety_summary,
@@ -2320,11 +2320,11 @@ class MainWindow(QMainWindow):
         panel = safety.get_215A_panel(incident_id)
         self._open_panel(panel, title="Incident Safety Analysis (ICS-215A)")
 
-    def open_safety_caporm(self) -> None:
+    def open_safety_risk_manager(self) -> None:
         from modules import safety
         incident_id = AppState.get_active_incident()
-        panel = safety.get_caporm_panel(incident_id)
-        self._open_panel(panel, title="CAP ORM")
+        panel = safety.get_risk_manager_panel(incident_id)
+        self._open_panel(panel, title="Safety Risk Manager")
 
     def open_safety_iwi(self) -> None:
         from modules import safety

@@ -130,6 +130,14 @@ Add entries below this line.
 - Removal Condition: confirmed nothing imports `cloud_server.sarapp_db`, and the reverse-tunnel router model has been validated in production for a full incident deployment
 - Verification: grep for `cloud_server.sarapp_db` or `from sarapp_db` imports under `cloud_server/` outside of the mirrored tree itself
 
+### CAP ORM router endpoints and collections — superseded by Safety Risk Manager
+- Status: `legacy-compat-active`
+- Location: `data/db/sarapp_db/api/routers/safety.py` (`get_orm_form`, `update_orm_form`, `list_orm_hazards`, `create_orm_hazard`, `update_orm_hazard`, `delete_orm_hazard`, `approve_orm_form`, `create_cap_orm_summary`), `data/db/sarapp_db/mongo/collection_names.py` (`CAP_ORM_FORMS`, `CAP_ORM_HAZARDS`, `CAP_ORM_SUMMARIES`, `CAP_ORM_AUDIT`)
+- Purpose: the CAP-style severity/likelihood risk-matrix ORM form/hazard workflow. The desktop UI (`modules/safety/orm/`) no longer writes to these endpoints — it was rebuilt as the Safety Risk Manager, a canonical SPE-scored hazard register writing to `IncidentCollections.HAZARDS`. These endpoints/collections are kept only because `modules/forms_creator/context.py` (`_build_cap_orm_form`, `_build_cap_orm_hazards`, `_build_cap_orm_summaries`, `_build_cap_orm_audit`) still reads them for CAPF-160-style form binding/export.
+- Legacy Source: pre-SPE CAP ORM risk-matrix workflow, retained as a read-only data source for form exports after the UI cutover to `modules/safety/orm/` (Safety Risk Manager)
+- Removal Condition: `forms_creator` no longer needs CAP ORM fields for any form template, or a CAPF-160 export adapter is rebuilt to read from the canonical `hazards` collection instead
+- Verification: grep for `cap_orm` in `modules/forms_creator/context.py` and `forms/sets/cap/**/mapping.json`; confirm no template still binds to `cap_orm_*` fields before deleting the router endpoints/collections
+
 ### app/modules/planning/iap/models/repository.py — IAP CRUD in SQLite
 - Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
 - SQLite removed. `IAPRepository` now calls `GET/PUT/DELETE /api/incidents/{id}/iap/packages`.

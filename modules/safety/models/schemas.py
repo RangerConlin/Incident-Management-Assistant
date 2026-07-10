@@ -109,32 +109,6 @@ class HazardZoneRead(HazardZoneBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# ----------------------------------------------------------------------------
-# CAP ORM
-# ----------------------------------------------------------------------------
-
-
-class CapOrmBase(BaseModel):
-    form_type: Optional[str] = None
-    activity: Optional[str] = None
-    participants_json: Optional[str] = None
-    hazards_json: Optional[str] = None
-    mitigations_json: Optional[str] = None
-    residual_risk: Optional[str] = None
-    created_by: Optional[str] = None
-
-
-class CapOrmCreate(CapOrmBase):
-    pass
-
-
-class CapOrmRead(CapOrmBase):
-    id: int
-    incident_id: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
-
 
 # ----------------------------------------------------------------------------
 # ICS-206

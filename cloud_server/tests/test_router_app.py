@@ -20,6 +20,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from router import config
 from router.app import create_router_app
 
 
@@ -33,7 +34,10 @@ class ASGIWebSocketSession:
         self._from_app: asyncio.Queue = asyncio.Queue()
         self._task: asyncio.Task | None = None
 
-    async def connect(self) -> None:
+    async def start(self) -> dict:
+        """Start the ASGI app and send the connect event; return the app's
+        first reply (``websocket.accept`` on success, ``websocket.close`` if
+        the handshake is rejected)."""
         scope = {
             "type": "websocket",
             "asgi": {"version": "3.0", "spec_version": "2.3"},
@@ -55,7 +59,10 @@ class ASGIWebSocketSession:
 
         self._task = asyncio.create_task(self.app(scope, receive, send))
         await self._to_app.put({"type": "websocket.connect"})
-        message = await self._from_app.get()
+        return await self._from_app.get()
+
+    async def connect(self) -> None:
+        message = await self.start()
         assert message["type"] == "websocket.accept"
 
     async def send_text(self, text: str) -> None:
@@ -66,6 +73,9 @@ class ASGIWebSocketSession:
         assert message["type"] == "websocket.send"
         return message["text"]
 
+    async def receive_raw(self) -> dict:
+        return await self._from_app.get()
+
     async def close(self) -> None:
         await self._to_app.put({"type": "websocket.disconnect", "code": 1000})
         if self._task is not None:
@@ -75,7 +85,7 @@ class ASGIWebSocketSession:
                 pass
 
 
-async def _open_registered_tunnel(app, connect_code: str) -> ASGIWebSocketSession:
+async def _open_registered_tunnel(app, connect_code: str, token: str = "") -> ASGIWebSocketSession:
     tunnel = ASGIWebSocketSession(app, "/tunnel/register")
     await tunnel.connect()
     await tunnel.send_text(
@@ -85,7 +95,7 @@ async def _open_registered_tunnel(app, connect_code: str) -> ASGIWebSocketSessio
                 "connect_code": connect_code,
                 "server_id": "srv-1",
                 "server_name": "Test LAN Server",
-                "token": "",
+                "token": token,
             }
         )
     )
@@ -177,6 +187,132 @@ def test_ws_proxy_round_trip() -> None:
         assert close_frame["channel_id"] == channel_id
 
         await tunnel.close()
+
+    asyncio.run(_run())
+
+
+def test_heartbeat_timeout_disconnects_stale_tunnel_and_fails_pending(monkeypatch) -> None:
+    monkeypatch.setattr(config, "HEARTBEAT_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(config, "HEARTBEAT_TIMEOUT_SECONDS", 0.3)
+
+    async def _run() -> None:
+        app = create_router_app()
+        tunnel = await _open_registered_tunnel(app, "TEST-HB")
+
+        # Drain ping frames (never replying with a pong) until the heartbeat
+        # times out and the router closes the socket.
+        for _ in range(50):
+            message = await tunnel.receive_raw()
+            if message["type"] == "websocket.close":
+                assert message.get("code") == 1001
+                break
+            assert message["type"] == "websocket.send"
+            assert json.loads(message["text"])["type"] == "ping"
+        else:
+            pytest.fail("heartbeat never timed out the tunnel")
+
+        # Let the receive-loop task's cancellation/cleanup finish so the
+        # registry deregister has actually happened before we probe it.
+        if tunnel._task is not None:
+            try:
+                await asyncio.wait_for(tunnel._task, timeout=2)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+
+        # A request against the now-dead connect code should be treated as
+        # offline rather than hanging on the full request timeout.
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.get("/r/TEST-HB/api/health-check")
+        assert response.status_code == 503
+
+    asyncio.run(_run())
+
+
+def test_request_backpressure_returns_503(monkeypatch) -> None:
+    monkeypatch.setattr(config, "MAX_PENDING_REQUESTS_PER_TUNNEL", 1)
+
+    async def _run() -> None:
+        app = create_router_app()
+        tunnel = await _open_registered_tunnel(app, "TEST-BP")
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            first = asyncio.create_task(client.get("/r/TEST-BP/api/slow-1"))
+            await tunnel.receive_text()  # first request frame, left pending so the cap stays hit
+
+            second = await client.get("/r/TEST-BP/api/slow-2")
+            assert second.status_code == 503
+
+        first.cancel()
+        await tunnel.close()
+
+    asyncio.run(_run())
+
+
+def test_oversized_body_returns_413() -> None:
+    async def _run() -> None:
+        app = create_router_app()
+        tunnel = await _open_registered_tunnel(app, "TEST-413")
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            oversized = b"x" * (config.MAX_REQUEST_BODY_BYTES + 1)
+            response = await client.post("/r/TEST-413/api/upload", content=oversized)
+        assert response.status_code == 413
+
+        await tunnel.close()
+
+    asyncio.run(_run())
+
+
+def test_admin_endpoints_require_token(monkeypatch) -> None:
+    monkeypatch.setenv("SARAPP_CLOUD_ROUTER_TOKEN", "secret-token")
+
+    async def _run() -> None:
+        app = create_router_app()
+        tunnel = await _open_registered_tunnel(app, "TEST-ADMIN", token="secret-token")
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            unauthorized = await client.get("/admin/tunnels")
+            assert unauthorized.status_code == 401
+
+            authorized = await client.get(
+                "/admin/tunnels", headers={"X-Router-Token": "secret-token"}
+            )
+            assert authorized.status_code == 200
+            body = authorized.json()
+            assert any(t["connect_code"] == "TEST-ADMIN" for t in body["tunnels"])
+
+            metrics_response = await client.get(
+                "/admin/metrics", headers={"X-Router-Token": "secret-token"}
+            )
+            assert metrics_response.status_code == 200
+            assert "active_tunnel_count" in metrics_response.json()
+
+        await tunnel.close()
+
+    asyncio.run(_run())
+
+
+def test_register_rate_limit_rejects_excess_attempts(monkeypatch) -> None:
+    monkeypatch.setattr(config, "REGISTER_RATE_LIMIT_PER_MINUTE", 2)
+
+    async def _run() -> None:
+        app = create_router_app()
+
+        # First two registrations from the same host are allowed.
+        for i in range(2):
+            tunnel = await _open_registered_tunnel(app, f"RL-{i}")
+            await tunnel.close()
+
+        # The third should be rejected at the handshake with a close, before
+        # any registration ack.
+        tunnel = ASGIWebSocketSession(app, "/tunnel/register")
+        message = await tunnel.start()
+        assert message["type"] == "websocket.close"
+        assert message.get("code") == 1013
 
     asyncio.run(_run())
 

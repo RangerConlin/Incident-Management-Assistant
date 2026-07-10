@@ -3,14 +3,14 @@ from __future__ import annotations
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 try:
-    from .orm.ui.orm_window import ORMWindow
-except Exception:  # pragma: no cover - fallback when ORM UI unavailable
-    ORMWindow = None
+    from .orm.ui.risk_manager_window import RiskManagerWindow
+except Exception:  # pragma: no cover - fallback when Risk Manager UI unavailable
+    RiskManagerWindow = None
 
 __all__ = [
     "get_208_panel",
     "get_215A_panel",
-    "get_caporm_panel",
+    "get_risk_manager_panel",
     "get_safety_panel",
     "get_iwi_panel",
 ]
@@ -54,18 +54,18 @@ def get_215A_panel(incident_id: object | None = None) -> QWidget:
         )
 
 
-def get_caporm_panel(incident_id: object | None = None) -> QWidget:
-    """Return CAP ORM window, falling back to placeholder on error."""
+def get_risk_manager_panel(incident_id: object | None = None) -> QWidget:
+    """Return the Safety Risk Manager window, falling back to placeholder on error."""
 
-    if ORMWindow is not None:
+    if RiskManagerWindow is not None:
         try:
-            return ORMWindow(incident_id=incident_id)
+            return RiskManagerWindow(incident_id=incident_id)
         except Exception:
             pass
 
     return _make_panel(
-        "CAP ORM",
-        "CAP ORM window unavailable in this environment.",
+        "Safety Risk Manager",
+        "Safety Risk Manager window unavailable in this environment.",
     )
 
 

@@ -57,6 +57,8 @@ Task Board
 Logistics Dashboard
 
 Check In ICS-211
+  - Change this from a quick checkin to the full checking
+  - Create new quick checkin focused on scanning IDs and checking in rapidly - stripped down window with entry box, display box for record returns, and large buttons at the bottom for checkin status
     
 Resource Status Board
     - Status based colors need to be coded in the light/dark palette and for dark mode need to be darker.
@@ -101,7 +103,8 @@ Intel Logs
 Forms
 **************************************************************************************************************
 [Safety]
-  - Integrate USCG SPE/GAR model for ORM
+  - Integrate USCG GAR model on the task/assignment side (SPE hazard scoring is done — see Safety Risk Manager, modules/safety/orm/)
+    -- New Safety tab in the task detail window?
 Safety Message ICS 208
 
 Incident Safety Analysis ICS 215A
@@ -161,11 +164,11 @@ Cost Summary
 
 **************************************************************************************************************
 [Reference Library]
-    - Need to develop/expand the certification library and wire it into the personnel module
 
 **************************************************************************************************************
 [Dockable Widgets]
     - Button widget that can be customized to launch a specific screen
+    - Code for KPI display widget exists but isnt exposed anywhere
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
@@ -183,3 +186,7 @@ Cost Summary
       migrated to RESOURCE_STATUSES from resource_status/models.py.
   - Personnel export currently exports deep into the temporary folders - needs to export to documents by default and have a selctable export location
     - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON. Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
+
+**************************************************************************************************************
+[Logs]
+  - Logs need to be able to write to multiple streams at once.  Would like to be able to generate a log for each individual person, but i dont think writing a separate stream is a good idea.  perhaps something that generates from a lookup of everything that person has done?

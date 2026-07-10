@@ -1,9 +1,9 @@
-"""Safety ORM module entry point.
+"""Safety Risk Manager module entry point.
 
-The ORM API is served by sarapp_db.api.routers.safety (MongoDB-backed,
-registered in the main app at /api/incidents/{incident_id}/safety/orm/...).
-This module's service.py calls that API directly via api_client — there is
-no separate local FastAPI router or repository for this module.
+The hazard register API is served by sarapp_db.api.routers.safety (MongoDB-backed,
+registered in the main app at /api/incidents/{incident_id}/safety/hazards). This
+module's service.py calls that API directly via api_client — there is no separate
+local FastAPI router or repository for this module.
 """
 
 from __future__ import annotations
@@ -12,14 +12,14 @@ __all__ = ["register_ui"]
 
 
 def register_ui(menu_registry) -> None:
-    """Register menu entry for the ORM window."""
+    """Register menu entry for the Safety Risk Manager window."""
     if menu_registry is None:
         return
 
-    from .ui.orm_window import ORMWindow
+    from .ui.risk_manager_window import RiskManagerWindow
 
     menu_registry.add_item(
-        path="safety.cap_orm_singleton",
-        title="CAP ORM (Per OP)",
-        factory=lambda: ORMWindow(),
+        path="safety.risk_manager",
+        title="Safety Risk Manager",
+        factory=lambda: RiskManagerWindow(),
     )

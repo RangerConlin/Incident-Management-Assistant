@@ -55,6 +55,24 @@ _RISK_TEXT: Dict[str, str] = {
     "Low":     "#1b5e20",
 }
 
+_SPE_COLORS: Dict[str, str] = {
+    "Very High":   "#ffcdd2",
+    "High":        "#ffe0b2",
+    "Substantial": "#fff9c4",
+    "Possible":    "#fff9c4",
+    "Slight":      "#c8e6c9",
+}
+
+_SPE_TEXT: Dict[str, str] = {
+    "Very High":   "#b71c1c",
+    "High":        "#e65100",
+    "Substantial": "#f57f17",
+    "Possible":    "#f57f17",
+    "Slight":      "#1b5e20",
+}
+
+_SPE_ORDER = {"Very High": 0, "High": 1, "Substantial": 2, "Possible": 3, "Slight": 4}
+
 
 def _risk_item(text: str, risk: str) -> QTableWidgetItem:
     item = QTableWidgetItem(text)
@@ -109,6 +127,18 @@ def _wa_label(wa: dict) -> str:
     if num and name:
         return f"{num} – {name}"
     return num or name or f"WA {wa.get('id', '?')}"
+
+
+def _spe_item(text: str, degree: str) -> QTableWidgetItem:
+    item = QTableWidgetItem(text)
+    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+    bg = _SPE_COLORS.get(degree)
+    fg = _SPE_TEXT.get(degree)
+    if bg:
+        item.setBackground(QColor(bg))
+    if fg:
+        item.setForeground(QColor(fg))
+    return item
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +324,77 @@ class _ByAssignmentWidget(QScrollArea):
 
 
 # ---------------------------------------------------------------------------
+# Canonical hazard register view (Safety Risk Manager)
+# ---------------------------------------------------------------------------
+
+_CANONICAL_COLS = [
+    "Title",
+    "Category",
+    "Op Period(s)",
+    "Initial SPE",
+    "Residual SPE",
+    "Linked Work Assignments",
+]
+
+
+class _CanonicalRegisterTable(QWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+
+        self._count_lbl = QLabel("0 hazards")
+        self._count_lbl.setStyleSheet("font-size: 11px; color: #546e7a;")
+        layout.addWidget(self._count_lbl)
+
+        self._tbl = QTableWidget(0, len(_CANONICAL_COLS))
+        self._tbl.setHorizontalHeaderLabels(_CANONICAL_COLS)
+        self._tbl.setSelectionBehavior(QTableWidget.SelectRows)
+        self._tbl.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._tbl.setAlternatingRowColors(True)
+        self._tbl.horizontalHeader().setStretchLastSection(True)
+        self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl.verticalHeader().setVisible(False)
+        self._tbl.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._tbl, 1)
+
+    def load(self, hazards: List[dict], wa_labels_by_id: Dict[int, str]) -> None:
+        self._tbl.setRowCount(0)
+        for hazard in hazards:
+            r = self._tbl.rowCount()
+            self._tbl.insertRow(r)
+
+            initial = hazard.get("spe_initial") or {}
+            residual = hazard.get("spe_residual") or {}
+            initial_degree = initial.get("band", "")
+            residual_degree = residual.get("band", "")
+            initial_text = f"{initial['score']} — {initial_degree}" if initial else "Not assessed"
+            residual_text = f"{residual['score']} — {residual_degree}" if residual else "Not assessed"
+
+            links = hazard.get("links") or {}
+            wa_ids = links.get("work_assignment_ids") or []
+            wa_text = ", ".join(wa_labels_by_id.get(wid, str(wid)) for wid in wa_ids)
+
+            cells = [
+                (hazard.get("title", ""), None),
+                (hazard.get("category", ""), None),
+                (", ".join(str(op) for op in hazard.get("op_period_ids") or []), None),
+                (initial_text, initial_degree),
+                (residual_text, residual_degree),
+                (wa_text, None),
+            ]
+            for c, (text, degree) in enumerate(cells):
+                item = _spe_item(text, degree) if degree else _ro_item(text)
+                self._tbl.setItem(r, c, item)
+
+        self._count_lbl.setText(
+            f"{self._tbl.rowCount()} hazard{'s' if self._tbl.rowCount() != 1 else ''}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Main panel
 # ---------------------------------------------------------------------------
 
@@ -330,7 +431,8 @@ class ICS215APanel(QWidget):
         # View toggle buttons
         self._btn_consolidated = QPushButton("Consolidated")
         self._btn_by_assignment = QPushButton("By Assignment")
-        for btn in (self._btn_consolidated, self._btn_by_assignment):
+        self._btn_canonical = QPushButton("Canonical Register")
+        for btn in (self._btn_consolidated, self._btn_by_assignment, self._btn_canonical):
             btn.setCheckable(True)
             btn.setFixedHeight(28)
             btn.setStyleSheet(
@@ -343,8 +445,10 @@ class ICS215APanel(QWidget):
         self._btn_consolidated.setChecked(True)
         self._btn_consolidated.clicked.connect(lambda: self._switch_view("consolidated"))
         self._btn_by_assignment.clicked.connect(lambda: self._switch_view("by_assignment"))
+        self._btn_canonical.clicked.connect(lambda: self._switch_view("canonical"))
         hrow.addWidget(self._btn_consolidated)
         hrow.addWidget(self._btn_by_assignment)
+        hrow.addWidget(self._btn_canonical)
 
         hrow.addSpacing(16)
         hrow.addWidget(QLabel("Op Period:"))
@@ -384,18 +488,18 @@ class ICS215APanel(QWidget):
         self._by_assignment_wgt = _ByAssignmentWidget()
         self._stack.addWidget(self._by_assignment_wgt)  # index 1
 
+        self._canonical_tbl = _CanonicalRegisterTable()
+        self._stack.addWidget(self._canonical_tbl)      # index 2
+
         self._stack.setCurrentIndex(0)
         outer.addWidget(self._stack, 1)
 
     def _switch_view(self, view: str) -> None:
-        if view == "consolidated":
-            self._stack.setCurrentIndex(0)
-            self._btn_consolidated.setChecked(True)
-            self._btn_by_assignment.setChecked(False)
-        else:
-            self._stack.setCurrentIndex(1)
-            self._btn_consolidated.setChecked(False)
-            self._btn_by_assignment.setChecked(True)
+        index = {"consolidated": 0, "by_assignment": 1, "canonical": 2}[view]
+        self._stack.setCurrentIndex(index)
+        self._btn_consolidated.setChecked(view == "consolidated")
+        self._btn_by_assignment.setChecked(view == "by_assignment")
+        self._btn_canonical.setChecked(view == "canonical")
 
     # ------------------------------------------------------------------
     # Data
@@ -409,6 +513,20 @@ class ICS215APanel(QWidget):
         try:
             result = api_client.get(
                 f"/api/incidents/{self._incident_id}/planning/work-assignments",
+                params=params,
+            )
+            return result or []
+        except Exception:
+            return []
+
+    def _fetch_hazards(self) -> List[dict]:
+        op = self._op_spin.value()
+        params: dict = {}
+        if op > 0:
+            params["op_period"] = op
+        try:
+            result = api_client.get(
+                f"/api/incidents/{self._incident_id}/safety/hazards",
                 params=params,
             )
             return result or []
@@ -456,10 +574,23 @@ class ICS215APanel(QWidget):
         self._consolidated_tbl.load(consolidated_rows)
         self._by_assignment_wgt.load(by_wa)
 
+        wa_labels_by_id: Dict[int, str] = {}
+        for wa in was:
+            wa_id = wa.get("id")
+            if wa_id is not None:
+                wa_labels_by_id[int(wa_id)] = _wa_label(wa)
+
+        canonical_hazards = sorted(
+            self._fetch_hazards(),
+            key=lambda h: _SPE_ORDER.get(((h.get("spe_residual") or {}).get("band")), 5),
+        )
+        self._canonical_tbl.load(canonical_hazards, wa_labels_by_id)
+
         total_hazards = sum(len(w.get("hazards") or []) for w in was)
         unique = len(dedup)
         self._status_lbl.setText(
             f"{len(was)} assignment{'s' if len(was) != 1 else ''}  ·  "
             f"{total_hazards} total hazard record{'s' if total_hazards != 1 else ''}  ·  "
-            f"{unique} unique"
+            f"{unique} unique  ·  "
+            f"{len(canonical_hazards)} in canonical register"
         )

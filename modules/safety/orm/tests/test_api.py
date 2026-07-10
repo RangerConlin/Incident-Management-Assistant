@@ -1,70 +1,92 @@
 from __future__ import annotations
 
 
-def test_lazy_create_form(orm_app_client):
-    resp = orm_app_client.get("/api/incidents/2001/safety/orm/form", params={"op": 1})
-    assert resp["incident_id"] == "2001"
-    assert resp["op_period"] == 1
-
-
-def test_form_creation_is_idempotent(orm_app_client):
-    """Fetching the same incident/op_period form twice returns the same
-    singleton record rather than creating a duplicate — this replaces the
-    old SQLite-repository unique-constraint test now that forms are
-    upserted via MongoDB instead of inserted directly."""
-    first = orm_app_client.get("/api/incidents/2002/safety/orm/form", params={"op": 1})
-    second = orm_app_client.get("/api/incidents/2002/safety/orm/form", params={"op": 1})
-    assert first["id"] == second["id"]
-
-
-def test_hazard_crud_and_policy(orm_app_client):
-    base = {
-        "op_period": 2,
-        "sub_activity": "Test",
-        "hazard_outcome": "Outcome",
-        "initial_risk": "M",
-        "control_text": "Controls",
-        "residual_risk": "M",
+def _payload(title: str, **overrides):
+    payload = {
+        "title": title,
+        "description": "Test description",
+        "category": "Terrain",
+        "op_period_ids": [2],
+        "location_text": "Division A",
+        "control_measure": "Use trekking poles",
+        "spe_initial": {"severity": 4, "probability": 3, "exposure": 4},
+        "spe_residual": {"severity": 3, "probability": 2, "exposure": 3},
     }
-    create = orm_app_client.post("/api/incidents/2001/safety/orm/hazards", json=base)
-    assert create["sub_activity"] == "Test"
+    payload.update(overrides)
+    return payload
 
-    hazards = orm_app_client.get("/api/incidents/2001/safety/orm/hazards", params={"op": 2})
-    assert len(hazards) >= 1
 
-    high_payload = dict(base)
-    high_payload["residual_risk"] = "H"
-    high = orm_app_client.post("/api/incidents/2001/safety/orm/hazards", json=high_payload)
-
-    from utils.api_client import APIError
-
-    try:
-        orm_app_client.post(
-            "/api/incidents/2001/safety/orm/approve",
-            json={"op_period": 2},
-        )
-        assert False, "approval should be blocked while a high-risk hazard is open"
-    except APIError as exc:
-        assert exc.status_code == 422
-
-    update_payload = {
-        "sub_activity": high["sub_activity"],
-        "hazard_outcome": high["hazard_outcome"],
-        "initial_risk": high["initial_risk"],
-        "control_text": high["control_text"],
-        "residual_risk": "M",
-        "implement_how": high.get("implement_how"),
-        "implement_who": high.get("implement_who"),
-    }
-    updated = orm_app_client.put(
-        f"/api/incidents/2001/safety/orm/hazards/{high['id']}",
-        params={"op": 2},
-        json=update_payload,
+def test_create_and_list_hazard(orm_app_client):
+    created = orm_app_client.post(
+        "/api/incidents/2001/safety/hazards", json=_payload("Night travel")
     )
-    assert updated["residual_risk"] == "M"
+    assert created["title"] == "Night travel"
+    assert created["spe_initial"]["score"] == 48
+    assert created["spe_initial"]["band"] == "Substantial"
+    assert created["spe_residual"]["score"] == 18
+    assert created["spe_residual"]["band"] == "Slight"
 
-    approved = orm_app_client.post(
-        "/api/incidents/2001/safety/orm/approve",
-        json={"op_period": 2},
+    hazards = orm_app_client.get(
+        "/api/incidents/2001/safety/hazards", params={"op_period": 2}
     )
-    assert approved["status"] == "approved"
+    assert any(h["id"] == created["id"] for h in hazards)
+
+
+def test_get_hazard_by_id(orm_app_client):
+    created = orm_app_client.post(
+        "/api/incidents/2001/safety/hazards", json=_payload("Swift water")
+    )
+    fetched = orm_app_client.get(f"/api/incidents/2001/safety/hazards/{created['id']}")
+    assert fetched["title"] == "Swift water"
+
+
+def test_patch_hazard_is_partial(orm_app_client):
+    created = orm_app_client.post(
+        "/api/incidents/2001/safety/hazards", json=_payload("Heat exposure")
+    )
+    updated = orm_app_client.patch(
+        f"/api/incidents/2001/safety/hazards/{created['id']}",
+        json={"notes": "Monitoring closely"},
+    )
+    assert updated["notes"] == "Monitoring closely"
+    # Untouched fields survive the partial update.
+    assert updated["title"] == "Heat exposure"
+    assert updated["spe_initial"]["score"] == created["spe_initial"]["score"]
+
+
+def test_patch_hazard_updates_spe(orm_app_client):
+    created = orm_app_client.post(
+        "/api/incidents/2001/safety/hazards", json=_payload("Limited radio coverage")
+    )
+    updated = orm_app_client.patch(
+        f"/api/incidents/2001/safety/hazards/{created['id']}",
+        json={"spe_residual": {"severity": 1, "probability": 1, "exposure": 1}},
+    )
+    assert updated["spe_residual"]["score"] == 1
+    assert updated["spe_residual"]["band"] == "Slight"
+
+
+def test_delete_hazard_removes_from_list(orm_app_client):
+    created = orm_app_client.post(
+        "/api/incidents/2001/safety/hazards", json=_payload("Vehicle movement near runners")
+    )
+    orm_app_client.delete(f"/api/incidents/2001/safety/hazards/{created['id']}")
+    hazards = orm_app_client.get(
+        "/api/incidents/2001/safety/hazards", params={"op_period": 2}
+    )
+    assert all(h["id"] != created["id"] for h in hazards)
+
+
+def test_links_round_trip(orm_app_client):
+    payload = _payload(
+        "Linked hazard",
+        links={"work_assignment_ids": [4], "team_ids": [7], "task_ids": []},
+    )
+    created = orm_app_client.post("/api/incidents/2001/safety/hazards", json=payload)
+    assert created["links"]["work_assignment_ids"] == [4]
+    assert created["links"]["team_ids"] == [7]
+
+    filtered = orm_app_client.get(
+        "/api/incidents/2001/safety/hazards", params={"work_assignment_id": 4}
+    )
+    assert any(h["id"] == created["id"] for h in filtered)

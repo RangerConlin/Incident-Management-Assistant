@@ -1,198 +1,138 @@
-"""Business rules for CAP ORM processing — delegates to MongoDB API."""
+"""Safety Risk Manager hazard register — delegates to the MongoDB API."""
 
 from __future__ import annotations
 
-from dataclasses import asdict
-from typing import Iterable, Sequence
+from typing import Any, Optional
 
 from utils.api_client import api_client
-from .models import ORMForm, ORMHazard
 
-RISK_LEVELS: Sequence[str] = ("L", "M", "H", "EH")
-RISK_ORDER = {level: index for index, level in enumerate(RISK_LEVELS)}
+from .models import Hazard, HazardLinks, SpeAssessment
 
-RISK_MATRIX = {
-    ("A", "I"): "EH",
-    ("A", "II"): "EH",
-    ("A", "III"): "EH",
-    ("A", "IV"): "H",
-    ("A", "V"): "M",
-    ("B", "I"): "EH",
-    ("B", "II"): "H",
-    ("B", "III"): "H",
-    ("B", "IV"): "M",
-    ("B", "V"): "M",
-    ("C", "I"): "H",
-    ("C", "II"): "M",
-    ("C", "III"): "M",
-    ("C", "IV"): "M",
-    ("C", "V"): "L",
-    ("D", "I"): "M",
-    ("D", "II"): "M",
-    ("D", "III"): "L",
-    ("D", "IV"): "L",
-    ("D", "V"): "L",
-}
+_BODY_FIELDS = (
+    "title",
+    "description",
+    "category",
+    "hazard_type_id",
+    "hazard_type_text",
+    "source",
+    "op_period_ids",
+    "location_text",
+    "control_measure",
+    "mitigation_text",
+    "ppe_text",
+    "safety_message",
+    "notes",
+    "created_by",
+    "updated_by",
+)
 
 
-class ApprovalBlockedError(RuntimeError):
-    """Raised when approval is attempted while residual risk is too high."""
-
-    def __init__(self, highest: str):
-        super().__init__("Approval is blocked until highest residual risk is Medium or Low.")
-        self.highest = highest
-
-
-def risk_from(severity: str, likelihood: str) -> str:
-    key = (severity.upper(), likelihood.upper())
-    try:
-        return RISK_MATRIX[key]
-    except KeyError:
-        raise ValueError(f"Invalid severity/likelihood combination: {key}")
+def _spe_from_doc(doc: Optional[dict[str, Any]]) -> Optional[SpeAssessment]:
+    if not doc:
+        return None
+    return SpeAssessment(
+        severity=int(doc.get("severity", 1)),
+        probability=int(doc.get("probability", 1)),
+        exposure=int(doc.get("exposure", 1)),
+        score=int(doc.get("score", 0)),
+        band=doc.get("band", ""),
+        action=doc.get("action", ""),
+    )
 
 
-def _form_from_doc(doc: dict) -> ORMForm:
-    return ORMForm(
+def _spe_to_payload(assessment: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "severity": assessment["severity"],
+        "probability": assessment["probability"],
+        "exposure": assessment["exposure"],
+    }
+
+
+def _links_from_doc(doc: Optional[dict[str, Any]]) -> HazardLinks:
+    doc = doc or {}
+    return HazardLinks(
+        work_assignment_ids=list(doc.get("work_assignment_ids") or []),
+        task_ids=list(doc.get("task_ids") or []),
+        team_ids=list(doc.get("team_ids") or []),
+    )
+
+
+def _hazard_from_doc(doc: dict[str, Any]) -> Hazard:
+    return Hazard(
         id=int(doc.get("id", 0)),
-        incident_id=doc.get("incident_id", 0),
-        op_period=int(doc.get("op_period", 0)),
-        activity=doc.get("activity"),
-        prepared_by_id=doc.get("prepared_by_id"),
-        date_iso=doc.get("date_iso"),
-        highest_residual_risk=doc.get("highest_residual_risk", "L"),
-        status=doc.get("status", "draft"),
-        approval_blocked=bool(doc.get("approval_blocked", False)),
+        incident_id=doc.get("incident_id", ""),
+        title=doc.get("title", ""),
+        description=doc.get("description"),
+        category=doc.get("category"),
+        hazard_type_id=doc.get("hazard_type_id"),
+        hazard_type_text=doc.get("hazard_type_text"),
+        source=doc.get("source"),
+        op_period_ids=list(doc.get("op_period_ids") or []),
+        location_text=doc.get("location_text"),
+        links=_links_from_doc(doc.get("links")),
+        control_measure=doc.get("control_measure"),
+        mitigation_text=doc.get("mitigation_text"),
+        ppe_text=doc.get("ppe_text"),
+        safety_message=doc.get("safety_message"),
+        notes=doc.get("notes"),
+        spe_initial=_spe_from_doc(doc.get("spe_initial")),
+        spe_residual=_spe_from_doc(doc.get("spe_residual")),
+        created_at=doc.get("created_at"),
+        updated_at=doc.get("updated_at"),
+        created_by=doc.get("created_by"),
+        updated_by=doc.get("updated_by"),
     )
 
 
-def _hazard_from_doc(doc: dict) -> ORMHazard:
-    return ORMHazard(
-        id=int(doc.get("id", 0)),
-        form_id=int(doc.get("form_id", 0)),
-        sub_activity=doc.get("sub_activity", ""),
-        hazard_outcome=doc.get("hazard_outcome", ""),
-        initial_risk=doc.get("initial_risk", "L"),
-        control_text=doc.get("control_text", ""),
-        residual_risk=doc.get("residual_risk", "L"),
-        implement_how=doc.get("implement_how"),
-        implement_who=doc.get("implement_who"),
-    )
+def _build_body(payload: dict[str, Any]) -> dict[str, Any]:
+    body: dict[str, Any] = {key: payload[key] for key in _BODY_FIELDS if key in payload}
+    if "links" in payload:
+        body["links"] = payload["links"]
+    if "spe_initial" in payload:
+        body["spe_initial"] = _spe_to_payload(payload["spe_initial"]) if payload["spe_initial"] else None
+    if "spe_residual" in payload:
+        body["spe_residual"] = _spe_to_payload(payload["spe_residual"]) if payload["spe_residual"] else None
+    return body
 
 
-def ensure_form(incident_id: int, op_period: int) -> ORMForm:
-    doc = api_client.get(
-        f"/api/incidents/{incident_id}/safety/orm/form",
-        params={"op": op_period},
-    )
-    return _form_from_doc(doc)
-
-
-def get_form(incident_id: int, op_period: int) -> ORMForm:
-    return ensure_form(incident_id, op_period)
-
-
-def update_form_header(incident_id: int, op_period: int, payload: dict) -> ORMForm:
-    body = {"op_period": op_period}
-    for key in ("activity", "prepared_by_id", "date_iso"):
-        if key in payload:
-            body[key] = payload[key]
-    doc = api_client.put(
-        f"/api/incidents/{incident_id}/safety/orm/form",
-        json=body,
-    )
-    return _form_from_doc(doc)
-
-
-def list_hazards(incident_id: int, op_period: int) -> list[ORMHazard]:
-    docs = api_client.get(
-        f"/api/incidents/{incident_id}/safety/orm/hazards",
-        params={"op": op_period},
-    ) or []
+def list_hazards(
+    incident_id: str,
+    *,
+    op_period: Optional[int] = None,
+    category: Optional[str] = None,
+    work_assignment_id: Optional[int] = None,
+) -> list[Hazard]:
+    params: dict[str, Any] = {}
+    if op_period is not None:
+        params["op_period"] = op_period
+    if category:
+        params["category"] = category
+    if work_assignment_id is not None:
+        params["work_assignment_id"] = work_assignment_id
+    docs = api_client.get(f"/api/incidents/{incident_id}/safety/hazards", params=params) or []
     return [_hazard_from_doc(d) for d in docs]
 
 
-def compute_highest_residual(hazards: Iterable[ORMHazard]) -> str:
-    highest_index = 0
-    for hazard in hazards:
-        idx = RISK_ORDER.get(hazard.residual_risk, 0)
-        if idx > highest_index:
-            highest_index = idx
-    return RISK_LEVELS[highest_index]
+def get_hazard(incident_id: str, hazard_id: int) -> Hazard:
+    doc = api_client.get(f"/api/incidents/{incident_id}/safety/hazards/{hazard_id}")
+    return _hazard_from_doc(doc)
 
 
-def add_hazard(incident_id: int, op_period: int, payload: dict) -> ORMHazard:
-    body = {
-        "op_period": op_period,
-        "sub_activity": payload.get("sub_activity", ""),
-        "hazard_outcome": payload.get("hazard_outcome", ""),
-        "initial_risk": payload.get("initial_risk", "L"),
-        "control_text": payload.get("control_text", ""),
-        "residual_risk": payload.get("residual_risk", "L"),
-        "implement_how": payload.get("implement_how"),
-        "implement_who": payload.get("implement_who"),
-    }
+def create_hazard(incident_id: str, payload: dict[str, Any]) -> Hazard:
     doc = api_client.post(
-        f"/api/incidents/{incident_id}/safety/orm/hazards",
-        json=body,
+        f"/api/incidents/{incident_id}/safety/hazards",
+        json=_build_body(payload),
     )
     return _hazard_from_doc(doc)
 
 
-def edit_hazard(incident_id: int, op_period: int, hazard_id: int, payload: dict) -> ORMHazard:
-    body = {k: v for k, v in payload.items() if k not in ("id", "form_id", "incident_id")}
-    doc = api_client.put(
-        f"/api/incidents/{incident_id}/safety/orm/hazards/{hazard_id}",
-        json=body,
-        params={"op": op_period},
+def update_hazard(incident_id: str, hazard_id: int, payload: dict[str, Any]) -> Hazard:
+    doc = api_client.patch(
+        f"/api/incidents/{incident_id}/safety/hazards/{hazard_id}",
+        json=_build_body(payload),
     )
     return _hazard_from_doc(doc)
 
 
-def remove_hazard(incident_id: int, op_period: int, hazard_id: int) -> None:
-    api_client.delete(
-        f"/api/incidents/{incident_id}/safety/orm/hazards/{hazard_id}",
-        params={"op": op_period},
-    )
-
-
-def attempt_approval(incident_id: int, op_period: int) -> ORMForm:
-    try:
-        doc = api_client.post(
-            f"/api/incidents/{incident_id}/safety/orm/approve",
-            json={"op_period": op_period},
-        )
-        return _form_from_doc(doc)
-    except Exception as e:
-        msg = str(e)
-        if "approval_blocked" in msg or "422" in msg:
-            form = ensure_form(incident_id, op_period)
-            raise ApprovalBlockedError(form.highest_residual_risk)
-        raise
-
-
-def clone_hazards(
-    incident_id: int,
-    from_op: int,
-    to_op: int,
-    *,
-    clear_residual: bool = True,
-) -> list[ORMHazard]:
-    src_hazards = list_hazards(incident_id, from_op)
-    cloned: list[ORMHazard] = []
-    for hazard in src_hazards:
-        payload = asdict(hazard)
-        if clear_residual:
-            payload["residual_risk"] = payload["initial_risk"]
-        try:
-            cloned.append(add_hazard(incident_id, to_op, payload))
-        except Exception:
-            pass
-    return cloned
-
-
-def hazard_counts(hazards: Sequence[ORMHazard]) -> dict[str, int]:
-    counts = {level: 0 for level in RISK_LEVELS}
-    for hazard in hazards:
-        if hazard.residual_risk in counts:
-            counts[hazard.residual_risk] += 1
-    return counts
+def delete_hazard(incident_id: str, hazard_id: int) -> None:
+    api_client.delete(f"/api/incidents/{incident_id}/safety/hazards/{hazard_id}")

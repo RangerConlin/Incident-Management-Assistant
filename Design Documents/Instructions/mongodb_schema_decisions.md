@@ -22,6 +22,14 @@
 - The router now aliases `int_id` to `id` via `_finalize()` because callers expect `id`.
 - The module currently has zero live UI consumers and is still heavily scaffolded.
 
+## Safety Risk Manager — canonical Hazard Register
+- File: `data/db/sarapp_db/api/routers/safety.py` (`HazardsRepository`, `list_hazards`/`create_hazard`/`get_hazard`/`update_hazard`/`delete_hazard`), collection `IncidentCollections.HAZARDS`.
+- Replaces the CAP-style severity/likelihood risk matrix with USCG SPE (Severity x Probability x Exposure) scoring: `score = severity(1-5) * probability(1-5) * exposure(1-4)`, banded 1-19 Slight / 20-39 Possible / 40-59 Substantial / 60-79 High / 80-100 Very High, each with a fixed recommended action. Score/band/action are computed server-side on write and never trusted from client input.
+- A hazard has `spe_initial` and `spe_residual`, each optional (residual is typically unset until controls are determined).
+- `links` embeds `work_assignment_ids`/`team_ids`/`task_ids` (plain int lists) rather than being a separate join collection — hazards are incident-wide, not per-operational-period singleton forms like the old CAP ORM model.
+- GAR (Supervision/Planning/Team/Environment/Complexity) scoring is intentionally out of scope here — it will live on the task/assignment side, not on individual hazards.
+- No `status`/lifecycle field and no approval-blocking gate in v1 — this was a deliberate simplification versus the old CAP ORM form (which blocked approval on H/EH residual risk); see `Design Documents/legacycode.md` for what CAP ORM data paths remain for form-export compatibility.
+
 ## Forms
 - File: `data/db/sarapp_db/api/routers/forms.py`
 - The model is `family -> template -> version`.

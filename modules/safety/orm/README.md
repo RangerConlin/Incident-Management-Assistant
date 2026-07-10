@@ -1,35 +1,42 @@
-# Safety ORM Module
+# Safety Risk Manager Module
 
-The Safety ORM submodule provides a per-operational period CAPF 160 editor for
-incidents. It stores the single form for each incident + operational period
-inside the incident SQLite database under `data/incidents/<incident>.db`.
+The Safety Risk Manager submodule provides a canonical, incident-wide hazard
+register scored with the USCG SPE (Severity x Probability x Exposure) method.
+It replaces the earlier CAP-style severity/likelihood ORM form workflow. Data
+is stored in MongoDB via the shared FastAPI app, in the `hazards` collection
+(`IncidentCollections.HAZARDS`).
 
 ## Features
 
-* Singleton CAPF 160 record per incident/operational period.
-* Hazard table with risk calculations and policy enforcement.
-* Automatic highest residual risk evaluation with approval blocking when any
-  hazard is High or Extremely High.
-* Offline PDF export with watermark when approval is blocked.
-* Full audit logging for form and hazard edits.
+* One canonical hazard per incident, linkable to multiple operational periods,
+  work assignments, teams, and tasks (not a per-op-period singleton form).
+* SPE scoring (`severity(1-5) x probability(1-5) x exposure(1-4)`), computed
+  server-side and banded into Slight / Possible / Substantial / High / Very
+  High, each with a fixed recommended action.
+* Independent initial and residual SPE assessments per hazard.
+* Register PDF export.
 
 ## Data Storage
 
-The ORM tables live in the active incident database and are created on first
-use:
+Hazards are read/written via `data/db/sarapp_db/api/routers/safety.py`
+(`GET/POST /api/incidents/{incident_id}/safety/hazards`,
+`GET/PATCH/DELETE .../hazards/{hazard_id}`), backed by
+`IncidentCollections.HAZARDS`. This module has no local database or
+SQLite storage — `service.py` is a thin REST client.
 
-* `orm_form` – one row per incident/op pair.
-* `orm_hazards` – hazard entries for a form.
-* `audit_logs` – shared audit table extended with ORM-specific fields.
+The old CAP ORM form/hazard endpoints and collections
+(`CAP_ORM_FORMS`/`CAP_ORM_HAZARDS`/`CAP_ORM_SUMMARIES`/`CAP_ORM_AUDIT`) still
+exist for `modules/forms_creator` CAPF-160 export compatibility — see
+`Design Documents/legacycode.md`. This module no longer writes to them.
 
 ## Development
 
-Run the ORM tests with:
+Run the module's tests with:
 
 ```bash
 pytest modules/safety/orm/tests --import-mode=importlib
 ```
 
-To view the desktop UI, launch the main application and open **Safety → CAP ORM
-(Per OP)** from the menu. The widget is implemented with PySide6 widgets and
-works fully offline.
+To view the desktop UI, launch the main application and open **Medical &
+Safety → Safety Risk Manager** from the menu. The widget is implemented with
+PySide6 widgets and works fully offline against the local API server.
