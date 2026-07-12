@@ -32,22 +32,16 @@ DEFAULT_MAX_HEAVY_COLLECTION_DOCS = 500
 HEAVY_COLLECTIONS = {
     "attachments",
     "audit_logs",
-    "checkin_history",
     "communications_log",
-    "comms_log_audit",
     "form_instance_audit",
     "form_instance_exports",
     "form_instance_revisions",
     "ics_214_logs",
-    "incident_journal",
     "intel_log",
     "notifications",
     "pio_distribution_log",
     "pio_generated_documents",
     "pio_message_revisions",
-    "pio_misinformation_timeline",
-    "task_narratives",
-    "unit_logs",
 }
 
 

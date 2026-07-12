@@ -11,7 +11,7 @@ from . import Base
 
 
 class LogisticsResourceRequest(Base):
-    __tablename__ = "logistics_resource_requests"
+    __tablename__ = "resource_requests"
 
     id = Column(Integer, primary_key=True)
     incident_id = Column(String, nullable=False)
@@ -31,7 +31,7 @@ class LogisticsRequestApproval(Base):
 
     id = Column(Integer, primary_key=True)
     request_id = Column(
-        Integer, ForeignKey("logistics_resource_requests.id"), nullable=False
+        Integer, ForeignKey("resource_requests.id"), nullable=False
     )
     approver_id = Column(Integer, nullable=False)
     action = Column(String, nullable=False)
@@ -44,7 +44,7 @@ class LogisticsRequestAssignment(Base):
 
     id = Column(Integer, primary_key=True)
     request_id = Column(
-        Integer, ForeignKey("logistics_resource_requests.id"), nullable=False
+        Integer, ForeignKey("resource_requests.id"), nullable=False
     )
     resource_id = Column(Integer)
     assigned_to_id = Column(Integer)

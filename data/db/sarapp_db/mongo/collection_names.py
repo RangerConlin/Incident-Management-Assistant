@@ -79,6 +79,11 @@ class MasterCollections:
     USER_PROFILES = "user_profiles"
     ROLE_TEMPLATES = "role_templates"
 
+    # Mobile push notifications — FCM device tokens, keyed by token (a
+    # device can be re-associated to a different person on re-login; see
+    # PUSH_TOKENS router for the upsert-by-token behavior)
+    PUSH_TOKENS = "push_tokens"
+
 
 class IncidentCollections:
     """Collection names for per-incident databases (sarapp_incident_<incident_id>)."""
@@ -88,7 +93,6 @@ class IncidentCollections:
     OPERATIONAL_PERIODS = "operational_periods"
     INCIDENT_OBJECTIVES = "incident_objectives"
     STRATEGIES = "strategies"  # formerly strategic_objectives
-    OBJECTIVE_STRATEGIES_TASK_LINKS = "objective_strategy_task_links"
 
     # Teams — incident-specific team assignments and composition
     TEAMS = "teams"
@@ -99,43 +103,22 @@ class IncidentCollections:
     # Resources
     RESOURCE_REQUESTS = "resource_requests"
 
-    # Incident organization (ICS 203) — separate flat collections for CRUD
-    ORG_POSITIONS = "org_positions"
-    ORG_ASSIGNMENTS = "org_assignments"
-    ORG_HISTORY = "org_history"
+    # Incident organization (ICS 203) — current org chart nodes with embedded assignments
+    INCIDENT_ORG = "incident_org"
     ORG_TEMPLATES = "org_templates"
-    ORG_SNAPSHOTS = "org_snapshots"
-
-    # Check in/out — one collection covering personnel, vehicles, aircraft, equipment
-    # Each document has a resource_type field to distinguish
-    CHECK_IN_OUT = "check_in_out"
-
-    # Personnel check-in roster and history
-    CHECKINS = "checkins"
-    CHECKIN_HISTORY = "checkin_history"
 
     # Communications
+    COMMUNICATIONS_PLAN = "communications_plan"
     COMMUNICATIONS_LOG = "communications_log"
-    COMMS_LOG_AUDIT = "comms_log_audit"
-    COMMS_LOG_FILTERS = "comms_log_filters"
-    ICS_213_MESSAGES = "ics_213_messages"
     ICS_214_LOGS = "ics_214_logs"
-    ICS_205_INSTANCES = "ics_205_instances"
     ICS_206_AID_STATIONS = "ics_206_aid_stations"
-    ICS_206_AMBULANCE_SERVICES = "ics_206_ambulance_services"
-    ICS_206_HOSPITALS = "ics_206_hospitals"
-    ICS_206_AIR_AMBULANCE = "ics_206_air_ambulance"
-    ICS_206_MEDICAL_COMMS = "ics_206_medical_comms"
-    ICS_206_PROCEDURES = "ics_206_procedures"
-    ICS_206_SIGNATURES = "ics_206_signatures"
+    MEDICAL_PLAN = "medical_plan"
 
     # Public Information
     PIO_MESSAGES = "pio_messages"
     PIO_MESSAGE_REVISIONS = "pio_message_revisions"
-    PIO_APPROVALS = "pio_approvals"
     PIO_MEDIA_LOG = "pio_media_log"
     PIO_MISINFORMATION_ITEMS = "pio_misinformation_items"
-    PIO_MISINFORMATION_TIMELINE = "pio_misinformation_timeline"
     PIO_TALKING_POINTS = "pio_talking_points"
     PIO_TEMPLATES = "pio_templates"
     PIO_TEMPLATE_VERSIONS = "pio_template_versions"
@@ -155,29 +138,13 @@ class IncidentCollections:
     MEDICAL_INCIDENTS = "medical_incidents"
     TRIAGE_ENTRIES = "triage_entries"
     HAZARD_ZONES = "hazard_zones"
-    CAP_ORM_SUMMARIES = "cap_orm_summaries"
-    CAP_ORM_FORMS = "cap_orm_forms"
-    CAP_ORM_HAZARDS = "cap_orm_hazards"
-    CAP_ORM_AUDIT = "cap_orm_audit"
     ICS_206_BUILDS = "ics_206_builds"
 
     # Radio channels assigned to this incident (subset/override of master radio_channels)
     INCIDENT_CHANNELS = "incident_channels"
 
-    # Resources checked in to the incident (vehicles, equipment — resource_type distinguishes)
-    RESOURCES = "resources"
-
-    # ICS 203 — incident organization (positions, units, assignments merged per version)
-    INCIDENT_ORGANIZATION = "incident_organization"
-
-    # ICS 214 — unit logs (stream = log header, entries embedded)
-    UNIT_LOGS = "unit_logs"
-
     # Meetings (attendees and checklist items embedded)
     MEETINGS = "meetings"
-
-    # Incident journal — freeform timestamped log entries (planning section notes)
-    INCIDENT_JOURNAL = "incident_journal"
 
     # Personnel assigned/checked in to this incident
     INCIDENT_PERSONNEL = "incident_personnel"
@@ -201,13 +168,10 @@ class IncidentCollections:
 
     # Logistics
     RESOURCE_STATUS = "resource_status"
-    LOGISTICS_RESOURCE_STATUS_ITEMS = "logistics_resource_status_items"
-    LOGISTICS_RESOURCE_REQUESTS = "logistics_resource_requests"
     FACILITIES = "facilities"
 
-    # Operations (aliases to canonical task/team collections)
+    # Operations (aliases to canonical task collection; teams use TEAMS directly)
     OPERATIONS_TASKS = "tasks"
-    OPERATIONS_TEAMS = "teams"
     OPERATIONS_TASK_DEBRIEFS = "task_debriefs"
 
     # Liaison
@@ -220,11 +184,6 @@ class IncidentCollections:
     LIAISON_FOLLOWUP_ACTIONS = "liaison_followup_actions"
     LIAISON_RESTRICTIONS = "liaison_restrictions"
     LIAISON_AGREEMENTS = "liaison_agreements"
-
-    # Intel — legacy (retained for migration compatibility)
-    INTEL_CLUES = "intel_clues"
-    INTEL_ENV_SNAPSHOTS = "intel_env_snapshots"
-    INTEL_FORM_ENTRIES = "intel_form_entries"
 
     # Intel — All-Hazards Information Management (Module 7 redesign)
     INTEL_SUBJECTS = "intel_subjects"          # Human subjects (missing persons, witnesses, etc.)
@@ -271,9 +230,6 @@ class IncidentCollections:
     FINANCE_APPROVALS = "finance_approvals"
     FINANCE_ATTACHMENTS = "finance_attachments"
     WEATHER_DATA = "weather_data"
-
-    # Task narrative entries (ICS-214 activity log per task)
-    TASK_NARRATIVES = "task_narratives"
 
     # IAP packages (forms embedded as array within each package document)
     IAP_PACKAGES = "iap_packages"

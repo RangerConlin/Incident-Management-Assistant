@@ -149,4 +149,3 @@ Docs:   http://localhost:8000/docs  (Swagger UI)
 See `Design Documents/Instructions/api_router_rules.md` for:
 - Endpoint design patterns
 - Error handling
-- Mirroring requirements (data/db ↔ cloud_server)

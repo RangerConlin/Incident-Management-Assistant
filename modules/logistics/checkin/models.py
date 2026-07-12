@@ -6,22 +6,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 
+from modules.logistics.resource_status.models import RESOURCE_STATUSES, normalize_status
+
 
 # Canonical linear resource-flow status values used by the workbench and board.
 # Defined outside the enum so it never appears as an enum member.
-_RESOURCE_FLOW_STATUSES = {
-    "Requested",
-    "Ordered",
-    "Pending",
-    "Enroute",
-    "Staged",
-    "Assigned",
-    "Available",
-    "Out of Service",
-    "Preparing for Demobilization",
-    "Demobilized",
-    "Cancelled",
-}
+_RESOURCE_FLOW_STATUSES = set(RESOURCE_STATUSES)
 _DERIVED_CHECKED_IN_STATUSES = {
     "Assigned",
     "Available",
@@ -31,53 +21,23 @@ _DERIVED_CHECKED_IN_STATUSES = {
 }
 
 
-class CIStatus(str, Enum):
-    """Deprecated: all status values now live in resource_status/models.py RESOURCE_STATUSES.
-    Retained for import compatibility; do not use in new code."""
+def normalize_checkin_status(value: str) -> str:
+    """Return a canonical resource_status value from user or legacy check-in values."""
+    if not value:
+        raise ValueError("Check-In status is required")
+    text = value.strip()
+    mapping = {
+        "Enroute to Incident": "Enroute",
+        "EnrouteToIncident": "Enroute",
+        "CheckedIn": "Checked In",
+        "NoShow": "Not Coming",
+    }
+    return normalize_status(mapping.get(text, text))
 
-    CHECKED_IN = "CheckedIn"
-    PENDING = "Pending"
-    REQUESTED = "Requested"
-    ORDERED = "Ordered"
-    ENROUTE = "Enroute"
-    STAGED = "Staged"
-    ASSIGNED = "Assigned"
-    AVAILABLE = "Available"
-    OUT_OF_SERVICE = "Out of Service"
-    PREPARING_FOR_DEMOBILIZATION = "Preparing for Demobilization"
-    DEMOBILIZED = "Demobilized"
-    NO_SHOW = "NoShow"
-    CANCELLED = "Cancelled"
 
-    @classmethod
-    def normalize(cls, value: str) -> "CIStatus":
-        """Return a canonical status from user or legacy values."""
-        if not value:
-            raise ValueError("Check-In status is required")
-        value = value.strip()
-        mapping = {
-            "Enroute to Incident": cls.ENROUTE,
-            "EnrouteToIncident": cls.ENROUTE,
-            "Enroute": cls.ENROUTE,
-            "Checked In": cls.CHECKED_IN,
-            "CheckedIn": cls.CHECKED_IN,
-            "Preparing for Demobilization": cls.PREPARING_FOR_DEMOBILIZATION,
-        }
-        if value in mapping:
-            return mapping[value]
-        try:
-            return cls(value)
-        except ValueError as exc:  # pragma: no cover - defensive guard
-            raise ValueError(f"Unsupported Check-In status: {value}") from exc
-
-    @classmethod
-    def is_planning_status(cls, value: str) -> bool:
-        """Return True if the status is a pre-arrival planning status."""
-        return value in _RESOURCE_FLOW_STATUSES
-
-    @classmethod
-    def choices(cls) -> tuple["CIStatus", ...]:
-        return tuple(cls)
+def is_planning_status(value: str) -> bool:
+    """Return True if the status is a linear resource-flow status."""
+    return value in _RESOURCE_FLOW_STATUSES
 
 
 class PersonnelStatus(str, Enum):
@@ -176,7 +136,7 @@ class CheckInRecord:
     """A persisted incident check-in row."""
 
     person_record: int
-    status: CIStatus
+    status: str
     arrival_time: str
     location: Location
     location_other: Optional[str] = None
@@ -198,13 +158,13 @@ class CheckInRecord:
     ldw_updated_at: Optional[str] = None
     ldw_updated_by: Optional[str] = None
     # Legacy compatibility fields retained for existing payloads/UI callers.
-    ci_status: Optional[CIStatus] = None
+    ci_status: Optional[str] = None
     personnel_status: Optional[PersonnelStatus] = None
     planning_status: Optional[str] = None
 
     def to_payload(self) -> Dict[str, Any]:
-        canonical_status = self.status.value
-        ci_status = self.ci_status.value if self.ci_status else canonical_status
+        canonical_status = self.status
+        ci_status = self.ci_status or canonical_status
         personnel_status = self.personnel_status.value if self.personnel_status else (
             "Available" if canonical_status in _DERIVED_CHECKED_IN_STATUSES else "Pending"
         )
@@ -238,7 +198,7 @@ class CheckInRecord:
         raw_status = row.get("status") or row.get("ci_status") or row.get("planning_status") or "Pending"
         return cls(
             person_record=int(row.get("person_record") or 0),
-            status=CIStatus.normalize(raw_status),
+            status=normalize_checkin_status(raw_status),
             arrival_time=row["arrival_time"],
             location=Location.normalize(row["location"]),
             location_other=row.get("location_other"),
@@ -262,7 +222,7 @@ class CheckInRecord:
             ldw_updated_at=row.get("ldw_updated_at"),
             ldw_updated_by=row.get("ldw_updated_by"),
             planning_status=row.get("planning_status"),
-            ci_status=CIStatus.normalize(row.get("ci_status")) if row.get("ci_status") else None,
+            ci_status=normalize_checkin_status(row.get("ci_status")) if row.get("ci_status") else None,
             personnel_status=(
                 PersonnelStatus.normalize(row.get("personnel_status"))
                 if row.get("personnel_status")
@@ -282,7 +242,7 @@ class RosterRow:
     team: Optional[str]
     phone: Optional[str]
     callsign: Optional[str]
-    ci_status: CIStatus
+    ci_status: str
     personnel_status: PersonnelStatus
     updated_at: str
     team_id: Optional[str] = None
@@ -298,7 +258,7 @@ class RosterRow:
             "team": self.team,
             "phone": self.phone,
             "callsign": self.callsign,
-            "ci_status": self.ci_status.value,
+            "ci_status": self.ci_status,
             "personnel_status": self.personnel_status.value,
             "updated_at": self.updated_at,
             "team_id": self.team_id,
@@ -323,7 +283,7 @@ class CheckInUpsert:
     """Payload accepted by :func:`upsertCheckIn`."""
 
     person_record: int
-    ci_status: CIStatus
+    ci_status: str
     arrival_time: str
     location: Location
     location_other: Optional[str] = None
@@ -351,6 +311,7 @@ class CheckInUpsert:
         )
         record = CheckInRecord(
             person_record=self.person_record,
+            status=self.ci_status,
             ci_status=self.ci_status,
             personnel_status=personnel_status,
             arrival_time=self.arrival_time,
@@ -388,7 +349,7 @@ class CheckInUpsert:
     def to_queue_payload(self) -> Dict[str, Any]:
         payload = {
             "person_record": self.person_record,
-            "ci_status": self.ci_status.value,
+            "ci_status": self.ci_status,
             "arrival_time": self.arrival_time,
             "location": self.location.value,
             "location_other": self.location_other,
@@ -412,7 +373,7 @@ class CheckInUpsert:
     def from_dict(cls, payload: Dict[str, Any]) -> "CheckInUpsert":
         return cls(
             person_record=int(payload["person_record"]),
-            ci_status=CIStatus.normalize(payload["ci_status"]),
+            ci_status=normalize_checkin_status(payload["ci_status"]),
             arrival_time=payload["arrival_time"],
             location=Location.normalize(payload["location"]),
             location_other=payload.get("location_other"),
@@ -439,7 +400,7 @@ class RosterFilters:
     """Filters accepted by :func:`getRoster`."""
 
     q: Optional[str] = None
-    ci_status: Optional[CIStatus] = None
+    ci_status: Optional[str] = None
     personnel_status: Optional[PersonnelStatus] = None
     role: Optional[str] = None
     team: Optional[str] = None
@@ -459,7 +420,7 @@ class RosterFilters:
         personnel_status = payload.get("personnel_status")
         return cls(
             q=payload.get("q") or None,
-            ci_status=CIStatus.normalize(ci_status) if ci_status and ci_status != "All" else None,
+            ci_status=normalize_checkin_status(ci_status) if ci_status and ci_status != "All" else None,
             personnel_status=(
                 PersonnelStatus.normalize(personnel_status)
                 if personnel_status and personnel_status != "All"
@@ -488,7 +449,6 @@ class QueueItem:
 
 
 __all__ = [
-    "CIStatus",
     "PersonnelStatus",
     "Location",
     "UIFlags",
@@ -499,4 +459,6 @@ __all__ = [
     "CheckInUpsert",
     "RosterFilters",
     "QueueItem",
+    "is_planning_status",
+    "normalize_checkin_status",
 ]

@@ -44,7 +44,6 @@ run_validator() {
 run_validator "Hardcoded URIs" "scripts/validate-hardcoded-uri.sh"
 run_validator "Direct DB Access" "scripts/validate-direct-db-access.sh"
 run_validator "Structure Rules" "scripts/validate-structure.sh"
-run_validator "Cloud Server Mirrors" "scripts/validate-cloud-server-mirror.sh"
 run_validator "UI Styling" "scripts/validate-ui-styles.sh"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -143,8 +143,6 @@ class CommunicationsLogWindow(QMainWindow):
 
         # Wire signals
         self.filter_panel.filtersChanged.connect(self._on_filters_changed)
-        self.filter_panel.presetSaveRequested.connect(self._on_save_preset)
-        self.filter_panel.presetDeleteRequested.connect(self._on_delete_preset)
         self.detail_drawer.saveRequested.connect(self._on_detail_save)
         self.detail_drawer.createTaskRequested.connect(lambda entry_id: self._create_follow_up_task(entry_id))
         self.table_view.selectionModel().currentChanged.connect(self._on_selection_changed)
@@ -192,8 +190,6 @@ class CommunicationsLogWindow(QMainWindow):
     def _load_initial_data(self) -> None:
         channels = self.service.list_channels()
         self.filter_panel.populate_channels(channels)
-        presets = self.service.list_filter_presets()
-        self.filter_panel.populate_presets(presets)
 
     # ------------------------------------------------------------------
     def _refresh_entries(self, *, select_id: Optional[int] = None) -> None:
@@ -436,21 +432,6 @@ class CommunicationsLogWindow(QMainWindow):
                 return
             self.service.export_to_pdf(Path(path), self._current_query)
             QMessageBox.information(self, "Export", f"Exported to {path}")
-
-    def _on_save_preset(self, name: str, filters: dict) -> None:
-        preset = self.service.save_filter_preset(name, filters)
-        presets = self.service.list_filter_presets()
-        self.filter_panel.populate_presets(presets)
-        self.statusBar().showMessage(f"Preset '{preset.name}' saved", 2000)
-
-    def _on_delete_preset(self, preset_id: int) -> None:
-        try:
-            self.service.delete_filter_preset(preset_id)
-        except Exception as exc:
-            QMessageBox.warning(self, "Preset", str(exc))
-            return
-        presets = self.service.list_filter_presets()
-        self.filter_panel.populate_presets(presets)
 
     # ------------------------------------------------------------------
     # Context actions

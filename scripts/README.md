@@ -18,7 +18,6 @@ Run individual validators:
 bash scripts/validate-hardcoded-uri.sh
 bash scripts/validate-direct-db-access.sh
 bash scripts/validate-structure.sh
-bash scripts/validate-cloud-server-mirror.sh
 bash scripts/validate-ui-styles.sh
 ```
 
@@ -29,7 +28,6 @@ bash scripts/validate-ui-styles.sh
 | `validate-hardcoded-uri.sh` | Hardcoded `SARAPP_MONGO_URI`, API keys, database URLs | Found hardcoded secrets |
 | `validate-direct-db-access.sh` | Direct MongoDB calls in UI code | Direct DB access outside `data/db/` |
 | `validate-structure.sh` | New QML files, `backend/` directory | Structural violations |
-| `validate-cloud-server-mirror.sh` | `data/db/` router changes without `cloud_server/` mirrors | (Warning only) |
 | `validate-ui-styles.sh` | Hardcoded colors, inline stylesheets in UI | (Warning only) |
 | `validate-all.sh` | Runs all validators, provides summary | Any hard failure |
 

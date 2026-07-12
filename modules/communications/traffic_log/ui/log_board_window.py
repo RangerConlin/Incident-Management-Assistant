@@ -77,8 +77,6 @@ class CommunicationsLogBoardPanel(QWidget):
 
         # Wire signals
         self.filter_panel.filtersChanged.connect(self._on_filters_changed)
-        self.filter_panel.presetSaveRequested.connect(self._on_save_preset)
-        self.filter_panel.presetDeleteRequested.connect(self._on_delete_preset)
 
     def _refresh_entries(self) -> None:
         entries = self.service.list_entries(self._current_query)
@@ -86,11 +84,9 @@ class CommunicationsLogBoardPanel(QWidget):
         self.statusBar().showMessage(f"{len(entries)} entries")
 
     def _load_initial_data(self) -> None:
-        # Populate filters panel with channels and presets
+        # Populate filters panel with channels.
         channels = self.service.list_channels()
         self.filter_panel.populate_channels(channels)
-        presets = self.service.list_filter_presets()
-        self.filter_panel.populate_presets(presets)
 
     def _open_quick_entry_dialog(self) -> None:
         dialog = QDialog(self)
@@ -119,22 +115,6 @@ class CommunicationsLogBoardPanel(QWidget):
     def _on_filters_changed(self, query: CommsLogQuery) -> None:
         self._current_query = query
         self._refresh_entries()
-
-    def _on_save_preset(self, name: str, filters: dict) -> None:
-        preset = self.service.save_filter_preset(name, filters)
-        presets = self.service.list_filter_presets()
-        self.filter_panel.populate_presets(presets)
-        self.statusBar().showMessage(f"Preset '{preset.name}' saved", 2000)
-
-    def _on_delete_preset(self, preset_id: int) -> None:
-        try:
-            self.service.delete_filter_preset(preset_id)
-        except Exception as exc:
-            # Keep it simple: show message in status bar
-            self.statusBar().showMessage(f"Preset error: {exc}", 3000)
-            return
-        presets = self.service.list_filter_presets()
-        self.filter_panel.populate_presets(presets)
 
     def _on_table_context_menu(self, pos) -> None:
         index = self.table_view.indexAt(pos)

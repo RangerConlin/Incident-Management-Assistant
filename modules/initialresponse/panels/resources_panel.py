@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import uuid
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -184,6 +185,9 @@ class ResourcesPanel(QWidget):
             return
         payload = {
             "incident_id": incident_id,
+            "entity_type": "initial_response",
+            "record_id": uuid.uuid4().hex,
+            "resource_id": name,
             "resource_name": name,
             "resource_type": self._resource_type.currentText(),
             "status": self._resource_status.currentText(),
@@ -192,7 +196,7 @@ class ResourcesPanel(QWidget):
             "source_entity_type": "initial_response",
         }
         try:
-            self._api_post(f"/api/incidents/{incident_id}/logistics/resource-status", json=payload)
+            self._api_post(f"/api/incidents/{incident_id}/resource-status", json=payload)
         except Exception as exc:
             self._set_status(self._describe_error(exc), error=True)
             return
@@ -304,7 +308,10 @@ class ResourcesPanel(QWidget):
             self._set_status("Select an incident to use Resources.", error=True)
             return
         try:
-            resources = self._api_get(f"/api/incidents/{incident_id}/logistics/resource-status") or []
+            resources = self._api_get(
+                f"/api/incidents/{incident_id}/resource-status",
+                params={"entity_type": "initial_response"},
+            ) or []
             requests = self._api_get(f"/api/incidents/{incident_id}/logistics/resource-requests") or []
             teams = self._api_get(f"/api/incidents/{incident_id}/teams") or []
         except Exception as exc:

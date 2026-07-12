@@ -671,7 +671,10 @@ class ICS211CheckInWindow(QWidget):
                     existing = api_client.get(f"/api/incidents/{incident_id}/resources", params={"resource_type": resource_type}) or []
                     match = next((r for r in existing if str(self._record_identifier(resource_type, r)) == str(identifier)), None)
                     if match:
-                        api_client.patch(f"/api/incidents/{incident_id}/logistics/resource-status/{match['id']}", json={"status": status})
+                        api_client.patch(
+                            f"/api/incidents/{incident_id}/resource-status/{match['id']}/status",
+                            json={"status": status, "changed_by": "ICS-211 Check-In"},
+                        )
             self._previews[resource_type].setText(self._describe_record(resource_type, row) + f"\nStatus set to {status}.")
             self.refresh()
         except Exception as exc:
@@ -760,7 +763,7 @@ class ICS211CheckInWindow(QWidget):
             teams = []
         self._team_rows = list(teams)
         for row in self._team_rows:
-            self.team_combo.addItem(f"{row.get('name') or row.get('team_id')}", row.get("team_id"))
+            self.team_combo.addItem(f"{row.get('name') or row.get('int_id')}", row.get("int_id"))
         self._update_team_preview()
 
     def _update_team_preview(self) -> None:
@@ -768,7 +771,7 @@ class ICS211CheckInWindow(QWidget):
         if row is None or not self._team_rows:
             self.team_preview.setText("Select a team.")
             return
-        match = next((t for t in self._team_rows if str(t.get("team_id")) == str(row)), None)
+        match = next((t for t in self._team_rows if str(t.get("int_id")) == str(row)), None)
         if match:
             self.team_preview.setText(
                 f"Team: {match.get('name')}\nChecked In: {match.get('checked_in')}\nDisbanded: {match.get('disbanded')}\nStatus: {match.get('status')}"

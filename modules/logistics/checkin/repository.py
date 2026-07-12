@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Sequence
 
 from .models import (
     CheckInRecord,
-    CIStatus,
     HistoryItem,
     Location,
     PersonnelIdentity,
@@ -15,6 +14,7 @@ from .models import (
     QueueItem,
     RosterFilters,
     RosterRow,
+    normalize_checkin_status,
 )
 
 _BASE_PERSONNEL = "/api/master/personnel"
@@ -113,7 +113,7 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
     if filters.q:
         params["q"] = filters.q
     if filters.ci_status:
-        params["ci_status"] = filters.ci_status.value
+        params["ci_status"] = filters.ci_status
     if filters.personnel_status:
         params["personnel_status"] = filters.personnel_status.value
     if filters.role:
@@ -128,7 +128,7 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
     result = []
     for row in rows:
         try:
-            ci_status = CIStatus.normalize(row.get("ci_status") or "CheckedIn")
+            ci_status = normalize_checkin_status(row.get("ci_status") or "Checked In")
             personnel_status = PersonnelStatus.normalize(row.get("personnel_status") or "Available")
         except ValueError:
             continue
@@ -163,15 +163,10 @@ def fetch_roster(filters: RosterFilters) -> List[RosterRow]:
 def _resource_status_to_checkin(doc: dict) -> CheckInRecord:
     """Convert a resource_status document to CheckInRecord shape."""
     raw_status = doc.get("status") or "Pending"
-    # resource_status uses "Checked In"; CIStatus uses "CheckedIn"
-    if raw_status == "Checked In":
-        raw_status = "CheckedIn"
-    elif raw_status == "NoShow":
-        raw_status = "Not Coming"
     try:
-        ci_status = CIStatus.normalize(raw_status)
+        ci_status = normalize_checkin_status(raw_status)
     except ValueError:
-        ci_status = CIStatus.PENDING
+        ci_status = "Pending"
 
     arrival = (
         doc.get("checked_in_time")
@@ -204,12 +199,6 @@ _CHECKED_IN_STATUSES = {
     "Preparing for Demobilization",
 }
 
-_CISTATUS_TO_RS = {
-    "CheckedIn": "Checked In",
-    "NoShow": "Not Coming",
-}
-
-
 def fetch_checkin(person_record: int) -> Optional[CheckInRecord]:
     from utils import incident_context
     incident_id = incident_context.get_active_incident_id()
@@ -231,8 +220,7 @@ def save_checkin(record: CheckInRecord) -> CheckInRecord:
     if not incident_id:
         return record
 
-    ci_value = record.status.value
-    rs_status = _CISTATUS_TO_RS.get(ci_value, ci_value)
+    rs_status = normalize_checkin_status(record.status)
 
     resource_name = str(record.person_record)
     person_id: Optional[str] = None
@@ -288,29 +276,33 @@ def log_history(person_record: int, actor: str, event_type: str, payload: Dict) 
         pass
 
 
-def _cached_history_docs(incident_id: str, person_record: int) -> Optional[List[Dict]]:
-    """Return this person's check-in history from the incident cache, or
-    None if the cache can't answer for certain.
+def _history_from_resource_status_doc(doc: Dict) -> List[Dict]:
+    person_record = doc.get("record_id")
+    docs: List[Dict] = []
+    for entry in doc.get("status_log") or []:
+        docs.append({
+            "person_record": person_record,
+            "ts": entry.get("timestamp") or entry.get("ts") or "",
+            "actor": entry.get("changed_by") or entry.get("actor") or "",
+            "event_type": entry.get("event_type") or "STATUS_CHANGE",
+            "payload": entry.get("payload") or {"status": entry.get("status")},
+        })
+    docs.sort(key=lambda d: str(d.get("ts") or ""), reverse=True)
+    return docs
 
-    `checkin_history` is a heavy collection capped at a few hundred docs
-    incident-wide, so a single truncated/trimmed cache can silently be
-    missing this person's older entries even though *other* people's recent
-    entries pushed them out. Only trust the cache when it holds the
-    collection's complete contents; otherwise fall back to the server's
-    per-person query.
-    """
+
+def _cached_history_docs(incident_id: str, person_record: int) -> Optional[List[Dict]]:
+    """Return this person's embedded resource_status history from the incident cache."""
     from utils.incident_cache import incident_cache
 
     if incident_cache.incident_id != str(incident_id):
         return None
-    if not incident_cache.is_collection_complete("checkin_history"):
+    if not incident_cache.is_collection_complete("resource_status"):
         return None
-    docs = [
-        doc for doc in incident_cache.get_all("checkin_history")
-        if doc.get("person_record") == person_record
-    ]
-    docs.sort(key=lambda d: str(d.get("ts") or ""), reverse=True)
-    return docs
+    for doc in incident_cache.get_all("resource_status"):
+        if doc.get("entity_type") == "personnel" and str(doc.get("record_id")) == str(person_record):
+            return _history_from_resource_status_doc(doc)
+    return []
 
 
 def list_history(person_record: int) -> List[HistoryItem]:
@@ -321,7 +313,11 @@ def list_history(person_record: int) -> List[HistoryItem]:
     docs = _cached_history_docs(incident_id, person_record)
     if docs is None:
         try:
-            docs = _client().get(f"{_incident_base(incident_id)}/history/{person_record}") or []
+            doc = _client().get(
+                f"/api/incidents/{incident_id}/resource-status/by-entity",
+                params={"entity_type": "personnel", "record_id": str(person_record)},
+            )
+            docs = _history_from_resource_status_doc(doc or {})
         except Exception:
             return []
     result = []

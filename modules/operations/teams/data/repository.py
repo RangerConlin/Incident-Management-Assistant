@@ -342,7 +342,7 @@ def disband_team(
 
 
 def set_team_ci_status(team_id: int, ci_status: str) -> None:
-    """Set a CIStatus on a team for planning visibility."""
+    """Set a resource status on a team for planning visibility."""
     try:
         _client().patch(f"{_base()}/teams/{team_id}", json={"ci_status": ci_status})
     except Exception:

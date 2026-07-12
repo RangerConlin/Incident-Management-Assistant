@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional
 from .models import (
     CommsLogAuditEntry,
     CommsLogEntry,
-    CommsLogFilterPreset,
     CommsLogQuery,
     DISPOSITION_OPEN,
 )
@@ -170,65 +169,6 @@ class ApiCommsLogRepository:
             return api_client.get(f"{self._base}/contacts")
         except Exception:
             return []
-
-    def list_filter_presets(self, user_id: Optional[str] = None) -> List[CommsLogFilterPreset]:
-        from utils.api_client import api_client
-        from utils.state import AppState
-        user = user_id or AppState.get_active_user_id()
-        if not user:
-            return []
-        results = api_client.get(
-            f"/api/incidents/{self.incident_id}/comms-log-filters",
-            params={"user_id": str(user)},
-        )
-        return [
-            CommsLogFilterPreset(
-                id=r.get("preset_id"),
-                name=r.get("name", ""),
-                user_id=r.get("user_id", ""),
-                filters=r.get("filters") or {},
-                created_at=r.get("created_at"),
-                updated_at=r.get("updated_at"),
-            )
-            for r in results
-        ]
-
-    def save_filter_preset(
-        self,
-        name: str,
-        filters: Dict[str, Any],
-        *,
-        preset_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-    ) -> CommsLogFilterPreset:
-        from utils.api_client import api_client
-        from utils.state import AppState
-        user = user_id or AppState.get_active_user_id()
-        if not user:
-            raise RuntimeError("Active user is required to save presets")
-        result = api_client.post(
-            f"/api/incidents/{self.incident_id}/comms-log-filters",
-            json={"name": name, "filters": filters, "preset_id": preset_id, "user_id": str(user)},
-        )
-        return CommsLogFilterPreset(
-            id=result.get("preset_id"),
-            name=result.get("name", name),
-            user_id=result.get("user_id", str(user)),
-            filters=result.get("filters") or filters,
-            created_at=result.get("created_at"),
-            updated_at=result.get("updated_at"),
-        )
-
-    def delete_filter_preset(self, preset_id: int, *, user_id: Optional[str] = None) -> None:
-        from utils.api_client import api_client
-        from utils.state import AppState
-        user = user_id or AppState.get_active_user_id()
-        if not user:
-            raise RuntimeError("Active user is required")
-        api_client.delete(
-            f"/api/incidents/{self.incident_id}/comms-log-filters/{preset_id}",
-            params={"user_id": str(user)},
-        )
 
     def mark_disposition(self, entry_id: int, disposition: str) -> CommsLogEntry:
         return self.update_entry(entry_id, {"disposition": disposition or DISPOSITION_OPEN})

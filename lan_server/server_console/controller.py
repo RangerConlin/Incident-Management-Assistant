@@ -9,8 +9,10 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
+from lan_server import firebase_credentials
 from lan_server.server_manager import SARAppServerManager
 
 from .api_traffic import ApiTrafficLog
@@ -109,6 +111,7 @@ class ServerConsoleController:
                 self.last_error = conflict.message
                 raise RuntimeError(conflict.message)
             self.state = ConsoleServerState.STARTING
+            firebase_credentials.apply_credentials_env(self.settings)
             self.manager = SARAppServerManager(
                 host=self.settings.host,
                 port=self.settings.port,
@@ -153,3 +156,24 @@ class ServerConsoleController:
 
         self.manager = None
         self.state = ConsoleServerState.MONITORING
+
+    def firebase_credentials_status(self) -> tuple[str, str]:
+        """Return (label, path) describing which Firebase key will be used.
+
+        label is one of "uploaded", "bundled default", or "not configured".
+        """
+
+        configured = (self.settings.firebase_credentials_path or "").strip()
+        if configured and Path(configured).is_file():
+            return "uploaded", configured
+        bundled = firebase_credentials.find_bundled_default()
+        if bundled is not None:
+            return "bundled default", str(bundled)
+        return "not configured", ""
+
+    def upload_firebase_credentials(self, source_path: Path) -> Path:
+        """Copy a user-selected key into the persisted upload slot and save settings."""
+
+        destination = firebase_credentials.store_uploaded_credentials(source_path)
+        self.settings.firebase_credentials_path = str(destination)
+        return destination

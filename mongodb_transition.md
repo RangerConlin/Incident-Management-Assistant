@@ -470,7 +470,7 @@ SQLite stores booleans as integers (0/1). MongoDB stores them as actual booleans
 **`modules/communications`**
 - Communications router: `communications.py` — two routers:
   - `master_router` at `/api/comms`: `/master-channels` (list, get)
-  - `incident_router` at `/api`: `/incidents/{id}/channels-plan` (full CRUD + validate + preview), `/incidents/{id}/comms-log` (full CRUD + audit + contacts), `/incidents/{id}/comms-log-filters` (CRUD)
+  - `incident_router` at `/api`: `/incidents/{id}/channels-plan` (full CRUD + validate + preview), `/incidents/{id}/comms-log` (full CRUD + audit + contacts)
 - `ApiMasterRepository` in `modules/communications/models/master_repo.py`
 - `ApiIncidentRepository` in `modules/communications/models/incident_repo.py`
 - `ApiCommsLogRepository` in `modules/communications/traffic_log/repository.py`

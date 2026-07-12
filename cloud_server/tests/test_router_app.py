@@ -117,6 +117,10 @@ def test_http_proxy_round_trip() -> None:
             assert request_frame["type"] == "request"
             assert request_frame["method"] == "GET"
             assert request_frame["path"] == "/api/health-check"
+            # The router must stamp the real field-device IP so the LAN
+            # server's traffic log doesn't just see its own loopback address
+            # for every tunneled request.
+            assert request_frame["headers"].get("x-sarapp-client-ip")
 
             await tunnel.send_text(
                 json.dumps(

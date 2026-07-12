@@ -30,17 +30,13 @@ When a `git commit` is issued, hooks validate staged files:
    - Script: `scripts/validate-structure.sh`
    - Hard failure (prevents bad commits)
 
-2. **Cloud Server Mirrors** — Warns if `data/db/` routers lack `cloud_server/` mirrors
-   - Script: `scripts/validate-cloud-server-mirror.sh`
-   - Warning only (reminds agent to mirror changes)
-
 ## Skills for Agents
 
 Skills are manually-invoked commands agents can call to validate work.
 
 ### `/repo-rules` — Quick Reference
 
-Displays hard rules, mirroring requirements, architecture constraints, and testing setup.
+Displays hard rules, architecture constraints, and testing setup.
 
 **Use when**: You need to check a rule or are unsure about a pattern.
 
@@ -59,7 +55,6 @@ Runs all validators and reports a summary.
 /validate-repo --check=uri      # Only hardcoded URIs
 /validate-repo --check=db       # Only direct DB access
 /validate-repo --check=structure # Only structural rules
-/validate-repo --check=mirrors  # Only cloud_server mirrors
 /validate-repo --check=styles   # Only UI styling
 ```
 

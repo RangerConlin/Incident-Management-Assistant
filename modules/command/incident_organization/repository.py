@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 from modules.common.models.ics_positions import get_position
 
 from .models import (
     ACTIVE_ASSIGNMENT_TYPES,
     ASSIGNMENT_TYPE_PRIMARY,
-    AssignmentHistoryEntry,
-    GeneratedFormSnapshot,
     OrganizationPosition,
     OrganizationTemplate,
     PositionAssignment,
-    POSITION_STATUSES,
     normalize_assignment_type,
 )
 
@@ -78,23 +75,14 @@ class ApiIncidentOrganizationRepository:
             "title": position.title,
             "classification": position.classification,
             "parent_position_id": position.parent_position_id,
-            "operational_period": position.operational_period,
-            "required_qualifications": list(position.required_qualifications),
-            "is_critical": position.is_critical,
-            "is_custom": position.is_custom,
-            "is_air_ops": position.is_air_ops,
-            "status": position.status,
             "sort_order": position.sort_order,
-            "notes": position.notes,
         }
         result = self._post("/positions", body)
         return int(result["position_id"])
 
     def list_positions(self, include_inactive: bool = False) -> list[OrganizationPosition]:
-        cached = self._cached_docs("org_positions")
+        cached = self._cached_docs("incident_org")
         if cached is not None:
-            if not include_inactive:
-                cached = [d for d in cached if d.get("status", "active") == "active"]
             docs = _sorted_by(cached, ("parent_position_id", "sort_order", "title"))
         else:
             docs = self._get("/positions", include_inactive=str(include_inactive).lower())
@@ -114,11 +102,11 @@ class ApiIncidentOrganizationRepository:
         self, classifications: set[str] | None = None
     ) -> list[OrganizationPosition]:
         cls_set = classifications or {"branch", "division", "group", "staging_area"}
-        cached = self._cached_docs("org_positions")
+        cached = self._cached_docs("incident_org")
         if cached is not None:
             filtered = [
                 d for d in cached
-                if d.get("status") == "active" and d.get("classification") in cls_set
+                if d.get("classification") in cls_set
             ]
             docs = _sorted_by(filtered, ("sort_order", "title"))
         else:
@@ -158,24 +146,20 @@ class ApiIncidentOrganizationRepository:
         result = self._post("/templates/apply", {"payload": list(payload)})
         return [int(pid) for pid in result]
 
-    def add_assignment(self, assignment: PositionAssignment) -> int:
+    def add_assignment(self, assignment: PositionAssignment) -> str:
         body = {
             "position_id": assignment.position_id,
             "person_record": assignment.person_record,
-            "person_name": assignment.person_name,
             "assignment_type": assignment.assignment_type,
             "start_time": assignment.start_time,
             "end_time": assignment.end_time,
-            "operational_period": assignment.operational_period,
-            "assigned_by": assignment.assigned_by,
-            "notes": assignment.notes,
         }
         result = self._post("/assignments", body)
-        return int(result["assignment_id"])
+        return result["assignment_id"]
 
     def end_assignment(
         self,
-        assignment_id: int,
+        assignment_id: str | int,
         *,
         end_time: str | None = None,
         changed_by: str | None = None,
@@ -189,14 +173,14 @@ class ApiIncidentOrganizationRepository:
     def list_assignments(
         self, position_id: int | None = None, *, active_only: bool = True
     ) -> list[PositionAssignment]:
-        cached = self._cached_docs("org_assignments")
+        cached = self._cached_docs("incident_org")
         if cached is not None:
-            filtered = cached
+            docs = self._assignment_docs_from_positions(cached, self._cached_personnel_names())
             if position_id is not None:
-                filtered = [d for d in filtered if d.get("position_id") == position_id]
+                docs = [d for d in docs if d.get("position_id") == position_id]
             if active_only:
-                filtered = [d for d in filtered if d.get("end_time") is None]
-            docs = _sorted_by(filtered, ("position_id", "start_time", "assignment_id"))
+                docs = [d for d in docs if d.get("end_time") is None]
+            docs = _sorted_by(docs, ("position_id", "start_time", "assignment_id"))
         else:
             from utils.api_client import api_client
             params: dict = {"active_only": str(active_only).lower()}
@@ -208,9 +192,12 @@ class ApiIncidentOrganizationRepository:
     def list_assignments_for_person(
         self, person_record: int, *, active_only: bool = True
     ) -> list[PositionAssignment]:
-        cached = self._cached_docs("org_assignments")
+        cached = self._cached_docs("incident_org")
         if cached is not None:
-            filtered = [d for d in cached if d.get("person_record") == person_record]
+            filtered = [
+                d for d in self._assignment_docs_from_positions(cached, self._cached_personnel_names())
+                if d.get("person_record") == person_record
+            ]
             if active_only:
                 filtered = [d for d in filtered if d.get("end_time") is None]
             docs = _sorted_by(filtered, ("position_id", "start_time"))
@@ -222,39 +209,6 @@ class ApiIncidentOrganizationRepository:
             )
         return [self._doc_to_assignment(d) for d in docs]
 
-    def list_assignment_history(
-        self, position_id: int | None = None
-    ) -> list[AssignmentHistoryEntry]:
-        cached = self._cached_docs("org_history")
-        if cached is not None:
-            filtered = cached
-            if position_id is not None:
-                filtered = [d for d in filtered if d.get("position_id") == position_id]
-            docs = _sorted_by(filtered, ("created_at", "history_id"))
-        else:
-            from utils.api_client import api_client
-            params: dict = {}
-            if position_id is not None:
-                params["position_id"] = position_id
-            docs = api_client.get(self._base + "/history", params=params if params else None)
-        return [self._doc_to_history(d) for d in docs]
-
-    def replace_requirements(self, position_id: int, qualifications: Iterable[str]) -> None:
-        self._put(f"/positions/{position_id}/requirements", {"qualifications": list(qualifications)})
-
-    def save_generated_snapshot(self, snapshot: GeneratedFormSnapshot) -> int:
-        body = {
-            "form_type": snapshot.form_type,
-            "generated_at": snapshot.generated_at,
-            "operational_period": snapshot.operational_period,
-            "source_version": snapshot.source_version,
-            "payload": snapshot.payload,
-        }
-        result = self._post("/snapshots", body)
-        return int(result["snapshot_id"])
-
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _doc_to_position(doc: dict) -> OrganizationPosition:
         return OrganizationPosition(
@@ -263,14 +217,14 @@ class ApiIncidentOrganizationRepository:
             title=doc.get("title", ""),
             classification=doc.get("classification", "position"),
             parent_position_id=doc.get("parent_position_id"),
-            operational_period=doc.get("operational_period"),
-            required_qualifications=list(doc.get("required_qualifications") or []),
-            is_critical=bool(doc.get("is_critical", False)),
-            is_custom=bool(doc.get("is_custom", False)),
-            is_air_ops=bool(doc.get("is_air_ops", False)),
-            status=doc.get("status", "active"),
+            operational_period=None,
+            required_qualifications=[],
+            is_critical=False,
+            is_custom=False,
+            is_air_ops="air operations" in str(doc.get("title", "")).casefold(),
+            status="active",
             sort_order=int(doc.get("sort_order", 0) or 0),
-            notes=doc.get("notes"),
+            notes=None,
         )
 
     @staticmethod
@@ -303,24 +257,67 @@ class ApiIncidentOrganizationRepository:
             updated_at=doc.get("updated_at"),
         )
 
+    def _cached_personnel_names(self) -> dict[int, str]:
+        cached = self._cached_docs("incident_personnel")
+        if cached is None:
+            return {}
+        names: dict[int, str] = {}
+        for person in cached:
+            try:
+                record = int(person.get("person_record"))
+            except (TypeError, ValueError):
+                continue
+            name = str(person.get("name") or "").strip()
+            if not name:
+                name = " ".join(
+                    part
+                    for part in (
+                        str(person.get("first_name") or "").strip(),
+                        str(person.get("last_name") or "").strip(),
+                    )
+                    if part
+                )
+            names[record] = name
+        return names
+
     @staticmethod
-    def _doc_to_history(doc: dict) -> AssignmentHistoryEntry:
-        return AssignmentHistoryEntry(
-            id=doc.get("id") or doc.get("history_id"),
-            incident_id=doc.get("incident_id", ""),
-            assignment_id=doc.get("assignment_id"),
-            position_id=int(doc.get("position_id", 0)),
-            person_record=int(doc["person_record"]) if doc.get("person_record") is not None else None,
-            person_name=doc.get("person_name", ""),
-            assignment_type=normalize_assignment_type(
-                doc.get("assignment_type", ASSIGNMENT_TYPE_PRIMARY)
-            ),
-            action=doc.get("action", ""),
-            effective_time=doc.get("effective_time"),
-            operational_period=doc.get("operational_period"),
-            changed_by=doc.get("changed_by"),
-            notes=doc.get("notes"),
-        )
+    def _assignment_docs_from_positions(
+        positions: list[dict],
+        personnel_names: dict[int, str] | None = None,
+    ) -> list[dict]:
+        personnel_names = personnel_names or {}
+        rows: list[dict] = []
+        for position in positions:
+            position_id = position.get("position_id")
+            if position_id is None:
+                continue
+            for bucket, assignment_type in (
+                ("primary", ASSIGNMENT_TYPE_PRIMARY),
+                ("deputies", "deputy"),
+                ("staff_assistants", "staff_assistant"),
+            ):
+                for assignment in position.get(bucket) or []:
+                    person_record = assignment.get("person_record")
+                    try:
+                        record_key = int(person_record)
+                    except (TypeError, ValueError):
+                        record_key = None
+                    atype = (
+                        "trainee"
+                        if assignment.get("trainee")
+                        else assignment_type
+                    )
+                    rows.append({
+                        "assignment_id": f"{position_id}:{bucket}:{person_record}",
+                        "incident_id": position.get("incident_id", ""),
+                        "position_id": position_id,
+                        "person_record": person_record,
+                        "person_name": personnel_names.get(record_key, "") if record_key is not None else "",
+                        "assignment_type": atype,
+                        "start_time": assignment.get("start_time"),
+                        "end_time": assignment.get("end_time"),
+                    })
+        return rows
 
 
 def _default_organization_templates() -> list[OrganizationTemplate]:

@@ -92,7 +92,7 @@ Communications
 
 Use existing communications routers under /api/incidents/{incident_id}/comms-log and related message routes; cross-agency chat endpoint is future work.
 
-sarapp_incident_<id>.communications_log, ics_213_messages
+sarapp_incident_<id>.communications_log
 
 Resource Viewer
 

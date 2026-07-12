@@ -11,26 +11,20 @@ from PySide6.QtWidgets import (
     QDateTimeEdit,
     QFormLayout,
     QHBoxLayout,
-    QInputDialog,
-    QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
 
-from ..models import CommsLogFilterPreset, CommsLogQuery
+from ..models import CommsLogQuery
 
 
 class LogFilterPanel(QWidget):
-    """Sidebar widget holding filter controls and preset management."""
+    """Sidebar widget holding filter controls."""
 
     filtersChanged = Signal(object)
-    presetSaveRequested = Signal(str, dict)
-    presetDeleteRequested = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -104,20 +98,6 @@ class LogFilterPanel(QWidget):
         clear_btn = QPushButton("Clear Filters")
         clear_btn.clicked.connect(self.reset_filters)
         layout.addWidget(clear_btn)
-
-        layout.addWidget(QLabel("Saved Presets"))
-        self.preset_list = QListWidget()
-        self.preset_list.itemDoubleClicked.connect(self._apply_selected_preset)
-        layout.addWidget(self.preset_list, 1)
-
-        preset_buttons = QHBoxLayout()
-        self.save_button = QPushButton("Save Preset")
-        self.save_button.clicked.connect(self._on_save_clicked)
-        preset_buttons.addWidget(self.save_button)
-        self.delete_button = QPushButton("Delete")
-        self.delete_button.clicked.connect(self._on_delete_clicked)
-        preset_buttons.addWidget(self.delete_button)
-        layout.addLayout(preset_buttons)
 
         layout.addSpacerItem(QSpacerItem(1, 1))
 
@@ -211,38 +191,6 @@ class LogFilterPanel(QWidget):
             else:
                 self.channel_combo.setEditText(text)
         self.channel_combo.blockSignals(False)
-
-    # ------------------------------------------------------------------
-    # Preset helpers
-    # ------------------------------------------------------------------
-    def populate_presets(self, presets: Iterable[CommsLogFilterPreset]) -> None:
-        self.preset_list.clear()
-        for preset in presets:
-            item = QListWidgetItem(preset.name)
-            item.setData(Qt.UserRole, preset)
-            self.preset_list.addItem(item)
-
-    def _on_save_clicked(self) -> None:
-        name, ok = QInputDialog.getText(self, "Save Filter Preset", "Preset name:")
-        if not ok or not name.strip():
-            return
-        filters = {k: v for k, v in self.current_query().__dict__.items() if v not in (None, [], "")}
-        self.presetSaveRequested.emit(name.strip(), filters)
-
-    def _on_delete_clicked(self) -> None:
-        item = self.preset_list.currentItem()
-        if not item:
-            return
-        preset = item.data(Qt.UserRole)
-        if preset and getattr(preset, "id", None):
-            self.presetDeleteRequested.emit(int(preset.id))
-
-    def _apply_selected_preset(self, item: QListWidgetItem) -> None:
-        preset = item.data(Qt.UserRole)
-        if not preset:
-            return
-        filters = getattr(preset, "filters", {}) or {}
-        self.apply_filters(filters)
 
     def apply_filters(self, filters: Dict[str, object]) -> None:
         self.start_enabled.setChecked(bool(filters.get("start_ts_utc")))

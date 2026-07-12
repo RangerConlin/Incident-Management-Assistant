@@ -373,10 +373,9 @@ class CheckInService:
         )
 
         if entity_type == "personnel":
-            # Personnel check-in writes directly to the checkins collection.
-            # check_in_out is legacy for personnel and no longer written here.
+            # Personnel check-in writes the canonical resource_status row.
             from . import repository as ci_repo
-            from .models import CheckInRecord, CIStatus, PersonnelStatus, Location
+            from .models import CheckInRecord, PersonnelStatus, Location, normalize_checkin_status
             now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
             prec = int(record_id)
             master = None
@@ -385,8 +384,8 @@ class CheckInService:
             except Exception:
                 master = {}
             default_status = self.default_arrival_status("personnel", master, record_id=prec)
-            ci_status = CIStatus.normalize((overrides or {}).get("status") or default_status)
-            personnel_status = PersonnelStatus.ASSIGNED if ci_status.value == "Assigned" else PersonnelStatus.AVAILABLE
+            ci_status = normalize_checkin_status((overrides or {}).get("status") or default_status)
+            personnel_status = PersonnelStatus.ASSIGNED if ci_status == "Assigned" else PersonnelStatus.AVAILABLE
             arrival = (overrides or {}).get("arrival_time") or now_iso
             existing = None
             try:
@@ -415,12 +414,12 @@ class CheckInService:
             try:
                 ci_repo.save_checkin(rec)
                 logger.info(
-                    "check-in personnel checkins saved incident_id=%s person_record=%s status=%s",
-                    incident_id, prec, ci_status.value,
+                    "check-in personnel resource_status saved incident_id=%s person_record=%s status=%s",
+                    incident_id, prec, ci_status,
                 )
             except Exception:
                 logger.exception(
-                    "check-in personnel checkins save failed incident_id=%s person_record=%s",
+                    "check-in personnel resource_status save failed incident_id=%s person_record=%s",
                     incident_id, prec,
                 )
             doc = {**master, "_checked_in": True, "person_record": prec}

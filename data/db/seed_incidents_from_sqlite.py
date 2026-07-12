@@ -485,97 +485,6 @@ def seed_comms_log(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
     _report("communications_log", i, s)
 
 
-def seed_incident_organization(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
-    """Merges ics203_positions, ics203_units, ics203_assignments, ics203_agency_reps
-    into one document per org version (one version per incident if no versioning table)."""
-    if not _table_exists(cur, "ics203_positions"):
-        return
-    cur.execute("SELECT COUNT(*) FROM ics203_positions")
-    if cur.fetchone()[0] == 0:
-        return
-
-    # Positions
-    cur.execute("SELECT * FROM ics203_positions ORDER BY sort_order")
-    positions = [dict(r) for r in cur.fetchall()]
-
-    # Units
-    units = []
-    if _table_exists(cur, "ics203_units"):
-        cur.execute("SELECT * FROM ics203_units ORDER BY sort_order")
-        units = [dict(r) for r in cur.fetchall()]
-
-    # Assignments keyed by position_id
-    assignments_by_position: dict[int, list] = {}
-    if _table_exists(cur, "ics203_assignments"):
-        cur.execute("SELECT * FROM ics203_assignments")
-        for r in (dict(row) for row in cur.fetchall()):
-            assignments_by_position.setdefault(r["position_id"], []).append({
-                "assignment_id": str(r["id"]),
-                "person_id": str(r["person_id"]) if r.get("person_id") else None,
-                "display_name": r.get("display_name"),
-                "callsign": r.get("callsign"),
-                "phone": r.get("phone"),
-                "agency": r.get("agency"),
-                "is_deputy": bool(r.get("is_deputy", 0)),
-                "is_trainee": bool(r.get("is_trainee", 0)),
-                "start_utc": r.get("start_utc"),
-                "end_utc": r.get("end_utc"),
-                "notes": r.get("notes"),
-            })
-
-    # Agency reps
-    agency_reps = []
-    if _table_exists(cur, "ics203_agency_reps"):
-        cur.execute("SELECT * FROM ics203_agency_reps")
-        agency_reps = [dict(r) for r in cur.fetchall()]
-
-    # Version — check for versions table, otherwise treat as single version
-    versions = [{"id": 1, "op_period_id": None, "created_at": "", "notes": ""}]
-    if _table_exists(cur, "ics203_versions"):
-        cur.execute("SELECT * FROM ics203_versions")
-        rows = cur.fetchall()
-        if rows:
-            versions = [dict(r) for r in rows]
-
-    docs = []
-    for v in versions:
-        ver_id = v.get("id", 1)
-        docs.append({
-            "_id": _new_id(),
-            "version_id": f"{inc_number}-ORG-{ver_id}",
-            "incident_id": inc_number,
-            "op_period_id": f"{inc_number}-OP-{v['op_period_id']}" if v.get("op_period_id") else None,
-            "created_at": v.get("created_at", ""),
-            "notes": v.get("notes"),
-            "units": [{
-                "unit_id": str(u["id"]),
-                "unit_type": u.get("unit_type"),
-                "name": u.get("name"),
-                "parent_unit_id": str(u["parent_unit_id"]) if u.get("parent_unit_id") else None,
-                "sort_order": u.get("sort_order"),
-            } for u in units],
-            "positions": [{
-                "position_id": str(p["id"]),
-                "title": p.get("title"),
-                "unit_id": str(p["unit_id"]) if p.get("unit_id") else None,
-                "sort_order": p.get("sort_order"),
-                "assignments": assignments_by_position.get(p["id"], []),
-            } for p in positions],
-            "agency_reps": [{
-                "agency_rep_id": str(r.get("id", "")),
-                "agency": r.get("agency"),
-                "representative": r.get("representative"),
-                "phone": r.get("phone"),
-                "notes": r.get("notes"),
-            } for r in agency_reps],
-            "deleted": False,
-        })
-
-    col = incident_db[IncidentCollections.INCIDENT_ORGANIZATION]
-    i, s = _seed_one(col, docs, "version_id")
-    _report("incident_organization", i, s)
-
-
 def seed_unit_logs(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
     """Seeds ics214_streams with entries embedded per stream."""
     if not _table_exists(cur, "ics214_streams"):
@@ -626,9 +535,9 @@ def seed_unit_logs(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
         "deleted": False,
     } for r in rows]
 
-    col = incident_db[IncidentCollections.UNIT_LOGS]
+    col = incident_db[IncidentCollections.ICS_214_LOGS]
     i, s = _seed_one(col, docs, "stream_id")
-    _report("unit_logs", i, s)
+    _report("ics_214_logs", i, s)
 
 
 def seed_meetings(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
@@ -1009,27 +918,6 @@ def seed_task_assignments(cur: sqlite3.Cursor, incident_db, inc_number: str) -> 
     _report("tasks (assignment embed)", updated, skipped)
 
 
-def seed_incident_journal(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
-    if not _table_exists(cur, "planning_logs"):
-        return
-    cur.execute("SELECT * FROM planning_logs")
-    rows = [dict(r) for r in cur.fetchall()]
-    if not rows:
-        return
-    docs = [{
-        "_id": _new_id(),
-        "journal_id": f"{inc_number}-JNL-{r['id']}",
-        "incident_id": inc_number,
-        "text": r.get("text", ""),
-        "timestamp": r.get("timestamp", ""),
-        "entered_by": str(r["entered_by"]) if r.get("entered_by") else None,
-        "deleted": False,
-    } for r in rows]
-    col = incident_db[IncidentCollections.INCIDENT_JOURNAL]
-    i, s = _seed_one(col, docs, "journal_id")
-    _report("incident_journal", i, s)
-
-
 def seed_personnel(cur: sqlite3.Cursor, incident_db, inc_number: str) -> None:
     """Incident-local personnel roster (separate from master personnel)."""
     if not _table_exists(cur, "personnel"):
@@ -1123,11 +1011,9 @@ def main() -> int:
             seed_task_comms(cur, incident_db, inc_number)
             seed_strategy_details(cur, incident_db, inc_number)
             seed_task_assignments(cur, incident_db, inc_number)
-            seed_incident_organization(cur, incident_db, inc_number)
             seed_unit_logs(cur, incident_db, inc_number)
             seed_meetings(cur, incident_db, inc_number)
             seed_task_debriefs(cur, incident_db, inc_number)
-            seed_incident_journal(cur, incident_db, inc_number)
             seed_personnel(cur, incident_db, inc_number)
 
         except Exception as exc:

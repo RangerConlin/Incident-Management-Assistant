@@ -21,7 +21,7 @@ class TasksRepository(BaseRepository):
 
 
 class TeamsRepository(BaseRepository):
-    collection_name = IncidentCollections.OPERATIONS_TEAMS
+    collection_name = IncidentCollections.TEAMS
 
 
 class DebriefsRepository(BaseRepository):
@@ -74,7 +74,7 @@ def _tasks(incident_id: str):
 
 
 def _teams(incident_id: str):
-    return get_db(f"sarapp_incident_{incident_id}")[IncidentCollections.OPERATIONS_TEAMS]
+    return get_db(f"sarapp_incident_{incident_id}")[IncidentCollections.TEAMS]
 
 
 def _debriefs(incident_id: str):
@@ -92,10 +92,12 @@ def _find_by_int_id(repo: BaseRepository, int_id: int) -> Optional[dict]:
 def _find_air_ops_branch_position_id(incident_id: str) -> Optional[int]:
     """Return the active Air Operations Branch position_id for chain-of-command
     auto-assignment of aircraft (team_type == "AIR") teams, or None if the
-    incident has no Air Operations Branch yet (see incident_org.py's
-    is_air_ops flag - there can only be one per incident)."""
-    col = get_db(f"sarapp_incident_{incident_id}")[IncidentCollections.ORG_POSITIONS]
-    doc = col.find_one({"incident_id": incident_id, "is_air_ops": True, "status": "active"})
+    incident has no Air Operations Branch yet."""
+    col = get_db(f"sarapp_incident_{incident_id}")[IncidentCollections.INCIDENT_ORG]
+    doc = col.find_one({
+        "classification": "branch",
+        "title": {"$regex": "air operations", "$options": "i"},
+    })
     return doc.get("position_id") if doc else None
 
 

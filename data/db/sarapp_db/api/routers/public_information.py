@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Body, HTTPException
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
@@ -36,14 +37,6 @@ ORDER_FIELDS = {
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def _strip_mongo(doc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    if not doc:
-        return None
-    result = dict(doc)
-    result.pop("_id", None)
-    return result
 
 
 def _next_id(col) -> int:
@@ -73,6 +66,42 @@ def _sort_from_order(order_by: str) -> list[tuple[str, int]]:
 
 def _message_collection(incident_id: str):
     return get_incident_db(incident_id)[IncidentCollections.PIO_MESSAGES]
+
+
+class PioMessageRepository(BaseRepository):
+    collection_name = IncidentCollections.PIO_MESSAGES
+
+
+class PioMisinformationRepository(BaseRepository):
+    collection_name = IncidentCollections.PIO_MISINFORMATION_ITEMS
+
+
+def _message_repo(incident_id: str) -> PioMessageRepository:
+    return PioMessageRepository(get_incident_db(incident_id))
+
+
+def _misinformation_repo(incident_id: str) -> PioMisinformationRepository:
+    return PioMisinformationRepository(get_incident_db(incident_id))
+
+
+def _next_embedded_approval_id(message: Dict[str, Any]) -> int:
+    ids = []
+    for approval in message.get("approvals") or []:
+        try:
+            ids.append(int(approval.get("id") or 0))
+        except (TypeError, ValueError):
+            continue
+    return (max(ids) if ids else 0) + 1
+
+
+def _next_embedded_timeline_id(item: Dict[str, Any]) -> int:
+    ids = []
+    for event in item.get("timeline") or []:
+        try:
+            ids.append(int(event.get("id") or 0))
+        except (TypeError, ValueError):
+            continue
+    return (max(ids) if ids else 0) + 1
 
 
 @router.get("/incidents/{incident_id}/public-information/messages")
@@ -126,6 +155,7 @@ def save_message(incident_id: str, payload: Dict[str, Any] = Body(...)):
         message_id = _next_id(col)
         values["id"] = message_id
         values["_id"] = str(uuid.uuid4())
+        values.setdefault("approvals", [])
         col.insert_one(values)
 
     _add_revision(incident_id, message_id, values, user)
@@ -154,8 +184,9 @@ def _add_revision(incident_id: str, message_id: int, data: Dict[str, Any], user:
 
 @router.post("/incidents/{incident_id}/public-information/messages/{message_id}/status")
 def set_message_status(incident_id: str, message_id: int, payload: Dict[str, Any] = Body(...)):
+    repo = _message_repo(incident_id)
     col = _message_collection(incident_id)
-    existing = col.find_one({"incident_id": incident_id, "id": int(message_id), "deleted": {"$ne": True}}, {"_id": 0})
+    existing = repo.find_one({"incident_id": incident_id, "id": int(message_id)})
     if not existing:
         raise HTTPException(status_code=404, detail="Message not found")
     status = str(payload.get("status") or existing.get("status") or "")
@@ -171,27 +202,35 @@ def set_message_status(incident_id: str, message_id: int, payload: Dict[str, Any
         "archived_by": user if status == "Archived" else existing.get("archived_by", ""),
         "archived_at": now if status == "Archived" else existing.get("archived_at", ""),
     }
-    col.update_one({"incident_id": incident_id, "id": int(message_id)}, {"$set": update})
-    get_incident_db(incident_id)[IncidentCollections.PIO_APPROVALS].insert_one(
+    approval = {
+        "id": _next_embedded_approval_id(existing),
+        "incident_id": incident_id,
+        "message_id": int(message_id),
+        "reviewer_id": user,
+        "reviewer_name": user,
+        "action": status,
+        "comment": payload.get("comment", ""),
+        "timestamp": now,
+    }
+    repo.apply_update(
+        existing["_id"],
         {
-            "_id": str(uuid.uuid4()),
-            "id": _next_id(get_incident_db(incident_id)[IncidentCollections.PIO_APPROVALS]),
-            "incident_id": incident_id,
-            "message_id": int(message_id),
-            "reviewer_id": user,
-            "reviewer_name": user,
-            "action": status,
-            "comment": payload.get("comment", ""),
-            "timestamp": now,
-        }
+            "$set": update,
+            "$push": {"approvals": approval},
+        },
     )
     return col.find_one({"incident_id": incident_id, "id": int(message_id)}, {"_id": 0}) or {}
 
 
 @router.get("/incidents/{incident_id}/public-information/messages/{message_id}/approvals")
 def list_approvals(incident_id: str, message_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.PIO_APPROVALS]
-    return list(col.find({"incident_id": incident_id, "message_id": int(message_id)}, {"_id": 0}).sort("timestamp", 1))
+    message = _message_repo(incident_id).find_one({"incident_id": incident_id, "id": int(message_id)})
+    if not message:
+        return []
+    return sorted(
+        [dict(approval) for approval in message.get("approvals") or []],
+        key=lambda approval: approval.get("timestamp") or "",
+    )
 
 
 @router.get("/incidents/{incident_id}/public-information/templates")
@@ -249,6 +288,8 @@ def save_record(incident_id: str, table: str, payload: Dict[str, Any] = Body(...
     record_id = values.get("id")
     values.setdefault("incident_id", incident_id)
     values.setdefault("deleted", False)
+    if table == "pio_misinformation_items":
+        values.setdefault("timeline", [])
     if record_id:
         record_id = int(record_id)
         col.update_one({"incident_id": incident_id, "id": record_id}, {"$set": values})
@@ -290,24 +331,38 @@ def create_response_draft_from_media(incident_id: str, media_id: int, payload: D
 
 @router.post("/incidents/{incident_id}/public-information/misinformation/{item_id}/timeline", status_code=201)
 def add_misinformation_timeline(incident_id: str, item_id: int, payload: Dict[str, Any] = Body(...)):
-    col = get_incident_db(incident_id)[IncidentCollections.PIO_MISINFORMATION_TIMELINE]
-    doc = {
-        "_id": str(uuid.uuid4()),
-        "id": _next_id(col),
+    repo = _misinformation_repo(incident_id)
+    item = repo.find_one({"incident_id": incident_id, "id": int(item_id)})
+    if not item:
+        raise HTTPException(status_code=404, detail="Misinformation item not found")
+    now = _utcnow()
+    event = {
+        "id": _next_embedded_timeline_id(item),
         "incident_id": incident_id,
         "item_id": int(item_id),
-        "event_time": _utcnow(),
+        "event_time": now,
         "event_text": payload.get("event_text", ""),
         "created_by": payload.get("user", ""),
     }
-    col.insert_one(doc)
-    return _strip_mongo(doc)
+    repo.apply_update(
+        item["_id"],
+        {
+            "$push": {"timeline": event},
+            "$set": {"last_update": now},
+        },
+    )
+    return event
 
 
 @router.get("/incidents/{incident_id}/public-information/misinformation/{item_id}/timeline")
 def list_misinformation_timeline(incident_id: str, item_id: int):
-    col = get_incident_db(incident_id)[IncidentCollections.PIO_MISINFORMATION_TIMELINE]
-    return list(col.find({"incident_id": incident_id, "item_id": int(item_id)}, {"_id": 0}).sort("event_time", 1))
+    item = _misinformation_repo(incident_id).find_one({"incident_id": incident_id, "id": int(item_id)})
+    if not item:
+        return []
+    return sorted(
+        [dict(event) for event in item.get("timeline") or []],
+        key=lambda event: event.get("event_time") or "",
+    )
 
 
 @router.get("/incidents/{incident_id}/public-information/summary")

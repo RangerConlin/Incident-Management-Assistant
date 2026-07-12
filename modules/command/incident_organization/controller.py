@@ -3,7 +3,6 @@ from __future__ import annotations
 """Controller for incident organization management."""
 
 from collections import defaultdict
-from datetime import datetime, timezone
 from typing import Iterable
 
 from .personnel_repo import ApiPersonnelPoolRepository
@@ -11,10 +10,8 @@ from .models import (
     ASSIGNMENT_TYPE_ASSISTANT,
     ASSIGNMENT_TYPE_DEPUTY,
     ASSIGNMENT_TYPE_PRIMARY,
-    ASSIGNMENT_TYPE_RELIEF,
     ASSIGNMENT_TYPE_STAFF_ASSISTANT,
     ASSIGNMENT_TYPE_TRAINEE,
-    GeneratedFormSnapshot,
     OrganizationPosition,
     OrganizationTemplate,
     OrganizationWarning,
@@ -32,7 +29,6 @@ _LEGACY_SUPPORT_PREFIXES: tuple[tuple[str, str], ...] = (
     ("assistant", ASSIGNMENT_TYPE_ASSISTANT),
     ("deputy", ASSIGNMENT_TYPE_DEPUTY),
     ("trainee", ASSIGNMENT_TYPE_TRAINEE),
-    ("relief", ASSIGNMENT_TYPE_RELIEF),
 )
 
 
@@ -54,14 +50,7 @@ class IncidentOrganizationController:
             title=str(values.get("title", "")).strip(),
             classification=str(values.get("classification", "position")).strip() or "position",
             parent_position_id=self._optional_int(values.get("parent_position_id")),
-            operational_period=self._optional_text(values.get("operational_period")),
-            required_qualifications=self._qualification_list(values.get("required_qualifications")),
-            is_critical=bool(values.get("is_critical", False)),
-            is_custom=bool(values.get("is_custom", False)),
-            is_air_ops=bool(values.get("is_air_ops", False)),
-            status=str(values.get("status", "active") or "active"),
             sort_order=int(values.get("sort_order", 0) or 0),
-            notes=self._optional_text(values.get("notes")),
         )
         if not position.title:
             raise ValueError("Position title is required")
@@ -80,18 +69,7 @@ class IncidentOrganizationController:
             parent_position_id=self._optional_int(
                 values.get("parent_position_id", current.parent_position_id)
             ),
-            operational_period=self._optional_text(
-                values.get("operational_period", current.operational_period)
-            ),
-            required_qualifications=self._qualification_list(
-                values.get("required_qualifications", current.required_qualifications)
-            ),
-            is_critical=bool(values.get("is_critical", current.is_critical)),
-            is_custom=bool(values.get("is_custom", current.is_custom)),
-            is_air_ops=bool(values.get("is_air_ops", current.is_air_ops)),
-            status=str(values.get("status", current.status) or current.status),
             sort_order=int(values.get("sort_order", current.sort_order) or 0),
-            notes=self._optional_text(values.get("notes", current.notes)),
         )
         if not updated.title:
             raise ValueError("Position title is required")
@@ -128,17 +106,12 @@ class IncidentOrganizationController:
         name: str,
         parent_id: int | None,
         *,
-        director_name: str | None = None,
-        notes: str | None = None,
         is_air_ops: bool = False,
     ) -> int:
         """Create a branch node and optionally assign a director under it.
 
-        Set ``is_air_ops=True`` for the Air Operations Branch so it's
-        excluded from the numbered Branch 1/2/3 slots on ICS 203/207 and
-        instead populates the form's dedicated Air Operations Branch
-        Director field (see FormDataContext._build_org_branches /
-        _build_air_ops_branch).
+        Air Operations is inferred from the branch title by downstream form
+        builders until the dedicated handling is redesigned.
         """
         name = name.strip()
         if not name:
@@ -147,22 +120,7 @@ class IncidentOrganizationController:
             "title": name,
             "classification": "branch",
             "parent_position_id": parent_id,
-            "is_custom": True,
-            "is_air_ops": is_air_ops,
-            "notes": notes,
         })
-        if director_name and director_name.strip():
-            director_pos_id = self.add_position({
-                "title": "Branch Director",
-                "classification": "position",
-                "parent_position_id": branch_id,
-                "is_custom": True,
-                "sort_order": 0,
-            })
-            self.assign_person(director_pos_id, {
-                "person_name": director_name.strip(),
-                "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
-            })
         return branch_id
 
     def add_division_group(
@@ -170,9 +128,6 @@ class IncidentOrganizationController:
         name: str,
         classification: str,
         parent_id: int | None,
-        *,
-        supervisor_name: str | None = None,
-        notes: str | None = None,
     ) -> int:
         """Create a division or group node and optionally assign a supervisor under it."""
         name = name.strip()
@@ -184,24 +139,7 @@ class IncidentOrganizationController:
             "title": name,
             "classification": classification,
             "parent_position_id": parent_id,
-            "is_custom": True,
-            "notes": notes,
         })
-        if supervisor_name and supervisor_name.strip():
-            supervisor_title = (
-                "Division Supervisor" if classification == "division" else "Group Supervisor"
-            )
-            sup_pos_id = self.add_position({
-                "title": supervisor_title,
-                "classification": "position",
-                "parent_position_id": unit_id,
-                "is_custom": True,
-                "sort_order": 0,
-            })
-            self.assign_person(sup_pos_id, {
-                "person_name": supervisor_name.strip(),
-                "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
-            })
         return unit_id
 
     # ------------------------------------------------------------------
@@ -215,7 +153,7 @@ class IncidentOrganizationController:
         return self.repo.apply_template_payload(template.payload)
 
     # ------------------------------------------------------------------
-    def assign_person(self, position_id: int, values: dict[str, object]) -> tuple[int, list[OrganizationWarning]]:
+    def assign_person(self, position_id: int, values: dict[str, object]) -> tuple[str, list[OrganizationWarning]]:
         """Assign personnel while preserving history and returning warnings.
 
         Qualification issues are intentionally non-blocking so AHJ-specific
@@ -234,12 +172,7 @@ class IncidentOrganizationController:
             assignment_type=normalize_assignment_type(values.get("assignment_type")),
             start_time=self._optional_text(values.get("start_time")),
             end_time=None,
-            operational_period=self._optional_text(values.get("operational_period")),
-            assigned_by=self._optional_text(values.get("assigned_by")),
-            notes=self._optional_text(values.get("notes")),
         )
-        if not assignment.person_name:
-            raise ValueError("Assigned personnel name is required")
         position = self.repo.get_position(position_id)
         if position is None:
             raise ValueError(f"Position {position_id} was not found")
@@ -258,7 +191,7 @@ class IncidentOrganizationController:
 
     def remove_assignment(
         self,
-        assignment_id: int,
+        assignment_id: str | int,
         *,
         changed_by: str | None = None,
         notes: str | None = None,
@@ -310,9 +243,6 @@ class IncidentOrganizationController:
     ) -> list[PositionAssignment]:
         return self.repo.list_assignments_for_person(person_record, active_only=active_only)
 
-    def list_assignment_history(self, position_id: int | None = None):
-        return self.repo.list_assignment_history(position_id)
-
     # ------------------------------------------------------------------
     def staffing_summary(self) -> dict[int, PositionStatusSummary]:
         positions = self.list_positions()
@@ -354,15 +284,6 @@ class IncidentOrganizationController:
         )
         position_list = list(positions if positions is not None else self.list_positions())
         warnings: list[OrganizationWarning] = []
-        if position.is_critical and not assignment_list:
-            warnings.append(
-                OrganizationWarning(
-                    level="warning",
-                    code="critical_vacancy",
-                    message=f"Critical position is vacant: {position.title}",
-                    position_id=position.id,
-                )
-            )
         child_count = sum(
             1 for item in position_list if item.parent_position_id == position.id
         )
@@ -391,22 +312,7 @@ class IncidentOrganizationController:
         position: OrganizationPosition | None = None,
     ) -> list[OrganizationWarning]:
         position = position or self.repo.get_position(position_id)
-        if position is None or not position.required_qualifications:
-            return []
-        # The current personnel catalog has inconsistent qualification storage.
-        # Until a common qualifications table is available, assignments are
-        # allowed and flagged for review instead of blocked.
-        return [
-            OrganizationWarning(
-                level="warning",
-                code="qualification_review",
-                message=(
-                    f"Review qualifications for {assignment.person_name}: "
-                    f"{', '.join(position.required_qualifications)} required."
-                ),
-                position_id=position_id,
-            )
-        ]
+        return []
 
     # ------------------------------------------------------------------
     def personnel_pool(self, query: str) -> list[dict[str, object | None]]:
@@ -429,26 +335,8 @@ class IncidentOrganizationController:
         ]
         return payload
 
-    def save_generated_snapshot(self, form_type: str, payload: dict[str, object]) -> int:
-        snapshot = GeneratedFormSnapshot(
-            id=None,
-            incident_id=self.incident_id,
-            form_type=form_type,
-            generated_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            operational_period=payload.get("operational_period"),
-            source_version=None,
-            payload=payload,
-        )
-        return self.repo.save_generated_snapshot(snapshot)
-
     def _build_generated_payload(self, form_type: str, operational_period: str | None) -> dict[str, object]:
         positions = self.list_positions()
-        if operational_period:
-            positions = [
-                item
-                for item in positions
-                if item.operational_period in (None, "", operational_period)
-            ]
         assignments = self.list_assignments(active_only=True)
         assignments_by_position: dict[int, list[dict[str, object | None]]] = defaultdict(list)
         for assignment in assignments:
@@ -460,8 +348,6 @@ class IncidentOrganizationController:
                     "assignment_type": assignment.assignment_type,
                     "start_time": assignment.start_time,
                     "end_time": assignment.end_time,
-                    "operational_period": assignment.operational_period,
-                    "notes": assignment.notes,
                 }
             )
         return {
@@ -474,10 +360,6 @@ class IncidentOrganizationController:
                     "title": position.title,
                     "classification": position.classification,
                     "parent_position_id": position.parent_position_id,
-                    "required_qualifications": position.required_qualifications,
-                    "is_critical": position.is_critical,
-                    "is_custom": position.is_custom,
-                    "status": position.status,
                     "assignments": assignments_by_position.get(position.id or 0, []),
                 }
                 for position in positions

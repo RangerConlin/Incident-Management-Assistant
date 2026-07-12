@@ -70,7 +70,8 @@ def resource_request_app_client():
     from utils.api_client import api_client, DEFAULT_BASE_URL
 
     db = get_incident_db(INCIDENT_ID)
-    db[IncidentCollections.LOGISTICS_RESOURCE_REQUESTS].delete_many({})
+    db[IncidentCollections.RESOURCE_REQUESTS].delete_many({})
+    db["logistics_resource_requests"].delete_many({})
 
     app = create_app()
     api_client.configure_test_transport(app)
@@ -78,6 +79,8 @@ def resource_request_app_client():
         yield api_client
     finally:
         api_client.configure(DEFAULT_BASE_URL)
+        db[IncidentCollections.RESOURCE_REQUESTS].delete_many({})
+        db["logistics_resource_requests"].delete_many({})
 
 
 @pytest.fixture

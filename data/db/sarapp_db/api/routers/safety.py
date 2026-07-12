@@ -40,26 +40,8 @@ class HazardsRepository(BaseRepository):
     collection_name = IncidentCollections.HAZARDS
 
 
-class CapOrmSummariesRepository(BaseRepository):
-    collection_name = IncidentCollections.CAP_ORM_SUMMARIES
-
-
 class Ics206BuildsRepository(BaseRepository):
     collection_name = IncidentCollections.ICS_206_BUILDS
-
-
-class CapOrmFormsRepository(BaseRepository):
-    collection_name = IncidentCollections.CAP_ORM_FORMS
-
-
-class CapOrmHazardsRepository(BaseRepository):
-    collection_name = IncidentCollections.CAP_ORM_HAZARDS
-
-
-class CapOrmAuditRepository(BaseRepository):
-    # Audit entries are append-only and never carry a `deleted` field.
-    collection_name = IncidentCollections.CAP_ORM_AUDIT
-    soft_deletes = False
 
 
 class Ics208InstancesRepository(BaseRepository):
@@ -218,7 +200,7 @@ def create_triage_entry(incident_id: str, body: TriageEntryRequest) -> dict[str,
 
 
 # ---------------------------------------------------------------------------
-# Hazard zones / legacy CAP ORM summary records / ICS 206 builds
+# Hazard zones / ICS 206 builds
 # ---------------------------------------------------------------------------
 
 
@@ -238,22 +220,6 @@ def list_hazard_zones(incident_id: str) -> list[dict[str, Any]]:
 @router.post("/incidents/{incident_id}/safety/zones", status_code=201)
 def create_hazard_zone(incident_id: str, body: HazardZoneRequest) -> dict[str, Any]:
     repo = HazardZonesRepository(get_incident_db(incident_id))
-    return _insert_incident_doc(repo, incident_id, body.model_dump())
-
-
-class CapOrmSummaryRequest(BaseModel):
-    form_type: Optional[str] = None
-    activity: Optional[str] = None
-    participants_json: Optional[str] = None
-    hazards_json: Optional[str] = None
-    mitigations_json: Optional[str] = None
-    residual_risk: Optional[str] = None
-    created_by: Optional[str] = None
-
-
-@router.post("/incidents/{incident_id}/safety/caporm", status_code=201)
-def create_cap_orm_summary(incident_id: str, body: CapOrmSummaryRequest) -> dict[str, Any]:
-    repo = CapOrmSummariesRepository(get_incident_db(incident_id))
     return _insert_incident_doc(repo, incident_id, body.model_dump())
 
 
@@ -300,67 +266,85 @@ class HazardUpdate(BaseModel):
     implement_who: Optional[str] = None
 
 
-def _forms_repo(incident_id: str) -> CapOrmFormsRepository:
-    return CapOrmFormsRepository(get_incident_db(incident_id))
+def _hazards_repo(incident_id: str) -> HazardsRepository:
+    return HazardsRepository(get_incident_db(incident_id))
 
 
-def _hazards_repo(incident_id: str) -> CapOrmHazardsRepository:
-    return CapOrmHazardsRepository(get_incident_db(incident_id))
+def _cap_orm_query(incident_id: str, op_period: int) -> dict[str, Any]:
+    return {
+        "incident_id": incident_id,
+        "source": "cap_orm",
+        "op_period_ids": op_period,
+        "deleted": {"$ne": True},
+    }
 
 
-def _audit_repo(incident_id: str) -> CapOrmAuditRepository:
-    return CapOrmAuditRepository(get_incident_db(incident_id))
+def _cap_orm_hazard_out(row: dict[str, Any], op_period: int) -> dict[str, Any]:
+    return {
+        "id": row.get("id"),
+        "incident_id": row.get("incident_id"),
+        "form_id": op_period,
+        "sub_activity": row.get("sub_activity") or row.get("title") or "",
+        "hazard_outcome": row.get("hazard_outcome") or row.get("description") or row.get("title") or "",
+        "initial_risk": row.get("initial_risk") or "",
+        "control_text": row.get("control_text") or row.get("control_measure") or "",
+        "residual_risk": row.get("residual_risk") or "",
+        "implement_how": row.get("implement_how") or row.get("mitigation_text") or "",
+        "implement_who": row.get("implement_who") or row.get("notes") or "",
+        "created_at": row.get("created_at") or "",
+        "updated_at": row.get("updated_at") or "",
+    }
 
 
-def _log_audit(
-    incident_id: str,
-    entity: str,
-    entity_id: int | None,
-    action: str,
-    field: str | None,
-    old_value: Any,
-    new_value: Any,
-) -> None:
-    _audit_repo(incident_id).insert_one(
-        {
-            "incident_id": incident_id,
-            "entity": entity,
-            "entity_id": entity_id,
-            "action": action,
-            "field": field,
-            "old_value": None if old_value is None else str(old_value),
-            "new_value": None if new_value is None else str(new_value),
-            "ts_iso": _utcnow(),
-        }
-    )
+def _cap_orm_hazard_payload(incident_id: str, op_period: int, payload: dict[str, Any]) -> dict[str, Any]:
+    now = _utcnow()
+    sub_activity = payload.get("sub_activity") or ""
+    hazard_outcome = payload.get("hazard_outcome") or sub_activity or "CAP ORM hazard"
+    return {
+        "incident_id": incident_id,
+        "source": "cap_orm",
+        "category": "CAP ORM",
+        "op_period_ids": [op_period],
+        "title": sub_activity or hazard_outcome,
+        "description": hazard_outcome,
+        "hazard_type_text": hazard_outcome,
+        "control_measure": payload.get("control_text"),
+        "mitigation_text": payload.get("implement_how"),
+        "notes": payload.get("implement_who"),
+        "sub_activity": sub_activity,
+        "hazard_outcome": hazard_outcome,
+        "initial_risk": payload.get("initial_risk"),
+        "residual_risk": payload.get("residual_risk"),
+        "control_text": payload.get("control_text"),
+        "implement_how": payload.get("implement_how"),
+        "implement_who": payload.get("implement_who"),
+        "updated_at": now,
+    }
 
 
 def _ensure_form(incident_id: str, op_period: int) -> dict[str, Any]:
-    repo = _forms_repo(incident_id)
-    doc = repo.find_one({"incident_id": incident_id, "op_period": op_period})
-    if doc:
-        return doc
-    form_id = _next_id(repo, incident_id)
-    doc = repo.insert_one(
-        {
-            "id": form_id,
-            "incident_id": incident_id,
-            "op_period": op_period,
-            "activity": None,
-            "prepared_by_id": None,
-            "date_iso": None,
-            "highest_residual_risk": "L",
-            "status": "draft",
-            "approval_blocked": False,
-        }
-    )
-    _log_audit(incident_id, "orm_form", form_id, "create", None, None, {"op_period": op_period})
-    return doc
+    hazards = _hazards_for_form(incident_id, op_period)
+    highest = _highest_residual(hazards)
+    blocked = highest in {"H", "EH"}
+    first = hazards[0] if hazards else {}
+    return {
+        "id": op_period,
+        "incident_id": incident_id,
+        "op_period": op_period,
+        "activity": first.get("activity") or first.get("sub_activity") or "",
+        "prepared_by_id": first.get("prepared_by_id"),
+        "date_iso": first.get("date_iso") or first.get("created_at") or "",
+        "highest_residual_risk": highest,
+        "status": "pending_mitigation" if blocked else "draft",
+        "approval_blocked": blocked,
+        "created_at": first.get("created_at") or "",
+        "updated_at": first.get("updated_at") or "",
+    }
 
 
-def _hazards_for_form(incident_id: str, form_id: int) -> list[dict[str, Any]]:
+def _hazards_for_form(incident_id: str, op_period: int) -> list[dict[str, Any]]:
     return _hazards_repo(incident_id).find_many(
-        {"incident_id": incident_id, "form_id": form_id}, sort=[("id", 1)]
+        _cap_orm_query(incident_id, op_period), sort=[("id", 1)]
     )
 
 
@@ -372,19 +356,7 @@ def _highest_residual(hazards: list[dict[str, Any]]) -> str:
 
 
 def _recompute_form_state(incident_id: str, form: dict[str, Any]) -> dict[str, Any]:
-    hazards = _hazards_for_form(incident_id, int(form["id"]))
-    highest = _highest_residual(hazards)
-    blocked = highest in {"H", "EH"}
-    current_status = form.get("status") or "draft"
-    status_value = "pending_mitigation" if blocked else ("draft" if current_status == "pending_mitigation" else current_status)
-    update = {
-        "highest_residual_risk": highest,
-        "approval_blocked": blocked,
-        "status": status_value,
-    }
-    repo = _forms_repo(incident_id)
-    repo.update_one(form["_id"], update)
-    return repo.find_by_id(form["_id"]) or {**form, **update}
+    return _ensure_form(incident_id, int(form["op_period"]))
 
 
 @router.get("/incidents/{incident_id}/safety/orm/form")
@@ -401,38 +373,26 @@ def update_orm_form(incident_id: str, body: FormUpdate) -> dict[str, Any]:
         if value is not None
     }
     if updates:
-        repo = _forms_repo(incident_id)
-        repo.update_one(form["_id"], updates)
-        for key, value in updates.items():
-            if form.get(key) != value:
-                _log_audit(incident_id, "orm_form", form["id"], "update", key, form.get(key), value)
-        return repo.find_by_id(form["_id"]) or form
+        repo = _hazards_repo(incident_id)
+        for hazard in _hazards_for_form(incident_id, body.op_period):
+            repo.update_one(hazard["_id"], {**updates, "updated_at": _utcnow()})
+        return {**form, **updates}
     return form
 
 
 @router.get("/incidents/{incident_id}/safety/orm/hazards")
 def list_orm_hazards(incident_id: str, op: int = Query(..., ge=1)) -> list[dict[str, Any]]:
-    form = _ensure_form(incident_id, op)
-    return _hazards_for_form(incident_id, int(form["id"]))
+    return [_cap_orm_hazard_out(row, op) for row in _hazards_for_form(incident_id, op)]
 
 
 @router.post("/incidents/{incident_id}/safety/orm/hazards", status_code=201)
 def create_orm_hazard(incident_id: str, body: HazardRequest) -> dict[str, Any]:
-    form = _ensure_form(incident_id, body.op_period)
     repo = _hazards_repo(incident_id)
     payload = body.model_dump(exclude={"op_period"})
+    doc = _cap_orm_hazard_payload(incident_id, body.op_period, payload)
     hazard_id = _next_id(repo, incident_id)
-    doc = repo.insert_one(
-        {
-            "id": hazard_id,
-            "incident_id": incident_id,
-            "form_id": form["id"],
-            **payload,
-        }
-    )
-    _log_audit(incident_id, "orm_hazard", hazard_id, "create", None, None, payload)
-    _recompute_form_state(incident_id, form)
-    return doc
+    saved = repo.insert_one({"id": hazard_id, "created_at": _utcnow(), **doc})
+    return _cap_orm_hazard_out(saved, body.op_period)
 
 
 @router.put("/incidents/{incident_id}/safety/orm/hazards/{hazard_id}")
@@ -442,18 +402,13 @@ def update_orm_hazard(
     body: HazardUpdate,
     op: int = Query(..., ge=1),
 ) -> dict[str, Any]:
-    form = _ensure_form(incident_id, op)
     repo = _hazards_repo(incident_id)
     old = _find_by_int_id(repo, incident_id, hazard_id)
-    if not old or old.get("form_id") != form["id"]:
+    if not old or old.get("source") != "cap_orm" or op not in (old.get("op_period_ids") or []):
         raise HTTPException(status_code=404, detail="Hazard not found")
-    updates = body.model_dump()
+    updates = _cap_orm_hazard_payload(incident_id, op, body.model_dump())
     repo.update_one(old["_id"], updates)
-    for key, value in updates.items():
-        if old.get(key) != value:
-            _log_audit(incident_id, "orm_hazard", hazard_id, "update", key, old.get(key), value)
-    _recompute_form_state(incident_id, form)
-    return repo.find_by_id(old["_id"]) or {}
+    return _cap_orm_hazard_out(repo.find_by_id(old["_id"]) or {}, op)
 
 
 @router.delete("/incidents/{incident_id}/safety/orm/hazards/{hazard_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -462,13 +417,10 @@ def delete_orm_hazard(
     hazard_id: int,
     op: int = Query(..., ge=1),
 ) -> Response:
-    form = _ensure_form(incident_id, op)
     repo = _hazards_repo(incident_id)
     old = _find_by_int_id(repo, incident_id, hazard_id)
-    if old and old.get("form_id") == form["id"]:
+    if old and old.get("source") == "cap_orm" and op in (old.get("op_period_ids") or []):
         repo.soft_delete(old["_id"])
-        _log_audit(incident_id, "orm_hazard", hazard_id, "delete", None, old, None)
-        _recompute_form_state(incident_id, form)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -476,15 +428,6 @@ def delete_orm_hazard(
 def approve_orm_form(incident_id: str, body: ApproveRequest):
     form = _recompute_form_state(incident_id, _ensure_form(incident_id, body.op_period))
     if form.get("approval_blocked"):
-        _log_audit(
-            incident_id,
-            "orm_form",
-            form.get("id"),
-            "approval_attempt_blocked",
-            "highest_residual_risk",
-            form.get("highest_residual_risk"),
-            form.get("highest_residual_risk"),
-        )
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
@@ -494,13 +437,7 @@ def approve_orm_form(incident_id: str, body: ApproveRequest):
                 "message": "Approval is blocked until highest residual risk is Medium or Low.",
             },
         )
-    repo = _forms_repo(incident_id)
-    updates: dict[str, Any] = {"status": "approved", "approval_blocked": False}
-    if not form.get("date_iso"):
-        updates["date_iso"] = _utcnow()
-    repo.update_one(form["_id"], updates)
-    _log_audit(incident_id, "orm_form", form["id"], "approve", "status", form.get("status"), "approved")
-    return repo.find_by_id(form["_id"]) or {}
+    return {**form, "status": "approved", "approval_blocked": False, "date_iso": form.get("date_iso") or _utcnow()}
 
 
 # ---------------------------------------------------------------------------

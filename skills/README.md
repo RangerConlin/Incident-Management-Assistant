@@ -10,7 +10,7 @@ Universal project knowledge and tasks. Discoverable by all tools and agents (Cla
 
 ### Development Workflows
 - **`new-module`** — Scaffold new functional module with correct structure
-- **`new-router`** — Create API router + auto-mirror to cloud_server
+- **`new-router`** — Create API router under `data/db/sarapp_db/api/routers/`
 - **`new-repository`** — Create BaseRepository subclass for MongoDB data access
 - **`new-ui-panel`** — Scaffold UI panel/widget following design standards
 

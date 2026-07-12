@@ -12,7 +12,6 @@ from utils.state import AppState
 from .exporters import csv_exporter, pdf_exporter
 from .models import (
     CommsLogEntry,
-    CommsLogFilterPreset,
     CommsLogQuery,
     PRIORITY_EMERGENCY,
     PRIORITY_PRIORITY,
@@ -78,25 +77,6 @@ class CommsLogService:
 
     def list_audit(self, entry_id: int):
         return self.repository.list_audit_entries(entry_id)
-
-    # ------------------------------------------------------------------
-    # Filter presets
-    # ------------------------------------------------------------------
-    def list_filter_presets(self, user_id: Optional[str] = None) -> List[CommsLogFilterPreset]:
-        return self.repository.list_filter_presets(user_id)
-
-    def save_filter_preset(
-        self,
-        name: str,
-        filters: Dict[str, Any],
-        *,
-        preset_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-    ) -> CommsLogFilterPreset:
-        return self.repository.save_filter_preset(name, filters, preset_id=preset_id, user_id=user_id)
-
-    def delete_filter_preset(self, preset_id: int, *, user_id: Optional[str] = None) -> None:
-        self.repository.delete_filter_preset(preset_id, user_id=user_id)
 
     # ------------------------------------------------------------------
     # Shortcut helpers

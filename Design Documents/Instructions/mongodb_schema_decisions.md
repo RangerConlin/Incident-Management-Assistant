@@ -3,6 +3,11 @@
 - `work_assignments` map to strategies, not tasks.
 - Task narrative, debrief, `assignment_ground`, and `assignment_air` are embedded inside task documents.
 - The `resources` collection maps to `logistics_resource_status_items`; it represents status snapshots rather than raw inventory.
+- `resource_requests` is the canonical incident Logistics Resource Request / ICS-213RR collection. The duplicate `logistics_resource_requests` collection is retired; use `data/db/sarapp_db/migrations/migrate_logistics_resource_requests_to_resource_requests.py` for one-time data migration only.
+- PIO message lifecycle approvals are embedded on each `pio_messages` document in `approvals`; the duplicate `pio_approvals` collection is retired.
+- PIO misinformation timelines are embedded on each `pio_misinformation_items` document in `timeline`; the duplicate `pio_misinformation_timeline` collection is retired.
+- `intel_env_snapshots`, `intel_form_entries`, and `intel_clues` are retired legacy Intel collections. Clues are canonical `intel_items` documents with `item_type="Clue"`.
+- `ics_214_logs` is the canonical incident activity-log collection. A document is a stream, and entries are embedded in `entries`. The duplicate `unit_logs` collection is retired; SQLite `ics214_streams` imports seed `ics_214_logs`.
 - Use string UUID4 `_id` fields, Pydantic v2, and soft deletes.
 
 ## Finance
@@ -38,3 +43,20 @@
 - **Version** means a specific revision of that form's layout/fields over time.
 - This mirrors the existing `forms/sets/<agency>/<code>/` directory layout.
 - `modules/forms_creator/services/templates.py` (`FormService`) flattens this back into one dict per template for the rest of the module.
+- Generated forms should not create durable in-app revision/export histories. If a generated PDF needs to be shared, upload it as an attachment and store the returned attachment id on the owning form, IAP package, task, or other domain document.
+
+## Attachments
+- File: `data/db/sarapp_db/api/routers/attachments.py`
+- Incident-scoped document and media uploads use `IncidentCollections.ATTACHMENTS` for metadata and a per-incident Mongo GridFS bucket named `attachment_files` for bytes (`attachment_files.files` and `attachment_files.chunks`).
+- Attachment metadata records include `attachment_id`, `owner_type`, `owner_id`, `category`, `filename`, `mime_type`, `size_bytes`, `checksum_sha256`, `gridfs_file_id`, `uploaded_by`, `uploaded_at`, optional `description`, and soft-delete fields.
+- Domain documents should reference attachment ids rather than embedding file bytes or maintaining duplicate export/link collections.
+- Deleting an attachment soft-deletes metadata by default; `purge_file=true` also removes the GridFS bytes.
+
+## Push Notifications (FCM)
+- File: `data/db/sarapp_db/api/routers/push_tokens.py`, collection `MasterCollections.PUSH_TOKENS` ("push_tokens") in `sarapp_master`.
+- Master-scoped, not incident-scoped: a device's FCM token isn't tied to one incident, and field devices get shared across shifts (handoff tablets), so the collection tracks token -> current person, not token -> incident.
+- Keyed and upserted by `token` (unique index), not by `person_record`. Re-registering an existing token — e.g. a different responder logging into a shared device — overwrites the existing document's `person_record`/`person_id`/`incident_id` in place rather than inserting a duplicate. This is the mechanism, not an incidental detail: it's what makes shared-device handoff work without manual cleanup.
+- `person_record` is resolved server-side from `person_id`/`person_record` in the request the same way `auth_sessions._find_person` does, and is nullable — an unresolvable person (no matching `personnel` row) is tolerated, not rejected, matching how check-in already treats a missing `person_record` as non-fatal.
+- Document shape: `{token, person_record, person_id, incident_id, platform, device_name, app_version, created_at, updated_at}`.
+- `data/db/sarapp_db/services/push.py::send_to_person(person_record, title, body, data)` is the only sender — it looks up every token for a person and sends via `firebase_admin.messaging`, deleting any token that comes back `UnregisteredError`. It is infrastructure only; nothing calls it yet. Deciding which product events (task assignment, critical narrative, etc.) should trigger a push is a separate, later decision.
+- `data/db/sarapp_db/services/firebase_client.py::get_firebase_app()` lazily initializes the Firebase Admin SDK from a service-account JSON path in `SARAPP_FIREBASE_CREDENTIALS_PATH` (never hardcoded, mirrors `mongo_client.py`'s env-var convention).

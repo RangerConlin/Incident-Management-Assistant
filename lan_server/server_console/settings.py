@@ -40,6 +40,10 @@ class ServerConsoleSettings:
     # deliberately never persisted here.
     cloud_router_url: str = ""
     connect_code: str = ""
+    # Path to an end user's uploaded Firebase Admin SDK credentials file.
+    # Empty means "use the bundled default key" (see lan_server/firebase_credentials.py) —
+    # uploading is a one-time action, not required on every start.
+    firebase_credentials_path: str = ""
 
     @property
     def health_host(self) -> str:
@@ -83,6 +87,7 @@ class ServerConsoleSettings:
             discovery_port=int(payload.get("discovery_port") or DEFAULT_DISCOVERY_PORT),
             cloud_router_url=str(payload.get("cloud_router_url") or "").strip(),
             connect_code=str(payload.get("connect_code") or "").strip().upper(),
+            firebase_credentials_path=str(payload.get("firebase_credentials_path") or "").strip(),
         )
         settings.validate()
         return settings

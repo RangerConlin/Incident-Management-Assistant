@@ -83,6 +83,50 @@ def test_handle_request_rejects_oversized_body(monkeypatch) -> None:
     asyncio.run(_run())
 
 
+def test_handle_request_rejects_oversized_response(monkeypatch) -> None:
+    import lan_server.cloud_tunnel_client as tunnel_module
+
+    monkeypatch.setattr(tunnel_module, "_MAX_REQUEST_BODY_BYTES", 4)
+
+    class _FakeResponse:
+        status_code = 200
+        headers: dict = {}
+        content = b"way too big"
+
+    class _FakeAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self) -> "_FakeAsyncClient":
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            return None
+
+        async def request(self, *args, **kwargs) -> _FakeResponse:
+            return _FakeResponse()
+
+    monkeypatch.setattr(tunnel_module.httpx, "AsyncClient", _FakeAsyncClient)
+
+    async def _run() -> None:
+        client = _make_client()
+        tunnel = _FakeTunnel([])
+        frame = {
+            "request_id": "r2",
+            "method": "GET",
+            "path": "/api/download",
+            "query": "",
+            "headers": {},
+            "body": "",
+        }
+        await client._handle_request(tunnel, frame)
+        assert len(tunnel.sent) == 1
+        assert tunnel.sent[0]["status"] == 413
+        assert tunnel.sent[0]["request_id"] == "r2"
+
+    asyncio.run(_run())
+
+
 def test_spawn_bounded_limits_concurrency() -> None:
     async def _run() -> None:
         client = _make_client()

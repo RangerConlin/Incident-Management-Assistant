@@ -90,3 +90,8 @@ data/exports/
 
 # Specific local settings (keep tracked defaults in repo)
 settings/ads_perspectives.ini
+
+# Firebase service-account credentials (never commit; path is set via
+# SARAPP_FIREBASE_CREDENTIALS_PATH, the file itself must live outside the repo)
+*firebase*service*account*.json
+*firebase-adminsdk*.json

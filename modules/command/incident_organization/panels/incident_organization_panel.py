@@ -6,7 +6,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -40,7 +39,6 @@ from ..models import (
     ASSIGNMENT_TYPE_ASSISTANT,
     ASSIGNMENT_TYPE_DEPUTY,
     ASSIGNMENT_TYPE_PRIMARY,
-    ASSIGNMENT_TYPE_RELIEF,
     ASSIGNMENT_TYPE_STAFF_ASSISTANT,
     ASSIGNMENT_TYPE_TRAINEE,
     OrganizationPosition,
@@ -69,39 +67,32 @@ _ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
     "command": {
         "deputy": "Deputy",
         "trainee": "Trainee",
-        "relief": "Relief",
     },
     "section": {
         "deputy": "Deputy",
         "assistant": "Assistant",
         "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
-        "relief": "Relief",
     },
     "branch": {
         "deputy": "Deputy Director",
         "assistant": "Assistant Director",
         "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
-        "relief": "Relief",
     },
     "division": {
         "trainee": "Trainee",
-        "relief": "Relief",
     },
     "group": {
         "trainee": "Trainee",
-        "relief": "Relief",
     },
     "unit": {
         "trainee": "Trainee",
-        "relief": "Relief",
     },
     "position": {
         "assistant": "Assistant",
         "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
-        "relief": "Relief",
     },
 }
 
@@ -118,7 +109,6 @@ _ASSIGNMENT_COLORS: dict[str, QColor] = {
     "assistant": QColor("#8e24aa"),
     "staff_assistant": QColor("#6a1b9a"),
     "trainee":  QColor("#e65100"),
-    "relief":   QColor("#00838f"),
 }
 
 _ASSIGNMENT_ORDER = {
@@ -127,7 +117,6 @@ _ASSIGNMENT_ORDER = {
     ASSIGNMENT_TYPE_ASSISTANT: 2,
     ASSIGNMENT_TYPE_STAFF_ASSISTANT: 3,
     ASSIGNMENT_TYPE_TRAINEE: 4,
-    ASSIGNMENT_TYPE_RELIEF: 5,
 }
 
 _ASSIGNMENT_LABELS = {
@@ -136,7 +125,6 @@ _ASSIGNMENT_LABELS = {
     ASSIGNMENT_TYPE_ASSISTANT: "Assistant",
     ASSIGNMENT_TYPE_STAFF_ASSISTANT: "Staff Assistant",
     ASSIGNMENT_TYPE_TRAINEE: "Trainee",
-    ASSIGNMENT_TYPE_RELIEF: "Relief",
 }
 
 
@@ -189,29 +177,6 @@ class PositionDialog(QDialog):
         self._populate_parent_combo(existing_positions or [], exclude_id, preselect_id)
         layout.addRow("Parent position", self.parent_combo)
 
-        self.period_edit = QLineEdit(position.operational_period if position else "", self)
-        layout.addRow("Operational period", self.period_edit)
-        quals = ", ".join(position.required_qualifications) if position else ""
-        self.qualifications_edit = QLineEdit(quals, self)
-        layout.addRow("Required qualifications", self.qualifications_edit)
-        self.critical_check = QCheckBox("Critical position", self)
-        self.critical_check.setChecked(bool(position.is_critical) if position else False)
-        layout.addRow("", self.critical_check)
-        self.custom_check = QCheckBox("Custom AHJ-defined title/structure", self)
-        self.custom_check.setChecked(True if position is None else bool(position.is_custom))
-        layout.addRow("", self.custom_check)
-        if position and position.is_air_ops:
-            air_ops_label = QLabel(
-                "This is the Air Operations Branch (set via 'Add Air "
-                "Operations Branch...' in the Operations Section window - not "
-                "editable here, there can only be one per incident).",
-                self,
-            )
-            air_ops_label.setWordWrap(True)
-            layout.addRow("", air_ops_label)
-        self.notes_edit = QTextEdit(position.notes if position and position.notes else "", self)
-        self.notes_edit.setMaximumHeight(80)
-        layout.addRow("Notes", self.notes_edit)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -246,11 +211,6 @@ class PositionDialog(QDialog):
             "title": self.title_edit.text().strip(),
             "classification": self.classification_combo.currentText(),
             "parent_position_id": parent_id,
-            "operational_period": self.period_edit.text().strip(),
-            "required_qualifications": self.qualifications_edit.text().strip(),
-            "is_critical": self.critical_check.isChecked(),
-            "is_custom": self.custom_check.isChecked(),
-            "notes": self.notes_edit.toPlainText().strip(),
         }
 
 
@@ -537,21 +497,10 @@ class UnifiedAssignmentDialog(QDialog):
                 ASSIGNMENT_TYPE_ASSISTANT,
                 ASSIGNMENT_TYPE_STAFF_ASSISTANT,
                 ASSIGNMENT_TYPE_TRAINEE,
-                ASSIGNMENT_TYPE_RELIEF,
             ]
         )
         type_row.addWidget(self.type_combo)
         type_row.addStretch(1)
-
-        self.period_edit = QLineEdit(self)
-        self.period_edit.setPlaceholderText("Operational period (optional)")
-        type_row.addWidget(QLabel("Period:", self))
-        type_row.addWidget(self.period_edit)
-
-        self.notes_edit = QLineEdit(self)
-        self.notes_edit.setPlaceholderText("Notes (optional)")
-        type_row.addWidget(QLabel("Notes:", self))
-        type_row.addWidget(self.notes_edit, stretch=1)
         layout.addLayout(type_row)
 
         # Buttons
@@ -587,8 +536,6 @@ class UnifiedAssignmentDialog(QDialog):
             "person_record": int(pid) if pid is not None else None,
             "person_name": name,
             "assignment_type": normalize_assignment_type(self.type_combo.currentText()),
-            "operational_period": self.period_edit.text().strip() or None,
-            "notes": self.notes_edit.text().strip() or None,
         }
         self.accept()
 
@@ -660,8 +607,7 @@ class TemplatesDialog(QDialog):
             depths[key] = depth
             title = str(raw.get("title") or "").strip() or "(Untitled)"
             classification = str(raw.get("classification") or "position")
-            critical = " [critical]" if bool(raw.get("is_critical")) else ""
-            lines.append(f"{'  ' * depth}{title} ({classification}){critical}")
+            lines.append(f"{'  ' * depth}{title} ({classification})")
         self.preview.setPlainText("\n".join(lines) if lines else "Template is empty.")
 
     def _handle_accept(self) -> None:
@@ -987,7 +933,7 @@ class IncidentOrganizationPanel(QWidget):
 
                 item_summary = summary.get(pos_id)
                 status = item_summary.staffing_status if item_summary else "unknown"
-                title = position.title + ("  [Air Ops]" if position.is_air_ops else "")
+                title = position.title
 
                 item = QTreeWidgetItem([title, assignment_display])
 
@@ -1043,7 +989,6 @@ class IncidentOrganizationPanel(QWidget):
         parent_label = "top level"
         if position.parent_position_id and position.parent_position_id in self._positions_by_id:
             parent_label = self._positions_by_id[position.parent_position_id].title
-        air_ops_tag = " | Air Operations Branch" if position.is_air_ops else ""
         primary_count = sum(
             1
             for assignment in assignments
@@ -1058,13 +1003,11 @@ class IncidentOrganizationPanel(QWidget):
         )
         self.detail_meta.setText(
             f"{position.classification} | Parent: {parent_label} | "
-            f"Operational period: {position.operational_period or 'any'}{air_ops_tag}{command_mode_tag}"
+            f"{len(assignments)} assigned{command_mode_tag}"
         )
 
-        critical = "Critical" if position.is_critical else "Standard"
         self.status_label.setText(
-            f"Status: {(summary.staffing_status if summary else 'unknown')} | {critical} | "
-            f"Required: {', '.join(position.required_qualifications) or 'none'}"
+            f"Staffing: {(summary.staffing_status if summary else 'unknown')}"
         )
         warnings = summary.warnings if summary else []
         self.warning_label.setText("\n".join(w.message for w in warnings) if warnings else "")
@@ -1086,8 +1029,8 @@ class IncidentOrganizationPanel(QWidget):
             values = [
                 assignment.person_name,
                 _ASSIGNMENT_LABELS.get(assignment_type, assignment_type.replace("_", " ").title()),
-                assignment.operational_period or "",
-                assignment.notes or "",
+                assignment.start_time or "",
+                assignment.end_time or "",
             ]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
@@ -1279,7 +1222,7 @@ class IncidentOrganizationPanel(QWidget):
             return
         assignment_id = selected[0].data(Qt.UserRole)
         if assignment_id:
-            self._ensure_controller().remove_assignment(int(assignment_id))
+            self._ensure_controller().remove_assignment(str(assignment_id))
             self._refresh()
 
     # ------------------------------------------------------------------
@@ -1349,9 +1292,9 @@ class IncidentOrganizationPanel(QWidget):
             if form_type == "ICS_207"
             else controller.build_ics203_payload()
         )
-        controller.save_generated_snapshot(form_type, payload)
         QMessageBox.information(
             self,
             "Generated Output Prepared",
-            f"{form_type.replace('_', ' ')} data was prepared from the incident organization.",
+            f"{form_type.replace('_', ' ')} data was prepared from the incident organization "
+            f"for IAP assembly ({len(payload.get('positions', []))} positions).",
         )

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollections
+from sarapp_db.mongo.int_id import _ensure_int_ids
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
@@ -30,35 +31,25 @@ class PersonnelRepository(BaseRepository):
     soft_deletes = False
 
 
-class CheckinsRepository(BaseRepository):
-    collection_name = IncidentCollections.CHECKINS
-    soft_deletes = False
-
-
 class TeamsRepository(BaseRepository):
     collection_name = IncidentCollections.TEAMS
     soft_deletes = False
 
 
-class CheckinHistoryRepository(BaseRepository):
-    collection_name = IncidentCollections.CHECKIN_HISTORY
-    soft_deletes = False
+class ResourceStatusRepository(BaseRepository):
+    collection_name = IncidentCollections.RESOURCE_STATUS
 
 
 def _personnel_repo() -> PersonnelRepository:
     return PersonnelRepository(get_master_db())
 
 
-def _checkins_repo(incident_id: str) -> CheckinsRepository:
-    return CheckinsRepository(get_incident_db(incident_id))
-
-
 def _teams_repo(incident_id: str) -> TeamsRepository:
     return TeamsRepository(get_incident_db(incident_id))
 
 
-def _checkin_history_repo(incident_id: str) -> CheckinHistoryRepository:
-    return CheckinHistoryRepository(get_incident_db(incident_id))
+def _resource_status_repo(incident_id: str) -> ResourceStatusRepository:
+    return ResourceStatusRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
@@ -86,6 +77,50 @@ def _normalize_checkin(doc: dict[str, Any]) -> dict[str, Any]:
     d["checked_in"] = _is_checked_in_status(d["status"])
     d["checkin_status"] = "Checked In" if d["checked_in"] else "Not Checked In"
     return d
+
+
+def _person_resource_status_doc(incident_id: str, person_record: int) -> dict[str, Any] | None:
+    return _resource_status_repo(incident_id).find_one({
+        "entity_type": "personnel",
+        "record_id": person_record,
+        "deleted": {"$ne": True},
+    })
+
+
+def _resource_status_to_checkin(doc: dict[str, Any]) -> dict[str, Any]:
+    status = doc.get("status") or "Pending"
+    normalized = {
+        _PERSON_RECORD: doc.get("record_id"),
+        "status": status,
+        "ci_status": status,
+        "personnel_status": "Available" if _is_checked_in_status(status) else "Pending",
+        "arrival_time": doc.get("checked_in_time") or doc.get("created_at") or doc.get("updated_at") or _utcnow(),
+        "location": doc.get("location") or "ICP",
+        "notes": doc.get("notes"),
+        "team_id": doc.get("assignment_reference"),
+        "role_on_team": None,
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+        "planning_status": status,
+    }
+    return _normalize_checkin(normalized)
+
+
+def _status_log_to_history(doc: dict[str, Any]) -> list[dict[str, Any]]:
+    person_record = doc.get("record_id")
+    items: list[dict[str, Any]] = []
+    for entry in doc.get("status_log") or []:
+        status = entry.get("status")
+        ts = entry.get("timestamp") or entry.get("ts") or doc.get("updated_at") or ""
+        items.append({
+            _PERSON_RECORD: person_record,
+            "actor": entry.get("changed_by") or "",
+            "event_type": "STATUS_CHANGE",
+            "ts": ts,
+            "payload": {"status": status},
+        })
+    items.sort(key=lambda row: str(row.get("ts") or ""), reverse=True)
+    return items
 
 
 # ---------------------------------------------------------------------------
@@ -133,8 +168,7 @@ def get_person_identity(incident_id: str, person_record: int) -> dict[str, Any]:
 
 @router.get("/roles")
 def get_distinct_roles(incident_id: str) -> list[str]:
-    checkins_repo = _checkins_repo(incident_id)
-    values = checkins_repo._col.distinct("role_on_team", {"role_on_team": {"$nin": [None, ""]}})
+    values: list[Any] = []
     personnel_repo = _personnel_repo()
     for field in ("primary_role", "role"):
         vals = personnel_repo._col.distinct(field, {field: {"$nin": [None, ""]}})
@@ -145,13 +179,16 @@ def get_distinct_roles(incident_id: str) -> list[str]:
 @router.get("/teams")
 def get_distinct_teams(incident_id: str) -> list[dict[str, Any]]:
     repo = _teams_repo(incident_id)
+    _ensure_int_ids(repo._col)
     docs = repo.find_many({}, sort=[("name", 1)])
     result = []
     for d in docs:
-        tid = d.get("team_id")
+        tid = d.get("int_id")
         name = d.get("name") or str(tid)
         if tid is None:
             continue
+        # Response key stays "team_id" for API compatibility with existing
+        # clients; the value is now the team's real identifier (int_id).
         result.append({"team_id": str(tid), "team_name": name})
     return result
 
@@ -212,7 +249,7 @@ def fetch_roster(
         assigned_to = d.get("assigned_to")
 
         if ci_status and ci_status not in ("All", ""):
-            # Map legacy CIStatus values to resource_status canonical values
+            # Map legacy check-in status values to resource_status canonical values
             _ci_map = {"CheckedIn": "Checked In"}
             canonical = _ci_map.get(ci_status, ci_status)
             if row_status != canonical:
@@ -260,18 +297,17 @@ def fetch_roster(
 
 @router.get("/{person_record}")
 def fetch_checkin(incident_id: str, person_record: int) -> dict[str, Any]:
-    repo = _checkins_repo(incident_id)
-    doc = repo.find_one({_PERSON_RECORD: person_record})
+    doc = _person_resource_status_doc(incident_id, person_record)
     if not doc:
         raise HTTPException(status_code=404, detail="Check-in record not found")
-    return _normalize_checkin(doc)
+    return _resource_status_to_checkin(doc)
 
 
 @router.put("/{person_record}")
 def save_checkin(
     incident_id: str, person_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    repo = _checkins_repo(incident_id)
+    repo = _resource_status_repo(incident_id)
     logger.info(
         "checkin save start incident_id=%s person_record=%s body_keys=%s",
         incident_id,
@@ -284,7 +320,23 @@ def save_checkin(
     if body.get("team_id") in ("—", ""):
         body["team_id"] = None
 
-    existing = repo.find_one({_PERSON_RECORD: person_record})
+    existing = _person_resource_status_doc(incident_id, person_record)
+    status = body.get("status") or body.get("ci_status") or body.get("planning_status") or "Pending"
+    now = _utcnow()
+    resource_doc = {
+        "entity_type": "personnel",
+        "record_id": person_record,
+        "resource_id": str(person_record),
+        "resource_name": str(person_record),
+        "resource_type": "Personnel",
+        "status": status,
+        "assigned_to": body.get("team_id"),
+        "assignment_reference": body.get("team_id"),
+        "location": body.get("location"),
+        "notes": body.get("notes"),
+        "checked_in_time": body.get("arrival_time"),
+        "updated_at": now,
+    }
     if existing:
         logger.info(
             "checkin save updating incident_id=%s person_record=%s existing_id=%s",
@@ -292,7 +344,17 @@ def save_checkin(
             person_record,
             existing.get("_id"),
         )
-        repo.update_one(existing["_id"], body)
+        updates = dict(resource_doc)
+        if status != existing.get("status"):
+            repo.apply_update(
+                existing["_id"],
+                {
+                    "$set": updates,
+                    "$push": {"status_log": {"status": status, "timestamp": now, "changed_by": "Check-In"}},
+                },
+            )
+        else:
+            repo.update_one(existing["_id"], updates)
         doc = repo.find_by_id(existing["_id"])
     else:
         logger.info(
@@ -300,13 +362,18 @@ def save_checkin(
             incident_id,
             person_record,
         )
-        doc = repo.insert_one(body)
+        resource_doc["created_at"] = now
+        resource_doc["status_log"] = [{"status": status, "timestamp": now, "changed_by": "Check-In"}]
+        doc = repo.insert_one(resource_doc)
 
     # Mirror contact fields back to master personnel and keep incident_personnel in sync.
     try:
         personnel_repo = _personnel_repo()
         ident = personnel_repo.find_one({_PERSON_RECORD: person_record})
         if ident:
+            if ident.get("name"):
+                repo.update_one(doc["_id"], {"resource_name": ident["name"], "resource_id": ident.get("person_id") or str(person_record)})
+                doc = repo.find_by_id(doc["_id"])
             updates: dict[str, Any] = {}
             if body.get("incident_phone"):
                 updates["phone"] = body["incident_phone"]
@@ -366,12 +433,30 @@ def save_checkin(
         person_record,
         sorted(doc.keys()) if isinstance(doc, dict) else None,
     )
-    return _normalize_checkin(doc)
+    return _resource_status_to_checkin(doc)
 
 
 # ---------------------------------------------------------------------------
 # Team check-in / disband (ICS-211 workflow)
 # ---------------------------------------------------------------------------
+
+def _find_team_by_int_id(teams_repo: "TeamsRepository", team_id: str) -> dict[str, Any]:
+    """Resolve the `{team_id}` path segment (the team's int_id) to its document.
+
+    The path segment is still named `team_id` for URL-compatibility with
+    existing callers, but teams are identified by `int_id` — see the
+    field-dashboard/team-id consolidation notes.
+    """
+    _ensure_int_ids(teams_repo._col)
+    try:
+        int_id = int(team_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail="Team not found") from None
+    team_doc = teams_repo.find_one({"int_id": int_id})
+    if not team_doc:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return team_doc
+
 
 @router.post("/teams/{team_id}/checkin")
 def team_checkin(
@@ -379,9 +464,7 @@ def team_checkin(
 ) -> dict[str, Any]:
     """Check in a team and optionally its assets."""
     teams_repo = _teams_repo(incident_id)
-    team_doc = teams_repo.find_one({"team_id": team_id})
-    if not team_doc:
-        raise HTTPException(status_code=404, detail="Team not found")
+    team_doc = _find_team_by_int_id(teams_repo, team_id)
 
     now = _utcnow()
     keep_together = body.get("keep_together", True)
@@ -410,19 +493,6 @@ def team_checkin(
         updates["disbanded_by"] = checked_in_by
     teams_repo.update_one(team_doc["_id"], updates)
 
-    history_repo = _checkin_history_repo(incident_id)
-    history_repo.insert_one({
-        "event_type": "team.checkin",
-        "team_id": team_id,
-        "actor": checked_in_by,
-        "ts": now,
-        "payload": {
-            "keep_together": keep_together,
-            "bulk_checkin_id": bulk_checkin_id,
-            "checkin_notes": checkin_notes,
-        },
-    })
-
     updated = teams_repo.find_by_id(team_doc["_id"])
     updated.pop("_id", None)
     return updated
@@ -434,9 +504,7 @@ def team_disband(
 ) -> dict[str, Any]:
     """Disband a team (separate from check-in)."""
     teams_repo = _teams_repo(incident_id)
-    team_doc = teams_repo.find_one({"team_id": team_id})
-    if not team_doc:
-        raise HTTPException(status_code=404, detail="Team not found")
+    team_doc = _find_team_by_int_id(teams_repo, team_id)
 
     now = _utcnow()
     disbanded_by = body.get("disbanded_by")
@@ -447,15 +515,6 @@ def team_disband(
         "disbanded_by": disbanded_by,
     }
     teams_repo.update_one(team_doc["_id"], updates)
-
-    history_repo = _checkin_history_repo(incident_id)
-    history_repo.insert_one({
-        "event_type": "team.disband",
-        "team_id": team_id,
-        "actor": disbanded_by,
-        "ts": now,
-        "payload": {},
-    })
 
     updated = teams_repo.find_by_id(team_doc["_id"])
     updated.pop("_id", None)
@@ -469,6 +528,7 @@ def list_teams_by_checkin_state(
     include_disbanded: bool = Query(False),
 ) -> list[dict[str, Any]]:
     repo = _teams_repo(incident_id)
+    _ensure_int_ids(repo._col)
     query: dict[str, Any] = {}
     if checked_in:
         query["status"] = {"$in": sorted(DERIVED_CHECKED_IN_STATUSES)}
@@ -495,17 +555,16 @@ def list_planning_status_resources(
     incident_id: str,
     status: str = Query(""),
 ) -> list[dict[str, Any]]:
-    repo = _checkins_repo(incident_id)
+    repo = _resource_status_repo(incident_id)
     planning_stati = ["Requested", "Ordered", "Enroute", "Available", "Assigned", "Cancelled", "Pending", "Staged"]
     clause: dict[str, Any] = {"$in": planning_stati}
     if status and status in planning_stati:
         clause = status
-    query: dict[str, Any] = {"status": clause}
+    query: dict[str, Any] = {"entity_type": "personnel", "status": clause, "deleted": {"$ne": True}}
     docs = repo.find_many(query, sort=[("updated_at", -1)])
     result = []
     for d in docs:
-        d.pop("_id", None)
-        result.append(d)
+        result.append(_resource_status_to_checkin(d))
     return result
 
 
@@ -513,32 +572,43 @@ def list_planning_status_resources(
 def patch_checkin(
     incident_id: str, person_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    repo = _checkins_repo(incident_id)
-    existing = repo.find_one({_PERSON_RECORD: person_record})
+    repo = _resource_status_repo(incident_id)
+    existing = _person_resource_status_doc(incident_id, person_record)
     if not existing:
         raise HTTPException(status_code=404, detail="Check-in record not found")
     patch = {k: v for k, v in body.items() if k not in ("_id", _PERSON_RECORD)}
     if not patch:
         raise HTTPException(status_code=400, detail="No updatable fields provided")
-    patch.setdefault("updated_at", _utcnow())
-    repo.update_one(existing["_id"], patch)
+    updates: dict[str, Any] = {"updated_at": _utcnow()}
+    field_map = {
+        "status": "status",
+        "ci_status": "status",
+        "planning_status": "status",
+        "arrival_time": "checked_in_time",
+        "location": "location",
+        "notes": "notes",
+        "team_id": "assignment_reference",
+    }
+    for src, dst in field_map.items():
+        if src in patch:
+            updates[dst] = patch[src]
+    repo.update_one(existing["_id"], updates)
     doc = repo.find_by_id(existing["_id"])
-    doc.pop("_id", None)
-    return _normalize_checkin(doc)
+    return _resource_status_to_checkin(doc)
 
 
 @router.patch("/{person_record}/status")
 def patch_checkin_status(
     incident_id: str, person_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    repo = _checkins_repo(incident_id)
+    repo = _resource_status_repo(incident_id)
     logger.info(
         "checkin status patch start incident_id=%s person_record=%s body_keys=%s",
         incident_id,
         person_record,
         sorted(body.keys()),
     )
-    existing = repo.find_one({_PERSON_RECORD: person_record})
+    existing = _person_resource_status_doc(incident_id, person_record)
     if not existing:
         raise HTTPException(status_code=404, detail="Check-in record not found")
 
@@ -553,17 +623,43 @@ def patch_checkin_status(
     if not patch:
         raise HTTPException(status_code=400, detail="No updatable fields provided")
 
-    patch["updated_at"] = _utcnow()
-    repo.update_one(existing["_id"], patch)
+    now = _utcnow()
+    patch["updated_at"] = now
+    repo.apply_update(
+        existing["_id"],
+        {
+            "$set": patch,
+            "$push": {"status_log": {"status": patch["status"], "timestamp": now, "changed_by": "Check-In"}},
+        },
+    )
     doc = repo.find_by_id(existing["_id"])
-    doc.pop("_id", None)
+
+    if patch.get("status") == "Demobilized":
+        # Auto-stop location tracking the moment a tracking person leaves
+        # field-active status, without waiting for the mobile device to say
+        # so (IC staff may demobilize someone while their phone is still
+        # pinging). Same "clear, don't fall back to another member" behavior
+        # as the mobile-initiated stop endpoint — see mobile_location.py.
+        teams_repo = _teams_repo(incident_id)
+        team_doc = teams_repo.find_one({"current_location_person_record": person_record})
+        if team_doc:
+            teams_repo.update_one(
+                team_doc["_id"],
+                {
+                    "current_location_lat": None,
+                    "current_location_lon": None,
+                    "current_location_updated_at": None,
+                    "current_location_person_record": None,
+                },
+            )
+
     logger.info(
         "checkin status patch complete incident_id=%s person_record=%s status=%s",
         incident_id,
         person_record,
         patch.get("status"),
     )
-    return doc
+    return _resource_status_to_checkin(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -574,17 +670,34 @@ def patch_checkin_status(
 def log_history(
     incident_id: str, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    repo = _checkin_history_repo(incident_id)
-    body["ts"] = body.get("ts") or _utcnow()
-    doc = repo.insert_one(body)
-    doc.pop("_id", None)
-    return doc
+    person_record = body.get(_PERSON_RECORD)
+    if person_record is None:
+        raise HTTPException(status_code=400, detail="person_record is required")
+    person_record = int(person_record)
+    repo = _resource_status_repo(incident_id)
+    doc = _person_resource_status_doc(incident_id, person_record)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Check-in record not found")
+    entry = {
+        "status": (body.get("payload") or {}).get("status") or doc.get("status") or "Pending",
+        "timestamp": body.get("ts") or _utcnow(),
+        "changed_by": body.get("actor") or "",
+        "event_type": body.get("event_type") or "NOTE",
+        "payload": body.get("payload") or {},
+    }
+    repo.apply_update(doc["_id"], {"$push": {"status_log": entry}, "$set": {"updated_at": entry["timestamp"]}})
+    return {
+        _PERSON_RECORD: person_record,
+        "actor": entry["changed_by"],
+        "event_type": entry["event_type"],
+        "ts": entry["timestamp"],
+        "payload": entry["payload"],
+    }
 
 
 @router.get("/history/{person_record}")
 def list_history(incident_id: str, person_record: int) -> list[dict[str, Any]]:
-    repo = _checkin_history_repo(incident_id)
-    docs = repo.find_many({_PERSON_RECORD: person_record}, sort=[("ts", -1)])
-    for d in docs:
-        d.pop("_id", None)
-    return docs
+    doc = _person_resource_status_doc(incident_id, person_record)
+    if not doc:
+        return []
+    return _status_log_to_history(doc)

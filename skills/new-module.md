@@ -51,8 +51,7 @@ After creation:
 1. Implement `services.py` business logic
 2. Add `repository.py` if data access needed
 3. Create UI in `panels/` if needed
-4. Mirror router to `cloud_server/` if API needed
-5. Run `/run-tests` to verify structure
+4. Run `/run-tests` to verify structure
 
 ## Example
 

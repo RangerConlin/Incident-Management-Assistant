@@ -1,6 +1,7 @@
-"""FastAPI router — task narrative entries for incident tasks."""
+"""FastAPI router — task narrative entries embedded on incident tasks."""
 from __future__ import annotations
 
+import uuid
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -13,35 +14,48 @@ from sarapp_db.mongo.repository import BaseRepository
 router = APIRouter()
 
 
-class NarrativeRepository(BaseRepository):
-    collection_name = IncidentCollections.TASK_NARRATIVES
-    soft_deletes = False
+class TasksRepository(BaseRepository):
+    collection_name = IncidentCollections.TASKS
 
 
-def _repo(incident_id: str) -> NarrativeRepository:
-    return NarrativeRepository(get_incident_db(incident_id))
+def _repo(incident_id: str) -> TasksRepository:
+    return TasksRepository(get_incident_db(incident_id))
 
 
-def _strip(doc: dict[str, Any]) -> dict[str, Any]:
-    doc = dict(doc)
-    doc["id"] = str(doc.pop("_id", ""))
-    doc.pop("updated_at", None)
-    doc.pop("created_at", None)
+def _new_entry_id() -> str:
+    return uuid.uuid4().hex
+
+
+def _task_query(task_id: int) -> dict[str, Any]:
+    return {"int_id": task_id}
+
+
+def _normalize_entry(entry: dict[str, Any], task_id: int) -> dict[str, Any]:
+    doc = dict(entry)
+    doc["id"] = str(doc.get("id") or doc.get("entry_id") or doc.get("_id") or _new_entry_id())
+    doc["task_id"] = int(doc.get("task_id") or task_id)
+    doc["timestamp"] = str(doc.get("timestamp") or doc.get("ts_utc") or "")
+    doc["narrative"] = str(doc.get("narrative") or doc.get("text") or doc.get("entry_text") or "")
+    doc["entered_by"] = str(doc.get("entered_by") or doc.get("author_user_id") or doc.get("author_display_name") or "")
+    doc["team_num"] = str(doc.get("team_num") or doc.get("team") or doc.get("team_name") or "")
+    doc["critical"] = 1 if doc.get("critical") in (True, 1, "1", "true", "True") else 0
+    doc.pop("_id", None)
+    doc.pop("entry_id", None)
     return doc
 
 
-def _id_query(entry_id: str) -> dict[str, Any]:
-    """Return a filter that matches either a string _id or an ObjectId _id.
-
-    Documents inserted through the repository have UUID4 string _ids.
-    Documents migrated from the old embedded array have ObjectId _ids.
-    Trying both avoids a 404 on the migrated entries.
-    """
-    try:
-        from bson import ObjectId
-        return {"_id": {"$in": [entry_id, ObjectId(entry_id)]}}
-    except Exception:
-        return {"_id": entry_id}
+def _find_entry(
+    repo: TasksRepository,
+    entry_id: str,
+) -> tuple[dict[str, Any], int, dict[str, Any]]:
+    task = repo.find_one({"$or": [{"narrative.id": entry_id}, {"narrative.entry_id": entry_id}]})
+    if not task:
+        raise HTTPException(404, f"Narrative entry '{entry_id}' not found")
+    entries = task.get("narrative") or []
+    for idx, entry in enumerate(entries):
+        if str(entry.get("id") or entry.get("entry_id") or "") == str(entry_id):
+            return task, idx, _normalize_entry(entry, int(task.get("int_id") or 0))
+    raise HTTPException(404, f"Narrative entry '{entry_id}' not found")
 
 
 class NarrativeCreate(BaseModel):
@@ -70,37 +84,44 @@ def list_narratives(
     team: str = "",
 ) -> list[dict[str, Any]]:
     repo = _repo(incident_id)
-    query: dict[str, Any] = {}
+    query: dict[str, Any] = {"narrative.0": {"$exists": True}}
     if task_id:
-        query["task_id"] = task_id
-    if critical_only:
-        query["critical"] = 1
-    if team:
-        query["team_num"] = team
-    docs = repo.find_many(query, sort=[("timestamp", -1)])
+        query["int_id"] = task_id
+    tasks = repo.find_many(query, sort=[("int_id", 1)])
     results = []
-    for doc in docs:
-        if search:
-            needle = search.lower()
-            if needle not in doc.get("narrative", "").lower() and needle not in str(doc.get("entered_by", "")).lower():
+    needle = search.lower()
+    for task in tasks:
+        task_int_id = int(task.get("int_id") or 0)
+        for entry in task.get("narrative") or []:
+            doc = _normalize_entry(entry, task_int_id)
+            if critical_only and not int(doc.get("critical") or 0):
                 continue
-        results.append(_strip(doc))
+            if team and str(doc.get("team_num") or "") != str(team):
+                continue
+            if needle and needle not in doc["narrative"].lower() and needle not in str(doc.get("entered_by", "")).lower():
+                continue
+            results.append(doc)
+    results.sort(key=lambda d: str(d.get("timestamp") or ""), reverse=True)
     return results
 
 
 @router.post("/incidents/{incident_id}/narratives", status_code=201)
 def create_narrative(incident_id: str, body: NarrativeCreate) -> dict[str, Any]:
     repo = _repo(incident_id)
+    task = repo.find_one(_task_query(body.task_id))
+    if not task:
+        raise HTTPException(404, f"Task {body.task_id} not found")
     doc = {
+        "id": _new_entry_id(),
         "task_id": body.task_id,
         "timestamp": body.timestamp,
         "narrative": body.narrative,
         "entered_by": body.entered_by,
         "team_num": body.team_num,
-        "critical": body.critical,
+        "critical": 1 if body.critical else 0,
     }
-    inserted = repo.insert_one(doc)
-    return _strip(inserted)
+    repo.apply_update(task["_id"], {"$push": {"narrative": doc}})
+    return doc
 
 
 @router.patch("/incidents/{incident_id}/narratives/{entry_id}")
@@ -111,19 +132,23 @@ def update_narrative(
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "No fields to update")
-    doc = repo.find_one(_id_query(entry_id))
-    if not doc:
+    task, idx, _entry = _find_entry(repo, entry_id)
+    normalized_updates: dict[str, Any] = {}
+    for key, value in updates.items():
+        normalized_updates[f"narrative.{idx}.{key}"] = (1 if value else 0) if key == "critical" else value
+    repo.apply_update(task["_id"], {"$set": normalized_updates})
+    updated = repo.find_by_id(task["_id"])
+    if not updated:
         raise HTTPException(404, f"Narrative entry '{entry_id}' not found")
-    actual_id = doc["_id"]
-    repo.apply_update(actual_id, {"$set": updates})
-    updated = repo.find_one({"_id": actual_id})
-    return _strip(updated)
+    return _normalize_entry((updated.get("narrative") or [])[idx], int(updated.get("int_id") or 0))
 
 
 @router.delete("/incidents/{incident_id}/narratives/{entry_id}", status_code=204)
 def delete_narrative(incident_id: str, entry_id: str) -> None:
     repo = _repo(incident_id)
-    doc = repo.find_one(_id_query(entry_id))
-    if not doc:
-        raise HTTPException(404, f"Narrative entry '{entry_id}' not found")
-    repo.delete_one(doc["_id"])
+    task, _idx, entry = _find_entry(repo, entry_id)
+    pull_key = "entry_id" if any(
+        str(row.get("entry_id") or "") == str(entry["id"])
+        for row in task.get("narrative") or []
+    ) else "id"
+    repo.apply_update(task["_id"], {"$pull": {"narrative": {pull_key: entry_id}}})

@@ -31,11 +31,6 @@
             "type": "command",
             "command": "bash scripts/validate-structure.sh 2>&1",
             "statusMessage": "Validating repo structure..."
-          },
-          {
-            "type": "command",
-            "command": "bash scripts/validate-cloud-server-mirror.sh 2>&1",
-            "statusMessage": "Checking cloud_server mirrors..."
           }
         ]
       }

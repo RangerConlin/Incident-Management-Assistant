@@ -175,13 +175,16 @@ def create_router_app(*, server_info_fn: Callable[[], dict[str, Any]] | None = N
             return JSONResponse({"detail": "Request body too large"}, status_code=413)
 
         metrics.total_requests += 1
+        headers = dict(request.headers)
+        if request.client:
+            headers["x-sarapp-client-ip"] = request.client.host
         try:
             future = await connection.send_request(
                 request_id=request_id,
                 method=request.method,
                 path=f"/{path}",
                 query=request.url.query,
-                headers=dict(request.headers),
+                headers=headers,
                 body_b64=base64.b64encode(body).decode("ascii"),
             )
             response_frame = await asyncio.wait_for(future, timeout=config.REQUEST_TIMEOUT_SECONDS)

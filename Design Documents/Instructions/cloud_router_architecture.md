@@ -125,8 +125,23 @@ or lower, or the router may time out while the LAN server is still working).
 It returns `503` if `<code>` isn't currently registered, `503` if the tunnel
 is at its per-tunnel concurrency cap (`SARAPP_ROUTER_MAX_PENDING_REQUESTS`,
 default 200 in-flight requests), and `413` if the request body exceeds
-`SARAPP_ROUTER_MAX_BODY_BYTES` (default 20MB) — enforced on both the router
-and, defensively, the LAN client.
+`SARAPP_ROUTER_MAX_BODY_BYTES` (default 10MB) — enforced on both the router
+and, defensively, the LAN client. The **response** body is subject to the
+same `SARAPP_ROUTER_MAX_BODY_BYTES` cap, enforced by the LAN tunnel client
+before it ever base64-encodes/sends the response frame back over the
+tunnel — a `413` there means whatever the LAN server returned (e.g. a large
+document/file download) was too big to relay, not that the field device's
+own request was rejected.
+
+The router also stamps every proxied request with an `X-SARApp-Client-IP`
+header carrying the real field-device IP (from the router's own
+`request.client.host`) before forwarding it down the tunnel. The LAN
+server's shared FastAPI app (`data/db/sarapp_db/api/app.py`) uses this to
+populate its request-traffic log with the actual originating address
+instead of the tunnel client's loopback address (`127.0.0.1`) that every
+tunneled request would otherwise show up as — it only trusts the header
+when the request truly arrived over loopback, so a direct LAN client can't
+spoof it.
 
 ### WebSocket multiplexing (many concurrent, keyed by `channel_id`)
 ```json
@@ -154,14 +169,20 @@ close-code distinction is router → field-device only; it is never sent over
 the wire to the LAN server.
 
 ## Known v1 limitations
-- Large binary bodies (photo/file uploads) travel as base64-in-JSON, not
-  streamed, and are capped by `SARAPP_ROUTER_MAX_BODY_BYTES` (default 20MB) —
-  fine for typical form/photo sizes but not appropriate for large file
-  transfers. The real fix, deferred for now, is a v2 chunked frame family
-  (`request_start` / `request_chunk` (with a `seq` field) / `request_end`)
-  that the router streams via `Request.stream()` and the LAN client streams
-  into an `httpx` streaming upload, keeping memory proportional to chunk
-  size rather than full body size.
+- Large binary bodies (photo/file uploads, and document/file downloads)
+  travel as base64-in-JSON, not streamed, and are capped in both directions
+  by `SARAPP_ROUTER_MAX_BODY_BYTES` (default 10MB) — fine for typical
+  form/photo sizes but not appropriate for large file transfers. The real
+  fix, deferred for now, is a v2 chunked frame family (`request_start` /
+  `request_chunk` (with a `seq` field) / `request_end`) that the router
+  streams via `Request.stream()` and the LAN client streams into an `httpx`
+  streaming upload, keeping memory proportional to chunk size rather than
+  full body size.
+- **Photo upload (not yet implemented on mobile):** when a real photo-upload
+  flow is built, submit one photo per request rather than batching several
+  into a single multipart body, until the v2 chunked transport above exists.
+  A single compressed phone photo comfortably fits under the 10MB cap;
+  batching multiple full-res photos into one request risks tripping it.
 - No public "list active servers" endpoint for field devices — matches the
   deliberate manual-code-entry model. (There is now an *operator-only*
   `/admin/tunnels` endpoint, gated by the shared token — see below.)
@@ -222,7 +243,7 @@ auth/session layer is.
 | `SARAPP_ROUTER_HEARTBEAT_TIMEOUT_SECONDS` | router | How long without a pong before a tunnel is considered dead. Default 45. |
 | `SARAPP_ROUTER_MAX_PENDING_REQUESTS` | both | Per-tunnel concurrent in-flight request cap; also sizes the LAN client's own concurrency semaphore. Default 200. |
 | `SARAPP_ROUTER_MAX_WS_CHANNELS` | router | Per-tunnel concurrent WS channel cap. Default 100. |
-| `SARAPP_ROUTER_MAX_BODY_BYTES` | both | Max request body size before a `413`. Default 20MB. |
+| `SARAPP_ROUTER_MAX_BODY_BYTES` | both | Max request **and response** body size before a `413`. Default 10MB. |
 | `SARAPP_ROUTER_REGISTER_RATE_LIMIT` | router | Max `/tunnel/register` attempts per source IP per minute. Default 10. |
 
 When the LAN server is launched through the SARApp Server Console

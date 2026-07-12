@@ -30,5 +30,10 @@ pytest --import-mode=importlib
 - Run targeted suites by path when full coverage is unnecessary.
 - Set `QT_QPA_PLATFORM=offscreen` in CI.
 - Stub `CHECKIN_DATA_DIR` for temporary DB/data paths.
+- Mongo-backed tests must not leave permanent `sarapp_incident_*` databases or
+  incident registry rows behind. The root `tests/conftest.py` pytest session
+  hooks sweep known test incident IDs at startup and drop any incident databases
+  created during the test session at teardown. Prefer obvious test IDs (`TEST...`,
+  `...-test`) for Mongo-only tests so failed/interrupted runs are easy to clean.
 - Use smoke scripts in `scripts/` for audit-style checks when appropriate.
 - Add or update tests with each code change.

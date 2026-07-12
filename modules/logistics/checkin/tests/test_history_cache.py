@@ -25,10 +25,17 @@ def test_list_history_reads_from_complete_cache(monkeypatch):
     incident_cache.load_snapshot(
         "INC-CACHE",
         {
-            "checkin_history": [
-                {"_id": "h-1", "person_record": 5, "ts": "2026-07-07T09:00:00+00:00", "actor": "A", "event_type": "NOTE", "payload": {}},
-                {"_id": "h-2", "person_record": 5, "ts": "2026-07-07T10:00:00+00:00", "actor": "B", "event_type": "ASSIGNMENT_CHANGE", "payload": {}},
-                {"_id": "h-3", "person_record": 9, "ts": "2026-07-07T11:00:00+00:00", "actor": "C", "event_type": "NOTE", "payload": {}},
+            "resource_status": [
+                {
+                    "_id": "rs-5",
+                    "entity_type": "personnel",
+                    "record_id": 5,
+                    "status_log": [
+                        {"timestamp": "2026-07-07T09:00:00+00:00", "changed_by": "A", "event_type": "NOTE", "payload": {}},
+                        {"timestamp": "2026-07-07T10:00:00+00:00", "changed_by": "B", "event_type": "ASSIGNMENT_CHANGE", "payload": {}},
+                    ],
+                },
+                {"_id": "rs-9", "entity_type": "personnel", "record_id": 9, "status_log": []},
             ]
         },
     )
@@ -46,25 +53,36 @@ def test_list_history_falls_back_to_api_when_collection_is_truncated(monkeypatch
     incident_cache.load_snapshot(
         "INC-TRUNCATED",
         {
-            "checkin_history": [
-                {"_id": "h-1", "person_record": 5, "ts": "2026-07-07T09:00:00+00:00", "actor": "A", "event_type": "NOTE", "payload": {}},
+            "resource_status": [
+                {"_id": "rs-5", "entity_type": "personnel", "record_id": 5, "status_log": []},
             ]
         },
-        meta={"truncated": {"checkin_history": {"loaded": 1, "total": 900, "reason": "collection document limit"}}},
+        meta={"truncated": {"resource_status": {"loaded": 1, "total": 900, "reason": "collection document limit"}}},
     )
 
     calls: list[str] = []
 
     class _FakeClient:
-        def get(self, path):
-            calls.append(path)
-            return [{"ts": "2026-01-01T00:00:00+00:00", "actor": "Z", "event_type": "OLD", "payload": {}}]
+        def get(self, path, params=None):
+            calls.append((path, params))
+            return {
+                "entity_type": "personnel",
+                "record_id": 5,
+                "status_log": [
+                    {"timestamp": "2026-01-01T00:00:00+00:00", "changed_by": "Z", "event_type": "OLD", "payload": {}}
+                ],
+            }
 
     monkeypatch.setattr(repository, "_client", lambda: _FakeClient())
 
     items = repository.list_history(5)
 
-    assert calls == ["/api/incidents/INC-TRUNCATED/checkin/history/5"]
+    assert calls == [
+        (
+            "/api/incidents/INC-TRUNCATED/resource-status/by-entity",
+            {"entity_type": "personnel", "record_id": "5"},
+        )
+    ]
     assert [i.event_type for i in items] == ["OLD"]
 
 

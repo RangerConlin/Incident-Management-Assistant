@@ -52,42 +52,53 @@ def test_fetch_team_docs_reads_from_cache(monkeypatch):
     assert docs[0]["name"] == "Ground 1"
 
 
-def test_fetch_org_assignments_docs_filters_ended_assignments(monkeypatch):
+def test_fetch_org_assignments_docs_reads_all_assignments(monkeypatch):
     monkeypatch.setattr(incident_context, "get_active_incident_id", lambda: "INC-CACHE")
     monkeypatch.setattr(api_client, "get", _failing_get)
 
     incident_cache.load_snapshot(
         "INC-CACHE",
         {
-            "org_assignments": [
-                {"_id": "a-1", "person_record": 1, "position_id": 10, "end_time": None},
-                {"_id": "a-2", "person_record": 2, "position_id": 11, "end_time": "2026-07-01T00:00:00+00:00"},
+            "incident_org": [
+                {
+                    "_id": "p-10",
+                    "position_id": 10,
+                    "primary": [{"person_record": 1, "end_time": None}],
+                },
+                {
+                    "_id": "p-11",
+                    "position_id": 11,
+                    "deputies": [{"person_record": 2, "end_time": "2026-07-01T00:00:00+00:00"}],
+                },
             ]
         },
     )
 
     docs = ResourceStatusDesk._fetch_org_assignments_docs()
 
-    assert [d["_id"] for d in docs] == ["a-1"]
+    assert [(d["position_id"], d["person_record"], d["assignment_type"]) for d in docs] == [
+        (10, 1, "primary"),
+        (11, 2, "deputy"),
+    ]
 
 
-def test_fetch_org_positions_docs_filters_inactive(monkeypatch):
+def test_fetch_org_positions_docs_reads_incident_org(monkeypatch):
     monkeypatch.setattr(incident_context, "get_active_incident_id", lambda: "INC-CACHE")
     monkeypatch.setattr(api_client, "get", _failing_get)
 
     incident_cache.load_snapshot(
         "INC-CACHE",
         {
-            "org_positions": [
-                {"_id": "p-1", "position_id": 10, "title": "Ops Chief", "status": "active"},
-                {"_id": "p-2", "position_id": 11, "title": "Retired Slot", "status": "inactive"},
+            "incident_org": [
+                {"_id": "p-1", "position_id": 10, "title": "Ops Chief"},
+                {"_id": "p-2", "position_id": 11, "title": "Plans Chief"},
             ]
         },
     )
 
     docs = ResourceStatusDesk._fetch_org_positions_docs()
 
-    assert [d["position_id"] for d in docs] == [10]
+    assert [d["position_id"] for d in docs] == [10, 11]
 
 
 def test_fetch_helpers_fall_back_to_api_without_active_cache(monkeypatch):
@@ -95,8 +106,10 @@ def test_fetch_helpers_fall_back_to_api_without_active_cache(monkeypatch):
     monkeypatch.setattr(incident_context, "get_active_incident_id", lambda: "INC-NO-CACHE")
     calls: list[str] = []
 
-    def fake_get(path: str):
+    def fake_get(path: str, params: dict | None = None):
         calls.append(path)
+        if path.endswith("/org/assignments"):
+            assert params == {"active_only": "false"}
         return []
 
     monkeypatch.setattr(api_client, "get", fake_get)

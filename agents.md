@@ -15,7 +15,7 @@
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
 - No `backend/` directory. Files belong under the existing root/module structure such as `modules/`, `lan_server/`, `cloud_server/`, `server/`, or `data/` as appropriate.
-- `cloud_server/` is a stateless reverse-tunnel router, not a second backend. It has no MongoDB connection and runs no `sarapp_db` routers; LAN servers dial out to it and register under a connect code, and it forwards field-device HTTP/WebSocket traffic down that tunnel. The mirrored `cloud_server/sarapp_db/**` tree is unused legacy scaffolding (see `Design Documents/legacycode.md`) — new router code must not import it. Apply all incident/master router, schema, and database changes to the active LAN server source under `data/db/sarapp_db/` only; see `Design Documents/Instructions/cloud_router_architecture.md` for the router's own protocol and files.
+- `cloud_server/` is a stateless reverse-tunnel router, not a second backend. It has no MongoDB connection and runs no `sarapp_db` routers; LAN servers dial out to it and register under a connect code, and it forwards field-device HTTP/WebSocket traffic down that tunnel. There is no mirrored `sarapp_db` copy under `cloud_server/` (removed 2026-07-12, see `Design Documents/legacycode.md`) — apply all incident/master router, schema, and database changes to the active LAN server source under `data/db/sarapp_db/` only; see `Design Documents/Instructions/cloud_router_architecture.md` for the router's own protocol and files.
 - Database framework belongs under `data/`, not `core/`.
 - Never create demo/fake data; only migrate or use data that already exists.
 - Do not add backward-compatibility shims, alias fields, or legacy fallback reads/writes in production code. If a data shape change needs help, use a one-time conversion/migration script to rewrite existing data into the new canonical format, then keep the app code on the canonical shape only.
@@ -34,7 +34,7 @@
 - `data/db/sarapp_db/`: Installable MongoDB package with collection constants, indexes, database manager, and API routers.
 - `server/`: Built-in offline server runtime used by the desktop client.
 - `lan_server/`: Standalone LAN server runtime and console tooling.
-- `cloud_server/`: Headless cloud reverse-tunnel router (`cloud_server/router/`) plus an unused, retained-for-now mirrored `sarapp_db` package tree (see `Design Documents/legacycode.md`).
+- `cloud_server/`: Headless cloud reverse-tunnel router (`cloud_server/router/`) — nothing else lives here.
 
 ## Coding Defaults
 - Target Python 3.11.

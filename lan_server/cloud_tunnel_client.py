@@ -55,7 +55,7 @@ def _int_env(name: str, default: int) -> int:
 # Mirrors cloud_server/router/config.py so both sides of the tunnel agree on
 # limits without needing separate env vars.
 _REQUEST_TIMEOUT_SECONDS = _float_env("SARAPP_ROUTER_REQUEST_TIMEOUT_SECONDS", 30.0)
-_MAX_REQUEST_BODY_BYTES = _int_env("SARAPP_ROUTER_MAX_BODY_BYTES", 20 * 1024 * 1024)
+_MAX_REQUEST_BODY_BYTES = _int_env("SARAPP_ROUTER_MAX_BODY_BYTES", 10 * 1024 * 1024)
 _MAX_CONCURRENT_FRAMES = _int_env("SARAPP_ROUTER_MAX_PENDING_REQUESTS", 200)
 
 # WebSocket close codes the router uses to signal *why* a tunnel was closed
@@ -323,13 +323,28 @@ class CloudTunnelClient:
         try:
             async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT_SECONDS) as client:
                 response = await client.request(method, url, headers=headers, content=body)
-            response_frame = {
-                "type": "response",
-                "request_id": request_id,
-                "status": response.status_code,
-                "headers": dict(response.headers),
-                "body": base64.b64encode(response.content).decode("ascii"),
-            }
+            if len(response.content) > _MAX_REQUEST_BODY_BYTES:
+                logger.warning(
+                    "Rejecting oversized response body (%d bytes) for %s %s",
+                    len(response.content),
+                    method,
+                    path,
+                )
+                response_frame = {
+                    "type": "response",
+                    "request_id": request_id,
+                    "status": 413,
+                    "headers": {},
+                    "body": base64.b64encode(b"Response body too large").decode("ascii"),
+                }
+            else:
+                response_frame = {
+                    "type": "response",
+                    "request_id": request_id,
+                    "status": response.status_code,
+                    "headers": dict(response.headers),
+                    "body": base64.b64encode(response.content).decode("ascii"),
+                }
         except Exception as exc:  # noqa: BLE001 - report as a proxy error, don't crash the tunnel
             logger.warning("Loopback request failed for %s %s: %s", method, path, exc)
             response_frame = {

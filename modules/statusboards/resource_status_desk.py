@@ -19,15 +19,12 @@ logger = logging.getLogger(__name__)
 
 _RESOURCE_STATUS_COLLECTION = "resource_status"
 _TEAMS_COLLECTION = "teams"
-_ORG_ASSIGNMENTS_COLLECTION = "org_assignments"
-
-_ORG_POSITIONS_COLLECTION = "org_positions"
+_INCIDENT_ORG_COLLECTION = "incident_org"
 
 _WATCHED_COLLECTIONS = {
     _RESOURCE_STATUS_COLLECTION,
     _TEAMS_COLLECTION,
-    _ORG_ASSIGNMENTS_COLLECTION,
-    _ORG_POSITIONS_COLLECTION,
+    _INCIDENT_ORG_COLLECTION,
 }
 
 # Statuses that represent "active" resources — team/org assignment can
@@ -88,7 +85,7 @@ class ResourceStatusDesk(QObject):
             return
         if collection == _TEAMS_COLLECTION:
             self._sync_team_members()
-        elif collection in (_ORG_ASSIGNMENTS_COLLECTION, _ORG_POSITIONS_COLLECTION):
+        elif collection == _INCIDENT_ORG_COLLECTION:
             self._sync_org_assignments()
         self._rebuild()
 
@@ -325,13 +322,11 @@ class ResourceStatusDesk(QObject):
         if not incident_id:
             return
 
-        # Active org assignments from cache
-        assignments = [
-            a for a in self._fetch_org_assignments_docs()
+        assignments = self._fetch_org_assignments_docs()
+        active_assignments = [
+            a for a in assignments
             if a.get("end_time") is None and a.get("person_record") is not None
         ]
-        if not assignments:
-            return
 
         # Position id → title from cache
         pos_title: dict[int, str] = {
@@ -347,7 +342,39 @@ class ResourceStatusDesk(QObject):
             if d.get("entity_type") == "personnel"
         }
 
-        for assignment in assignments:
+        active_titles_by_person: dict[Any, set[str]] = {}
+        for assignment in active_assignments:
+            title = pos_title.get(assignment.get("position_id"))
+            if title:
+                active_titles_by_person.setdefault(assignment.get("person_record"), set()).add(title)
+
+        # Clear stale org assignment references. Team/task assignment can own
+        # assigned_to, so only clear assigned_to when it still equals the org
+        # title we are removing.
+        for person_record, rs_doc in rs_by_record.items():
+            current_ref = str(rs_doc.get("assignment_reference") or "")
+            if not current_ref:
+                continue
+            if current_ref in active_titles_by_person.get(person_record, set()):
+                continue
+            rs_id = str(rs_doc.get("id") or rs_doc.get("_id") or "")
+            if not rs_id:
+                continue
+            patch: dict[str, Any] = {"assignment_reference": None}
+            if str(rs_doc.get("assigned_to") or "") == current_ref:
+                patch["assigned_to"] = None
+            try:
+                api_client.patch(
+                    f"/api/incidents/{incident_id}/resource-status/{rs_id}",
+                    json=patch,
+                )
+                rs_doc["assignment_reference"] = None
+                if "assigned_to" in patch:
+                    rs_doc["assigned_to"] = None
+            except Exception:
+                continue
+
+        for assignment in active_assignments:
             person_record = assignment.get("person_record")
             position_id = assignment.get("position_id")
             title = pos_title.get(position_id) if position_id is not None else None
@@ -457,10 +484,24 @@ class ResourceStatusDesk(QObject):
 
     @staticmethod
     def _fetch_org_assignments_docs() -> list[dict[str, Any]]:
-        # Mirrors the API's default active_only=True (end_time not set).
-        cached = ResourceStatusDesk._cached_docs(_ORG_ASSIGNMENTS_COLLECTION)
+        cached = ResourceStatusDesk._cached_docs(_INCIDENT_ORG_COLLECTION)
         if cached is not None:
-            return [d for d in cached if d.get("end_time") is None]
+            rows: list[dict[str, Any]] = []
+            for position in cached:
+                position_id = position.get("position_id")
+                for bucket, assignment_type in (
+                    ("primary", "primary"),
+                    ("deputies", "deputy"),
+                    ("staff_assistants", "staff_assistant"),
+                ):
+                    for assignment in position.get(bucket) or []:
+                        rows.append({
+                            "position_id": position_id,
+                            "person_record": assignment.get("person_record"),
+                            "assignment_type": "trainee" if assignment.get("trainee") else assignment_type,
+                            "end_time": assignment.get("end_time"),
+                        })
+            return rows
 
         from utils import incident_context
         from utils.api_client import api_client
@@ -469,7 +510,10 @@ class ResourceStatusDesk(QObject):
         if not incident_id:
             return []
         try:
-            return api_client.get(f"/api/incidents/{incident_id}/org/assignments") or []
+            return api_client.get(
+                f"/api/incidents/{incident_id}/org/assignments",
+                params={"active_only": "false"},
+            ) or []
         except Exception:
             logger.exception("ResourceStatusDesk: failed to fetch org assignments")
             return []
@@ -477,9 +521,9 @@ class ResourceStatusDesk(QObject):
     @staticmethod
     def _fetch_org_positions_docs() -> list[dict[str, Any]]:
         # Mirrors the API's default include_inactive=False (status == "active").
-        cached = ResourceStatusDesk._cached_docs(_ORG_POSITIONS_COLLECTION)
+        cached = ResourceStatusDesk._cached_docs(_INCIDENT_ORG_COLLECTION)
         if cached is not None:
-            return [d for d in cached if str(d.get("status") or "").lower() == "active"]
+            return cached
 
         from utils import incident_context
         from utils.api_client import api_client

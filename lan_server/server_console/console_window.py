@@ -8,12 +8,16 @@ import webbrowser
 from datetime import datetime, timezone
 from typing import Callable
 
+from pathlib import Path
+
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
+    QFileDialog,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -22,6 +26,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTabWidget,
     QTableWidget,
@@ -94,11 +99,20 @@ class ServerConsoleWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         self.tabs = QTabWidget(self)
-        self.tabs.addTab(self._build_server_tab(), "Server")
-        self.tabs.addTab(self._build_traffic_tab(), "API Traffic")
+        # Each tab stacks several group boxes vertically; scroll it instead
+        # of letting the window grow taller than the screen.
+        self.tabs.addTab(self._scrolled(self._build_monitoring_tab()), "Server Monitoring")
+        self.tabs.addTab(self._scrolled(self._build_settings_tab()), "Settings")
+        self.tabs.addTab(self._build_traffic_tab(), "API Monitor")
         self.setCentralWidget(self.tabs)
 
-    def _build_server_tab(self) -> QWidget:
+    def _scrolled(self, widget: QWidget) -> QScrollArea:
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+        return scroll
+
+    def _build_monitoring_tab(self) -> QWidget:
         root = QWidget(self)
         layout = QVBoxLayout(root)
 
@@ -124,16 +138,45 @@ class ServerConsoleWindow(QMainWindow):
             form.addRow(title + ":", widget)
         layout.addWidget(status_box)
 
-        controls = QHBoxLayout()
+        controls = QGridLayout()
         self.start_button = QPushButton("Start Server")
         self.stop_button = QPushButton("Stop Server")
         self.restart_button = QPushButton("Restart Server")
         self.copy_button = QPushButton("Copy Server Address")
         self.copy_code_button = QPushButton("Copy Connect Code")
         self.health_button = QPushButton("Open Health Check")
-        for button in [self.start_button, self.stop_button, self.restart_button, self.copy_button, self.copy_code_button, self.health_button]:
-            controls.addWidget(button)
+        # Wrap into a fixed number of columns so new buttons stack into extra
+        # rows instead of stretching the window wider.
+        control_buttons = [self.start_button, self.stop_button, self.restart_button, self.copy_button, self.copy_code_button, self.health_button]
+        columns = 3
+        for index, button in enumerate(control_buttons):
+            controls.addWidget(button, index // columns, index % columns)
         layout.addLayout(controls)
+
+        clients_box = QGroupBox("Client Connections")
+        clients_layout = QVBoxLayout(clients_box)
+        self.clients_label = QLabel("Connected clients: 0")
+        clients_layout.addWidget(self.clients_label)
+        self.clients_table = QTableWidget(0, 5)
+        self.clients_table.setHorizontalHeaderLabels(["User", "Device", "Status", "Connected time", "Last heartbeat"])
+        self.clients_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.clients_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        header = self.clients_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setStretchLastSection(True)
+        clients_layout.addWidget(self.clients_table)
+        layout.addWidget(clients_box)
+
+        logs_box = QGroupBox("Server Logs / Errors")
+        logs_layout = QVBoxLayout(logs_box)
+        self.log_text = QTextEdit(); self.log_text.setReadOnly(True)
+        logs_layout.addWidget(self.log_text)
+        layout.addWidget(logs_box)
+        return root
+
+    def _build_settings_tab(self) -> QWidget:
+        root = QWidget(self)
+        layout = QVBoxLayout(root)
 
         settings_box = QGroupBox("Settings")
         settings_form = QFormLayout(settings_box)
@@ -161,25 +204,14 @@ class ServerConsoleWindow(QMainWindow):
         settings_form.addRow("", self.save_button)
         layout.addWidget(settings_box)
 
-        clients_box = QGroupBox("Client Connections")
-        clients_layout = QVBoxLayout(clients_box)
-        self.clients_label = QLabel("Connected clients: 0")
-        clients_layout.addWidget(self.clients_label)
-        self.clients_table = QTableWidget(0, 5)
-        self.clients_table.setHorizontalHeaderLabels(["User", "Device", "Status", "Connected time", "Last heartbeat"])
-        self.clients_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.clients_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        header = self.clients_table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.Interactive)
-        header.setStretchLastSection(True)
-        clients_layout.addWidget(self.clients_table)
-        layout.addWidget(clients_box)
-
-        logs_box = QGroupBox("Server Logs / Errors")
-        logs_layout = QVBoxLayout(logs_box)
-        self.log_text = QTextEdit(); self.log_text.setReadOnly(True)
-        logs_layout.addWidget(self.log_text)
-        layout.addWidget(logs_box)
+        firebase_box = QGroupBox("Firebase Push Notifications")
+        firebase_form = QFormLayout(firebase_box)
+        self.firebase_status_label = QLabel("Checking…")
+        self.firebase_upload_button = QPushButton("Upload Firebase Key…")
+        firebase_form.addRow("Active key:", self.firebase_status_label)
+        firebase_form.addRow("", self.firebase_upload_button)
+        layout.addWidget(firebase_box)
+        layout.addStretch(1)
         return root
 
     # Requests the console generates itself while monitoring the server.
@@ -220,6 +252,7 @@ class ServerConsoleWindow(QMainWindow):
         self.health_button.clicked.connect(self._open_health_check)
         self.save_button.clicked.connect(self._save_settings)
         self.generate_code_button.clicked.connect(self._generate_connect_code)
+        self.firebase_upload_button.clicked.connect(self._upload_firebase_key)
         self.log_line.connect(self._append_log_from_thread)
         self.operation_done.connect(self._operation_finished)
         self.sessions_updated.connect(self._apply_sessions)
@@ -245,6 +278,7 @@ class ServerConsoleWindow(QMainWindow):
         self.discovery_port_spin.setValue(self.settings.discovery_port)
         self.cloud_url_edit.setText(self.settings.cloud_router_url)
         self.connect_code_edit.setText(self.settings.connect_code)
+        self._refresh_firebase_status()
 
     def _save_settings(self) -> None:
         try:
@@ -259,6 +293,38 @@ class ServerConsoleWindow(QMainWindow):
             self.controller.settings = new_settings
         self._append_log("Settings saved.")
         self._refresh_status()
+
+    # Cap how wide the Firebase status text can grow so an uploaded key with
+    # a long filename can't stretch the whole console window (see the
+    # window-too-wide report — this label was the main offender).
+    _FIREBASE_LABEL_MAX_WIDTH = 420
+
+    def _refresh_firebase_status(self) -> None:
+        label, path = self.controller.firebase_credentials_status()
+        if label == "not configured":
+            text, tooltip = "Not configured — push notifications disabled", ""
+        else:
+            text, tooltip = f"{label} ({Path(path).name})", path
+        metrics = self.firebase_status_label.fontMetrics()
+        elided = metrics.elidedText(text, Qt.ElideMiddle, self._FIREBASE_LABEL_MAX_WIDTH)
+        self.firebase_status_label.setText(elided)
+        self.firebase_status_label.setToolTip(tooltip or text)
+
+    def _upload_firebase_key(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Firebase Service Account Key", "", "JSON Files (*.json)"
+        )
+        if not file_path:
+            return
+        try:
+            destination = self.controller.upload_firebase_credentials(Path(file_path))
+        except OSError as exc:
+            QMessageBox.warning(self, "Upload Failed", str(exc))
+            return
+        self.settings.firebase_credentials_path = str(destination)
+        self.store.save(self.settings)
+        self._append_log(f"Firebase key uploaded ({destination}). Restart the server to apply.")
+        self._refresh_firebase_status()
 
     def _run_operation(self, label: str, target: Callable[[], None]) -> None:
         def runner() -> None:

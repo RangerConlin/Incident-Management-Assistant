@@ -273,15 +273,16 @@ class ICS205Window(QWidget):
         except Exception:
             pass
 
-        self._instance_save_timer = QTimer(self)
-        self._instance_save_timer.setSingleShot(True)
-        self._instance_save_timer.setInterval(600)
-        self._instance_save_timer.timeout.connect(self._save_instance)
+        self._plan_save_timer = QTimer(self)
+        self._plan_save_timer.setSingleShot(True)
+        self._plan_save_timer.setInterval(600)
+        self._plan_save_timer.timeout.connect(self._save_plan)
 
         self._load_op_periods()
-        self._load_instance()
-        self.ed_special_instructions.textChanged.connect(lambda: self._instance_save_timer.start())
-        self.cmb_op_period.currentIndexChanged.connect(lambda *_: self._instance_save_timer.start())
+        self._select_initial_op_period()
+        self._load_plan_for_selected_period()
+        self.ed_special_instructions.textChanged.connect(lambda: self._plan_save_timer.start())
+        self.cmb_op_period.currentIndexChanged.connect(lambda *_: self._load_plan_for_selected_period())
 
         self._refresh_table()
         self._update_button_states()
@@ -297,24 +298,25 @@ class ICS205Window(QWidget):
             self.cmb_op_period.addItem(label, str(period.id))
         self.cmb_op_period.blockSignals(False)
 
-    def _load_instance(self):
-        instance = self.controller.incident_repo.get_instance()
-        self.ed_special_instructions.blockSignals(True)
-        self.ed_special_instructions.setPlainText(instance.get("special_instructions") or "")
-        self.ed_special_instructions.blockSignals(False)
-
-        op_period_id = instance.get("op_period_id")
-        idx = self.cmb_op_period.findData(str(op_period_id)) if op_period_id else -1
-        if idx < 0:
-            active = self._op_period_repo.get_active_period()
-            idx = self.cmb_op_period.findData(str(active.id)) if active else -1
+    def _select_initial_op_period(self):
+        active = self._op_period_repo.get_active_period()
+        idx = self.cmb_op_period.findData(str(active.id)) if active else -1
         self.cmb_op_period.blockSignals(True)
         self.cmb_op_period.setCurrentIndex(idx if idx >= 0 else 0)
         self.cmb_op_period.blockSignals(False)
 
-    def _save_instance(self, *_args):
+    def _load_plan_for_selected_period(self):
+        if hasattr(self, "_plan_save_timer"):
+            self._plan_save_timer.stop()
         op_period_id = self.cmb_op_period.currentData()
-        self.controller.incident_repo.save_instance(
+        plan = self.controller.incident_repo.get_plan(op_period_id)
+        self.ed_special_instructions.blockSignals(True)
+        self.ed_special_instructions.setPlainText(plan.get("special_instructions") or "")
+        self.ed_special_instructions.blockSignals(False)
+
+    def _save_plan(self, *_args):
+        op_period_id = self.cmb_op_period.currentData()
+        self.controller.incident_repo.save_plan(
             self.ed_special_instructions.toPlainText(), op_period_id
         )
 

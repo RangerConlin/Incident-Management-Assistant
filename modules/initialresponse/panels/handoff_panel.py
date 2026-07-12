@@ -129,7 +129,10 @@ class HandoffPanel(QWidget):
             return ""
         overview = services.get_initial_overview_entry(incident_id)
         tasks = services.list_hasty_task_entries(incident_id)
-        resources = self._api_get(f"/api/incidents/{incident_id}/logistics/resource-status") or []
+        resources = self._api_get(
+            f"/api/incidents/{incident_id}/resource-status",
+            params={"entity_type": "initial_response"},
+        ) or []
         requests = self._api_get(f"/api/incidents/{incident_id}/logistics/resource-requests") or []
         hazards = self._api_get(f"/api/incidents/{incident_id}/safety/orm/hazards", params={"op": 1}) or []
         reports = self._api_get(f"/api/incidents/{incident_id}/safety/reports") or []

@@ -25,7 +25,8 @@ def resource_request_app_client():
     from utils.api_client import api_client, DEFAULT_BASE_URL
 
     db = get_incident_db(INCIDENT_ID)
-    db[IncidentCollections.LOGISTICS_RESOURCE_REQUESTS].delete_many({})
+    db[IncidentCollections.RESOURCE_REQUESTS].delete_many({})
+    db["logistics_resource_requests"].delete_many({})
 
     app = create_app()
     api_client.configure_test_transport(app)
@@ -33,6 +34,8 @@ def resource_request_app_client():
         yield api_client
     finally:
         api_client.configure(DEFAULT_BASE_URL)
+        db[IncidentCollections.RESOURCE_REQUESTS].delete_many({})
+        db["logistics_resource_requests"].delete_many({})
 
 
 @pytest.fixture
@@ -71,6 +74,19 @@ def test_create_and_fetch_request(service: ResourceRequestService):
     assert len(record["items"]) == 1
     assert record["status"] == RequestStatus.DRAFT.value
     assert record["delivery_facility_id"] == "fac-cache"
+
+
+def test_create_writes_canonical_resource_requests_collection(
+    service: ResourceRequestService,
+):
+    from sarapp_db.mongo.collection_names import IncidentCollections
+    from sarapp_db.mongo.database_manager import get_incident_db
+
+    request_id = service.create_request(_base_header(), _single_item())
+    db = get_incident_db(INCIDENT_ID)
+
+    assert db[IncidentCollections.RESOURCE_REQUESTS].find_one({"id": request_id}) is not None
+    assert db["logistics_resource_requests"].find_one({"id": request_id}) is None
 
 
 def test_update_and_versioning(service: ResourceRequestService):

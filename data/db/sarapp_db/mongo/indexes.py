@@ -29,7 +29,7 @@ def _ensure_index(collection, keys, **kwargs) -> None:
 def _drop_index_if_exists(collection, index_name: str) -> None:
     """Drop a named index if it exists; no-op otherwise."""
     try:
-        existing = {info["name"] for info in collection.index_information().values()}
+        existing = set(collection.index_information().keys())
         if index_name in existing:
             collection.drop_index(index_name)
             logger.info("Dropped stale index '%s' from '%s'", index_name, collection.name)
@@ -46,30 +46,36 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_teams_indexes(incident_db)
     _create_tasks_indexes(incident_db)
     _create_strategies_indexes(incident_db)
-    _create_check_in_out_indexes(incident_db)
     _create_hazards_indexes(incident_db)
     _create_audit_logs_indexes(incident_db)
-    _create_incident_organization_indexes(incident_db)
-    _create_unit_logs_indexes(incident_db)
+    _create_org_indexes(incident_db)
     _create_meetings_indexes(incident_db)
+    _create_communications_plan_indexes(incident_db)
     _create_incident_channels_indexes(incident_db)
     _create_medical_indexes(incident_db)
     _create_safety_indexes(incident_db)
     _create_public_information_indexes(incident_db)
-    _create_resources_indexes(incident_db)
+    _create_resource_requests_indexes(incident_db)
     _create_intel_indexes(incident_db)
     _create_approval_indexes(incident_db)
+    _create_attachment_indexes(incident_db)
     _create_weather_indexes(incident_db)
     _create_facilities_indexes(incident_db)
     _create_resource_status_indexes(incident_db)
-    _create_task_narratives_indexes(incident_db)
+    _create_iap_indexes(incident_db)
     _create_sitrep_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
 
 def _create_teams_indexes(incident_db: Database) -> None:
     teams = incident_db[IncidentCollections.TEAMS]
-    _ensure_index(teams, [("team_id", ASCENDING)], unique=True)
+    # `team_id` is retired (see team-id/int_id consolidation notes) — drop
+    # the old non-sparse unique index so it can't reject inserts once the
+    # field stops being written. `int_id` is the real identifier now;
+    # sparse=True lets not-yet-backfilled legacy docs coexist without
+    # tripping the uniqueness check.
+    _drop_index_if_exists(teams, "team_id_1")
+    _ensure_index(teams, [("int_id", ASCENDING)], unique=True, sparse=True)
     _ensure_index(teams, [("name", ASCENDING)])
     _ensure_index(teams, [("status", ASCENDING)])
 
@@ -106,23 +112,13 @@ def _create_strategies_indexes(incident_db: Database) -> None:
     _ensure_index(strategies, [("deleted", ASCENDING)])
 
 
-def _create_check_in_out_indexes(incident_db: Database) -> None:
-    check_in_out = incident_db[IncidentCollections.CHECK_IN_OUT]
-    _ensure_index(check_in_out, [("incident_id", ASCENDING)])
-    # resource_type distinguishes personnel / vehicle / aircraft / equipment
-    _ensure_index(check_in_out, [("resource_type", ASCENDING)])
-    _ensure_index(check_in_out, [("resource_id", ASCENDING)])
-    _ensure_index(check_in_out, [("status", ASCENDING)])  # checked_in | checked_out
-    _ensure_index(check_in_out, [("checked_in_at", DESCENDING)])
-    _ensure_index(check_in_out, [("checked_out_at", DESCENDING)])
-    _ensure_index(check_in_out, [("operational_period_id", ASCENDING)])
-
-
 def _create_hazards_indexes(incident_db: Database) -> None:
     hazards = incident_db[IncidentCollections.HAZARDS]
     _ensure_index(hazards, [("incident_id", ASCENDING)])
     _ensure_index(hazards, [("hazard_type_id", ASCENDING)])
+    _ensure_index(hazards, [("source", ASCENDING)])
     _ensure_index(hazards, [("op_period_ids", ASCENDING)])
+    _ensure_index(hazards, [("residual_risk", ASCENDING)])
     _ensure_index(hazards, [("links.work_assignment_ids", ASCENDING)])
     _ensure_index(hazards, [("deleted", ASCENDING)])
 
@@ -136,37 +132,34 @@ def _create_incident_channels_indexes(incident_db: Database) -> None:
     _ensure_index(channels, [("include_on_205", ASCENDING)])
 
 
+def _create_communications_plan_indexes(incident_db: Database) -> None:
+    plan = incident_db[IncidentCollections.COMMUNICATIONS_PLAN]
+    _ensure_index(plan, [("incident_id", ASCENDING)])
+    _ensure_index(
+        plan,
+        [("incident_id", ASCENDING), ("op_period_id", ASCENDING)],
+        unique=True,
+        name="communications_plan_unique_per_op",
+    )
+    _ensure_index(plan, [("plan_id", ASCENDING)], unique=True)
+
+
 def _create_medical_indexes(incident_db: Database) -> None:
-    for name in (
-        IncidentCollections.ICS_206_AID_STATIONS,
-        IncidentCollections.ICS_206_AMBULANCE_SERVICES,
-        IncidentCollections.ICS_206_HOSPITALS,
-        IncidentCollections.ICS_206_AIR_AMBULANCE,
-        IncidentCollections.ICS_206_MEDICAL_COMMS,
-    ):
-        col = incident_db[name]
-        _ensure_index(col, [("incident_id", ASCENDING)])
-        _ensure_index(col, [("op_period", ASCENDING)])
-        _ensure_index(col, [("id", ASCENDING)], unique=True)
-        _ensure_index(col, [("deleted", ASCENDING)])
+    aid_stations = incident_db[IncidentCollections.ICS_206_AID_STATIONS]
+    _ensure_index(aid_stations, [("incident_id", ASCENDING)])
+    _ensure_index(aid_stations, [("op_period", ASCENDING)])
+    _ensure_index(aid_stations, [("id", ASCENDING)], unique=True)
+    _ensure_index(aid_stations, [("deleted", ASCENDING)])
 
-    procedures = incident_db[IncidentCollections.ICS_206_PROCEDURES]
-    _ensure_index(procedures, [("incident_id", ASCENDING)])
+    plan = incident_db[IncidentCollections.MEDICAL_PLAN]
+    _ensure_index(plan, [("incident_id", ASCENDING)])
     _ensure_index(
-        procedures,
+        plan,
         [("incident_id", ASCENDING), ("op_period", ASCENDING)],
         unique=True,
-        name="ics206_procedures_unique_per_op",
+        name="medical_plan_unique_per_op",
     )
-
-    signatures = incident_db[IncidentCollections.ICS_206_SIGNATURES]
-    _ensure_index(signatures, [("incident_id", ASCENDING)])
-    _ensure_index(
-        signatures,
-        [("incident_id", ASCENDING), ("op_period", ASCENDING)],
-        unique=True,
-        name="ics206_signatures_unique_per_op",
-    )
+    _ensure_index(plan, [("plan_id", ASCENDING)], unique=True)
 
 
 def _create_safety_indexes(incident_db: Database) -> None:
@@ -175,9 +168,6 @@ def _create_safety_indexes(incident_db: Database) -> None:
         IncidentCollections.MEDICAL_INCIDENTS,
         IncidentCollections.TRIAGE_ENTRIES,
         IncidentCollections.HAZARD_ZONES,
-        IncidentCollections.CAP_ORM_SUMMARIES,
-        IncidentCollections.CAP_ORM_FORMS,
-        IncidentCollections.CAP_ORM_HAZARDS,
         IncidentCollections.ICS_206_BUILDS,
     ):
         col = incident_db[name]
@@ -189,25 +179,6 @@ def _create_safety_indexes(incident_db: Database) -> None:
     _ensure_index(reports, [("severity", ASCENDING)])
     _ensure_index(reports, [("flagged", ASCENDING)])
     _ensure_index(reports, [("time", DESCENDING)])
-
-    forms = incident_db[IncidentCollections.CAP_ORM_FORMS]
-    _ensure_index(
-        forms,
-        [("incident_id", ASCENDING), ("op_period", ASCENDING)],
-        unique=True,
-        name="cap_orm_form_unique_per_op",
-    )
-    _ensure_index(forms, [("status", ASCENDING)])
-    _ensure_index(forms, [("highest_residual_risk", ASCENDING)])
-
-    hazards = incident_db[IncidentCollections.CAP_ORM_HAZARDS]
-    _ensure_index(hazards, [("form_id", ASCENDING)])
-    _ensure_index(hazards, [("residual_risk", ASCENDING)])
-
-    audit = incident_db[IncidentCollections.CAP_ORM_AUDIT]
-    _ensure_index(audit, [("incident_id", ASCENDING)])
-    _ensure_index(audit, [("entity", ASCENDING), ("entity_id", ASCENDING)])
-    _ensure_index(audit, [("ts_iso", DESCENDING)])
 
 
 def _create_public_information_indexes(incident_db: Database) -> None:
@@ -223,10 +194,6 @@ def _create_public_information_indexes(incident_db: Database) -> None:
     _ensure_index(revisions, [("message_id", ASCENDING)])
     _ensure_index(revisions, [("created_at", DESCENDING)])
 
-    approvals = incident_db[IncidentCollections.PIO_APPROVALS]
-    _ensure_index(approvals, [("message_id", ASCENDING)])
-    _ensure_index(approvals, [("timestamp", ASCENDING)])
-
     media = incident_db[IncidentCollections.PIO_MEDIA_LOG]
     _ensure_index(media, [("id", ASCENDING)], unique=True)
     _ensure_index(media, [("status", ASCENDING)])
@@ -236,10 +203,6 @@ def _create_public_information_indexes(incident_db: Database) -> None:
     _ensure_index(misinformation, [("id", ASCENDING)], unique=True)
     _ensure_index(misinformation, [("status", ASCENDING)])
     _ensure_index(misinformation, [("last_update", DESCENDING)])
-
-    timeline = incident_db[IncidentCollections.PIO_MISINFORMATION_TIMELINE]
-    _ensure_index(timeline, [("item_id", ASCENDING)])
-    _ensure_index(timeline, [("event_time", ASCENDING)])
 
     talking_points = incident_db[IncidentCollections.PIO_TALKING_POINTS]
     _ensure_index(talking_points, [("id", ASCENDING)], unique=True)
@@ -257,44 +220,41 @@ def _create_public_information_indexes(incident_db: Database) -> None:
     _ensure_index(distribution, [("distributed_at", DESCENDING)])
 
 
-def _create_resources_indexes(incident_db: Database) -> None:
-    resources = incident_db[IncidentCollections.RESOURCES]
-    _ensure_index(resources, [("incident_id", ASCENDING)])
-    _ensure_index(resources, [("resource_id", ASCENDING)], unique=True)
-    _ensure_index(resources, [("resource_type", ASCENDING)])
-    _ensure_index(resources, [("status", ASCENDING)])
-    _ensure_index(resources, [("team_id", ASCENDING)])
+def _create_resource_requests_indexes(incident_db: Database) -> None:
+    requests = incident_db[IncidentCollections.RESOURCE_REQUESTS]
+    _ensure_index(requests, [("incident_id", ASCENDING)])
+    _ensure_index(requests, [("id", ASCENDING)], unique=True)
+    _ensure_index(requests, [("status", ASCENDING)])
+    _ensure_index(requests, [("priority", ASCENDING)])
+    _ensure_index(requests, [("needed_by_utc", ASCENDING)])
+    _ensure_index(requests, [("created_utc", DESCENDING)])
 
 
-def _create_incident_organization_indexes(incident_db: Database) -> None:
-    org = incident_db[IncidentCollections.INCIDENT_ORGANIZATION]
-    _ensure_index(org, [("incident_id", ASCENDING)])
-    _ensure_index(org, [("version_id", ASCENDING)], unique=True)
-    _ensure_index(org, [("op_period_id", ASCENDING)])
-    _ensure_index(org, [("assignments.person_record", ASCENDING)])
-    _ensure_index(org, [("assignments.position_id", ASCENDING)])
+def _create_org_indexes(incident_db: Database) -> None:
+    org = incident_db[IncidentCollections.INCIDENT_ORG]
+    _ensure_index(org, [("position_id", ASCENDING)], unique=True)
+    _ensure_index(org, [("parent_position_id", ASCENDING)])
+    _ensure_index(org, [("classification", ASCENDING)])
+    _ensure_index(org, [("primary.person_record", ASCENDING)])
+    _ensure_index(org, [("deputies.person_record", ASCENDING)])
+    _ensure_index(org, [("staff_assistants.person_record", ASCENDING)])
 
-    positions = incident_db[IncidentCollections.ORG_POSITIONS]
-    _ensure_index(positions, [("incident_id", ASCENDING)])
-    _ensure_index(positions, [("position_id", ASCENDING)], unique=True)
-    _ensure_index(positions, [("status", ASCENDING)])
-
-    assignments = incident_db[IncidentCollections.ORG_ASSIGNMENTS]
-    _ensure_index(assignments, [("incident_id", ASCENDING)])
-    _ensure_index(assignments, [("assignment_id", ASCENDING)], unique=True)
-    _ensure_index(assignments, [("position_id", ASCENDING)])
-    _ensure_index(assignments, [("person_record", ASCENDING)])
-    _ensure_index(assignments, [("end_time", ASCENDING)])
+    templates = incident_db[IncidentCollections.ORG_TEMPLATES]
+    _ensure_index(templates, [("incident_id", ASCENDING)])
+    _ensure_index(templates, [("template_id", ASCENDING)], unique=True)
+    _ensure_index(templates, [("name", ASCENDING)])
 
 
-def _create_unit_logs_indexes(incident_db: Database) -> None:
-    logs = incident_db[IncidentCollections.UNIT_LOGS]
-    _ensure_index(logs, [("incident_id", ASCENDING)])
-    _ensure_index(logs, [("stream_id", ASCENDING)], unique=True)
-    _ensure_index(logs, [("kind", ASCENDING)])
-    _ensure_index(logs, [("section", ASCENDING)])
-    _ensure_index(logs, [("entries.critical_flag", ASCENDING)])
-    _ensure_index(logs, [("entries.timestamp_utc", DESCENDING)])
+def _create_iap_indexes(incident_db: Database) -> None:
+    packages = incident_db[IncidentCollections.IAP_PACKAGES]
+    _ensure_index(packages, [("incident_id", ASCENDING)])
+    _ensure_index(
+        packages,
+        [("incident_id", ASCENDING), ("op_number", ASCENDING)],
+        unique=True,
+        name="iap_package_unique_per_op",
+    )
+    _ensure_index(packages, [("forms.form_id", ASCENDING)])
 
 
 def _create_meetings_indexes(incident_db: Database) -> None:
@@ -417,6 +377,17 @@ def _create_approval_indexes(incident_db: Database) -> None:
     _ensure_index(records, [("timestamp", DESCENDING)])
 
 
+def _create_attachment_indexes(incident_db: Database) -> None:
+    attachments = incident_db[IncidentCollections.ATTACHMENTS]
+    _ensure_index(attachments, [("incident_id", ASCENDING)])
+    _ensure_index(attachments, [("int_id", ASCENDING)], unique=True, sparse=True)
+    _ensure_index(attachments, [("attachment_id", ASCENDING)], unique=True, sparse=True)
+    _ensure_index(attachments, [("owner_type", ASCENDING), ("owner_id", ASCENDING)])
+    _ensure_index(attachments, [("category", ASCENDING)])
+    _ensure_index(attachments, [("uploaded_at", DESCENDING)])
+    _ensure_index(attachments, [("deleted", ASCENDING)])
+
+
 def _create_audit_logs_indexes(incident_db: Database) -> None:
     audit = incident_db[IncidentCollections.AUDIT_LOGS]
     _ensure_index(audit, [("incident_id", ASCENDING)])
@@ -441,6 +412,7 @@ def create_master_indexes(master_db: Database) -> None:
     _create_aircraft_indexes(master_db)
     _create_equipment_indexes(master_db)
     _create_user_presence_indexes(master_db)
+    _create_push_token_indexes(master_db)
     logger.debug("Master database indexes verified: %s", master_db.name)
 
 
@@ -525,10 +497,10 @@ def _create_equipment_indexes(master_db: Database) -> None:
     _ensure_index(equipment, [("equipment_type", ASCENDING)])
 
 
-def _create_task_narratives_indexes(incident_db: Database) -> None:
-    narratives = incident_db[IncidentCollections.TASK_NARRATIVES]
-    _ensure_index(narratives, [("task_id", ASCENDING), ("timestamp", DESCENDING)],
-                  name="task_narratives_task_ts")
+def _create_push_token_indexes(master_db: Database) -> None:
+    tokens = master_db[MasterCollections.PUSH_TOKENS]
+    _ensure_index(tokens, [("token", ASCENDING)], unique=True)
+    _ensure_index(tokens, [("person_record", ASCENDING)])
 
 
 def _create_sitrep_indexes(incident_db: Database) -> None:

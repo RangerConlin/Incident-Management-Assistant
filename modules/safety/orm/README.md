@@ -24,10 +24,9 @@ Hazards are read/written via `data/db/sarapp_db/api/routers/safety.py`
 `IncidentCollections.HAZARDS`. This module has no local database or
 SQLite storage — `service.py` is a thin REST client.
 
-The old CAP ORM form/hazard endpoints and collections
-(`CAP_ORM_FORMS`/`CAP_ORM_HAZARDS`/`CAP_ORM_SUMMARIES`/`CAP_ORM_AUDIT`) still
-exist for `modules/forms_creator` CAPF-160 export compatibility — see
-`Design Documents/legacycode.md`. This module no longer writes to them.
+The old CAP ORM collection set has been retired. CAPF-160 compatibility
+endpoints in `safety.py` synthesize the legacy form/hazard view from canonical
+`hazards` documents instead of writing separate CAP ORM collections.
 
 ## Development
 

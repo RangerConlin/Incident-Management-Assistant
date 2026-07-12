@@ -84,7 +84,7 @@ Communications
 
 Use existing comms routers under /api/incidents/{incident_id}/comms-log and related message routes; command broadcast API still to be defined
 
-sarapp_incident_<id>.communications_log, sarapp_incident_<id>.ics_213_messages
+sarapp_incident_<id>.communications_log
 
 Personnel Tracker
 

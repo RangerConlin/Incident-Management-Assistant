@@ -38,7 +38,7 @@ ALLOWED_STATUS_TRANSITIONS = {
 
 
 class LogisticsResourceRequestsRepository(BaseRepository):
-    collection_name = IncidentCollections.LOGISTICS_RESOURCE_REQUESTS
+    collection_name = IncidentCollections.RESOURCE_REQUESTS
     # Keyed by app-defined `id` (hex uuid), not `_id`; no `deleted` field.
     soft_deletes = False
 
@@ -138,17 +138,13 @@ def update_request(incident_id: str, request_id: str, body: dict[str, Any]) -> d
     if doc.get("status", "DRAFT") != "DRAFT":
         body["version"] = doc.get("version", 1) + 1
     audit_entry = {"event": "update", "ts_utc": _now(), "actor_id": actor_id, "fields": list(body.keys())}
-    # $set + $push to an audit array in one atomic op — not expressible via
-    # BaseRepository's generic methods, so we drop to the raw collection
-    # and broadcast ourselves, mirroring update_one's pattern.
-    result = repo._col.find_one_and_update(
-        {"id": request_id},
+    repo.apply_update(
+        doc["_id"],
         {"$set": {**body, "last_updated_utc": _now()}, "$push": {"audit": audit_entry}},
-        return_document=True,
+        touch_updated_at=False,
     )
-    if result:
-        repo._broadcast("updated", result["_id"], result)
-    return _strip(result)
+    updated = _fetch(repo, request_id)
+    return _strip(updated)
 
 
 # ---------------------------------------------------------------------------
@@ -171,14 +167,13 @@ def change_status(incident_id: str, request_id: str, body: dict[str, Any]) -> di
     if current != "DRAFT":
         updates["version"] = doc.get("version", 1) + 1
     audit_entry = {"event": "status_change", "old": current, "new": new_status, "actor_id": actor_id, "note": note, "ts_utc": now}
-    result = repo._col.find_one_and_update(
-        {"id": request_id},
+    repo.apply_update(
+        doc["_id"],
         {"$set": updates, "$push": {"audit": audit_entry}},
-        return_document=True,
+        touch_updated_at=False,
     )
-    if result:
-        repo._broadcast("updated", result["_id"], result)
-    return _strip(result)
+    updated = _fetch(repo, request_id)
+    return _strip(updated)
 
 
 # ---------------------------------------------------------------------------
@@ -206,13 +201,11 @@ def record_approval(incident_id: str, request_id: str, body: dict[str, Any]) -> 
                 updates["version"] = doc.get("version", 1) + 1
     updates["last_updated_utc"] = now
     audit_entry = {"event": f"approval:{action}", "ts_utc": now, "actor_id": actor_id}
-    repo._col.update_one(
-        {"id": request_id},
+    repo.apply_update(
+        doc["_id"],
         {"$push": {"approvals": approval, "audit": audit_entry}, "$set": updates},
+        touch_updated_at=False,
     )
-    updated = repo._col.find_one({"id": request_id})
-    if updated:
-        repo._broadcast("updated", updated["_id"], updated)
     return {"id": approval_id}
 
 
@@ -242,13 +235,11 @@ def assign_fulfillment(incident_id: str, request_id: str, body: dict[str, Any]) 
         "note": body.get("note"),
         "ts_utc": now,
     }
-    repo._col.update_one(
-        {"id": request_id},
+    repo.apply_update(
+        request_doc["_id"],
         {"$push": {"fulfillments": fulfillment}, "$set": {"last_updated_utc": now}},
+        touch_updated_at=False,
     )
-    updated = repo._col.find_one({"id": request_id})
-    if updated:
-        repo._broadcast("updated", updated["_id"], updated)
     return {"id": fulfillment_id}
 
 
@@ -274,13 +265,12 @@ def update_fulfillment(incident_id: str, request_id: str, fulfillment_id: str, b
         update["fulfillments.$.destination_location"] = str(body.get("destination_location") or "") or None
     if "destination_facility_id" in body:
         update["fulfillments.$.destination_facility_id"] = str(body.get("destination_facility_id") or "") or None
-    repo._col.update_one(
-        {"id": request_id, "fulfillments.id": fulfillment_id},
+    repo.apply_update(
+        doc["_id"],
         {"$set": update},
+        extra_filter={"fulfillments.id": fulfillment_id},
+        touch_updated_at=False,
     )
-    updated = repo._col.find_one({"id": request_id})
-    if updated:
-        repo._broadcast("updated", updated["_id"], updated)
     return {"ok": True}
 
 
@@ -291,22 +281,24 @@ def update_fulfillment(incident_id: str, request_id: str, fulfillment_id: str, b
 @router.post("/incidents/{incident_id}/logistics/resource-requests/{request_id}/items", status_code=201)
 def add_items(incident_id: str, request_id: str, body: list[dict[str, Any]]) -> dict:
     repo = _repo(incident_id)
-    _fetch(repo, request_id)
+    doc = _fetch(repo, request_id)
     items = [{"id": item.get("id") or _new_id(), **item} for item in body]
-    repo._col.update_one({"id": request_id}, {"$push": {"items": {"$each": items}}})
-    updated = repo._col.find_one({"id": request_id})
-    if updated:
-        repo._broadcast("updated", updated["_id"], updated)
+    repo.apply_update(
+        doc["_id"],
+        {"$push": {"items": {"$each": items}}},
+        touch_updated_at=False,
+    )
     return {"ids": [item["id"] for item in items]}
 
 
 @router.put("/incidents/{incident_id}/logistics/resource-requests/{request_id}/items")
 def replace_items(incident_id: str, request_id: str, body: list[dict[str, Any]]) -> dict:
     repo = _repo(incident_id)
-    _fetch(repo, request_id)
+    doc = _fetch(repo, request_id)
     items = [{"id": item.get("id") or _new_id(), **item} for item in body]
-    repo._col.update_one({"id": request_id}, {"$set": {"items": items, "last_updated_utc": _now()}})
-    updated = repo._col.find_one({"id": request_id})
-    if updated:
-        repo._broadcast("updated", updated["_id"], updated)
+    repo.apply_update(
+        doc["_id"],
+        {"$set": {"items": items, "last_updated_utc": _now()}},
+        touch_updated_at=False,
+    )
     return {"ids": [item["id"] for item in items]}

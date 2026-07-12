@@ -1,6 +1,0 @@
-pyproject.toml
-db/sarapp_db.egg-info/PKG-INFO
-db/sarapp_db.egg-info/SOURCES.txt
-db/sarapp_db.egg-info/dependency_links.txt
-db/sarapp_db.egg-info/requires.txt
-db/sarapp_db.egg-info/top_level.txt

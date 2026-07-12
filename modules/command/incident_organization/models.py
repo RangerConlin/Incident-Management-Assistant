@@ -15,7 +15,6 @@ ASSIGNMENT_TYPE_DEPUTY = "deputy"
 ASSIGNMENT_TYPE_ASSISTANT = "assistant"
 ASSIGNMENT_TYPE_STAFF_ASSISTANT = "staff_assistant"
 ASSIGNMENT_TYPE_TRAINEE = "trainee"
-ASSIGNMENT_TYPE_RELIEF = "relief"
 _LEGACY_ASSIGNMENT_TYPE_ALIASES = {
     "staff assistant": ASSIGNMENT_TYPE_STAFF_ASSISTANT,
 }
@@ -25,7 +24,6 @@ ACTIVE_ASSIGNMENT_TYPES = {
     ASSIGNMENT_TYPE_ASSISTANT,
     ASSIGNMENT_TYPE_STAFF_ASSISTANT,
     ASSIGNMENT_TYPE_TRAINEE,
-    ASSIGNMENT_TYPE_RELIEF,
 }
 POSITION_STATUSES = {"active", "inactive"}
 
@@ -82,7 +80,7 @@ class OrganizationTemplate:
 class PositionAssignment:
     """Personnel assignment to an organization position."""
 
-    id: Optional[int]
+    id: Optional[str | int]
     incident_id: str
     position_id: int
     person_record: Optional[int]
@@ -95,24 +93,6 @@ class PositionAssignment:
     notes: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
-
-
-@dataclass(slots=True)
-class AssignmentHistoryEntry:
-    """Audit-style assignment history record."""
-
-    id: Optional[int]
-    incident_id: str
-    assignment_id: Optional[int]
-    position_id: int
-    person_record: Optional[int]
-    person_name: str
-    assignment_type: str
-    action: str
-    effective_time: Optional[str]
-    operational_period: Optional[str]
-    changed_by: Optional[str]
-    notes: Optional[str] = None
 
 
 @dataclass(slots=True)
@@ -144,16 +124,3 @@ class PositionStatusSummary:
     position_id: int
     staffing_status: str
     warnings: list[OrganizationWarning] = field(default_factory=list)
-
-
-@dataclass(slots=True)
-class GeneratedFormSnapshot:
-    """Metadata for generated ICS outputs derived from the organization."""
-
-    id: Optional[int]
-    incident_id: str
-    form_type: str
-    generated_at: str
-    operational_period: Optional[str]
-    source_version: Optional[str]
-    payload: dict[str, Any]

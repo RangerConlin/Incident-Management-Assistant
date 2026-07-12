@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Repository managing incident specific communication plans (ICS‑205).
+"""Repository managing incident-specific communication plans.
 
 Plan rows only ever store a reference (``master_id``) plus incident-specific
 fields (assignment, priority, encryption, remarks) - channel identity always
@@ -40,6 +40,7 @@ class ApiIncidentRepository:
     def __init__(self, incident_number: str | int):
         self._incident_id = str(incident_number)
         self._base = f"/api/incidents/{self._incident_id}/channels-plan"
+        self._plan_base = f"/api/incidents/{self._incident_id}/communications-plan"
 
     def list_plan(self) -> List[Dict[str, Any]]:
         from utils.api_client import api_client
@@ -76,18 +77,22 @@ class ApiIncidentRepository:
         from utils.api_client import api_client
         return api_client.get(f"{self._base}/preview")
 
-    def get_instance(self) -> Dict[str, Any]:
+    def get_plan(self, op_period_id: str | None = None) -> Dict[str, Any]:
         from utils.api_client import api_client
         try:
-            return api_client.get(f"{self._base}/instance")
+            params = {"op_period_id": op_period_id} if op_period_id is not None else None
+            return api_client.get(self._plan_base, params=params)
         except Exception:
             return {"special_instructions": "", "op_period_id": None}
 
-    def save_instance(self, special_instructions: str, op_period_id: str | None) -> Dict[str, Any]:
+    def save_plan(self, special_instructions: str, op_period_id: str | None) -> Dict[str, Any]:
         from utils.api_client import api_client
         return api_client.put(
-            f"{self._base}/instance",
-            json={"special_instructions": special_instructions, "op_period_id": op_period_id},
+            self._plan_base,
+            json={
+                "special_instructions": special_instructions,
+                "op_period_id": op_period_id,
+            },
         )
 
 

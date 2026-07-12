@@ -344,7 +344,7 @@ These catalog (layer 2) entries already exist but resolve to nothing
 because layer 1 was never wired for them - `context.py` hardcodes the key
 to `[]`/`{}` instead of calling an API:
 
-- `narrative` (100 entries) - should come from `unit_logs`/`ics_214_logs`, currently a hardcoded `[]`.
+- `narrative` (100 entries) - comes from canonical `ics_214_logs` streams.
 - `team_members` (32 entries) - currently a hardcoded `[]`.
 - `assignment.*` / `task.*` (the SAR 104 ground/air POD-matrix paths) - no `_build_assignment` exists in `context.py` at all yet; these resolve via `extra_data` only if a caller builds and passes that dict themselves (nobody does yet).
 
@@ -384,14 +384,8 @@ that point (follow the debrief table's format below as the template).
 | `operational_periods` | `op_period` | Wired | number, start/end, formatted date/time |
 | `incident_objectives` | `objectives` | Wired | id, description, status, priority, section, due_time, code |
 | `strategies` | - | Not started | |
-| `objective_strategy_task_links` | - | Not started | |
-| `org_positions` | `organization`, `uc_commanders`, `org_branches`, `planning_tech_specialists` | Wired | `_build_organization` joins `/org/positions` + `/org/assignments` by `position_id` to resolve each role's title (previously broken - see "ics_203 resolution" below); `_build_uc_commanders` finds all assignments under "Incident Commander"-titled position(s); `_build_org_branches` walks `/org/units` (branch/division/group classifications) + assignments into a nested branch->divisions tree; `_build_planning_tech_specialists` finds positions titled "Technical Specialist[ - <specialty>]" |
-| `org_assignments` | same four keys as above | Wired | see `org_positions` row - same builders join both collections together |
-| `org_history` | - | Not started | |
+| `incident_org` | `organization`, `uc_commanders`, `org_branches`, `planning_tech_specialists` | Wired | Canonical current organization collection. API views still expose `/org/positions`, `/org/assignments`, and `/org/units`; assignments are embedded on each position under `primary`, `deputies`, and `staff_assistants`. `_build_organization` joins those API views by `position_id`; `_build_uc_commanders` finds all assignments under "Incident Commander"-titled position(s); `_build_org_branches` walks `/org/units` (branch/division/group classifications) + assignments into a nested branch->divisions tree; `_build_planning_tech_specialists` finds positions titled "Technical Specialist[ - <specialty>]" |
 | `org_templates` | - | Not started | |
-| `org_snapshots` | - | Not started | |
-| `incident_organization` | - | Not started | distinct from `org_positions`/`org_assignments` above (different collection); not yet identified what, if anything, still needs this one |
-| `incident_journal` | - | Not started | |
 | `work_assignments` | `assignment` (catalog only) | Stub (orphaned) | catalog has `assignment.*`/`task.*` entries (SAR 104 POD matrix etc.) but no `_build_assignment` exists in context.py at all |
 
 ### Operations
@@ -399,54 +393,40 @@ that point (follow the debrief table's format below as the template).
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
 | `teams` | `teams` | Wired | raw passthrough |
-| `tasks` | `tasks` | Partial | raw passthrough + derived date/time; no separate `narrative` extraction (the top-level `narrative` key is a hardcoded `[]` stub - see Communications section) |
+| `tasks` | `tasks` | Partial | raw passthrough + derived date/time; task narrative entries are embedded in `tasks.narrative`, but there is no separate top-level `narrative` extraction yet (the top-level `narrative` key is a hardcoded `[]` stub - see Communications section) |
 | `task_debriefs` | `debrief` | **Wired** | see "Worked example" below for full field list |
-| `resource_requests` | - | Not started | (incident-level; distinct from `logistics_resource_requests`, see Logistics) |
-| `check_in_out` | - | Not started | |
-| `checkins` | - | Not started | |
-| `checkin_history` | - | Not started | |
+| `resource_requests` | - | Not started | Canonical incident resource request / ICS-213RR collection |
 | `incident_personnel` | - | Not started | assigned/checked-in roster; also backs the `team_members` stub below |
 
 ### Logistics
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `logistics_resource_requests` | - | Not started | distinct from incident `resource_requests` |
-| `logistics_resource_status_items` | `vehicles` (partial overlap) | Partial | `_build_incident_vehicles` pulls `/api/incidents/{id}/resources`, which may not be this exact collection - verify before assuming coverage when you pick this up |
 
 ### Communications
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
+| `communications_plan` | - | Not started | per-operational-period communications planning record; current live form generation passes ICS-205 special instructions as `extra_data["channels_notes"]` rather than wiring this collection through layer 1 |
 | `incident_channels` | `channels` | Wired | full incident-channel payload exposed, including ICS-205-relevant fields (`system`, assignment division/team, include_on_205, sort/line flags) plus compatibility aliases (`name`, `assignment`, `remarks`) |
-| `communications_log` | `comm_log` | Wired | full communications log entry payload exposed for layer 1/2; audit trail and saved filters remain intentionally separate collections |
-| `comms_log_audit` | - | Not started | |
-| `comms_log_filters` | - | Not started | |
-| `ics_213_messages` | `message` | Stub (orphaned) | `data["message"] = {}` hardcoded |
+| `communications_log` | `comm_log` | Wired | full communications log entry payload exposed for layer 1/2; create/update/delete metadata lives on each log entry |
 | `ics_214_logs` | `narrative` | Wired | ICS 214 stream entries are flattened into the legacy narrative shape (`timestamp`, `narrative`, `entered_by`, `team_num`, `critical`) with extra source metadata preserved alongside |
-| `ics_205_instances` | - | Not started | only live channel rows are exposed via `channels`, not the versioned ICS-205 plan document itself |
-| `unit_logs` | `narrative` | Partial | no dedicated unit-log builder yet; current narrative coverage comes from ICS 214 streams, which unblocks the form mappings that were previously orphaned |
 
 ### Medical & Safety
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
 | `ics_206_aid_stations` | `ics_206_aid_stations` | Wired | op-scoped aid station rows exposed with name, type, level, 24/7 flag, and notes |
-| `ics_206_ambulance_services` | `ics_206_ambulance_services` | Wired | op-scoped ambulance services exposed with name, type, phone, location, notes, plus computed `service_level` / `service_level_label` |
-| `ics_206_hospitals` | `ics_206_hospitals` | Wired | op-scoped ICS 206 hospitals exposed separately from master hospitals, with computed trauma display from adult/pediatric levels |
-| `ics_206_air_ambulance` | `ics_206_air_ambulance` | Wired | op-scoped air ambulance rows exposed with name, phone, base, contact, and notes |
-| `ics_206_medical_comms` | `ics_206_medical_comms` | Wired | op-scoped medical comms rows exposed with channel, function, frequency, mode, and notes |
-| `ics_206_procedures` | `ics_206_procedures` | Wired | op-scoped ICS 206 procedures exposed as a singular content record |
-| `ics_206_signatures` | `ics_206_signatures` | Wired | op-scoped ICS 206 prepared-by / approved-by signature block exposed as a singular record |
+| `medical_plan` | `ics_206_ambulance_services`, `ics_206_hospitals`, `ics_206_air_ambulance`, `ics_206_medical_comms`, `ics_206_procedures`, `ics_206_signatures` | Wired | canonical op-scoped medical plan document. Layer 1 keeps the established ICS-206 context keys/API paths, but the data now comes from embedded sections inside `medical_plan`; service level and trauma display remain computed in the context builder |
 | `hazards` | `hazards` | Wired | generic incident snapshot-backed read exposes planning/tactics hazard entries with normalized safety fields (`hazard_type_text`, risk/likelihood/severity, controls, PPE, safety message, resolved flag, notes) |
 | `safety_reports` | `safety_reports` | Wired | incident safety report list exposed with time/location/severity/flagged metadata |
 | `medical_incidents` | - | Not started | |
 | `triage_entries` | - | Not started | |
 | `hazard_zones` | `hazard_zones` | Wired | zone name, geometry JSON, severity, description, timestamps |
-| `cap_orm_summaries` | `cap_orm_summaries` | Wired | legacy CAP ORM summary records exposed as list entries |
-| `cap_orm_forms` | `cap_orm_form` | Wired | current operational period ORM form exposed as a singular record |
-| `cap_orm_hazards` | `cap_orm_hazards` | Wired | current operational period ORM hazard rows exposed as list entries; also drives CAPF 160 repeating hazard rows |
-| `cap_orm_audit` | `cap_orm_audit` | Wired | ORM audit rows exposed, filtered to the current operational period form when available |
+| `hazards` | `cap_orm_summaries` | Wired | CAPF-160 compatibility rows synthesized from canonical hazards; no separate `cap_orm_summaries` collection |
+| `hazards` | `cap_orm_form` | Wired | current operational period ORM form view synthesized from canonical hazards |
+| `hazards` | `cap_orm_hazards` | Wired | current operational period ORM hazard rows exposed from canonical hazards; also drives CAPF 160 repeating hazard rows |
+| `hazards` | `cap_orm_audit` | Wired | compatibility key retained for templates; legacy CAP audit collection removed |
 | `planning_work_assignments` | `ics_215a_rows` | Partial | computed repeating rows flatten current operational period work assignments plus embedded hazards for ICS 215A-style forms; sourced from work assignments rather than a dedicated collection |
 | `ics_208_instances` | `ics_208` | Wired | current operational period ICS 208 instance exposed as a singular record |
 | `iwi_reports` | `iwi_reports` | Wired | safety incident / IWI reports exposed with status, occurrence/location, narrative, factors, notifications, corrective actions, witnesses, and signoffs |
@@ -455,15 +435,12 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `intel_clues` | `debrief.linked_clue_ids` / `linked_clues_summary` (via `task_debriefs`) | Partial | clue **links from a debrief** are wired (titles resolved into `debrief.linked_clues_summary`); clue records are not bindable as their own form data yet |
 | `intel_subjects` | `subject` (stub) / `debrief.linked_subject_ids` (via `task_debriefs`) | Partial | the standalone `subject` top-level key is a static empty-dict stub, unrelated to the real `intel_subjects` collection; subject **links from a debrief** are wired the same way as clues above |
-| `intel_items` | (same as `intel_clues` - a Clue is an `IntelItem` with `item_type="Clue"`) | Partial | see `intel_clues` row; non-Clue item types (hazard reports, road closures, etc.) have no binding at all |
+| `intel_items` | `debrief.linked_clue_ids` / `linked_clues_summary` (via `task_debriefs`) | Partial | clue links from a debrief are wired against canonical `IntelItem` records with `item_type="Clue"`; non-Clue item types (hazard reports, road closures, etc.) have no binding yet |
 | `intel_leads` | - | Not started | |
 | `intel_assessments` | - | Not started | |
 | `intel_log` | - | Not started | |
 | `intel_reports` | - | Not started | |
-| `intel_env_snapshots` | - | Not started | legacy collection, confirm still in use before wiring |
-| `intel_form_entries` | - | Not started | legacy collection, confirm still in use before wiring |
 
 ### Liaison
 
@@ -499,12 +476,10 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `pio_messages` | - | Not started | |
+| `pio_messages` | - | Not started | Includes embedded lifecycle `approvals` history. |
 | `pio_message_revisions` | - | Not started | |
-| `pio_approvals` | - | Not started | |
 | `pio_media_log` | - | Not started | |
-| `pio_misinformation_items` | - | Not started | |
-| `pio_misinformation_timeline` | - | Not started | |
+| `pio_misinformation_items` | - | Not started | Includes embedded `timeline` events. |
 | `pio_talking_points` | - | Not started | |
 | `pio_templates` | - | Not started | |
 | `pio_template_versions` | - | Not started | |
@@ -739,7 +714,7 @@ titled `Technical Specialist` or `Technical Specialist - <specialty>`).
 directly (Liaison agencies/contacts). All four were verified end-to-end
 with a realistic nested test dict (3 UCs, a branch with a division, two
 tech specialists) and the corresponding fields filled correctly with zero
-warnings. See the updated `org_positions`/`org_assignments` rows in
+warnings. See the updated `incident_org` row in
 "Conversion status by collection" above.
 
 **Known, accepted limitation - more than 3 branches or 15 total divisions

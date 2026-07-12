@@ -1086,24 +1086,31 @@ class FormDataContext:
         if not inc_id:
             return []
         try:
-            snapshot = _get(f"/api/incidents/{inc_id}/snapshot", collections="cap_orm_summaries") or {}
-            rows = ((snapshot.get("collections") or {}).get("cap_orm_summaries")) or []
-            return [
-                {
-                    "id": row.get("id") or "",
-                    "incident_id": row.get("incident_id") or "",
-                    "form_type": row.get("form_type") or "",
-                    "activity": row.get("activity") or "",
-                    "participants_json": row.get("participants_json") or "",
-                    "hazards_json": row.get("hazards_json") or "",
-                    "mitigations_json": row.get("mitigations_json") or "",
-                    "residual_risk": row.get("residual_risk") or "",
-                    "created_by": row.get("created_by") or "",
-                    "created_at": row.get("created_at") or "",
-                    "updated_at": row.get("updated_at") or "",
-                }
-                for row in rows
-            ]
+            rows = self._build_hazards(inc_id)
+            by_op: dict[int, list[dict[str, Any]]] = {}
+            for row in rows:
+                for op in row.get("op_period_ids") or [1]:
+                    try:
+                        by_op.setdefault(int(op), []).append(row)
+                    except Exception:
+                        continue
+            summaries: list[dict[str, Any]] = []
+            for op, hazards in sorted(by_op.items()):
+                residuals = [str(h.get("residual_risk") or "") for h in hazards if h.get("residual_risk")]
+                summaries.append({
+                    "id": op,
+                    "incident_id": inc_id,
+                    "form_type": "CAPF 160",
+                    "activity": hazards[0].get("activity") or hazards[0].get("sub_activity") or "",
+                    "participants_json": "",
+                    "hazards_json": ", ".join(str(h.get("hazard_outcome") or h.get("title") or "") for h in hazards),
+                    "mitigations_json": ", ".join(str(h.get("control_text") or h.get("control_measure") or "") for h in hazards),
+                    "residual_risk": max(residuals, key=lambda r: {"L": 0, "M": 1, "H": 2, "EH": 3}.get(r, 0)) if residuals else "",
+                    "created_by": hazards[0].get("created_by") or "",
+                    "created_at": hazards[0].get("created_at") or "",
+                    "updated_at": hazards[0].get("updated_at") or "",
+                })
+            return summaries
         except Exception:
             return []
 
@@ -1160,30 +1167,7 @@ class FormDataContext:
             return []
 
     def _build_cap_orm_audit(self, inc_id: str | None, op_number: int | None) -> list[dict[str, Any]]:
-        if not inc_id:
-            return []
-        try:
-            snapshot = _get(f"/api/incidents/{inc_id}/snapshot", collections="cap_orm_audit") or {}
-            rows = ((snapshot.get("collections") or {}).get("cap_orm_audit")) or []
-            if op_number is not None:
-                form = self._build_cap_orm_form(inc_id, op_number)
-                form_id = form.get("id")
-                rows = [row for row in rows if not form_id or row.get("entity_id") in {form_id, int(form_id) if str(form_id).isdigit() else form_id}]
-            return [
-                {
-                    "incident_id": row.get("incident_id") or "",
-                    "entity": row.get("entity") or "",
-                    "entity_id": row.get("entity_id") or "",
-                    "action": row.get("action") or "",
-                    "field": row.get("field") or "",
-                    "old_value": row.get("old_value") or "",
-                    "new_value": row.get("new_value") or "",
-                    "ts_iso": row.get("ts_iso") or "",
-                }
-                for row in rows
-            ]
-        except Exception:
-            return []
+        return []
 
     def _build_ics_208(self, inc_id: str | None, op_number: int | None) -> dict[str, Any]:
         empty = {

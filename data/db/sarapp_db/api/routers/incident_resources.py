@@ -1,8 +1,8 @@
 """Incident resource check-in / check-out router.
 
-Tracks which master resources (personnel, vehicle, aircraft, equipment)
-are checked in to a given incident.  Each document in check_in_out has
-a resource_type field to distinguish them.
+Compatibility endpoints for ICS-211 and form builders that expose checked-in
+incident resources. Canonical state lives in the per-incident
+``resource_status`` collection.
 
 Endpoints are mounted under /api/incidents/{incident_id}/resources.
 """
@@ -32,21 +32,12 @@ class ResourceStatusRepository(BaseRepository):
     collection_name = IncidentCollections.RESOURCE_STATUS
 
 
-class CheckInOutRepository(BaseRepository):
-    collection_name = IncidentCollections.CHECK_IN_OUT
-    soft_deletes = False
-
-
 class _MasterLookupRepository(BaseRepository):
     pass
 
 
 def _rs_repo(incident_id: str) -> ResourceStatusRepository:
     return ResourceStatusRepository(get_incident_db(incident_id))
-
-
-def _incident_repo(incident_id: str) -> CheckInOutRepository:
-    return CheckInOutRepository(get_incident_db(incident_id))
 
 
 def _master_repo(collection_name: str) -> _MasterLookupRepository:
@@ -110,7 +101,7 @@ def list_resources(
     resource_type: str = Query(""),
 ) -> list[dict[str, Any]]:
     repo = _rs_repo(incident_id)
-    query: dict[str, Any] = {}
+    query: dict[str, Any] = {"status": {"$in": sorted(_CHECKED_IN_STATUSES)}}
     if resource_type:
         entity_type = _ENTITY_TYPE_MAP.get(resource_type.lower(), resource_type.lower())
         query["entity_type"] = entity_type
@@ -231,11 +222,25 @@ def check_in_resource(
 def check_out_resource(
     incident_id: str, resource_type: str, resource_id: str
 ) -> None:
-    repo = _incident_repo(incident_id)
-    existing = repo.find_one({
-        "resource_type": resource_type,
-        "resource_id": resource_id,
-    })
-    if not existing:
+    repo = _rs_repo(incident_id)
+    entity_type = _ENTITY_TYPE_MAP.get(resource_type.lower(), resource_type.lower())
+    rid = int(resource_id) if resource_id.isdigit() else resource_id
+    existing = repo.find_one({"entity_type": entity_type, "record_id": rid})
+    if not existing or str(existing.get("status") or "") not in _CHECKED_IN_STATUSES:
         raise HTTPException(status_code=404, detail="Resource not checked in")
-    repo.delete_one(existing["_id"])
+    now = _utcnow()
+    entry = {"status": "Demobilized", "timestamp": now, "changed_by": "Check-Out"}
+    repo.apply_update(
+        existing["_id"],
+        {
+            "$set": {
+                "status": "Demobilized",
+                "checked_out_time": now,
+                "assigned_to": None,
+                "assignment_reference": None,
+                "updated_at": now,
+            },
+            "$unset": {"checked_in_time": ""},
+            "$push": {"status_log": entry},
+        },
+    )

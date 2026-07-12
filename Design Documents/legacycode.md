@@ -39,28 +39,20 @@ Copy this section for each tracked item.
 Add entries below this line.
 
 ### checkins, check_in_out, checkin_history collections
-- Status: `legacy-compat-active`
-- Location: `data/db/sarapp_db/api/routers/checkin.py`, `data/db/sarapp_db/api/routers/incident_resources.py`, `data/db/sarapp_db/mongo/collection_names.py`, `data/db/seed_incidents_from_sqlite.py`
-- Purpose: `checkins` and `check_in_out` were the pre-redesign tables for personnel and non-personnel resource tracking respectively. `checkin_history` stored status change events per-person. All three are superseded by the `resource_status` collection, which is the new single source of truth for all resource types and embeds status history in `status_log`.
-- Legacy Source: pre-`resource_status` era resource tracking design where personnel and non-personnel used separate collections
-- Removal Condition: all roster reads and check-in writes are confirmed to use `resource_status`; no active code reads `checkins`, `check_in_out`, or `checkin_history` outside of data migration scripts
-- Verification: grep for `checkins`, `check_in_out`, `checkin_history` in routers and services; confirm no runtime callers remain
+- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
+- Runtime collection constants, indexes, and router/service reads were removed. Personnel check-in CRUD/history now uses `resource_status`; status history is embedded in `resource_status.status_log`.
 
 ### logistics_resource_status_items collection
-- Status: `legacy-compat-active`
-- Location: `data/db/sarapp_db/mongo/collection_names.py`, `data/db/sarapp_db/api/routers/` (logistics_resource_status router)
-- Purpose: was the board's own copy of status rows, populated once by the sync service and never updated live. Replaced by `resource_status`, which is written by the checkin service and ResourceStatusDesk and broadcast via WebSocket.
-- Legacy Source: pre-`resource_status` design where the board maintained its own denormalized copy separate from checkins/check_in_out
-- Removal Condition: the old logistics resource-status router and collection constant are confirmed unused
-- Verification: grep for `logistics_resource_status_items` and the old `/logistics/resource-status` route prefix
+- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
+- Old `/logistics/resource-status` router and collection constant removed. Initial Response resource picture writes `resource_status` rows with `entity_type="initial_response"`.
 
-### CIStatus enum
-- Status: `legacy-compat-active`
-- Location: `modules/logistics/checkin/models.py`
-- Purpose: status enum for roster payloads using "CheckedIn" vocabulary (vs. "Checked In" in resource_status). Retained for import compatibility at roster-reading call sites not yet migrated.
-- Legacy Source: pre-`resource_status` checkin vocabulary mismatch
-- Removal Condition: all callers are confirmed to use `RESOURCE_STATUSES` from `resource_status/models.py`; no code imports `CIStatus` for new status handling
-- Verification: grep for `CIStatus` imports; confirm only compatibility bridging code uses it
+### logistics_resource_requests collection
+- Status: `legacy-compat-candidate`
+- Location: `data/db/sarapp_db/migrations/migrate_logistics_resource_requests_to_resource_requests.py`
+- Purpose: duplicate Mongo collection name used briefly by the Logistics Resource Request / ICS-213RR router. Runtime code now writes the canonical `resource_requests` collection only.
+- Legacy Source: Mongo-era naming drift from module/table name `logistics_resource_requests` while incident overview and mobile planning already expected `resource_requests`
+- Removal Condition: all deployed incident databases have run the one-time migration with `--drop-legacy`, or inspection confirms no `logistics_resource_requests` collection exists in any incident database
+- Verification: run `python -m sarapp_db.migrations.migrate_logistics_resource_requests_to_resource_requests --dry-run` and confirm zero legacy docs remain before deleting this entry
 
 ### Personnel legacy-id migration scripts
 - Status: `legacy-compat-candidate`
@@ -90,7 +82,7 @@ Add entries below this line.
 ### bridge/incident_bridge.py — task narrative CRUD in SQLite
 - Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
 - SQLite removed. `IncidentBridge` now calls `POST/PATCH/DELETE /api/incidents/{id}/narratives`.
-- Router: `data/db/sarapp_db/api/routers/task_narratives.py` (`NarrativeRepository(BaseRepository)`).
+- Router: `data/db/sarapp_db/api/routers/task_narratives.py`; narrative entries are embedded in `tasks.narrative` and written through a task `BaseRepository` subclass.
 - Dead import removed from `main.py`.
 
 ### bridge/catalog_bridge.py — SQLite-backed catalog bridge
@@ -123,20 +115,17 @@ Add entries below this line.
 - `get_incident_engine()` and `with_incident_session()` had zero callers. `base.py` (3 lines, just `declarative_base()`) was only imported by `repository.py`. Both deleted.
 
 ### cloud_server/sarapp_db/** — mirrored Mongo/router tree
-- Status: `legacy-compat-candidate`
-- Location: `cloud_server/sarapp_db/**` (routers, mongo client, schemas)
-- Purpose: was a full mirrored copy of `data/db/sarapp_db/` intended to let `cloud_server/` run as a second, self-hosted MongoDB-backed backend. `cloud_server/` was repurposed into a stateless reverse-tunnel router (see `Design Documents/Instructions/cloud_router_architecture.md`) that forwards field-device traffic to a LAN server instead of running its own backend, so this tree is no longer imported by anything under `cloud_server/router/`, `cloud_server/main.py`, or `cloud_server/server_manager.py`. Kept in place in case a future self-hosted cloud backend is wanted again.
-- Legacy Source: pre-router cloud-server design where `cloud_server/` mirrored the whole LAN server stack
-- Removal Condition: confirmed nothing imports `cloud_server.sarapp_db`, and the reverse-tunnel router model has been validated in production for a full incident deployment
-- Verification: grep for `cloud_server.sarapp_db` or `from sarapp_db` imports under `cloud_server/` outside of the mirrored tree itself
+- Status: ~~`legacy-compat-candidate`~~ **DELETED 2026-07-12**
+- Was: `cloud_server/sarapp_db/**` (routers, mongo client, schemas) — a full mirrored copy of `data/db/sarapp_db/` from a pre-router cloud-server design where `cloud_server/` ran as a second, self-hosted MongoDB-backed backend. `cloud_server/` was later repurposed into a stateless reverse-tunnel router (see `Design Documents/Instructions/cloud_router_architecture.md`); this mirror had been dead weight since then — nothing under `cloud_server/router/`, `cloud_server/main.py`, or `cloud_server/server_manager.py` ever imported it, and `sarapp_server.py` explicitly excluded `cloud_server` from its local-import path because of it.
+- Also removed the tooling that existed only to keep the mirror in sync: `scripts/validate-cloud-server-mirror.sh`, its pre-commit hook in `.claude/settings.json`, and the auto-mirror step in the `new-router`/`new-module` skills. `Design Documents/Instructions/api_router_rules.md` already said mirroring wasn't required; the deleted tooling had drifted out of sync with that and was still generating pointless mirror edits (see git history on `cloud_server/sarapp_db/api/routers/communications.py` immediately before this deletion for an example).
 
 ### CAP ORM router endpoints and collections — superseded by Safety Risk Manager
-- Status: `legacy-compat-active`
-- Location: `data/db/sarapp_db/api/routers/safety.py` (`get_orm_form`, `update_orm_form`, `list_orm_hazards`, `create_orm_hazard`, `update_orm_hazard`, `delete_orm_hazard`, `approve_orm_form`, `create_cap_orm_summary`), `data/db/sarapp_db/mongo/collection_names.py` (`CAP_ORM_FORMS`, `CAP_ORM_HAZARDS`, `CAP_ORM_SUMMARIES`, `CAP_ORM_AUDIT`)
-- Purpose: the CAP-style severity/likelihood risk-matrix ORM form/hazard workflow. The desktop UI (`modules/safety/orm/`) no longer writes to these endpoints — it was rebuilt as the Safety Risk Manager, a canonical SPE-scored hazard register writing to `IncidentCollections.HAZARDS`. These endpoints/collections are kept only because `modules/forms_creator/context.py` (`_build_cap_orm_form`, `_build_cap_orm_hazards`, `_build_cap_orm_summaries`, `_build_cap_orm_audit`) still reads them for CAPF-160-style form binding/export.
-- Legacy Source: pre-SPE CAP ORM risk-matrix workflow, retained as a read-only data source for form exports after the UI cutover to `modules/safety/orm/` (Safety Risk Manager)
-- Removal Condition: `forms_creator` no longer needs CAP ORM fields for any form template, or a CAPF-160 export adapter is rebuilt to read from the canonical `hazards` collection instead
-- Verification: grep for `cap_orm` in `modules/forms_creator/context.py` and `forms/sets/cap/**/mapping.json`; confirm no template still binds to `cap_orm_*` fields before deleting the router endpoints/collections
+- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
+- CAP ORM collection constants, indexes, summary endpoint, and SQLAlchemy model were removed. Compatibility `/safety/orm/form` and `/safety/orm/hazards` endpoints now synthesize/read/write CAPF-160-shaped data from canonical `hazards` documents.
+
+### intel_clues collection and endpoints
+- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
+- Communications clue capture now writes canonical `intel_items` records with `item_type="Clue"`. Task-detail clue linking and form-context clue summaries were already using `IntelItemsRepository`.
 
 ### app/modules/planning/iap/models/repository.py — IAP CRUD in SQLite
 - Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**

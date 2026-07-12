@@ -4,8 +4,7 @@ Intel Module API router — Module 7 All-Hazards Information Management.
 Covers: subjects, leads, intel items (with embedded observations),
 assessments, intel log, reports, and the dashboard summary endpoint.
 
-Legacy clue/env-snapshot/form-entry endpoints are retained at the bottom
-for backward compatibility until they are formally decommissioned.
+Clues are represented as intel items with item_type="Clue".
 """
 
 from __future__ import annotations
@@ -44,11 +43,6 @@ class IntelLogRepository(BaseRepository):
     soft_deletes = False
 
 
-class IntelCluesRepository(BaseRepository):
-    collection_name = IncidentCollections.INTEL_CLUES
-    soft_deletes = False
-
-
 def _subjects_repo(incident_id: str) -> IntelSubjectsRepository:
     return IntelSubjectsRepository(get_incident_db(incident_id))
 
@@ -69,34 +63,12 @@ def _log_repo(incident_id: str) -> IntelLogRepository:
     return IntelLogRepository(get_incident_db(incident_id))
 
 
-def _clues_repo(incident_id: str) -> IntelCluesRepository:
-    return IntelCluesRepository(get_incident_db(incident_id))
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def _ensure_int_ids(repo: BaseRepository) -> None:
-    """Lazy-migrate documents that are missing int_id (numeric surrogate key)."""
-    col = repo._col
-    missing = list(col.find({"int_id": {"$exists": False}}, {"_id": 1}))
-    if not missing:
-        return
-    top = col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
-    next_id = (top["int_id"] + 1) if top else 1
-    for doc in missing:
-        col.update_one({"_id": doc["_id"]}, {"$set": {"int_id": next_id}})
-        next_id += 1
-
-
-def _next_int_id(repo: BaseRepository) -> int:
-    top = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
-    return (top["int_id"] + 1) if top else 1
 
 
 def _write_log(incident_id: str, entity_type: str, entity_id: str,
@@ -1197,87 +1169,3 @@ def write_intel_log_entry(
     _write_log(incident_id, entity_type, entity_id, event_type, summary, actor)
     return {"ok": True}
 
-
-# ===========================================================================
-# LEGACY — retained for backward compatibility
-# Clues, env-snapshots, and form-entries from the pre-redesign module.
-# ===========================================================================
-
-def _map_clue(doc: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "id": doc.get("int_id"),
-        "type": doc.get("type", ""),
-        "score": doc.get("score", 0),
-        "at_time": doc.get("at_time", ""),
-        "location_text": doc.get("location_text", ""),
-        "geom": doc.get("geom"),
-        "entered_by": doc.get("entered_by", ""),
-        "team_text": doc.get("team_text"),
-        "description": doc.get("description"),
-        "attachments_json": doc.get("attachments_json"),
-        "linked_subject_id": doc.get("linked_subject_id"),
-        "linked_task_id": doc.get("linked_task_id"),
-        "created_at": doc.get("created_at", ""),
-        "updated_at": doc.get("updated_at", ""),
-    }
-
-
-class ClueCreate(BaseModel):
-    type: str
-    score: int = 0
-    at_time: str
-    location_text: str
-    entered_by: str
-    geom: Optional[str] = None
-    team_text: Optional[str] = None
-    description: Optional[str] = None
-    attachments_json: Optional[str] = None
-    linked_subject_id: Optional[int] = None
-    linked_task_id: Optional[int] = None
-
-
-@router.get("/incidents/{incident_id}/intel/clues")
-def list_clues(incident_id: str):
-    repo = _clues_repo(incident_id)
-    _ensure_int_ids(repo)
-    docs = repo.find_many({"incident_id": incident_id}, sort=[("created_at", -1)])
-    return [_map_clue(d) for d in docs]
-
-
-@router.post("/incidents/{incident_id}/intel/clues", status_code=201)
-def add_clue(incident_id: str, data: ClueCreate):
-    repo = _clues_repo(incident_id)
-    _ensure_int_ids(repo)
-    int_id = _next_int_id(repo)
-    doc = {"int_id": int_id, "incident_id": incident_id, **data.model_dump()}
-    repo.insert_one(doc)
-    return _map_clue(repo.find_one({"int_id": int_id}))
-
-
-@router.get("/incidents/{incident_id}/intel/clues/{clue_id}")
-def get_clue(incident_id: str, clue_id: int):
-    repo = _clues_repo(incident_id)
-    doc = repo.find_one({"int_id": clue_id, "incident_id": incident_id})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Clue not found")
-    return _map_clue(doc)
-
-
-@router.put("/incidents/{incident_id}/intel/clues/{clue_id}")
-def update_clue(incident_id: str, clue_id: int, data: ClueCreate):
-    repo = _clues_repo(incident_id)
-    existing = repo.find_one({"int_id": clue_id, "incident_id": incident_id})
-    if not existing:
-        raise HTTPException(status_code=404, detail="Clue not found")
-    repo.update_one(existing["_id"], data.model_dump())
-    result = repo.find_by_id(existing["_id"])
-    return _map_clue(result)
-
-
-@router.delete("/incidents/{incident_id}/intel/clues/{clue_id}", status_code=204)
-def delete_clue(incident_id: str, clue_id: int):
-    repo = _clues_repo(incident_id)
-    existing = repo.find_one({"int_id": clue_id, "incident_id": incident_id})
-    if not existing:
-        raise HTTPException(status_code=404, detail="Clue not found")
-    repo.delete_one(existing["_id"])

@@ -35,22 +35,16 @@ DEFAULT_MAX_HEAVY_COLLECTION_DOCS = 500
 _HEAVY_COLLECTIONS = {
     IncidentCollections.AUDIT_LOGS,
     IncidentCollections.ATTACHMENTS,
-    IncidentCollections.CHECKIN_HISTORY,
     IncidentCollections.COMMUNICATIONS_LOG,
-    IncidentCollections.COMMS_LOG_AUDIT,
     IncidentCollections.FORM_INSTANCE_AUDIT,
     IncidentCollections.FORM_INSTANCE_EXPORTS,
     IncidentCollections.FORM_INSTANCE_REVISIONS,
     IncidentCollections.ICS_214_LOGS,
-    IncidentCollections.INCIDENT_JOURNAL,
     IncidentCollections.INTEL_LOG,
     IncidentCollections.NOTIFICATIONS,
     IncidentCollections.PIO_DISTRIBUTION_LOG,
     IncidentCollections.PIO_GENERATED_DOCUMENTS,
     IncidentCollections.PIO_MESSAGE_REVISIONS,
-    IncidentCollections.PIO_MISINFORMATION_TIMELINE,
-    IncidentCollections.TASK_NARRATIVES,
-    IncidentCollections.UNIT_LOGS,
 }
 
 _RECENT_SORT_FIELDS = (

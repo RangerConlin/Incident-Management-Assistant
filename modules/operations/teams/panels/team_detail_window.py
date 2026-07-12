@@ -306,14 +306,14 @@ class AddTeamMemberDialog(QDialog):
             pid = getattr(item, 'person_id', '')
             status_val = ''
             try:
-                from modules.logistics.checkin.models import CIStatus, PersonnelStatus as _PS
+                from modules.logistics.checkin.models import PersonnelStatus as _PS, normalize_checkin_status
                 ci = getattr(item, 'ci_status', None)
                 ps = getattr(item, 'personnel_status', None)
                 if str(ps or '') == str(getattr(_PS, 'ASSIGNED')):
                     status_val = 'Assigned'
-                elif str(ci or '') == str(getattr(CIStatus, 'CHECKED_IN')) or str(ci or '') == str(getattr(CIStatus, 'AT_ICP')):
+                elif ci and normalize_checkin_status(str(ci)) == 'Checked In':
                     status_val = 'Checked In'
-                elif str(ci or '') == str(getattr(CIStatus, 'PENDING')):
+                elif ci and normalize_checkin_status(str(ci)) == 'Pending':
                     status_val = 'Enroute'
                 elif str(ps or '') == str(getattr(_PS, 'AVAILABLE')):
                     status_val = 'Available'
@@ -1134,7 +1134,7 @@ class TeamDetailBridge(QObject):
             person_name: str | None = None
             try:
                 from modules.logistics.checkin import repository as ci_repo
-                from modules.logistics.checkin.models import CheckInRecord, CIStatus, PersonnelStatus, Location
+                from modules.logistics.checkin.models import CheckInRecord, PersonnelStatus, Location
                 now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
                 rec = ci_repo.fetch_checkin(int(pid))
                 if rec is None:
@@ -1146,7 +1146,8 @@ class TeamDetailBridge(QObject):
                     person_name = getattr(ident, 'name', None) or getattr(ident, 'full_name', None)
                     rec = CheckInRecord(
                         person_record=int(pid),
-                        ci_status=CIStatus.CHECKED_IN,
+                        status="Checked In",
+                        ci_status="Checked In",
                         personnel_status=PersonnelStatus.ASSIGNED,
                         arrival_time=now_iso,
                         location=Location.ICP,

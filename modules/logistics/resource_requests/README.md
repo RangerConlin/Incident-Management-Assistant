@@ -1,12 +1,11 @@
 # Logistics Resource Requests Module
 
-This package implements the Logistics 4-1 Resource Request workflow for the SARApp / ICS Command Assistant desktop application.  The implementation is QtWidgets-only and stores incident data in SQLite databases found under `data/incidents/<incident_id>.db`.
+This package implements the Logistics 4-1 Resource Request workflow for the SARApp / ICS Command Assistant desktop application.  The implementation is QtWidgets-only and stores incident data through the shared API in the per-incident MongoDB `resource_requests` collection.
 
 ## Features
 
 - Full lifecycle management covering `DRAFT → SUBMITTED → REVIEWED → APPROVED → ASSIGNED → INTRANSIT → DELIVERED → CLOSED` with handling for `DENIED`, `CANCELLED`, and partial fulfilments.
-- SQLite migrations (`data/migrations/0001_init.sql`) establishing all required tables plus indexes.
-- Service layer (`api/service.py`) implementing CRUD operations, validations, audit logging, versioning, and fulfilment management.
+- API-backed service layer (`api/service.py`) implementing CRUD operations, validations, audit logging, versioning, and fulfilment management.
 - PDF generation helpers (`api/printers.py`) that export ICS-213 RR and summary sheets with optional training watermarks and QR codes.
 - QtWidgets panels and widgets for list/detail views, approvals, fulfilment tracking, and audit history.
 - Demo seed script (`data/seed_demo.py`) that populates the master supplier list and creates a training incident with example requests.

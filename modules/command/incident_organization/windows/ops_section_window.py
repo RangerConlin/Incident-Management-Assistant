@@ -7,7 +7,7 @@ structure: branches, divisions, groups, and their assigned resources.
 Resources are currently treated as single resources (teams); task force
 and strike team scaffolding is present for future expansion.
 
-Deputies, staff assistants, trainees, and relief are shown as secondary assignments
+Deputies, staff assistants, and trainees are shown as secondary assignments
 (assignment_type field) on the parent position rather than as separate
 position nodes.
 """
@@ -46,7 +46,6 @@ from ..models import (
     ASSIGNMENT_TYPE_ASSISTANT,
     ASSIGNMENT_TYPE_DEPUTY,
     ASSIGNMENT_TYPE_PRIMARY,
-    ASSIGNMENT_TYPE_RELIEF,
     ASSIGNMENT_TYPE_STAFF_ASSISTANT,
     ASSIGNMENT_TYPE_TRAINEE,
     OrganizationPosition,
@@ -105,29 +104,26 @@ _RESOURCE_TYPE_LABELS = {
 # Command Staff positions can have assistants and staff assistants.
 # Section Chiefs have deputies, assistants, and staff assistants.
 _ICS_SUPPORT_TITLES: dict[str, dict[str, str]] = {
-    "command": {"deputy": "Deputy", "trainee": "Trainee", "relief": "Relief"},
+    "command": {"deputy": "Deputy", "trainee": "Trainee"},
     "section": {
         "deputy": "Deputy",
         "assistant": "Assistant",
         "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
-        "relief": "Relief",
     },
     "branch": {
         "deputy": "Deputy Director",
         "assistant": "Assistant Director",
         "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
-        "relief": "Relief",
     },
-    "division": {"trainee": "Trainee", "relief": "Relief"},
-    "group": {"trainee": "Trainee", "relief": "Relief"},
-    "unit":    {"trainee": "Trainee", "relief": "Relief"},
+    "division": {"trainee": "Trainee"},
+    "group": {"trainee": "Trainee"},
+    "unit":    {"trainee": "Trainee"},
     "position": {
         "assistant": "Assistant",
         "staff_assistant": "Staff Assistant",
         "trainee": "Trainee",
-        "relief": "Relief",
     },
 }
 
@@ -220,18 +216,6 @@ class _AddBranchDialog(QDialog):
         self._populate_parents(parent_candidates, ops_section_id)
         layout.addRow("Parent section", self.parent_combo)
 
-        self.director_edit = QLineEdit(self)
-        self.director_edit.setPlaceholderText("Optional — assign later if unknown")
-        layout.addRow("Branch Director", self.director_edit)
-
-        self.deputy_edit = QLineEdit(self)
-        self.deputy_edit.setPlaceholderText("Optional — deputy director")
-        layout.addRow("Deputy Director", self.deputy_edit)
-
-        self.notes_edit = QTextEdit(self)
-        self.notes_edit.setMaximumHeight(64)
-        layout.addRow("Notes", self.notes_edit)
-
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self._handle_accept)
         buttons.rejected.connect(self.reject)
@@ -261,9 +245,6 @@ class _AddBranchDialog(QDialog):
         return {
             "name": self.name_edit.text().strip(),
             "parent_id": self.parent_combo.currentData(),
-            "director_name": self.director_edit.text().strip() or None,
-            "deputy_name": self.deputy_edit.text().strip() or None,
-            "notes": self.notes_edit.toPlainText().strip() or None,
         }
 
 
@@ -292,18 +273,6 @@ class _AddAirOpsBranchDialog(QDialog):
         info.setWordWrap(True)
         layout.addRow(info)
 
-        self.director_edit = QLineEdit(self)
-        self.director_edit.setPlaceholderText("Optional — assign later if unknown")
-        layout.addRow("Air Ops Branch Director", self.director_edit)
-
-        self.deputy_edit = QLineEdit(self)
-        self.deputy_edit.setPlaceholderText("Optional — deputy director")
-        layout.addRow("Deputy Director", self.deputy_edit)
-
-        self.notes_edit = QTextEdit(self)
-        self.notes_edit.setMaximumHeight(64)
-        layout.addRow("Notes", self.notes_edit)
-
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -311,9 +280,6 @@ class _AddAirOpsBranchDialog(QDialog):
 
     def values(self) -> dict:
         return {
-            "director_name": self.director_edit.text().strip() or None,
-            "deputy_name": self.deputy_edit.text().strip() or None,
-            "notes": self.notes_edit.toPlainText().strip() or None,
         }
 
 
@@ -341,10 +307,6 @@ class _AddDivisionGroupDialog(QDialog):
         self._populate_parents(branch_candidates, preset_parent_id)
         layout.addRow("Parent branch / section", self.parent_combo)
 
-        self.supervisor_edit = QLineEdit(self)
-        self.supervisor_edit.setPlaceholderText("Optional — assign later if unknown")
-        layout.addRow("Supervisor", self.supervisor_edit)
-
         info = QLabel(
             "Note: Division/Group Supervisors do not have deputies or "
             "assistants per ICS standards (N/A).",
@@ -353,10 +315,6 @@ class _AddDivisionGroupDialog(QDialog):
         info.setWordWrap(True)
         info.setStyleSheet("color: #757575; font-style: italic;")
         layout.addRow("", info)
-
-        self.notes_edit = QTextEdit(self)
-        self.notes_edit.setMaximumHeight(64)
-        layout.addRow("Notes", self.notes_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self._handle_accept)
@@ -386,8 +344,6 @@ class _AddDivisionGroupDialog(QDialog):
             "name": self.name_edit.text().strip(),
             "classification": self.type_combo.currentText().lower(),
             "parent_id": self.parent_combo.currentData(),
-            "supervisor_name": self.supervisor_edit.text().strip() or None,
-            "notes": self.notes_edit.toPlainText().strip() or None,
         }
 
 
@@ -410,32 +366,6 @@ class _AddPositionDialog(QDialog):
         self.parent_combo = QComboBox(self)
         self._populate_parents(parent_candidates, preset_parent_id)
         layout.addRow("Parent position / unit", self.parent_combo)
-
-        self.period_edit = QLineEdit(self)
-        self.period_edit.setPlaceholderText("Optional operational period")
-        layout.addRow("Operational period", self.period_edit)
-
-        self.qualifications_edit = QLineEdit(self)
-        self.qualifications_edit.setPlaceholderText("Optional, comma-separated")
-        layout.addRow("Required qualifications", self.qualifications_edit)
-
-        self.critical_check = QPushButton("Critical position", self)
-        self.critical_check.setCheckable(True)
-        layout.addRow("", self.critical_check)
-
-        self.custom_check = QPushButton("Custom AHJ-defined title/structure", self)
-        self.custom_check.setCheckable(True)
-        self.custom_check.setChecked(True)
-        layout.addRow("", self.custom_check)
-
-        self.air_ops_check = QPushButton("Air Operations Branch", self)
-        self.air_ops_check.setCheckable(True)
-        self.air_ops_check.setChecked(False)
-        layout.addRow("", self.air_ops_check)
-
-        self.notes_edit = QTextEdit(self)
-        self.notes_edit.setMaximumHeight(64)
-        layout.addRow("Notes", self.notes_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self._handle_accept)
@@ -464,12 +394,6 @@ class _AddPositionDialog(QDialog):
         return {
             "title": self.title_edit.text().strip(),
             "parent_id": self.parent_combo.currentData(),
-            "operational_period": self.period_edit.text().strip() or None,
-            "required_qualifications": self.qualifications_edit.text().strip() or None,
-            "is_critical": self.critical_check.isChecked(),
-            "is_custom": self.custom_check.isChecked(),
-            "is_air_ops": self.air_ops_check.isChecked(),
-            "notes": self.notes_edit.toPlainText().strip() or None,
         }
 
 
@@ -731,7 +655,7 @@ class OperationsSectionWindow(QDialog):
         self.btn_add_air_ops_branch.setEnabled(not self._has_air_ops_branch())
 
     def _has_air_ops_branch(self) -> bool:
-        return any(p.is_air_ops for p in self._positions_by_id.values())
+        return any("air operations" in p.title.casefold() for p in self._positions_by_id.values())
 
     def _refresh_tree(self) -> None:
         positions = self.controller.list_positions()
@@ -869,7 +793,6 @@ class OperationsSectionWindow(QDialog):
             ASSIGNMENT_TYPE_ASSISTANT: "Assistant",
             ASSIGNMENT_TYPE_STAFF_ASSISTANT: "Staff Assistant",
             ASSIGNMENT_TYPE_TRAINEE: "Trainee",
-            ASSIGNMENT_TYPE_RELIEF: "Relief",
         }
         for at in (
             ASSIGNMENT_TYPE_PRIMARY,
@@ -877,7 +800,6 @@ class OperationsSectionWindow(QDialog):
             ASSIGNMENT_TYPE_ASSISTANT,
             ASSIGNMENT_TYPE_STAFF_ASSISTANT,
             ASSIGNMENT_TYPE_TRAINEE,
-            ASSIGNMENT_TYPE_RELIEF,
         ):
             names = [
                 a.person_name
@@ -971,22 +893,7 @@ class OperationsSectionWindow(QDialog):
             branch_id = self.controller.add_branch(
                 v["name"],
                 v["parent_id"],
-                director_name=v["director_name"],
-                notes=v["notes"],
             )
-            # Add deputy as a secondary assignment on the branch director position
-            if v.get("deputy_name"):
-                # The branch director is the first child position of the branch
-                positions = self.controller.list_positions()
-                director_positions = [
-                    p for p in positions
-                    if p.parent_position_id == branch_id
-                ]
-                if director_positions:
-                    self.controller.assign_person(director_positions[0].id or 0, {
-                        "person_name": v["deputy_name"],
-                        "assignment_type": "deputy",
-                    })
         except ValueError as exc:
             QMessageBox.warning(self, "Add Branch", str(exc))
             return
@@ -1012,21 +919,8 @@ class OperationsSectionWindow(QDialog):
             branch_id = self.controller.add_branch(
                 "Air Operations Branch",
                 ops_id,
-                director_name=v["director_name"],
-                notes=v["notes"],
                 is_air_ops=True,
             )
-            if v.get("deputy_name"):
-                positions = self.controller.list_positions()
-                director_positions = [
-                    p for p in positions
-                    if p.parent_position_id == branch_id
-                ]
-                if director_positions:
-                    self.controller.assign_person(director_positions[0].id or 0, {
-                        "person_name": v["deputy_name"],
-                        "assignment_type": "deputy",
-                    })
         except ValueError as exc:
             QMessageBox.warning(self, "Add Air Operations Branch", str(exc))
             return
@@ -1050,8 +944,6 @@ class OperationsSectionWindow(QDialog):
                 v["name"],
                 v["classification"],
                 parent_id,
-                supervisor_name=v["supervisor_name"],
-                notes=v["notes"],
             )
         except ValueError as exc:
             QMessageBox.warning(self, "Add Division / Group", str(exc))
@@ -1073,12 +965,6 @@ class OperationsSectionWindow(QDialog):
                 "title": v["title"],
                 "classification": "position",
                 "parent_position_id": parent_id,
-                "operational_period": v["operational_period"],
-                "required_qualifications": v["required_qualifications"],
-                "is_critical": v["is_critical"],
-                "is_custom": v["is_custom"],
-                "is_air_ops": v["is_air_ops"],
-                "notes": v["notes"],
             })
         except ValueError as exc:
             QMessageBox.warning(self, "Add Position", str(exc))
@@ -1099,9 +985,6 @@ class OperationsSectionWindow(QDialog):
         layout = QFormLayout(dialog)
         name_edit = QLineEdit(pos.title, dialog)
         layout.addRow("Name", name_edit)
-        notes_edit = QTextEdit(pos.notes or "", dialog)
-        notes_edit.setMaximumHeight(64)
-        layout.addRow("Notes", notes_edit)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
@@ -1116,7 +999,6 @@ class OperationsSectionWindow(QDialog):
         try:
             self.controller.update_position(unit_id, {
                 "title": new_name,
-                "notes": notes_edit.toPlainText().strip() or None,
             })
         except ValueError as exc:
             QMessageBox.warning(self, "Edit", str(exc))

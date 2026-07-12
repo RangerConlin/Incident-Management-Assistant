@@ -56451,7 +56451,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 0
   },
@@ -56460,7 +56460,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 0
   },
@@ -56469,7 +56469,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 0
   },
@@ -56478,7 +56478,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 0
   },
@@ -56487,7 +56487,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 0
   },
@@ -56496,7 +56496,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 0
   },
@@ -56505,7 +56505,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 0
   },
@@ -56514,7 +56514,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 0
   },
@@ -56523,7 +56523,7 @@
     "label": "ICS 206 Ambulance Service 1 (1st) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 0
   },
@@ -56532,7 +56532,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 1
   },
@@ -56541,7 +56541,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 1
   },
@@ -56550,7 +56550,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 1
   },
@@ -56559,7 +56559,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 1
   },
@@ -56568,7 +56568,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 1
   },
@@ -56577,7 +56577,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 1
   },
@@ -56586,7 +56586,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 1
   },
@@ -56595,7 +56595,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 1
   },
@@ -56604,7 +56604,7 @@
     "label": "ICS 206 Ambulance Service 2 (2nd) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 1
   },
@@ -56613,7 +56613,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 2
   },
@@ -56622,7 +56622,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 2
   },
@@ -56631,7 +56631,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 2
   },
@@ -56640,7 +56640,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 2
   },
@@ -56649,7 +56649,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 2
   },
@@ -56658,7 +56658,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 2
   },
@@ -56667,7 +56667,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 2
   },
@@ -56676,7 +56676,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 2
   },
@@ -56685,7 +56685,7 @@
     "label": "ICS 206 Ambulance Service 3 (3rd) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 2
   },
@@ -56694,7 +56694,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 3
   },
@@ -56703,7 +56703,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 3
   },
@@ -56712,7 +56712,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 3
   },
@@ -56721,7 +56721,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 3
   },
@@ -56730,7 +56730,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 3
   },
@@ -56739,7 +56739,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 3
   },
@@ -56748,7 +56748,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 3
   },
@@ -56757,7 +56757,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 3
   },
@@ -56766,7 +56766,7 @@
     "label": "ICS 206 Ambulance Service 4 (4th) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 3
   },
@@ -56775,7 +56775,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 4
   },
@@ -56784,7 +56784,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 4
   },
@@ -56793,7 +56793,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 4
   },
@@ -56802,7 +56802,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 4
   },
@@ -56811,7 +56811,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 4
   },
@@ -56820,7 +56820,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 4
   },
@@ -56829,7 +56829,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 4
   },
@@ -56838,7 +56838,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 4
   },
@@ -56847,7 +56847,7 @@
     "label": "ICS 206 Ambulance Service 5 (5th) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 4
   },
@@ -56856,7 +56856,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 5
   },
@@ -56865,7 +56865,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 5
   },
@@ -56874,7 +56874,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 5
   },
@@ -56883,7 +56883,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 5
   },
@@ -56892,7 +56892,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 5
   },
@@ -56901,7 +56901,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 5
   },
@@ -56910,7 +56910,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 5
   },
@@ -56919,7 +56919,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 5
   },
@@ -56928,7 +56928,7 @@
     "label": "ICS 206 Ambulance Service 6 (6th) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 5
   },
@@ -56937,7 +56937,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 6
   },
@@ -56946,7 +56946,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 6
   },
@@ -56955,7 +56955,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 6
   },
@@ -56964,7 +56964,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 6
   },
@@ -56973,7 +56973,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 6
   },
@@ -56982,7 +56982,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 6
   },
@@ -56991,7 +56991,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 6
   },
@@ -57000,7 +57000,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 6
   },
@@ -57009,7 +57009,7 @@
     "label": "ICS 206 Ambulance Service 7 (7th) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 6
   },
@@ -57018,7 +57018,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 7
   },
@@ -57027,7 +57027,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 7
   },
@@ -57036,7 +57036,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 7
   },
@@ -57045,7 +57045,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 7
   },
@@ -57054,7 +57054,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 7
   },
@@ -57063,7 +57063,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 7
   },
@@ -57072,7 +57072,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 7
   },
@@ -57081,7 +57081,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 7
   },
@@ -57090,7 +57090,7 @@
     "label": "ICS 206 Ambulance Service 8 (8th) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 7
   },
@@ -57099,7 +57099,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 8
   },
@@ -57108,7 +57108,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 8
   },
@@ -57117,7 +57117,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 8
   },
@@ -57126,7 +57126,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 8
   },
@@ -57135,7 +57135,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 8
   },
@@ -57144,7 +57144,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 8
   },
@@ -57153,7 +57153,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 8
   },
@@ -57162,7 +57162,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 8
   },
@@ -57171,7 +57171,7 @@
     "label": "ICS 206 Ambulance Service 9 (9th) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 8
   },
@@ -57180,7 +57180,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — ID",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "id",
     "index": 9
   },
@@ -57189,7 +57189,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Operational Period",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 9
   },
@@ -57198,7 +57198,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Name",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "name",
     "index": 9
   },
@@ -57207,7 +57207,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Type",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "type",
     "index": 9
   },
@@ -57216,7 +57216,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Service Level",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level",
     "index": 9
   },
@@ -57225,7 +57225,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Service Level Label",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "service_level_label",
     "index": 9
   },
@@ -57234,7 +57234,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Phone",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "phone",
     "index": 9
   },
@@ -57243,7 +57243,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Location",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "location",
     "index": 9
   },
@@ -57252,7 +57252,7 @@
     "label": "ICS 206 Ambulance Service 10 (10th) — Notes",
     "category": "ICS 206 Ambulance Services",
     "source_type": "incident_db",
-    "table": "ics_206_ambulance_services",
+    "table": "medical_plan",
     "column": "notes",
     "index": 9
   },
@@ -57261,7 +57261,7 @@
     "label": "ICS 206 Hospital 1 (1st) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 0
   },
@@ -57270,7 +57270,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 0
   },
@@ -57279,7 +57279,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 0
   },
@@ -57288,7 +57288,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 0
   },
@@ -57297,7 +57297,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 0
   },
@@ -57306,7 +57306,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 0
   },
@@ -57315,7 +57315,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 0
   },
@@ -57324,7 +57324,7 @@
     "label": "ICS 206 Hospital 1 (1st) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 0
   },
@@ -57333,7 +57333,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 0
   },
@@ -57342,7 +57342,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 0
   },
@@ -57351,7 +57351,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 0
   },
@@ -57360,7 +57360,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 0
   },
@@ -57369,7 +57369,7 @@
     "label": "ICS 206 Hospital 1 (1st) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 0
   },
@@ -57378,7 +57378,7 @@
     "label": "ICS 206 Hospital 1 (1st) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 0
   },
@@ -57387,7 +57387,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 0
   },
@@ -57396,7 +57396,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 0
   },
@@ -57405,7 +57405,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 0
   },
@@ -57414,7 +57414,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 0
   },
@@ -57423,7 +57423,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 0
   },
@@ -57432,7 +57432,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 0
   },
@@ -57441,7 +57441,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 0
   },
@@ -57450,7 +57450,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 0
   },
@@ -57459,7 +57459,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 0
   },
@@ -57468,7 +57468,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 0
   },
@@ -57477,7 +57477,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 0
   },
@@ -57486,7 +57486,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 0
   },
@@ -57495,7 +57495,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 0
   },
@@ -57504,7 +57504,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 0
   },
@@ -57513,7 +57513,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 0
   },
@@ -57522,7 +57522,7 @@
     "label": "ICS 206 Hospital 1 (1st) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 0
   },
@@ -57531,7 +57531,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 1
   },
@@ -57540,7 +57540,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 1
   },
@@ -57549,7 +57549,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 1
   },
@@ -57558,7 +57558,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 1
   },
@@ -57567,7 +57567,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 1
   },
@@ -57576,7 +57576,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 1
   },
@@ -57585,7 +57585,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 1
   },
@@ -57594,7 +57594,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 1
   },
@@ -57603,7 +57603,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 1
   },
@@ -57612,7 +57612,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 1
   },
@@ -57621,7 +57621,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 1
   },
@@ -57630,7 +57630,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 1
   },
@@ -57639,7 +57639,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 1
   },
@@ -57648,7 +57648,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 1
   },
@@ -57657,7 +57657,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 1
   },
@@ -57666,7 +57666,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 1
   },
@@ -57675,7 +57675,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 1
   },
@@ -57684,7 +57684,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 1
   },
@@ -57693,7 +57693,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 1
   },
@@ -57702,7 +57702,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 1
   },
@@ -57711,7 +57711,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 1
   },
@@ -57720,7 +57720,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 1
   },
@@ -57729,7 +57729,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 1
   },
@@ -57738,7 +57738,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 1
   },
@@ -57747,7 +57747,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 1
   },
@@ -57756,7 +57756,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 1
   },
@@ -57765,7 +57765,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 1
   },
@@ -57774,7 +57774,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 1
   },
@@ -57783,7 +57783,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 1
   },
@@ -57792,7 +57792,7 @@
     "label": "ICS 206 Hospital 2 (2nd) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 1
   },
@@ -57801,7 +57801,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 2
   },
@@ -57810,7 +57810,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 2
   },
@@ -57819,7 +57819,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 2
   },
@@ -57828,7 +57828,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 2
   },
@@ -57837,7 +57837,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 2
   },
@@ -57846,7 +57846,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 2
   },
@@ -57855,7 +57855,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 2
   },
@@ -57864,7 +57864,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 2
   },
@@ -57873,7 +57873,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 2
   },
@@ -57882,7 +57882,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 2
   },
@@ -57891,7 +57891,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 2
   },
@@ -57900,7 +57900,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 2
   },
@@ -57909,7 +57909,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 2
   },
@@ -57918,7 +57918,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 2
   },
@@ -57927,7 +57927,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 2
   },
@@ -57936,7 +57936,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 2
   },
@@ -57945,7 +57945,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 2
   },
@@ -57954,7 +57954,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 2
   },
@@ -57963,7 +57963,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 2
   },
@@ -57972,7 +57972,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 2
   },
@@ -57981,7 +57981,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 2
   },
@@ -57990,7 +57990,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 2
   },
@@ -57999,7 +57999,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 2
   },
@@ -58008,7 +58008,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 2
   },
@@ -58017,7 +58017,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 2
   },
@@ -58026,7 +58026,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 2
   },
@@ -58035,7 +58035,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 2
   },
@@ -58044,7 +58044,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 2
   },
@@ -58053,7 +58053,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 2
   },
@@ -58062,7 +58062,7 @@
     "label": "ICS 206 Hospital 3 (3rd) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 2
   },
@@ -58071,7 +58071,7 @@
     "label": "ICS 206 Hospital 4 (4th) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 3
   },
@@ -58080,7 +58080,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 3
   },
@@ -58089,7 +58089,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 3
   },
@@ -58098,7 +58098,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 3
   },
@@ -58107,7 +58107,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 3
   },
@@ -58116,7 +58116,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 3
   },
@@ -58125,7 +58125,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 3
   },
@@ -58134,7 +58134,7 @@
     "label": "ICS 206 Hospital 4 (4th) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 3
   },
@@ -58143,7 +58143,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 3
   },
@@ -58152,7 +58152,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 3
   },
@@ -58161,7 +58161,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 3
   },
@@ -58170,7 +58170,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 3
   },
@@ -58179,7 +58179,7 @@
     "label": "ICS 206 Hospital 4 (4th) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 3
   },
@@ -58188,7 +58188,7 @@
     "label": "ICS 206 Hospital 4 (4th) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 3
   },
@@ -58197,7 +58197,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 3
   },
@@ -58206,7 +58206,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 3
   },
@@ -58215,7 +58215,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 3
   },
@@ -58224,7 +58224,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 3
   },
@@ -58233,7 +58233,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 3
   },
@@ -58242,7 +58242,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 3
   },
@@ -58251,7 +58251,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 3
   },
@@ -58260,7 +58260,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 3
   },
@@ -58269,7 +58269,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 3
   },
@@ -58278,7 +58278,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 3
   },
@@ -58287,7 +58287,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 3
   },
@@ -58296,7 +58296,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 3
   },
@@ -58305,7 +58305,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 3
   },
@@ -58314,7 +58314,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 3
   },
@@ -58323,7 +58323,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 3
   },
@@ -58332,7 +58332,7 @@
     "label": "ICS 206 Hospital 4 (4th) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 3
   },
@@ -58341,7 +58341,7 @@
     "label": "ICS 206 Hospital 5 (5th) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 4
   },
@@ -58350,7 +58350,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 4
   },
@@ -58359,7 +58359,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 4
   },
@@ -58368,7 +58368,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 4
   },
@@ -58377,7 +58377,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 4
   },
@@ -58386,7 +58386,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 4
   },
@@ -58395,7 +58395,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 4
   },
@@ -58404,7 +58404,7 @@
     "label": "ICS 206 Hospital 5 (5th) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 4
   },
@@ -58413,7 +58413,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 4
   },
@@ -58422,7 +58422,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 4
   },
@@ -58431,7 +58431,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 4
   },
@@ -58440,7 +58440,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 4
   },
@@ -58449,7 +58449,7 @@
     "label": "ICS 206 Hospital 5 (5th) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 4
   },
@@ -58458,7 +58458,7 @@
     "label": "ICS 206 Hospital 5 (5th) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 4
   },
@@ -58467,7 +58467,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 4
   },
@@ -58476,7 +58476,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 4
   },
@@ -58485,7 +58485,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 4
   },
@@ -58494,7 +58494,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 4
   },
@@ -58503,7 +58503,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 4
   },
@@ -58512,7 +58512,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 4
   },
@@ -58521,7 +58521,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 4
   },
@@ -58530,7 +58530,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 4
   },
@@ -58539,7 +58539,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 4
   },
@@ -58548,7 +58548,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 4
   },
@@ -58557,7 +58557,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 4
   },
@@ -58566,7 +58566,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 4
   },
@@ -58575,7 +58575,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 4
   },
@@ -58584,7 +58584,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 4
   },
@@ -58593,7 +58593,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 4
   },
@@ -58602,7 +58602,7 @@
     "label": "ICS 206 Hospital 5 (5th) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 4
   },
@@ -58611,7 +58611,7 @@
     "label": "ICS 206 Hospital 6 (6th) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 5
   },
@@ -58620,7 +58620,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 5
   },
@@ -58629,7 +58629,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 5
   },
@@ -58638,7 +58638,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 5
   },
@@ -58647,7 +58647,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 5
   },
@@ -58656,7 +58656,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 5
   },
@@ -58665,7 +58665,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 5
   },
@@ -58674,7 +58674,7 @@
     "label": "ICS 206 Hospital 6 (6th) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 5
   },
@@ -58683,7 +58683,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 5
   },
@@ -58692,7 +58692,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 5
   },
@@ -58701,7 +58701,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 5
   },
@@ -58710,7 +58710,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 5
   },
@@ -58719,7 +58719,7 @@
     "label": "ICS 206 Hospital 6 (6th) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 5
   },
@@ -58728,7 +58728,7 @@
     "label": "ICS 206 Hospital 6 (6th) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 5
   },
@@ -58737,7 +58737,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 5
   },
@@ -58746,7 +58746,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 5
   },
@@ -58755,7 +58755,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 5
   },
@@ -58764,7 +58764,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 5
   },
@@ -58773,7 +58773,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 5
   },
@@ -58782,7 +58782,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 5
   },
@@ -58791,7 +58791,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 5
   },
@@ -58800,7 +58800,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 5
   },
@@ -58809,7 +58809,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 5
   },
@@ -58818,7 +58818,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 5
   },
@@ -58827,7 +58827,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 5
   },
@@ -58836,7 +58836,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 5
   },
@@ -58845,7 +58845,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 5
   },
@@ -58854,7 +58854,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 5
   },
@@ -58863,7 +58863,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 5
   },
@@ -58872,7 +58872,7 @@
     "label": "ICS 206 Hospital 6 (6th) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 5
   },
@@ -58881,7 +58881,7 @@
     "label": "ICS 206 Hospital 7 (7th) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 6
   },
@@ -58890,7 +58890,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 6
   },
@@ -58899,7 +58899,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 6
   },
@@ -58908,7 +58908,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 6
   },
@@ -58917,7 +58917,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 6
   },
@@ -58926,7 +58926,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 6
   },
@@ -58935,7 +58935,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 6
   },
@@ -58944,7 +58944,7 @@
     "label": "ICS 206 Hospital 7 (7th) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 6
   },
@@ -58953,7 +58953,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 6
   },
@@ -58962,7 +58962,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 6
   },
@@ -58971,7 +58971,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 6
   },
@@ -58980,7 +58980,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 6
   },
@@ -58989,7 +58989,7 @@
     "label": "ICS 206 Hospital 7 (7th) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 6
   },
@@ -58998,7 +58998,7 @@
     "label": "ICS 206 Hospital 7 (7th) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 6
   },
@@ -59007,7 +59007,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 6
   },
@@ -59016,7 +59016,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 6
   },
@@ -59025,7 +59025,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 6
   },
@@ -59034,7 +59034,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 6
   },
@@ -59043,7 +59043,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 6
   },
@@ -59052,7 +59052,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 6
   },
@@ -59061,7 +59061,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 6
   },
@@ -59070,7 +59070,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 6
   },
@@ -59079,7 +59079,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 6
   },
@@ -59088,7 +59088,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 6
   },
@@ -59097,7 +59097,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 6
   },
@@ -59106,7 +59106,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 6
   },
@@ -59115,7 +59115,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 6
   },
@@ -59124,7 +59124,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 6
   },
@@ -59133,7 +59133,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 6
   },
@@ -59142,7 +59142,7 @@
     "label": "ICS 206 Hospital 7 (7th) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 6
   },
@@ -59151,7 +59151,7 @@
     "label": "ICS 206 Hospital 8 (8th) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 7
   },
@@ -59160,7 +59160,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 7
   },
@@ -59169,7 +59169,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 7
   },
@@ -59178,7 +59178,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 7
   },
@@ -59187,7 +59187,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 7
   },
@@ -59196,7 +59196,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 7
   },
@@ -59205,7 +59205,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 7
   },
@@ -59214,7 +59214,7 @@
     "label": "ICS 206 Hospital 8 (8th) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 7
   },
@@ -59223,7 +59223,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 7
   },
@@ -59232,7 +59232,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 7
   },
@@ -59241,7 +59241,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 7
   },
@@ -59250,7 +59250,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 7
   },
@@ -59259,7 +59259,7 @@
     "label": "ICS 206 Hospital 8 (8th) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 7
   },
@@ -59268,7 +59268,7 @@
     "label": "ICS 206 Hospital 8 (8th) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 7
   },
@@ -59277,7 +59277,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 7
   },
@@ -59286,7 +59286,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 7
   },
@@ -59295,7 +59295,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 7
   },
@@ -59304,7 +59304,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 7
   },
@@ -59313,7 +59313,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 7
   },
@@ -59322,7 +59322,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 7
   },
@@ -59331,7 +59331,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 7
   },
@@ -59340,7 +59340,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 7
   },
@@ -59349,7 +59349,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 7
   },
@@ -59358,7 +59358,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 7
   },
@@ -59367,7 +59367,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 7
   },
@@ -59376,7 +59376,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 7
   },
@@ -59385,7 +59385,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 7
   },
@@ -59394,7 +59394,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 7
   },
@@ -59403,7 +59403,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 7
   },
@@ -59412,7 +59412,7 @@
     "label": "ICS 206 Hospital 8 (8th) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 7
   },
@@ -59421,7 +59421,7 @@
     "label": "ICS 206 Hospital 9 (9th) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 8
   },
@@ -59430,7 +59430,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 8
   },
@@ -59439,7 +59439,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 8
   },
@@ -59448,7 +59448,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 8
   },
@@ -59457,7 +59457,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 8
   },
@@ -59466,7 +59466,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 8
   },
@@ -59475,7 +59475,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 8
   },
@@ -59484,7 +59484,7 @@
     "label": "ICS 206 Hospital 9 (9th) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 8
   },
@@ -59493,7 +59493,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 8
   },
@@ -59502,7 +59502,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 8
   },
@@ -59511,7 +59511,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 8
   },
@@ -59520,7 +59520,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 8
   },
@@ -59529,7 +59529,7 @@
     "label": "ICS 206 Hospital 9 (9th) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 8
   },
@@ -59538,7 +59538,7 @@
     "label": "ICS 206 Hospital 9 (9th) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 8
   },
@@ -59547,7 +59547,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 8
   },
@@ -59556,7 +59556,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 8
   },
@@ -59565,7 +59565,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 8
   },
@@ -59574,7 +59574,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 8
   },
@@ -59583,7 +59583,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 8
   },
@@ -59592,7 +59592,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 8
   },
@@ -59601,7 +59601,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 8
   },
@@ -59610,7 +59610,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 8
   },
@@ -59619,7 +59619,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 8
   },
@@ -59628,7 +59628,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 8
   },
@@ -59637,7 +59637,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 8
   },
@@ -59646,7 +59646,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 8
   },
@@ -59655,7 +59655,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 8
   },
@@ -59664,7 +59664,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 8
   },
@@ -59673,7 +59673,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 8
   },
@@ -59682,7 +59682,7 @@
     "label": "ICS 206 Hospital 9 (9th) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 8
   },
@@ -59691,7 +59691,7 @@
     "label": "ICS 206 Hospital 10 (10th) — ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "id",
     "index": 9
   },
@@ -59700,7 +59700,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Hospital ID",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "hospital_id",
     "index": 9
   },
@@ -59709,7 +59709,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Operational Period",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 9
   },
@@ -59718,7 +59718,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "name",
     "index": 9
   },
@@ -59727,7 +59727,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Type",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "type",
     "index": 9
   },
@@ -59736,7 +59736,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Code",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "code",
     "index": 9
   },
@@ -59745,7 +59745,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone",
     "index": 9
   },
@@ -59754,7 +59754,7 @@
     "label": "ICS 206 Hospital 10 (10th) — ER Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_er",
     "index": 9
   },
@@ -59763,7 +59763,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Switchboard Phone",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "phone_switchboard",
     "index": 9
   },
@@ -59772,7 +59772,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Fax",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "fax",
     "index": 9
   },
@@ -59781,7 +59781,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Email",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "email",
     "index": 9
   },
@@ -59790,7 +59790,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Address",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "address",
     "index": 9
   },
@@ -59799,7 +59799,7 @@
     "label": "ICS 206 Hospital 10 (10th) — City",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "city",
     "index": 9
   },
@@ -59808,7 +59808,7 @@
     "label": "ICS 206 Hospital 10 (10th) — State",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "state",
     "index": 9
   },
@@ -59817,7 +59817,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Zip",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "zip",
     "index": 9
   },
@@ -59826,7 +59826,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Contact",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact",
     "index": 9
   },
@@ -59835,7 +59835,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Contact Name",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "contact_name",
     "index": 9
   },
@@ -59844,7 +59844,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Helipad",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "helipad",
     "index": 9
   },
@@ -59853,7 +59853,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Burn Center",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "burn_center",
     "index": 9
   },
@@ -59862,7 +59862,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Pediatric Capability",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_capability",
     "index": 9
   },
@@ -59871,7 +59871,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Adult Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "adult_trauma_level",
     "index": 9
   },
@@ -59880,7 +59880,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Pediatric Trauma Level",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "pediatric_trauma_level",
     "index": 9
   },
@@ -59889,7 +59889,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Trauma Level Display",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "trauma_level_display",
     "index": 9
   },
@@ -59898,7 +59898,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Travel Time (Minutes)",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "travel_time_min",
     "index": 9
   },
@@ -59907,7 +59907,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Beds Available",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "bed_available",
     "index": 9
   },
@@ -59916,7 +59916,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Diversion Status",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "diversion_status",
     "index": 9
   },
@@ -59925,7 +59925,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Ambulance Radio Channel",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "ambulance_radio_channel",
     "index": 9
   },
@@ -59934,7 +59934,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Latitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lat",
     "index": 9
   },
@@ -59943,7 +59943,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Longitude",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "lon",
     "index": 9
   },
@@ -59952,7 +59952,7 @@
     "label": "ICS 206 Hospital 10 (10th) — Notes",
     "category": "ICS 206 Hospitals",
     "source_type": "incident_db",
-    "table": "ics_206_hospitals",
+    "table": "medical_plan",
     "column": "notes",
     "index": 9
   },
@@ -59961,7 +59961,7 @@
     "label": "ICS 206 Air Ambulance 1 (1st) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 0
   },
@@ -59970,7 +59970,7 @@
     "label": "ICS 206 Air Ambulance 1 (1st) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 0
   },
@@ -59979,7 +59979,7 @@
     "label": "ICS 206 Air Ambulance 1 (1st) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 0
   },
@@ -59988,7 +59988,7 @@
     "label": "ICS 206 Air Ambulance 1 (1st) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 0
   },
@@ -59997,7 +59997,7 @@
     "label": "ICS 206 Air Ambulance 1 (1st) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 0
   },
@@ -60006,7 +60006,7 @@
     "label": "ICS 206 Air Ambulance 1 (1st) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 0
   },
@@ -60015,7 +60015,7 @@
     "label": "ICS 206 Air Ambulance 1 (1st) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 0
   },
@@ -60024,7 +60024,7 @@
     "label": "ICS 206 Air Ambulance 2 (2nd) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 1
   },
@@ -60033,7 +60033,7 @@
     "label": "ICS 206 Air Ambulance 2 (2nd) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 1
   },
@@ -60042,7 +60042,7 @@
     "label": "ICS 206 Air Ambulance 2 (2nd) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 1
   },
@@ -60051,7 +60051,7 @@
     "label": "ICS 206 Air Ambulance 2 (2nd) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 1
   },
@@ -60060,7 +60060,7 @@
     "label": "ICS 206 Air Ambulance 2 (2nd) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 1
   },
@@ -60069,7 +60069,7 @@
     "label": "ICS 206 Air Ambulance 2 (2nd) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 1
   },
@@ -60078,7 +60078,7 @@
     "label": "ICS 206 Air Ambulance 2 (2nd) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 1
   },
@@ -60087,7 +60087,7 @@
     "label": "ICS 206 Air Ambulance 3 (3rd) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 2
   },
@@ -60096,7 +60096,7 @@
     "label": "ICS 206 Air Ambulance 3 (3rd) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 2
   },
@@ -60105,7 +60105,7 @@
     "label": "ICS 206 Air Ambulance 3 (3rd) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 2
   },
@@ -60114,7 +60114,7 @@
     "label": "ICS 206 Air Ambulance 3 (3rd) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 2
   },
@@ -60123,7 +60123,7 @@
     "label": "ICS 206 Air Ambulance 3 (3rd) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 2
   },
@@ -60132,7 +60132,7 @@
     "label": "ICS 206 Air Ambulance 3 (3rd) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 2
   },
@@ -60141,7 +60141,7 @@
     "label": "ICS 206 Air Ambulance 3 (3rd) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 2
   },
@@ -60150,7 +60150,7 @@
     "label": "ICS 206 Air Ambulance 4 (4th) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 3
   },
@@ -60159,7 +60159,7 @@
     "label": "ICS 206 Air Ambulance 4 (4th) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 3
   },
@@ -60168,7 +60168,7 @@
     "label": "ICS 206 Air Ambulance 4 (4th) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 3
   },
@@ -60177,7 +60177,7 @@
     "label": "ICS 206 Air Ambulance 4 (4th) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 3
   },
@@ -60186,7 +60186,7 @@
     "label": "ICS 206 Air Ambulance 4 (4th) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 3
   },
@@ -60195,7 +60195,7 @@
     "label": "ICS 206 Air Ambulance 4 (4th) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 3
   },
@@ -60204,7 +60204,7 @@
     "label": "ICS 206 Air Ambulance 4 (4th) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 3
   },
@@ -60213,7 +60213,7 @@
     "label": "ICS 206 Air Ambulance 5 (5th) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 4
   },
@@ -60222,7 +60222,7 @@
     "label": "ICS 206 Air Ambulance 5 (5th) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 4
   },
@@ -60231,7 +60231,7 @@
     "label": "ICS 206 Air Ambulance 5 (5th) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 4
   },
@@ -60240,7 +60240,7 @@
     "label": "ICS 206 Air Ambulance 5 (5th) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 4
   },
@@ -60249,7 +60249,7 @@
     "label": "ICS 206 Air Ambulance 5 (5th) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 4
   },
@@ -60258,7 +60258,7 @@
     "label": "ICS 206 Air Ambulance 5 (5th) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 4
   },
@@ -60267,7 +60267,7 @@
     "label": "ICS 206 Air Ambulance 5 (5th) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 4
   },
@@ -60276,7 +60276,7 @@
     "label": "ICS 206 Air Ambulance 6 (6th) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 5
   },
@@ -60285,7 +60285,7 @@
     "label": "ICS 206 Air Ambulance 6 (6th) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 5
   },
@@ -60294,7 +60294,7 @@
     "label": "ICS 206 Air Ambulance 6 (6th) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 5
   },
@@ -60303,7 +60303,7 @@
     "label": "ICS 206 Air Ambulance 6 (6th) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 5
   },
@@ -60312,7 +60312,7 @@
     "label": "ICS 206 Air Ambulance 6 (6th) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 5
   },
@@ -60321,7 +60321,7 @@
     "label": "ICS 206 Air Ambulance 6 (6th) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 5
   },
@@ -60330,7 +60330,7 @@
     "label": "ICS 206 Air Ambulance 6 (6th) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 5
   },
@@ -60339,7 +60339,7 @@
     "label": "ICS 206 Air Ambulance 7 (7th) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 6
   },
@@ -60348,7 +60348,7 @@
     "label": "ICS 206 Air Ambulance 7 (7th) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 6
   },
@@ -60357,7 +60357,7 @@
     "label": "ICS 206 Air Ambulance 7 (7th) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 6
   },
@@ -60366,7 +60366,7 @@
     "label": "ICS 206 Air Ambulance 7 (7th) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 6
   },
@@ -60375,7 +60375,7 @@
     "label": "ICS 206 Air Ambulance 7 (7th) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 6
   },
@@ -60384,7 +60384,7 @@
     "label": "ICS 206 Air Ambulance 7 (7th) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 6
   },
@@ -60393,7 +60393,7 @@
     "label": "ICS 206 Air Ambulance 7 (7th) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 6
   },
@@ -60402,7 +60402,7 @@
     "label": "ICS 206 Air Ambulance 8 (8th) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 7
   },
@@ -60411,7 +60411,7 @@
     "label": "ICS 206 Air Ambulance 8 (8th) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 7
   },
@@ -60420,7 +60420,7 @@
     "label": "ICS 206 Air Ambulance 8 (8th) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 7
   },
@@ -60429,7 +60429,7 @@
     "label": "ICS 206 Air Ambulance 8 (8th) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 7
   },
@@ -60438,7 +60438,7 @@
     "label": "ICS 206 Air Ambulance 8 (8th) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 7
   },
@@ -60447,7 +60447,7 @@
     "label": "ICS 206 Air Ambulance 8 (8th) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 7
   },
@@ -60456,7 +60456,7 @@
     "label": "ICS 206 Air Ambulance 8 (8th) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 7
   },
@@ -60465,7 +60465,7 @@
     "label": "ICS 206 Air Ambulance 9 (9th) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 8
   },
@@ -60474,7 +60474,7 @@
     "label": "ICS 206 Air Ambulance 9 (9th) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 8
   },
@@ -60483,7 +60483,7 @@
     "label": "ICS 206 Air Ambulance 9 (9th) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 8
   },
@@ -60492,7 +60492,7 @@
     "label": "ICS 206 Air Ambulance 9 (9th) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 8
   },
@@ -60501,7 +60501,7 @@
     "label": "ICS 206 Air Ambulance 9 (9th) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 8
   },
@@ -60510,7 +60510,7 @@
     "label": "ICS 206 Air Ambulance 9 (9th) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 8
   },
@@ -60519,7 +60519,7 @@
     "label": "ICS 206 Air Ambulance 9 (9th) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 8
   },
@@ -60528,7 +60528,7 @@
     "label": "ICS 206 Air Ambulance 10 (10th) — ID",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "id",
     "index": 9
   },
@@ -60537,7 +60537,7 @@
     "label": "ICS 206 Air Ambulance 10 (10th) — Operational Period",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 9
   },
@@ -60546,7 +60546,7 @@
     "label": "ICS 206 Air Ambulance 10 (10th) — Name",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "name",
     "index": 9
   },
@@ -60555,7 +60555,7 @@
     "label": "ICS 206 Air Ambulance 10 (10th) — Phone",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "phone",
     "index": 9
   },
@@ -60564,7 +60564,7 @@
     "label": "ICS 206 Air Ambulance 10 (10th) — Base",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "base",
     "index": 9
   },
@@ -60573,7 +60573,7 @@
     "label": "ICS 206 Air Ambulance 10 (10th) — Contact",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "contact",
     "index": 9
   },
@@ -60582,7 +60582,7 @@
     "label": "ICS 206 Air Ambulance 10 (10th) — Notes",
     "category": "ICS 206 Air Ambulance",
     "source_type": "incident_db",
-    "table": "ics_206_air_ambulance",
+    "table": "medical_plan",
     "column": "notes",
     "index": 9
   },
@@ -60591,7 +60591,7 @@
     "label": "ICS 206 Medical Comms 1 (1st) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 0
   },
@@ -60600,7 +60600,7 @@
     "label": "ICS 206 Medical Comms 1 (1st) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 0
   },
@@ -60609,7 +60609,7 @@
     "label": "ICS 206 Medical Comms 1 (1st) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 0
   },
@@ -60618,7 +60618,7 @@
     "label": "ICS 206 Medical Comms 1 (1st) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 0
   },
@@ -60627,7 +60627,7 @@
     "label": "ICS 206 Medical Comms 1 (1st) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 0
   },
@@ -60636,7 +60636,7 @@
     "label": "ICS 206 Medical Comms 1 (1st) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 0
   },
@@ -60645,7 +60645,7 @@
     "label": "ICS 206 Medical Comms 1 (1st) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 0
   },
@@ -60654,7 +60654,7 @@
     "label": "ICS 206 Medical Comms 2 (2nd) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 1
   },
@@ -60663,7 +60663,7 @@
     "label": "ICS 206 Medical Comms 2 (2nd) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 1
   },
@@ -60672,7 +60672,7 @@
     "label": "ICS 206 Medical Comms 2 (2nd) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 1
   },
@@ -60681,7 +60681,7 @@
     "label": "ICS 206 Medical Comms 2 (2nd) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 1
   },
@@ -60690,7 +60690,7 @@
     "label": "ICS 206 Medical Comms 2 (2nd) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 1
   },
@@ -60699,7 +60699,7 @@
     "label": "ICS 206 Medical Comms 2 (2nd) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 1
   },
@@ -60708,7 +60708,7 @@
     "label": "ICS 206 Medical Comms 2 (2nd) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 1
   },
@@ -60717,7 +60717,7 @@
     "label": "ICS 206 Medical Comms 3 (3rd) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 2
   },
@@ -60726,7 +60726,7 @@
     "label": "ICS 206 Medical Comms 3 (3rd) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 2
   },
@@ -60735,7 +60735,7 @@
     "label": "ICS 206 Medical Comms 3 (3rd) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 2
   },
@@ -60744,7 +60744,7 @@
     "label": "ICS 206 Medical Comms 3 (3rd) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 2
   },
@@ -60753,7 +60753,7 @@
     "label": "ICS 206 Medical Comms 3 (3rd) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 2
   },
@@ -60762,7 +60762,7 @@
     "label": "ICS 206 Medical Comms 3 (3rd) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 2
   },
@@ -60771,7 +60771,7 @@
     "label": "ICS 206 Medical Comms 3 (3rd) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 2
   },
@@ -60780,7 +60780,7 @@
     "label": "ICS 206 Medical Comms 4 (4th) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 3
   },
@@ -60789,7 +60789,7 @@
     "label": "ICS 206 Medical Comms 4 (4th) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 3
   },
@@ -60798,7 +60798,7 @@
     "label": "ICS 206 Medical Comms 4 (4th) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 3
   },
@@ -60807,7 +60807,7 @@
     "label": "ICS 206 Medical Comms 4 (4th) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 3
   },
@@ -60816,7 +60816,7 @@
     "label": "ICS 206 Medical Comms 4 (4th) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 3
   },
@@ -60825,7 +60825,7 @@
     "label": "ICS 206 Medical Comms 4 (4th) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 3
   },
@@ -60834,7 +60834,7 @@
     "label": "ICS 206 Medical Comms 4 (4th) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 3
   },
@@ -60843,7 +60843,7 @@
     "label": "ICS 206 Medical Comms 5 (5th) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 4
   },
@@ -60852,7 +60852,7 @@
     "label": "ICS 206 Medical Comms 5 (5th) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 4
   },
@@ -60861,7 +60861,7 @@
     "label": "ICS 206 Medical Comms 5 (5th) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 4
   },
@@ -60870,7 +60870,7 @@
     "label": "ICS 206 Medical Comms 5 (5th) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 4
   },
@@ -60879,7 +60879,7 @@
     "label": "ICS 206 Medical Comms 5 (5th) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 4
   },
@@ -60888,7 +60888,7 @@
     "label": "ICS 206 Medical Comms 5 (5th) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 4
   },
@@ -60897,7 +60897,7 @@
     "label": "ICS 206 Medical Comms 5 (5th) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 4
   },
@@ -60906,7 +60906,7 @@
     "label": "ICS 206 Medical Comms 6 (6th) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 5
   },
@@ -60915,7 +60915,7 @@
     "label": "ICS 206 Medical Comms 6 (6th) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 5
   },
@@ -60924,7 +60924,7 @@
     "label": "ICS 206 Medical Comms 6 (6th) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 5
   },
@@ -60933,7 +60933,7 @@
     "label": "ICS 206 Medical Comms 6 (6th) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 5
   },
@@ -60942,7 +60942,7 @@
     "label": "ICS 206 Medical Comms 6 (6th) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 5
   },
@@ -60951,7 +60951,7 @@
     "label": "ICS 206 Medical Comms 6 (6th) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 5
   },
@@ -60960,7 +60960,7 @@
     "label": "ICS 206 Medical Comms 6 (6th) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 5
   },
@@ -60969,7 +60969,7 @@
     "label": "ICS 206 Medical Comms 7 (7th) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 6
   },
@@ -60978,7 +60978,7 @@
     "label": "ICS 206 Medical Comms 7 (7th) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 6
   },
@@ -60987,7 +60987,7 @@
     "label": "ICS 206 Medical Comms 7 (7th) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 6
   },
@@ -60996,7 +60996,7 @@
     "label": "ICS 206 Medical Comms 7 (7th) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 6
   },
@@ -61005,7 +61005,7 @@
     "label": "ICS 206 Medical Comms 7 (7th) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 6
   },
@@ -61014,7 +61014,7 @@
     "label": "ICS 206 Medical Comms 7 (7th) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 6
   },
@@ -61023,7 +61023,7 @@
     "label": "ICS 206 Medical Comms 7 (7th) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 6
   },
@@ -61032,7 +61032,7 @@
     "label": "ICS 206 Medical Comms 8 (8th) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 7
   },
@@ -61041,7 +61041,7 @@
     "label": "ICS 206 Medical Comms 8 (8th) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 7
   },
@@ -61050,7 +61050,7 @@
     "label": "ICS 206 Medical Comms 8 (8th) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 7
   },
@@ -61059,7 +61059,7 @@
     "label": "ICS 206 Medical Comms 8 (8th) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 7
   },
@@ -61068,7 +61068,7 @@
     "label": "ICS 206 Medical Comms 8 (8th) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 7
   },
@@ -61077,7 +61077,7 @@
     "label": "ICS 206 Medical Comms 8 (8th) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 7
   },
@@ -61086,7 +61086,7 @@
     "label": "ICS 206 Medical Comms 8 (8th) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 7
   },
@@ -61095,7 +61095,7 @@
     "label": "ICS 206 Medical Comms 9 (9th) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 8
   },
@@ -61104,7 +61104,7 @@
     "label": "ICS 206 Medical Comms 9 (9th) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 8
   },
@@ -61113,7 +61113,7 @@
     "label": "ICS 206 Medical Comms 9 (9th) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 8
   },
@@ -61122,7 +61122,7 @@
     "label": "ICS 206 Medical Comms 9 (9th) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 8
   },
@@ -61131,7 +61131,7 @@
     "label": "ICS 206 Medical Comms 9 (9th) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 8
   },
@@ -61140,7 +61140,7 @@
     "label": "ICS 206 Medical Comms 9 (9th) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 8
   },
@@ -61149,7 +61149,7 @@
     "label": "ICS 206 Medical Comms 9 (9th) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 8
   },
@@ -61158,7 +61158,7 @@
     "label": "ICS 206 Medical Comms 10 (10th) — ID",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "id",
     "index": 9
   },
@@ -61167,7 +61167,7 @@
     "label": "ICS 206 Medical Comms 10 (10th) — Operational Period",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "op_period",
     "index": 9
   },
@@ -61176,7 +61176,7 @@
     "label": "ICS 206 Medical Comms 10 (10th) — Channel",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "channel",
     "index": 9
   },
@@ -61185,7 +61185,7 @@
     "label": "ICS 206 Medical Comms 10 (10th) — Function",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "function",
     "index": 9
   },
@@ -61194,7 +61194,7 @@
     "label": "ICS 206 Medical Comms 10 (10th) — Frequency",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "frequency",
     "index": 9
   },
@@ -61203,7 +61203,7 @@
     "label": "ICS 206 Medical Comms 10 (10th) — Mode",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "mode",
     "index": 9
   },
@@ -61212,7 +61212,7 @@
     "label": "ICS 206 Medical Comms 10 (10th) — Notes",
     "category": "ICS 206 Medical Comms",
     "source_type": "incident_db",
-    "table": "ics_206_medical_comms",
+    "table": "medical_plan",
     "column": "notes",
     "index": 9
   },
@@ -61221,7 +61221,7 @@
     "label": "ICS 206 Procedures — ID",
     "category": "ICS 206 Procedures",
     "source_type": "incident_db",
-    "table": "ics_206_procedures",
+    "table": "medical_plan",
     "column": "id"
   },
   {
@@ -61229,7 +61229,7 @@
     "label": "ICS 206 Procedures — Operational Period",
     "category": "ICS 206 Procedures",
     "source_type": "incident_db",
-    "table": "ics_206_procedures",
+    "table": "medical_plan",
     "column": "op_period"
   },
   {
@@ -61237,7 +61237,7 @@
     "label": "ICS 206 Procedures — Content",
     "category": "ICS 206 Procedures",
     "source_type": "incident_db",
-    "table": "ics_206_procedures",
+    "table": "medical_plan",
     "column": "content"
   },
   {
@@ -61245,7 +61245,7 @@
     "label": "ICS 206 Signatures — ID",
     "category": "ICS 206 Signatures",
     "source_type": "incident_db",
-    "table": "ics_206_signatures",
+    "table": "medical_plan",
     "column": "id"
   },
   {
@@ -61253,7 +61253,7 @@
     "label": "ICS 206 Signatures — Operational Period",
     "category": "ICS 206 Signatures",
     "source_type": "incident_db",
-    "table": "ics_206_signatures",
+    "table": "medical_plan",
     "column": "op_period"
   },
   {
@@ -61261,7 +61261,7 @@
     "label": "ICS 206 Signatures — Prepared By",
     "category": "ICS 206 Signatures",
     "source_type": "incident_db",
-    "table": "ics_206_signatures",
+    "table": "medical_plan",
     "column": "prepared_by"
   },
   {
@@ -61269,7 +61269,7 @@
     "label": "ICS 206 Signatures — Position",
     "category": "ICS 206 Signatures",
     "source_type": "incident_db",
-    "table": "ics_206_signatures",
+    "table": "medical_plan",
     "column": "position"
   },
   {
@@ -61277,7 +61277,7 @@
     "label": "ICS 206 Signatures — Approved By",
     "category": "ICS 206 Signatures",
     "source_type": "incident_db",
-    "table": "ics_206_signatures",
+    "table": "medical_plan",
     "column": "approved_by"
   },
   {
@@ -61285,7 +61285,7 @@
     "label": "ICS 206 Signatures — Date",
     "category": "ICS 206 Signatures",
     "source_type": "incident_db",
-    "table": "ics_206_signatures",
+    "table": "medical_plan",
     "column": "date"
   },
   {

@@ -14,6 +14,24 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+# Header the cloud router stamps with the real field-device IP before
+# forwarding a request down the reverse tunnel (see
+# cloud_server/router/app.py). Only trusted when the request actually
+# arrived over the tunnel's loopback hop (client.host == 127.0.0.1) — a
+# direct LAN client could otherwise set this header itself to spoof another
+# address in the traffic log.
+_TUNNEL_CLIENT_IP_HEADER = "x-sarapp-client-ip"
+_LOOPBACK_HOST = "127.0.0.1"
+
+
+def _client_address(request: Request) -> str:
+    host = request.client.host if request.client else ""
+    if host == _LOOPBACK_HOST:
+        forwarded = request.headers.get(_TUNNEL_CLIENT_IP_HEADER)
+        if forwarded:
+            return forwarded
+    return host
+
 
 def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     """Create and configure the SARApp FastAPI application.
@@ -51,7 +69,7 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
                 request_log_fn(
                     {
                         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                        "client": request.client.host if request.client else "",
+                        "client": _client_address(request),
                         "method": request.method,
                         "path": request.url.path,
                         "query": request.url.query,
@@ -86,10 +104,14 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     from sarapp_db.api.routers import auth_sessions
     from sarapp_db.api.routers import audit
     from sarapp_db.api.routers import diagnostics
+    from sarapp_db.api.routers import push_tokens
+    from sarapp_db.api.routers import mobile_location
     app.include_router(objectives.router, prefix="/api/objectives", tags=["objectives"])
     app.include_router(auth_sessions.router, prefix="/api/auth", tags=["auth"])
     app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
     app.include_router(diagnostics.router, prefix="/api/diagnostics", tags=["diagnostics"])
+    app.include_router(push_tokens.router, prefix="/api/mobile", tags=["mobile"])
+    app.include_router(mobile_location.router, prefix="/api/mobile", tags=["mobile"])
 
     from sarapp_db.api.routers import hazard_types
     app.include_router(hazard_types.router, prefix="/api/hazard-types", tags=["hazard-types"])
@@ -146,9 +168,6 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
         prefix="/api/incidents/{incident_id}/resource-status",
         tags=["resource-status"],
     )
-
-    from sarapp_db.api.routers import logistics_resource_status
-    app.include_router(logistics_resource_status.router, prefix="/api", tags=["logistics"])
 
     from sarapp_db.api.routers import logistics_resource_requests
     app.include_router(logistics_resource_requests.router, prefix="/api", tags=["logistics"])
@@ -214,6 +233,9 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     from sarapp_db.api.routers import approvals
     app.include_router(reference_library.router, prefix="/api/master/reference-library", tags=["reference-library"])
     app.include_router(approvals.router, prefix="/api", tags=["approvals"])
+
+    from sarapp_db.api.routers import attachments
+    app.include_router(attachments.router, prefix="/api", tags=["attachments"])
 
     from sarapp_db.api.routers import task_narratives
     app.include_router(task_narratives.router, prefix="/api", tags=["narratives"])

@@ -1,4 +1,4 @@
-"""Quick clue capture dialog — posts directly to the Intel clues API."""
+"""Quick clue capture dialog — posts canonical Intel Item clue records."""
 
 from __future__ import annotations
 
@@ -131,17 +131,37 @@ class AddClueDialog(QDialog):
         team_label = self._team_combo.currentText() if team_id else ""
 
         payload = {
-            "type": "Field Clue",
-            "score": 0,
-            "at_time": _utcnow(),
+            "item_type": "Clue",
+            "title": title,
+            "status": "Active",
+            "priority": "Medium",
+            "confidence": "Unconfirmed",
+            "trend": "Unknown",
             "location_text": self._location.text().strip(),
-            "entered_by": str(AppState.get_current_user() or ""),
-            "team_text": team_label if team_label and team_label != "— Select Team —" else None,
-            "description": f"{title}\n\n{self._description.toPlainText().strip()}".strip(),
+            "linked_team_ids": [int(team_id)] if team_id else [],
+            "notes": self._description.toPlainText().strip(),
+            "created_by": str(AppState.get_current_user() or ""),
         }
 
         try:
-            api_client.post(f"/api/incidents/{self._incident_id}/intel/clues", json=payload)
+            item = api_client.post(f"/api/incidents/{self._incident_id}/intel/items", json=payload)
+            if item and self._description.toPlainText().strip():
+                api_client.post(
+                    f"/api/incidents/{self._incident_id}/intel/items/{item['id']}/observations",
+                    json={
+                        "observed_at": _utcnow(),
+                        "observer": str(AppState.get_current_user() or ""),
+                        "source_team": team_label if team_label and team_label != "— Select Team —" else None,
+                        "source_team_id": int(team_id) if team_id else None,
+                        "status": "Active",
+                        "severity": "Unknown",
+                        "confidence": "Unconfirmed",
+                        "summary": title,
+                        "detailed_notes": self._description.toPlainText().strip(),
+                        "location_text": self._location.text().strip(),
+                        "actor": str(AppState.get_current_user() or "system"),
+                    },
+                )
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return

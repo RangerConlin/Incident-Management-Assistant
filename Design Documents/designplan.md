@@ -1268,7 +1268,7 @@ The Logistics Module manages all resource, supply, and equipment operations for 
 ```
 7. Database Tables
 ```
-  - logistics_resource_requests
+  - resource_requests
   - logistics_request_approvals
   - logistics_request_assignments
   - logistics_resource_items
@@ -1374,7 +1374,7 @@ Resource Request Module Design Document
 ```
 7. Database Tables
 ```
-  - logistics_resource_requests
+  - resource_requests
   - logistics_request_approvals
   - logistics_request_assignments
   - logistics_resource_items
@@ -1445,7 +1445,6 @@ The Communications Module manages all inbound, outbound, and internal messaging 
 7. Database Tables
 ```
   - - messages
-  - - ics_213_messages
   - - alerts
   - - radio_channels
 ```

@@ -109,3 +109,82 @@ def test_team_sync_advances_existing_available_aircraft_to_assigned(monkeypatch)
             {"status": "Assigned", "changed_by": "Desk Sync"},
         ),
     ]
+
+
+class _EndedOrgAssignmentHarness:
+    def __init__(self, *, assigned_to: str = "Operations Chief") -> None:
+        self.assigned_to = assigned_to
+
+    def _fetch_org_assignments_docs(self) -> list[dict]:
+        return [
+            {
+                "assignment_id": 1,
+                "person_record": 186,
+                "position_id": 10,
+                "end_time": "2026-07-12T12:00:00+00:00",
+            }
+        ]
+
+    def _fetch_org_positions_docs(self) -> list[dict]:
+        return [
+            {
+                "position_id": 10,
+                "title": "Operations Chief",
+                "status": "active",
+            }
+        ]
+
+    def _fetch_resource_status_docs(self) -> list[dict]:
+        return [
+            {
+                "id": "rs-person",
+                "entity_type": "personnel",
+                "record_id": 186,
+                "resource_name": "Pat Morgan",
+                "status": "Assigned",
+                "assigned_to": self.assigned_to,
+                "assignment_reference": "Operations Chief",
+            }
+        ]
+
+
+def test_org_sync_clears_stale_org_assignment(monkeypatch) -> None:
+    patch_calls: list[tuple[str, dict]] = []
+
+    def fake_patch(path: str, json: dict):
+        patch_calls.append((path, json))
+        return {}
+
+    monkeypatch.setattr(incident_context, "get_active_incident_id", lambda: "incident-1")
+    monkeypatch.setattr(api_client, "patch", fake_patch)
+
+    ResourceStatusDesk._do_sync_org_assignments(_EndedOrgAssignmentHarness())  # type: ignore[arg-type]
+
+    assert patch_calls == [
+        (
+            "/api/incidents/incident-1/resource-status/rs-person",
+            {"assignment_reference": None, "assigned_to": None},
+        )
+    ]
+
+
+def test_org_sync_preserves_team_assigned_to_when_clearing_stale_org_ref(monkeypatch) -> None:
+    patch_calls: list[tuple[str, dict]] = []
+
+    def fake_patch(path: str, json: dict):
+        patch_calls.append((path, json))
+        return {}
+
+    monkeypatch.setattr(incident_context, "get_active_incident_id", lambda: "incident-1")
+    monkeypatch.setattr(api_client, "patch", fake_patch)
+
+    ResourceStatusDesk._do_sync_org_assignments(
+        _EndedOrgAssignmentHarness(assigned_to="Team Alpha")
+    )  # type: ignore[arg-type]
+
+    assert patch_calls == [
+        (
+            "/api/incidents/incident-1/resource-status/rs-person",
+            {"assignment_reference": None},
+        )
+    ]

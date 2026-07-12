@@ -353,6 +353,30 @@ def list_teams(incident_id: str, op_no: int = 1) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Team locations (GIS module Phase 1 — see tracking_plan.md in ICS-Mobile-App)
+# ---------------------------------------------------------------------------
+
+@router.get("/{incident_id}/team-locations")
+def list_team_locations(incident_id: str) -> list[dict[str, Any]]:
+    """One row per team with a current tracked position. Called once on the
+    desktop map panel's open to draw the initial marker set; live updates
+    ride the existing incident websocket feed (every write already lands on
+    this same TEAMS doc via BaseRepository)."""
+    repo = _teams_repo(incident_id)
+    docs = repo.find_many({"current_location_lat": {"$ne": None}})
+    return [
+        {
+            "team_id": doc.get("int_id"),
+            "team_name": doc.get("name", ""),
+            "lat": doc.get("current_location_lat"),
+            "lon": doc.get("current_location_lon"),
+            "updated_at": doc.get("current_location_updated_at"),
+        }
+        for doc in docs
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Task summary
 # ---------------------------------------------------------------------------
 

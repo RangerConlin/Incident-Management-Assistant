@@ -176,16 +176,19 @@ Cost Summary
       are not opening faster; tie this to any decision about reusing/caching Edit windows.
     - Sidebar: revisit large Edit-menu CSV import/export workflows with progress/cancel behavior and possible
       bulk API endpoints if large catalog imports prove slow or freeze the UI.
-    - Remove legacy checkins, check_in_out, checkin_history, and logistics_resource_status_items collections
-      and their routers once resource_status is confirmed stable and all callers are migrated.
-      See Design Documents/legacycode.md for removal conditions and verification steps.
-    - ResourceStatusDesk._sync_org_assignments() is live (incident_org.py was already on BaseRepository).
-      Follow-up: verify end_assignment correctly clears assigned_to/assignment_reference in resource_status
-      when a person is removed from a position.
-    - Remove CIStatus enum (modules/logistics/checkin/models.py) after all callers are confirmed
-      migrated to RESOURCE_STATUSES from resource_status/models.py.
+    - Incident Mongo schema cleanup: review and tighten per-incident collections before the DB
+      grows further.
+      - Forms: keep `forms` as the current in-app form state, delete `form_instance_revisions`,
+        and replace durable export/link storage with canonical incident attachments (`attachments`
+        metadata + GridFS `attachment_files` bytes). Decide whether any remaining audit data is
+        still needed before retiring `form_instance_audit`.
+      - Liaison: leave liaison collections alone for now because the module still needs further
+        product development.
+      - Heavily in-development modules: leave the remaining collections alone for now except to
+        avoid adding new duplicate collections or fields.
   - Personnel export currently exports deep into the temporary folders - needs to export to documents by default and have a selctable export location
-    - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON. Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
+    - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
+    - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
 
 **************************************************************************************************************
 [Logs]

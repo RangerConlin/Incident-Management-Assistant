@@ -45,7 +45,7 @@ DEV_MODE = True
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"
@@ -805,6 +805,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
+        self._add_action(m_ops, "Team Location Map", None, "operations.team_location_map")
 
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
@@ -1129,6 +1130,7 @@ class MainWindow(QMainWindow):
             "operations.section_org": self.open_operations_section_org,
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
+            "operations.team_location_map": self.open_operations_team_location_map,
             "operations.narrative": self.open_operations_narrative,
 
             # ----- Logistics -----
@@ -1983,6 +1985,18 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Task Status", f"Task Status panel could not be loaded.\n{e}")
             except Exception:
                 print(f"[warn] Task Status panel could not be loaded: {e}")
+
+    def open_operations_team_location_map(self) -> None:
+        try:
+            from modules.gis.panels.team_location_map_panel import TeamLocationMapPanel
+            panel = TeamLocationMapPanel(self)
+            self._open_dock_widget(panel, title="Team Location Map", preferred_size=(900, 650))
+            return
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Team Location Map", f"Team Location Map panel could not be loaded.\n{e}")
+            except Exception:
+                print(f"[warn] Team Location Map panel could not be loaded: {e}")
 
     def open_operations_narrative(self) -> None:
         # No separate Narrative window; use the Task Detail window's Narrative tab.

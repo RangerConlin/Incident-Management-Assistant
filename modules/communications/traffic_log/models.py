@@ -70,18 +70,6 @@ class CommsLogAuditEntry:
 
 
 @dataclass(slots=True)
-class CommsLogFilterPreset:
-    """Persisted user filter preset."""
-
-    name: str
-    filters: Dict[str, Any]
-    user_id: str
-    created_at: str = field(default_factory=utcnow_iso)
-    updated_at: str = field(default_factory=utcnow_iso)
-    id: Optional[int] = None
-
-
-@dataclass(slots=True)
 class CommsLogQuery:
     """Filter definition used for querying the log table."""
 
@@ -111,7 +99,6 @@ class CommsLogQuery:
 __all__ = [
     "CommsLogEntry",
     "CommsLogAuditEntry",
-    "CommsLogFilterPreset",
     "CommsLogQuery",
     "utcnow_iso",
     "localnow_iso",

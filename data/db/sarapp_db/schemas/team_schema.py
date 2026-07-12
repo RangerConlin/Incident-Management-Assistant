@@ -1,4 +1,4 @@
-"""Schema for team documents (sarapp_master.teams)."""
+"""Schema for team documents (sarapp_incident_<id>.teams)."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from sarapp_db.schemas.common import TimestampedDocument
 
 
 class TeamDocument(TimestampedDocument):
-    """A response team in the master roster."""
+    """A response team assigned within an incident."""
 
-    team_id: str  # Stable identifier; indexed
+    int_id: int  # Stable identifier; indexed (see team-id/int_id consolidation notes)
     name: str
     team_type: Optional[str] = None  # Ground | K9 | Dive | Technical | etc.
     status: str = "available"  # available | deployed | unavailable | inactive
@@ -23,3 +23,11 @@ class TeamDocument(TimestampedDocument):
     radio_channel: Optional[str] = None
     vehicle_ids: List[str] = Field(default_factory=list)
     notes: Optional[str] = None
+
+    # Team-location tracking (GIS module Phase 1) — last-known position only,
+    # no breadcrumb trail. Written by data/db/sarapp_db/api/routers/mobile_location.py,
+    # gated by a leader-preference check; see tracking_plan.md in ICS-Mobile-App.
+    current_location_lat: Optional[float] = None
+    current_location_lon: Optional[float] = None
+    current_location_updated_at: Optional[str] = None
+    current_location_person_record: Optional[int] = None

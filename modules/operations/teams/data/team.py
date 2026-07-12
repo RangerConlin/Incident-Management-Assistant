@@ -54,7 +54,7 @@ class Team:
     disbanded_by: Optional[str] = None  # user_id
     checkin_notes: Optional[str] = None
     bulk_checkin_id: Optional[str] = None
-    # Optional CIStatus for planning visibility (e.g., "Pending", "Enroute")
+    # Optional resource status for planning visibility (e.g., "Pending", "Enroute")
     ci_status: Optional[str] = "Available"
 
     def to_db_dict(self) -> Dict[str, Any]:

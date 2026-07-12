@@ -199,9 +199,13 @@ def get_operational_summary(incident_id: str) -> dict:
         team_counts[key] = team_counts.get(key, 0) + 1
 
     # Check-in counts — no incident_id filter; collection is scoped to the incident DB.
-    checkin_col = db[IncidentCollections.CHECK_IN_OUT]
+    checkin_col = db[IncidentCollections.RESOURCE_STATUS]
     total_checked_in = checkin_col.count_documents(
-        {"status": "checked_in", "resource_type": "personnel"}
+        {
+            "entity_type": "personnel",
+            "status": {"$in": ["Checked In", "Assigned", "Available", "Out of Service", "Preparing for Demobilization"]},
+            "deleted": {"$ne": True},
+        }
     )
 
     alerts: list[dict] = []

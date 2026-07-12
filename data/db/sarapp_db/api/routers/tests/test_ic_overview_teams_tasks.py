@@ -66,6 +66,8 @@ def _realistic_task_doc(**overrides) -> dict:
 def _clear(db):
     db["teams"].delete_many({})
     db["tasks"].delete_many({})
+    db["resource_requests"].delete_many({})
+    db["logistics_resource_requests"].delete_many({})
 
 
 def test_list_teams_reads_actual_operations_field_names():
@@ -145,5 +147,34 @@ def test_task_summary_reads_task_teams_not_assigned_teams():
     assert body["counts"]["Planned"] == 1
     assert len(body["due"]) == 1
     assert body["due"][0]["assigned_to"] == "Team 7"
+
+    _clear(db)
+
+
+def test_logistics_counts_read_canonical_resource_requests():
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        created = client.post(
+            f"/api/incidents/{INCIDENT_ID}/logistics/resource-requests",
+            json={
+                "title": "Need tarps",
+                "priority": "HIGH",
+                "status": "SUBMITTED",
+                "created_by_id": "pytest",
+                "items": [{"kind": "SUPPLY", "description": "Tarps", "quantity": 5}],
+            },
+        )
+        assert created.status_code == 201
+
+        counts = client.get(f"/api/incidents/{INCIDENT_ID}/logistics/counts")
+        assert counts.status_code == 200
+
+    body = counts.json()
+    assert body["Submitted"] == 1
+    assert db["resource_requests"].find_one({"title": "Need tarps"}) is not None
+    assert db["logistics_resource_requests"].find_one({"title": "Need tarps"}) is None
 
     _clear(db)
