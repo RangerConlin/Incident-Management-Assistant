@@ -94,7 +94,7 @@ class _YesNoDelegate(QStyledItemDelegate):
         combo = QStyleOptionComboBox()
         combo.rect = option.rect.adjusted(2, 2, -2, -2)
         combo.currentText = str(index.data(Qt.DisplayRole) or "No")
-        combo.state = option.state | QStyle.State_Enabled
+        combo.state = (option.state | QStyle.State_Enabled) & ~QStyle.State_Selected & ~QStyle.State_HasFocus
         combo.editable = False
         combo.frame = True
         style = option.widget.style() if option.widget else None
@@ -110,14 +110,18 @@ class _YesNoDelegate(QStyledItemDelegate):
         return cb
 
     def setEditorData(self, editor, index):  # type: ignore[override]
-        v = index.data(Qt.EditRole)
+        v = index.data(Qt.UserRole)
+        if v in (None, ""):
+            v = index.data(Qt.EditRole)
         yes = v in (True, 1, "1", "Yes", "YES", "True", "true")
         editor.setCurrentIndex(1 if yes else 0)
 
     def setModelData(self, editor, model, index):  # type: ignore[override]
         yes = editor.currentIndex() == 1
-        model.setData(index, 1 if yes else 0, Qt.EditRole)
-        model.setData(index, "Yes" if yes else "No", Qt.DisplayRole)
+        text = "Yes" if yes else "No"
+        model.setData(index, 1 if yes else 0, Qt.UserRole)
+        model.setData(index, text, Qt.DisplayRole)
+        model.setData(index, text, Qt.EditRole)
 
 
 class _ButtonDelegate(QStyledItemDelegate):
@@ -126,9 +130,15 @@ class _ButtonDelegate(QStyledItemDelegate):
     clicked = Signal(object)  # emits QModelIndex
 
     def paint(self, painter, option, index):  # type: ignore[override]
+        bg = index.data(Qt.BackgroundRole)
+        if bg is not None:
+            try:
+                painter.fillRect(option.rect, bg)
+            except Exception:
+                pass
         btn_opt = QStyleOptionButton()
         btn_opt.rect = option.rect
-        btn_opt.state = QStyle.State_Enabled
+        btn_opt.state = (option.state | QStyle.State_Enabled) & ~QStyle.State_Selected & ~QStyle.State_HasFocus
         btn_opt.text = str(index.data(Qt.DisplayRole) or "214+")
         style = option.widget.style() if option.widget else None
         if style:
@@ -160,6 +170,23 @@ def _resolve_person_display(value: Any) -> str:
             return str(ident.name)
     except Exception:
         pass
+    try:
+        from utils.api_client import api_client
+
+        for user in api_client.get("/api/auth/users") or []:
+            identifiers = {
+                str(user.get("user_id") or "").strip(),
+                str(user.get("username") or "").strip(),
+                str(user.get("person_id") or "").strip(),
+                str(user.get("badge_number") or "").strip(),
+                str(user.get("person_record") or "").strip(),
+            }
+            if raw in identifiers:
+                return str(user.get("display_name") or user.get("username") or "").strip()
+    except Exception:
+        pass
+    if raw.isdigit():
+        return ""
     return raw
 
 
@@ -2252,7 +2279,7 @@ class TaskDetailWindow(QWidget):
                     pos = repo.get_position(int(chosen.position_id)) if getattr(chosen, "position_id", None) is not None else None
                     title = str(getattr(pos, "title", "") or "")
                     if title:
-                        return _ics_position_abbreviation(title)
+                        return title
         except Exception:
             pass
         try:
@@ -2271,7 +2298,7 @@ class TaskDetailWindow(QWidget):
                     if team:
                         return team
                     if role:
-                        return _ics_position_abbreviation(role)
+                        return role
         except Exception:
             pass
         try:
@@ -2282,16 +2309,34 @@ class TaskDetailWindow(QWidget):
                 if getattr(ident, "home_unit", None):
                     return str(ident.home_unit)
                 if getattr(ident, "primary_role", None):
-                    return _ics_position_abbreviation(str(ident.primary_role))
+                    return str(ident.primary_role)
         except Exception:
             pass
         return ""
 
+    def _position_title_for_id(self, position_id: Any) -> str:
+        try:
+            raw = str(position_id or "").strip()
+            if not raw or not raw.isdigit():
+                return ""
+            from utils import incident_context
+            from modules.command.incident_organization.repository import ApiIncidentOrganizationRepository
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return ""
+            repo = ApiIncidentOrganizationRepository(str(incident_id))
+            pos = repo.get_position(int(raw))
+            return str(getattr(pos, "title", "") or "")
+        except Exception:
+            return ""
+
     def _narrative_position_display(self, row: Dict[str, Any]) -> str:
         raw_position = str(row.get("team_num") or "").strip()
         if raw_position:
-            if " " in raw_position:
-                return _ics_position_abbreviation(raw_position)
+            resolved = self._position_title_for_id(raw_position)
+            if resolved:
+                return resolved
             return raw_position
         return self._position_for_person(row.get("entered_by"))
 
@@ -2622,9 +2667,10 @@ class TaskDetailWindow(QWidget):
             ]
             items[0].setData(rid, Qt.EditRole)
             items[1].setData(raw_ts, Qt.UserRole + 10)
-            # Ensure display shows Yes/No and edit role carries 1/0
+            # Keep the visible and edit text human-readable; store the boolean separately.
             items[5].setData("Yes" if crit else "No", Qt.DisplayRole)
-            items[5].setData(int(crit), Qt.EditRole)
+            items[5].setData("Yes" if crit else "No", Qt.EditRole)
+            items[5].setData(int(crit), Qt.UserRole)
             items[5].setEditable(True)
             # Add per-row ICS-214 action column
             act = QStandardItem("214+")
@@ -3049,7 +3095,9 @@ class TaskDetailWindow(QWidget):
     def _is_row_critical(self, row: int) -> bool:
         try:
             idx = self._nar_model.index(row, 5)
-            val = self._nar_model.data(idx, Qt.EditRole)
+            val = self._nar_model.data(idx, Qt.UserRole)
+            if val in (None, ""):
+                val = self._nar_model.data(idx, Qt.EditRole)
             if isinstance(val, (int, bool)):
                 return bool(val)
             txt = str(self._nar_model.data(idx, Qt.DisplayRole) or "")
@@ -3060,7 +3108,16 @@ class TaskDetailWindow(QWidget):
     def _apply_row_critical_highlight(self, row: int) -> None:
         try:
             is_crit = self._is_row_critical(row)
-            color = QColor("#5c1a1a") if is_crit else None
+            bg = fg = None
+            if is_crit:
+                try:
+                    from utils.styles import narrative_status_colors
+
+                    colors = narrative_status_colors().get("critical", {})
+                    bg = colors.get("bg")
+                    fg = colors.get("fg")
+                except Exception:
+                    bg = fg = None
             # Block signals to avoid recursive dataChanged emissions
             try:
                 self._nar_model.blockSignals(True)
@@ -3071,7 +3128,8 @@ class TaskDetailWindow(QWidget):
                     it = self._nar_model.item(row, c)
                     if it is None:
                         continue
-                    it.setData(color, Qt.BackgroundRole)
+                    it.setData(bg, Qt.BackgroundRole)
+                    it.setData(fg, Qt.ForegroundRole)
             finally:
                 try:
                     self._nar_model.blockSignals(False)
@@ -3093,7 +3151,7 @@ class TaskDetailWindow(QWidget):
             return
         # If roles are provided and do not include Edit/Display roles, ignore to avoid loops
         try:
-            if roles and all(r not in (Qt.EditRole, Qt.DisplayRole) for r in roles):
+            if roles and all(r not in (Qt.EditRole, Qt.DisplayRole, Qt.UserRole) for r in roles):
                 return
         except Exception:
             return

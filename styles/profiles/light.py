@@ -133,6 +133,10 @@ TASK_STATUS: Dict[str, Dict[str, str]] = {
     "cancelled":        {"bg": "#E53935", "fg": "#ffffff"},
 }
 
+NARRATIVE_STATUS: Dict[str, Dict[str, str]] = {
+    "critical": {"bg": "#f2b8b5", "fg": "#1a1a1a"},
+}
+
 TEAM_TYPE_COLORS: Dict[str, str] = {
     "GT":       "#228b22",
     "UDF":      "#ffeb3b",
@@ -215,6 +219,7 @@ __all__ = [
     "RESOURCE_STATUS",
     "TEAM_STATUS",
     "TASK_STATUS",
+    "NARRATIVE_STATUS",
     "TEAM_TYPE_COLORS",
     "INTEL_SUBJECT_STATUS",
     "INTEL_ASSESSMENT_STATUS",

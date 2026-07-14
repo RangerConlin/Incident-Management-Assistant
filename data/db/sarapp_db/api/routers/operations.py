@@ -169,6 +169,48 @@ TS_STATUS_COLS = {
     "complete": "time_complete", "returning": "time_cleared", "rtb": "time_cleared",
 }
 
+# Canonical status_key -> display text for the persisted `status` field.
+# Every value here has a matching lowercase key in TEAM_STATUS
+# (styles/profiles/dark.py|light.py) so the desktop status board's row
+# coloring (which looks status up by `status.lower()`) matches. Any
+# status_key not listed here already round-trips correctly through
+# `status_key.title()` (e.g. "find" -> "Find", "break" -> "Break"), so this
+# only needs to cover the aliases that don't: "on scene"/rtb are display
+# overrides that predate this dict, "avail"/"free"/"unassigned" are the
+# clearing-branch aliases for "available", "discovery" is TS_STATUS_COLS'
+# alias for "find", and "oos"/"out of service" previously fell through to
+# `.title()` -> "Oos", which matched neither the mobile button's "Out of
+# Service" label nor any TEAM_STATUS color key.
+TEAM_STATUS_DISPLAY: dict[str, str] = {
+    "enroute": "En Route", "arrival": "On Scene", "on scene": "On Scene", "rtb": "Returning",
+    "avail": "Available", "free": "Available", "unassigned": "Available",
+    "discovery": "Find",
+    "oos": "Out of Service", "out of service": "Out of Service",
+}
+
+# Reverse of TS_STATUS_COLS, most-advanced stage first: the task_team's
+# current status display text, inferred from the latest timestamp column
+# that's actually set. Used as the "old" value in a status-change audit
+# entry — a task_team always has at least time_assigned set (stamped at
+# creation, see add_task_team), so this only falls through to "Assigned"
+# defensively.
+_TT_STATUS_COL_ORDER: list[tuple[str, str]] = [
+    ("time_cleared", "returning"),
+    ("time_complete", "complete"),
+    ("time_discovery", "find"),
+    ("time_arrived", "arrival"),
+    ("time_enroute", "enroute"),
+    ("time_briefed", "briefed"),
+    ("time_assigned", "assigned"),
+]
+
+
+def _team_status_from_tt(tt: dict) -> str:
+    for col, status_key in _TT_STATUS_COL_ORDER:
+        if tt.get(col):
+            return TEAM_STATUS_DISPLAY.get(status_key, status_key.title())
+    return "Assigned"
+
 
 def _normalize_incident_person(doc: dict) -> dict:
     return {
@@ -531,9 +573,7 @@ def set_team_status(incident_id: str, team_id: int, body: dict[str, Any]) -> dic
     tasks_repo = _tasks_repo(incident_id)
     status_key = str(body.get("status_key", "")).lower()
     now = _now()
-    display = {
-        "enroute": "En Route", "arrival": "On Scene", "on scene": "On Scene", "rtb": "RTB",
-    }.get(status_key, status_key.title())
+    display = TEAM_STATUS_DISPLAY.get(status_key, status_key.title())
 
     team = _find_by_int_id(teams_repo, team_id)
     if not team:
@@ -813,9 +853,7 @@ def set_task_team_status(incident_id: str, task_id: int, tt_id: int, body: dict[
             updates[f"task_teams.{idx}.{col}"] = None
 
     # Update team status display
-    display = {"enroute": "En Route", "arrival": "On Scene", "on scene": "On Scene", "rtb": "RTB"}.get(
-        status_key, status_key.title()
-    )
+    display = TEAM_STATUS_DISPLAY.get(status_key, status_key.title())
     team_id = tt_list[idx].get("team_id")
     if team_id is not None:
         team = _find_by_int_id(teams_repo, team_id)

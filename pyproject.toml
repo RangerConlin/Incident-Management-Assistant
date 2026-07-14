@@ -6,6 +6,7 @@ dependencies = [
     "pydantic",
     "reportlab",
     "PySide6-QtAds",
+    "certifi",
     "httpx",
     "sqlalchemy",
     "sqlmodel>=0.0.8",

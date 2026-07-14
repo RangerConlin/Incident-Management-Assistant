@@ -49,6 +49,19 @@ def _map_html(center_lat: float, center_lon: float, zoom: int) -> str:
 <link rel="stylesheet" href="leaflet.css" />
 <style>
   html, body, #map {{ height: 100%; margin: 0; padding: 0; }}
+  .team-marker-label {{
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(31, 41, 55, 0.22);
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22);
+    color: #111827;
+    font: 600 12px/1.2 Arial, sans-serif;
+    padding: 3px 6px;
+    white-space: nowrap;
+  }}
+  .team-marker-label::before {{
+    display: none;
+  }}
 </style>
 </head>
 <body>
@@ -69,6 +82,13 @@ def _map_html(center_lat: float, center_lon: float, zoom: int) -> str:
       markers[key] = L.marker([lat, lon]).addTo(map);
     }}
     markers[key].bindPopup(name);
+    markers[key].bindTooltip(name, {{
+      permanent: true,
+      direction: 'top',
+      offset: [0, -10],
+      opacity: 1,
+      className: 'team-marker-label'
+    }});
   }}
   function removeMarker(teamId) {{
     var key = String(teamId);

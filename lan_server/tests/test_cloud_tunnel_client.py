@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import ssl
 
 import pytest
 
@@ -158,3 +159,14 @@ def test_auth_rejected_close_code_constant_matches_router_policy_violation() -> 
     # a bad token; the LAN client must recognize that exact code to apply
     # its longer auth-rejection backoff instead of the normal exponential one.
     assert tunnel_module._AUTH_REJECTED_CLOSE_CODE == 1008
+
+
+def test_router_ssl_context_is_only_created_for_secure_router_urls() -> None:
+    import lan_server.cloud_tunnel_client as tunnel_module
+
+    assert tunnel_module._router_ssl_context("ws://router.example/tunnel/register") is None
+    assert tunnel_module._router_ssl_context("") is None
+    assert isinstance(
+        tunnel_module._router_ssl_context("wss://router.example/tunnel/register"),
+        ssl.SSLContext,
+    )

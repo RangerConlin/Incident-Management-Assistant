@@ -145,6 +145,9 @@ _DARK_PALETTE: Dict[str, QColor] = _build_palette(_DARK_PROFILE)
 _TASK_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "TASK_STATUS")
 _TASK_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "TASK_STATUS")
 
+_NARRATIVE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "NARRATIVE_STATUS")
+_NARRATIVE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "NARRATIVE_STATUS")
+
 _TEAM_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "TEAM_STATUS")
 _TEAM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "TEAM_STATUS")
 
@@ -225,6 +228,10 @@ def team_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TASK_STATUS_LIGHT if THEME_NAME == "light" else _TASK_STATUS_DARK
+
+
+def narrative_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _NARRATIVE_STATUS_LIGHT if THEME_NAME == "light" else _NARRATIVE_STATUS_DARK
 
 
 def resource_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -334,6 +341,7 @@ __all__ = [
     "subscribe_theme",
     "team_status_colors",
     "task_status_colors",
+    "narrative_status_colors",
     "resource_status_colors",
     "TEAM_TYPE_COLORS",
     "intel_subject_status_colors",

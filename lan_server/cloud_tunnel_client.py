@@ -19,9 +19,11 @@ import json
 import logging
 import os
 import random
+import ssl
 import string
 import threading
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 import websockets
@@ -120,6 +122,21 @@ def _filtered_headers(headers: dict[str, str]) -> dict[str, str]:
     return {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP_HEADERS}
 
 
+def _router_ssl_context(router_url: str | None) -> ssl.SSLContext | None:
+    """Return a stable CA-backed SSL context for cloud-router WSS dials."""
+
+    if not router_url or urlparse(router_url).scheme.lower() != "wss":
+        return None
+
+    try:
+        import certifi
+    except ImportError:
+        logger.debug("certifi is not installed; using Python default TLS trust store")
+        return ssl.create_default_context()
+
+    return ssl.create_default_context(cafile=certifi.where())
+
+
 class CloudTunnelClient:
     """Owns the persistent reverse-tunnel connection to a cloud router."""
 
@@ -207,6 +224,19 @@ class CloudTunnelClient:
                         _AUTH_REJECTION_BACKOFF_SECONDS,
                         exc,
                     )
+                elif isinstance(exc, ssl.SSLCertVerificationError):
+                    logger.warning(
+                        "Cloud tunnel TLS certificate verification failed for %s: %s. "
+                        "Check the router domain certificate chain and the LAN server's CA bundle.",
+                        self.cloud_router_url,
+                        exc,
+                    )
+                elif isinstance(exc, ssl.SSLError):
+                    logger.warning(
+                        "Cloud tunnel TLS handshake failed for %s: %s",
+                        self.cloud_router_url,
+                        exc,
+                    )
                 else:
                     logger.warning(
                         "Cloud tunnel connection failed (close_code=%s reason=%s): %s",
@@ -224,7 +254,10 @@ class CloudTunnelClient:
             backoff = _AUTH_REJECTION_BACKOFF_SECONDS if auth_rejected else min(backoff * 2, _MAX_BACKOFF_SECONDS)
 
     async def _connect_once(self) -> None:
-        async with websockets.connect(self.cloud_router_url) as tunnel:
+        async with websockets.connect(
+            self.cloud_router_url,
+            ssl=_router_ssl_context(self.cloud_router_url),
+        ) as tunnel:
             await tunnel.send(
                 json.dumps(
                     {
