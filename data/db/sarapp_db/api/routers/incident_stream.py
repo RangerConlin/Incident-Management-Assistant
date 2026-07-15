@@ -41,6 +41,7 @@ _HEAVY_COLLECTIONS = {
     IncidentCollections.FORM_INSTANCE_REVISIONS,
     IncidentCollections.ICS_214_LOGS,
     IncidentCollections.INTEL_LOG,
+    IncidentCollections.MESSAGES,
     IncidentCollections.NOTIFICATIONS,
     IncidentCollections.PIO_DISTRIBUTION_LOG,
     IncidentCollections.PIO_GENERATED_DOCUMENTS,

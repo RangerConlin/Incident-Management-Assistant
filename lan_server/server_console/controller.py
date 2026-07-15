@@ -62,14 +62,14 @@ def fetch_health(base_url: str, *, timeout_seconds: float = 1.0) -> HealthCheckR
     return HealthCheckResult(status="Healthy" if payload.get("ok") and is_sarapp else "Error", ok=bool(payload.get("ok") and is_sarapp), payload=payload)
 
 
-def fetch_active_sessions(base_url: str, *, timeout_seconds: float = 1.0) -> list[dict[str, Any]]:
-    """List active client login sessions from the server's auth API.
+def fetch_client_connections(base_url: str, *, timeout_seconds: float = 1.0) -> list[dict[str, Any]]:
+    """List durable client connections from the server registry API.
 
     Raises OSError-family/urllib errors on failure so callers can distinguish
     "no clients" from "endpoint unreachable" (e.g. MongoDB down).
     """
 
-    url = f"{base_url.rstrip('/')}/api/auth/sessions/active"
+    url = f"{base_url.rstrip('/')}/api/client-connections"
     with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return payload if isinstance(payload, list) else []

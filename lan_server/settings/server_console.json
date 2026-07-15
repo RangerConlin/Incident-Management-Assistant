@@ -3,6 +3,7 @@
   "connect_code": "OURS-9165",
   "discovery_enabled": true,
   "discovery_port": 45454,
+  "firebase_credentials_path": "",
   "host": "0.0.0.0",
   "port": 8765,
   "server_name": "SARApp Incident Server"

@@ -175,6 +175,15 @@ _INTEL_PRIORITY_COLORS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_
 _INTEL_TREND_COLORS_LIGHT: Dict[str, QColor] = _build_flat_colors(_LIGHT_PROFILE, "INTEL_TREND_COLORS")
 _INTEL_TREND_COLORS_DARK: Dict[str, QColor] = _build_flat_colors(_DARK_PROFILE, "INTEL_TREND_COLORS")
 
+_LIAISON_AGENCY_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "LIAISON_AGENCY_STATUS")
+_LIAISON_AGENCY_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "LIAISON_AGENCY_STATUS")
+
+_LIAISON_PRIORITY_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "LIAISON_PRIORITY")
+_LIAISON_PRIORITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "LIAISON_PRIORITY")
+
+_LIAISON_REPORT_STATE_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "LIAISON_REPORT_STATE")
+_LIAISON_REPORT_STATE_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "LIAISON_REPORT_STATE")
+
 _light_team_types = _build_team_types(_LIGHT_PROFILE)
 _dark_team_types = _build_team_types(_DARK_PROFILE)
 if not _dark_team_types:
@@ -266,6 +275,18 @@ def intel_trend_colors() -> Dict[str, QColor]:
     return _INTEL_TREND_COLORS_LIGHT if THEME_NAME == "light" else _INTEL_TREND_COLORS_DARK
 
 
+def liaison_agency_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _LIAISON_AGENCY_STATUS_LIGHT if THEME_NAME == "light" else _LIAISON_AGENCY_STATUS_DARK
+
+
+def liaison_priority_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _LIAISON_PRIORITY_LIGHT if THEME_NAME == "light" else _LIAISON_PRIORITY_DARK
+
+
+def liaison_report_state_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _LIAISON_REPORT_STATE_LIGHT if THEME_NAME == "light" else _LIAISON_REPORT_STATE_DARK
+
+
 def _qobject_is_valid(obj: object | None) -> bool:
     if obj is None:
         return False
@@ -351,4 +372,7 @@ __all__ = [
     "intel_entity_colors",
     "intel_priority_colors",
     "intel_trend_colors",
+    "liaison_agency_status_colors",
+    "liaison_priority_colors",
+    "liaison_report_state_colors",
 ]

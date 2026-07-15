@@ -25,6 +25,10 @@ def _push_tokens_col():
     return get_master_db()[MasterCollections.PUSH_TOKENS]
 
 
+def _client_connections_col():
+    return get_master_db()[MasterCollections.CLIENT_CONNECTIONS]
+
+
 def send_to_person(
     person_record: int,
     title: str,
@@ -43,8 +47,32 @@ def send_to_person(
     """
     get_firebase_app()
 
+    connections_col = _client_connections_col()
     tokens_col = _push_tokens_col()
-    docs = list(tokens_col.find({"person_record": person_record}))
+    connection_docs = list(
+        connections_col.find(
+            {
+                "person_record": person_record,
+                "fcm_token": {"$nin": [None, ""]},
+                "status": {"$ne": "revoked"},
+            }
+        )
+    )
+    legacy_docs = list(tokens_col.find({"person_record": person_record}))
+    docs: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for doc in connection_docs:
+        token = doc["fcm_token"]
+        if token in seen:
+            continue
+        seen.add(token)
+        docs.append({"token": token, "source": "client_connections"})
+    for doc in legacy_docs:
+        token = doc["token"]
+        if token in seen:
+            continue
+        seen.add(token)
+        docs.append({"token": token, "source": "push_tokens"})
     summary: dict[str, Any] = {"attempted": len(docs), "sent": 0, "pruned": []}
 
     for doc in docs:
@@ -58,7 +86,8 @@ def send_to_person(
             messaging.send(message)
             summary["sent"] += 1
         except messaging.UnregisteredError:
-            tokens_col.delete_one({"token": token})
+            tokens_col.delete_many({"token": token})
+            connections_col.update_many({"fcm_token": token}, {"$set": {"fcm_token": None}})
             summary["pruned"].append(token)
         except Exception:
             logger.exception(

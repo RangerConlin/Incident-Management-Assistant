@@ -75,7 +75,7 @@ class TaskingsBridge(QObject):
 
         ib = IncidentBridge()
         data = dict(payload or {})
-        # Default entered_by to the current signed-in user id if not provided
+        # Default entered_by to the canonical person_record of the signed-in user.
         try:
             from utils.state import AppState
             current_uid = AppState.get_active_user_id()
@@ -86,7 +86,7 @@ class TaskingsBridge(QObject):
             "taskid": int(task_id),
             "timestamp": data.get("timestamp"),
             "narrative": data.get("entry_text") or data.get("text") or "",
-            "entered_by": data.get("entered_by") or data.get("by") or (int(current_uid) if current_uid is not None else ""),
+            "entered_by": int(current_uid) if current_uid not in (None, "") else "",
             "team_num": data.get("team_name") or data.get("team") or "",
             "critical": 1 if data.get("critical_flag") else 0,
         }

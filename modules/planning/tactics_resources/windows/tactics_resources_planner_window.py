@@ -78,15 +78,18 @@ class WorkAssignmentTableModel(QAbstractTableModel):
         self._rows: list[WorkAssignment] = []
         # Extended data per row: (req_total, assigned_total, gap, hazard_total, open_hazards, task_count)
         self._meta: list[tuple[int, int, int, int, int, int]] = []
+        self._objective_labels: dict[str, str] = {}
 
     def set_data(
         self,
         rows: list[WorkAssignment],
         meta: list[tuple[int, int, int, int, int, int]],
+        objective_labels: dict[str, str] | None = None,
     ) -> None:
         self.beginResetModel()
         self._rows = rows
         self._meta = meta
+        self._objective_labels = objective_labels or {}
         self.endResetModel()
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
@@ -117,7 +120,7 @@ class WorkAssignmentTableModel(QAbstractTableModel):
             mapping = [
                 wa.assignment_number,
                 wa.assignment_name,
-                str(wa.objective_id or ""),
+                self._objective_labels.get(str(wa.objective_id), str(wa.objective_id or "")),
                 str(wa.operational_period_id or ""),
                 wa.branch,
                 wa.division_group,
@@ -318,6 +321,23 @@ class TacticsResourcesPlannerWindow(QWidget):
     # Data loading
     # ------------------------------------------------------------------
 
+    def _load_objective_labels(self) -> dict[str, str]:
+        try:
+            from utils import incident_context
+            from utils.api_client import api_client
+            iid = incident_context.get_active_incident_id()
+            if not iid:
+                return {}
+            rows = api_client.get("/api/objectives", params={"incident_id": iid}) or []
+        except Exception:
+            return {}
+        labels: dict[str, str] = {}
+        for row in rows:
+            code = row.get("code") or row.get("_id") or ""
+            text = row.get("text") or ""
+            labels[str(row.get("_id"))] = f"{code} - {text}" if text else code
+        return labels
+
     def reload(self) -> None:
         """Reload the table from the database."""
         filters: dict = {}
@@ -355,7 +375,8 @@ class TacticsResourcesPlannerWindow(QWidget):
             open_hazards = sum(1 for h in hazards if not h.is_resolved)
             meta_list.append((req_total, assigned_total, gap, len(hazards), open_hazards, len(links)))
 
-        self._model.set_data(assignments, meta_list)
+        objective_labels = self._load_objective_labels()
+        self._model.set_data(assignments, meta_list, objective_labels)
         self._preview.clear()
 
     # ------------------------------------------------------------------
@@ -504,10 +525,18 @@ class TacticsResourcesPlannerWindow(QWidget):
             QMessageBox.critical(self, "Default Hazards", f"Failed:\n{exc}")
             return
         self.reload()
-        QMessageBox.information(
-            self, "Default Hazards",
-            f"Added {added} hazard(s). Skipped {skipped} (already present or unavailable).",
-        )
+        if added == 0 and skipped == 0:
+            QMessageBox.information(
+                self, "Default Hazards",
+                "No default hazards are configured for this strategy's resource types.\n\n"
+                "Default hazards are assigned per resource type in the Hazard Type Library "
+                "(Admin > Hazard Types > open a hazard type > 'Resource Type Defaults' tab).",
+            )
+        else:
+            QMessageBox.information(
+                self, "Default Hazards",
+                f"Added {added} hazard(s). Skipped {skipped} (already present or unavailable).",
+            )
 
     def _create_task_selected(self) -> None:
         wa = self._current_assignment()

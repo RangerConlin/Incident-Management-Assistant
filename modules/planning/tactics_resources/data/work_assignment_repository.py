@@ -301,15 +301,68 @@ class WorkAssignmentRepository:
     def recalculate_all_resource_gaps(self, work_assignment_id: int) -> None:
         pass
 
+    _LOGISTICS_PRIORITY_MAP = {"Low": "ROUTINE", "Normal": "ROUTINE", "High": "HIGH", "Urgent": "IMMEDIATE"}
+
+    def create_logistics_request_from_requirement(
+        self, work_assignment_id: int, requirement_id: int
+    ) -> str | None:
+        """Create a Logistics Resource Request (ICS-213RR) from a resource
+        requirement line and link it back via ``logistics_request_id``."""
+        wa = self.get_work_assignment(work_assignment_id)
+        if not wa:
+            return None
+        reqs = self.list_resource_requirements(work_assignment_id)
+        req = next((r for r in reqs if r.id == requirement_id), None)
+        if not req:
+            return None
+        outstanding = max(req.quantity_required - req.quantity_assigned, 0) or req.quantity_required
+        description = req.resource_type_text
+        if req.capability_text:
+            description = f"{description} ({req.capability_text})"
+        body = {
+            "title": f"{wa.assignment_number} {wa.assignment_name} - {req.resource_type_text}".strip(" -"),
+            "requesting_section": "Operations",
+            "priority": self._LOGISTICS_PRIORITY_MAP.get(req.priority, "ROUTINE"),
+            "justification": req.source_note or req.notes or f"Resource requirement for strategy {wa.assignment_number}",
+            "items": [{
+                "kind": "SUPPLY",
+                "description": description,
+                "quantity": outstanding,
+                "unit": req.unit or "unit",
+            }],
+        }
+        try:
+            d = _client().post(f"/api/incidents/{_iid()}/logistics/resource-requests", json=body)
+        except Exception:
+            return None
+        request_id = d.get("id") if d else None
+        if request_id:
+            self.update_resource_requirement_for_wa(
+                work_assignment_id, requirement_id, {"logistics_request_id": request_id}
+            )
+        return request_id
+
     # ------------------------------------------------------------------
     # Actual resource assignments
     # ------------------------------------------------------------------
 
     def list_assigned_resources(self, requirement_id: int) -> list[WorkAssignmentResourceAssignment]:
-        return []  # embedded in resource requirement via full WA fetch
+        return []  # needs work_assignment_id — use list_assigned_resources_for_wa
+
+    def list_assigned_resources_for_wa(
+        self, work_assignment_id: int, requirement_id: int
+    ) -> list[WorkAssignmentResourceAssignment]:
+        try:
+            data = _client().get(f"{_base()}/{work_assignment_id}/resources")
+        except Exception:
+            return []
+        for d in data:
+            if d.get("id") == requirement_id:
+                return [_ra_from_dict(a) for a in d.get("assignments", [])]
+        return []
 
     def assign_actual_resource(self, requirement_id: int, resource_kind: str, resource_id: str, display_name: str = "") -> int:
-        return 0  # needs work_assignment_id
+        return 0  # needs work_assignment_id — use assign_actual_resource_for_wa
 
     def assign_actual_resource_for_wa(self, work_assignment_id: int, requirement_id: int, resource_kind: str, resource_id: str, display_name: str = "") -> int:
         d = _client().post(f"{_base()}/{work_assignment_id}/resources/{requirement_id}/assignments", json={
@@ -320,10 +373,27 @@ class WorkAssignmentRepository:
         return int(d.get("id") or 0)
 
     def remove_actual_resource(self, assignment_id: int) -> None:
-        pass  # needs work_assignment_id and requirement_id
+        pass  # needs work_assignment_id and requirement_id — use remove_actual_resource_for_wa
+
+    def remove_actual_resource_for_wa(self, work_assignment_id: int, requirement_id: int, assignment_id: int) -> None:
+        try:
+            _client().delete(f"{_base()}/{work_assignment_id}/resources/{requirement_id}/assignments/{assignment_id}")
+        except Exception:
+            pass
 
     def update_actual_resource_status(self, assignment_id: int, status: str) -> None:
-        pass  # needs work_assignment_id and requirement_id
+        pass  # needs work_assignment_id and requirement_id — use update_actual_resource_status_for_wa
+
+    def update_actual_resource_status_for_wa(
+        self, work_assignment_id: int, requirement_id: int, assignment_id: int, status: str
+    ) -> None:
+        try:
+            _client().patch(
+                f"{_base()}/{work_assignment_id}/resources/{requirement_id}/assignments/{assignment_id}",
+                json={"status": status},
+            )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Hazards
@@ -516,10 +586,23 @@ class WorkAssignmentRepository:
         return int(d.get("id") or 0)
 
     def update_log_entry(self, log_id: int, data: dict[str, Any]) -> bool:
-        return False  # needs work_assignment_id
+        return False  # needs work_assignment_id — use update_log_entry_for_wa
+
+    def update_log_entry_for_wa(self, work_assignment_id: int, log_id: int, data: dict[str, Any]) -> bool:
+        try:
+            _client().patch(f"{_base()}/{work_assignment_id}/log/{log_id}", json=data)
+            return True
+        except Exception:
+            return False
 
     def remove_log_entry(self, log_id: int) -> None:
-        pass  # needs work_assignment_id
+        pass  # needs work_assignment_id — use remove_log_entry_for_wa
+
+    def remove_log_entry_for_wa(self, work_assignment_id: int, log_id: int) -> None:
+        try:
+            _client().delete(f"{_base()}/{work_assignment_id}/log/{log_id}")
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Output status

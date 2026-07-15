@@ -74,6 +74,8 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d.setdefault("audit", [])
     d.setdefault("open_tasks", 0)
     d.setdefault("total_tasks", 0)
+    d.setdefault("origin_module", None)
+    d.setdefault("origin_id", None)
     return d
 
 
@@ -131,6 +133,8 @@ class CreateObjectiveRequest(BaseModel):
     tags: list[str] = []
     display_order: int | None = None
     created_by: str | None = None
+    origin_module: str | None = None
+    origin_id: str | None = None
 
 
 @router.post("", status_code=201)
@@ -153,6 +157,8 @@ def create_objective(body: CreateObjectiveRequest) -> dict[str, Any]:
         "narrative": None,
         "created_by": body.created_by,
         "updated_by": body.created_by,
+        "origin_module": body.origin_module,
+        "origin_id": body.origin_id,
     }
     doc = repo.insert_one(doc)
     _append_audit(repo, doc["_id"], "create", new=body.text, user_id=body.created_by)

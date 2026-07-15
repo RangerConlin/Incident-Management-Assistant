@@ -34,6 +34,7 @@ TOKEN_MEMBER = "tok-mobile-loc-member"
 TOKEN_OUTSIDER = "tok-mobile-loc-outsider"
 TOKEN_UNCHECKED = "tok-mobile-loc-unchecked"
 UNCHECKED_ID = 103  # registered token, no resource_status doc
+DEVICE_LEADER = "test-device-leader"
 
 
 def _teams_col():
@@ -48,12 +49,17 @@ def _tokens_col():
     return get_master_db()[MasterCollections.PUSH_TOKENS]
 
 
+def _connections_col():
+    return get_master_db()[MasterCollections.CLIENT_CONNECTIONS]
+
+
 def _clear():
     _teams_col().delete_many({})
     _resource_status_col().delete_many({})
     _tokens_col().delete_many({"token": {"$in": [
         TOKEN_LEADER, TOKEN_MEMBER, TOKEN_OUTSIDER, TOKEN_UNCHECKED,
     ]}})
+    _connections_col().delete_many({"device_id": DEVICE_LEADER})
 
 
 def _seed():
@@ -94,6 +100,105 @@ def test_leader_ping_overwrites():
     assert team["current_location_lat"] == 1.0
     assert team["current_location_lon"] == 2.0
     assert team["current_location_person_record"] == LEADER_ID
+    _clear()
+
+
+def test_connection_token_ping_records_location():
+    _clear()
+    _seed()
+    app = create_app()
+    with TestClient(app) as client:
+        conn = client.post(
+            "/api/client-connections/register",
+            json={
+                "device_id": DEVICE_LEADER,
+                "platform": "mobile",
+                "person_record": LEADER_ID,
+                "person_id": "leader",
+                "incident_id": INCIDENT_ID,
+                "team_id": TEAM_INT_ID,
+                "team_name": "Team 1",
+                "location_tracking_enabled": True,
+            },
+        )
+        assert conn.status_code == 200
+        connection_token = conn.json()["connection_token"]
+        res = client.post(
+            "/api/mobile/location",
+            json={
+                "connection_token": connection_token,
+                "lat": 11.0,
+                "lon": 12.0,
+                "team_id": TEAM_INT_ID,
+            },
+        )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True, "recorded": True}
+    team = _teams_col().find_one({"int_id": TEAM_INT_ID})
+    assert team["current_location_lat"] == 11.0
+    assert team["current_location_lon"] == 12.0
+    assert team["current_location_person_record"] == LEADER_ID
+    _clear()
+
+
+def test_client_connection_updates_heartbeat_and_lists_cleanly():
+    _clear()
+    _seed()
+    app = create_app()
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/client-connections/register",
+            json={
+                "device_id": DEVICE_LEADER,
+                "platform": "mobile",
+                "person_record": LEADER_ID,
+                "person_id": "leader",
+                "incident_id": INCIDENT_ID,
+                "team_id": TEAM_INT_ID,
+                "team_name": "Team 1",
+                "location_tracking_enabled": True,
+            },
+        )
+        assert created.status_code == 200
+
+        updated = client.post(
+            "/api/client-connections/register",
+            json={
+                "device_id": DEVICE_LEADER,
+                "platform": "mobile",
+                "person_record": LEADER_ID,
+                "person_id": "leader",
+                "incident_id": INCIDENT_ID,
+                "team_id": TEAM_INT_ID,
+                "team_name": "Team Updated",
+                "location_tracking_enabled": False,
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.json()["team_name"] == "Team Updated"
+        assert updated.json()["location_tracking_enabled"] is False
+
+        push = client.patch(
+            f"/api/client-connections/{DEVICE_LEADER}/push-token",
+            json={"fcm_token": "fcm-token-1", "notification_permission": "authorized"},
+        )
+        assert push.status_code == 200
+        assert push.json()["fcm_token"] == "fcm-token-1"
+
+        heartbeat = client.post(
+            f"/api/client-connections/{DEVICE_LEADER}/heartbeat",
+            json={"location_tracking_enabled": True},
+        )
+        assert heartbeat.status_code == 200
+        assert heartbeat.json()["location_tracking_enabled"] is True
+
+        listed = client.get("/api/client-connections")
+    assert listed.status_code == 200
+    rows = [row for row in listed.json() if row.get("device_id") == DEVICE_LEADER]
+    assert len(rows) == 1
+    assert rows[0]["fcm_token"] == "fcm-token-1"
+    assert "connection_token_hash" not in rows[0]
+    assert "_id" not in rows[0]
     _clear()
 
 

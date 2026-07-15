@@ -395,6 +395,25 @@ def create_agency_request(incident_id: str, body: dict[str, Any]) -> dict:
     return _strip(doc)
 
 
+@router.patch("/incidents/{incident_id}/liaison/agency-requests/{request_id}/converted")
+def mark_agency_request_converted(incident_id: str, request_id: int, body: dict[str, Any]) -> dict:
+    """Record that a customer request was converted into an Objective or Task."""
+    converted_to_type = body.get("converted_to_type")
+    converted_to_id = body.get("converted_to_id")
+    if not converted_to_type or not converted_to_id:
+        raise HTTPException(400, "converted_to_type and converted_to_id required")
+    repo = _agency_requests(incident_id)
+    doc = repo.find_one({"int_id": request_id})
+    if not doc:
+        raise HTTPException(404, "Agency request not found")
+    repo.update_one(doc["_id"], {
+        "converted_to_type": converted_to_type,
+        "converted_to_id": converted_to_id,
+    })
+    result = repo.find_by_id(doc["_id"])
+    return _strip(result)
+
+
 # ---------------------------------------------------------------------------
 # Resource offers
 # ---------------------------------------------------------------------------

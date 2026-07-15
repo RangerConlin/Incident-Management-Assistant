@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Body, HTTPException
 
+from sarapp_db.api.routers.client_connections import resolve_connection_token
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.repository import BaseRepository
@@ -61,6 +62,24 @@ def _resolve_person_and_incident(token: str) -> tuple[Optional[int], Optional[st
     return int(person_record), str(incident_id)
 
 
+def _resolve_identity(body: dict[str, Any]) -> tuple[Optional[int], Optional[str]]:
+    connection_token = str(body.get("connection_token") or "").strip()
+    if connection_token:
+        connection = resolve_connection_token(connection_token)
+        if not connection:
+            return None, None
+        person_record = connection.get("person_record")
+        incident_id = connection.get("incident_id")
+        if person_record is None or not incident_id:
+            return None, None
+        return int(person_record), str(incident_id)
+
+    token = str(body.get("token") or "").strip()
+    if not token:
+        return None, None
+    return _resolve_person_and_incident(token)
+
+
 def _has_checked_in(incident_id: str, person_record: int) -> bool:
     """A person only counts as checked in if they have a resource_status
     (entity_type=personnel) record for this incident — mirrors checkin.py's
@@ -96,9 +115,10 @@ def _team_leader_id(team_doc: dict[str, Any]) -> Optional[int]:
 
 @router.post("/location")
 def submit_location(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    connection_token = str(body.get("connection_token") or "").strip()
     token = str(body.get("token") or "").strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="token is required")
+    if not connection_token and not token:
+        raise HTTPException(status_code=400, detail="connection_token is required")
     lat = body.get("lat")
     lon = body.get("lon")
     if lat is None or lon is None:
@@ -106,7 +126,7 @@ def submit_location(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     if body.get("team_id") is None:
         raise HTTPException(status_code=400, detail="team_id is required")
 
-    person_record, incident_id = _resolve_person_and_incident(token)
+    person_record, incident_id = _resolve_identity(body)
     if person_record is None or incident_id is None:
         return {"ok": True, "recorded": False}
 
@@ -141,11 +161,12 @@ def submit_location(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 @router.post("/location/stop")
 def stop_location(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    connection_token = str(body.get("connection_token") or "").strip()
     token = str(body.get("token") or "").strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="token is required")
+    if not connection_token and not token:
+        raise HTTPException(status_code=400, detail="connection_token is required")
 
-    person_record, incident_id = _resolve_person_and_incident(token)
+    person_record, incident_id = _resolve_identity(body)
     if person_record is None or incident_id is None:
         return {"ok": True, "cleared": False}
 

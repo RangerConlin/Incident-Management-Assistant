@@ -212,6 +212,32 @@ INTEL_TREND_COLORS: Dict[str, str] = {
     "unknown":   "#8b949e",
 }
 
+# Liaison module — bold, saturated opaque fills for agency-status chips,
+# priority badges, and the Reporting Board's ready/not-ready state.
+LIAISON_AGENCY_STATUS: Dict[str, Dict[str, str]] = {
+    "Not Contacted":     {"bg": "#78909C", "fg": "#1a1a1a"},
+    "Contacted":         {"bg": "#1976D2", "fg": "#ffffff"},
+    "Awaiting Response": {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "Standby":           {"bg": "#5E35B1", "fg": "#ffffff"},
+    "Supporting":        {"bg": "#00897B", "fg": "#ffffff"},
+    "Active":            {"bg": "#43A047", "fg": "#ffffff"},
+    "Demobilizing":      {"bg": "#8E24AA", "fg": "#ffffff"},
+    "Released":          {"bg": "#78716C", "fg": "#ffffff"},
+    "Unavailable":       {"bg": "#E53935", "fg": "#ffffff"},
+}
+
+LIAISON_PRIORITY: Dict[str, Dict[str, str]] = {
+    "Low":      {"bg": "#43A047", "fg": "#ffffff"},
+    "Medium":   {"bg": "#1976D2", "fg": "#ffffff"},
+    "High":     {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "Critical": {"bg": "#E53935", "fg": "#ffffff"},
+}
+
+LIAISON_REPORT_STATE: Dict[str, Dict[str, str]] = {
+    "ready":     {"bg": "#2E7D32", "fg": "#ffffff"},
+    "not_ready": {"bg": "#FB8C00", "fg": "#1a1a1a"},
+}
+
 __all__ = [
     "NAMED_COLORS",
     "PALETTE",
@@ -228,4 +254,7 @@ __all__ = [
     "INTEL_ENTITY_COLORS",
     "INTEL_PRIORITY_COLORS",
     "INTEL_TREND_COLORS",
+    "LIAISON_AGENCY_STATUS",
+    "LIAISON_PRIORITY",
+    "LIAISON_REPORT_STATE",
 ]

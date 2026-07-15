@@ -68,6 +68,29 @@ def get_person_identity(person_record: int) -> Optional[PersonnelIdentity]:
         return None
 
 
+def find_person_record_by_person_id(person_id: str) -> Optional[int]:
+    """Resolve the user-entered personnel ID to its canonical record key."""
+    value = str(person_id or "").strip()
+    if not value:
+        return None
+    try:
+        rows = _client().get(
+            f"{_BASE_PERSONNEL}/search",
+            params={"q": value, "limit": 200},
+        ) or []
+        matches = [
+            row for row in rows
+            if str(row.get("person_id") or "").strip() == value
+        ]
+        if len(matches) != 1:
+            return None
+        record = matches[0].get("person_record")
+        return int(record) if record is not None else None
+    except Exception:
+        return None
+    return None
+
+
 def search_personnel(term: str, limit: int = 50) -> List[PersonnelIdentity]:
     try:
         docs = _client().get(f"{_BASE_PERSONNEL}/search", params={"q": term, "limit": limit}) or []

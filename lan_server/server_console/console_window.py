@@ -43,7 +43,7 @@ from .controller import (
     ConsoleServerState,
     ServerConsoleController,
     check_port,
-    fetch_active_sessions,
+    fetch_client_connections,
     fetch_health,
 )
 from .log_model import ConsoleLogBuffer, QtLogHandler
@@ -55,7 +55,7 @@ class ServerConsoleWindow(QMainWindow):
 
     log_line = Signal(str)
     operation_done = Signal(str, bool)
-    sessions_updated = Signal(bool, list)
+    client_connections_updated = Signal(bool, list)
 
     def __init__(self, store: ServerConsoleSettingsStore | None = None) -> None:
         super().__init__()
@@ -64,8 +64,8 @@ class ServerConsoleWindow(QMainWindow):
         self.controller = ServerConsoleController(self.settings)
         self.logs = ConsoleLogBuffer()
         self._last_health_status = "Stopped"
-        self._sessions_poll_active = False
-        self._last_sessions_ok: bool | None = None
+        self._client_connections_poll_active = False
+        self._last_client_connections_ok: bool | None = None
         self._traffic_seq = -1
         self.setWindowTitle("SARApp Server Console")
         self.resize(900, 720)
@@ -157,8 +157,17 @@ class ServerConsoleWindow(QMainWindow):
         clients_layout = QVBoxLayout(clients_box)
         self.clients_label = QLabel("Connected clients: 0")
         clients_layout.addWidget(self.clients_label)
-        self.clients_table = QTableWidget(0, 5)
-        self.clients_table.setHorizontalHeaderLabels(["User", "Device", "Status", "Connected time", "Last heartbeat"])
+        self.clients_table = QTableWidget(0, 8)
+        self.clients_table.setHorizontalHeaderLabels([
+            "User",
+            "Team",
+            "Platform",
+            "Device",
+            "Tracking",
+            "Push",
+            "Status",
+            "Last heartbeat",
+        ])
         self.clients_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.clients_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         header = self.clients_table.horizontalHeader()
@@ -215,7 +224,7 @@ class ServerConsoleWindow(QMainWindow):
         return root
 
     # Requests the console generates itself while monitoring the server.
-    _CONSOLE_POLL_PATHS = frozenset({"/health", "/server-info", "/api/auth/sessions/active"})
+    _CONSOLE_POLL_PATHS = frozenset({"/health", "/server-info", "/api/client-connections"})
 
     def _build_traffic_tab(self) -> QWidget:
         widget = QWidget(self)
@@ -255,7 +264,7 @@ class ServerConsoleWindow(QMainWindow):
         self.firebase_upload_button.clicked.connect(self._upload_firebase_key)
         self.log_line.connect(self._append_log_from_thread)
         self.operation_done.connect(self._operation_finished)
-        self.sessions_updated.connect(self._apply_sessions)
+        self.client_connections_updated.connect(self._apply_client_connections)
         self.traffic_clear_button.clicked.connect(self._clear_traffic)
         self.traffic_polling_check.toggled.connect(self._rebuild_traffic_table)
 
@@ -396,7 +405,7 @@ class ServerConsoleWindow(QMainWindow):
         if self.controller.state not in {ConsoleServerState.RUNNING, ConsoleServerState.MONITORING}:
             if self._last_health_status != "Stopped":
                 self._last_health_status = "Stopped"; self._append_log("Health status changed to Stopped.")
-                self._apply_sessions(True, [])
+                self._apply_client_connections(True, [])
             self._refresh_status(); return
         result = fetch_health(self.settings.base_url, timeout_seconds=1.0)
         status = result.status if result.ok else "Error"
@@ -404,46 +413,52 @@ class ServerConsoleWindow(QMainWindow):
             self._last_health_status = status
             self._append_log("Health check success." if result.ok else f"Health check error: {result.message}")
         self.health_label.setText(status)
-        self._poll_sessions()
+        self._poll_client_connections()
         self._refresh_status()
 
-    def _poll_sessions(self) -> None:
+    def _poll_client_connections(self) -> None:
         """Refresh the client connections table off the UI thread."""
 
-        if self._sessions_poll_active:
+        if self._client_connections_poll_active:
             return
-        self._sessions_poll_active = True
+        self._client_connections_poll_active = True
         base_url = self.settings.base_url
 
         def runner() -> None:
             try:
-                sessions = fetch_active_sessions(base_url, timeout_seconds=2.0)
-                self.sessions_updated.emit(True, sessions)
+                connections = fetch_client_connections(base_url, timeout_seconds=2.0)
+                self.client_connections_updated.emit(True, connections)
             except Exception as exc:  # noqa: BLE001 - surface polling errors in the log
-                if self._last_sessions_ok is not False:
-                    self.log_line.emit(self.logs.add(f"Client session poll failed: {exc}"))
-                self.sessions_updated.emit(False, [])
+                if self._last_client_connections_ok is not False:
+                    self.log_line.emit(self.logs.add(f"Client connection poll failed: {exc}"))
+                self.client_connections_updated.emit(False, [])
             finally:
-                self._sessions_poll_active = False
-        threading.Thread(target=runner, name="sarapp-console-sessions-poll", daemon=True).start()
+                self._client_connections_poll_active = False
+        threading.Thread(target=runner, name="sarapp-console-client-connections-poll", daemon=True).start()
 
-    def _apply_sessions(self, ok: bool, sessions: list) -> None:
+    def _apply_client_connections(self, ok: bool, connections: list) -> None:
         if not ok:
-            if self._last_sessions_ok is not False:
-                self.clients_label.setText("Connected clients: unavailable (session API unreachable)")
-            self._last_sessions_ok = False
+            if self._last_client_connections_ok is not False:
+                self.clients_label.setText("Connected clients: unavailable (connection API unreachable)")
+            self._last_client_connections_ok = False
             return
-        self._last_sessions_ok = True
-        self.clients_label.setText(f"Connected clients: {len(sessions)}")
-        self.clients_table.setRowCount(len(sessions))
-        for row, session in enumerate(sessions):
-            display = session.get("display_name") or session.get("username") or session.get("user_id") or ""
+        self._last_client_connections_ok = True
+        self.clients_label.setText(f"Connected clients: {len(connections)}")
+        self.clients_table.setRowCount(len(connections))
+        for row, connection in enumerate(connections):
+            display = connection.get("display_name") or connection.get("person_id") or connection.get("person_record") or ""
+            team = connection.get("team_name") or connection.get("team_id") or ""
+            tracking = "On" if connection.get("location_tracking_enabled") else "Off"
+            push = "FCM" if connection.get("fcm_token") else ""
             values = [
                 str(display),
-                str(session.get("device_name") or ""),
-                str(session.get("status") or ""),
-                str(session.get("started_at") or ""),
-                str(session.get("last_seen_at") or ""),
+                str(team),
+                str(connection.get("platform") or ""),
+                str(connection.get("device_name") or connection.get("device_id") or ""),
+                tracking,
+                push,
+                str(connection.get("status") or ""),
+                str(connection.get("last_seen_at") or ""),
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)

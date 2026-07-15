@@ -78,6 +78,7 @@ class MasterCollections:
     USER_SESSIONS = "user_sessions"
     USER_PROFILES = "user_profiles"
     ROLE_TEMPLATES = "role_templates"
+    CLIENT_CONNECTIONS = "client_connections"
 
     # Mobile push notifications — FCM device tokens, keyed by token (a
     # device can be re-associated to a different person on re-login; see
@@ -184,6 +185,7 @@ class IncidentCollections:
     LIAISON_FOLLOWUP_ACTIONS = "liaison_followup_actions"
     LIAISON_RESTRICTIONS = "liaison_restrictions"
     LIAISON_AGREEMENTS = "liaison_agreements"
+    LIAISON_REPORTING_DIGESTS = "liaison_reporting_digests"
 
     # Intel — All-Hazards Information Management (Module 7 redesign)
     INTEL_SUBJECTS = "intel_subjects"          # Human subjects (missing persons, witnesses, etc.)
@@ -238,3 +240,7 @@ class IncidentCollections:
     SITREPS = "sitreps"
     SITREP_EVENTS = "sitrep_events"
     SITREP_DISTRIBUTIONS = "sitrep_distributions"
+
+    # Chat — incident-scoped messenger shared by desktop, mobile, and web
+    CHAT_CHANNELS = "chat_channels"
+    MESSAGES = "messages"

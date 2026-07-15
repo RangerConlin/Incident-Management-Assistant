@@ -187,7 +187,7 @@ def _resolve_person_display(value: Any) -> str:
         pass
     if raw.isdigit():
         return ""
-    return raw
+    return ""
 
 
 def _ics_position_abbreviation(title: str) -> str:
@@ -2291,7 +2291,7 @@ class TaskDetailWindow(QWidget):
             if incident_id:
                 rows = fetch_roster(RosterFilters())
                 for row in rows:
-                    if str(getattr(row, "person_id", "") or "") != raw:
+                    if str(getattr(row, "person_record", "") or "") != raw:
                         continue
                     team = str(getattr(row, "team", "") or "").strip()
                     role = str(getattr(row, "role", "") or "").strip()

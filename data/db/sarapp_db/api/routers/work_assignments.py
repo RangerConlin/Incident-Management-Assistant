@@ -447,6 +447,44 @@ def assign_resource(incident_id: str, wa_id: int, req_id: int, body: Dict[str, A
     raise HTTPException(status_code=404, detail="Resource requirement not found")
 
 
+@router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}/assignments/{assignment_id}")
+def update_assignment(incident_id: str, wa_id: int, req_id: int, assignment_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
+    col = _col(incident_id)
+    doc = _get_doc(incident_id, wa_id)
+    resources = doc.get("resources", [])
+    updatable = {"status", "resource_kind", "resource_id", "display_name", "notes", "released_at"}
+    for i, r in enumerate(resources):
+        if r.get("id") == req_id:
+            assignments = r.get("assignments", [])
+            for j, a in enumerate(assignments):
+                if a.get("id") == assignment_id:
+                    for k in updatable:
+                        if k in body:
+                            assignments[j][k] = body[k]
+                    resources[i]["updated_at"] = _utcnow()
+                    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"resources": resources}})
+                    return _ra_out(assignments[j])
+            raise HTTPException(status_code=404, detail="Assignment not found")
+    raise HTTPException(status_code=404, detail="Resource requirement not found")
+
+
+@router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}/assignments/{assignment_id}", status_code=204)
+def remove_assignment(incident_id: str, wa_id: int, req_id: int, assignment_id: int) -> None:
+    col = _col(incident_id)
+    doc = _get_doc(incident_id, wa_id)
+    resources = doc.get("resources", [])
+    for i, r in enumerate(resources):
+        if r.get("id") == req_id:
+            assignments = [a for a in r.get("assignments", []) if a.get("id") != assignment_id]
+            resources[i]["assignments"] = assignments
+            resources[i]["quantity_assigned"] = len(assignments)
+            resources[i]["quantity_gap"] = max(int(resources[i].get("quantity_required", 1)) - len(assignments), 0)
+            resources[i]["updated_at"] = _utcnow()
+            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"resources": resources}})
+            return
+    raise HTTPException(status_code=404, detail="Resource requirement not found")
+
+
 # -------------------------------------------------------------------------
 # Hazards — embedded
 # -------------------------------------------------------------------------
@@ -723,6 +761,28 @@ def add_log_entry(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[st
     }
     col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"log_entries": entry}})
     return _log_out(entry)
+
+
+@router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/log/{log_id}")
+def update_log_entry(incident_id: str, wa_id: int, log_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
+    col = _col(incident_id)
+    doc = _get_doc(incident_id, wa_id)
+    entries = doc.get("log_entries", [])
+    updatable = {"entry_text", "entry_type", "critical"}
+    for i, e in enumerate(entries):
+        if e.get("id") == log_id:
+            for k in updatable:
+                if k in body:
+                    entries[i][k] = body[k]
+            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"log_entries": entries}})
+            return _log_out(entries[i])
+    raise HTTPException(status_code=404, detail="Log entry not found")
+
+
+@router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/log/{log_id}", status_code=204)
+def remove_log_entry(incident_id: str, wa_id: int, log_id: int) -> None:
+    col = _col(incident_id)
+    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"log_entries": {"id": log_id}}})
 
 
 # -------------------------------------------------------------------------

@@ -23,13 +23,6 @@ Individual Meeting Detail Windows
 Situation Report
   - Move to under the command menu
   
-Tactics and Resource Planner
-  - On the main table the objective isnt showing human readable
-  - Need to create and tie into logistics requests
-  - Expand assigned resources and tie into this and logistics requests in order to fill requests
-  - Log doesnt seem to be logging anything
-  - Theres a button for apply default hazards, but there doesnt seem to be a way to assign default hazards
-
 Weather
 
 **************************************************************************************************************
@@ -46,8 +39,6 @@ Task Board
 
 **************************************************************************************************************
 [Task Detail Window]
-  - Personnel and vehicles not populating from attached teams
-  - SAR 104 export leads to attribute error 
   - Communications channels need a selector for channel type (primary/alternate/etc)
   - Forms that fail to generate still create a record in the attachments table leading to more errors
   - 104/109 exports need to be tied to a specific team somehow
@@ -119,10 +110,21 @@ Medical Plan ICS 206
 
 **************************************************************************************************************
 [Liaison]
-Agency Directory
-
-External Requests
-  - Mostly scaffold still, need to design further and expand into a workable module
+Redesigned around the LOFR's actual job — controlling what information flows between incident
+staff and external customers — not generic agency CRUD. Dashboard (modules/liaison/liaison_window.py)
+follows the Public Information module's structure (button bar + overview + linked windows), now
+bold/saturated-colored via new LIAISON_AGENCY_STATUS/LIAISON_PRIORITY/LIAISON_REPORT_STATE
+palettes in styles/profiles/{dark,light}.py. Three sections:
+  - Agency Directory — unchanged CRUD board, re-themed.
+  - Reporting Board (modules/liaison/panels/reporting_board.py, new liaison_reporting_digests
+    collection) — LOFR pulls a live Objective/Task status, curates a customer-facing summary,
+    gates it behind a Ready to Report toggle before it's shareable.
+  - Customer Requests & Feedback (modules/liaison/panels/customer_board.py) — incoming customer
+    requests can be converted directly into a real Objective or Task (origin_module/origin_id
+    back-link added to both schemas), plus Resource Offers and Feedback tabs.
+  - Remaining gap: Agency Detail dialog's Contacts / Restrictions / Agreements tabs are
+    read-only (backend supports Contacts CRUD; Restrictions/Agreements have no create UI at
+    all) — add "add" dialogs for these if the LNO workflow needs them tracked.
 **************************************************************************************************************
 [PIO]
 PIO Dashboard
@@ -167,8 +169,6 @@ Cost Summary
 
 **************************************************************************************************************
 [Dockable Widgets]
-    - Button widget that can be customized to launch a specific screen
-    - Code for KPI display widget exists but isnt exposed anywhere
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
@@ -186,7 +186,6 @@ Cost Summary
         product development.
       - Heavily in-development modules: leave the remaining collections alone for now except to
         avoid adding new duplicate collections or fields.
-  - Personnel export currently exports deep into the temporary folders - needs to export to documents by default and have a selctable export location
     - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
     - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
 

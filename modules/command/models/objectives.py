@@ -123,6 +123,10 @@ class ApiObjectiveRepository:
         }
         if payload.get("narrative"):
             body["narrative"] = payload["narrative"]
+        if payload.get("origin_module"):
+            body["origin_module"] = payload["origin_module"]
+        if payload.get("origin_id"):
+            body["origin_id"] = payload["origin_id"]
         doc = api_client.post("/api/objectives", json=body)
         return self.get_objective_detail(doc["_id"])
 

@@ -59,7 +59,7 @@ def test_yes_no_delegate_update_allows_immediate_row_highlight() -> None:
         assert instance._nar_model.item(0, column).data(Qt.BackgroundRole) is not None
 
 
-def test_resolve_person_display_uses_auth_user_display_name(monkeypatch) -> None:
+def test_resolve_person_display_uses_canonical_person_record(monkeypatch) -> None:
     def _missing_person(_value):
         return None
 
@@ -71,11 +71,11 @@ def test_resolve_person_display_uses_auth_user_display_name(monkeypatch) -> None
     class _Api:
         def get(self, path):
             assert path == "/api/auth/users"
-            return [{"user_id": "405021", "display_name": "Alex Morgan"}]
+            return [{"user_id": "42", "person_record": 42, "display_name": "Alex Morgan"}]
 
     monkeypatch.setattr("utils.api_client.api_client", _Api())
 
-    assert widget._resolve_person_display("405021") == "Alex Morgan"
+    assert widget._resolve_person_display("42") == "Alex Morgan"
 
 
 def test_unresolved_numeric_person_id_is_not_displayed(monkeypatch) -> None:

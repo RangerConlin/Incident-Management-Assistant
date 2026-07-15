@@ -37,6 +37,7 @@ from .components import (
     VehicleSnapshotWidget,
     WeatherWidget,
 )
+from .launch_button import LaunchButtonWidget
 from .number_card import NumberCardWidget
 from .number_card_metrics import get_metric, list_metrics
 
@@ -332,6 +333,14 @@ REGISTRY: Dict[str, WidgetSpec] = {
         default_size=Size(6, 1),
         min_size=Size(6, 1),
         component=None,  # included inside Quick Entry widget
+        data_hooks=None,
+    ),
+    "launchbutton": WidgetSpec(
+        id="launchbutton",
+        title="Launch Button",
+        default_size=Size(3, 1),
+        min_size=Size(2, 1),
+        component=lambda: LaunchButtonWidget(),
         data_hooks=None,
     ),
     "clockDual": WidgetSpec(

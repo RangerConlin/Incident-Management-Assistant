@@ -266,6 +266,24 @@ class MainWindow(QMainWindow):
         theme_bridge: ThemeBridge | None = None,
     ):
         super().__init__()
+
+        # Attach a hidden QWebEngineView as this window's very first child,
+        # before any other widget/dock/menu setup runs, so Qt creates this
+        # window's native handle as GPU/RHI-composited from birth rather than
+        # plain software (raster). If a WebEngine-based panel (e.g. the team
+        # location map) is the one that first forces this upgrade later, Qt
+        # has to destroy and recreate the native window to switch — visible
+        # as the whole app flashing/reloading on first use. Doing it here
+        # instead pays that cost once, before this window is ever shown.
+        try:
+            from PySide6.QtWebEngineWidgets import QWebEngineView
+
+            self._webengine_prewarm = QWebEngineView(self)
+            self._webengine_prewarm.setAttribute(Qt.WA_DontShowOnScreen, True)
+            self._webengine_prewarm.resize(1, 1)
+        except Exception as exc:
+            logger.warning("QtWebEngine pre-warm failed: %s", exc)
+
         self._ems_window = None
         self._settings_window = None
         # Theme wiring is applied after settings bridge is available
@@ -444,6 +462,15 @@ class MainWindow(QMainWindow):
 
                 settings_obj = QSettings(self._perspective_file, QSettings.IniFormat)
                 self.dock_manager.loadPerspectives(settings_obj)
+
+                # Recreate (hidden) any dock referenced by the saved 'default'
+                # perspective that isn't part of the fixed baseline above —
+                # e.g. a panel the user docked and saved as their default
+                # layout. Without this, openPerspective silently drops any
+                # entry whose widget doesn't already exist.
+                for dock_title in self._dock_titles_in_saved_perspective("default", settings_obj):
+                    self._ensure_dock_widget_by_title(dock_title)
+
                 # Attempt to apply the saved 'default' perspective to the created docks
                 try:
                     rv = self.dock_manager.openPerspective("default")
@@ -775,6 +802,7 @@ class MainWindow(QMainWindow):
         m_cmd = mb.addMenu("Command")
         self._add_action(m_cmd, "Incident Command Dashboard", None, "command.incident_dashboard")
         self._add_action(m_cmd, "Command Unit Log ICS-214", None, "command.unit_log")
+        self._add_action(m_cmd, "Incident Chat", None, "command.chat")
         m_cmd.addSeparator()
         self._add_action(m_cmd, "Incident Overview", None, "command.incident_overview")
         self._add_action(m_cmd, "Incident Action Plan Builder", None, "command.iap")
@@ -861,10 +889,12 @@ class MainWindow(QMainWindow):
         self._add_weather_menu_items(m_med, prefix="safety.weather")
         # ----- Liaison -----
         m_lia = mb.addMenu("Liaison")
+        self._add_action(m_lia, "Liaison Dashboard", None, "liaison.dashboard")
         self._add_action(m_lia, "Liaison Unit Log ICS-214", None, "liaison.unit_log")
         m_lia.addSeparator()
         self._add_action(m_lia, "Agency Directory", None, "liaison.agencies")
-        self._add_action(m_lia, "External Coordination", None, "liaison.requests")
+        self._add_action(m_lia, "Reporting Board", None, "liaison.reporting")
+        self._add_action(m_lia, "Customer Requests & Feedback", None, "liaison.customer")
 
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
@@ -1098,6 +1128,7 @@ class MainWindow(QMainWindow):
 
             # ----- Command -----
             "command.unit_log": self.open_command_unit_log,
+            "command.chat": self.open_command_chat,
             "command.incident_dashboard": self.open_command_incident_dashboard,
             "command.incident_overview": self.open_command_incident_overview,
             "command.iap": self.open_command_iap,
@@ -1182,9 +1213,11 @@ class MainWindow(QMainWindow):
             "safety.weather.settings": self.open_weather_settings,
             "safety.weather.export": self.open_weather_export,
             # ----- Liaison -----
+            "liaison.dashboard": self.open_liaison_dashboard,
             "liaison.unit_log": self.open_liaison_unit_log,
             "liaison.agencies": self.open_liaison_agencies,
-            "liaison.requests": self.open_liaison_requests,
+            "liaison.reporting": self.open_liaison_reporting,
+            "liaison.customer": self.open_liaison_customer,
 
             # ----- Public Information -----
             "public.dashboard":       self.open_public_dashboard,
@@ -1519,6 +1552,12 @@ class MainWindow(QMainWindow):
             "default_prepared_by_position": "Incident Commander",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Command", preferred_size=(950, 600))
+
+    def open_command_chat(self) -> None:
+        from modules import chat
+        incident_id = AppState.get_active_incident()
+        panel = chat.get_chat_window(incident_id)
+        self._open_dock_widget(panel, title="Incident Chat", preferred_size=(750, 600))
 
     def open_command_incident_dashboard(self) -> None:
         from modules import command
@@ -2347,6 +2386,11 @@ class MainWindow(QMainWindow):
         self._open_panel(panel, title="Safety Incident Reports")
 
 # --- 4.10 Liaison --------------------------------------------------------
+    def open_liaison_dashboard(self) -> None:
+        from modules import liaison
+        incident_id = AppState.get_active_incident()
+        liaison.open_liaison_window(incident_id, parent=self)
+
     def open_liaison_unit_log(self) -> None:
         from modules import ics214
         incident_id = AppState.get_active_incident()
@@ -2361,14 +2405,17 @@ class MainWindow(QMainWindow):
     def open_liaison_agencies(self) -> None:
         from modules import liaison
         incident_id = AppState.get_active_incident()
-        panel = liaison.get_agencies_panel(incident_id)
-        self._open_panel(panel, title="Agency Directory")
+        liaison.open_liaison_window(incident_id, tab="Agency Directory", parent=self)
 
-    def open_liaison_requests(self) -> None:
+    def open_liaison_reporting(self) -> None:
         from modules import liaison
         incident_id = AppState.get_active_incident()
-        panel = liaison.get_requests_panel(incident_id)
-        self._open_panel(panel, title="External Coordination")
+        liaison.open_liaison_window(incident_id, tab="Reporting Board", parent=self)
+
+    def open_liaison_customer(self) -> None:
+        from modules import liaison
+        incident_id = AppState.get_active_incident()
+        liaison.open_liaison_window(incident_id, tab="Customer Requests & Feedback", parent=self)
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_dashboard(self) -> None:
@@ -2797,8 +2844,32 @@ class MainWindow(QMainWindow):
         """Embed widget in an ADS dock panel.
         By default, menu-launched panels open floating (undocked). Use float_on_open=False to dock.
         """
+        existing = self.dock_manager.findDockWidget(title)
+        if existing is not None:
+            # Reuse rather than duplicate: e.g. a hidden dock created by
+            # _ensure_dock_widget_by_title, or the panel was already opened.
+            # Discard the freshly constructed widget the caller just built —
+            # the existing dock already holds a live instance.
+            try:
+                widget.deleteLater()
+            except Exception:
+                pass
+            if not getattr(self, "_silent_dock_open", False):
+                existing.toggleView(True)
+                existing.setAsCurrentTab()
+                self.dock_manager.setDockWidgetFocused(existing)
+            return
+
         dock = CDockWidget(self.dock_manager, title)
         dock.setWidget(widget)
+
+        if getattr(self, "_silent_dock_open", False):
+            # Startup restoration: register the dock so a saved perspective can
+            # find and position/show it, without popping it up now.
+            area = CenterDockWidgetArea if not self.findChildren(CDockWidget) else LeftDockWidgetArea
+            self.dock_manager.addDockWidget(area, dock)
+            return
+
         if float_on_open:
             # Preferred: directly add as floating if ADS supports it
             try:
@@ -2903,6 +2974,107 @@ class MainWindow(QMainWindow):
                 pass
         else:
             QMessageBox.warning(self, "Task Status", "Task Status is unavailable in this build.")
+
+    # Maps a dock's title to the bound method that creates it, for every panel
+    # that can be opened into an ADS dock via _open_dock_widget with a static
+    # title. Used by _ensure_dock_widget_by_title so ANY such panel referenced
+    # in a saved perspective can be recreated (hidden) before the perspective
+    # is applied — ADS can only rearrange dock widgets that already exist, it
+    # cannot instantiate missing ones on restore.
+    _STATIC_DOCK_OPENERS: dict[str, str] = {
+        "ICS-214 Activity Log — Command": "open_command_unit_log",
+        "Incident Chat": "open_command_chat",
+        "ICS-214 Activity Log — Planning": "open_planning_unit_log",
+        "ICS-214 Activity Log — Operations": "open_operations_unit_log",
+        "Team Status": "open_operations_team_status",
+        "Task Status": "open_operations_task_board",
+        "Team Location Map": "open_operations_team_location_map",
+        "ICS-214 Activity Log — Logistics": "open_logistics_unit_log",
+        "ICS-214 Activity Log — Communications": "open_comms_unit_log",
+        "Notification Center": "open_notification_center",
+        "Notification Feed": "open_notifications_panel",
+        "New Communications Entry": "open_comms_quick_entry",
+        "ICS-214 Activity Log — Intelligence": "open_intel_unit_log",
+        "ICS-214 Activity Log — Medical": "open_medical_unit_log",
+        "ICS-214 Activity Log — Safety": "open_safety_unit_log",
+        "ICS-214 Activity Log — Liaison": "open_liaison_unit_log",
+        "ICS-214 Activity Log — Public Information": "open_public_unit_log",
+        "ICS-214 Activity Log — Finance/Admin": "open_finance_unit_log",
+        "Home Dashboard": "open_home_dashboard",
+    }
+
+    def _dock_titles_in_saved_perspective(self, name: str, settings_obj: "QSettings") -> set[str]:
+        """Return the set of dock widget titles referenced by a saved ADS perspective.
+
+        ADS stores each perspective's layout as a qCompress'd XML blob
+        (``<Widget Name="...">`` per dock). Decompress it and pull out the
+        widget names so callers know which docks must exist before the
+        perspective can be applied.
+        """
+        import re
+        import struct
+        import zlib
+
+        titles: set[bytes] = set()
+        try:
+            settings_obj.beginGroup("Perspectives")
+            size = int(settings_obj.value("size", 0))
+            for i in range(1, size + 1):
+                if settings_obj.value(f"{i}/Name") != name:
+                    continue
+                ba = settings_obj.value(f"{i}/State")
+                if not ba:
+                    continue
+                raw = bytes(ba)
+                if len(raw) < 4:
+                    continue
+                data = zlib.decompress(raw[4:])
+                titles.update(re.findall(rb'Widget Name="([^"]*)"', data))
+            settings_obj.endGroup()
+        except Exception:
+            pass
+        return {t.decode("utf-8", "ignore") for t in titles}
+
+    def _ensure_dock_widget_by_title(self, title: str) -> None:
+        """Create (hidden) the dock widget for ``title`` if it doesn't exist yet.
+
+        Looks up a factory for the title among the static panel openers and the
+        dashboard widget registry, then invokes it in "silent" mode so the
+        widget is added to the dock manager without popping up or floating.
+        The saved perspective is responsible for positioning/showing it.
+        """
+        if self.dock_manager.findDockWidget(title) is not None:
+            return
+
+        opener = None
+        method_name = self._STATIC_DOCK_OPENERS.get(title)
+        if method_name:
+            opener = getattr(self, method_name, None)
+
+        if opener is None:
+            try:
+                from ui.widgets import registry as W
+                for widget_id, spec in W.REGISTRY.items():
+                    if spec.title == title and spec.component is not None:
+                        opener = lambda widget_id=widget_id: self.open_widget_with_id(widget_id)
+                        break
+            except Exception:
+                pass
+
+        if opener is None:
+            return
+
+        self._silent_dock_open = True
+        try:
+            opener()
+        except Exception:
+            pass
+        finally:
+            self._silent_dock_open = False
+
+        dock = self.dock_manager.findDockWidget(title)
+        if dock is not None:
+            dock.toggleView(False)
 
     def open_new_workspace_window(self) -> None:
         """Create a blank floating dock window you can move to another monitor.
@@ -3265,6 +3437,17 @@ class MainWindow(QMainWindow):
                 pass
             self.dock_manager.addPerspective("default")
             self.dock_manager.savePerspectives(settings_obj)
+
+            # Clear any DB-backed active layout so it doesn't override the
+            # perspective we just saved the next time the app starts
+            # (ui_customization_services.ensure_active_layout runs after
+            # perspective load and would otherwise reapply a stale layout).
+            if self.customization_repo:
+                try:
+                    self.customization_repo.set_active_layout(None)
+                except Exception:
+                    pass
+
             QMessageBox.information(self, "Default Saved", "Current layout saved as 'default'.")
         except Exception as e:
             QMessageBox.warning(self, "Save Failed", f"Could not set default layout.\n{e}")
@@ -3761,6 +3944,25 @@ def _activate_debug_bypass(app: QApplication) -> object | None:
 # ===== Part 6: Application Entrypoint =======================================
 if __name__ == "__main__":
     import argparse
+
+    # Must happen before QApplication is constructed: Qt docs require
+    # AA_ShareOpenGLContexts to be set explicitly (it is NOT on by default)
+    # whenever a QWebEngineView is used, so its GL context can be shared with
+    # the rest of the app. Without this, the first QWebEngineView created
+    # later (e.g. the team location map) forces Qt to renegotiate GL context
+    # sharing on the fly, tearing down and rebuilding the main window's
+    # compositor/backing store — seen as the whole app visibly flashing.
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
+    from PySide6 import QtWebEngineWidgets  # noqa: F401
+
+    # Embedding a QWebEngineView (a native, GPU-composited widget) into an
+    # existing widget tree otherwise makes Qt promote sibling widgets to
+    # native windows too, which can cascade into recreating the native
+    # window handle of the surrounding ADS floating dock/main window — seen
+    # as the whole app visibly flashing/rebuilding when the team location
+    # map (or any other QWebEngineView-based panel) is first opened.
+    QApplication.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings, True)
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     _size_title_filter = _WindowSizeTitleFilter()
@@ -3829,6 +4031,7 @@ if __name__ == "__main__":
             demo_mode=bool(getattr(args, 'demo', False)),
             default_incident_number=_default_incident,
             api_available=_online_available,
+            settings_manager=_early_settings,
         )
 
         def _handle_start_offline() -> None:
@@ -3890,6 +4093,7 @@ if __name__ == "__main__":
         theme_manager=_theme_manager,
         theme_bridge=_theme_bridge,
     )
+
     from modules.devtools.dev_menu import attach_dev_menu
     attach_dev_menu(win)
     win.showMaximized()

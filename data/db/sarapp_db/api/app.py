@@ -104,12 +104,14 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     from sarapp_db.api.routers import auth_sessions
     from sarapp_db.api.routers import audit
     from sarapp_db.api.routers import diagnostics
+    from sarapp_db.api.routers import client_connections
     from sarapp_db.api.routers import push_tokens
     from sarapp_db.api.routers import mobile_location
     app.include_router(objectives.router, prefix="/api/objectives", tags=["objectives"])
     app.include_router(auth_sessions.router, prefix="/api/auth", tags=["auth"])
     app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
     app.include_router(diagnostics.router, prefix="/api/diagnostics", tags=["diagnostics"])
+    app.include_router(client_connections.router, prefix="/api/client-connections", tags=["client-connections"])
     app.include_router(push_tokens.router, prefix="/api/mobile", tags=["mobile"])
     app.include_router(mobile_location.router, prefix="/api/mobile", tags=["mobile"])
 
@@ -161,6 +163,9 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
 
     from sarapp_db.api.routers import liaison
     app.include_router(liaison.router, prefix="/api", tags=["liaison"])
+
+    from sarapp_db.api.routers import liaison_reporting
+    app.include_router(liaison_reporting.router, prefix="/api", tags=["liaison"])
 
     from sarapp_db.api.routers import resource_status as resource_status_router
     app.include_router(
@@ -254,5 +259,8 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
 
     from sarapp_db.api.routers import sitrep
     app.include_router(sitrep.router, prefix="/api", tags=["sitrep"])
+
+    from sarapp_db.api.routers import chat
+    app.include_router(chat.router, prefix="/api", tags=["chat"])
 
     return app

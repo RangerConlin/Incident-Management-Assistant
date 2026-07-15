@@ -72,6 +72,20 @@ def create_agency_request(values: dict[str, Any], incident_id: object | None = N
     return api_client.post(f"/api/incidents/{iid}/liaison/agency-requests", json=values)
 
 
+def mark_agency_request_converted(
+    request_id: int,
+    converted_to_type: str,
+    converted_to_id: str,
+    incident_id: object | None = None,
+) -> dict[str, Any]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.patch(
+        f"/api/incidents/{iid}/liaison/agency-requests/{request_id}/converted",
+        json={"converted_to_type": converted_to_type, "converted_to_id": converted_to_id},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Resource offers
 # ---------------------------------------------------------------------------
@@ -125,3 +139,97 @@ def fetch_feedback_for_task(task_id: int, incident_id: object | None = None) -> 
 
 def fetch_feedback_for_resource_request(resource_request_id: int, incident_id: object | None = None) -> list[dict[str, Any]]:
     return _fetch_feedback_for("resource_request_id", resource_request_id, incident_id)
+
+
+# ---------------------------------------------------------------------------
+# Reporting digests (Reporting Board)
+# ---------------------------------------------------------------------------
+
+def fetch_reporting_digests(incident_id: object | None = None) -> list[dict[str, Any]]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.get(f"/api/incidents/{iid}/liaison/reporting-digests")
+
+
+def create_reporting_digest(
+    source_type: str,
+    source_id: str,
+    updated_by: str = "",
+    incident_id: object | None = None,
+) -> dict[str, Any]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.post(
+        f"/api/incidents/{iid}/liaison/reporting-digests",
+        json={"source_type": source_type, "source_id": source_id, "updated_by": updated_by},
+    )
+
+
+def update_reporting_digest(
+    digest_id: int,
+    values: dict[str, Any],
+    incident_id: object | None = None,
+) -> dict[str, Any]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.patch(f"/api/incidents/{iid}/liaison/reporting-digests/{digest_id}", json=values)
+
+
+def resync_reporting_digest(digest_id: int, incident_id: object | None = None) -> dict[str, Any]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.post(f"/api/incidents/{iid}/liaison/reporting-digests/{digest_id}/resync", json={})
+
+
+def delete_reporting_digest(digest_id: int, incident_id: object | None = None) -> None:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    api_client.delete(f"/api/incidents/{iid}/liaison/reporting-digests/{digest_id}")
+
+
+# ---------------------------------------------------------------------------
+# Convert a customer request into an Objective or Task
+# ---------------------------------------------------------------------------
+
+def convert_agency_request_to_objective(
+    request_text: str,
+    request_id: int,
+    priority: str = "normal",
+    user_id: str | None = None,
+    incident_id: object | None = None,
+) -> dict[str, Any]:
+    from modules.command.models.objectives import ApiObjectiveRepository
+
+    iid = _resolve_incident_id(incident_id)
+    repo = ApiObjectiveRepository(iid)
+    detail = repo.create_objective(
+        {
+            "text": request_text,
+            "priority": priority,
+            "origin_module": "liaison",
+            "origin_id": str(request_id),
+        },
+        user_id=user_id,
+    )
+    objective_id = detail.summary.id
+    mark_agency_request_converted(request_id, "objective", objective_id, iid)
+    return {"objective_id": objective_id}
+
+
+def convert_agency_request_to_task(
+    request_title: str,
+    request_id: int,
+    priority: str = "Medium",
+    incident_id: object | None = None,
+) -> dict[str, Any]:
+    from modules.operations.taskings.repository import create_task
+
+    iid = _resolve_incident_id(incident_id)
+    task_int_id = create_task(
+        title=request_title,
+        priority=priority,
+        origin_module="liaison",
+        origin_id=str(request_id),
+    )
+    mark_agency_request_converted(request_id, "task", str(task_int_id), iid)
+    return {"task_id": task_int_id}

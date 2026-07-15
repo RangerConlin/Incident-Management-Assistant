@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt, QSortFilterProxyModel
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -42,42 +41,21 @@ from .repository import (
     create_interaction,
     create_resource_offer,
     fetch_agency_detail,
-    fetch_agency_requests,
     fetch_agency_rows,
     fetch_feedback_rows,
-    fetch_resource_offers,
     update_agency_status,
 )
+from utils.styles import liaison_agency_status_colors, liaison_priority_colors, subscribe_theme
 
 __all__ = [
     "get_agencies_panel",
-    "get_requests_panel",
     "AgencyStatusBoard",
     "FeedbackBoard",
-    "RequestsOffersBoard",
-    "PriorityFollowupBoard",
     "AgencyDetailDialog",
+    "AgencyRequestDialog",
+    "ResourceOfferDialog",
+    "FeedbackDialog",
 ]
-
-
-STATUS_COLORS = {
-    "Not Contacted": ("#3a3a3a", "#f4f4f4"),
-    "Contacted": ("#244a73", "#ffffff"),
-    "Awaiting Response": ("#735c24", "#ffffff"),
-    "Standby": ("#435466", "#ffffff"),
-    "Supporting": ("#266b4b", "#ffffff"),
-    "Active": ("#1f7a3f", "#ffffff"),
-    "Demobilizing": ("#6f4d90", "#ffffff"),
-    "Released": ("#555555", "#ffffff"),
-    "Unavailable": ("#7a2d2d", "#ffffff"),
-}
-
-PRIORITY_COLORS = {
-    "Critical": ("#8a1f1f", "#ffffff"),
-    "High": ("#9b5d00", "#ffffff"),
-    "Medium": ("#314f78", "#ffffff"),
-    "Low": ("#3f5f3f", "#ffffff"),
-}
 
 
 class MultiColumnFilterProxy(QSortFilterProxyModel):
@@ -158,6 +136,14 @@ class _BaseBoard(QWidget):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
         header.setStretchLastSection(True)
+
+        try:
+            subscribe_theme(self, self._on_theme_changed)
+        except Exception:
+            pass
+
+    def _on_theme_changed(self, _name: str) -> None:
+        self.reload()
 
     def _set_search(self, value: str) -> None:
         self.proxy.search_text = value.strip()
@@ -245,15 +231,17 @@ class AgencyStatusBoard(_BaseBoard):
         items[0].setData(int(row["id"]), Qt.UserRole)
         status = str(row.get("current_status") or "")
         priority = str(row.get("priority") or "")
-        for item in items:
-            if status in STATUS_COLORS:
-                bg, fg = STATUS_COLORS[status]
-                item.setBackground(QColor(bg))
-                item.setForeground(QColor(fg))
-        if priority in PRIORITY_COLORS:
-            bg, fg = PRIORITY_COLORS[priority]
-            items[10].setBackground(QColor(bg))
-            items[10].setForeground(QColor(fg))
+        status_colors = liaison_agency_status_colors()
+        priority_colors = liaison_priority_colors()
+        status_brushes = status_colors.get(status)
+        if status_brushes:
+            for item in items:
+                item.setBackground(status_brushes["bg"])
+                item.setForeground(status_brushes["fg"])
+        priority_brushes = priority_colors.get(priority)
+        if priority_brushes:
+            items[10].setBackground(priority_brushes["bg"])
+            items[10].setForeground(priority_brushes["fg"])
         self.model.appendRow(items)
 
     def _open_current_detail(self) -> None:
@@ -383,11 +371,11 @@ class FeedbackBoard(_BaseBoard):
             Qt.UserRole + 1,
         )
         priority = str(row.get("priority") or "")
-        if priority in PRIORITY_COLORS:
-            bg, fg = PRIORITY_COLORS[priority]
+        priority_brushes = liaison_priority_colors().get(priority)
+        if priority_brushes:
             for item in items:
-                item.setBackground(QColor(bg))
-                item.setForeground(QColor(fg))
+                item.setBackground(priority_brushes["bg"])
+                item.setForeground(priority_brushes["fg"])
         self.model.appendRow(items)
 
     def _add_feedback(self) -> None:
@@ -771,116 +759,6 @@ class ResourceOfferDialog(QDialog):
         }
 
 
-class RequestsOffersBoard(QWidget):
-    """Incident-wide view of external agency requests and resource offers."""
-
-    def __init__(self, incident_id: object | None = None, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.incident_id = incident_id
-        layout = QVBoxLayout(self)
-
-        actions = QHBoxLayout()
-        self.add_request_button = QPushButton("Add External Request", self)
-        self.add_request_button.clicked.connect(self._add_request)
-        self.add_offer_button = QPushButton("Add Resource Offer", self)
-        self.add_offer_button.clicked.connect(self._add_offer)
-        self.refresh_button = QPushButton("Refresh", self)
-        self.refresh_button.clicked.connect(self.reload)
-        actions.addWidget(self.add_request_button)
-        actions.addWidget(self.add_offer_button)
-        actions.addStretch(1)
-        actions.addWidget(self.refresh_button)
-        layout.addLayout(actions)
-
-        self.tabs = QTabWidget(self)
-        self.requests_model = QStandardItemModel(self)
-        self.requests_table = QTableView(self)
-        self.requests_table.setModel(self.requests_model)
-        self.requests_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.requests_table.setSortingEnabled(True)
-        self.requests_table.horizontalHeader().setStretchLastSection(True)
-        self.tabs.addTab(self.requests_table, "External Requests")
-
-        self.offers_model = QStandardItemModel(self)
-        self.offers_table = QTableView(self)
-        self.offers_table.setModel(self.offers_model)
-        self.offers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.offers_table.setSortingEnabled(True)
-        self.offers_table.horizontalHeader().setStretchLastSection(True)
-        self.tabs.addTab(self.offers_table, "Resource Offers")
-
-        layout.addWidget(self.tabs)
-        self.reload()
-
-    def reload(self) -> None:
-        try:
-            requests = fetch_agency_requests(incident_id=self.incident_id)
-            offers = fetch_resource_offers(incident_id=self.incident_id)
-        except Exception as exc:
-            QMessageBox.critical(self, "Requests / Offers", f"Failed to load requests/offers:\n{exc}")
-            return
-        self._fill(self.requests_model, requests, ["agency_id", "description", "priority", "status", "due_date", "requested_by"])
-        self._fill(self.offers_model, offers, ["agency_id", "description", "quantity", "status", "available_from", "offered_by"])
-        self.requests_table.resizeColumnsToContents()
-        self.offers_table.resizeColumnsToContents()
-
-    @staticmethod
-    def _fill(model: QStandardItemModel, rows: list[dict[str, Any]], columns: list[str]) -> None:
-        model.removeRows(0, model.rowCount())
-        model.setHorizontalHeaderLabels(columns)
-        for row in rows:
-            model.appendRow([QStandardItem(str(row.get(col) or "")) for col in columns])
-
-    def _add_request(self) -> None:
-        dialog = AgencyRequestDialog(None, self)
-        if dialog.exec() == QDialog.Accepted:
-            create_agency_request(dialog.values(), self.incident_id)
-            self.reload()
-
-    def _add_offer(self) -> None:
-        dialog = ResourceOfferDialog(None, self)
-        if dialog.exec() == QDialog.Accepted:
-            create_resource_offer(dialog.values(), self.incident_id)
-            self.reload()
-
-
-class PriorityFollowupBoard(FeedbackBoard):
-    """Stakeholder feedback narrowed to High/Critical priority items still open."""
-
-    OPEN_STATUSES = {"Open", "Under Review", "Routed", "Action Required"}
-    PRIORITY_FILTER = {"High", "Critical"}
-
-    def reload(self) -> None:
-        try:
-            self.model.removeRows(0, self.model.rowCount())
-            for row in fetch_feedback_rows(self.incident_id):
-                if row.get("priority") not in self.PRIORITY_FILTER:
-                    continue
-                if row.get("status") not in self.OPEN_STATUSES:
-                    continue
-                self._append_feedback(row)
-            self.table.resizeColumnsToContents()
-        except Exception as exc:
-            QMessageBox.critical(self, "Priority Issues / Follow-ups", f"Failed to load priority items:\n{exc}")
-
-
-class ExternalCoordinationPanel(QWidget):
-    def __init__(self, incident_id: object | None = None, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        intro = QLabel(
-            "External Coordination consolidates external requests, resource offers, "
-            "stakeholder feedback, priority issues, and follow-up actions."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-        self.tabs = QTabWidget(self)
-        self.tabs.addTab(FeedbackBoard(incident_id, self), "Stakeholder Feedback")
-        self.tabs.addTab(RequestsOffersBoard(incident_id, self), "Requests / Offers")
-        self.tabs.addTab(PriorityFollowupBoard(incident_id, self), "Priority Issues / Follow-ups")
-        layout.addWidget(self.tabs)
-
-
 def get_agencies_panel(incident_id: object | None = None) -> QWidget:
     """Return the Liaison Agency Status Board for the active incident."""
     panel = QWidget()
@@ -894,8 +772,3 @@ def get_agencies_panel(incident_id: object | None = None) -> QWidget:
     add_button.clicked.connect(board._add_agency)
     layout.addWidget(add_button, alignment=Qt.AlignLeft)
     return panel
-
-
-def get_requests_panel(incident_id: object | None = None) -> QWidget:
-    """Return External Coordination, replacing the simple request tracker."""
-    return ExternalCoordinationPanel(incident_id)

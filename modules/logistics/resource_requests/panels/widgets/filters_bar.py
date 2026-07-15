@@ -24,7 +24,7 @@ class FiltersBar(QtWidgets.QWidget):
         layout.setSpacing(8)
 
         self.status_buttons: dict[RequestStatus, QtWidgets.QToolButton] = {}
-        status_container = QtWidgets.QWidget(self)
+        status_container = QtWidgets.QWidget()
         status_layout = QtWidgets.QHBoxLayout(status_container)
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(4)
@@ -35,7 +35,20 @@ class FiltersBar(QtWidgets.QWidget):
             button.clicked.connect(self._emit_filters)
             self.status_buttons[status] = button
             status_layout.addWidget(button)
-        layout.addWidget(status_container)
+
+        # The status row has one button per RequestStatus (11 values) which,
+        # laid out edge to edge, is wider than most laptop screens. Scope it
+        # to a horizontally-scrolling strip so it doesn't dictate the
+        # minimum width of the whole window.
+        status_scroll = QtWidgets.QScrollArea(self)
+        status_scroll.setWidget(status_container)
+        status_scroll.setWidgetResizable(True)
+        status_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        status_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        status_scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        status_scroll.setFixedHeight(status_container.sizeHint().height() + 4)
+        status_scroll.setMinimumWidth(0)
+        layout.addWidget(status_scroll, stretch=1)
 
         self.priority_combo = QtWidgets.QComboBox(self)
         self.priority_combo.addItem("All Priorities", None)

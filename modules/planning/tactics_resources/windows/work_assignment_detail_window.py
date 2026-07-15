@@ -691,10 +691,18 @@ class WorkAssignmentDetailWindow(QWidget):
         if isinstance(self._hazards_placeholder, HazardAnalysisEditor):
             self._hazards_placeholder.reload()
         self._update_summary()
-        QMessageBox.information(
-            self, "Default Hazards",
-            f"Added {added} hazard(s). Skipped {skipped} (already present or unavailable).",
-        )
+        if added == 0 and skipped == 0:
+            QMessageBox.information(
+                self, "Default Hazards",
+                "No default hazards are configured for this strategy's resource types.\n\n"
+                "Default hazards are assigned per resource type in the Hazard Type Library "
+                "(Admin > Hazard Types > open a hazard type > 'Resource Type Defaults' tab).",
+            )
+        else:
+            QMessageBox.information(
+                self, "Default Hazards",
+                f"Added {added} hazard(s). Skipped {skipped} (already present or unavailable).",
+            )
 
     def _create_task(self) -> None:
         if self._work_assignment_id is None:
@@ -863,7 +871,10 @@ class WorkAssignmentDetailWindow(QWidget):
         text, entry_type, critical = dialog.get_data()
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.update_log_entry(log_id, {"entry_text": text, "entry_type": entry_type, "critical": 1 if critical else 0})
+            repo.update_log_entry_for_wa(
+                self._work_assignment_id, log_id,
+                {"entry_text": text, "entry_type": entry_type, "critical": bool(critical)},
+            )
         except Exception as exc:
             QMessageBox.critical(self, "Log", f"Failed:\n{exc}")
             return
@@ -878,7 +889,7 @@ class WorkAssignmentDetailWindow(QWidget):
             return
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.remove_log_entry(log_id)
+            repo.remove_log_entry_for_wa(self._work_assignment_id, log_id)
         except Exception as exc:
             QMessageBox.critical(self, "Remove", f"Failed:\n{exc}")
             return
@@ -892,7 +903,9 @@ class WorkAssignmentDetailWindow(QWidget):
         currently_critical = self._log_table.item(row, 4).text() == "Yes"
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.update_log_entry(log_id, {"critical": 0 if currently_critical else 1})
+            repo.update_log_entry_for_wa(
+                self._work_assignment_id, log_id, {"critical": not currently_critical}
+            )
         except Exception as exc:
             QMessageBox.critical(self, "Toggle", f"Failed:\n{exc}")
             return

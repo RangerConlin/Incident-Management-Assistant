@@ -46,14 +46,13 @@ class IncidentBridge(QObject):
             rows = api_client.get(f"/api/incidents/{iid}/narratives", params=params) or []
             # Resolve entered_by to a display name.
             # entered_by is stored as a stringified person_record integer.
-            # get_person_identity() requires an int, so we convert before calling.
-            # Non-numeric values are left as-is (they may already be a display name).
+            # get_person_identity() requires the canonical internal record key.
             try:
                 from modules.logistics.checkin import repository as ci_repo
                 names_cache: dict[str, str] = {}
                 for r in rows:
                     eb = r.get("entered_by")
-                    r["entered_by_display"] = eb
+                    r["entered_by_display"] = ""
                     if not eb:
                         continue
                     key = str(eb)
@@ -63,14 +62,14 @@ class IncidentBridge(QObject):
                     try:
                         uid = int(key)
                     except (ValueError, TypeError):
-                        # Not a numeric ID — treat the raw value as the display name
-                        names_cache[key] = key
+                        names_cache[key] = ""
+                        r["entered_by_display"] = ""
                         continue
                     try:
                         ident = ci_repo.get_person_identity(uid)
-                        disp = ident.name if ident and getattr(ident, "name", None) else key
+                        disp = ident.name if ident and getattr(ident, "name", None) else ""
                     except Exception:
-                        disp = key
+                        disp = ""
                     names_cache[key] = disp
                     r["entered_by_display"] = disp
             except Exception:

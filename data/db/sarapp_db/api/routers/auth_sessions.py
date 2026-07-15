@@ -64,8 +64,8 @@ def _normalize_person(doc: dict[str, Any] | None) -> dict[str, Any] | None:
     clean = _clean_doc(doc)
     if not clean:
         return None
-    person_id = next((clean[k] for k in ("person_id", "int_id", "id") if clean.get(k) is not None), None)
-    clean["id"] = str(person_id) if person_id is not None else None
+    person_record = clean.get("person_record")
+    clean["id"] = str(person_record) if person_record is not None else None
     clean["primary_role"] = clean.get("primary_role") or clean.get("role") or clean.get("rank")
     return clean
 
@@ -80,26 +80,33 @@ def _find_person(identifier: Any) -> dict[str, Any] | None:
         doc = _personnel_col().find_one({"person_record": int(value)})
         if doc:
             return doc
-    return _personnel_col().find_one({"person_id": value})
+    return _find_unique_person_by_person_id(value)
 
 
-def _find_person_by_person_id(person_id: Any) -> dict[str, Any] | None:
+def _find_unique_person_by_person_id(person_id: Any) -> dict[str, Any] | None:
     if person_id is None:
         return None
     value = str(person_id).strip()
     if not value:
         return None
-    return _personnel_col().find_one({"person_id": value})
+    matches = list(_personnel_col().find({"person_id": value}).sort("person_record", 1))
+    if len(matches) != 1:
+        return None
+    return matches[0]
 
 
 def _resolve_person_record(body: dict[str, Any], existing_user: dict[str, Any] | None = None) -> int | None:
-    explicit = body.get("person_record") or body.get("personnel_id") or (existing_user or {}).get("person_record")
-    person = _find_person(explicit)
-    if person:
-        return int(person["person_record"]) if person.get("person_record") is not None else None
+    explicit = body.get("person_record") or body.get("personnel_id")
+    if explicit is not None:
+        person = _find_person(explicit)
+        if person:
+            return int(person["person_record"]) if person.get("person_record") is not None else None
+    existing_record = (existing_user or {}).get("person_record")
+    if existing_record is not None:
+        return int(existing_record)
 
     for candidate in (body.get("username"), body.get("user_id")):
-        person = _find_person_by_person_id(candidate)
+        person = _find_unique_person_by_person_id(candidate)
         if person and person.get("person_record") is not None:
             return int(person["person_record"])
     return None
@@ -136,15 +143,13 @@ def start_session(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     now = _utcnow()
     user_id = str(body.get("user_id") or username)
-    person_id = username
     existing_user = _users_col().find_one({"user_id": user_id}) or _users_col().find_one({"username": username})
     person_record = _resolve_person_record(body, existing_user)
     user_doc = {
         "user_id": user_id,
         "username": username,
-        "person_id": person_id,
         "display_name": body.get("display_name") or body.get("name") or username,
-        "badge_number": body.get("badge_number") or username,
+        "badge_number": body.get("badge_number"),
         "person_record": person_record,
         "updated_at": now,
     }
@@ -158,7 +163,6 @@ def start_session(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         "session_id": str(uuid4()),
         "user_id": user_id,
         "username": username,
-        "person_id": person_id,
         "display_name": user_doc["display_name"],
         "person_record": person_record,
         "role": body.get("role") or "",

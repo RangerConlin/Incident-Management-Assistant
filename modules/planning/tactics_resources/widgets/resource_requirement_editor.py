@@ -85,8 +85,7 @@ class ResourceRequirementEditor(QWidget):
         self._remove_btn = QPushButton("Remove")
         self._recalc_btn = QPushButton("Recalculate Gaps")
         self._logistics_btn = QPushButton("Create Logistics Request")
-        self._logistics_btn.setEnabled(False)  # pending integration
-        self._logistics_btn.setToolTip("Logistics Request integration pending.")
+        self._logistics_btn.setToolTip("Create a Logistics Resource Request (ICS-213RR) for the selected requirement.")
         for btn in (self._add_btn, self._edit_btn, self._remove_btn,
                     self._recalc_btn, self._logistics_btn):
             btn_bar.addWidget(btn)
@@ -128,6 +127,7 @@ class ResourceRequirementEditor(QWidget):
         self._edit_btn.clicked.connect(self._edit_requirement)
         self._remove_btn.clicked.connect(self._remove_requirement)
         self._recalc_btn.clicked.connect(self._recalculate_gaps)
+        self._logistics_btn.clicked.connect(self._create_logistics_request)
         self._assign_btn.clicked.connect(self._assign_resource)
         self._remove_assign_btn.clicked.connect(self._remove_assigned)
         self._req_table.itemSelectionChanged.connect(self._on_req_selected)
@@ -167,7 +167,7 @@ class ResourceRequirementEditor(QWidget):
         self._assign_table.setRowCount(0)
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            assigned = repo.list_assigned_resources(requirement_id)
+            assigned = repo.list_assigned_resources_for_wa(self._work_assignment_id, requirement_id)
         except Exception:
             return
         for a in assigned:
@@ -270,12 +270,36 @@ class ResourceRequirementEditor(QWidget):
         self.reload()
         self.changed.emit()
 
+    def _create_logistics_request(self) -> None:
+        req_id = self._current_req_id()
+        if req_id is None:
+            QMessageBox.information(self, "Create Logistics Request", "Select a requirement row first.")
+            return
+        try:
+            repo = WorkAssignmentRepository(self._db_path)
+            request_id = repo.create_logistics_request_from_requirement(self._work_assignment_id, req_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "Create Logistics Request", f"Failed to create request:\n{exc}")
+            return
+        if request_id is None:
+            QMessageBox.warning(self, "Create Logistics Request", "Failed to create the logistics request.")
+            return
+        self.reload()
+        self.changed.emit()
+        QMessageBox.information(self, "Create Logistics Request", f"Logistics request {request_id} created.")
+
     def _assign_resource(self) -> None:
         req_id = self._current_req_id()
         if req_id is None:
             QMessageBox.information(self, "Assign Resource", "Select a requirement row first.")
             return
-        dialog = _AssignResourceDialog(req_id, self._gap_service, parent=self)
+        try:
+            repo = WorkAssignmentRepository(self._db_path)
+            reqs = repo.list_resource_requirements(self._work_assignment_id)
+            requirement = next((r for r in reqs if r.id == req_id), None)
+        except Exception:
+            requirement = None
+        dialog = _AssignResourceDialog(req_id, self._gap_service, requirement=requirement, parent=self)
         if dialog.exec() != QDialog.Accepted:
             return
         data = dialog.get_data()
@@ -283,7 +307,8 @@ class ResourceRequirementEditor(QWidget):
             return
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.assign_actual_resource(
+            repo.assign_actual_resource_for_wa(
+                self._work_assignment_id,
                 req_id,
                 data["resource_kind"],
                 data["resource_id"],
@@ -304,19 +329,20 @@ class ResourceRequirementEditor(QWidget):
         if not item:
             return
         assignment_id = item.data(Qt.UserRole)
+        req_id = self._current_req_id()
+        if req_id is None:
+            return
         if QMessageBox.question(
             self, "Remove", "Remove this resource assignment?"
         ) != QMessageBox.Yes:
             return
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.remove_actual_resource(assignment_id)
+            repo.remove_actual_resource_for_wa(self._work_assignment_id, req_id, assignment_id)
         except Exception as exc:
             QMessageBox.critical(self, "Remove", f"Failed to remove:\n{exc}")
             return
-        req_id = self._current_req_id()
-        if req_id:
-            self._reload_assigned(req_id)
+        self._reload_assigned(req_id)
         self.reload()
         self.changed.emit()
 
@@ -412,7 +438,13 @@ class _ResourceRequirementDialog(QDialog):
 # ---------------------------------------------------------------------------
 
 class _AssignResourceDialog(QDialog):
-    """Dialog for assigning a specific resource to a requirement."""
+    """Dialog for assigning a specific resource to a requirement.
+
+    Shows resources matching the requirement's type/capability from the
+    Resource Type Library (via ResourceGapService) so the user can fill
+    the gap with a click, with a manual-entry fallback below for
+    resources not tracked in the library.
+    """
 
     _KINDS = ["personnel", "team", "vehicle", "equipment", "aircraft", "facility", "supply", "other"]
 
@@ -420,14 +452,45 @@ class _AssignResourceDialog(QDialog):
         self,
         requirement_id: int,
         gap_service: ResourceGapService,
+        requirement=None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Assign Resource")
         self.setModal(True)
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(480)
 
         layout = QVBoxLayout(self)
+
+        suggestions = []
+        if requirement is not None:
+            try:
+                suggestions = gap_service.suggest_resources_for_requirement(requirement)
+            except Exception:
+                suggestions = []
+
+        if suggestions:
+            layout.addWidget(QLabel("Available resources matching this requirement:"))
+            sugg_columns = ["Kind", "ID", "Name"]
+            self._sugg_table = QTableWidget(0, len(sugg_columns))
+            self._sugg_table.setHorizontalHeaderLabels(sugg_columns)
+            apply_statusboard_table_behavior(self._sugg_table, stretch_last_section=True)
+            self._sugg_table.setMaximumHeight(150)
+            for s in suggestions:
+                row = self._sugg_table.rowCount()
+                self._sugg_table.insertRow(row)
+                kind = str(s.get("resource_kind") or "")
+                res_id = str(s.get("id") or s.get("resource_id") or "")
+                name = str(s.get("display_name") or s.get("name") or s.get("callsign") or "")
+                self._sugg_table.setItem(row, 0, QTableWidgetItem(kind))
+                self._sugg_table.setItem(row, 1, QTableWidgetItem(res_id))
+                self._sugg_table.setItem(row, 2, QTableWidgetItem(name))
+            self._sugg_table.itemSelectionChanged.connect(self._on_suggestion_selected)
+            layout.addWidget(self._sugg_table)
+        else:
+            self._sugg_table = None
+
+        layout.addWidget(QLabel("Assign:"))
         form = QFormLayout()
         layout.addLayout(form)
 
@@ -447,6 +510,21 @@ class _AssignResourceDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _on_suggestion_selected(self) -> None:
+        if self._sugg_table is None:
+            return
+        row = self._sugg_table.currentRow()
+        if row < 0:
+            return
+        kind = self._sugg_table.item(row, 0).text()
+        res_id = self._sugg_table.item(row, 1).text()
+        name = self._sugg_table.item(row, 2).text()
+        idx = self._kind_combo.findText(kind)
+        if idx >= 0:
+            self._kind_combo.setCurrentIndex(idx)
+        self._id_edit.setText(res_id)
+        self._name_edit.setText(name)
 
     def get_data(self) -> dict:
         return {

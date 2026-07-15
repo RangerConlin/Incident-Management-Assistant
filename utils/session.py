@@ -62,7 +62,9 @@ def _start_api_session(
             "user_id": str(user_id),
             "username": str(username or user_id),
             "display_name": display_name or str(username or user_id),
-            "badge_number": str(username or user_id),
+            # The login username may be a person's visible person_id.  Do not
+            # copy that user-facing value into another persisted identity field.
+            "badge_number": None,
             "person_record": person_record,
             "role": role or "",
             "incident_id": incident_id,
@@ -73,6 +75,8 @@ def _start_api_session(
         doc: dict[str, Any] = api_client.post("/api/auth/sessions", json=payload) or {}
         session_id = doc.get("session_id")
         if session_id:
+            if doc.get("person_record") is not None:
+                AppState.set_active_user_id(int(doc["person_record"]))
             AppState.set_active_api_session_id(str(session_id))
             _start_heartbeat(str(session_id))
             return str(session_id)

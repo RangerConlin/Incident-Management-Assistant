@@ -332,6 +332,8 @@ def create_task(incident_id: str, body: dict[str, Any]) -> dict:
         "aircraft": [],
         "comms": [],
         "task_assignment": {},
+        "origin_module": body.get("origin_module"),
+        "origin_id": body.get("origin_id"),
     }
     doc = repo.insert_one(doc)
     return _strip(doc)

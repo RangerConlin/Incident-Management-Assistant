@@ -1282,6 +1282,11 @@ def list_all_teams() -> List[Dict[str, Any]]:
     return out
 
 
+def list_tasks() -> List[Dict[str, Any]]:
+    """Return raw task documents for the active incident (id, title, status, etc.)."""
+    return _client().get(f"{_base()}/tasks") or []
+
+
 def create_task(
     title: str = "<New Task>",
     task_identifier: Optional[str] = None,
@@ -1290,6 +1295,8 @@ def create_task(
     location: Optional[str] = None,
     location_facility_id: Optional[str] = None,
     description: Optional[str] = None,
+    origin_module: Optional[str] = None,
+    origin_id: Optional[str] = None,
 ) -> int:
     if isinstance(priority, str):
         priority_str = priority if priority in PRIORITY_MAP.values() else "Medium"
@@ -1307,6 +1314,10 @@ def create_task(
         body["location_facility_id"] = location_facility_id
     if description:
         body["assignment"] = description
+    if origin_module:
+        body["origin_module"] = origin_module
+    if origin_id:
+        body["origin_id"] = origin_id
     result = _client().post(f"{_base()}/tasks", json=body)
     return int(result.get("int_id") or 0)
 

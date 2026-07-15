@@ -75,6 +75,17 @@ class NarrativeUpdate(BaseModel):
     critical: Optional[int] = None
 
 
+def _canonical_entered_by(value: Any) -> str:
+    """Accept only the canonical internal person_record for storage."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return str(int(text))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, "entered_by must be a person_record") from exc
+
+
 @router.get("/incidents/{incident_id}/narratives")
 def list_narratives(
     incident_id: str,
@@ -116,7 +127,7 @@ def create_narrative(incident_id: str, body: NarrativeCreate) -> dict[str, Any]:
         "task_id": body.task_id,
         "timestamp": body.timestamp,
         "narrative": body.narrative,
-        "entered_by": body.entered_by,
+        "entered_by": _canonical_entered_by(body.entered_by),
         "team_num": body.team_num,
         "critical": 1 if body.critical else 0,
     }
@@ -132,6 +143,8 @@ def update_narrative(
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "No fields to update")
+    if "entered_by" in updates:
+        updates["entered_by"] = _canonical_entered_by(updates["entered_by"])
     task, idx, _entry = _find_entry(repo, entry_id)
     normalized_updates: dict[str, Any] = {}
     for key, value in updates.items():
