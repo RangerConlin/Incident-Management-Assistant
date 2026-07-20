@@ -62,6 +62,14 @@ FOLLOWUP_STATUSES = ["Open", "In Progress", "Complete", "Cancelled"]
 REQUEST_STATUSES = ["Open", "In Progress", "Filled", "Declined", "Cancelled", "Closed"]
 OFFER_STATUSES = ["Offered", "Under Review", "Accepted", "Declined", "Released"]
 
+# Agency Requests board — "Request" is the top-level grouping unit for
+# everything an outside agency asks for or offers (e.g. "AFRCC-1: find the
+# aircraft"). Each Request carries its own narrative thread; Feedback is one
+# of that thread's entry categories, not a separate top-level record.
+LIAISON_REQUEST_TYPES = ["Request", "Offer"]
+LIAISON_REQUEST_STATUSES = ["Open", "In Progress", "Resolved", "Declined", "Cancelled"]
+LIAISON_REQUEST_NARRATIVE_CATEGORIES = ["General", "Update", "Follow-up", "Feedback", "Auto", "Resolution"]
+
 
 @dataclass(slots=True)
 class Agency:
@@ -115,6 +123,9 @@ __all__ = [
     "FOLLOWUP_STATUSES",
     "REQUEST_STATUSES",
     "OFFER_STATUSES",
+    "LIAISON_REQUEST_TYPES",
+    "LIAISON_REQUEST_STATUSES",
+    "LIAISON_REQUEST_NARRATIVE_CATEGORIES",
     "Agency",
     "FeedbackItem",
 ]

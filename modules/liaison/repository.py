@@ -152,16 +152,22 @@ def fetch_reporting_digests(incident_id: object | None = None) -> list[dict[str,
 
 
 def create_reporting_digest(
-    source_type: str,
-    source_id: str,
-    updated_by: str = "",
+    raw_note: str,
+    source_type: str | None = None,
+    source_id: str | None = None,
+    submitted_by: str = "",
     incident_id: object | None = None,
 ) -> dict[str, Any]:
     from utils.api_client import api_client
     iid = _resolve_incident_id(incident_id)
     return api_client.post(
         f"/api/incidents/{iid}/liaison/reporting-digests",
-        json={"source_type": source_type, "source_id": source_id, "updated_by": updated_by},
+        json={
+            "raw_note": raw_note,
+            "source_type": source_type,
+            "source_id": source_id,
+            "submitted_by": submitted_by,
+        },
     )
 
 
@@ -175,16 +181,53 @@ def update_reporting_digest(
     return api_client.patch(f"/api/incidents/{iid}/liaison/reporting-digests/{digest_id}", json=values)
 
 
-def resync_reporting_digest(digest_id: int, incident_id: object | None = None) -> dict[str, Any]:
-    from utils.api_client import api_client
-    iid = _resolve_incident_id(incident_id)
-    return api_client.post(f"/api/incidents/{iid}/liaison/reporting-digests/{digest_id}/resync", json={})
-
-
 def delete_reporting_digest(digest_id: int, incident_id: object | None = None) -> None:
     from utils.api_client import api_client
     iid = _resolve_incident_id(incident_id)
     api_client.delete(f"/api/incidents/{iid}/liaison/reporting-digests/{digest_id}")
+
+
+# ---------------------------------------------------------------------------
+# Agency Requests board (Ask/Offer, linked Objectives/Tasks, narrative thread)
+# ---------------------------------------------------------------------------
+
+def fetch_requests(incident_id: object | None = None) -> list[dict[str, Any]]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.get(f"/api/incidents/{iid}/liaison/requests")
+
+
+def create_request(values: dict[str, Any], incident_id: object | None = None) -> dict[str, Any]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.post(f"/api/incidents/{iid}/liaison/requests", json=values)
+
+
+def update_request(request_id: int, values: dict[str, Any], incident_id: object | None = None) -> dict[str, Any]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.patch(f"/api/incidents/{iid}/liaison/requests/{request_id}", json=values)
+
+
+def add_request_narrative_entry(
+    request_id: int,
+    text: str,
+    category: str = "Update",
+    author: str = "",
+    incident_id: object | None = None,
+) -> dict[str, Any]:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    return api_client.post(
+        f"/api/incidents/{iid}/liaison/requests/{request_id}/narrative",
+        json={"text": text, "category": category, "author": author},
+    )
+
+
+def delete_request(request_id: int, incident_id: object | None = None) -> None:
+    from utils.api_client import api_client
+    iid = _resolve_incident_id(incident_id)
+    api_client.delete(f"/api/incidents/{iid}/liaison/requests/{request_id}")
 
 
 # ---------------------------------------------------------------------------

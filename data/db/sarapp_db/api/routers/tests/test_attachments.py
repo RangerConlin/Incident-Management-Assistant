@@ -155,6 +155,29 @@ def test_upload_list_download_and_soft_delete_attachment(monkeypatch):
     assert len(gridfs.files) == 1
 
 
+def test_update_attachment_category(monkeypatch):
+    client, _repo, _gridfs = _client(monkeypatch)
+
+    created = client.post(
+        "/api/incidents/INC-1/attachments",
+        data={"owner_type": "task", "owner_id": "104", "category": "Other"},
+        files={"file": ("photo.jpg", b"jpg bytes", "image/jpeg")},
+    )
+    assert created.status_code == 201
+
+    updated = client.patch(
+        "/api/incidents/INC-1/attachments/1",
+        json={"category": "Photo"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["category"] == "Photo"
+
+    fetched = client.get("/api/incidents/INC-1/attachments/1")
+    assert fetched.json()["category"] == "Photo"
+
+    assert client.patch("/api/incidents/INC-1/attachments/999", json={"category": "Photo"}).status_code == 404
+
+
 def test_delete_attachment_with_purge_removes_gridfs_file(monkeypatch):
     client, _repo, gridfs = _client(monkeypatch)
 

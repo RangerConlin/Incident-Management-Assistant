@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from functools import partial
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QPushButton,
     QTabWidget,
+    QStackedWidget,
     QScrollArea,
     QSplitter,
     QTableView,
@@ -32,11 +34,18 @@ from PySide6.QtWidgets import (
     QStyleOptionButton,
     QStyleOptionComboBox,
     QMessageBox,
-    QInputDialog,
+    QDialog,
+    QListWidget,
+    QListWidgetItem,
+    QDialogButtonBox,
 )
 
-from modules.logistics.facilities.widgets import FacilityPicker
+from modules.gis.services.spatial_repository import SpatialRepository
+from utils.geocoding import geocode_address
+from utils.perf import PerfTimer
 from utils.table_view_styles import apply_statusboard_table_behavior
+
+logger = logging.getLogger(__name__)
 
 
 def _to_variant(obj: Any) -> Any:
@@ -579,8 +588,61 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         self._title_edit = QLineEdit(self); self._title_edit.setPlaceholderText("Title")
-        self._location_edit = FacilityPicker(parent=self)
-        self._location_edit.line_edit.setPlaceholderText("Location")
+        self._location_mode = QComboBox(self)
+        self._location_mode.addItem("Free Text", "free_text")
+        self._location_mode.addItem("Geocoded Address / POI", "geocoded")
+        self._location_mode.addItem("GIS Object", "gis_object")
+        self._location_mode.currentIndexChanged.connect(self._on_location_mode_changed)
+
+        self._location_free_text_edit = QLineEdit(self)
+        self._location_free_text_edit.setPlaceholderText("Enter location text")
+        self._location_free_text_edit.editingFinished.connect(self._on_free_text_location_changed)
+
+        self._location_geocode_query_edit = QLineEdit(self)
+        self._location_geocode_query_edit.setPlaceholderText("Enter address or POI")
+        self._location_geocode_query_edit.editingFinished.connect(self._on_geocoded_location_edited)
+        self._location_geocode_btn = QPushButton("Geocode", self)
+        self._location_geocode_btn.clicked.connect(self._geocode_location_query)
+        self._location_geocode_result_lbl = QLabel("")
+        self._location_geocode_result_lbl.setWordWrap(True)
+        self._location_geocoded_address = ""
+        self._location_latitude: float | None = None
+        self._location_longitude: float | None = None
+
+        self._location_stack = QStackedWidget(self)
+        free_page = QWidget(self)
+        free_layout = QVBoxLayout(free_page)
+        free_layout.setContentsMargins(0, 0, 0, 0)
+        free_layout.addWidget(self._location_free_text_edit)
+
+        geo_page = QWidget(self)
+        geo_layout = QVBoxLayout(geo_page)
+        geo_layout.setContentsMargins(0, 0, 0, 0)
+        geo_row = QHBoxLayout()
+        geo_row.setContentsMargins(0, 0, 0, 0)
+        geo_row.addWidget(self._location_geocode_query_edit, 1)
+        geo_row.addWidget(self._location_geocode_btn)
+        geo_layout.addLayout(geo_row)
+        geo_layout.addWidget(self._location_geocode_result_lbl)
+
+        self._location_feature_id: int | None = None
+        self._location_feature_label = QLineEdit(self)
+        self._location_feature_label.setPlaceholderText("No GIS object linked")
+        self._location_feature_label.setReadOnly(True)
+        self._location_feature_pick_btn = QPushButton("Link GIS Object", self)
+        self._location_feature_clear_btn = QPushButton("Clear", self)
+        self._location_feature_pick_btn.clicked.connect(self._select_location_feature)
+        self._location_feature_clear_btn.clicked.connect(self._clear_location_feature)
+        self._location_feature_row = QWidget(self)
+        self._location_feature_row_layout = QHBoxLayout(self._location_feature_row)
+        self._location_feature_row_layout.setContentsMargins(0, 0, 0, 0)
+        self._location_feature_row_layout.setSpacing(6)
+        self._location_feature_row_layout.addWidget(self._location_feature_label, 1)
+        self._location_feature_row_layout.addWidget(self._location_feature_pick_btn)
+        self._location_feature_row_layout.addWidget(self._location_feature_clear_btn)
+        self._location_stack.addWidget(free_page)
+        self._location_stack.addWidget(geo_page)
+        self._location_stack.addWidget(self._location_feature_row)
         # Removed redundant Category/Type read-only display between Location and Assignment
         self._category_type_display = None  # kept for compatibility with update helpers
         self._assignment_edit = QLineEdit(self); self._assignment_edit.setPlaceholderText("Assignment")
@@ -595,7 +657,12 @@ class TaskDetailWindow(QWidget):
             self._location_edit.line_edit.editingFinished.connect(self._on_location_changed)
         except Exception:
             pass
-        for lab, w in [("Title", self._title_edit), ("Location", self._location_edit), ("Assignment", self._assignment_edit)]:
+        for lab, w in [
+            ("Title", self._title_edit),
+            ("Location Type", self._location_mode),
+            ("Location", self._location_stack),
+            ("Assignment", self._assignment_edit),
+        ]:
             row = QVBoxLayout()
             try:
                 row.setSpacing(4)
@@ -810,12 +877,15 @@ class TaskDetailWindow(QWidget):
         self._plan_refresh_btn.clicked.connect(self._load_planning)
         self._plan_link_btn = QPushButton("Link Task", plan_content)
         self._plan_link_btn.clicked.connect(self._link_task_to_strategy)
+        self._plan_send_liaison_btn = QPushButton("Send to Liaison", plan_content)
+        self._plan_send_liaison_btn.clicked.connect(self._send_to_liaison)
         plan_row.addWidget(QLabel("Objective:", plan_row_widget))
         plan_row.addWidget(self._plan_obj_cb, 2)
         plan_row.addWidget(QLabel("Strategy:", plan_row_widget))
         plan_row.addWidget(self._plan_strat_cb, 2)
         plan_row.addWidget(self._plan_refresh_btn)
         plan_row.addWidget(self._plan_link_btn)
+        plan_row.addWidget(self._plan_send_liaison_btn)
 
         self._plan_headers = ["LinkId", "Objective", "Strategy", "Remove"]
         self._plan_links_model = QStandardItemModel(0, len(self._plan_headers), self)
@@ -1461,11 +1531,10 @@ class TaskDetailWindow(QWidget):
         att_toolbar = QHBoxLayout()
         self._att_upload_btn = QPushButton("Upload File", self)
         self._att_open_btn = QPushButton("Open", self)
-        self._att_annotate_btn = QPushButton("Annotate", self)
         self._att_delete_btn = QPushButton("Delete", self)
         self._att_generate_btn = QPushButton("Generate Forms...", self)
         self._att_refresh_btn = QPushButton("Refresh", self)
-        for b in [self._att_upload_btn, self._att_open_btn, self._att_annotate_btn, self._att_delete_btn, self._att_generate_btn, self._att_refresh_btn]:
+        for b in [self._att_upload_btn, self._att_open_btn, self._att_delete_btn, self._att_generate_btn, self._att_refresh_btn]:
             att_toolbar.addWidget(b)
         att_toolbar.addStretch(1)
         att_v.addLayout(att_toolbar)
@@ -1674,7 +1743,6 @@ class TaskDetailWindow(QWidget):
         # Wire attachment actions
         self._att_upload_btn.clicked.connect(self._att_upload)
         self._att_open_btn.clicked.connect(self._att_open)
-        self._att_annotate_btn.clicked.connect(self._att_annotate)
         self._att_delete_btn.clicked.connect(self._att_delete)
         self._att_generate_btn.clicked.connect(self._att_generate)
         self._att_refresh_btn.clicked.connect(self.load_attachments)
@@ -1744,9 +1812,13 @@ class TaskDetailWindow(QWidget):
         Heavier secondary tabs load on first selection so opening a task
         detail window does not block on every task-related endpoint.
         """
+        timer = PerfTimer(logger, f"TaskDetailWindow[{self._task_id}] initial load")
         self._load_header()
+        timer.checkpoint("header")
         self._load_section_once("Narrative")
+        timer.checkpoint("narrative")
         self._load_section_once("Teams")
+        timer.finish("teams")
 
     def _on_main_tab_changed(self, index: int) -> None:
         try:
@@ -1775,10 +1847,13 @@ class TaskDetailWindow(QWidget):
         loader = loaders.get(key)
         if loader is None:
             return
+        timer = PerfTimer(logger, f"TaskDetailWindow[{self._task_id}] section '{key}'")
         try:
             loader()
             self._loaded_sections.add(key)
+            timer.finish("loaded")
         except Exception:
+            timer.finish("failed")
             pass
 
     def _load_current_log_tab(self) -> None:
@@ -1803,9 +1878,13 @@ class TaskDetailWindow(QWidget):
             pass
 
     def _load_team_group(self) -> None:
+        timer = PerfTimer(logger, f"TaskDetailWindow[{self._task_id}] team group")
         self.load_teams()
+        timer.checkpoint("teams")
         self.load_personnel()
+        timer.checkpoint("personnel")
         self.load_vehicles()
+        timer.finish("vehicles")
 
     def _apply_status_background(self, status: str | None) -> None:
         try:
@@ -1915,11 +1994,17 @@ class TaskDetailWindow(QWidget):
                 widget.setStyleSheet(surface_style)
             except Exception:
                 pass
-        try:
-            if getattr(self, "_location_edit", None) is not None:
-                self._location_edit.line_edit.setStyleSheet(surface_style)
-        except Exception:
-            pass
+        for widget_name in (
+            "_location_free_text_edit",
+            "_location_geocode_query_edit",
+            "_location_feature_label",
+        ):
+            try:
+                widget = getattr(self, widget_name, None)
+                if widget is not None:
+                    widget.setStyleSheet(surface_style)
+            except Exception:
+                pass
 
     def _normalize_header_value(self, field: str, value: Any) -> str:
         text = '' if value is None else str(value).strip()
@@ -2081,16 +2166,192 @@ class TaskDetailWindow(QWidget):
             return
         self._persist_header_fields({field: widget.text()})
 
-    def _on_location_changed(self, *_args) -> None:
-        if getattr(self, '_loading_header', False):
+    def _location_mode_value(self) -> str:
+        try:
+            return str(self._location_mode.currentData() or "free_text")
+        except Exception:
+            return "free_text"
+
+    def _set_location_mode(self, kind: str) -> None:
+        target = str(kind or "free_text")
+        try:
+            for idx in range(self._location_mode.count()):
+                if str(self._location_mode.itemData(idx) or "") == target:
+                    self._location_mode.setCurrentIndex(idx)
+                    break
+        except Exception:
+            pass
+        self._update_location_stack()
+
+    def _update_location_stack(self) -> None:
+        mode = self._location_mode_value()
+        index = {"free_text": 0, "geocoded": 1, "gis_object": 2}.get(mode, 0)
+        try:
+            self._location_stack.setCurrentIndex(index)
+        except Exception:
+            pass
+
+    def _on_location_mode_changed(self, *_args) -> None:
+        self._update_location_stack()
+        if getattr(self, "_loading_header", False):
             return
-        picker = getattr(self, "_location_edit", None)
-        if picker is None:
+        self._persist_current_location_state()
+
+    def _on_free_text_location_changed(self) -> None:
+        if getattr(self, "_loading_header", False):
             return
-        self._persist_header_fields({
-            "location": picker.facility_text,
-            "location_facility_id": picker.facility_id,
-        })
+        self._persist_current_location_state()
+
+    def _on_geocoded_location_edited(self) -> None:
+        if getattr(self, "_loading_header", False):
+            return
+        self._persist_current_location_state()
+
+    def _set_geocoded_location_state(
+        self,
+        *,
+        query_text: str = "",
+        resolved_address: str = "",
+        latitude: float | None = None,
+        longitude: float | None = None,
+    ) -> None:
+        self._location_geocoded_address = str(resolved_address or "")
+        self._location_latitude = latitude
+        self._location_longitude = longitude
+        try:
+            self._location_geocode_query_edit.setText(str(query_text or ""))
+        except Exception:
+            pass
+        if self._location_geocoded_address:
+            coords = ""
+            if latitude is not None and longitude is not None:
+                coords = f" ({latitude:.6f}, {longitude:.6f})"
+            text = f"{self._location_geocoded_address}{coords}"
+        else:
+            text = ""
+        try:
+            self._location_geocode_result_lbl.setText(text)
+        except Exception:
+            pass
+
+    def _build_location_payload(self) -> Dict[str, Any]:
+        mode = self._location_mode_value()
+        payload: Dict[str, Any] = {
+            "location_kind": mode,
+            "location_facility_id": None,
+            "location_geocoded_address": None,
+            "location_latitude": None,
+            "location_longitude": None,
+            "location_feature_id": None,
+        }
+        if mode == "free_text":
+            payload["location"] = self._location_free_text_edit.text().strip()
+        elif mode == "geocoded":
+            query = self._location_geocode_query_edit.text().strip()
+            payload["location"] = self._location_geocoded_address or query
+            payload["location_geocoded_address"] = self._location_geocoded_address or query or None
+            payload["location_latitude"] = self._location_latitude
+            payload["location_longitude"] = self._location_longitude
+        else:
+            payload["location"] = self._location_feature_label.text().strip()
+            payload["location_feature_id"] = self._location_feature_id
+        return payload
+
+    def _persist_current_location_state(self) -> None:
+        self._persist_header_fields(self._build_location_payload())
+
+    def _geocode_location_query(self) -> None:
+        query = self._location_geocode_query_edit.text().strip()
+        if not query:
+            QMessageBox.information(self, "Geocode", "Enter an address or POI first.")
+            return
+        result = geocode_address(query)
+        if result is None:
+            QMessageBox.warning(self, "Geocode", "No geocoding match was returned for that address or POI.")
+            return
+        self._set_geocoded_location_state(
+            query_text=query,
+            resolved_address=result.address,
+            latitude=result.latitude,
+            longitude=result.longitude,
+        )
+        if not getattr(self, "_loading_header", False):
+            self._persist_current_location_state()
+
+    def _set_location_feature(self, feature_id: int | None, label: str = "") -> None:
+        self._location_feature_id = int(feature_id) if feature_id not in (None, "") else None
+        try:
+            self._location_feature_label.setText(str(label or ""))
+        except Exception:
+            pass
+
+    def _load_location_feature_label(self, feature_id: int | None) -> str:
+        if feature_id in (None, ""):
+            return ""
+        try:
+            feature = SpatialRepository().get_feature(int(feature_id))
+        except Exception:
+            feature = None
+        if feature is None:
+            return f"Feature {feature_id}"
+        label = str(feature.label or "").strip() or f"Feature {feature_id}"
+        meta = " / ".join(
+            p for p in (str(feature.feature_type), str(feature.geometry_type)) if p
+        )
+        return f"{label} ({meta})" if meta else label
+
+    def _clear_location_feature(self) -> None:
+        if getattr(self, "_loading_header", False):
+            return
+        self._set_location_feature(None, "")
+        self._set_location_mode("gis_object")
+        self._persist_current_location_state()
+
+    def _select_location_feature(self) -> None:
+        try:
+            features = SpatialRepository().list_features(include_archived=False)
+        except Exception as exc:
+            QMessageBox.warning(self, "GIS Object", f"Could not load GIS objects:\n{exc}")
+            return
+        if not features:
+            QMessageBox.information(self, "GIS Object", "No GIS objects are available for this incident.")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select GIS Object")
+        dialog.resize(640, 420)
+        layout = QVBoxLayout(dialog)
+        picker = QListWidget(dialog)
+        for feature in features:
+            feature_id = feature.id
+            if feature_id is None:
+                continue
+            label = str(feature.label or "").strip() or f"Feature {feature_id}"
+            subtitle = " | ".join(
+                part for part in (f"ID {feature_id}", str(feature.feature_type), str(feature.geometry_type)) if part
+            )
+            item = QListWidgetItem(f"{label}\n{subtitle}")
+            item.setData(Qt.UserRole, int(feature_id))
+            item.setData(Qt.UserRole + 1, label)
+            picker.addItem(item)
+            if self._location_feature_id == int(feature_id):
+                picker.setCurrentItem(item)
+        layout.addWidget(picker, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        item = picker.currentItem()
+        if item is None:
+            return
+        feature_id = item.data(Qt.UserRole)
+        label = str(item.data(Qt.UserRole + 1) or "")
+        if feature_id in (None, ""):
+            return
+        self._set_location_mode("gis_object")
+        self._set_location_feature(int(feature_id), label)
+        self._persist_current_location_state()
 
     def _task_types_for_category(self, category: str | None) -> List[str]:
         try:
@@ -2421,28 +2682,6 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
 
-    def _att_annotate(self) -> None:
-        aid = self._selected_attachment_id()
-        if not aid:
-            return
-        try:
-            text, ok = QInputDialog.getText(self, "Add Annotation", "Note:")
-        except Exception:
-            ok = False
-            text = ""
-        if not ok or not str(text or "").strip():
-            return
-        try:
-            try:
-                from utils.state import AppState
-                uid = AppState.get_active_user_id()
-            except Exception:
-                uid = None
-            from modules.operations.taskings.attachments import annotate_attachment
-            annotate_attachment(int(self._task_id), int(aid), str(text), uid)
-        except Exception:
-            pass
-
     def _att_generate(self) -> None:
         try:
             # Modal dialog to choose forms and team association
@@ -2514,7 +2753,7 @@ class TaskDetailWindow(QWidget):
                 QMessageBox.warning(self, "Generate Forms", "No form files were generated.")
                 return
             from modules.operations.taskings.attachments import attach_files
-            res = attach_files(int(self._task_id), [str(p) for p in files], associated_team=team_dict)
+            res = attach_files(int(self._task_id), [str(p) for p in files])
             if not res.get("added_ids"):
                 QMessageBox.warning(self, "Generate Forms", "Forms were generated, but could not be attached.")
                 return
@@ -2549,11 +2788,29 @@ class TaskDetailWindow(QWidget):
                         self._task_id_edit.setText(str(tid))
                     if hasattr(self, '_title_edit'):
                         self._title_edit.setText(str(title))
-                    if hasattr(self, '_location_edit'):
-                        self._location_edit.set_value(
-                            str(t.get('location_facility_id') or ''),
-                            str(t.get('location') or ''),
+                    location_kind = str(t.get('location_kind') or '').strip() or (
+                        "gis_object" if t.get('location_feature_id') not in (None, "")
+                        else "geocoded" if (
+                            t.get('location_geocoded_address')
+                            or t.get('location_latitude') not in (None, "")
+                            or t.get('location_longitude') not in (None, "")
+                            or t.get('location_facility_id')
                         )
+                        else "free_text"
+                    )
+                    self._set_location_mode(location_kind)
+                    if hasattr(self, '_location_free_text_edit'):
+                        self._location_free_text_edit.setText(str(t.get('location') or ''))
+                    self._set_geocoded_location_state(
+                        query_text=str(t.get('location') or ''),
+                        resolved_address=str(t.get('location_geocoded_address') or ''),
+                        latitude=t.get('location_latitude'),
+                        longitude=t.get('location_longitude'),
+                    )
+                    self._set_location_feature(
+                        t.get('location_feature_id'),
+                        self._load_location_feature_label(t.get('location_feature_id')),
+                    )
                     if hasattr(self, '_assignment_edit'):
                         self._assignment_edit.setText(str(t.get('assignment') or ''))
                 except Exception:
@@ -2593,7 +2850,12 @@ class TaskDetailWindow(QWidget):
                             'task_id': self._normalize_header_value('task_id', tid),
                             'title': self._normalize_header_value('title', title),
                             'location': self._normalize_header_value('location', t.get('location')),
+                            'location_kind': self._normalize_header_value('location_kind', location_kind),
                             'location_facility_id': self._normalize_header_value('location_facility_id', t.get('location_facility_id')),
+                            'location_geocoded_address': self._normalize_header_value('location_geocoded_address', t.get('location_geocoded_address')),
+                            'location_latitude': self._normalize_header_value('location_latitude', t.get('location_latitude')),
+                            'location_longitude': self._normalize_header_value('location_longitude', t.get('location_longitude')),
+                            'location_feature_id': self._normalize_header_value('location_feature_id', t.get('location_feature_id')),
                             'assignment': self._normalize_header_value('assignment', t.get('assignment')),
                             'category': self._normalize_header_value('category', self._cat.currentText() if hasattr(self, '_cat') else cat_target),
                             'task_type': self._normalize_header_value('task_type', self._typ.currentText() if hasattr(self, '_typ') else type_val),
@@ -3194,14 +3456,13 @@ class TaskDetailWindow(QWidget):
             payload = {
                 'task_id': self._task_id_edit.text().strip() if hasattr(self, '_task_id_edit') else str(self._task_id),
                 'title': self._title_edit.text().strip() if hasattr(self, '_title_edit') else '',
-                'location': self._location_edit.facility_text if hasattr(self, '_location_edit') else '',
-                'location_facility_id': self._location_edit.facility_id if hasattr(self, '_location_edit') else '',
                 'assignment': self._assignment_edit.text().strip() if hasattr(self, '_assignment_edit') else '',
                 'category': self._cat.currentText().strip() if hasattr(self, '_cat') else '',
                 'task_type': typ_val,
                 'priority': self._prio.currentText().strip() if hasattr(self, '_prio') else '',
                 'status': self._stat.currentText().strip() if hasattr(self, '_stat') else '',
             }
+            payload.update(self._build_location_payload())
             update_task_header(int(self._task_id), payload)
             try:
                 self._load_header()
@@ -3605,6 +3866,44 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         self._load_planning()
+
+    def _send_to_liaison(self) -> None:
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QMessageBox, QTextEdit
+        from utils.state import AppState
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Send to Liaison")
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(
+            "Note for the Liaison Officer (internal — they'll rewrite it before sharing externally):"
+        ))
+        note_edit = QTextEdit(dialog)
+        layout.addWidget(note_edit, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.resize(420, 220)
+
+        if dialog.exec() != QDialog.Accepted:
+            return
+        note = note_edit.toPlainText().strip()
+        if not note:
+            return
+        try:
+            from modules.liaison.repository import create_reporting_digest
+            from utils import incident_context
+
+            create_reporting_digest(
+                note,
+                source_type="task",
+                source_id=str(self._task_id),
+                submitted_by=str(AppState.get_active_user_display() or ""),
+                incident_id=incident_context.get_active_incident_id(),
+            )
+            QMessageBox.information(self, "Send to Liaison", "Note sent to the Liaison Reporting Board.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Send to Liaison", f"Failed to send note:\n{exc}")
 
     def _on_plan_remove_clicked(self, index):
         from modules.operations.taskings.repository import unlink_task_from_strategy

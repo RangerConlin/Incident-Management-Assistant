@@ -1,8 +1,8 @@
 """Incident SQLite file lifecycle management.
 
 This module manages the per-incident SQLite file on disk — creating it from
-the template, validating its schema, and bootstrapping the spatial database.
-It does NOT read or write operational data; active data now lives in MongoDB.
+the template and validating its schema. It does NOT read or write operational
+data; active data now lives in MongoDB.
 
 The only SQLite table still actively read by live app code is `narrative_entries`
 (used by bridge/incident_bridge.py for task narrative / ICS 214 entries until
@@ -18,7 +18,6 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-from modules.gis.services.schema_bootstrap import ensure_spatial_schema
 from . import incident_storage
 
 # All operational data is now served by MongoDB.  The SQLite incident.db is
@@ -43,20 +42,6 @@ def get_incident_database_path(incident_number: str) -> Path:
         incident_id=metadata.get("incident_id") or safe_number,
     )
     return paths.incident_db
-
-
-def get_spatial_database_path(incident_number: str) -> Path:
-    safe_number = incident_storage.sanitize_incident_name(incident_number, fallback="incident")
-    resolved = incident_storage.resolve_incident_paths_by_identifier(safe_number)
-    if resolved is not None:
-        return resolved.spatial_db
-    metadata = incident_storage.infer_incident_metadata(safe_number)
-    paths = incident_storage.get_incident_paths(
-        incident_number=metadata.get("incident_number") or safe_number,
-        incident_name=metadata.get("name") or safe_number,
-        incident_id=metadata.get("incident_id") or safe_number,
-    )
-    return paths.spatial_db
 
 
 def get_template_database_path() -> Path:
@@ -91,12 +76,6 @@ def _validate_initialized_schema(conn: sqlite3.Connection) -> None:
             "Incident database initialization failed because required tables are missing: "
             + ", ".join(missing)
         )
-
-
-def _bootstrap_spatial_database(spatial_path: Path) -> None:
-    with sqlite3.connect(spatial_path) as spatial_conn:
-        ensure_spatial_schema(spatial_conn)
-        spatial_conn.commit()
 
 
 def initialize_incident_database(
@@ -160,7 +139,6 @@ def ensure_incident_database(incident_number: str) -> Path:
     with sqlite3.connect(paths.incident_db) as conn:
         _validate_initialized_schema(conn)
 
-    _bootstrap_spatial_database(paths.spatial_db)
     incident_storage.write_incident_manifest(paths, metadata)
     return paths.incident_db
 
@@ -181,6 +159,5 @@ def create_incident_database(incident_number: str, *, incident_name: str | None 
 
     incident_storage.ensure_incident_structure(paths, metadata)
     initialize_incident_database(paths.incident_db, incident_number=incident_number)
-    _bootstrap_spatial_database(paths.spatial_db)
     incident_storage.write_incident_manifest(paths, metadata)
     return paths.incident_db

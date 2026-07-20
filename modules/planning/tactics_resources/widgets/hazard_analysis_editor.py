@@ -33,6 +33,15 @@ from modules.planning.tactics_resources.data.hazard_prefill_service import Hazar
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import WorkAssignmentHazard
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import get_palette, subscribe_theme
+
+# Risk level -> semantic palette token. "Unknown" is left uncolored.
+_RISK_PALETTE_TOKEN = {
+    "Low": "success",
+    "Medium": "warning",
+    "High": "danger",
+    "Extreme": "danger",
+}
 
 # Try to import the HazardTypeSearchBox — degrade gracefully if unavailable
 try:
@@ -101,6 +110,14 @@ class HazardAnalysisEditor(QWidget):
         self._apply_btn.clicked.connect(self._apply_default_hazards)
         self._resolve_btn.clicked.connect(self._toggle_resolved)
 
+        try:
+            # subscribe_theme invokes the callback immediately with the
+            # current theme, so this also performs the initial reload().
+            subscribe_theme(self, self._on_theme_changed)
+        except Exception:
+            self.reload()
+
+    def _on_theme_changed(self, _name: str) -> None:
         self.reload()
 
     # ------------------------------------------------------------------
@@ -120,7 +137,13 @@ class HazardAnalysisEditor(QWidget):
         self._table.insertRow(row)
         self._table.setItem(row, 0, QTableWidgetItem(h.hazard_type_text))
         self._table.setItem(row, 1, QTableWidgetItem(h.category))
-        self._table.setItem(row, 2, QTableWidgetItem(h.risk_level))
+
+        risk_item = QTableWidgetItem(h.risk_level)
+        token = _RISK_PALETTE_TOKEN.get(h.risk_level)
+        if token:
+            risk_item.setForeground(get_palette().get(token))
+        self._table.setItem(row, 2, risk_item)
+
         self._table.setItem(row, 3, QTableWidgetItem(h.likelihood))
         self._table.setItem(row, 4, QTableWidgetItem(h.severity))
         self._table.setItem(row, 5, QTableWidgetItem(h.control_measure))
@@ -129,7 +152,9 @@ class HazardAnalysisEditor(QWidget):
         resolved_text = "Yes" if h.is_resolved else "No"
         resolved_item = QTableWidgetItem(resolved_text)
         if not h.is_resolved:
-            resolved_item.setForeground(Qt.darkRed)
+            resolved_item.setForeground(get_palette().get("danger"))
+        else:
+            resolved_item.setForeground(get_palette().get("success"))
         self._table.setItem(row, 8, resolved_item)
         self._table.setItem(row, 9, QTableWidgetItem(h.source))
         self._table.setItem(row, 10, QTableWidgetItem(h.notes))

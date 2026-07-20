@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QFrame, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QDialog, QFormLayout,
-    QTextEdit, QDialogButtonBox,
+    QTextEdit, QDialogButtonBox, QCheckBox, QFileDialog,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush
@@ -16,6 +18,7 @@ from modules.intel.models.intel_items import (
 )
 from modules.intel.models.leads import Lead
 from modules.intel.services.intel_service import IntelService
+from modules.intel.services.intel_attachments import add_attachment
 from utils.table_view_styles import apply_statusboard_table_behavior
 from utils.styles import intel_item_status_colors, get_palette, subscribe_theme
 
@@ -70,6 +73,7 @@ class _NewItemDialog(QDialog):
         self.setWindowTitle("New Intel Item")
         self.setMinimumWidth(480)
         self.item: IntelItem | None = None
+        self.pending_attachments: list[str] = []
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
@@ -80,8 +84,8 @@ class _NewItemDialog(QDialog):
         form.addRow("Type *", self._type)
 
         self._title = QLineEdit()
-        self._title.setPlaceholderText("Title (required)")
-        form.addRow("Title *", self._title)
+        self._title.setPlaceholderText("Description (required)")
+        form.addRow("Description *", self._title)
 
         self._location = QLineEdit()
         form.addRow("Location", self._location)
@@ -96,21 +100,37 @@ class _NewItemDialog(QDialog):
         self._confidence.setCurrentText("Unconfirmed")
         form.addRow("Confidence", self._confidence)
 
-        self._trend = QComboBox()
-        self._trend.addItems(TREND_VALUES)
-        self._trend.setCurrentText("Unknown")
-        form.addRow("Trend", self._trend)
+        self._urgent = QCheckBox("Urgent response needed (SAR 135)")
+        form.addRow("", self._urgent)
 
         self._notes = QTextEdit()
         self._notes.setPlaceholderText("Optional notes")
         self._notes.setMinimumHeight(60)
         form.addRow("Notes", self._notes)
 
+        attach_row = QHBoxLayout()
+        self._attach_btn = QPushButton("+ Add File(s)")
+        self._attach_btn.clicked.connect(self._pick_attachments)
+        self._attach_label = QLabel("No files attached")
+        self._attach_label.setStyleSheet("color: palette(placeholderText);")
+        attach_row.addWidget(self._attach_btn)
+        attach_row.addWidget(self._attach_label)
+        attach_row.addStretch()
+        form.addRow("Attachments", attach_row)
+
         layout.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         btns.accepted.connect(self._on_save)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
+
+    def _pick_attachments(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(self, "Select Attachments")
+        if not paths:
+            return
+        self.pending_attachments.extend(paths)
+        names = ", ".join(Path(p).name for p in self.pending_attachments)
+        self._attach_label.setText(names)
 
     def _on_save(self) -> None:
         title = self._title.text().strip()
@@ -124,7 +144,7 @@ class _NewItemDialog(QDialog):
             location_text=self._location.text().strip() or None,
             priority=self._priority.currentText(),
             confidence=self._confidence.currentText(),
-            trend=self._trend.currentText(),
+            urgent_response_needed=self._urgent.isChecked(),
             notes=self._notes.toPlainText().strip() or None,
         )
         self.accept()
@@ -133,7 +153,7 @@ class _NewItemDialog(QDialog):
 class IntelItemsTab(QWidget):
     open_item_detail = Signal(object)
 
-    _COLS = ["Type", "Title", "Status", "Priority", "Confidence", "Trend", "Obs", "Source", "Location", "Updated", "Actions"]
+    _COLS = ["Type", "Description", "Status", "Priority", "Confidence", "Trend", "Obs", "Source", "Location", "Updated", "Actions"]
 
     def __init__(self, service: IntelService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -285,5 +305,12 @@ class IntelItemsTab(QWidget):
             return
         dlg = _NewItemDialog(self)
         if dlg.exec() == QDialog.Accepted and dlg.item:
-            self._service.items.create(dlg.item)
+            created = self._service.items.create(dlg.item)
+            if created and dlg.pending_attachments:
+                for path in dlg.pending_attachments:
+                    add_attachment(
+                        item_id=created.id,
+                        source_path=path,
+                        incident_id=self._service.incident_id,
+                    )
             self.refresh()

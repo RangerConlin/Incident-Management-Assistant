@@ -43,13 +43,6 @@ _TOOLS = {
         "defaults": {"status": "Pending", "issuer": "", "expires_on": ""},
         "sort": "expires_on",
     },
-    "safety-reports": {
-        "collection": IncidentCollections.PLANNED_SAFETY_REPORTS,
-        "id_field": "report_id",
-        "prefix": "PLAN-SAFETY",
-        "defaults": {"status": "Open", "category": "General", "location": ""},
-        "sort": "reported_at",
-    },
     "tasks": {
         "collection": IncidentCollections.PLANNED_TASKS,
         "id_field": "task_id",

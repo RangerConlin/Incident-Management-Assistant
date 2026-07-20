@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -111,6 +112,46 @@ class _APIClient:
     def delete(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         return self._send("DELETE", path, params=params)
 
+    def post_file(
+        self,
+        path: str,
+        *,
+        file_path: str,
+        field_name: str = "file",
+        data: dict[str, Any] | None = None,
+    ) -> Any:
+        """POST a file as multipart/form-data, with the rest of ``data`` as form fields."""
+        url = self._build_url(path)
+        form_data = {k: v for k, v in (data or {}).items() if v is not None}
+        with open(file_path, "rb") as fh:
+            files = {field_name: (Path(file_path).name, fh)}
+            try:
+                resp = self._client.request("POST", url, data=form_data, files=files)
+            except httpx.TransportError as exc:
+                raise APIError(f"Server unreachable: {exc}") from exc
+            except Exception as exc:
+                raise APIError(f"Request failed: {exc}") from exc
+        return self._handle_response(resp)
+
+    def get_bytes(self, path: str, *, params: dict[str, Any] | None = None) -> bytes:
+        """GET a binary response body (e.g. a file download)."""
+        url = self._build_url(path)
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}
+        try:
+            resp = self._request_with_retry("GET", url, json=None, params=params)
+        except httpx.TransportError as exc:
+            raise APIError(f"Server unreachable: {exc}") from exc
+        except Exception as exc:
+            raise APIError(f"Request failed: {exc}") from exc
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json().get("detail", resp.text)
+            except Exception:
+                detail = resp.text
+            raise APIError(str(detail), status_code=resp.status_code)
+        return resp.content
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -145,6 +186,9 @@ class _APIClient:
         except Exception as exc:
             raise APIError(f"Request failed: {exc}") from exc
 
+        return self._handle_response(resp)
+
+    def _handle_response(self, resp: httpx.Response) -> Any:
         if resp.status_code >= 400:
             try:
                 detail = resp.json().get("detail", resp.text)

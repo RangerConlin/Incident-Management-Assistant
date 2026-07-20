@@ -11,6 +11,7 @@ class AppState:
     _active_incident_number = None
     _active_op_period_id = None
     _active_user_id = None
+    _active_user_display = None
     _active_user_role = None
     _active_session_id = None
     _active_api_session_id = None
@@ -117,6 +118,21 @@ class AppState:
     @classmethod
     def get_active_user_id(cls):
         return cls._active_user_id
+
+    @classmethod
+    def set_active_user_display(cls, user_display):
+        """Store the human-readable person_id/username for UI display.
+
+        `active_user_id` is the internal person_record used for DB writes
+        and audit trails; it must never be shown to the user. This holds
+        the visible login id (e.g. the value they typed) for the title
+        bar / status bar instead.
+        """
+        cls._active_user_display = user_display
+
+    @classmethod
+    def get_active_user_display(cls):
+        return cls._active_user_display
 
     @classmethod
     def set_active_user_role(cls, user_role):

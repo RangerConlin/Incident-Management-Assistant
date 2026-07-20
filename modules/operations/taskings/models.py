@@ -42,7 +42,12 @@ class Task:
     priority: str
     status: str
     location: str
+    location_kind: str
     location_facility_id: str
+    location_geocoded_address: str
+    location_latitude: float | None
+    location_longitude: float | None
+    location_feature_id: int | None
     created_by: str
     created_at: str
     assigned_to: Optional[str] = None

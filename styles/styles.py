@@ -184,6 +184,18 @@ _LIAISON_PRIORITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFI
 _LIAISON_REPORT_STATE_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "LIAISON_REPORT_STATE")
 _LIAISON_REPORT_STATE_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "LIAISON_REPORT_STATE")
 
+_LIAISON_REQUEST_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "LIAISON_REQUEST_STATUS")
+_LIAISON_REQUEST_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "LIAISON_REQUEST_STATUS")
+
+_WA_PLANNING_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WA_PLANNING_STATUS")
+_WA_PLANNING_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WA_PLANNING_STATUS")
+
+_WA_SAFETY_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WA_SAFETY_STATUS")
+_WA_SAFETY_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WA_SAFETY_STATUS")
+
+_WA_PRIORITY_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WA_PRIORITY")
+_WA_PRIORITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WA_PRIORITY")
+
 _light_team_types = _build_team_types(_LIGHT_PROFILE)
 _dark_team_types = _build_team_types(_DARK_PROFILE)
 if not _dark_team_types:
@@ -195,6 +207,14 @@ _TEAM_TYPE_COLOR_TABLE: Dict[str, Dict[str, QColor]] = {
 }
 
 TEAM_TYPE_COLORS: Dict[str, QColor] = _TEAM_TYPE_COLOR_TABLE.get(THEME_NAME, _light_team_types)
+
+
+_RIBBON_COLORS_LIGHT: Dict[str, QColor] = _build_flat_colors(_LIGHT_PROFILE, "RIBBON_COLORS")
+_RIBBON_COLORS_DARK: Dict[str, QColor] = _build_flat_colors(_DARK_PROFILE, "RIBBON_COLORS")
+
+
+def ribbon_colors() -> Dict[str, QColor]:
+    return _RIBBON_COLORS_LIGHT if THEME_NAME == "light" else _RIBBON_COLORS_DARK
 
 
 def get_palette() -> Dict[str, QColor]:
@@ -287,6 +307,22 @@ def liaison_report_state_colors() -> Dict[str, Dict[str, QBrush]]:
     return _LIAISON_REPORT_STATE_LIGHT if THEME_NAME == "light" else _LIAISON_REPORT_STATE_DARK
 
 
+def liaison_request_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _LIAISON_REQUEST_STATUS_LIGHT if THEME_NAME == "light" else _LIAISON_REQUEST_STATUS_DARK
+
+
+def wa_planning_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _WA_PLANNING_STATUS_LIGHT if THEME_NAME == "light" else _WA_PLANNING_STATUS_DARK
+
+
+def wa_safety_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _WA_SAFETY_STATUS_LIGHT if THEME_NAME == "light" else _WA_SAFETY_STATUS_DARK
+
+
+def wa_priority_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _WA_PRIORITY_LIGHT if THEME_NAME == "light" else _WA_PRIORITY_DARK
+
+
 def _qobject_is_valid(obj: object | None) -> bool:
     if obj is None:
         return False
@@ -361,6 +397,7 @@ __all__ = [
     "set_theme",
     "subscribe_theme",
     "team_status_colors",
+    "ribbon_colors",
     "task_status_colors",
     "narrative_status_colors",
     "resource_status_colors",
@@ -375,4 +412,8 @@ __all__ = [
     "liaison_agency_status_colors",
     "liaison_priority_colors",
     "liaison_report_state_colors",
+    "liaison_request_status_colors",
+    "wa_planning_status_colors",
+    "wa_safety_status_colors",
+    "wa_priority_colors",
 ]

@@ -69,7 +69,11 @@ class IncidentWebSocketClient(QThread):
                     except ValueError:
                         logger.warning("Ignoring non-JSON IncidentCache WS message: %r", raw)
                         continue
-                    incident_cache.apply_event(event)
+                    if event.get("type") == "notification":
+                        from notifications.services.incident_bridge import handle_notification_event
+                        handle_notification_event(self._incident_id, event.get("notification", {}))
+                    else:
+                        incident_cache.apply_event(event)
             except Exception as exc:
                 if not self._stop_requested:
                     logger.warning("IncidentCache WS dropped (%s): %s", self._url, exc)

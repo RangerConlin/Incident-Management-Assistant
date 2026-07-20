@@ -3,4 +3,5 @@ pymongo>=4.6
 certifi>=2024.2.2
 httpx>=0.27.0
 websockets>=12.0
+python-multipart>=0.0.9
 # sarapp-db installed from data/ via: pip install -e ../data

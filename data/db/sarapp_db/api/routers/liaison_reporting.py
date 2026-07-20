@@ -1,9 +1,9 @@
 """FastAPI router for the Liaison Reporting Board.
 
-Lets the LOFR pull a shareable digest from an Objective or Task (auto-summary),
-then curate a customer-facing version before flagging it Ready to Report.
-Nothing here writes back to Objectives/Tasks — this is a one-way, LOFR-owned
-snapshot of what's safe to share externally.
+Ops/Planning push a resolution note (from a Task or Objective, or standalone)
+onto the board; the LOFR then curates a customer-facing version before
+flagging it Ready to Report. Nothing here writes back to Objectives/Tasks —
+this is a one-way, LOFR-owned queue of what's safe to share externally.
 """
 from __future__ import annotations
 
@@ -59,39 +59,25 @@ def _strip(doc: dict) -> dict:
     return doc
 
 
-def _pull_auto_summary(incident_id: str, source_type: str, source_id: str) -> tuple[str, str]:
-    """Return (title, auto_summary) pulled from the live Objective/Task record."""
+def _source_title(incident_id: str, source_type: str | None, source_id: str | None) -> str:
+    """Best-effort label for the originating Task/Objective, for display only."""
+    if not source_type or not source_id:
+        return ""
     if source_type == "objective":
         doc = _objectives(incident_id).find_by_id(source_id)
         if not doc:
-            raise HTTPException(404, f"Objective {source_id} not found")
-        title = doc.get("text") or doc.get("code") or f"Objective {source_id}"
-        status = doc.get("status") or "unknown"
-        narrative = doc.get("narrative") or ""
-        summary = f"Status: {status}."
-        if narrative:
-            summary += f" {narrative}"
-        return title, summary
+            return f"Objective {source_id}"
+        return doc.get("text") or doc.get("code") or f"Objective {source_id}"
     if source_type == "task":
         try:
             task_int_id = int(source_id)
         except (TypeError, ValueError):
-            raise HTTPException(400, "task source_id must be an integer")
+            return f"Task {source_id}"
         doc = _tasks(incident_id).find_one({"int_id": task_int_id})
         if not doc:
-            raise HTTPException(404, f"Task {source_id} not found")
-        title = doc.get("title") or doc.get("task_id") or f"Task {source_id}"
-        status = doc.get("status") or "unknown"
-        entries = doc.get("narrative") or []
-        latest = ""
-        if entries:
-            latest_entry = sorted(entries, key=lambda e: str(e.get("timestamp") or ""))[-1]
-            latest = latest_entry.get("narrative") or ""
-        summary = f"Status: {status}."
-        if latest:
-            summary += f" Latest: {latest}"
-        return title, summary
-    raise HTTPException(400, "source_type must be 'objective' or 'task'")
+            return f"Task {source_id}"
+        return doc.get("title") or doc.get("task_id") or f"Task {source_id}"
+    return ""
 
 
 @router.get("/incidents/{incident_id}/liaison/reporting-digests")
@@ -102,11 +88,14 @@ def list_digests(incident_id: str) -> list[dict]:
 
 @router.post("/incidents/{incident_id}/liaison/reporting-digests", status_code=201)
 def create_digest(incident_id: str, body: dict[str, Any]) -> dict:
-    source_type = body.get("source_type")
-    source_id = body.get("source_id")
-    if not source_type or not source_id:
-        raise HTTPException(400, "source_type and source_id required")
-    title, auto_summary = _pull_auto_summary(incident_id, source_type, str(source_id))
+    source_type = body.get("source_type") or None
+    source_id = str(body["source_id"]) if body.get("source_id") else None
+    raw_note = str(body.get("raw_note") or "").strip()
+    if not raw_note:
+        raise HTTPException(400, "raw_note is required")
+    if source_type and source_type not in ("objective", "task"):
+        raise HTTPException(400, "source_type must be 'objective' or 'task'")
+    title = _source_title(incident_id, source_type, source_id)
     repo = _digests(incident_id)
     int_id = _next_int_id(repo)
     ts = _now()
@@ -114,14 +103,15 @@ def create_digest(incident_id: str, body: dict[str, Any]) -> dict:
         "incident_id": incident_id,
         "int_id": int_id,
         "source_type": source_type,
-        "source_id": str(source_id),
+        "source_id": source_id,
         "source_title": title,
-        "auto_summary": auto_summary,
-        "lofr_summary": auto_summary,
+        "raw_note": raw_note,
+        "submitted_by": body.get("submitted_by") or "",
+        "lofr_summary": "",
         "ready_to_report": False,
-        "last_synced_at": ts,
-        "updated_by": body.get("updated_by"),
+        "updated_by": body.get("submitted_by"),
         "updated_at": ts,
+        "created_at": ts,
     }
     doc = repo.insert_one(doc)
     return _strip(doc)
@@ -138,24 +128,6 @@ def update_digest(incident_id: str, digest_id: int, body: dict[str, Any]) -> dic
         if field in body:
             updates[field] = body[field]
     repo.update_one(doc["_id"], updates)
-    result = repo.find_by_id(doc["_id"])
-    return _strip(result)
-
-
-@router.post("/incidents/{incident_id}/liaison/reporting-digests/{digest_id}/resync")
-def resync_digest(incident_id: str, digest_id: int) -> dict:
-    """Re-pull the auto_summary from the live source without touching lofr_summary."""
-    repo = _digests(incident_id)
-    doc = repo.find_one({"int_id": digest_id})
-    if not doc:
-        raise HTTPException(404, "Digest not found")
-    title, auto_summary = _pull_auto_summary(incident_id, doc["source_type"], doc["source_id"])
-    repo.update_one(doc["_id"], {
-        "source_title": title,
-        "auto_summary": auto_summary,
-        "last_synced_at": _now(),
-        "updated_at": _now(),
-    })
     result = repo.find_by_id(doc["_id"])
     return _strip(result)
 

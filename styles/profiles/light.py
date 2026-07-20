@@ -93,6 +93,23 @@ SURFACE: Dict[str, str] = {
     "btn_checked": PALETTE["btn_checked"],
 }
 
+RIBBON_COLORS: Dict[str, str] = {
+    "tab_bar_bg":        PALETTE["menu_bar_bg"],
+    "tab_active_bg":     PALETTE["bg_raised"],
+    "tab_active_fg":     PALETTE["fg_primary"],
+    "tab_inactive_fg":   PALETTE["fg_muted"],
+    "tab_hover_bg":      PALETTE["ctrl_hover"],
+    "tab_underline":     PALETTE["ctrl_focus"],
+    "group_bg":          PALETTE["bg_raised"],
+    "group_border":      PALETTE["ctrl_border"],
+    "group_label_fg":    PALETTE["fg_muted"],
+    "group_separator":   PALETTE["divider"],
+    "strip_bg":          PALETTE["bg_panel"],
+    "strip_border":      PALETTE["ctrl_border"],
+    "tool_active_bg":    PALETTE["btn_checked"],
+    "tool_active_fg":    PALETTE["fg_primary"],
+}
+
 # Team status colours for Qt table rows and other widgets.  These map the
 # lowercase workflow statuses used throughout the operations module.
 TEAM_STATUS: Dict[str, Dict[str, str]] = {
@@ -131,6 +148,36 @@ TASK_STATUS: Dict[str, Dict[str, str]] = {
     "in progress":      {"bg": "#00ACC1", "fg": "#ffffff"},
     "complete":         {"bg": "#2E7D32", "fg": "#ffffff"},
     "cancelled":        {"bg": "#E53935", "fg": "#ffffff"},
+}
+
+# Planning / Tactics & Resources module — Work Assignment planning status,
+# safety status, and priority chips (strategy board and detail window).
+WA_PLANNING_STATUS: Dict[str, Dict[str, str]] = {
+    "Draft":                  {"bg": "#78716C", "fg": "#ffffff"},
+    "Under Review":           {"bg": "#1976D2", "fg": "#ffffff"},
+    "Approved":               {"bg": "#43A047", "fg": "#ffffff"},
+    "Ready for IAP":          {"bg": "#00897B", "fg": "#ffffff"},
+    "Assigned to Operations": {"bg": "#5E35B1", "fg": "#ffffff"},
+    "In Progress":            {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "Complete":               {"bg": "#43A047", "fg": "#ffffff"},
+    "Cancelled":              {"bg": "#B71C1C", "fg": "#ffffff"},
+    "Archived":               {"bg": "#9E9E9E", "fg": "#1a1a1a"},
+}
+
+WA_SAFETY_STATUS: Dict[str, Dict[str, str]] = {
+    "Unchecked":            {"bg": "#78716C", "fg": "#ffffff"},
+    "Needs Review":         {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "Hazards Identified":   {"bg": "#E53935", "fg": "#ffffff"},
+    "Mitigations Complete": {"bg": "#00897B", "fg": "#ffffff"},
+    "Safety Approved":      {"bg": "#43A047", "fg": "#ffffff"},
+    "Safety Concern":       {"bg": "#B71C1C", "fg": "#ffffff"},
+}
+
+WA_PRIORITY: Dict[str, Dict[str, str]] = {
+    "Low":    {"bg": "#78716C", "fg": "#ffffff"},
+    "Normal": {"bg": "#1976D2", "fg": "#ffffff"},
+    "High":   {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "Urgent": {"bg": "#E53935", "fg": "#ffffff"},
 }
 
 NARRATIVE_STATUS: Dict[str, Dict[str, str]] = {
@@ -238,6 +285,18 @@ LIAISON_REPORT_STATE: Dict[str, Dict[str, str]] = {
     "not_ready": {"bg": "#FB8C00", "fg": "#1a1a1a"},
 }
 
+# Agency Requests board — status chips. Deliberately a different hue family
+# than LIAISON_PRIORITY (blue/orange/red) since both badges sit side by side
+# on the same card — reusing a priority hue here would make them unreadable
+# as distinct signals.
+LIAISON_REQUEST_STATUS: Dict[str, Dict[str, str]] = {
+    "Open":        {"bg": "#7C3AED", "fg": "#ffffff"},
+    "In Progress": {"bg": "#0891B2", "fg": "#ffffff"},
+    "Resolved":    {"bg": "#00897B", "fg": "#ffffff"},
+    "Declined":    {"bg": "#78716C", "fg": "#ffffff"},
+    "Cancelled":   {"bg": "#78716C", "fg": "#ffffff"},
+}
+
 __all__ = [
     "NAMED_COLORS",
     "PALETTE",
@@ -257,4 +316,8 @@ __all__ = [
     "LIAISON_AGENCY_STATUS",
     "LIAISON_PRIORITY",
     "LIAISON_REPORT_STATE",
+    "LIAISON_REQUEST_STATUS",
+    "WA_PLANNING_STATUS",
+    "WA_SAFETY_STATUS",
+    "WA_PRIORITY",
 ]

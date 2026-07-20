@@ -30,8 +30,9 @@
 ## Safety Risk Manager — canonical Hazard Register
 - File: `data/db/sarapp_db/api/routers/safety.py` (`HazardsRepository`, `list_hazards`/`create_hazard`/`get_hazard`/`update_hazard`/`delete_hazard`), collection `IncidentCollections.HAZARDS`.
 - Replaces the CAP-style severity/likelihood risk matrix with USCG SPE (Severity x Probability x Exposure) scoring: `score = severity(1-5) * probability(1-5) * exposure(1-4)`, banded 1-19 Slight / 20-39 Possible / 40-59 Substantial / 60-79 High / 80-100 Very High, each with a fixed recommended action. Score/band/action are computed server-side on write and never trusted from client input.
-- A hazard has `spe_initial` and `spe_residual`, each optional (residual is typically unset until controls are determined).
-- `links` embeds `work_assignment_ids`/`team_ids`/`task_ids` (plain int lists) rather than being a separate join collection — hazards are incident-wide, not per-operational-period singleton forms like the old CAP ORM model.
+- A hazard stores `default_spe`, `spe_initial`, and `spe_residual`. Each is a nested object with user-authored `severity`/`probability`/`exposure` inputs and server-computed `score`/`band`/`action` outputs.
+- `hazard_type_id` is optional. When a hazard is created from `hazard_types`, the backend copies matching library fields (`name -> title`, `category`, `description`, `controls`, `ppe`, `standard_safety_language -> safety_language`, `default_spe`) into the incident hazard exactly once, then the incident hazard becomes independently editable. Incident-only hazards leave `hazard_type_id` as `null`.
+- Linkage is backend-managed through top-level int-list fields `op_period_ids`, `task_ids`, `team_ids`, `work_assignment_ids`, and `hazard_zone_ids`. `hazard_zones` remains a separate GIS collection; hazards store the zone ids.
 - GAR (Supervision/Planning/Team/Environment/Complexity) scoring is intentionally out of scope here — it will live on the task/assignment side, not on individual hazards.
 - No `status`/lifecycle field and no approval-blocking gate in v1 — this was a deliberate simplification versus the old CAP ORM form (which blocked approval on H/EH residual risk); see `Design Documents/legacycode.md` for what CAP ORM data paths remain for form-export compatibility.
 
@@ -43,7 +44,8 @@
 - **Version** means a specific revision of that form's layout/fields over time.
 - This mirrors the existing `forms/sets/<agency>/<code>/` directory layout.
 - `modules/forms_creator/services/templates.py` (`FormService`) flattens this back into one dict per template for the rest of the module.
-- Generated forms should not create durable in-app revision/export histories. If a generated PDF needs to be shared, upload it as an attachment and store the returned attachment id on the owning form, IAP package, task, or other domain document.
+- Incident form instances are canonical single documents in `forms`; `linked_module`/`linked_record_id` live directly on that document and there are no separate form link/revision/audit/export collections.
+- Generated forms should not create durable in-app revision/export histories. If a generated PDF needs to be shared, upload it as an attachment with `owner_type="form"` and `owner_id=<incident_id>-FORM-<n>`, then store the returned attachment id on the owning form document's `attachment_ids` list (or on the owning task/IAP/other domain document when the file belongs there instead).
 
 ## Attachments
 - File: `data/db/sarapp_db/api/routers/attachments.py`

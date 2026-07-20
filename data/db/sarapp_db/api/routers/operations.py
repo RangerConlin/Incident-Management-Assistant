@@ -318,7 +318,12 @@ def create_task(incident_id: str, body: dict[str, Any]) -> dict:
         "priority": body.get("priority", "Medium"),
         "status": body.get("status", "Draft"),
         "location": body.get("location"),
+        "location_kind": body.get("location_kind", "free_text"),
         "location_facility_id": body.get("location_facility_id"),
+        "location_geocoded_address": body.get("location_geocoded_address"),
+        "location_latitude": body.get("location_latitude"),
+        "location_longitude": body.get("location_longitude"),
+        "location_feature_id": body.get("location_feature_id"),
         "assignment": body.get("assignment"),
         "team_leader": body.get("team_leader"),
         "team_phone": body.get("team_phone"),
@@ -350,7 +355,10 @@ def get_task(incident_id: str, task_id: int) -> dict:
 
 _AUDIT_FIELD_LABELS = {
     "task_id": "Task ID", "title": "Title", "category": "Category", "task_type": "Type",
-    "priority": "Priority", "status": "Status", "location": "Location", "location_facility_id": "Location Facility", "assignment": "Assignment",
+    "priority": "Priority", "status": "Status", "location": "Location", "location_facility_id": "Location Facility",
+    "location_kind": "Location Type", "location_geocoded_address": "Geocoded Address",
+    "location_latitude": "Location Latitude", "location_longitude": "Location Longitude",
+    "location_feature_id": "Location GIS Object", "assignment": "Assignment",
 }
 
 

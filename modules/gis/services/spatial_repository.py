@@ -77,7 +77,7 @@ class SpatialRepository:
     def list_features_by_type(self, feature_type: FeatureType, include_archived: bool = False) -> list[SpatialFeature]:
         try:
             docs = api_client.get(
-                f"/api/incidents/{self.incident_id}/gis/features/by-type/{feature_type}",
+                f"/api/incidents/{self.incident_id}/gis/features/by-type/{feature_type.value}",
                 params={"include_archived": include_archived},
             ) or []
             return [_doc_to_feature(d) for d in docs]
@@ -167,9 +167,9 @@ def _parse_iso(value: str | None) -> datetime | None:
 
 def _feature_to_dict(feature: SpatialFeature) -> dict:
     return {
-        "feature_type": str(feature.feature_type),
+        "feature_type": feature.feature_type.value,
         "feature_subtype": feature.feature_subtype,
-        "geometry_type": str(feature.geometry_type),
+        "geometry_type": feature.geometry_type.value,
         "label": feature.label,
         "description": feature.description,
         "status": feature.status,

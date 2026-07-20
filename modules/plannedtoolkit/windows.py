@@ -36,7 +36,6 @@ __all__ = [
     "get_promotions_panel",
     "get_vendors_panel",
     "get_permits_panel",
-    "get_safety_panel",
     "get_tasking_panel",
     "get_health_sanitation_panel",
     "get_planned_toolkit_panel",
@@ -68,13 +67,6 @@ PERMIT_SPEC = PanelSpec(
     title="Permits",
     tool_key="permits",
     columns=("ID", "Permit", "Status", "Issued By", "Expiry", "Updated"),
-)
-
-SAFETY_SPEC = PanelSpec(
-    title="Safety",
-    tool_key="safety-reports",
-    columns=("ID", "Report", "Status", "Priority", "Location", "Updated"),
-    extra_rows=(("Location", "location_edit"),),
 )
 
 TASK_SPEC = PanelSpec(
@@ -524,15 +516,14 @@ class PlannedToolkitHome(QWidget):
         top = QGridLayout()
         top.addWidget(_DashboardCard("Promotions", "Campaigns and event timing."), 0, 0)
         top.addWidget(_DashboardCard("Vendors", "Onsite partners, locations, and compliance."), 0, 1)
-        top.addWidget(_DashboardCard("Safety", "Incidents, dispatch, and response."), 1, 0)
-        top.addWidget(_DashboardCard("Operations", "Tasks and follow-up tracking."), 1, 1)
+        top.addWidget(_DashboardCard("Operations", "Tasks and follow-up tracking."), 1, 0)
+        top.addWidget(_DashboardCard("Health", "Health and sanitation oversight."), 1, 1)
         layout.addLayout(top)
 
         tabs = QTabWidget()
         tabs.addTab(PromotionsPanel(incident_id), "Promotions")
         tabs.addTab(_ToolPanel(VENDOR_SPEC, incident_id), "Vendors")
         tabs.addTab(_ToolPanel(PERMIT_SPEC, incident_id), "Permits")
-        tabs.addTab(_ToolPanel(SAFETY_SPEC, incident_id), "Public Safety")
         tabs.addTab(QuickAssignmentsPanel(incident_id), "Quick Assignments")
         tabs.addTab(_ToolPanel(HEALTH_SPEC, incident_id), "Health & Sanitation")
         layout.addWidget(tabs)
@@ -548,10 +539,6 @@ def get_vendors_panel(incident_id: object | None = None) -> QWidget:
 
 def get_permits_panel(incident_id: object | None = None) -> QWidget:
     return _ToolPanel(PERMIT_SPEC, incident_id)
-
-
-def get_safety_panel(incident_id: object | None = None) -> QWidget:
-    return _ToolPanel(SAFETY_SPEC, incident_id)
 
 
 def get_tasking_panel(incident_id: object | None = None) -> QWidget:

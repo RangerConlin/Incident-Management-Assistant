@@ -6,18 +6,19 @@
 - `main.py` boots the Qt app, builds the menu tree, and loads ADS docks/widgets.
 - Domain data lives in `data/`. Active backend is **MongoDB** via the `sarapp_db` package in `data/db/sarapp_db/`.
 - The shared FastAPI app lives in `data/db/sarapp_db/api/app.py` and is served by the LAN server, cloud server, and built-in offline server runtimes.
-- Legacy SQLite files and repositories still exist for modules and utilities that have not fully cut over yet; do not assume every remaining SQLite reference is dead code.
+- Legacy SQLite files and repositories still exist for modules and utilities that have not fully cut over yet; if you encounter any of these, flag them for migration and deletion.
 - Tests live in `tests/` and `modules/**/tests` using `pytest`.
 - Master product roadmap: `Design Documents/designplan.md`.
 - Use **"incident"** everywhere, never "mission".
 - Do not create new git branches or forks without being instructed to.
+- Do not start or restart the mobile emulator without specific instructions to
 
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
 - No `backend/` directory. Files belong under the existing root/module structure such as `modules/`, `lan_server/`, `cloud_server/`, `server/`, or `data/` as appropriate.
 - `cloud_server/` is a stateless reverse-tunnel router, not a second backend. It has no MongoDB connection and runs no `sarapp_db` routers; LAN servers dial out to it and register under a connect code, and it forwards field-device HTTP/WebSocket traffic down that tunnel. There is no mirrored `sarapp_db` copy under `cloud_server/` (removed 2026-07-12, see `Design Documents/legacycode.md`) — apply all incident/master router, schema, and database changes to the active LAN server source under `data/db/sarapp_db/` only; see `Design Documents/Instructions/cloud_router_architecture.md` for the router's own protocol and files.
 - Database framework belongs under `data/`, not `core/`.
-- Never create demo/fake data; only migrate or use data that already exists.
+- Never create demo/fake data unless instructed; only migrate or use data that already exists.
 - Do not add backward-compatibility shims, alias fields, or legacy fallback reads/writes in production code. If a data shape change needs help, use a one-time conversion/migration script to rewrite existing data into the new canonical format, then keep the app code on the canonical shape only.
 - Never wire MongoDB directly into the UI. Architecture is UI -> API server -> MongoDB.
 - `SARAPP_MONGO_URI` is never hardcoded; read it from the environment only.
@@ -48,6 +49,7 @@
 - Run or update relevant `pytest` coverage with each code change.
 - Use `QT_QPA_PLATFORM=offscreen` for CI/headless Qt runs.
 - Stub `CHECKIN_DATA_DIR` when tests need isolated data paths.
+- If tests repeatedly fail with the same error that is related to the environment and not the code, stop running the tests and flag it.
 
 ## Instruction Index
 - Backlog / queued follow-up work: `backlog.md`
@@ -65,6 +67,7 @@
 - Product structure, module inventory, and roadmap: `Design Documents/Instructions/product_structure.md`
 - Planned real-time architecture: `Design Documents/Instructions/realtime_architecture_roadmap.md`
 - Cloud router (reverse tunnel) architecture: `Design Documents/Instructions/cloud_router_architecture.md`
+- Planned Events Toolkit Phase 0 audit (reuse matrix, domain boundaries, hardening backlog): `Design Documents/Instructions/planned_events_phase0_audit.md`
 
 ## Updating Instructions
 - `AGENTS.md` is the repo-wide entry point. Keep it short, stable, and limited to universal rules plus pointers to focused instruction docs.

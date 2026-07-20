@@ -58,7 +58,6 @@ The `modules/` Axis 1 sweep was accurate at the module level, but the app still 
 | `modules/_infra/repository.py` + `base.py` | Objectives | ~~SQLAlchemy layer~~ **DELETED 2026-07-03** — zero callers for all SQLite functions | — |
 | `app/modules/planning/iap/models/repository.py` | IAP | **Done 2026-07-03** — `IAPRepository` now calls `GET/PUT/DELETE /api/incidents/{id}/iap/packages`; new `IAPPackagesRepository(BaseRepository)` in `iap.py`; forms embedded in package doc | — |
 | `utils/incident_db.py` | File mgmt | **Cleaned 2026-07-03** — duplicate `_active_incident_id` state removed; `_ensure_schema_compatibility()` and dead MongoDB-era table entries in `_REQUIRED_INCIDENT_TABLES` removed. Now lifecycle-only: copy template, validate `narrative_entries` present, bootstrap spatial DB. Canonical incident ID state lives in `incident_context.py`. | — |
-| `modules/gis/services/schema_bootstrap.py` | GIS | `spatial_features` / `spatial_feature_links` tables in per-incident `spatial.db` | GIS/spatial DB migration is a separate architectural decision |
 
 ### Axis 1 note on `utils/db.py` and `utils/context.py`
 `utils/context.py` was deleted 2026-07-03 (zero callers after session/audit cutover). `utils/db.py` has one remaining active caller: `ui/widgets/data_providers.py` (equipment/vehicles snapshot fallback). It will become dead code when that module is fixed.

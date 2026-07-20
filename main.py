@@ -45,7 +45,7 @@ DEV_MODE = True
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"
@@ -64,6 +64,7 @@ from utils.session import end_session, start_session
 from utils.constants import TEAM_STATUSES
 from notifications.services import get_notifier
 from ui.settings import SettingsWindow
+from utils.perf import PerfTimer
 from utils.profile_manager import profile_manager, ProfileMeta
 
 try:
@@ -326,7 +327,7 @@ class MainWindow(QMainWindow):
 
         # Title includes active incident (if any)
         active_number = AppState.get_active_incident()
-        user_id = AppState.get_active_user_id()
+        user_id = AppState.get_active_user_display()
         user_role = AppState.get_active_user_role()
         suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
         if active_number:
@@ -834,6 +835,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
         self._add_action(m_ops, "Team Location Map", None, "operations.team_location_map")
+        self._add_action(m_ops, "Incident Map", None, "operations.incident_map")
 
         # ----- Logistics -----
         m_log = mb.addMenu("Logistics")
@@ -842,7 +844,8 @@ class MainWindow(QMainWindow):
         m_log.addSeparator()
         self._add_action(m_log, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_log.addSeparator()
-        self._add_action(m_log, "Check-In ICS-211", None, "logistics.211")
+        self._add_action(m_log, "Resource Check In", None, "logistics.211")
+        self._add_action(m_log, "Quick Check In", None, "logistics.quick_checkin")
         self._add_action(m_log, "Resource Status Board", None, "logistics.resource_status")
         self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
         self._add_action(m_log, "Facilities Manager", None, "logistics.facilities")
@@ -895,6 +898,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_lia, "Agency Directory", None, "liaison.agencies")
         self._add_action(m_lia, "Reporting Board", None, "liaison.reporting")
         self._add_action(m_lia, "Customer Requests & Feedback", None, "liaison.customer")
+        self._add_action(m_lia, "Agency Requests", None, "liaison.requests")
 
         # ----- Public Information -----
         m_pub = mb.addMenu("Public Information")
@@ -933,7 +937,6 @@ class MainWindow(QMainWindow):
         plan_menu = m_tool.addMenu("Planned Event Toolkit")
         self._add_action(plan_menu, "External Messaging", None, "planned.promotions")
         self._add_action(plan_menu, "Vendors && Permits", None, "planned.vendors")
-        self._add_action(plan_menu, "Public Safety", None, "planned.safety")
         self._add_action(plan_menu, "Quick Assignments", None, "planned.tasking")
         self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
 
@@ -1083,7 +1086,6 @@ class MainWindow(QMainWindow):
             "toolkit.disaster.photos": category == "disaster",
             "planned.promotions": True,
             "planned.vendors": True,
-            "planned.safety": True,
             "planned.tasking": True,
             "planned.health_sanitation": True,
             "toolkit.initial.hasty": category in {"sar", "disaster"},
@@ -1162,12 +1164,14 @@ class MainWindow(QMainWindow):
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
             "operations.team_location_map": self.open_operations_team_location_map,
+            "operations.incident_map": self.open_operations_incident_map,
             "operations.narrative": self.open_operations_narrative,
 
             # ----- Logistics -----
             "logistics.unit_log": self.open_logistics_unit_log,
             "logistics.dashboard": self.open_logistics_dashboard,
             "logistics.211": self.open_logistics_211,
+            "logistics.quick_checkin": self.open_logistics_quick_checkin,
             "logistics.resource_status": self.open_logistics_resource_status,
             "logistics.requests": self.open_logistics_requests,
             "logistics.213rr": self.open_logistics_213rr,
@@ -1218,6 +1222,7 @@ class MainWindow(QMainWindow):
             "liaison.agencies": self.open_liaison_agencies,
             "liaison.reporting": self.open_liaison_reporting,
             "liaison.customer": self.open_liaison_customer,
+            "liaison.requests": self.open_liaison_requests,
 
             # ----- Public Information -----
             "public.dashboard":       self.open_public_dashboard,
@@ -1245,7 +1250,6 @@ class MainWindow(QMainWindow):
             "planned.promotions": self.open_planned_promotions,
             "toolkit.projection_dashboard": self.open_toolkit_projection_dashboard,
             "planned.vendors": self.open_planned_vendors,
-            "planned.safety": self.open_planned_safety,
             "planned.tasking": self.open_planned_tasking,
             "planned.health_sanitation": self.open_planned_health_sanitation,
             "toolkit.initial.overview": self.open_toolkit_initial_overview,
@@ -1386,14 +1390,60 @@ class MainWindow(QMainWindow):
         window.raise_()
         window.activateWindow()
 
+    def _existing_child_window(self, attr_name: str) -> QWidget | None:
+        window = getattr(self, attr_name, None)
+        if window is None:
+            return None
+        try:
+            if shiboken6 is not None and not shiboken6.isValid(window):
+                return None
+        except Exception:
+            return None
+        if isinstance(window, QWidget):
+            return window
+        return None
+
+    def _open_singleton_child_window(
+        self,
+        *,
+        attr_name: str,
+        label: str,
+        factory: Callable[[], QWidget],
+    ) -> QWidget:
+        existing = self._existing_child_window(attr_name)
+        if existing is not None:
+            timer = PerfTimer(logger, f"{label} window")
+            try:
+                existing.show()
+                existing.raise_()
+                existing.activateWindow()
+            finally:
+                timer.finish("reused existing instance")
+            return existing
+
+        timer = PerfTimer(logger, f"{label} window")
+        window = factory()
+        timer.checkpoint("constructed")
+        setattr(self, attr_name, window)
+        self._register_child_window(window)
+        try:
+            window.destroyed.connect(lambda _obj=None, name=attr_name: setattr(self, name, None))
+        except Exception:
+            pass
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        timer.finish("shown")
+        return window
+
     def open_edit_personnel(self) -> None:
         from ui.personnel import PersonnelInventoryWindow
 
-        win = PersonnelInventoryWindow(parent=self)
-        self._register_child_window(win)
-        win.show()
-        win.raise_()
-        win.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_personnel_inventory_window",
+            label="Personnel Inventory",
+            factory=lambda: PersonnelInventoryWindow(parent=self),
+        )
 
     def open_edit_objectives(self) -> None:
         try:
@@ -1411,43 +1461,43 @@ class MainWindow(QMainWindow):
             TaskTypesEditorDialog,
         )
 
-        dialog = TaskTypesEditorDialog(parent=self)
-        self._register_child_window(dialog)
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_task_types_editor_window",
+            label="Task Types",
+            factory=lambda: TaskTypesEditorDialog(parent=self),
+        )
 
     def open_edit_team_types(self) -> None:
         from modules.common.widgets.type_editors.team_types_editor import (
             TeamTypesEditorDialog,
         )
 
-        dialog = TeamTypesEditorDialog(parent=self)
-        self._register_child_window(dialog)
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_team_types_editor_window",
+            label="Team Types",
+            factory=lambda: TeamTypesEditorDialog(parent=self),
+        )
 
     def open_edit_vehicles(self) -> None:
         from modules.logistics.vehicle.panels.vehicle_inventory_panel import (
             VehicleInventoryDialog,
         )
-        win = VehicleInventoryDialog(parent=self)
-        self._register_child_window(win)
-        win.show()
-        win.raise_()
-        win.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_vehicle_inventory_window",
+            label="Vehicle Inventory",
+            factory=lambda: VehicleInventoryDialog(parent=self),
+        )
 
     def open_edit_aircraft(self) -> None:
         from modules.logistics.aircraft.panels.aircraft_inventory_window import (
             AircraftInventoryWindow,
         )
 
-        dialog = AircraftInventoryWindow(parent=self)
-        self._register_child_window(dialog)
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_aircraft_inventory_window",
+            label="Aircraft Inventory",
+            factory=lambda: AircraftInventoryWindow(parent=self),
+        )
 
     def open_edit_equipment(self) -> None:
         try:
@@ -1456,11 +1506,11 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Equipment Panel Error", f"Unable to load Equipment panel.\n{exc}")
             return
-        win = EquipmentEditPanel(parent=self)
-        self._register_child_window(win)
-        win.show()
-        win.raise_()
-        win.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_equipment_inventory_window",
+            label="Equipment",
+            factory=lambda: EquipmentEditPanel(parent=self),
+        )
 
     def open_edit_resource_types(self) -> None:
         """Open the Resource Type Library from the Edit menu.
@@ -1502,11 +1552,11 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Load Failed", f"Unable to load Comms Resource Editor: {e}")
             return
-        win = CommsResourceEditor(parent=self)
-        self._register_child_window(win)
-        win.show()
-        win.raise_()
-        win.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_comms_resource_editor_window",
+            label="Communications Resources",
+            factory=lambda: CommsResourceEditor(parent=self),
+        )
 
     def open_edit_safety_templates(self) -> None:
         """Open the Safety Analysis Library on the Scenario Templates tab."""
@@ -1535,11 +1585,11 @@ class MainWindow(QMainWindow):
             )
             return
 
-        win = UnitsOrganizationsPanel(parent=self)
-        self._register_child_window(win)
-        win.show()
-        win.raise_()
-        win.activateWindow()
+        self._open_singleton_child_window(
+            attr_name="_units_organizations_window",
+            label="Units and Organizations",
+            factory=lambda: UnitsOrganizationsPanel(parent=self),
+        )
 
 # --- 4.3 Command ---------------------------------------------------------
     def open_command_unit_log(self) -> None:
@@ -2037,6 +2087,22 @@ class MainWindow(QMainWindow):
             except Exception:
                 print(f"[warn] Team Location Map panel could not be loaded: {e}")
 
+    def open_operations_incident_map(self) -> None:
+        try:
+            from modules.gis.map_window.incident_map_window import IncidentMapWindow
+            # No Qt parent: a top-level window "owned" by the main window shares
+            # its taskbar grouping on Windows and never gets its own taskbar
+            # button. Leaving it parentless makes it a fully independent
+            # top-level window with its own taskbar entry.
+            window = IncidentMapWindow(None)
+            self._open_panel(window, "Incident Map", preferred_size=(1600, 1000))
+            return
+        except Exception as e:
+            try:
+                QMessageBox.warning(self, "Incident Map", f"Incident Map window could not be loaded.\n{e}")
+            except Exception:
+                print(f"[warn] Incident Map window could not be loaded: {e}")
+
     def open_operations_narrative(self) -> None:
         # No separate Narrative window; use the Task Detail window's Narrative tab.
         try:
@@ -2169,7 +2235,13 @@ class MainWindow(QMainWindow):
         from modules import logistics
         incident_id = AppState.get_active_incident()
         panel = logistics.get_checkin_panel(incident_id)
-        self._open_panel(panel, title="Check-In (ICS-211)")
+        self._open_panel(panel, title="Resource Check In")
+
+    def open_logistics_quick_checkin(self) -> None:
+        from modules import logistics
+        incident_id = AppState.get_active_incident()
+        panel = logistics.get_quick_checkin_panel(incident_id)
+        self._open_panel(panel, title="Quick Check In")
 
     def open_logistics_requests(self) -> None:
         from modules import logistics
@@ -2416,6 +2488,11 @@ class MainWindow(QMainWindow):
         from modules import liaison
         incident_id = AppState.get_active_incident()
         liaison.open_liaison_window(incident_id, tab="Customer Requests & Feedback", parent=self)
+
+    def open_liaison_requests(self) -> None:
+        from modules import liaison
+        incident_id = AppState.get_active_incident()
+        liaison.open_liaison_window(incident_id, tab="Agency Requests", parent=self)
 
 # --- 4.11 Public Information --------------------------------------------
     def open_public_dashboard(self) -> None:
@@ -2707,8 +2784,8 @@ class MainWindow(QMainWindow):
     def open_planned_safety(self) -> None:
         from modules import plannedtoolkit
         incident_id = AppState.get_active_incident()
-        panel = plannedtoolkit.get_safety_panel(incident_id)
-        self._open_panel(panel, title="Public Safety")
+        panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
+        self._open_panel(panel, title="Health & Sanitation")
 
     def open_planned_tasking(self) -> None:
         from modules import plannedtoolkit
@@ -2778,6 +2855,15 @@ class MainWindow(QMainWindow):
         try:
             geo = self.geometry()
             screen = self.screen().availableGeometry() if self.screen() else geo
+
+            # Never let a panel be sized larger than the available screen —
+            # otherwise its title bar/controls can end up off-screen and the
+            # user has no way to move, shrink, or minimize it.
+            max_width = max(400, screen.width() - 40)
+            max_height = max(300, screen.height() - 40)
+            if widget.width() > max_width or widget.height() > max_height:
+                widget.resize(min(widget.width(), max_width), min(widget.height(), max_height))
+
             step = 32
             if not hasattr(self, "_panel_cascade_index"):
                 self._panel_cascade_index = 0
@@ -2790,7 +2876,13 @@ class MainWindow(QMainWindow):
             if base_x + offset > max_x or base_y + offset > max_y:
                 self._panel_cascade_index = 0
                 offset = 0
-            widget.move(base_x + offset, base_y + offset)
+            target_x = base_x + offset
+            target_y = base_y + offset
+            # Clamp so the window (and its title bar) always stays fully on-screen,
+            # regardless of where the main window/cascade math would otherwise put it.
+            target_x = max(screen.x(), min(target_x, screen.x() + screen.width() - widget.width()))
+            target_y = max(screen.y(), min(target_y, screen.y() + screen.height() - widget.height()))
+            widget.move(target_x, target_y)
             self._panel_cascade_index += 1
         except Exception:
             pass
@@ -3675,7 +3767,7 @@ class MainWindow(QMainWindow):
     def update_title_with_active_incident(self) -> None:
         """Refresh window title and incident label when active incident changes."""
         incident_number = AppState.get_active_incident()
-        user_id = AppState.get_active_user_id()
+        user_id = AppState.get_active_user_display()
         user_role = AppState.get_active_user_role()
         suffix = f" — User: {user_id or ''} ({user_role or ''})" if (user_id or user_role) else ""
         if incident_number:
@@ -3692,7 +3784,7 @@ class MainWindow(QMainWindow):
         """Update the status label and menu gates with the current incident."""
         incident_id = AppState.get_active_incident()
         incident = _get_active_incident_cached() if incident_id else None
-        user_id = AppState.get_active_user_id()
+        user_id = AppState.get_active_user_display()
         user_role = AppState.get_active_user_role()
         if incident:
             text = f"Incident: {incident['number']} | {incident['name']}  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"

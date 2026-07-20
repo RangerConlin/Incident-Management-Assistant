@@ -8,8 +8,8 @@ Tabs:
   2. Resources/215     — resource requirements and actual assignments
   3. Hazards/215A      — hazard analysis entries
   4. Tasks             — linked Operations tasks
-  5. Outputs           — ICS 215 / 215A / 204 readiness tracking
-  6. Log               — planning log entries
+  5. Agency Requests    — linked ICS 213RR requests
+  6. Outputs           — ICS 215 / 215A / 204 readiness tracking
 """
 from __future__ import annotations
 
@@ -42,7 +42,6 @@ from modules.planning.tactics_resources.data.hazard_prefill_service import Hazar
 from modules.planning.tactics_resources.data.resource_gap_service import ResourceGapService
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import (
-    LOG_ENTRY_TYPES,
     OUTPUT_STATUS_VALUES,
     OUTPUT_TYPE_VALUES,
     PLANNING_STATUS_VALUES,
@@ -55,6 +54,13 @@ from modules.planning.tactics_resources.widgets.linked_agency_requests_panel imp
 from modules.planning.tactics_resources.widgets.linked_tasks_panel import LinkedTasksPanel
 from modules.planning.tactics_resources.widgets.resource_requirement_editor import ResourceRequirementEditor
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import (
+    get_palette,
+    resource_status_colors,
+    subscribe_theme,
+    wa_planning_status_colors,
+    wa_safety_status_colors,
+)
 
 
 class WorkAssignmentDetailWindow(QWidget):
@@ -89,9 +95,18 @@ class WorkAssignmentDetailWindow(QWidget):
 
         self._build_ui()
         self._update_title()
+        self._refresh_status_chips()
 
         if work_assignment_id is not None:
             self._load()
+
+        try:
+            subscribe_theme(self, self._on_theme_changed)
+        except Exception:
+            pass
+
+    def _on_theme_changed(self, _name: str) -> None:
+        self._refresh_status_chips()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -114,7 +129,6 @@ class WorkAssignmentDetailWindow(QWidget):
         self._build_tasks_tab()
         self._build_agency_requests_tab()
         self._build_outputs_tab()
-        self._build_log_tab()
         layout.addWidget(self._tabs, 1)
 
     def _build_header(self) -> QGroupBox:
@@ -197,9 +211,18 @@ class WorkAssignmentDetailWindow(QWidget):
         cols.addLayout(right_form, 2)
         outer.addLayout(cols)
 
+        # ---- Status chip row ----
+        chip_row = QHBoxLayout()
+        self._planning_chip = QLabel("")
+        self._safety_chip = QLabel("")
+        self._resource_chip = QLabel("")
+        for chip in (self._planning_chip, self._safety_chip, self._resource_chip):
+            chip_row.addWidget(chip)
+        chip_row.addStretch(1)
+        outer.addLayout(chip_row)
+
         # ---- Summary line ----
         self._summary_label = QLabel("Resources: — | Gap: — | Hazards: — | Unresolved: — | Tasks: —")
-        self._summary_label.setStyleSheet("color: gray; font-size: 11px;")
         outer.addWidget(self._summary_label)
 
         # ---- Wire action buttons ----
@@ -219,8 +242,31 @@ class WorkAssignmentDetailWindow(QWidget):
         self._planning_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._safety_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._resource_status_combo.currentIndexChanged.connect(self._schedule_save)
+        self._planning_status_combo.currentIndexChanged.connect(self._refresh_status_chips)
+        self._safety_status_combo.currentIndexChanged.connect(self._refresh_status_chips)
+        self._resource_status_combo.currentIndexChanged.connect(self._refresh_status_chips)
 
         return box
+
+    @staticmethod
+    def _style_chip(label: QLabel, text: str, brushes: dict | None) -> None:
+        label.setText(text)
+        if not brushes:
+            label.setStyleSheet("")
+            return
+        bg = brushes["bg"].color().name()
+        fg = brushes["fg"].color().name()
+        label.setStyleSheet(
+            f"background:{bg}; color:{fg}; padding:2px 8px; border-radius:4px; font-weight:700;"
+        )
+
+    def _refresh_status_chips(self) -> None:
+        planning = self._planning_status_combo.currentText()
+        safety = self._safety_status_combo.currentText()
+        resource = self._resource_status_combo.currentText()
+        self._style_chip(self._planning_chip, planning, wa_planning_status_colors().get(planning))
+        self._style_chip(self._safety_chip, safety, wa_safety_status_colors().get(safety))
+        self._style_chip(self._resource_chip, resource, resource_status_colors().get(resource))
 
     def _build_overview_tab(self) -> None:
         tab = QWidget()
@@ -254,7 +300,7 @@ class WorkAssignmentDetailWindow(QWidget):
         form.addRow("Approved By", self._approved_edit)
 
         self._meta_label = QLabel("")
-        self._meta_label.setStyleSheet("color: gray; font-size: 11px;")
+        self._meta_label.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-size: 11px;")
         form.addRow("Created / Updated", self._meta_label)
 
         # Wire overview fields for auto-save
@@ -273,7 +319,7 @@ class WorkAssignmentDetailWindow(QWidget):
         placeholder = QWidget()
         lbl = QLabel("Save the strategy first to add resource requirements.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("color: gray; font-style: italic;")
+        lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
         lay.addWidget(lbl)
         self._resources_placeholder = placeholder
@@ -283,7 +329,7 @@ class WorkAssignmentDetailWindow(QWidget):
         placeholder = QWidget()
         lbl = QLabel("Save the strategy first to add hazard analysis entries.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("color: gray; font-style: italic;")
+        lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
         lay.addWidget(lbl)
         self._hazards_placeholder = placeholder
@@ -293,7 +339,7 @@ class WorkAssignmentDetailWindow(QWidget):
         placeholder = QWidget()
         lbl = QLabel("Save the strategy first to link or create tasks.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("color: gray; font-style: italic;")
+        lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
         lay.addWidget(lbl)
         self._tasks_placeholder = placeholder
@@ -303,7 +349,7 @@ class WorkAssignmentDetailWindow(QWidget):
         placeholder = QWidget()
         lbl = QLabel("Save the strategy first to link agency requests.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("color: gray; font-style: italic;")
+        lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
         lay.addWidget(lbl)
         self._agency_requests_placeholder = placeholder
@@ -333,34 +379,6 @@ class WorkAssignmentDetailWindow(QWidget):
         self._output_preview_btn.clicked.connect(self._preview_output_data)
 
         self._tabs.addTab(tab, "Outputs")
-
-    def _build_log_tab(self) -> None:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-
-        btn_bar = QHBoxLayout()
-        self._log_add_btn = QPushButton("Add Entry")
-        self._log_edit_btn = QPushButton("Edit")
-        self._log_remove_btn = QPushButton("Remove")
-        self._log_critical_btn = QPushButton("Toggle Critical")
-        for b in (self._log_add_btn, self._log_edit_btn,
-                  self._log_remove_btn, self._log_critical_btn):
-            btn_bar.addWidget(b)
-        btn_bar.addStretch(1)
-        layout.addLayout(btn_bar)
-
-        columns = ["Date/Time", "Type", "Entry", "Entered By", "Critical"]
-        self._log_table = QTableWidget(0, len(columns))
-        self._log_table.setHorizontalHeaderLabels(columns)
-        apply_statusboard_table_behavior(self._log_table, stretch_last_section=True)
-        layout.addWidget(self._log_table)
-
-        self._log_add_btn.clicked.connect(self._add_log)
-        self._log_edit_btn.clicked.connect(self._edit_log)
-        self._log_remove_btn.clicked.connect(self._remove_log)
-        self._log_critical_btn.clicked.connect(self._toggle_log_critical)
-
-        self._tabs.addTab(tab, "Log")
 
     # ------------------------------------------------------------------
     # Combo population helpers
@@ -472,7 +490,6 @@ class WorkAssignmentDetailWindow(QWidget):
         self._populate_tasks_tab()
         self._populate_agency_requests_tab()
         self._reload_outputs()
-        self._reload_log()
         self._update_summary()
         self._update_title()
 
@@ -508,6 +525,7 @@ class WorkAssignmentDetailWindow(QWidget):
         idx = self._resource_status_combo.findText(wa.resource_status)
         if idx >= 0:
             self._resource_status_combo.setCurrentIndex(idx)
+        self._refresh_status_chips()
 
     def _populate_overview(self, wa: WorkAssignment) -> None:
         self._description_edit.setPlainText(wa.description)
@@ -655,8 +673,6 @@ class WorkAssignmentDetailWindow(QWidget):
             return False
         self._update_title()
         self._reload_outputs()
-        if not quiet:
-            self._reload_log()
         self.saved.emit(self._work_assignment_id)
         return True
 
@@ -809,172 +825,5 @@ class WorkAssignmentDetailWindow(QWidget):
         lay.addWidget(bb)
         dlg.exec()
 
-    # ------------------------------------------------------------------
-    # Log tab
-    # ------------------------------------------------------------------
-
-    def _reload_log(self) -> None:
-        if self._work_assignment_id is None:
-            return
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            entries = repo.list_log_entries(self._work_assignment_id)
-        except Exception:
-            return
-        self._log_table.setRowCount(0)
-        for e in entries:
-            row = self._log_table.rowCount()
-            self._log_table.insertRow(row)
-            self._log_table.setItem(row, 0, QTableWidgetItem(e.timestamp))
-            self._log_table.setItem(row, 1, QTableWidgetItem(e.entry_type))
-            self._log_table.setItem(row, 2, QTableWidgetItem(e.entry_text))
-            self._log_table.setItem(row, 3, QTableWidgetItem(str(e.entered_by or "")))
-            crit_item = QTableWidgetItem("Yes" if e.critical else "")
-            if e.critical:
-                crit_item.setForeground(Qt.red)
-            self._log_table.setItem(row, 4, crit_item)
-            self._log_table.item(row, 0).setData(Qt.UserRole, e.id)
-
-    def _add_log(self) -> None:
-        if not self._ensure_saved():
-            return
-        dialog = _LogEntryDialog(parent=self)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        text, entry_type, critical = dialog.get_data()
-        if not text:
-            return
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.add_log_entry(self._work_assignment_id, text, entry_type, critical)
-        except Exception as exc:
-            QMessageBox.critical(self, "Log", f"Failed to add entry:\n{exc}")
-            return
-        self._reload_log()
-
-    def _edit_log(self) -> None:
-        row = self._log_table.currentRow()
-        if row < 0:
-            return
-        log_id = self._log_table.item(row, 0).data(Qt.UserRole)
-        existing_text = self._log_table.item(row, 2).text()
-        existing_type = self._log_table.item(row, 1).text()
-        existing_crit = self._log_table.item(row, 4).text() == "Yes"
-        dialog = _LogEntryDialog(
-            existing_text=existing_text,
-            existing_type=existing_type,
-            existing_critical=existing_crit,
-            parent=self,
-        )
-        if dialog.exec() != QDialog.Accepted:
-            return
-        text, entry_type, critical = dialog.get_data()
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.update_log_entry_for_wa(
-                self._work_assignment_id, log_id,
-                {"entry_text": text, "entry_type": entry_type, "critical": bool(critical)},
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Log", f"Failed:\n{exc}")
-            return
-        self._reload_log()
-
-    def _remove_log(self) -> None:
-        row = self._log_table.currentRow()
-        if row < 0:
-            return
-        log_id = self._log_table.item(row, 0).data(Qt.UserRole)
-        if QMessageBox.question(self, "Remove", "Remove this log entry?") != QMessageBox.Yes:
-            return
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.remove_log_entry_for_wa(self._work_assignment_id, log_id)
-        except Exception as exc:
-            QMessageBox.critical(self, "Remove", f"Failed:\n{exc}")
-            return
-        self._reload_log()
-
-    def _toggle_log_critical(self) -> None:
-        row = self._log_table.currentRow()
-        if row < 0:
-            return
-        log_id = self._log_table.item(row, 0).data(Qt.UserRole)
-        currently_critical = self._log_table.item(row, 4).text() == "Yes"
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.update_log_entry_for_wa(
-                self._work_assignment_id, log_id, {"critical": not currently_critical}
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Toggle", f"Failed:\n{exc}")
-            return
-        self._reload_log()
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _ensure_saved(self) -> bool:
-        """Ensure the record has been saved (has a DB id). Prompts to save if not."""
-        if self._work_assignment_id is not None:
-            return True
-        reply = QMessageBox.question(
-            self, "Save Required", "Save the strategy before adding details?"
-        )
-        if reply == QMessageBox.Yes:
-            return self._save()
-        return False
-
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         super().closeEvent(event)
-
-
-# ---------------------------------------------------------------------------
-# Log entry dialog
-# ---------------------------------------------------------------------------
-
-class _LogEntryDialog(QDialog):
-    def __init__(
-        self,
-        existing_text: str = "",
-        existing_type: str = "Note",
-        existing_critical: bool = False,
-        parent: Optional[QWidget] = None,
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Log Entry")
-        self.setModal(True)
-        self.setMinimumWidth(400)
-
-        layout = QVBoxLayout(self)
-        form = QFormLayout()
-        layout.addLayout(form)
-
-        self._type_combo = QComboBox()
-        self._type_combo.addItems(LOG_ENTRY_TYPES)
-        self._type_combo.setCurrentText(existing_type)
-        form.addRow("Type", self._type_combo)
-
-        self._text_edit = QPlainTextEdit()
-        self._text_edit.setPlaceholderText("Log entry text")
-        self._text_edit.setPlainText(existing_text)
-        self._text_edit.setFixedHeight(100)
-        form.addRow("Entry", self._text_edit)
-
-        from PySide6.QtWidgets import QCheckBox
-        self._critical_check = QCheckBox("Mark as Critical")
-        self._critical_check.setChecked(existing_critical)
-        layout.addWidget(self._critical_check)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def get_data(self) -> tuple[str, str, bool]:
-        return (
-            self._text_edit.toPlainText().strip(),
-            self._type_combo.currentText(),
-            self._critical_check.isChecked(),
-        )

@@ -169,7 +169,6 @@ and legacy/cleanup concerns. It does not describe `sarapp_system` or
 | `planned_event_schedules` | Planned event schedule records. |
 | `planned_vendors` | Planned event vendor records. |
 | `planned_permits` | Planned event permit records. |
-| `planned_safety_reports` | Planned event safety report records. |
 | `planned_tasks` | Planned event task records. |
 | `planned_quick_assignments` | Planned event quick assignment records. |
 | `planned_health_inspections` | Planned event health inspection records. |

@@ -126,12 +126,9 @@ class IncidentCollections:
     PIO_DISTRIBUTION_LOG = "pio_distribution_log"
     PIO_GENERATED_DOCUMENTS = "pio_generated_documents"
 
-    # Forms — instances with embedded values; history/audit in separate collections
+    # Forms — instances with embedded values; attachment ids reference
+    # canonical exports/files stored in IncidentCollections.ATTACHMENTS.
     FORMS = "forms"
-    FORM_INSTANCE_REVISIONS = "form_instance_revisions"
-    FORM_INSTANCE_AUDIT = "form_instance_audit"
-    FORM_INSTANCE_EXPORTS = "form_instance_exports"
-    FORM_INSTANCE_LINKS = "form_instance_links"
 
     # Hazards identified during this incident
     HAZARDS = "hazards"
@@ -160,7 +157,6 @@ class IncidentCollections:
     PLANNED_EVENT_SCHEDULES = "planned_event_schedules"
     PLANNED_VENDORS = "planned_vendors"
     PLANNED_PERMITS = "planned_permits"
-    PLANNED_SAFETY_REPORTS = "planned_safety_reports"
     PLANNED_TASKS = "planned_tasks"
     PLANNED_QUICK_ASSIGNMENTS = "planned_quick_assignments"
     PLANNED_HEALTH_INSPECTIONS = "planned_health_inspections"
@@ -186,6 +182,7 @@ class IncidentCollections:
     LIAISON_RESTRICTIONS = "liaison_restrictions"
     LIAISON_AGREEMENTS = "liaison_agreements"
     LIAISON_REPORTING_DIGESTS = "liaison_reporting_digests"
+    LIAISON_REQUESTS = "liaison_requests"
 
     # Intel — All-Hazards Information Management (Module 7 redesign)
     INTEL_SUBJECTS = "intel_subjects"          # Human subjects (missing persons, witnesses, etc.)

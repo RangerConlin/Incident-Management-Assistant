@@ -15,11 +15,36 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from sarapp_db.api.ws_hub import hub
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+# Section keywords targeted by an urgent intel item's priority notification —
+# anyone staffed anywhere under the Operations Section, Planning Section, or
+# Intelligence Section (not just the three section chiefs), matched against
+# each held position's own title and every ancestor's title up to the
+# section root (see notifications/services/incident_bridge.py).
+URGENT_INTEL_TARGET_SECTIONS = ["Operations Section", "Planning Section", "Intelligence"]
+
+
+def _broadcast_urgent_intel_notification(incident_id: str, item_id: str, item_type: str, title: str) -> None:
+    """Push a priority notification event to Planning/Intel/Ops staff on every connected client."""
+    hub.broadcast(incident_id, {
+        "type": "notification",
+        "notification": {
+            "title": "Urgent Intel Report",
+            "message": f"{item_type}: {title} — urgent response needed.",
+            "severity": "priority",
+            "category": "operations",
+            "source": "Intel",
+            "entity_type": "intel_item",
+            "entity_id": item_id,
+            "target_sections": URGENT_INTEL_TARGET_SECTIONS,
+        },
+    })
 
 
 class IntelSubjectsRepository(BaseRepository):
@@ -703,6 +728,7 @@ def _map_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": doc.get("created_at", ""),
         "updated_at": doc.get("updated_at", ""),
         "notes": doc.get("notes"),
+        "urgent_response_needed": doc.get("urgent_response_needed", False),
         "deleted": doc.get("deleted", False),
         "observations": [_map_observation(o) for o in doc.get("observations", [])],
         # Linkage back to lead if converted
@@ -751,6 +777,7 @@ class IntelItemCreate(BaseModel):
     linked_task_ids: List[str] = Field(default_factory=list)
     linked_team_ids: List[int] = Field(default_factory=list)
     notes: Optional[str] = None
+    urgent_response_needed: bool = False
     created_by: str = ""
     source_lead_id: Optional[str] = None
 
@@ -767,6 +794,7 @@ class IntelItemUpdate(BaseModel):
     linked_task_ids: Optional[List[str]] = None
     linked_team_ids: Optional[List[int]] = None
     notes: Optional[str] = None
+    urgent_response_needed: Optional[bool] = None
     actor: str = "system"
 
 
@@ -802,8 +830,11 @@ def create_item(incident_id: str, data: IntelItemCreate):
         **data.model_dump(),
     }
     saved = repo.insert_one(doc)
+    urgent_tag = "[URGENT] " if data.urgent_response_needed else ""
     _write_log(incident_id, "item", saved["_id"], "created",
-               f"Intel Item created: {data.title} ({data.item_type})", data.created_by or "system")
+               f"{urgent_tag}Intel Item created: {data.title} ({data.item_type})", data.created_by or "system")
+    if data.urgent_response_needed:
+        _broadcast_urgent_intel_notification(incident_id, saved["_id"], data.item_type, data.title)
     return _map_item(saved)
 
 

@@ -42,15 +42,9 @@ def get_active_incident_db_path() -> Path:
     return get_active_incident_paths().incident_db
 
 
-def get_active_spatial_db_path() -> Path:
-    """Return the spatial database path for the active incident."""
-    return get_active_incident_paths().spatial_db
-
-
 __all__ = [
     "set_active_incident",
     "get_active_incident_id",
     "get_active_incident_paths",
     "get_active_incident_db_path",
-    "get_active_spatial_db_path",
 ]

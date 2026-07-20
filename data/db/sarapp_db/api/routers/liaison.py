@@ -213,6 +213,7 @@ def list_agency_rows(incident_id: str) -> list[dict]:
         rows.append({
             "id": aid,
             "agency_name": ag.get("name", ""),
+            "code": ag.get("code", ""),
             "agency_type": ag.get("agency_type", ""),
             "jurisdiction": ag.get("jurisdiction", ""),
             "current_status": ag.get("current_status", ""),

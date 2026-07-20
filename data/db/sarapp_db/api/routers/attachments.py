@@ -12,6 +12,7 @@ import gridfs
 from bson import ObjectId
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
@@ -188,6 +189,25 @@ def download_attachment(incident_id: str, attachment_id: str) -> StreamingRespon
         media_type=str(doc.get("mime_type") or "application/octet-stream"),
         headers=headers,
     )
+
+
+class _AttachmentUpdate(BaseModel):
+    category: str
+
+
+@router.patch("/incidents/{incident_id}/attachments/{attachment_id}")
+def update_attachment(
+    incident_id: str,
+    attachment_id: str,
+    body: _AttachmentUpdate,
+) -> dict[str, Any]:
+    repo = _repo(incident_id)
+    doc = _find_attachment(repo, attachment_id)
+    if not doc or doc.get("incident_id") != incident_id or doc.get("deleted") is True:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    repo.update_one(doc["_id"], {"category": body.category})
+    doc["category"] = body.category
+    return _public_doc(doc)
 
 
 @router.delete("/incidents/{incident_id}/attachments/{attachment_id}")

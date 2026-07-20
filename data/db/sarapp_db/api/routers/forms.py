@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
@@ -26,10 +26,11 @@ incident_router = APIRouter()
 # Repositories
 #
 # Master form catalog collections are keyed by sequential `int_id`; incident
-# form instances/links/exports/revisions/audit are keyed by app-defined
-# string ids (e.g. instance_id) or have no single-document identity at all
-# (audit/revisions are append-only logs). None carry BaseRepository's
-# `deleted` semantics, so soft_deletes is disabled throughout.
+# form instances are keyed by app-defined string ids (e.g. instance_id).
+# Durable form-owned files belong in the canonical incident attachments
+# collection and are referenced by attachment id on the form instance.
+# None of these collections carry BaseRepository's `deleted` semantics, so
+# soft_deletes is disabled throughout.
 # ---------------------------------------------------------------------------
 
 class FormFamiliesRepository(BaseRepository):
@@ -52,23 +53,8 @@ class FormInstancesRepository(BaseRepository):
     soft_deletes = False
 
 
-class FormInstanceAuditRepository(BaseRepository):
-    collection_name = IncidentCollections.FORM_INSTANCE_AUDIT
-    soft_deletes = False
-
-
-class FormInstanceLinksRepository(BaseRepository):
-    collection_name = IncidentCollections.FORM_INSTANCE_LINKS
-    soft_deletes = False
-
-
-class FormInstanceRevisionsRepository(BaseRepository):
-    collection_name = IncidentCollections.FORM_INSTANCE_REVISIONS
-    soft_deletes = False
-
-
-class FormInstanceExportsRepository(BaseRepository):
-    collection_name = IncidentCollections.FORM_INSTANCE_EXPORTS
+class IncidentAttachmentsRepository(BaseRepository):
+    collection_name = IncidentCollections.ATTACHMENTS
     soft_deletes = False
 
 
@@ -88,20 +74,8 @@ def _instances_repo(incident_id: str) -> FormInstancesRepository:
     return FormInstancesRepository(get_incident_db(incident_id))
 
 
-def _instance_audit_repo(incident_id: str) -> FormInstanceAuditRepository:
-    return FormInstanceAuditRepository(get_incident_db(incident_id))
-
-
-def _instance_links_repo(incident_id: str) -> FormInstanceLinksRepository:
-    return FormInstanceLinksRepository(get_incident_db(incident_id))
-
-
-def _instance_revisions_repo(incident_id: str) -> FormInstanceRevisionsRepository:
-    return FormInstanceRevisionsRepository(get_incident_db(incident_id))
-
-
-def _instance_exports_repo(incident_id: str) -> FormInstanceExportsRepository:
-    return FormInstanceExportsRepository(get_incident_db(incident_id))
+def _attachments_repo(incident_id: str) -> IncidentAttachmentsRepository:
+    return IncidentAttachmentsRepository(get_incident_db(incident_id))
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +227,7 @@ def _map_instance(doc: Dict[str, Any], incident_id: str, include_values: bool = 
         "updated_at": doc.get("updated_at", ""),
         "finalized_by": doc.get("finalized_by"),
         "finalized_at": doc.get("finalized_at"),
-        "exported_pdf_path": doc.get("exported_pdf_path"),
+        "attachment_ids": list(doc.get("attachment_ids") or []),
         "metadata": doc.get("metadata", {}),
         "metadata_json": None,
     }
@@ -531,14 +505,12 @@ class CreateInstanceRequest(BaseModel):
     operational_period_id: Optional[str] = None
     linked_module: Optional[str] = None
     linked_record_id: Optional[str] = None
-    metadata: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 @incident_router.post("/incidents/{incident_id}/forms", status_code=201)
 def create_instance(incident_id: str, body: CreateInstanceRequest):
     repo = _instances_repo(incident_id)
-    audit_repo = _instance_audit_repo(incident_id)
-    links_repo = _instance_links_repo(incident_id)
     instance_id = _next_instance_id(repo, incident_id)
     doc = {
         "instance_id": instance_id,
@@ -557,67 +529,15 @@ def create_instance(incident_id: str, body: CreateInstanceRequest):
         "updated_by": body.created_by,
         "finalized_by": None,
         "finalized_at": None,
-        "exported_pdf_path": None,
+        "attachment_ids": [],
         "metadata": body.metadata or {},
         "values": {},
         "deleted": False,
     }
     repo.insert_one(doc)
-    rev_repo = _instance_revisions_repo(incident_id)
-    _write_instance_audit(audit_repo, instance_id, None, "created", None, {"status": "draft"}, body.created_by, {})
-    _write_instance_revision(repo, rev_repo, instance_id, incident_id, body.revision_number, "created", body.created_by)
-    if body.linked_module and body.linked_record_id:
-        links_repo.insert_one({
-            "instance_id": instance_id,
-            "linked_module": body.linked_module,
-            "linked_record_id": body.linked_record_id,
-            "relationship_type": "source",
-            "created_by": body.created_by,
-        })
     saved = repo.find_one({"instance_id": instance_id})
     saved.pop("_id", None)
     return _map_instance(saved, incident_id, include_values=True)
-
-
-def _write_instance_audit(repo: FormInstanceAuditRepository, instance_id: str, field_key: Optional[str], action: str, old_value: Any, new_value: Any, user_id: Optional[str], details: Dict[str, Any]) -> None:
-    repo.insert_one({
-        "instance_id": instance_id,
-        "field_key": field_key,
-        "action": action,
-        "old_value": old_value,
-        "new_value": new_value,
-        "user_id": user_id,
-        "timestamp": _utcnow(),
-        "details": details,
-    })
-
-
-def _write_instance_revision(forms_repo: FormInstancesRepository, rev_repo: FormInstanceRevisionsRepository, instance_id: str, incident_id: str, revision_number: int, summary: str, user_id: Optional[str]) -> None:
-    doc = forms_repo.find_one({"instance_id": instance_id})
-    if not doc:
-        return
-    doc_copy = dict(doc)
-    doc_copy.pop("_id", None)
-    # Idempotent upsert keyed on a compound (instance_id, revision_number)
-    # pair rather than `_id`, using $setOnInsert so re-saving the same
-    # revision number is a no-op — not expressible via BaseRepository's
-    # generic methods, so we drop to the raw collection and broadcast
-    # ourselves, mirroring update_one's pattern.
-    rev_repo._col.update_one(
-        {"instance_id": instance_id, "revision_number": revision_number},
-        {"$setOnInsert": {
-            "instance_id": instance_id,
-            "revision_number": revision_number,
-            "snapshot": doc_copy,
-            "change_summary": summary,
-            "created_by": user_id,
-            "created_at": _utcnow(),
-        }},
-        upsert=True,
-    )
-    saved = rev_repo._col.find_one({"instance_id": instance_id, "revision_number": revision_number})
-    if saved:
-        rev_repo._broadcast("created", saved["_id"], saved)
 
 
 @incident_router.get("/incidents/{incident_id}/forms/{instance_id}")
@@ -640,8 +560,6 @@ class UpsertValuesRequest(BaseModel):
 @incident_router.patch("/incidents/{incident_id}/forms/{instance_id}/values")
 def upsert_values(incident_id: str, instance_id: int, body: UpsertValuesRequest):
     repo = _instances_repo(incident_id)
-    audit_repo = _instance_audit_repo(incident_id)
-    rev_repo = _instance_revisions_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
     doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
@@ -670,12 +588,10 @@ def upsert_values(incident_id: str, instance_id: int, body: UpsertValuesRequest)
             "updated_at": _utcnow(),
         }
         value_updates[f"values.{key}"] = new_vdoc
-        _write_instance_audit(audit_repo, compound_id, key, "value_updated", old_vdoc or None, payload, body.user_id, {"source_type": payload.get("source_type", "manual")})
     new_revision = int(doc.get("revision_number", 1)) + 1
     value_updates["revision_number"] = new_revision
     value_updates["updated_by"] = body.user_id
     repo.update_one(doc["_id"], value_updates)
-    _write_instance_revision(repo, rev_repo, compound_id, incident_id, new_revision, "values saved", body.user_id)
     updated = repo.find_by_id(doc["_id"])
     updated.pop("_id", None)
     return _map_instance(updated, incident_id, include_values=True)
@@ -688,8 +604,6 @@ class FinalizeRequest(BaseModel):
 @incident_router.post("/incidents/{incident_id}/forms/{instance_id}/finalize")
 def finalize_instance(incident_id: str, instance_id: int, body: FinalizeRequest):
     repo = _instances_repo(incident_id)
-    audit_repo = _instance_audit_repo(incident_id)
-    rev_repo = _instance_revisions_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
     doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
@@ -701,8 +615,6 @@ def finalize_instance(incident_id: str, instance_id: int, body: FinalizeRequest)
     lock_updates = {f"values.{k}.is_locked": True for k in (doc.get("values") or {})}
     updates = {"status": "finalized", "finalized_by": body.user_id, "finalized_at": _utcnow(), "updated_by": body.user_id, "revision_number": new_revision, **lock_updates}
     repo.update_one(doc["_id"], updates)
-    _write_instance_audit(audit_repo, compound_id, None, "finalized", None, {"status": "finalized"}, body.user_id, {})
-    _write_instance_revision(repo, rev_repo, compound_id, incident_id, new_revision, "finalized", body.user_id)
     updated = repo.find_by_id(doc["_id"])
     updated.pop("_id", None)
     return _map_instance(updated, incident_id, include_values=True)
@@ -716,63 +628,56 @@ class ReopenRequest(BaseModel):
 @incident_router.post("/incidents/{incident_id}/forms/{instance_id}/reopen")
 def reopen_instance(incident_id: str, instance_id: int, body: ReopenRequest):
     repo = _instances_repo(incident_id)
-    audit_repo = _instance_audit_repo(incident_id)
-    rev_repo = _instance_revisions_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
     doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Form instance not found")
     new_revision = int(doc.get("revision_number", 1)) + 1
     repo.update_one(doc["_id"], {"status": "draft", "finalized_by": None, "finalized_at": None, "updated_by": body.user_id, "revision_number": new_revision})
-    _write_instance_audit(audit_repo, compound_id, None, "reopened", None, {"status": "draft"}, body.user_id, {"reason": body.reason})
-    _write_instance_revision(repo, rev_repo, compound_id, incident_id, new_revision, "reopened", body.user_id)
     updated = repo.find_by_id(doc["_id"])
     updated.pop("_id", None)
     return _map_instance(updated, incident_id, include_values=True)
 
 
-@incident_router.patch("/incidents/{incident_id}/forms/{instance_id}/exported-pdf")
-def set_exported_pdf(incident_id: str, instance_id: int, path: str, user_id: Optional[str] = None):
+def _find_form_attachment(incident_id: str, compound_id: str, attachment_id: str) -> Dict[str, Any]:
+    doc = _attachments_repo(incident_id).find_one({"attachment_id": attachment_id})
+    if not doc or doc.get("deleted") is True:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    if doc.get("owner_type") != "form" or str(doc.get("owner_id")) != compound_id:
+        raise HTTPException(status_code=422, detail="Attachment is not owned by this form")
+    return doc
+
+
+class FormAttachmentRequest(BaseModel):
+    attachment_id: str
+
+
+@incident_router.post("/incidents/{incident_id}/forms/{instance_id}/attachments")
+def add_form_attachment(incident_id: str, instance_id: int, body: FormAttachmentRequest):
     repo = _instances_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    doc = repo.find_one({"instance_id": compound_id})
+    doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Form instance not found")
-    repo.update_one(doc["_id"], {"exported_pdf_path": path, "updated_by": user_id})
+    _find_form_attachment(incident_id, compound_id, body.attachment_id)
+    attachment_ids = list(doc.get("attachment_ids") or [])
+    if body.attachment_id not in attachment_ids:
+        attachment_ids.append(body.attachment_id)
+        repo.update_one(doc["_id"], {"attachment_ids": attachment_ids})
+        doc = repo.find_by_id(doc["_id"]) or doc
+    doc.pop("_id", None)
+    return _map_instance(doc, incident_id, include_values=True)
 
 
-@incident_router.post("/incidents/{incident_id}/forms/{instance_id}/exports", status_code=201)
-def create_export_record(incident_id: str, instance_id: int, body: Dict[str, Any] = Body(...)):
-    repo = _instance_exports_repo(incident_id)
+@incident_router.delete("/incidents/{incident_id}/forms/{instance_id}/attachments/{attachment_id}")
+def remove_form_attachment(incident_id: str, instance_id: int, attachment_id: str):
+    repo = _instances_repo(incident_id)
     compound_id = f"{incident_id}-FORM-{instance_id}"
-    doc = {
-        "instance_id": compound_id,
-        "export_type": body["export_type"],
-        "export_path": body["export_path"],
-        "template_version_id": body["template_version_id"],
-        "revision_number": body["revision_number"],
-        "created_by": body.get("created_by"),
-        "checksum": body.get("checksum"),
-    }
-    doc = repo.insert_one(doc)
-    return {**doc, "_id": None, "id": None}
-
-
-@incident_router.get("/incidents/{incident_id}/forms/{instance_id}/revisions")
-def list_revisions(incident_id: str, instance_id: int):
-    repo = _instance_revisions_repo(incident_id)
-    compound_id = f"{incident_id}-FORM-{instance_id}"
-    docs = repo.find_many({"instance_id": compound_id}, sort=[("revision_number", 1)])
-    for d in docs:
-        d.pop("_id", None)
-    return docs
-
-
-@incident_router.get("/incidents/{incident_id}/forms/{instance_id}/audit")
-def list_audit(incident_id: str, instance_id: int):
-    repo = _instance_audit_repo(incident_id)
-    compound_id = f"{incident_id}-FORM-{instance_id}"
-    docs = repo.find_many({"instance_id": compound_id}, sort=[("timestamp", 1), ("_id", 1)])
-    for d in docs:
-        d.pop("_id", None)
-    return docs
+    doc = repo.find_one({"instance_id": compound_id, "deleted": {"$ne": True}})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Form instance not found")
+    attachment_ids = [item for item in (doc.get("attachment_ids") or []) if item != attachment_id]
+    repo.update_one(doc["_id"], {"attachment_ids": attachment_ids})
+    updated = repo.find_by_id(doc["_id"]) or doc
+    updated.pop("_id", None)
+    return _map_instance(updated, incident_id, include_values=True)

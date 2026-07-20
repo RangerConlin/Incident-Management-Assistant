@@ -1,4 +1,4 @@
-"""ICS-211 Check-In Workbench (Qt Widgets)."""
+"""Resource Check In workbench (Qt Widgets)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -81,7 +81,7 @@ class ICS211CheckInWindow(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        header = QLabel("ICS-211 Check-In")
+        header = QLabel("Resource Check In")
         header.setStyleSheet("font-size: 18px; font-weight: 700;")
         layout.addWidget(header)
 

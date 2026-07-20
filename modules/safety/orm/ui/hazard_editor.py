@@ -35,13 +35,25 @@ from .widgets.spe_widget import SpeWidget
 class HazardEditorDialog(QDialog):
     """Modal dialog used to add or edit a single canonical hazard."""
 
+    @staticmethod
+    def _normalize_default_op_period_ids(default_op_period: object) -> set[int]:
+        if isinstance(default_op_period, dict):
+            candidate = default_op_period.get("number") or default_op_period.get("id")
+        else:
+            candidate = default_op_period
+        try:
+            value = int(candidate)
+        except (TypeError, ValueError):
+            value = 1
+        return {value}
+
     def __init__(
         self,
         incident_id: str,
         parent=None,
         *,
         hazard: Optional[dict] = None,
-        default_op_period: int = 1,
+        default_op_period: object = 1,
     ):
         super().__init__(parent)
         self._incident_id = incident_id
@@ -101,7 +113,7 @@ class HazardEditorDialog(QDialog):
             [{"id": i} for i in range(1, 21)],
             "id",
             lambda d: str(d["id"]),
-            {default_op_period},
+            self._normalize_default_op_period_ids(default_op_period),
             show_filter=False,
         )
         self.op_periods_list.setMaximumHeight(90)

@@ -1,7 +1,7 @@
 """
 Menu wiring instructions (Logistics Dashboard):
 
-1) In the main window’s "Logistics" menu, create a single QAction named:
+1) In the main window's "Logistics" menu, create a single QAction named:
      "Logistics Dashboard"
    and connect it to a slot: open_logistics_dashboard()
 
@@ -15,86 +15,277 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize
+from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QWidget,
     QLabel,
     QPushButton,
-    QListWidget,
-    QListWidgetItem,
+    QToolButton,
+    QScrollArea,
     QVBoxLayout,
     QHBoxLayout,
     QGridLayout,
     QFrame,
-    QGroupBox,
-    QMenu,
+    QSizePolicy,
     QStackedLayout,
     QApplication,
-    QAbstractItemView,
 )
 
 from utils.styles import get_palette, subscribe_theme
 
 
-class _KpiPill(QFrame):
+def _tone_colors(pal: Dict[str, object]) -> Dict[str, str]:
+    """Semantic tone -> hex, sourced entirely from the active palette."""
+    return {
+        "ok": pal.get("success", pal.get("accent_alt")).name(),
+        "low": pal.get("warning").name(),
+        "crit": pal.get("danger", pal.get("error")).name(),
+        "info": pal.get("info", pal.get("accent")).name(),
+        "neutral": pal.get("fg_muted", pal.get("muted")).name(),
+    }
+
+
+class _Card(QFrame):
+    """Flat, bordered panel used as the base container for every dashboard block."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setProperty("card", True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+
+
+class _CardHeader(QFrame):
+    def __init__(self, title: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setProperty("cardHeader", True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(8)
+        self._title = QLabel(title)
+        self._title.setProperty("cardTitle", True)
+        lay.addWidget(self._title)
+        lay.addStretch(1)
+        self._actions = lay
+
+    def add_action(self, widget: QWidget) -> None:
+        self._actions.addWidget(widget)
+
+
+def _flat_button(text: str, icon: str = "") -> QPushButton:
+    label = f"{icon}  {text}" if icon else text
+    btn = QPushButton(label)
+    btn.setProperty("flatBtn", True)
+    btn.setCursor(Qt.PointingHandCursor)
+    return btn
+
+
+def _pill(text: str) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setProperty("pill", True)
+    lbl.setAlignment(Qt.AlignCenter)
+    return lbl
+
+
+class _Kpi(QFrame):
+    """A single clickable metric tile in the top KPI strip."""
+
+    clicked = Signal()
+
     def __init__(self, label_text: str, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.setProperty("pill", True)
-        self.setObjectName(f"pill_{label_text.lower().replace(' ', '_')}")
+        self.setProperty("kpi", True)
+        self.setProperty("tone", "neutral")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setCursor(Qt.PointingHandCursor)
         self._value = QLabel("—")
-        self._value.setObjectName("pill_value")
+        self._value.setProperty("kpiValue", True)
         self._label = QLabel(label_text)
-        self._label.setObjectName("pill_label")
+        self._label.setProperty("kpiLabel", True)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 6, 10, 8)
-        lay.setSpacing(0)
-        lay.addWidget(self._value, alignment=Qt.AlignHCenter)
-        lay.addWidget(self._label, alignment=Qt.AlignHCenter)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(2)
+        lay.addWidget(self._value)
+        lay.addWidget(self._label)
 
     def set_value(self, text: str) -> None:
         self._value.setText(text)
+
+    def set_tone(self, tone: str) -> None:
+        self.setProperty("tone", tone)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        if event.button() == Qt.LeftButton and self.rect().contains(event.pos()):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+
+class _AlertRow(QFrame):
+    acknowledged = Signal(str)
+
+    def __init__(self, alert_id: str, severity: str, text: str, ts: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._alert_id = alert_id
+        self.setProperty("row", True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 8, 14, 8)
+        lay.setSpacing(10)
+
+        stripe = QFrame()
+        stripe.setProperty("stripe", True)
+        stripe.setProperty("tone", severity)
+        stripe.setFixedWidth(4)
+        lay.addWidget(stripe)
+
+        text_lbl = QLabel(text)
+        text_lbl.setProperty("rowText", True)
+        text_lbl.setWordWrap(False)
+        lay.addWidget(text_lbl, 1)
+
+        ts_lbl = QLabel(ts)
+        ts_lbl.setProperty("rowMeta", True)
+        lay.addWidget(ts_lbl)
+
+        self._btn = _flat_button("Acknowledge")
+        self._btn.setProperty("small", True)
+        self._btn.clicked.connect(self._on_ack)
+        lay.addWidget(self._btn)
+
+    def _on_ack(self) -> None:
+        self.setEnabled(False)
+        self.setProperty("acked", True)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self._btn.setText("Acknowledged")
+        self.acknowledged.emit(self._alert_id)
+
+
+class _ActionRow(QFrame):
+    openRequested = Signal(str)
+    approveRequested = Signal(str)
+    assignRequested = Signal(str)
+
+    def __init__(
+        self,
+        action_id: str,
+        priority: str,
+        title: str,
+        subtitle: str,
+        kind: str,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self._action_id = action_id
+        self.setProperty("row", True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 8, 14, 8)
+        lay.setSpacing(10)
+
+        tone = {"critical": "crit", "high": "low", "routine": "info"}.get(priority.lower(), "neutral")
+        badge = _pill(priority)
+        badge.setProperty("tone", tone)
+        lay.addWidget(badge)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(1)
+        title_lbl = QLabel(title)
+        title_lbl.setProperty("rowText", True)
+        text_col.addWidget(title_lbl)
+        if subtitle:
+            sub_lbl = QLabel(subtitle)
+            sub_lbl.setProperty("rowMeta", True)
+            text_col.addWidget(sub_lbl)
+        lay.addLayout(text_col, 1)
+
+        open_btn = _flat_button("Open")
+        open_btn.setProperty("small", True)
+        open_btn.clicked.connect(lambda: self.openRequested.emit(self._action_id))
+        lay.addWidget(open_btn)
+
+        if kind == "approve":
+            approve_btn = _flat_button("Approve")
+            approve_btn.setProperty("small", True)
+            approve_btn.setProperty("tone", "ok")
+            approve_btn.clicked.connect(lambda: self.approveRequested.emit(self._action_id))
+            lay.addWidget(approve_btn)
+        else:
+            assign_btn = _flat_button("Assign")
+            assign_btn.setProperty("small", True)
+            assign_btn.clicked.connect(lambda: self.assignRequested.emit(self._action_id))
+            lay.addWidget(assign_btn)
+
+
+class _DemobRow(QFrame):
+    checkInRequested = Signal(str)
+
+    def __init__(self, item_id: str, title: str, due: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._item_id = item_id
+        self.setProperty("row", True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 8, 14, 8)
+        lay.setSpacing(10)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(1)
+        title_lbl = QLabel(title)
+        title_lbl.setProperty("rowText", True)
+        text_col.addWidget(title_lbl)
+        due_lbl = QLabel(due)
+        due_lbl.setProperty("rowMeta", True)
+        text_col.addWidget(due_lbl)
+        lay.addLayout(text_col, 1)
+
+        btn = _flat_button("Check in")
+        btn.setProperty("small", True)
+        btn.clicked.connect(lambda: self.checkInRequested.emit(self._item_id))
+        lay.addWidget(btn)
 
 
 class _Badge(QFrame):
     def __init__(self, title: str, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setProperty("badge", True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._dot = QLabel("●")
         self._dot.setObjectName("badge_dot")
-        self._text = QLabel(title + ": —")
+        self._text = QLabel(title + " — —")
         self._text.setObjectName("badge_text")
         h = QHBoxLayout(self)
-        h.setContentsMargins(8, 4, 8, 4)
+        h.setContentsMargins(10, 6, 10, 6)
         h.setSpacing(6)
         h.addWidget(self._dot)
         h.addWidget(self._text, 1)
 
     def set_state(self, state_text: str) -> None:
-        # Normalize
         st = (state_text or "").strip().lower()
         if st.startswith("ok"):
             self.setProperty("state", "ok")
         elif st.startswith("low"):
             self.setProperty("state", "low")
         else:
-            # treat all others as tight/attention
-            self.setProperty("state", "tight")
+            self.setProperty("state", "crit")
         self.style().unpolish(self)
         self.style().polish(self)
-        # Update label body but preserve leading title
-        prefix = self._text.text().split(":", 1)[0]
-        self._text.setText(f"{prefix}: {state_text}")
+        prefix = self._text.text().split(" — ", 1)[0]
+        self._text.setText(f"{prefix} — {state_text}")
 
     def set_text_value(self, value_text: str) -> None:
-        prefix = self._text.text().split(":", 1)[0]
-        self._text.setText(f"{prefix}: {value_text}")
+        prefix = self._text.text().split(" — ", 1)[0]
+        self._text.setText(f"{prefix} — {value_text}")
 
 
 class LogisticsDashboardWidget(QWidget):
-    """Logistics Dashboard widget (Qt Widgets).
+    """Logistics section dashboard.
 
-    Title: "Logistics — Dashboard"
-    Compact, high-signal layout.
+    Card-based operational snapshot for the Logistics Section Chief: open
+    requests, alerts, top actions, resource/facility snapshot, supply &
+    comms health, and the demob/returns queue.
     """
 
     # Signals
@@ -103,9 +294,12 @@ class LogisticsDashboardWidget(QWidget):
     assignRequested = Signal(str)
     openQueueRequested = Signal()
     acknowledgeAlertsRequested = Signal()
+    alertAcknowledged = Signal(str)
     openSuppliesRequested = Signal()
     openCommsCacheRequested = Signal()
     openDemobBoardRequested = Signal()
+    demobCheckInRequested = Signal(str)
+    bulkImportRequested = Signal()
     new213RRRequested = Signal()
     newCheckInRequested = Signal()
     open211_218Requested = Signal()
@@ -123,8 +317,11 @@ class LogisticsDashboardWidget(QWidget):
         self._timer.setSingleShot(False)
         self._timer.timeout.connect(self.refreshRequested)
 
-        self._kpi_widgets: Dict[str, _KpiPill] = {}
+        self._kpi_widgets: Dict[str, _Kpi] = {}
         self._badges: Dict[str, _Badge] = {}
+        self._alert_seq = 0
+        self._action_seq = 0
+        self._demob_seq = 0
 
         self._build_ui()
         self._apply_styles()
@@ -134,7 +331,6 @@ class LogisticsDashboardWidget(QWidget):
     def _build_ui(self) -> None:
         self._stack = QStackedLayout(self)
 
-        # Overlay page
         overlay_page = QWidget()
         overlay_page.setObjectName("LogisticsOverlayPage")
         overlay_page.setAttribute(Qt.WA_StyledBackground, True)
@@ -147,190 +343,209 @@ class LogisticsDashboardWidget(QWidget):
         ovl_layout.addWidget(self._overlay_label)
         ovl_layout.addStretch(1)
 
-        # Main page
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setObjectName("LogisticsScroll")
+
         main_page = QWidget()
         main_page.setObjectName("LogisticsMainPage")
         main_page.setAttribute(Qt.WA_StyledBackground, True)
         root = QVBoxLayout(main_page)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(8)
+        root.setContentsMargins(16, 14, 16, 16)
+        root.setSpacing(14)
 
         # Header row
         header = QHBoxLayout()
-        self._title = QLabel("Logistics — Dashboard")
+        title_col = QVBoxLayout()
+        title_col.setSpacing(0)
+        eyebrow = QLabel("Logistics section")
+        eyebrow.setObjectName("eyebrow")
+        self._title = QLabel("Dashboard")
         self._title.setObjectName("title")
+        title_col.addWidget(eyebrow)
+        title_col.addWidget(self._title)
+        header.addLayout(title_col)
+        header.addStretch(1)
         self._context = QLabel("OP: —  Now: —  Role: —")
+        self._context.setObjectName("context")
         self._context.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        header.addWidget(self._title, 1)
-        header.addWidget(self._context, 1)
+        header.addWidget(self._context)
         root.addLayout(header)
 
         # KPI row
         kpi_row = QHBoxLayout()
-        kpi_row.setSpacing(8)
-        def add_kpi(key: str, label: str) -> None:
-            pill = _KpiPill(label)
-            self._kpi_widgets[key] = pill
-            kpi_row.addWidget(pill)
+        kpi_row.setSpacing(10)
 
-        add_kpi("open_requests", "Open Requests")
-        add_kpi("approvals_pending", "Approvals Pending")
-        add_kpi("low_stock_alerts", "Low Stock Alerts")
-        add_kpi("checkins_today", "Check-ins Today")
-        add_kpi("vehicles_ready", "Vehicles Ready")
+        def add_kpi(key: str, label: str, click_signal: Optional[Signal] = None) -> None:
+            kpi = _Kpi(label)
+            self._kpi_widgets[key] = kpi
+            if click_signal is not None:
+                kpi.clicked.connect(click_signal)
+            kpi_row.addWidget(kpi)
+
+        add_kpi("open_requests", "Open requests", self.openQueueRequested)
+        add_kpi("approvals_pending", "Approvals pending", self.openQueueRequested)
+        add_kpi("low_stock_alerts", "Low stock alerts")
+        add_kpi("checkins_today", "Check-ins today")
+        add_kpi("vehicles_ready", "Vehicles ready")
         add_kpi("facilities_ok", "Facilities OK")
         root.addLayout(kpi_row)
 
-        # Alerts bar
-        alerts_box = QGroupBox("Alerts (last 30 min)")
-        alerts_lay = QVBoxLayout(alerts_box)
-        alerts_head = QHBoxLayout()
-        self._btn_open_queue = QPushButton("Open Queue ▸")
-        self._btn_ack = QPushButton("Acknowledge")
-        alerts_head.addStretch(1)
-        alerts_head.addWidget(self._btn_open_queue)
-        alerts_head.addWidget(self._btn_ack)
-        alerts_lay.addLayout(alerts_head)
-        self._alerts_list = QListWidget()
-        self._alerts_list.setUniformItemSizes(True)
-        self._alerts_list.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._alerts_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._alerts_list.setAlternatingRowColors(True)
-        alerts_lay.addWidget(self._alerts_list)
-        root.addWidget(alerts_box)
+        # Alerts card
+        alerts_card = _Card()
+        alerts_lay = QVBoxLayout(alerts_card)
+        alerts_lay.setContentsMargins(0, 0, 0, 0)
+        alerts_lay.setSpacing(0)
+        alerts_header = _CardHeader("Alerts · last 30 min")
+        self._btn_open_queue = _flat_button("Open queue")
+        alerts_header.add_action(self._btn_open_queue)
+        alerts_lay.addWidget(alerts_header)
+        self._alerts_col = QVBoxLayout()
+        self._alerts_col.setContentsMargins(0, 0, 0, 0)
+        self._alerts_col.setSpacing(0)
+        alerts_body = QWidget()
+        alerts_body.setLayout(self._alerts_col)
+        alerts_lay.addWidget(alerts_body)
+        root.addWidget(alerts_card)
 
         # Two-column middle
         mid = QHBoxLayout()
-        mid.setSpacing(8)
+        mid.setSpacing(14)
 
-        # Left: Top Logistics Actions
-        actions_box = QGroupBox("Top Logistics Actions")
-        actions_lay = QVBoxLayout(actions_box)
-        self._actions_list = QListWidget()
-        self._actions_list.setUniformItemSizes(True)
-        self._actions_list.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._actions_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._actions_list.setAlternatingRowColors(True)
-        self._actions_list.itemDoubleClicked.connect(self._on_action_double_clicked)
-        self._actions_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self._actions_list.customContextMenuRequested.connect(self._on_actions_context_menu)
-        actions_lay.addWidget(self._actions_list)
-        btn_row = QHBoxLayout()
-        self._btn_open = QPushButton("Open")
-        self._btn_approve = QPushButton("Approve")
-        self._btn_assign = QPushButton("Assign")
-        btn_row.addWidget(self._btn_open)
-        btn_row.addWidget(self._btn_approve)
-        btn_row.addWidget(self._btn_assign)
-        btn_row.addStretch(1)
-        actions_lay.addLayout(btn_row)
+        actions_card = _Card()
+        actions_lay = QVBoxLayout(actions_card)
+        actions_lay.setContentsMargins(0, 0, 0, 0)
+        actions_lay.setSpacing(0)
+        actions_header = _CardHeader("Top logistics actions")
+        self._btn_bulk_import = _flat_button("Bulk import")
+        actions_header.add_action(self._btn_bulk_import)
+        actions_lay.addWidget(actions_header)
+        self._actions_col = QVBoxLayout()
+        self._actions_col.setContentsMargins(0, 0, 0, 0)
+        self._actions_col.setSpacing(0)
+        actions_body = QWidget()
+        actions_body.setLayout(self._actions_col)
+        actions_lay.addWidget(actions_body)
 
-        # Right: Resource/Facility Snapshot
-        snap_box = QGroupBox("Resource/Facility Snapshot")
-        grid = QGridLayout(snap_box)
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(4)
+        snap_card = _Card()
+        snap_lay = QVBoxLayout(snap_card)
+        snap_lay.setContentsMargins(0, 0, 0, 0)
+        snap_lay.setSpacing(0)
+        snap_lay.addWidget(_CardHeader("Resource & facility snapshot"))
+        grid_wrap = QWidget()
+        grid = QGridLayout(grid_wrap)
+        grid.setContentsMargins(14, 10, 14, 12)
+        grid.setHorizontalSpacing(1)
+        grid.setVerticalSpacing(1)
 
-        def add_snap(row: int, col: int, title: str, obj: str) -> QLabel:
-            lblt = QLabel(title)
-            lblt.setObjectName("snap_title")
-            lblv = QLabel("—")
-            lblv.setObjectName(obj)
-            grid.addWidget(lblt, row, col * 2)
-            grid.addWidget(lblv, row, col * 2 + 1)
-            return lblv
+        def add_snap(row: int, col: int, title: str) -> QLabel:
+            tile = QFrame()
+            tile.setProperty("statTile", True)
+            tile.setAttribute(Qt.WA_StyledBackground, True)
+            tlay = QVBoxLayout(tile)
+            tlay.setContentsMargins(10, 8, 10, 8)
+            tlay.setSpacing(1)
+            t_lbl = QLabel(title)
+            t_lbl.setProperty("statLabel", True)
+            v_lbl = QLabel("—")
+            v_lbl.setProperty("statValue", True)
+            tlay.addWidget(t_lbl)
+            tlay.addWidget(v_lbl)
+            grid.addWidget(tile, row, col)
+            return v_lbl
 
-        self._snap_checkins_total = add_snap(0, 0, "Check-ins Total:", "snap_checkins_total")
-        self._snap_checkins_pending = add_snap(0, 1, "Check-ins Pending:", "snap_checkins_pending")
-        self._snap_missing_serials = add_snap(1, 0, "ICS 218 Missing Serials:", "snap_missing_serials")
-        self._snap_veh_ready = add_snap(1, 1, "Vehicles Ready:", "snap_veh_ready")
-        self._snap_veh_assigned = add_snap(2, 0, "Vehicles Assigned:", "snap_veh_assigned")
-        self._snap_veh_oos = add_snap(2, 1, "Vehicles OOS:", "snap_veh_oos")
-        self._snap_facilities = add_snap(3, 0, "Facilities:", "snap_facilities")
+        self._snap_checkins_total = add_snap(0, 0, "Personnel checked in")
+        self._snap_missing_serials = add_snap(0, 1, "ICS-218 missing serials")
+        self._snap_veh_ready = add_snap(1, 0, "Vehicles ready")
+        self._snap_veh_assigned = add_snap(1, 1, "Vehicles assigned")
+        self._snap_veh_oos = add_snap(2, 0, "Vehicles OOS")
+        self._snap_facilities = add_snap(2, 1, "Facilities open")
+        snap_lay.addWidget(grid_wrap)
 
-        mid.addWidget(actions_box, 1)
-        mid.addWidget(snap_box, 1)
+        mid.addWidget(actions_card, 13)
+        mid.addWidget(snap_card, 10)
         root.addLayout(mid)
 
         # Lower two-panels
         lower = QHBoxLayout()
-        lower.setSpacing(8)
+        lower.setSpacing(14)
 
-        # Left: Supply & Comms Health
-        health_box = QGroupBox("Supply & Comms Health")
-        h_lay = QVBoxLayout(health_box)
-        # Badges line
-        badges_row = QHBoxLayout()
-        for key, title in (
+        health_card = _Card()
+        h_lay = QVBoxLayout(health_card)
+        h_lay.setContentsMargins(0, 0, 0, 0)
+        h_lay.setSpacing(0)
+        health_header = _CardHeader("Supply & comms health")
+        self._btn_open_supplies = _flat_button("Open supplies")
+        self._btn_open_comms = _flat_button("Open comms cache")
+        health_header.add_action(self._btn_open_supplies)
+        health_header.add_action(self._btn_open_comms)
+        h_lay.addWidget(health_header)
+
+        badges_wrap = QWidget()
+        badges_grid = QGridLayout(badges_wrap)
+        badges_grid.setContentsMargins(14, 10, 14, 12)
+        badges_grid.setHorizontalSpacing(8)
+        badges_grid.setVerticalSpacing(8)
+        for idx, (key, title) in enumerate((
             ("ppe", "PPE"),
             ("medical", "Medical"),
             ("water", "Water"),
             ("fuel", "Fuel"),
-        ):
+            ("comms_cache", "Comms cache"),
+            ("spare_radios", "Spare radios"),
+        )):
             b = _Badge(title)
             self._badges[key] = b
-            badges_row.addWidget(b)
-        h_lay.addLayout(badges_row)
-        # Comms line
-        comms_row = QHBoxLayout()
-        self._badge_comms_cache = _Badge("Comms Cache")
-        self._badge_spare_radios = _Badge("Spare Radios")
-        self._badges["comms_cache"] = self._badge_comms_cache
-        self._badges["spare_radios"] = self._badge_spare_radios
-        comms_row.addWidget(self._badge_comms_cache)
-        comms_row.addWidget(self._badge_spare_radios)
-        h_lay.addLayout(comms_row)
-        # Buttons
-        h_btns = QHBoxLayout()
-        self._btn_open_supplies = QPushButton("Open Supplies")
-        self._btn_open_comms = QPushButton("Open Comms Cache")
-        h_btns.addWidget(self._btn_open_supplies)
-        h_btns.addWidget(self._btn_open_comms)
-        h_btns.addStretch(1)
-        h_lay.addLayout(h_btns)
+            badges_grid.addWidget(b, idx // 2, idx % 2)
+        h_lay.addWidget(badges_wrap)
 
-        # Right: Demob / Returns Queue
-        demob_box = QGroupBox("Demob / Returns Queue")
-        d_lay = QVBoxLayout(demob_box)
-        self._demob_list = QListWidget()
-        self._demob_list.setUniformItemSizes(True)
-        self._demob_list.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._demob_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._demob_list.setAlternatingRowColors(True)
-        d_lay.addWidget(self._demob_list)
-        self._btn_open_demob = QPushButton("Open Demob Board")
-        d_lay.addWidget(self._btn_open_demob, alignment=Qt.AlignRight)
+        demob_card = _Card()
+        d_lay = QVBoxLayout(demob_card)
+        d_lay.setContentsMargins(0, 0, 0, 0)
+        d_lay.setSpacing(0)
+        demob_header = _CardHeader("Demob / returns queue")
+        self._btn_open_demob = _flat_button("Open demob board")
+        demob_header.add_action(self._btn_open_demob)
+        d_lay.addWidget(demob_header)
+        self._demob_col = QVBoxLayout()
+        self._demob_col.setContentsMargins(0, 0, 0, 0)
+        self._demob_col.setSpacing(0)
+        demob_body = QWidget()
+        demob_body.setLayout(self._demob_col)
+        d_lay.addWidget(demob_body)
 
-        lower.addWidget(health_box, 1)
-        lower.addWidget(demob_box, 1)
+        lower.addWidget(health_card, 1)
+        lower.addWidget(demob_card, 1)
         root.addLayout(lower)
 
-        # Bottom actions row
-        bottom = QHBoxLayout()
-        self._btn_new_213rr = QPushButton("New 213RR")
-        self._btn_new_checkin = QPushButton("New Check-In")
-        self._btn_open_211_218 = QPushButton("Open 211/218")
-        self._btn_print_204 = QPushButton("Print 204 Support")
-        self._btn_export_214 = QPushButton("Export 214")
-        self._btn_open_full = QPushButton("Open Full Dashboard")
+        # Quick actions toolbar
+        quick = QHBoxLayout()
+        quick.setSpacing(8)
+        self._btn_new_213rr = _flat_button("New 213RR")
+        self._btn_new_checkin = _flat_button("New check-in")
+        self._btn_open_211_218 = _flat_button("Open 211/218")
+        self._btn_print_204 = _flat_button("Print 204 support")
+        self._btn_export_214 = _flat_button("Export 214")
+        self._btn_open_full = _flat_button("Open full dashboard")
         for b in (
             self._btn_new_213rr,
             self._btn_new_checkin,
             self._btn_open_211_218,
             self._btn_print_204,
             self._btn_export_214,
-            self._btn_open_full,
         ):
-            bottom.addWidget(b)
-        bottom.addStretch(1)
-        root.addLayout(bottom)
+            quick.addWidget(b)
+        quick.addStretch(1)
+        quick.addWidget(self._btn_open_full)
+        root.addLayout(quick)
+        root.addStretch(1)
+
+        scroll.setWidget(main_page)
 
         # Wire buttons to signals
         self._btn_open_queue.clicked.connect(self.openQueueRequested)
-        self._btn_ack.clicked.connect(self.acknowledgeAlertsRequested)
-        self._btn_open.clicked.connect(self._emit_open_selected)
-        self._btn_approve.clicked.connect(self._emit_approve_selected)
-        self._btn_assign.clicked.connect(self._emit_assign_selected)
+        self._btn_bulk_import.clicked.connect(self.bulkImportRequested)
         self._btn_open_supplies.clicked.connect(self.openSuppliesRequested)
         self._btn_open_comms.clicked.connect(self.openCommsCacheRequested)
         self._btn_open_demob.clicked.connect(self.openDemobBoardRequested)
@@ -341,103 +556,114 @@ class LogisticsDashboardWidget(QWidget):
         self._btn_export_214.clicked.connect(self.export214Requested)
         self._btn_open_full.clicked.connect(self.openFullDashboardRequested)
 
-        # Add pages to stack
         self._stack.addWidget(overlay_page)
-        self._stack.addWidget(main_page)
+        self._stack.addWidget(scroll)
         self._stack.setCurrentIndex(1)
 
     def _apply_styles(self) -> None:
         pal = get_palette()
         bg_window = pal.get("bg_window", pal["bg"]).name()
+        bg_panel = pal.get("bg_panel", pal["bg"]).name()
         bg_raised = pal.get("bg_raised", pal["bg_panel"]).name()
         ctrl_border = pal.get("ctrl_border", pal["divider"]).name()
+        ctrl_hover = pal.get("ctrl_hover", pal["bg_panel"]).name()
         fg_primary = pal.get("fg_primary", pal["fg"]).name()
         fg_muted = pal.get("fg_muted", pal["muted"]).name()
-        ctrl_bg = pal.get("ctrl_bg", pal["bg_panel"]).name()
-        success = pal.get("success", pal.get("accent_alt")).name()
-        warning = pal.get("warning").name()
-        danger = pal.get("danger", pal.get("error")).name()
+        accent = pal.get("accent").name()
+        tones = _tone_colors(pal)
 
         self.setStyleSheet(
             f"""
             QWidget#LogisticsDashboardRoot,
             QWidget#LogisticsMainPage,
-            QWidget#LogisticsOverlayPage {{
+            QWidget#LogisticsOverlayPage,
+            QScrollArea#LogisticsScroll {{
                 background: {bg_window};
                 color: {fg_primary};
+                border: none;
             }}
-            QLabel#title {{ font-size: 18px; font-weight: 600; }}
-            QLabel#pill_value {{ font-size: 20px; font-weight: 600; }}
-            QLabel#pill_label {{ font-size: 11px; color: {fg_muted}; }}
-            QFrame[pill="true"] {{
-                background: {bg_raised};
-                border-radius: 12px;
-                border: 1px solid {ctrl_border};
-            }}
-            QGroupBox {{ font-weight: 600; }}
-            QGroupBox::title {{ subcontrol-origin: margin; left: 6px; padding: 2px 4px; }}
-            QListWidget {{ background: {ctrl_bg}; }}
+            QScrollArea#LogisticsScroll > QWidget > QWidget {{ background: {bg_window}; }}
+            QLabel#eyebrow {{ font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: {fg_muted}; }}
+            QLabel#title {{ font-size: 20px; font-weight: 600; }}
+            QLabel#context {{ font-size: 12px; color: {fg_muted}; }}
             QLabel#overlay_label {{ color: {fg_muted}; font-size: 14px; }}
 
-            /* Badges */
-            QFrame[badge="true"] {{
+            QFrame[card="true"] {{
+                background: {bg_panel};
                 border: 1px solid {ctrl_border};
                 border-radius: 10px;
-                background: {bg_raised};
             }}
-            QFrame[badge="true"][state="ok"] QLabel#badge_dot {{ color: {success}; }}
-            QFrame[badge="true"][state="low"] QLabel#badge_dot {{ color: {warning}; }}
-            QFrame[badge="true"][state="tight"] QLabel#badge_dot {{ color: {danger}; }}
-            QLabel#badge_text {{ font-size: 12px; }}
+            QFrame[cardHeader="true"] {{
+                background: transparent;
+                border-bottom: 1px solid {ctrl_border};
+            }}
+            QLabel[cardTitle="true"] {{ font-size: 13px; font-weight: 600; }}
+
+            QFrame[kpi="true"] {{
+                background: {bg_panel};
+                border: 1px solid {ctrl_border};
+                border-radius: 10px;
+            }}
+            QFrame[kpi="true"]:hover {{ border-color: {accent}; }}
+            QLabel[kpiValue="true"] {{ font-size: 22px; font-weight: 600; }}
+            QLabel[kpiLabel="true"] {{ font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: {fg_muted}; }}
+            QFrame[kpi="true"][tone="low"] {{ background: {tones['low']}22; }}
+            QFrame[kpi="true"][tone="low"] QLabel[kpiValue="true"],
+            QFrame[kpi="true"][tone="low"] QLabel[kpiLabel="true"] {{ color: {tones['low']}; }}
+            QFrame[kpi="true"][tone="crit"] {{ background: {tones['crit']}22; }}
+            QFrame[kpi="true"][tone="crit"] QLabel[kpiValue="true"],
+            QFrame[kpi="true"][tone="crit"] QLabel[kpiLabel="true"] {{ color: {tones['crit']}; }}
+            QFrame[kpi="true"][tone="ok"] {{ background: {tones['ok']}22; }}
+            QFrame[kpi="true"][tone="ok"] QLabel[kpiValue="true"],
+            QFrame[kpi="true"][tone="ok"] QLabel[kpiLabel="true"] {{ color: {tones['ok']}; }}
+
+            QFrame[row="true"] {{ background: transparent; border-bottom: 1px solid {ctrl_border}; }}
+            QFrame[row="true"]:last-child {{ border-bottom: none; }}
+            QLabel[rowText="true"] {{ font-size: 12.5px; font-weight: 500; }}
+            QLabel[rowMeta="true"] {{ font-size: 11px; color: {fg_muted}; }}
+            QFrame[row="true"][acked="true"] {{ background: transparent; }}
+
+            QFrame[stripe="true"][tone="crit"] {{ background: {tones['crit']}; border-radius: 2px; }}
+            QFrame[stripe="true"][tone="low"] {{ background: {tones['low']}; border-radius: 2px; }}
+            QFrame[stripe="true"][tone="info"] {{ background: {tones['info']}; border-radius: 2px; }}
+            QFrame[stripe="true"][tone="neutral"] {{ background: {tones['neutral']}; border-radius: 2px; }}
+
+            QLabel[pill="true"] {{
+                font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 8px;
+                background: {bg_raised}; color: {fg_muted};
+            }}
+            QLabel[pill="true"][tone="crit"] {{ background: {tones['crit']}26; color: {tones['crit']}; }}
+            QLabel[pill="true"][tone="low"] {{ background: {tones['low']}26; color: {tones['low']}; }}
+            QLabel[pill="true"][tone="info"] {{ background: {tones['info']}26; color: {tones['info']}; }}
+
+            QPushButton[flatBtn="true"] {{
+                background: transparent;
+                border: 1px solid {ctrl_border};
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 12px;
+                color: {fg_primary};
+            }}
+            QPushButton[flatBtn="true"]:hover {{ background: {ctrl_hover}; }}
+            QPushButton[flatBtn="true"][small="true"] {{ padding: 3px 10px; font-size: 11.5px; }}
+            QPushButton[flatBtn="true"][tone="ok"] {{ border-color: {tones['ok']}; color: {tones['ok']}; }}
+            QPushButton[flatBtn="true"]:disabled {{ color: {fg_muted}; border-color: {ctrl_border}; }}
+
+            QFrame[statTile="true"] {{ background: {bg_panel}; }}
+            QLabel[statLabel="true"] {{ font-size: 10.5px; color: {fg_muted}; }}
+            QLabel[statValue="true"] {{ font-size: 16px; font-weight: 600; }}
+
+            QFrame[badge="true"] {{
+                border: 1px solid {ctrl_border};
+                border-radius: 8px;
+                background: {bg_panel};
+            }}
+            QFrame[badge="true"][state="ok"] QLabel#badge_dot {{ color: {tones['ok']}; }}
+            QFrame[badge="true"][state="low"] QLabel#badge_dot {{ color: {tones['low']}; }}
+            QFrame[badge="true"][state="crit"] QLabel#badge_dot {{ color: {tones['crit']}; }}
+            QLabel#badge_text {{ font-size: 11.5px; }}
             """
         )
-
-    # --------------------- Helpers ---------------------
-    def _selected_action_id(self) -> Optional[str]:
-        item = self._actions_list.currentItem()
-        if not item:
-            return None
-        return item.data(Qt.UserRole)
-
-    def _on_action_double_clicked(self, item: QListWidgetItem) -> None:
-        action_id = item.data(Qt.UserRole)
-        if action_id:
-            self.openActionRequested.emit(str(action_id))
-
-    def _on_actions_context_menu(self, pos) -> None:
-        item = self._actions_list.itemAt(pos)
-        if not item:
-            return
-        menu = QMenu(self)
-        act_open = menu.addAction("Open")
-        act_approve = menu.addAction("Approve")
-        act_assign = menu.addAction("Assign")
-        chosen = menu.exec(self._actions_list.mapToGlobal(pos))
-        if chosen == act_open:
-            self._on_action_double_clicked(item)
-        elif chosen == act_approve:
-            action_id = item.data(Qt.UserRole)
-            if action_id:
-                self.approveRequested.emit(str(action_id))
-        elif chosen == act_assign:
-            action_id = item.data(Qt.UserRole)
-            if action_id:
-                self.assignRequested.emit(str(action_id))
-
-    def _emit_open_selected(self) -> None:
-        action_id = self._selected_action_id()
-        if action_id:
-            self.openActionRequested.emit(action_id)
-
-    def _emit_approve_selected(self) -> None:
-        action_id = self._selected_action_id()
-        if action_id:
-            self.approveRequested.emit(action_id)
-
-    def _emit_assign_selected(self) -> None:
-        action_id = self._selected_action_id()
-        if action_id:
-            self.assignRequested.emit(action_id)
 
     # --------------------- Public API (Slots) ---------------------
     @Slot(str, str, str)
@@ -446,40 +672,71 @@ class LogisticsDashboardWidget(QWidget):
 
     @Slot(dict)
     def update_kpis(self, kpis: Dict[str, object]) -> None:
-        mapping = {
-            "open_requests": "open_requests",
-            "approvals_pending": "approvals_pending",
-            "low_stock_alerts": "low_stock_alerts",
-            "checkins_today": "checkins_today",
-            "vehicles_ready": "vehicles_ready",
-            "facilities_ok": "facilities_ok",
-        }
-        for key, ref in mapping.items():
-            if key in kpis and ref in self._kpi_widgets:
-                self._kpi_widgets[ref].set_value(str(kpis[key]))
+        for key, kpi in self._kpi_widgets.items():
+            if key in kpis:
+                kpi.set_value(str(kpis[key]))
+        if "approvals_pending" in self._kpi_widgets:
+            try:
+                pending = int(str(kpis.get("approvals_pending", 0)).split("/")[0] or 0)
+            except ValueError:
+                pending = 0
+            self._kpi_widgets["approvals_pending"].set_tone("low" if pending else "neutral")
+        if "low_stock_alerts" in self._kpi_widgets:
+            try:
+                low = int(str(kpis.get("low_stock_alerts", 0)).split("/")[0] or 0)
+            except ValueError:
+                low = 0
+            self._kpi_widgets["low_stock_alerts"].set_tone("crit" if low else "neutral")
+
+    def _clear_layout(self, layout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
 
     @Slot(list)
     def update_alerts(self, alerts: List[Dict[str, str]]) -> None:
-        self._alerts_list.clear()
-        # newest-first, limit ~8
-        for idx, a in enumerate(alerts[:8]):
-            ts = a.get("ts", "—")
-            text = a.get("text", "")
-            item = QListWidgetItem(f"{ts}  —  {text}")
-            item.setToolTip(text)
-            self._alerts_list.insertItem(idx, item)
+        self._clear_layout(self._alerts_col)
+        for a in alerts[:8]:
+            self._alert_seq += 1
+            alert_id = str(a.get("id") or f"alert-{self._alert_seq}")
+            severity = str(a.get("severity") or "neutral").lower()
+            row = _AlertRow(alert_id, severity, str(a.get("text", "")), str(a.get("ts", "—")))
+            row.acknowledged.connect(self._on_alert_acknowledged)
+            self._alerts_col.addWidget(row)
+        if not alerts:
+            empty = QLabel("No alerts in the last 30 minutes.")
+            empty.setProperty("rowMeta", True)
+            empty.setContentsMargins(14, 10, 14, 10)
+            self._alerts_col.addWidget(empty)
+
+    def _on_alert_acknowledged(self, alert_id: str) -> None:
+        self.alertAcknowledged.emit(alert_id)
+        self.acknowledgeAlertsRequested.emit()
 
     @Slot(list)
     def update_actions(self, actions: List[Dict[str, str]]) -> None:
-        self._actions_list.clear()
-        for a in actions[:5]:
-            aid = a.get("id", "")
-            title = a.get("title", "")
-            prio = a.get("priority", "")
-            item = QListWidgetItem(f"[{prio}] {title}")
-            item.setData(Qt.UserRole, aid)
-            item.setToolTip(title)
-            self._actions_list.addItem(item)
+        self._clear_layout(self._actions_col)
+        for a in actions[:6]:
+            self._action_seq += 1
+            action_id = str(a.get("id") or f"action-{self._action_seq}")
+            row = _ActionRow(
+                action_id,
+                str(a.get("priority", "Routine")),
+                str(a.get("title", "")),
+                str(a.get("subtitle", "")),
+                str(a.get("kind", "assign")).lower(),
+            )
+            row.openRequested.connect(self.openActionRequested)
+            row.approveRequested.connect(self.approveRequested)
+            row.assignRequested.connect(self.assignRequested)
+            self._actions_col.addWidget(row)
+        if not actions:
+            empty = QLabel("No open logistics actions.")
+            empty.setProperty("rowMeta", True)
+            empty.setContentsMargins(14, 10, 14, 10)
+            self._actions_col.addWidget(empty)
 
     @Slot(dict)
     def update_resource_snapshot(self, snap: Dict[str, object]) -> None:
@@ -488,7 +745,6 @@ class LogisticsDashboardWidget(QWidget):
                 lbl.setText(str(snap[key]))
 
         set_lbl(self._snap_checkins_total, "checkins_total")
-        set_lbl(self._snap_checkins_pending, "checkins_pending")
         set_lbl(self._snap_missing_serials, "equip_218_missing_serials")
         set_lbl(self._snap_veh_ready, "vehicles_ready")
         set_lbl(self._snap_veh_assigned, "vehicles_assigned")
@@ -497,27 +753,26 @@ class LogisticsDashboardWidget(QWidget):
 
     @Slot(dict)
     def update_supply_comms(self, health: Dict[str, object]) -> None:
-        for key in ("ppe", "medical", "water", "fuel"):
+        for key in ("ppe", "medical", "water", "fuel", "comms_cache"):
             if key in health and key in self._badges:
                 self._badges[key].set_state(str(health[key]))
-        # comms_cache and spare_radios handled too
-        if "comms_cache" in health:
-            self._badge_comms_cache.set_state(str(health["comms_cache"]))
-        if "spare_radios" in health:
-            # Show numeric/text value without changing badge color
-            self._badge_spare_radios.set_text_value(str(health["spare_radios"]))
+        if "spare_radios" in health and "spare_radios" in self._badges:
+            self._badges["spare_radios"].set_text_value(str(health["spare_radios"]))
 
     @Slot(list)
     def update_demob_queue(self, items: List[Dict[str, str]]) -> None:
-        self._demob_list.clear()
-        for it in items[:6]:
-            iid = it.get("id", "")
-            title = it.get("title", "")
-            due = it.get("due", "")
-            item = QListWidgetItem(f"{due}  —  {title}")
-            item.setData(Qt.UserRole, iid)
-            item.setToolTip(title)
-            self._demob_list.addItem(item)
+        self._clear_layout(self._demob_col)
+        for it in items[:8]:
+            self._demob_seq += 1
+            item_id = str(it.get("id") or f"demob-{self._demob_seq}")
+            row = _DemobRow(item_id, str(it.get("title", "")), str(it.get("due", "")))
+            row.checkInRequested.connect(self.demobCheckInRequested)
+            self._demob_col.addWidget(row)
+        if not items:
+            empty = QLabel("Nothing pending demob or return.")
+            empty.setProperty("rowMeta", True)
+            empty.setContentsMargins(14, 10, 14, 10)
+            self._demob_col.addWidget(empty)
 
     @Slot(bool)
     def setIncidentOverlayVisible(self, visible: bool) -> None:  # noqa: N802 (Qt naming)
@@ -541,37 +796,36 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     w = make_logistics_dashboard()
 
-    # Demo data
     kpis = {
-        "open_requests": 9,
-        "approvals_pending": 3,
-        "low_stock_alerts": 4,
-        "checkins_today": 12,
-        "vehicles_ready": "7/10",
-        "facilities_ok": "5/6",
+        "open_requests": 18,
+        "approvals_pending": 6,
+        "low_stock_alerts": 3,
+        "checkins_today": 47,
+        "vehicles_ready": "11/14",
+        "facilities_ok": "5/5",
     }
     alerts = [
-        {"ts": "14:35", "text": "Med cache 'Alpha' <25% (trauma gauze)"},
-        {"ts": "14:28", "text": "V-3 Truck set OOS (engine temp)"},
+        {"id": "a1", "severity": "crit", "ts": "6 min ago", "text": "Fuel cache Bravo below 15% — resupply not yet scheduled"},
+        {"id": "a2", "severity": "low", "ts": "14 min ago", "text": "ICS-213RR #REQ-0142 waiting on approval for 2h 10m"},
+        {"id": "a3", "severity": "info", "ts": "27 min ago", "text": "Vehicle V-06 returned from field — inspection needed before reassignment"},
     ]
     actions = [
-        {"id": "213RR-112", "title": "Approve 213RR-112 (Shelter cots)", "priority": "HIGH"},
-        {"id": "ASSIGN-RK07", "title": "Assign Radio Kit RK-07 to Team G-2", "priority": "MED"},
-        {"id": "FUEL-STAGE", "title": "Schedule fuel drop at Staging", "priority": "HIGH"},
+        {"id": "REQ-0139", "priority": "Critical", "title": "REQ-0139 · Class VIII medical resupply — Div C", "subtitle": "Requested by K. Osei · 45 min open", "kind": "approve"},
+        {"id": "REQ-0142", "priority": "High", "title": "REQ-0142 · 6x portable radios — Air Ops", "subtitle": "Requested by T. Frayne · 2h 10m open", "kind": "assign"},
+        {"id": "REQ-0144", "priority": "Routine", "title": "REQ-0144 · Generator fuel — Base camp", "subtitle": "Requested by M. Vale · 12 min open", "kind": "assign"},
     ]
     snap = {
-        "checkins_total": 12,
-        "checkins_pending": 3,
+        "checkins_total": 312,
         "equip_218_missing_serials": 4,
-        "vehicles_ready": 7,
-        "vehicles_assigned": 2,
-        "vehicles_oos": 1,
-        "facilities_status": "Staging OK / ICP OK / Med Tent ⚠",
+        "vehicles_ready": 11,
+        "vehicles_assigned": 9,
+        "vehicles_oos": 3,
+        "facilities_status": "5/5",
     }
-    health = {"ppe": "OK", "medical": "LOW", "water": "OK", "fuel": "TIGHT", "comms_cache": "OK", "spare_radios": 2}
+    health = {"ppe": "OK", "medical": "OK", "water": "LOW", "fuel": "TIGHT", "comms_cache": "OK", "spare_radios": "LOW"}
     demob = [
-        {"id": "RET-G4", "title": "G-4 radio kit return", "due": "16:00"},
-        {"id": "FUEL-A1", "title": "A-1 fuel top-off", "due": "15:30"},
+        {"id": "RET-T4", "title": "Team 4 — full return", "due": "ETA base camp 15:40"},
+        {"id": "RET-V06", "title": "Vehicle V-06 — inspection pending", "due": "Returned 13:52"},
     ]
 
     w.update_kpis(kpis)
@@ -580,9 +834,9 @@ if __name__ == "__main__":
     w.update_resource_snapshot(snap)
     w.update_supply_comms(health)
     w.update_demob_queue(demob)
-    w.set_context("3", "14:40", "Logistics Chief")
+    w.set_context("7", "14:40", "Logistics Chief")
     w.setAutoRefresh(15000)
 
-    w.adjustSize()
+    w.resize(1180, 900)
     w.show()
     sys.exit(app.exec())

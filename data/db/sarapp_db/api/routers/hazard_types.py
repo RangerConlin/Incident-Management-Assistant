@@ -5,20 +5,53 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
+from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
+SPE_SEVERITY_RANGE = (1, 5)
+SPE_PROBABILITY_RANGE = (1, 5)
+SPE_EXPOSURE_RANGE = (1, 4)
+SPE_BANDS = (
+    (80, "Very High", "Discontinue / Stop"),
+    (60, "High", "Correct Immediately"),
+    (40, "Substantial", "Correction Required"),
+    (20, "Possible", "Attention Needed"),
+    (1, "Slight", "Possibly Acceptable"),
+)
+
 
 class HazardTypesRepository(BaseRepository):
     collection_name = MasterCollections.HAZARD_TYPES
-    # Keyed by string `hazard_type_id`, not `_id`; `is_active` is a plain
-    # application flag (not a BaseRepository soft-delete marker).
     soft_deletes = False
+
+
+class DefaultSpeInput(BaseModel):
+    severity: int = Field(ge=SPE_SEVERITY_RANGE[0], le=SPE_SEVERITY_RANGE[1])
+    probability: int = Field(ge=SPE_PROBABILITY_RANGE[0], le=SPE_PROBABILITY_RANGE[1])
+    exposure: int = Field(ge=SPE_EXPOSURE_RANGE[0], le=SPE_EXPOSURE_RANGE[1])
+
+
+class SaveHazardTypeRequest(BaseModel):
+    name: str
+    category: str = "Other"
+    description: str = ""
+    aliases: list[str] = Field(default_factory=list)
+    controls: list[str] = Field(default_factory=list)
+    ppe: list[str] = Field(default_factory=list)
+    standard_safety_language: str = ""
+    default_spe: DefaultSpeInput
+    active: bool = True
+    created_by: str = ""
+    updated_by: str = ""
+
+
+class SetActiveRequest(BaseModel):
+    active: bool
 
 
 def _repo() -> HazardTypesRepository:
@@ -26,101 +59,113 @@ def _repo() -> HazardTypesRepository:
 
 
 def _next_int_id(repo: HazardTypesRepository) -> int:
-    """Allocate the next integer hazard_type_id (max existing + 1)."""
-    col = repo._col
-    max_doc = col.find_one(
-        {"hazard_type_id": {"$exists": True}},
-        sort=[("hazard_type_id", -1)],
-        projection={"hazard_type_id": 1},
-    )
-    if max_doc and max_doc.get("hazard_type_id", "").isdigit():
-        # Sort is lexicographic; iterate to find true numeric max
-        candidates = [
-            int(d["hazard_type_id"])
-            for d in col.find(
-                {"hazard_type_id": {"$regex": r"^\d+$"}},
-                {"hazard_type_id": 1},
-            )
-            if d.get("hazard_type_id", "").isdigit()
-        ]
-        return max(candidates, default=0) + 1
-    return 1
+    docs = repo.find_many({"id": {"$exists": True}}, sort=[("id", -1)], limit=1)
+    return int((docs[0] if docs else {}).get("id") or 0) + 1
+
+
+def _spe_score(severity: int, probability: int, exposure: int) -> int:
+    return severity * probability * exposure
+
+
+def _spe_band(score: int) -> tuple[str, str]:
+    for floor, degree, action in SPE_BANDS:
+        if score >= floor:
+            return degree, action
+    return SPE_BANDS[-1][1], SPE_BANDS[-1][2]
+
+
+def _score_default_spe(assessment: DefaultSpeInput) -> dict[str, Any]:
+    score = _spe_score(assessment.severity, assessment.probability, assessment.exposure)
+    band, action = _spe_band(score)
+    return {
+        "severity": assessment.severity,
+        "probability": assessment.probability,
+        "exposure": assessment.exposure,
+        "score": score,
+        "band": band,
+        "action": action,
+    }
+
+
+def _normalize_text_list(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(text)
+    return normalized
 
 
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
-    """Add computed fields the UI expects."""
-    d = dict(doc)
-    d.pop("_id", None)
-    ht_id_str = d.get("hazard_type_id", "")
-    d["id"] = int(ht_id_str) if ht_id_str.isdigit() else None
-    mitigations = d.get("mitigations") or []
-    d["mitigation_count"] = len(mitigations)
-    ppe_items = d.get("ppe_items") or []
-    d["ppe_preview"] = ", ".join(p["ppe_text"] for p in ppe_items[:3] if p.get("ppe_text"))
-    return d
+    data = dict(doc)
+    data.pop("_id", None)
+    return data
 
 
 def _search_matches(doc: dict[str, Any], text: str) -> str | None:
-    """Return which field matched, or None if no match."""
-    t = text.lower()
+    probe = text.casefold()
     for field, label in (
         ("name", "name"),
-        ("display_name", "display name"),
         ("category", "category"),
-        ("source", "source"),
         ("description", "description"),
-        ("default_safety_message", "safety message"),
-        ("notes", "notes"),
+        ("standard_safety_language", "safety language"),
     ):
-        if t in (doc.get(field) or "").lower():
+        if probe in str(doc.get(field) or "").casefold():
             return label
     for alias in doc.get("aliases") or []:
-        if t in (alias or "").lower():
+        if probe in str(alias).casefold():
             return "alias"
-    for m in doc.get("mitigations") or []:
-        if t in (m.get("mitigation_text") or "").lower():
-            return "mitigation"
-    for p in doc.get("ppe_items") or []:
-        if t in (p.get("ppe_text") or "").lower():
+    for control in doc.get("controls") or []:
+        if probe in str(control).casefold():
+            return "control"
+    for ppe_item in doc.get("ppe") or []:
+        if probe in str(ppe_item).casefold():
             return "PPE"
     return None
 
 
-# ------------------------------------------------------------------
-# List
+def _payload_for_write(body: SaveHazardTypeRequest) -> dict[str, Any]:
+    return {
+        "name": body.name.strip(),
+        "category": body.category.strip() or "Other",
+        "description": body.description.strip(),
+        "aliases": _normalize_text_list(body.aliases),
+        "controls": _normalize_text_list(body.controls),
+        "ppe": _normalize_text_list(body.ppe),
+        "standard_safety_language": body.standard_safety_language.strip(),
+        "default_spe": _score_default_spe(body.default_spe),
+        "active": body.active,
+        "created_by": body.created_by.strip(),
+        "updated_by": body.updated_by.strip(),
+    }
+
 
 @router.get("")
 def list_hazard_types(
     search_text: str = Query(""),
     category: str = Query("All"),
-    source: str = Query("All"),
-    risk_level: str = Query("All"),
     active_filter: str = Query("Active"),
     include_inactive: bool = Query(False),
 ) -> list[dict[str, Any]]:
     query: dict[str, Any] = {}
     if active_filter == "Active" and not include_inactive:
-        query["is_active"] = True
+        query["active"] = True
     elif active_filter == "Inactive":
-        query["is_active"] = False
+        query["active"] = False
     if category and category != "All":
         query["category"] = category
-    if source and source != "All":
-        query["source"] = source
-    if risk_level and risk_level != "All":
-        query["default_risk_level"] = risk_level
 
     docs = _repo().find_many(query, sort=[("name", 1)])
-
     if search_text.strip():
-        t = search_text.strip().lower()
-        docs = [d for d in docs if _search_matches(d, t)]
+        docs = [doc for doc in docs if _search_matches(doc, search_text.strip()) is not None]
+    return [_normalize(doc) for doc in docs]
 
-    return [_normalize(d) for d in docs]
-
-
-# ------------------------------------------------------------------
-# Search (for the search-box widget)
 
 @router.get("/search")
 def search_hazard_types(
@@ -131,149 +176,91 @@ def search_hazard_types(
     text = q.strip()
     if not text:
         return []
-    base_query: dict[str, Any] = {} if include_inactive else {"is_active": True}
+    base_query: dict[str, Any] = {} if include_inactive else {"active": True}
     docs = _repo().find_many(base_query, sort=[("name", 1)])
-    results = []
+    results: list[dict[str, Any]] = []
     for doc in docs:
         matched_on = _search_matches(doc, text)
-        if matched_on is not None:
-            ht_id_str = doc.get("hazard_type_id", "")
-            results.append({
-                "hazard_type_id": int(ht_id_str) if ht_id_str.isdigit() else None,
-                "hazard_type_text": doc.get("display_name") or doc.get("name", ""),
+        if matched_on is None:
+            continue
+        results.append(
+            {
+                "id": doc.get("id"),
+                "name": doc.get("name", ""),
                 "category": doc.get("category", ""),
-                "default_risk_level": doc.get("default_risk_level", ""),
-                "source": doc.get("source", ""),
+                "default_spe_band": ((doc.get("default_spe") or {}).get("band") or ""),
                 "matched_on": matched_on,
-            })
+            }
+        )
         if len(results) >= limit:
             break
     return results
 
 
-# ------------------------------------------------------------------
-# Create
-
-class SaveHazardTypeRequest(BaseModel):
-    name: str
-    display_name: str = ""
-    category: str = "Other"
-    source: str = "AHJ Custom"
-    owner_agency: str = ""
-    description: str = ""
-    default_risk_level: str = "Unknown"
-    default_likelihood: str = "Unknown"
-    default_severity: str = "Unknown"
-    default_control_measure: str = ""
-    default_ppe: str = ""
-    default_safety_message: str = ""
-    is_active: bool = True
-    notes: str = ""
-    created_by: str = ""
-    updated_by: str = ""
-    aliases: list[str] = []
-    mitigations: list[dict[str, Any]] = []
-    ppe_items: list[dict[str, Any]] = []
-    references: list[dict[str, Any]] = []
-    resource_defaults: list[dict[str, Any]] = []
-
-
 @router.post("", status_code=201)
 def create_hazard_type(body: SaveHazardTypeRequest) -> dict[str, Any]:
     repo = _repo()
-    new_int_id = _next_int_id(repo)
-    doc: dict[str, Any] = {
-        "hazard_type_id": str(new_int_id),
-        **body.model_dump(exclude={"created_by"}),
-        "created_by": body.created_by,
+    doc = {
+        "id": _next_int_id(repo),
+        **_payload_for_write(body),
     }
-    doc = repo.insert_one(doc)
-    return _normalize(doc)
+    saved = repo.insert_one(doc)
+    return _normalize(saved)
 
-
-# ------------------------------------------------------------------
-# Hazards by resource type — used by HazardPrefillService
-
-@router.get("/by-resource-type/{resource_type_id}")
-def get_hazards_for_resource_type(resource_type_id: int) -> list[dict[str, Any]]:
-    """Return hazard types whose resource_defaults list includes this resource_type_id."""
-    repo = _repo()
-    docs = repo.find_many({
-        "resource_defaults": {
-            "$elemMatch": {"resource_type_id": resource_type_id}
-        }
-    })
-    return [_normalize(d) for d in docs]
-
-
-# ------------------------------------------------------------------
-# Get one — defined AFTER /search to avoid path conflict
 
 @router.get("/{hazard_type_id}")
-def get_hazard_type(hazard_type_id: str) -> dict[str, Any]:
-    doc = _repo().find_one({"hazard_type_id": hazard_type_id})
+def get_hazard_type(hazard_type_id: int) -> dict[str, Any]:
+    doc = _repo().find_one({"id": hazard_type_id})
     if doc is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
     return _normalize(doc)
 
 
-# ------------------------------------------------------------------
-# Full save (create or update)
-
 @router.put("/{hazard_type_id}")
-def save_hazard_type(hazard_type_id: str, body: SaveHazardTypeRequest) -> dict[str, Any]:
+def save_hazard_type(hazard_type_id: int, body: SaveHazardTypeRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"hazard_type_id": hazard_type_id})
+    existing = repo.find_one({"id": hazard_type_id})
     if existing is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
     updates = {
-        **body.model_dump(),
-        "hazard_type_id": hazard_type_id,
+        "id": hazard_type_id,
+        **_payload_for_write(body),
+        "created_by": existing.get("created_by", ""),
     }
-    updates.setdefault("created_by", existing.get("created_by", ""))
     repo.update_one(existing["_id"], updates)
-    doc = repo.find_by_id(existing["_id"])
-    return _normalize(doc)
+    saved = repo.find_by_id(existing["_id"])
+    return _normalize(saved or updates)
 
-
-# ------------------------------------------------------------------
-# Clone
 
 @router.post("/{hazard_type_id}/clone", status_code=201)
-def clone_hazard_type(hazard_type_id: str) -> dict[str, Any]:
+def clone_hazard_type(hazard_type_id: int) -> dict[str, Any]:
     repo = _repo()
-    original = repo.find_one({"hazard_type_id": hazard_type_id})
+    original = repo.find_one({"id": hazard_type_id})
     if original is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
-    new_int_id = _next_int_id(repo)
-    base_name = original.get("name", "")
-    # Generate a unique copy name
+    base_name = str(original.get("name") or "").strip()
     copy_num = 1
     while repo.find_one({"name": f"{base_name} Copy {copy_num}"}):
         copy_num += 1
-    clone = {k: v for k, v in original.items() if k not in ("_id", "created_at", "updated_at")}
-    clone["hazard_type_id"] = str(new_int_id)
+    clone = {
+        key: value
+        for key, value in original.items()
+        if key not in {"_id", "created_at", "updated_at", "created_by", "updated_by", "id"}
+    }
+    clone["id"] = _next_int_id(repo)
     clone["name"] = f"{base_name} Copy {copy_num}"
-    clone["display_name"] = f"{original.get('display_name', base_name)} Copy {copy_num}".strip()
     clone["created_by"] = ""
     clone["updated_by"] = ""
-    clone = repo.insert_one(clone)
-    return _normalize(clone)
-
-
-# ------------------------------------------------------------------
-# Set active flag
-
-class SetActiveRequest(BaseModel):
-    active: bool
+    saved = repo.insert_one(clone)
+    return _normalize(saved)
 
 
 @router.patch("/{hazard_type_id}/active")
-def set_hazard_type_active(hazard_type_id: str, body: SetActiveRequest) -> dict[str, Any]:
+def set_hazard_type_active(hazard_type_id: int, body: SetActiveRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"hazard_type_id": hazard_type_id})
+    existing = repo.find_one({"id": hazard_type_id})
     if existing is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
-    repo.update_one(existing["_id"], {"is_active": body.active})
+    repo.update_one(existing["_id"], {"active": body.active})
     doc = repo.find_by_id(existing["_id"])
     return _normalize(doc) if doc else {}

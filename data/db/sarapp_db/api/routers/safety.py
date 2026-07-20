@@ -10,8 +10,8 @@ from fastapi import APIRouter, Body, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from sarapp_db.mongo.collection_names import IncidentCollections
-from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
+from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
@@ -38,6 +38,11 @@ class HazardZonesRepository(BaseRepository):
 
 class HazardsRepository(BaseRepository):
     collection_name = IncidentCollections.HAZARDS
+
+
+class HazardTypesRepository(BaseRepository):
+    collection_name = MasterCollections.HAZARD_TYPES
+    soft_deletes = False
 
 
 class Ics206BuildsRepository(BaseRepository):
@@ -490,29 +495,19 @@ def _score_spe(assessment: Optional[SpeAssessmentInput]) -> Optional[dict[str, A
     }
 
 
-class HazardLinks(BaseModel):
-    work_assignment_ids: list[int] = Field(default_factory=list)
-    task_ids: list[int] = Field(default_factory=list)
-    team_ids: list[int] = Field(default_factory=list)
-
-
 class HazardCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    category: Optional[str] = None
-    hazard_type_id: Optional[str] = None
-    hazard_type_text: Optional[str] = None
-    source: Optional[str] = None
-    op_period_ids: list[int] = Field(default_factory=list)
-    location_text: Optional[str] = None
-    links: HazardLinks = Field(default_factory=HazardLinks)
-    control_measure: Optional[str] = None
-    mitigation_text: Optional[str] = None
-    ppe_text: Optional[str] = None
-    safety_message: Optional[str] = None
-    notes: Optional[str] = None
+    library_hazard_type_id: Optional[int] = None
+    title: Optional[str] = None
+    description: str = ""
+    category: str = ""
+    controls: list[str] = Field(default_factory=list)
+    ppe: list[str] = Field(default_factory=list)
+    safety_language: str = ""
+    default_spe: Optional[SpeAssessmentInput] = None
     spe_initial: Optional[SpeAssessmentInput] = None
     spe_residual: Optional[SpeAssessmentInput] = None
+    location_text: str = ""
+    notes: str = ""
     created_by: Optional[str] = None
 
 
@@ -520,24 +515,93 @@ class HazardPatch(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
-    hazard_type_id: Optional[str] = None
-    hazard_type_text: Optional[str] = None
-    source: Optional[str] = None
-    op_period_ids: Optional[list[int]] = None
-    location_text: Optional[str] = None
-    links: Optional[HazardLinks] = None
-    control_measure: Optional[str] = None
-    mitigation_text: Optional[str] = None
-    ppe_text: Optional[str] = None
-    safety_message: Optional[str] = None
-    notes: Optional[str] = None
+    controls: Optional[list[str]] = None
+    ppe: Optional[list[str]] = None
+    safety_language: Optional[str] = None
+    default_spe: Optional[SpeAssessmentInput] = None
     spe_initial: Optional[SpeAssessmentInput] = None
     spe_residual: Optional[SpeAssessmentInput] = None
+    location_text: Optional[str] = None
+    notes: Optional[str] = None
     updated_by: Optional[str] = None
 
 
 def _hazards_register_repo(incident_id: str) -> HazardsRepository:
     return HazardsRepository(get_incident_db(incident_id))
+
+
+def _master_hazard_types_repo() -> HazardTypesRepository:
+    return HazardTypesRepository(get_master_db())
+
+
+def _normalize_text_list(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(text)
+    return normalized
+
+
+def _master_hazard_type_doc(hazard_type_id: int) -> dict[str, Any]:
+    doc = _master_hazard_types_repo().find_one({"id": hazard_type_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Hazard type not found")
+    return doc
+
+
+def _hazard_create_payload(body: HazardCreate) -> dict[str, Any]:
+    library_doc = (
+        _master_hazard_type_doc(body.library_hazard_type_id)
+        if body.library_hazard_type_id is not None
+        else None
+    )
+
+    title = (body.title or "").strip() or str((library_doc or {}).get("name") or "").strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="Hazard title is required")
+
+    default_spe_input = body.default_spe
+    if default_spe_input is None and library_doc is not None:
+        library_spe = library_doc.get("default_spe") or {}
+        if library_spe:
+            default_spe_input = SpeAssessmentInput(
+                severity=int(library_spe.get("severity") or 0),
+                probability=int(library_spe.get("probability") or 0),
+                exposure=int(library_spe.get("exposure") or 0),
+            )
+    if default_spe_input is None:
+        raise HTTPException(status_code=422, detail="default_spe is required")
+
+    return {
+        "hazard_type_id": body.library_hazard_type_id,
+        "title": title,
+        "description": body.description.strip() or str((library_doc or {}).get("description") or "").strip(),
+        "category": body.category.strip() or str((library_doc or {}).get("category") or "").strip(),
+        "controls": _normalize_text_list(body.controls)
+        or _normalize_text_list(list((library_doc or {}).get("controls") or [])),
+        "ppe": _normalize_text_list(body.ppe)
+        or _normalize_text_list(list((library_doc or {}).get("ppe") or [])),
+        "safety_language": body.safety_language.strip()
+        or str((library_doc or {}).get("standard_safety_language") or "").strip(),
+        "default_spe": _score_spe(default_spe_input),
+        "spe_initial": _score_spe(body.spe_initial),
+        "spe_residual": _score_spe(body.spe_residual),
+        "location_text": body.location_text.strip(),
+        "notes": body.notes.strip(),
+        "op_period_ids": [],
+        "task_ids": [],
+        "team_ids": [],
+        "work_assignment_ids": [],
+        "hazard_zone_ids": [],
+        "created_by": body.created_by,
+    }
 
 
 @router.get("/incidents/{incident_id}/safety/hazards")
@@ -546,6 +610,9 @@ def list_hazards(
     op_period: Optional[int] = Query(None),
     category: Optional[str] = None,
     work_assignment_id: Optional[int] = Query(None),
+    task_id: Optional[int] = Query(None),
+    team_id: Optional[int] = Query(None),
+    hazard_zone_id: Optional[int] = Query(None),
 ) -> list[dict[str, Any]]:
     query: dict[str, Any] = {}
     if op_period is not None:
@@ -553,17 +620,20 @@ def list_hazards(
     if category:
         query["category"] = category
     if work_assignment_id is not None:
-        query["links.work_assignment_ids"] = work_assignment_id
+        query["work_assignment_ids"] = work_assignment_id
+    if task_id is not None:
+        query["task_ids"] = task_id
+    if team_id is not None:
+        query["team_ids"] = team_id
+    if hazard_zone_id is not None:
+        query["hazard_zone_ids"] = hazard_zone_id
     repo = _hazards_register_repo(incident_id)
     return _query_incident_docs(repo, incident_id, query)
 
 
 @router.post("/incidents/{incident_id}/safety/hazards", status_code=201)
 def create_hazard(incident_id: str, body: HazardCreate) -> dict[str, Any]:
-    payload = body.model_dump(exclude={"spe_initial", "spe_residual", "links"})
-    payload["links"] = body.links.model_dump()
-    payload["spe_initial"] = _score_spe(body.spe_initial)
-    payload["spe_residual"] = _score_spe(body.spe_residual)
+    payload = _hazard_create_payload(body)
     now = _utcnow()
     payload["created_at"] = now
     payload["updated_at"] = now
@@ -586,9 +656,30 @@ def update_hazard(incident_id: str, hazard_id: int, body: HazardPatch) -> dict[s
     existing = _find_by_int_id(repo, incident_id, hazard_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Hazard not found")
-    updates = body.model_dump(exclude={"spe_initial", "spe_residual", "links"}, exclude_unset=True)
-    if body.links is not None:
-        updates["links"] = body.links.model_dump()
+    updates = body.model_dump(
+        exclude={"default_spe", "spe_initial", "spe_residual"},
+        exclude_unset=True,
+    )
+    if "title" in updates:
+        updates["title"] = str(updates["title"] or "").strip()
+    if "description" in updates:
+        updates["description"] = str(updates["description"] or "").strip()
+    if "category" in updates:
+        updates["category"] = str(updates["category"] or "").strip()
+    if "controls" in updates and updates["controls"] is not None:
+        updates["controls"] = _normalize_text_list(list(updates["controls"]))
+    if "ppe" in updates and updates["ppe"] is not None:
+        updates["ppe"] = _normalize_text_list(list(updates["ppe"]))
+    if "safety_language" in updates:
+        updates["safety_language"] = str(updates["safety_language"] or "").strip()
+    if "location_text" in updates:
+        updates["location_text"] = str(updates["location_text"] or "").strip()
+    if "notes" in updates:
+        updates["notes"] = str(updates["notes"] or "").strip()
+    if "default_spe" in body.model_fields_set:
+        if body.default_spe is None:
+            raise HTTPException(status_code=422, detail="default_spe cannot be null")
+        updates["default_spe"] = _score_spe(body.default_spe)
     if "spe_initial" in body.model_fields_set:
         updates["spe_initial"] = _score_spe(body.spe_initial)
     if "spe_residual" in body.model_fields_set:

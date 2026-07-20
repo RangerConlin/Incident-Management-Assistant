@@ -80,10 +80,11 @@ class IntelItem:
     title: str
     status: str = "Active"
     priority: str = "Medium"
-    confidence: str = "Possible"
+    confidence: str = "Unconfirmed"
     trend: str = "Unknown"
     location_text: Optional[str] = None
     notes: Optional[str] = None
+    urgent_response_needed: bool = False
     source_lead_id: Optional[str] = None
     created_by: Optional[str] = None
     created_at: str = ""
@@ -115,10 +116,11 @@ class IntelItem:
             title=data.get("title", "Untitled"),
             status=data.get("status", "Active"),
             priority=data.get("priority", "Medium"),
-            confidence=data.get("confidence", "Possible"),
+            confidence=data.get("confidence", "Unconfirmed"),
             trend=data.get("trend", "Unknown"),
             location_text=data.get("location_text"),
             notes=data.get("notes"),
+            urgent_response_needed=data.get("urgent_response_needed", False),
             source_lead_id=data.get("source_lead_id"),
             created_by=data.get("created_by"),
             created_at=data.get("created_at", ""),
@@ -140,6 +142,7 @@ class IntelItem:
             "trend": self.trend,
             "location_text": self.location_text,
             "notes": self.notes,
+            "urgent_response_needed": self.urgent_response_needed,
             "source_lead_id": self.source_lead_id,
             "linked_subject_ids": self.linked_subject_ids,
             "linked_task_ids": self.linked_task_ids,

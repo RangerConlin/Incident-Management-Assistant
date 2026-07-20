@@ -467,10 +467,6 @@ that point (follow the debrief table's format below as the template).
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
 | `forms` (instances) | - | Not started | ironic gap: the form-fill system itself doesn't expose prior filled-form data back into new form contexts |
-| `form_instance_revisions` | - | Not started | |
-| `form_instance_audit` | - | Not started | |
-| `form_instance_exports` | - | Not started | |
-| `form_instance_links` | - | Not started | |
 
 ### Public Information
 
@@ -502,7 +498,6 @@ that point (follow the debrief table's format below as the template).
 | `planned_event_schedules` | - | Not started | |
 | `planned_vendors` | - | Not started | |
 | `planned_permits` | - | Not started | |
-| `planned_safety_reports` | - | Not started | planned toolkit domain, intentionally outside this safety pass |
 | `planned_tasks` | - | Not started | |
 | `planned_quick_assignments` | - | Not started | |
 | `planned_health_inspections` | - | Not started | |

@@ -36,6 +36,7 @@ def test_task_detail_reads_task_and_teams_from_incident_cache(monkeypatch):
                     "title": "Search east ridge",
                     "priority": "High",
                     "status": "Assigned",
+                    "location_feature_id": 17,
                     "task_teams": [
                         {
                             "id": 11,
@@ -56,6 +57,7 @@ def test_task_detail_reads_task_and_teams_from_incident_cache(monkeypatch):
 
     assert detail.task.task_id == "T-007"
     assert detail.task.title == "Search east ridge"
+    assert detail.task.location_feature_id == 17
     assert len(detail.teams) == 1
     assert detail.teams[0].team_name == "Ground 3"
     assert detail.teams[0].primary is True

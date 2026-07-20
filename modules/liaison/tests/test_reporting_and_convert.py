@@ -27,15 +27,26 @@ def test_fetch_reporting_digests_hits_expected_endpoint(mock_api_client):
     assert result == [{"int_id": 1, "source_type": "task"}]
 
 
-def test_create_reporting_digest_posts_source(mock_api_client):
+def test_create_reporting_digest_posts_note(mock_api_client):
     import modules.liaison.repository as repository
 
     mock_api_client.post.return_value = {"int_id": 2}
-    repository.create_reporting_digest("objective", "obj-9", updated_by="lofr1", incident_id="INC-1")
+    repository.create_reporting_digest(
+        "Task closed out, all clear.",
+        source_type="objective",
+        source_id="obj-9",
+        submitted_by="ops1",
+        incident_id="INC-1",
+    )
 
     mock_api_client.post.assert_called_once_with(
         "/api/incidents/INC-1/liaison/reporting-digests",
-        json={"source_type": "objective", "source_id": "obj-9", "updated_by": "lofr1"},
+        json={
+            "raw_note": "Task closed out, all clear.",
+            "source_type": "objective",
+            "source_id": "obj-9",
+            "submitted_by": "ops1",
+        },
     )
 
 

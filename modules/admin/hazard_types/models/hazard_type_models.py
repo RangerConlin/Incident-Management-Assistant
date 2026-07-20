@@ -22,94 +22,48 @@ HAZARD_CATEGORIES: tuple[str, ...] = (
     "Other",
 )
 
-HAZARD_SOURCES: tuple[str, ...] = (
-    "AHJ Custom",
-    "Imported",
-    "FEMA/NIMS",
-    "OSHA",
-    "Agency Policy",
-    "Temporary / Incident Only",
+SEVERITY_OPTIONS: tuple[tuple[int, str], ...] = (
+    (1, "None or slight"),
+    (2, "Minimal"),
+    (3, "Significant"),
+    (4, "Major"),
+    (5, "Catastrophic"),
 )
 
-HAZARD_RISK_LEVELS: tuple[str, ...] = (
-    "Low",
-    "Moderate",
-    "High",
-    "Extreme",
-    "Unknown",
+PROBABILITY_OPTIONS: tuple[tuple[int, str], ...] = (
+    (1, "Impossible or remote"),
+    (2, "Unlikely"),
+    (3, "About 50-50"),
+    (4, "Greater than 50%"),
+    (5, "Very likely to happen"),
 )
 
-HAZARD_LIKELIHOODS: tuple[str, ...] = (
-    "Rare",
-    "Unlikely",
+EXPOSURE_OPTIONS: tuple[tuple[int, str], ...] = (
+    (1, "None or below average"),
+    (2, "Average"),
+    (3, "Above average"),
+    (4, "Great"),
+)
+
+SPE_BANDS: tuple[str, ...] = (
+    "Slight",
     "Possible",
-    "Likely",
-    "Almost Certain",
-    "Unknown",
-)
-
-HAZARD_SEVERITIES: tuple[str, ...] = (
-    "Minor",
-    "Moderate",
-    "Serious",
-    "Critical",
-    "Catastrophic",
-    "Unknown",
+    "Substantial",
+    "High",
+    "Very High",
 )
 
 
 @dataclass(slots=True)
-class HazardMitigation:
-    """One reusable mitigation/control measure for a hazard type."""
+class HazardDefaultSpe:
+    """Default SPE profile stored on a master hazard type."""
 
-    hazard_type_id: int
-    mitigation_text: str
-    mitigation_category: str = ""
-    is_default: bool = False
-    sort_order: int = 0
-    id: Optional[int] = None
-    created_at: str = ""
-    updated_at: str = ""
-
-
-@dataclass(slots=True)
-class HazardPpeItem:
-    """One reusable PPE item for a hazard type."""
-
-    hazard_type_id: int
-    ppe_text: str
-    is_default: bool = False
-    sort_order: int = 0
-    id: Optional[int] = None
-    created_at: str = ""
-    updated_at: str = ""
-
-
-@dataclass(slots=True)
-class HazardReference:
-    """Reference material linked to a hazard type."""
-
-    hazard_type_id: int
-    title: str
-    url_or_path: str = ""
-    notes: str = ""
-    id: Optional[int] = None
-    created_at: str = ""
-    updated_at: str = ""
-
-
-@dataclass(slots=True)
-class HazardTypeResourceDefault:
-    """Link a hazard type to a resource type that should inherit it by default."""
-
-    hazard_type_id: int
-    resource_type_id: int
-    notes: str = ""
-    resource_type_name: str = ""
-    resource_type_category: str = ""
-    id: Optional[int] = None
-    created_at: str = ""
-    updated_at: str = ""
+    severity: int
+    probability: int
+    exposure: int
+    score: int
+    band: str
+    action: str
 
 
 @dataclass(slots=True)
@@ -117,24 +71,14 @@ class HazardType:
     """Master hazard type definition stored in the master database."""
 
     name: str
-    hazard_name: str = ""
     category: str = "Other"
-    source: str = "AHJ Custom"
-    owner_agency: str = ""
     description: str = ""
-    default_risk_level: str = "Unknown"
-    default_likelihood: str = "Unknown"
-    default_severity: str = "Unknown"
-    default_control_measure: str = ""
-    default_ppe: str = ""
-    default_safety_message: str = ""
-    is_active: bool = True
-    notes: str = ""
     aliases: list[str] = field(default_factory=list)
-    mitigations: list[HazardMitigation] = field(default_factory=list)
-    ppe_items: list[HazardPpeItem] = field(default_factory=list)
-    references: list[HazardReference] = field(default_factory=list)
-    resource_defaults: list[HazardTypeResourceDefault] = field(default_factory=list)
+    controls: list[str] = field(default_factory=list)
+    ppe: list[str] = field(default_factory=list)
+    standard_safety_language: str = ""
+    default_spe: Optional[HazardDefaultSpe] = None
+    active: bool = True
     id: Optional[int] = None
     created_at: str = ""
     updated_at: str = ""
@@ -172,7 +116,7 @@ class SafetyTemplateHazardEntry:
     override_notes: str = ""
     hazard_name: str = ""
     hazard_category: str = ""
-    default_risk_level: str = ""
+    default_spe_band: str = ""
 
 
 @dataclass(slots=True)
@@ -200,6 +144,5 @@ class HazardTypeSearchResult:
     hazard_type_id: Optional[int]
     hazard_type_text: str
     category: str = ""
-    default_risk_level: str = ""
-    source: str = ""
+    default_spe_band: str = ""
     matched_on: str = ""

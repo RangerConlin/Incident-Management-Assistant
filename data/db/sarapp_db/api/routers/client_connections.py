@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException
@@ -19,6 +19,11 @@ from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
 
 router = APIRouter()
+
+# A connection that hasn't heartbeat'd within this window is treated as
+# disconnected rather than "active" — devices never explicitly unregister
+# (killed app, dead battery, out of range), so staleness is the only signal.
+_STALE_AFTER_SECONDS = 120
 
 
 def _connections_col():
@@ -150,7 +155,13 @@ def heartbeat(device_id: str, body: dict[str, Any] = Body(default={})) -> dict[s
 
 @router.get("", status_code=200)
 def list_connections() -> list[dict[str, Any]]:
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=_STALE_AFTER_SECONDS)).isoformat(
+        timespec="seconds"
+    )
     return [
         _clean(doc) or {}
-        for doc in _connections_col().find({}, sort=[("last_seen_at", -1)])
+        for doc in _connections_col().find(
+            {"status": {"$ne": "revoked"}, "last_seen_at": {"$gte": cutoff}},
+            sort=[("last_seen_at", -1)],
+        )
     ]

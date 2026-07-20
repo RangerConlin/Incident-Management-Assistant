@@ -45,7 +45,8 @@ from .repository import (
     fetch_feedback_rows,
     update_agency_status,
 )
-from utils.styles import liaison_agency_status_colors, liaison_priority_colors, subscribe_theme
+from utils.itemview_delegates import RowOutlineSelectionDelegate
+from utils.styles import get_palette, liaison_agency_status_colors, liaison_priority_colors, subscribe_theme
 
 __all__ = [
     "get_agencies_panel",
@@ -108,6 +109,13 @@ class _BaseBoard(QWidget):
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self.show_context_menu)
         self.table.doubleClicked.connect(lambda index: self._open_current_detail())
+        try:
+            pal = get_palette()
+            color = pal.get("ctrl_focus", pal.get("accent"))
+            self._outline_delegate = RowOutlineSelectionDelegate(self.table, color)
+            self.table.setItemDelegate(self._outline_delegate)
+        except Exception:
+            self._outline_delegate = None
 
         self.search = QLineEdit(self)
         self.search.setPlaceholderText("Search Liaison records...")
@@ -184,6 +192,7 @@ class _BaseBoard(QWidget):
 class AgencyStatusBoard(_BaseBoard):
     headers = [
         "Agency Name",
+        "Code",
         "Agency Type",
         "Jurisdiction",
         "Current Status",
@@ -198,8 +207,8 @@ class AgencyStatusBoard(_BaseBoard):
 
     def __init__(self, incident_id: object | None = None, parent: QWidget | None = None) -> None:
         super().__init__(incident_id, parent)
-        self.proxy.status_column = 3
-        self.proxy.priority_column = 10
+        self.proxy.status_column = 4
+        self.proxy.priority_column = 11
         self.status_filter.addItems(["All", *AGENCY_STATUSES])
         self.status_filter.currentTextChanged.connect(self._set_status)
         self.reload()
@@ -216,6 +225,7 @@ class AgencyStatusBoard(_BaseBoard):
     def _append_agency(self, row: dict[str, Any]) -> None:
         values = [
             row.get("agency_name", ""),
+            row.get("code", ""),
             row.get("agency_type", ""),
             row.get("jurisdiction", ""),
             row.get("current_status", ""),
@@ -233,15 +243,16 @@ class AgencyStatusBoard(_BaseBoard):
         priority = str(row.get("priority") or "")
         status_colors = liaison_agency_status_colors()
         priority_colors = liaison_priority_colors()
+        # Color only the cells the badge represents (Current Status, Priority)
+        # so the tint carries meaning instead of washing out the whole row.
         status_brushes = status_colors.get(status)
         if status_brushes:
-            for item in items:
-                item.setBackground(status_brushes["bg"])
-                item.setForeground(status_brushes["fg"])
+            items[4].setBackground(status_brushes["bg"])
+            items[4].setForeground(status_brushes["fg"])
         priority_brushes = priority_colors.get(priority)
         if priority_brushes:
-            items[10].setBackground(priority_brushes["bg"])
-            items[10].setForeground(priority_brushes["fg"])
+            items[11].setBackground(priority_brushes["bg"])
+            items[11].setForeground(priority_brushes["fg"])
         self.model.appendRow(items)
 
     def _open_current_detail(self) -> None:
@@ -505,6 +516,8 @@ class AgencyEditDialog(QDialog):
         self.setWindowTitle("Add Liaison Agency")
         layout = QFormLayout(self)
         self.name = QLineEdit(self)
+        self.code = QLineEdit(self)
+        self.code.setPlaceholderText("e.g. AFRCC, OEM")
         self.agency_type = QLineEdit(self)
         self.jurisdiction = QLineEdit(self)
         self.status = QComboBox(self)
@@ -516,6 +529,7 @@ class AgencyEditDialog(QDialog):
         self.notes = QTextEdit(self)
         for label, widget in [
             ("Agency Name", self.name),
+            ("Agency Code", self.code),
             ("Agency Type", self.agency_type),
             ("Jurisdiction", self.jurisdiction),
             ("Current Status", self.status),
@@ -534,11 +548,18 @@ class AgencyEditDialog(QDialog):
         if not self.name.text().strip():
             QMessageBox.warning(self, "Agency Required", "Agency Name is required.")
             return
+        if not self.code.text().strip():
+            QMessageBox.warning(
+                self, "Agency Code Required",
+                "Agency Code is required — it's used to number Agency Requests (e.g. AFRCC-1, AFRCC-2)."
+            )
+            return
         super().accept()
 
     def values(self) -> dict[str, Any]:
         return {
             "name": self.name.text().strip(),
+            "code": self.code.text().strip().upper(),
             "agency_type": self.agency_type.text().strip(),
             "jurisdiction": self.jurisdiction.text().strip(),
             "current_status": self.status.currentText(),
@@ -550,11 +571,31 @@ class AgencyEditDialog(QDialog):
 
 
 class InteractionDialog(QDialog):
-    def __init__(self, agency_id: int, parent: QWidget | None = None) -> None:
+    """Add a Liaison interaction.
+
+    When ``agency_id`` is ``None`` an agency picker is shown so the dialog can
+    be launched from anywhere (e.g. the overview's "Log Interaction" button)
+    without requiring the caller to pre-select a row in the Agency Directory.
+    """
+
+    def __init__(
+        self,
+        agency_id: int | None,
+        parent: QWidget | None = None,
+        agencies: list[dict[str, Any]] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.agency_id = agency_id
         self.setWindowTitle("Add Liaison Interaction")
         layout = QFormLayout(self)
+
+        self.agency_picker: QComboBox | None = None
+        if agency_id is None:
+            self.agency_picker = QComboBox(self)
+            for agency in agencies or []:
+                self.agency_picker.addItem(str(agency.get("agency_name") or "Unnamed Agency"), agency.get("id"))
+            layout.addRow("Agency:", self.agency_picker)
+
         self.interaction_type = QComboBox(self)
         self.interaction_type.addItems(INTERACTION_TYPES)
         self.occurred_at = QLineEdit(self)
@@ -578,9 +619,18 @@ class InteractionDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
 
+    def accept(self) -> None:  # type: ignore[override]
+        if self.agency_picker is not None and self.agency_picker.currentData() is None:
+            QMessageBox.warning(self, "Agency Required", "Select an agency for this interaction.")
+            return
+        super().accept()
+
     def values(self) -> dict[str, Any]:
+        agency_id = self.agency_id
+        if self.agency_picker is not None:
+            agency_id = self.agency_picker.currentData()
         return {
-            "agency_id": self.agency_id,
+            "agency_id": agency_id,
             "interaction_type": self.interaction_type.currentText(),
             "occurred_at": self.occurred_at.text().strip(),
             "subject": self.subject.text().strip(),

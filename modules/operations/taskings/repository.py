@@ -138,7 +138,12 @@ def _task_model_from_doc(doc: Dict[str, Any], *, priority: Any | None = None) ->
         priority=priority,
         status=_task_status_to_key(doc.get("status")).title() if doc.get("status") else "",
         location=doc.get("location") or "",
+        location_kind=doc.get("location_kind") or "free_text",
         location_facility_id=doc.get("location_facility_id") or "",
+        location_geocoded_address=doc.get("location_geocoded_address") or "",
+        location_latitude=doc.get("location_latitude"),
+        location_longitude=doc.get("location_longitude"),
+        location_feature_id=doc.get("location_feature_id"),
         created_by=doc.get("created_by") or "",
         created_at=doc.get("created_at") or "",
         assigned_to=None,
@@ -168,8 +173,27 @@ def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
         translated["status"] = _status_to_db(patch["status"])
     if "location" in patch:
         translated["location"] = str(patch["location"]) or None
+    if "location_kind" in patch:
+        translated["location_kind"] = str(patch["location_kind"]) or "free_text"
     if "location_facility_id" in patch:
         translated["location_facility_id"] = str(patch["location_facility_id"]) or None
+    if "location_geocoded_address" in patch:
+        translated["location_geocoded_address"] = str(patch["location_geocoded_address"]) or None
+    if "location_latitude" in patch:
+        value = patch["location_latitude"]
+        translated["location_latitude"] = None if value in (None, "") else float(value)
+    if "location_longitude" in patch:
+        value = patch["location_longitude"]
+        translated["location_longitude"] = None if value in (None, "") else float(value)
+    if "location_feature_id" in patch:
+        value = patch["location_feature_id"]
+        if value in (None, ""):
+            translated["location_feature_id"] = None
+        else:
+            try:
+                translated["location_feature_id"] = int(value)
+            except (TypeError, ValueError):
+                translated["location_feature_id"] = None
     if "assignment" in patch:
         translated["assignment"] = str(patch["assignment"]) or None
     if "team_leader" in patch:
@@ -1293,7 +1317,12 @@ def create_task(
     priority: Any = 2,
     status: str = "Draft",
     location: Optional[str] = None,
+    location_kind: str = "free_text",
     location_facility_id: Optional[str] = None,
+    location_geocoded_address: Optional[str] = None,
+    location_latitude: Optional[float] = None,
+    location_longitude: Optional[float] = None,
+    location_feature_id: Optional[int] = None,
     description: Optional[str] = None,
     origin_module: Optional[str] = None,
     origin_id: Optional[str] = None,
@@ -1310,8 +1339,18 @@ def create_task(
     }
     if location:
         body["location"] = location
+    if location_kind:
+        body["location_kind"] = location_kind
     if location_facility_id:
         body["location_facility_id"] = location_facility_id
+    if location_geocoded_address:
+        body["location_geocoded_address"] = location_geocoded_address
+    if location_latitude is not None:
+        body["location_latitude"] = float(location_latitude)
+    if location_longitude is not None:
+        body["location_longitude"] = float(location_longitude)
+    if location_feature_id is not None:
+        body["location_feature_id"] = int(location_feature_id)
     if description:
         body["assignment"] = description
     if origin_module:

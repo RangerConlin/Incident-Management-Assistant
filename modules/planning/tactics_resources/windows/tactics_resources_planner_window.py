@@ -44,6 +44,13 @@ from modules.planning.tactics_resources.windows.work_assignment_detail_window im
     WorkAssignmentDetailWindow,
 )
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import (
+    get_palette,
+    resource_status_colors,
+    subscribe_theme,
+    wa_planning_status_colors,
+    wa_safety_status_colors,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -141,13 +148,27 @@ class WorkAssignmentTableModel(QAbstractTableModel):
         if role == Qt.UserRole:
             return wa.id
 
-        # Highlight gap or open hazards in red
-        if role == Qt.ForegroundRole:
-            from PySide6.QtGui import QColor
-            if col == 12 and gap > 0:       # Gap column
-                return QColor("red")
-            if col == 14 and open_hazards > 0:  # Open Hazards column
-                return QColor("darkRed")
+        # Status chip columns: tint background/foreground from the shared
+        # theme palettes so planning/resource/safety status read as chips
+        # instead of plain text, and stay correct across theme switches.
+        if role in (Qt.BackgroundRole, Qt.ForegroundRole):
+            brushes = None
+            if col == 6:      # Planning Status
+                brushes = wa_planning_status_colors().get(wa.planning_status)
+            elif col == 7:    # Resource Status
+                brushes = resource_status_colors().get(wa.resource_status)
+            elif col == 13:   # Safety Status
+                brushes = wa_safety_status_colors().get(wa.safety_status)
+            if brushes:
+                return brushes["bg"] if role == Qt.BackgroundRole else brushes["fg"]
+
+            # Highlight resourcing gaps and open hazards using the theme's
+            # danger color rather than a hardcoded QColor literal.
+            if role == Qt.ForegroundRole:
+                if col == 10 and gap > 0:            # Gap column
+                    return get_palette().get("danger")
+                if col == 12 and open_hazards > 0:   # Open Hazards column
+                    return get_palette().get("danger")
 
         return None
 
@@ -207,6 +228,15 @@ class TacticsResourcesPlannerWindow(QWidget):
 
         self._build_ui()
         self.reload()
+        try:
+            subscribe_theme(self, self._on_theme_changed)
+        except Exception:
+            pass
+
+    def _on_theme_changed(self, _name: str) -> None:
+        # Status chip colors are computed from theme palettes at query time,
+        # so a model reset is enough to repaint the table for the new theme.
+        self._model.layoutChanged.emit()
 
     # ------------------------------------------------------------------
     # UI construction

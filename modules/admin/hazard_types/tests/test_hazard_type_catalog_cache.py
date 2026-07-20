@@ -6,7 +6,7 @@ from modules.admin.hazard_types.data.hazard_type_repository import (
     ApiHazardTypeRepository,
     ApiSafetyTemplateRepository,
 )
-from modules.admin.hazard_types.models.hazard_type_models import HazardType
+from modules.admin.hazard_types.models.hazard_type_models import HazardDefaultSpe, HazardType
 from utils.api_client import api_client
 from utils.catalog_cache import catalog_cache
 
@@ -23,7 +23,7 @@ def test_list_hazard_types_default_view_is_cached(monkeypatch):
 
     def fake_get(path, params=None):
         calls.append(path)
-        return [{"hazard_type_id": "1", "name": "Flood", "is_active": True}]
+        return [{"id": 1, "name": "Flood", "active": True}]
 
     monkeypatch.setattr(api_client, "get", fake_get)
 
@@ -40,7 +40,7 @@ def test_list_hazard_types_with_search_text_bypasses_cache(monkeypatch):
 
     def fake_get(path, params=None):
         calls.append(path)
-        return [{"hazard_type_id": "1", "name": "Flood"}]
+        return [{"id": 1, "name": "Flood"}]
 
     monkeypatch.setattr(api_client, "get", fake_get)
 
@@ -56,7 +56,7 @@ def test_get_hazard_type_is_cached(monkeypatch):
 
     def fake_get(path, params=None):
         calls.append(path)
-        return {"hazard_type_id": "3", "name": "Lightning", "is_active": True}
+        return {"id": 3, "name": "Lightning", "active": True}
 
     monkeypatch.setattr(api_client, "get", fake_get)
 
@@ -72,18 +72,32 @@ def test_update_hazard_type_invalidates_the_catalog(monkeypatch):
 
     def fake_get(path, params=None):
         calls.append(("get", path))
-        return [{"hazard_type_id": "1", "name": "Flood"}]
+        return [{"id": 1, "name": "Flood"}]
 
     def fake_put(path, json=None):
         calls.append(("put", path))
-        return {"hazard_type_id": "1"}
+        return {"id": 1}
 
     monkeypatch.setattr(api_client, "get", fake_get)
     monkeypatch.setattr(api_client, "put", fake_put)
 
     repo = ApiHazardTypeRepository()
     repo.list_hazard_types()
-    repo.update_hazard_type(1, HazardType(id=1, name="Flood"))
+    repo.update_hazard_type(
+        1,
+        HazardType(
+            id=1,
+            name="Flood",
+            default_spe=HazardDefaultSpe(
+                severity=1,
+                probability=1,
+                exposure=1,
+                score=1,
+                band="Slight",
+                action="Possibly Acceptable",
+            ),
+        ),
+    )
     repo.list_hazard_types()
 
     get_calls = [c for c in calls if c[0] == "get"]

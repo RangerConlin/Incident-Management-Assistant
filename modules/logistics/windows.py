@@ -16,6 +16,7 @@ from modules.logistics.panels.resource_status_board import ResourceStatusBoard
 __all__ = [
     "get_logistics_panel",
     "get_checkin_panel",
+    "get_quick_checkin_panel",
     "get_requests_panel",
     "get_213rr_panel",
     "get_facilities_manager_panel",
@@ -39,6 +40,12 @@ def _get_checkin_panel():
     # Lazy import to avoid circular imports at module load time
     from modules.logistics.checkin import CheckInPanel
     return CheckInPanel
+
+
+def _get_quick_checkin_window():
+    from modules.logistics.checkin.widgets import QuickCheckInWindow
+
+    return QuickCheckInWindow
 
 
 def _get_home_panel():
@@ -66,6 +73,13 @@ def get_checkin_panel(incident_id: object | None = None) -> QWidget:
         incident_context.set_active_incident(str(incident_id))
     CheckInPanel = _get_checkin_panel()
     return CheckInPanel()
+
+
+def get_quick_checkin_panel(incident_id: object | None = None) -> QWidget:
+    if incident_id is not None:
+        incident_context.set_active_incident(str(incident_id))
+    QuickCheckInWindow = _get_quick_checkin_window()
+    return QuickCheckInWindow()
 
 
 def get_213rr_panel(incident_id: object | None = None) -> QWidget:

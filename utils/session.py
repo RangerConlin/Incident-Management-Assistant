@@ -77,6 +77,7 @@ def _start_api_session(
         if session_id:
             if doc.get("person_record") is not None:
                 AppState.set_active_user_id(int(doc["person_record"]))
+            AppState.set_active_user_display(username or user_id)
             AppState.set_active_api_session_id(str(session_id))
             _start_heartbeat(str(session_id))
             return str(session_id)

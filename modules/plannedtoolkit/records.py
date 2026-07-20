@@ -36,14 +36,6 @@ TOOLS: dict[str, PlannedToolDefinition] = {
         summary_label="Notes",
         default_status="Pending",
     ),
-    "safety-reports": PlannedToolDefinition(
-        key="safety-reports",
-        label="Public Safety",
-        title_label="Report",
-        summary_label="Details",
-        default_status="Open",
-        default_priority="Medium",
-    ),
     "tasks": PlannedToolDefinition(
         key="tasks",
         label="Quick Assignments",

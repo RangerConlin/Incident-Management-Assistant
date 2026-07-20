@@ -474,7 +474,7 @@ class IntelItemDetailWindow(QMainWindow):
             size_kb = att.get("size", 0) // 1024
             size_str = f"{size_kb} KB" if size_kb > 0 else "< 1 KB"
             uploaded_at = att.get("uploaded_at", "")[:16].replace("T", " ")
-            self._att_table.setItem(row, 0, QTableWidgetItem(att.get("display_name") or att.get("filename", "")))
+            self._att_table.setItem(row, 0, QTableWidgetItem(att.get("filename", "")))
             self._att_table.setItem(row, 1, QTableWidgetItem(att.get("mime_type", "")))
             self._att_table.setItem(row, 2, QTableWidgetItem(size_str))
             self._att_table.setItem(row, 3, QTableWidgetItem(uploaded_at))
@@ -513,7 +513,6 @@ class IntelItemDetailWindow(QMainWindow):
         result = add_attachment(
             item_id=self._item.id,
             source_path=path,
-            display_name=Path(path).name,
             uploaded_by="",
             incident_id=self._service.incident_id,
         )
@@ -537,7 +536,7 @@ class IntelItemDetailWindow(QMainWindow):
         from modules.intel.services.intel_attachments import remove_attachment, list_attachments
         atts = list_attachments(self._item.id, self._service.incident_id)
         att = next((a for a in atts if a.get("id") == attachment_id), None)
-        name = att.get("display_name") or att.get("filename", "") if att else ""
+        name = att.get("filename", "") if att else ""
         reply = QMessageBox.question(
             self, "Remove Attachment",
             f"Remove '{name}'? The file will be deleted.",

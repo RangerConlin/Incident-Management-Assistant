@@ -17,3 +17,4 @@ pymongo>=4.6
 websocket-client
 python-dateutil>=2.8
 python-multipart>=0.0.9
+shapely>=2.0

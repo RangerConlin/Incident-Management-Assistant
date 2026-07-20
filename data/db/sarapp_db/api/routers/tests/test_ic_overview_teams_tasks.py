@@ -151,6 +151,58 @@ def test_task_summary_reads_task_teams_not_assigned_teams():
     _clear(db)
 
 
+def test_operations_task_roundtrips_location_feature_id():
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        created = client.post(
+            f"/api/incidents/{INCIDENT_ID}/operations/tasks",
+            json={
+                "title": "Search drainage",
+                "location": "Trailhead parking",
+                "location_kind": "geocoded",
+                "location_geocoded_address": "123 Main St, Springfield, IL 62701",
+                "location_latitude": 39.8017,
+                "location_longitude": -89.6436,
+            },
+        )
+        assert created.status_code == 201
+        task = created.json()
+        assert task["location_kind"] == "geocoded"
+        assert task["location_geocoded_address"] == "123 Main St, Springfield, IL 62701"
+        assert task["location_latitude"] == 39.8017
+        assert task["location_longitude"] == -89.6436
+
+        fetched = client.get(f"/api/incidents/{INCIDENT_ID}/operations/tasks/{task['int_id']}")
+        assert fetched.status_code == 200
+        assert fetched.json()["location_kind"] == "geocoded"
+        assert fetched.json()["location_geocoded_address"] == "123 Main St, Springfield, IL 62701"
+
+        updated = client.patch(
+            f"/api/incidents/{INCIDENT_ID}/operations/tasks/{task['int_id']}",
+            json={
+                "location_kind": "gis_object",
+                "location": "Search Area Alpha",
+                "location_geocoded_address": None,
+                "location_latitude": None,
+                "location_longitude": None,
+                "location_feature_id": 99,
+                "changed_by": "pytest",
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.json()["location_kind"] == "gis_object"
+        assert updated.json()["location_feature_id"] == 99
+
+    stored = db["tasks"].find_one({"int_id": task["int_id"]})
+    assert stored["location_kind"] == "gis_object"
+    assert stored["location_feature_id"] == 99
+
+    _clear(db)
+
+
 def test_logistics_counts_read_canonical_resource_requests():
     db = get_incident_db(INCIDENT_ID)
     _clear(db)

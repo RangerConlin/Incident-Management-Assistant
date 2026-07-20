@@ -40,7 +40,6 @@ Task Board
 **************************************************************************************************************
 [Task Detail Window]
   - Communications channels need a selector for channel type (primary/alternate/etc)
-  - Forms that fail to generate still create a record in the attachments table leading to more errors
   - 104/109 exports need to be tied to a specific team somehow
 
 **************************************************************************************************************
@@ -48,14 +47,18 @@ Task Board
 Logistics Dashboard
 
 Check In ICS-211
-  - Change this from a quick checkin to the full checking
-  - Create new quick checkin focused on scanning IDs and checking in rapidly - stripped down window with entry box, display box for record returns, and large buttons at the bottom for checkin status
     
 Resource Status Board
-    - Status based colors need to be coded in the light/dark palette and for dark mode need to be darker.
-Resource Requests (ICS-214RR)
+
 
 Facilities Manager
+
+- Dashboard redesign mockup (Design Documents artifact, 2026-07-20) replaced the old ad-hoc
+    Supply & Comms Health badges (PPE/Medical/Water/Fuel/Comms Cache/Spare Radios) with the same
+    panel unchanged, pending a real tracking system: today those levels aren't backed by any
+    repository/collection, so before building this panel for real we need to decide how supply
+    and comms-cache stock levels get recorded and updated (manual entry vs. derived from
+    check-in/checkout and resource request activity) and what collection/schema should hold it.
 
 
 **************************************************************************************************************
@@ -96,6 +99,8 @@ Forms
 [Safety]
   - Integrate USCG GAR model on the task/assignment side (SPE hazard scoring is done — see Safety Risk Manager, modules/safety/orm/)
     -- New Safety tab in the task detail window?
+  - Restore Safety Analysis Templates as reusable groupings of master hazard library entries for quick import into the tactics/planning workflow.
+    -- Keep `hazard_types` as the single source of truth; templates only store grouped hazard selections, ordering, and any import-oriented metadata needed by planning/tactics.
 Safety Message ICS 208
 
 Incident Safety Analysis ICS 215A
@@ -178,16 +183,13 @@ Cost Summary
       bulk API endpoints if large catalog imports prove slow or freeze the UI.
     - Incident Mongo schema cleanup: review and tighten per-incident collections before the DB
       grows further.
-      - Forms: keep `forms` as the current in-app form state, delete `form_instance_revisions`,
-        and replace durable export/link storage with canonical incident attachments (`attachments`
-        metadata + GridFS `attachment_files` bytes). Decide whether any remaining audit data is
-        still needed before retiring `form_instance_audit`.
       - Liaison: leave liaison collections alone for now because the module still needs further
         product development.
       - Heavily in-development modules: leave the remaining collections alone for now except to
         avoid adding new duplicate collections or fields.
     - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
     - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
+    - During the start and login process, need to have a way to force a refresh to the server without closing and restarting
 
 **************************************************************************************************************
 [Logs]

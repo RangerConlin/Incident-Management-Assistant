@@ -116,10 +116,13 @@ def _create_hazards_indexes(incident_db: Database) -> None:
     hazards = incident_db[IncidentCollections.HAZARDS]
     _ensure_index(hazards, [("incident_id", ASCENDING)])
     _ensure_index(hazards, [("hazard_type_id", ASCENDING)])
-    _ensure_index(hazards, [("source", ASCENDING)])
     _ensure_index(hazards, [("op_period_ids", ASCENDING)])
-    _ensure_index(hazards, [("residual_risk", ASCENDING)])
-    _ensure_index(hazards, [("links.work_assignment_ids", ASCENDING)])
+    _ensure_index(hazards, [("task_ids", ASCENDING)])
+    _ensure_index(hazards, [("team_ids", ASCENDING)])
+    _ensure_index(hazards, [("work_assignment_ids", ASCENDING)])
+    _ensure_index(hazards, [("hazard_zone_ids", ASCENDING)])
+    _ensure_index(hazards, [("spe_initial.band", ASCENDING)])
+    _ensure_index(hazards, [("spe_residual.band", ASCENDING)])
     _ensure_index(hazards, [("deleted", ASCENDING)])
 
 

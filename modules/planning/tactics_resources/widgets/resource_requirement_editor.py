@@ -35,6 +35,7 @@ from modules.planning.tactics_resources.data.resource_gap_service import Resourc
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import PRIORITY_VALUES
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import get_palette, subscribe_theme, wa_priority_colors
 
 # Try to import the ResourceTypeSearchBox — degrade gracefully if unavailable
 try:
@@ -132,9 +133,17 @@ class ResourceRequirementEditor(QWidget):
         self._remove_assign_btn.clicked.connect(self._remove_assigned)
         self._req_table.itemSelectionChanged.connect(self._on_req_selected)
 
-        self.reload()
+        try:
+            # subscribe_theme invokes the callback immediately with the
+            # current theme, so this also performs the initial reload().
+            subscribe_theme(self, self._on_theme_changed)
+        except Exception:
+            self.reload()
 
     # ------------------------------------------------------------------
+    def _on_theme_changed(self, _name: str) -> None:
+        self.reload()
+
     def reload(self) -> None:
         """Reload requirements from the database."""
         try:
@@ -155,9 +164,15 @@ class ResourceRequirementEditor(QWidget):
             gap = max(req.quantity_required - req.quantity_assigned, 0)
             gap_item = QTableWidgetItem(str(gap))
             if gap > 0:
-                gap_item.setForeground(Qt.red)
+                gap_item.setForeground(get_palette().get("danger"))
             self._req_table.setItem(row, 5, gap_item)
-            self._req_table.setItem(row, 6, QTableWidgetItem(req.priority))
+
+            priority_item = QTableWidgetItem(req.priority)
+            priority_brushes = wa_priority_colors().get(req.priority)
+            if priority_brushes:
+                priority_item.setBackground(priority_brushes["bg"])
+                priority_item.setForeground(priority_brushes["fg"])
+            self._req_table.setItem(row, 6, priority_item)
             self._req_table.setItem(row, 7, QTableWidgetItem(req.notes))
             # Store the DB id in UserRole
             self._req_table.item(row, 0).setData(Qt.UserRole, req.id)

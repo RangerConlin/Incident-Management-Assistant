@@ -65,7 +65,7 @@ class ObservationEntryDialog(QDialog):
         # Severity
         self._severity = QComboBox()
         self._severity.addItems(SEVERITY_VALUES)
-        self._severity.setCurrentText("Unknown")
+        self._severity.setCurrentText("Low")
         form.addRow("Severity", self._severity)
 
         # Confidence

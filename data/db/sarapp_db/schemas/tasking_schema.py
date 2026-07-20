@@ -24,6 +24,11 @@ class TaskDocument(TimestampedDocument):
     assigned_person_records: List[int] = Field(default_factory=list)
     assigned_vehicle_ids: List[str] = Field(default_factory=list)
     search_area: Optional[str] = None
+    location_kind: str = "free_text"
+    location_geocoded_address: Optional[str] = None
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    location_feature_id: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     assigned_at: Optional[str] = None
