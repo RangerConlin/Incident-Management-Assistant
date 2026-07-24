@@ -46,6 +46,31 @@ def _load_incident_types() -> list[str]:
     return ["SAR", "Disaster Response"]
 
 
+def _load_creator_weather_thresholds() -> dict:
+    """Read this user's saved Weather Thresholds defaults (ui.settings.pages.weather_defaults_page),
+    falling back to hardcoded defaults for anything never touched. Returns None on any failure
+    (server falls back to its own hardcoded defaults if this field is omitted)."""
+    try:
+        from utils.settingsmanager import SettingsManager
+        from modules.intel.weather.services.thresholds import (
+            DEFAULT_AVIATION_THRESHOLDS,
+            DEFAULT_GROUND_THRESHOLDS,
+        )
+
+        manager = SettingsManager()
+        ground = {
+            key: float(manager.get(f"weatherDefaults.ground.{key}", default))
+            for key, default in DEFAULT_GROUND_THRESHOLDS.items()
+        }
+        aviation = {
+            key: float(manager.get(f"weatherDefaults.aviation.{key}", default))
+            for key, default in DEFAULT_AVIATION_THRESHOLDS.items()
+        }
+        return {"ground": ground, "aviation": aviation}
+    except Exception:
+        return None
+
+
 class NewIncidentDialog(QDialog):
     """Collect incident metadata and emit a creation signal."""
 
@@ -97,17 +122,18 @@ class NewIncidentDialog(QDialog):
 
         try:
             from utils.api_client import api_client
-            result = api_client.post(
-                "/api/incidents",
-                json={
-                    "number": meta.number,
-                    "name": meta.name,
-                    "type": meta.type,
-                    "description": meta.description,
-                    "icp_location": meta.location,
-                    "is_training": meta.is_training,
-                },
-            )
+            payload = {
+                "number": meta.number,
+                "name": meta.name,
+                "type": meta.type,
+                "description": meta.description,
+                "icp_location": meta.location,
+                "is_training": meta.is_training,
+            }
+            weather_thresholds = _load_creator_weather_thresholds()
+            if weather_thresholds is not None:
+                payload["weather_thresholds"] = weather_thresholds
+            result = api_client.post("/api/incidents", json=payload)
             if result is None:
                 QMessageBox.critical(self, "Error", "Failed to create incident: no response from server.")
                 return

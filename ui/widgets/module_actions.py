@@ -81,7 +81,7 @@ MODULE_ACTIONS: dict[str, str] = {
     "safety.unit_log": "Safety Unit Log ICS-214",
     "safety.208": "Safety Message ICS-208",
     "safety.215A": "Incident Safety Analysis ICS-215A",
-    "safety.risk_manager": "Safety Risk Manager",
+    "safety.risk_manager": "Incident Hazard Register",
     "safety.iwi": "Safety Incident Reports (IWI)",
     "liaison.dashboard": "Liaison Dashboard",
     "liaison.unit_log": "Liaison Unit Log ICS-214",

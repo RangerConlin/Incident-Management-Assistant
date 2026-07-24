@@ -13,10 +13,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
@@ -26,6 +30,7 @@ from PySide6.QtWidgets import (
 
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import get_palette
 
 
 class LinkedAgencyRequestsPanel(QWidget):
@@ -43,26 +48,29 @@ class LinkedAgencyRequestsPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
         btn_bar = QHBoxLayout()
-        self._link_btn = QPushButton("Link Agency Request")
-        self._unlink_btn = QPushButton("Unlink")
-        self._refresh_btn = QPushButton("Refresh")
-        for btn in (self._link_btn, self._unlink_btn, self._refresh_btn):
-            btn_bar.addWidget(btn)
+        self._summary_label = QLabel("")
+        self._summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
+        self._link_btn = QPushButton("Link Request")
+        btn_bar.addWidget(self._summary_label)
         btn_bar.addStretch(1)
+        btn_bar.addWidget(self._link_btn)
         layout.addLayout(btn_bar)
 
-        columns = ["Agency", "Request Summary", "Status", "Linked"]
-        self._table = QTableWidget(0, len(columns))
-        self._table.setHorizontalHeaderLabels(columns)
-        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
-        self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(self._table)
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        self._card_container = QWidget()
+        self._card_layout = QVBoxLayout(self._card_container)
+        self._card_layout.setContentsMargins(0, 0, 0, 0)
+        self._card_layout.setSpacing(8)
+        self._card_layout.addStretch(1)
+        self._scroll.setWidget(self._card_container)
+        layout.addWidget(self._scroll, 1)
 
         self._link_btn.clicked.connect(self._link_existing)
-        self._unlink_btn.clicked.connect(self._unlink)
-        self._refresh_btn.clicked.connect(self.reload)
 
         self.reload()
 
@@ -74,16 +82,93 @@ class LinkedAgencyRequestsPanel(QWidget):
             QMessageBox.critical(self, "Agency Requests", f"Failed to load links:\n{exc}")
             return
         agencies = self._fetch_agencies()
-        self._table.setRowCount(0)
+        self._render_cards(links, agencies)
+
+    def _render_cards(self, links: list[dict], agencies: dict) -> None:
+        while self._card_layout.count() > 1:
+            item = self._card_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._summary_label.setText(f"{len(links)} linked agency request{'s' if len(links) != 1 else ''}")
+        if not links:
+            empty = QLabel("No agency requests linked to this strategy.")
+            empty.setAlignment(Qt.AlignCenter)
+            empty.setStyleSheet(f"color:{get_palette().get('fg_muted').name()}; padding:24px;")
+            self._card_layout.insertWidget(0, empty)
+            return
         for link in links:
-            row = self._table.rowCount()
-            self._table.insertRow(row)
-            agency_name = agencies.get(link.get("agency_id"), "")
-            self._table.setItem(row, 0, QTableWidgetItem(agency_name))
-            self._table.setItem(row, 1, QTableWidgetItem(link.get("request_summary", "")))
-            self._table.setItem(row, 2, QTableWidgetItem(link.get("status", "")))
-            self._table.setItem(row, 3, QTableWidgetItem(link.get("created_at", "")))
-            self._table.item(row, 0).setData(Qt.UserRole, link.get("link_id"))
+            agency_id = link.get("agency_id")
+            agency_name = agencies.get(agency_id, "")
+            if not agency_name and agency_id is not None:
+                agency_name = agencies.get(str(agency_id), "")
+            self._card_layout.insertWidget(
+                self._card_layout.count() - 1,
+                self._build_card(link, agency_name),
+            )
+
+    def _build_card(self, link: dict, agency_name: str) -> QFrame:
+        card = QFrame(self._card_container)
+        card.setFrameShape(QFrame.StyledPanel)
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card.setStyleSheet(
+            "QFrame { "
+            f"background:{get_palette().get('bg_raised').name()}; "
+            f"border:1px solid {get_palette().get('ctrl_border').name()}; "
+            "border-radius:6px; "
+            "}"
+        )
+        link_id = link.get("link_id") or link.get("id")
+        card.setContextMenuPolicy(Qt.CustomContextMenu)
+        card.customContextMenuRequested.connect(lambda pos, lid=link_id, c=card: self._show_card_menu(lid, c, pos))
+
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(6)
+        header = QHBoxLayout()
+        summary = (
+            link.get("request_summary")
+            or link.get("summary")
+            or link.get("description")
+            or "Agency request"
+        )
+        title = QLabel(f"{agency_name} - {summary}" if agency_name else summary)
+        title.setWordWrap(True)
+        title.setStyleSheet("font-weight:700;")
+        header.addWidget(title, 1)
+        status = str(link.get("status") or "")
+        if status:
+            badge = QLabel(status)
+            badge.setAlignment(Qt.AlignCenter)
+            badge.setStyleSheet(
+                f"background:{get_palette().get('warning').name()}; "
+                f"color:{get_palette().get('fg').name()}; "
+                "padding:2px 8px; border-radius:4px; font-weight:700;"
+            )
+            header.addWidget(badge)
+        layout.addLayout(header)
+        detail_bits = []
+        if link.get("created_at"):
+            detail_bits.append(f"Linked {link.get('created_at')}")
+        request_number = (
+            link.get("resource_request_id")
+            or link.get("request_id")
+            or link.get("agency_request_id")
+        )
+        if request_number:
+            detail_bits.append(f"Request {request_number}")
+        if link.get("eta"):
+            detail_bits.append(f"ETA {link.get('eta')}")
+        detail = QLabel(" | ".join(str(part) for part in detail_bits))
+        detail.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
+        layout.addWidget(detail)
+        return card
+
+    def _show_card_menu(self, link_id: int | None, card: QFrame, pos) -> None:
+        if link_id is None:
+            return
+        menu = QMenu(self)
+        menu.addAction("Unlink Request", lambda: self._unlink(link_id))
+        menu.exec(card.mapToGlobal(pos))
 
     def _fetch_agencies(self) -> dict:
         try:
@@ -93,29 +178,24 @@ class LinkedAgencyRequestsPanel(QWidget):
             if not iid:
                 return {}
             rows = api_client.get(f"/api/incidents/{iid}/liaison/agencies") or []
-            return {r.get("int_id"): r.get("name", "") for r in rows}
+            agencies = {}
+            for row in rows:
+                agency_id = row.get("int_id") or row.get("id")
+                agency_name = row.get("agency_name") or row.get("name") or ""
+                agencies[agency_id] = agency_name
+                if agency_id is not None:
+                    agencies[str(agency_id)] = agency_name
+            return agencies
         except Exception:
             return {}
-
-    def _current_link_id(self) -> int | None:
-        row = self._table.currentRow()
-        if row < 0:
-            return None
-        item = self._table.item(row, 0)
-        if not item:
-            return None
-        data = item.data(Qt.UserRole)
-        return int(data) if data is not None else None
 
     def _link_existing(self) -> None:
         dialog = _LinkAgencyRequestDialog(self._work_assignment_id, self._db_path, parent=self)
         dialog.exec()
         self.reload()
 
-    def _unlink(self) -> None:
-        link_id = self._current_link_id()
+    def _unlink(self, link_id: int | None) -> None:
         if link_id is None:
-            QMessageBox.information(self, "Unlink", "Select a linked request first.")
             return
         if QMessageBox.question(
             self, "Unlink Request", "Remove this agency request link from the strategy?"
@@ -180,12 +260,24 @@ class _LinkAgencyRequestDialog(QDialog):
             if not iid:
                 return
             requests = api_client.get(f"/api/incidents/{iid}/liaison/agency-requests") or []
-            agencies = {r.get("int_id"): r.get("name", "") for r in (api_client.get(f"/api/incidents/{iid}/liaison/agencies") or [])}
+            agencies = {}
+            for agency in api_client.get(f"/api/incidents/{iid}/liaison/agencies") or []:
+                agency_id = agency.get("int_id") or agency.get("id")
+                agency_name = agency.get("agency_name") or agency.get("name") or ""
+                agencies[agency_id] = agency_name
+                if agency_id is not None:
+                    agencies[str(agency_id)] = agency_name
         except Exception:
             return
         for r in requests:
             agency_name = agencies.get(r.get("agency_id"), "")
-            description = r.get("description", "")
+            description = (
+                r.get("description")
+                or r.get("summary")
+                or r.get("request_summary")
+                or r.get("request_type")
+                or ""
+            )
             if search_text and search_text not in agency_name.lower() and search_text not in description.lower():
                 continue
             row_idx = self._req_table.rowCount()
@@ -194,7 +286,7 @@ class _LinkAgencyRequestDialog(QDialog):
             self._req_table.setItem(row_idx, 1, QTableWidgetItem(description))
             self._req_table.setItem(row_idx, 2, QTableWidgetItem(r.get("priority", "")))
             self._req_table.setItem(row_idx, 3, QTableWidgetItem(r.get("status", "")))
-            self._req_table.item(row_idx, 0).setData(Qt.UserRole, r.get("int_id"))
+            self._req_table.item(row_idx, 0).setData(Qt.UserRole, r.get("int_id") or r.get("id"))
 
     def _link_selected(self) -> None:
         row = self._req_table.currentRow()

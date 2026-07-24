@@ -9,7 +9,7 @@ def _payload(title: str, **overrides):
         "op_period_ids": [2],
         "location_text": "Division A",
         "control_measure": "Use trekking poles",
-        "spe_initial": {"severity": 4, "probability": 3, "exposure": 4},
+        "default_spe": {"severity": 4, "probability": 3, "exposure": 4},
         "spe_residual": {"severity": 3, "probability": 2, "exposure": 3},
     }
     payload.update(overrides)
@@ -21,14 +21,12 @@ def test_create_and_list_hazard(orm_app_client):
         "/api/incidents/2001/safety/hazards", json=_payload("Night travel")
     )
     assert created["title"] == "Night travel"
-    assert created["spe_initial"]["score"] == 48
-    assert created["spe_initial"]["band"] == "Substantial"
+    assert created["default_spe"]["score"] == 48
+    assert created["default_spe"]["band"] == "Substantial"
     assert created["spe_residual"]["score"] == 18
     assert created["spe_residual"]["band"] == "Slight"
 
-    hazards = orm_app_client.get(
-        "/api/incidents/2001/safety/hazards", params={"op_period": 2}
-    )
+    hazards = orm_app_client.get("/api/incidents/2001/safety/hazards")
     assert any(h["id"] == created["id"] for h in hazards)
 
 
@@ -51,7 +49,7 @@ def test_patch_hazard_is_partial(orm_app_client):
     assert updated["notes"] == "Monitoring closely"
     # Untouched fields survive the partial update.
     assert updated["title"] == "Heat exposure"
-    assert updated["spe_initial"]["score"] == created["spe_initial"]["score"]
+    assert updated["default_spe"]["score"] == created["default_spe"]["score"]
 
 
 def test_patch_hazard_updates_spe(orm_app_client):
@@ -71,22 +69,15 @@ def test_delete_hazard_removes_from_list(orm_app_client):
         "/api/incidents/2001/safety/hazards", json=_payload("Vehicle movement near runners")
     )
     orm_app_client.delete(f"/api/incidents/2001/safety/hazards/{created['id']}")
-    hazards = orm_app_client.get(
-        "/api/incidents/2001/safety/hazards", params={"op_period": 2}
-    )
+    hazards = orm_app_client.get("/api/incidents/2001/safety/hazards")
     assert all(h["id"] != created["id"] for h in hazards)
 
 
-def test_links_round_trip(orm_app_client):
-    payload = _payload(
-        "Linked hazard",
-        links={"work_assignment_ids": [4], "team_ids": [7], "task_ids": []},
+def test_create_hazard_starts_with_empty_backend_linkage_lists(orm_app_client):
+    created = orm_app_client.post(
+        "/api/incidents/2001/safety/hazards", json=_payload("Linked hazard")
     )
-    created = orm_app_client.post("/api/incidents/2001/safety/hazards", json=payload)
-    assert created["links"]["work_assignment_ids"] == [4]
-    assert created["links"]["team_ids"] == [7]
-
-    filtered = orm_app_client.get(
-        "/api/incidents/2001/safety/hazards", params={"work_assignment_id": 4}
-    )
-    assert any(h["id"] == created["id"] for h in filtered)
+    assert created["work_assignment_ids"] == []
+    assert created["team_ids"] == []
+    assert created["task_ids"] == []
+    assert created["hazard_zone_ids"] == []

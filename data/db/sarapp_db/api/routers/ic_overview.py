@@ -1,10 +1,11 @@
 """FastAPI router — IC overview endpoints for the active incident."""
 from __future__ import annotations
 
+import logging
 import uuid
 from collections import Counter
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from dateutil import parser as dateutil_parser
 from fastapi import APIRouter, HTTPException
@@ -121,6 +122,31 @@ class CreateIncidentRequest(BaseModel):
     icp_location: str = ""
     icp_facility_id: Optional[str] = None
     is_training: bool = False
+    # Creating user's saved Weather Thresholds defaults (see
+    # ui/settings/pages/weather_defaults_page.py); if omitted, the initial
+    # weather_config document falls back to hardcoded thresholds.
+    weather_thresholds: Optional[Dict[str, Any]] = None
+
+
+def _seed_weather_config(incident_id: str, weather_thresholds: Optional[Dict[str, Any]]) -> None:
+    """Insert the incident's initial weather_config, seeded from the creating
+    user's saved Weather Thresholds defaults if provided, otherwise the
+    router's own hardcoded defaults (see routers/weather.py WeatherThresholds)."""
+    try:
+        from sarapp_db.api.routers.weather import WeatherConfigRepository, WeatherThresholds
+
+        repo = WeatherConfigRepository(get_incident_db(incident_id))
+        thresholds = WeatherThresholds(**weather_thresholds) if weather_thresholds else WeatherThresholds()
+        repo.insert_one(
+            {
+                "incident_id": incident_id,
+                "polling_minutes": 10,
+                "locations": [],
+                "thresholds": thresholds.model_dump(),
+            }
+        )
+    except Exception:
+        logging.getLogger(__name__).exception("Failed to seed weather_config for incident %s", incident_id)
 
 
 @router.post("", status_code=201)
@@ -158,6 +184,8 @@ def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
     }
     profile_repo = IncidentProfileRepository(get_incident_db(incident_id))
     profile_repo.insert_one(profile_doc)
+
+    _seed_weather_config(incident_id, body.weather_thresholds)
 
     registry_doc.pop("_id", None)
     registry_doc["id"] = incident_id

@@ -14,7 +14,7 @@ from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
 router = APIRouter()
 
 COL = IncidentCollections.WORK_ASSIGNMENTS
-OUTPUT_TYPE_VALUES = ["ICS 204", "ICS 215", "ICS 215A", "Briefing Sheet"]
+OUTPUT_TYPE_VALUES = ["ICS 204", "ICS 215", "ICS 215A", "ICS 213RR"]
 
 
 def _col(incident_id: str):
@@ -62,6 +62,7 @@ def _wa_out(doc: dict) -> dict:
         "hazards": [_hazard_out(h) for h in doc.get("hazards", [])],
         "comms": [_comms_out(c) for c in doc.get("comms", [])],
         "task_links": [_link_out(t) for t in doc.get("task_links", [])],
+        "agency_request_links": [_agency_request_link_out(l) for l in doc.get("agency_request_links", [])],
         "log_entries": [_log_out(l) for l in doc.get("log_entries", [])],
         "outputs": [_output_out(o) for o in doc.get("outputs", [])],
     }
@@ -799,16 +800,24 @@ def update_output(incident_id: str, wa_id: int, output_type: str, body: Dict[str
     col = _col(incident_id)
     doc = _get_doc(incident_id, wa_id)
     outputs = doc.get("outputs", [])
+    updatable = {"status", "notes", "generated_file_path", "generated_at", "generated_by"}
     for i, o in enumerate(outputs):
         if o.get("output_type") == output_type:
-            if "status" in body:
-                outputs[i]["status"] = body["status"]
-            if "notes" in body:
-                outputs[i]["notes"] = body["notes"]
+            for key in updatable:
+                if key in body:
+                    outputs[i][key] = body[key]
             col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"outputs": outputs}})
             return _output_out(outputs[i])
     # Not found — create it
     new_id = _next_sub_id(outputs)
-    entry = {"id": new_id, "output_type": output_type, "status": body.get("status", "Not Started"), "notes": body.get("notes", "")}
+    entry = {
+        "id": new_id,
+        "output_type": output_type,
+        "status": body.get("status", "Not Started"),
+        "notes": body.get("notes", ""),
+        "generated_file_path": body.get("generated_file_path"),
+        "generated_at": body.get("generated_at"),
+        "generated_by": body.get("generated_by"),
+    }
     col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"outputs": entry}})
     return _output_out(entry)

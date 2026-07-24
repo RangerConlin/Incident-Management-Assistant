@@ -59,7 +59,7 @@ ASSIGNMENT_KIND_VALUES = [
 
 PRIORITY_VALUES = ["Low", "Normal", "High", "Urgent"]
 
-OUTPUT_TYPE_VALUES = ["ICS 204", "ICS 215", "ICS 215A", "Briefing Sheet"]
+OUTPUT_TYPE_VALUES = ["ICS 204", "ICS 215", "ICS 215A", "ICS 213RR"]
 
 OUTPUT_STATUS_VALUES = [
     "Not Started",
@@ -277,7 +277,7 @@ class WorkAssignmentOutputStatus:
 
     id: int | None = None
     work_assignment_id: int = 0
-    output_type: str = ""           # ICS 204 | ICS 215 | ICS 215A | Briefing Sheet
+    output_type: str = ""           # ICS 204 | ICS 215 | ICS 215A | ICS 213RR
     status: str = "Not Started"
     generated_file_path: str = ""
     generated_at: str = ""

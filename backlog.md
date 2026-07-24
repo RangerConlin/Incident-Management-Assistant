@@ -8,6 +8,27 @@ Incident Organization
 
 SITREP Window
 
+- Command Dashboard redesign (modules/command/widgets/ic_overview_widget.py, 2026-07-21) has four
+  panels still shipped as empty states because none of them have a backing data model yet. Each
+  needs a real repository/schema/API route before it can show real data instead of a placeholder:
+  - Pending Approvals panel — no approval/workflow data model exists (resource request approvals,
+    task extension approvals, comms channel change requests, etc. aren't tracked as a queue
+    anywhere). Needs a schema for an approvable "request" concept plus approve/deny actions wired
+    to whatever module originated the request.
+  - Section Health panel — no per-section (Operations/Planning/Logistics/Communications/Safety/
+    Intel/Liaison/Finance) status tracking exists. Needs a data model for section-level status
+    (e.g. good/caution/critical) plus a note field, and a way for each section lead to update it.
+  - Operational Period Readiness panel — no ICS-form completion checklist (202/203/204/205/206,
+    safety message, briefing packet, resource gaps review, etc.) is tracked anywhere. Needs a
+    per-operational-period checklist model, likely derived from whether each ICS form/module has
+    been completed for the current OP rather than a manually maintained list.
+  - Recent Major Activity panel — no unified cross-module activity/audit feed exists to pull from.
+    Needs either a dedicated incident-wide activity log collection that other modules write to, or
+    an aggregation query across existing per-module logs.
+  - The three KPI tiles for Personnel Checked In, Open Leads, and Safety Issues are placeholders
+    for the same reason (no data source) and should be revisited alongside Section Health/Safety
+    once those data models exist.
+
 **************************************************************************************************************
 [Planning]
 Planning Dashboard
@@ -95,6 +116,13 @@ Assessments
 Intel Logs
 
 Forms
+
+- Weather module rebuild (modules/intel/weather/, 2026-07-22) — see modules/intel/weather/backlog.md
+  for the module's own follow-ups: lightning data deferred (no reliable free API); runway crosswind
+  data now comes from a live NOAA AWC airport lookup (services/runway_api.py) queried once at
+  station-creation time and cached, no bundled CSV needed; NWS location-code hint caching
+  (location_codes.py) isn't wired back into the new WeatherManager yet (forecast/HWO still work,
+  just without the caching speedup).
 **************************************************************************************************************
 [Safety]
   - Integrate USCG GAR model on the task/assignment side (SPE hazard scoring is done — see Safety Risk Manager, modules/safety/orm/)

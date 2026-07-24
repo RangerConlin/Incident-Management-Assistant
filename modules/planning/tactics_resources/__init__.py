@@ -11,7 +11,7 @@ Layer hierarchy:
 
 Open the main window with:
     from modules.planning.tactics_resources import open_tactics_resources_planner
-    open_tactics_resources_planner(parent=some_widget)
+    open_tactics_resources_planner()
 """
 from __future__ import annotations
 

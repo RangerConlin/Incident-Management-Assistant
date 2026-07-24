@@ -32,6 +32,7 @@ from .pages import (
     NotificationsPage,
     PersonnelPage,
     ThemePage,
+    WeatherDefaultsPage,
 )
 
 SectionDef = Tuple[str, Type[QWidget]]
@@ -40,6 +41,7 @@ SECTIONS: List[SectionDef] = [
     ("General", GeneralPage),
     ("Connection", ConnectionPage),
     ("Incident Defaults", IncidentDefaultsPage),
+    ("Weather Thresholds", WeatherDefaultsPage),
     ("Communications", CommunicationsPage),
     ("Data & Storage", DataStoragePage),
     ("Mapping & GPS", MappingPage),

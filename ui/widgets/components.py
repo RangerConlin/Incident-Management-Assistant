@@ -1459,117 +1459,12 @@ class ClockDualWidget(QWidget):
 
 # ---------------------------------------------------------------------------
 # Weather Snapshot
+#
+# The dashboard tile itself now lives in
+# modules/intel/weather/ui/dashboard_tile.py (WeatherDashboardTile) since it
+# is module-owned business UI, not a generic dashboard widget. Registered in
+# ui/widgets/registry.py.
 # ---------------------------------------------------------------------------
-
-_SEVERITY_COLORS = {
-    "extreme":   "#9c27b0",
-    "severe":    "#f44336",
-    "moderate":  "#ff9800",
-    "minor":     "#ffc107",
-    "unknown":   "#607d8b",
-}
-
-
-class WeatherWidget(LiveWidget):
-    """Shows active weather advisories and METAR conditions from the WeatherApiManager."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = _vbox(self, margins=10, spacing=6)
-        layout.addWidget(_section_header("Weather"))
-
-        # Advisory list
-        self._adv_list = QListWidget()
-        try:
-            self._adv_list.setStyleSheet("QListWidget { border: none; font-size: 11px; }")
-        except Exception:
-            pass
-        layout.addWidget(self._adv_list)
-
-        layout.addWidget(_separator())
-
-        # METAR section
-        layout.addWidget(_section_header("METAR"))
-        self._metar_list = QListWidget()
-        try:
-            self._metar_list.setStyleSheet(
-                "QListWidget { border: none; font-family: monospace; font-size: 10px; }"
-            )
-        except Exception:
-            pass
-        layout.addWidget(self._metar_list)
-        layout.addWidget(self._updated_label())
-
-        # Connect to live WeatherApiManager signals if available
-        try:
-            from modules.intel.weather.services.api_link import WeatherApiManager
-            mgr = WeatherApiManager.instance()
-            mgr.dataUpdated.connect(self._on_data_updated)
-            mgr.alertsUpdated.connect(self._on_alerts_updated)
-        except Exception:
-            pass
-
-        self.refresh()
-
-    def _on_data_updated(self, payload: dict):
-        self._render_metar(payload.get("metar", {}))
-        self._touch_timestamp()
-
-    def _on_alerts_updated(self, advisories: list):
-        self._render_advisories(advisories)
-        self._touch_timestamp()
-
-    def _render_advisories(self, advisories: list):
-        try:
-            self._adv_list.clear()
-        except Exception:
-            pass
-        if not advisories:
-            try:
-                item = QListWidgetItem("No active advisories")
-                item.setForeground(QColor("#4caf50"))
-                self._adv_list.addItem(item)
-            except Exception:
-                pass
-            return
-        for adv in advisories:
-            event = adv.get("event") or adv.get("headline") or "Advisory"
-            severity = str(adv.get("severity") or "Unknown").lower()
-            color = _SEVERITY_COLORS.get(severity, _SEVERITY_COLORS["unknown"])
-            text = f"[{severity.upper()}]  {event}"
-            item = QListWidgetItem(text)
-            try:
-                item.setForeground(QColor(color))
-                self._adv_list.addItem(item)
-            except Exception:
-                pass
-
-    def _render_metar(self, metar: dict):
-        try:
-            self._metar_list.clear()
-        except Exception:
-            pass
-        if not metar:
-            try:
-                self._metar_list.addItem(QListWidgetItem("No METAR data"))
-            except Exception:
-                pass
-            return
-        for station, raw in metar.items():
-            try:
-                self._metar_list.addItem(QListWidgetItem(str(raw)[:120]))
-            except Exception:
-                pass
-
-    def refresh(self):
-        try:
-            from ui.widgets import data_providers as dp
-            snap = dp.weather_getSnapshot()
-            self._render_advisories(snap.get("advisories", []))
-            self._render_metar(snap.get("metar", {}))
-        except Exception:
-            pass
-        self._touch_timestamp()
 
 
 # ---------------------------------------------------------------------------

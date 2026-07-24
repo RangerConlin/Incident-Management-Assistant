@@ -9,11 +9,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Protocol
+from typing import Iterable, List, Optional
 
 from ..models.advisory import Advisory
 from ..models.readings import ForecastPeriod, MetarReading, TafReading
-from ..models.lightning import LightningStrike
 
 import httpx
 
@@ -76,21 +75,11 @@ class AdvisoryProvider(ABC):
         """Return a list of active advisories impacting the given point."""
 
 
-class LightningProvider(Protocol):
-    """Protocol describing a lightning data feed."""
-
-    def fetch_recent_strikes(
-        self, latitude: float, longitude: float, radius_nm: float
-    ) -> List[LightningStrike]:
-        """Return strikes within the radius in the last polling interval."""
-
-
 __all__ = [
     "ProviderResult",
     "MetarProvider",
     "TafProvider",
     "ForecastProvider",
     "AdvisoryProvider",
-    "LightningProvider",
     "get_shared_client",
 ]

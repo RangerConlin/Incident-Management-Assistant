@@ -627,22 +627,16 @@ class MainWindow(QMainWindow):
         profiles_menu.addAction(act_manage)
 
     def _add_weather_menu_items(self, parent_menu: QMenu, prefix: str) -> None:
-        """Add Weather submenu entries under the given parent menu.
+        """Add the single Weather menu item under the given parent menu.
 
-        The `prefix` determines routing keys, e.g. "planning.weather" or
-        "safety.weather" to match handlers in `open_module`.
+        The `prefix` determines the routing key, e.g. "planning.weather.open"
+        or "safety.weather.open" to match handlers in `open_module`. Both
+        Planning and Safety route to the same single WeatherDetailPanel
+        instance (see open_weather_panel) rather than 11 separate popup
+        windows or a multi-item submenu — the panel's own tabs/toolbar cover
+        alerts, stations, and export.
         """
-        weather_menu = parent_menu.addMenu("Weather")
-        self._add_action(weather_menu, "Current & Forecast", None, f"{prefix}.current")
-        self._add_action(weather_menu, "Safety Summary", None, f"{prefix}.summary")
-        self._add_action(weather_menu, "Timeline", None, f"{prefix}.timeline")
-        self._add_action(weather_menu, "Aviation", None, f"{prefix}.aviation")
-        self._add_action(weather_menu, "Advisories & Lightning", None, f"{prefix}.advisories")
-        self._add_action(weather_menu, "Hazard Outlook (HWO)", None, f"{prefix}.hwo")
-        self._add_action(weather_menu, "Sun & Moon Times", None, f"{prefix}.sun_times")
-        weather_menu.addSeparator()
-        self._add_action(weather_menu, "Settings", None, f"{prefix}.settings")
-        self._add_action(weather_menu, "Export Briefing", None, f"{prefix}.export")
+        self._add_action(parent_menu, "Weather", None, f"{prefix}.open")
 
     def _on_profile_selected(self, meta: ProfileMeta) -> None:
         """Attempt to switch to the chosen profile and show result to user."""
@@ -886,7 +880,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_med, "Medical Plan ICS 206", None, "medical.206")
         self._add_action(m_med, "Safety Message ICS-208", None, "safety.208")
         self._add_action(m_med, "Incident Safety Analysis ICS-215A", None, "safety.215A")
-        self._add_action(m_med, "Safety Risk Manager", None, "safety.risk_manager")
+        self._add_action(m_med, "Incident Hazard Register", None, "safety.risk_manager")
         self._add_action(m_med, "Safety Incident Reports (IWI)", None, "safety.iwi")
         m_med.addSeparator()
         self._add_weather_menu_items(m_med, prefix="safety.weather")
@@ -1148,15 +1142,7 @@ class MainWindow(QMainWindow):
             "planning.sitrep": self.open_planning_sitrep,
             "planning.tactics_planner": self.open_tactics_resources_planner,
 
-            "planning.weather.summary": self.open_weather_safety_summary,
-            "planning.weather.current": self.open_weather_current_forecast,
-            "planning.weather.timeline": self.open_weather_timeline,
-            "planning.weather.aviation": self.open_weather_aviation,
-            "planning.weather.advisories": self.open_weather_advisories,
-            "planning.weather.hwo": self.open_weather_hwo,
-            "planning.weather.sun_times": self.open_weather_sun_times,
-            "planning.weather.settings": self.open_weather_settings,
-            "planning.weather.export": self.open_weather_export,
+            "planning.weather.open": self.open_weather_panel,
             # ----- Operations -----
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
@@ -1207,15 +1193,7 @@ class MainWindow(QMainWindow):
             "safety.risk_manager": self.open_safety_risk_manager,
             "safety.iwi": self.open_safety_iwi,
 
-            "safety.weather.summary": self.open_weather_safety_summary,
-            "safety.weather.current": self.open_weather_current_forecast,
-            "safety.weather.timeline": self.open_weather_timeline,
-            "safety.weather.aviation": self.open_weather_aviation,
-            "safety.weather.advisories": self.open_weather_advisories,
-            "safety.weather.hwo": self.open_weather_hwo,
-            "safety.weather.sun_times": self.open_weather_sun_times,
-            "safety.weather.settings": self.open_weather_settings,
-            "safety.weather.export": self.open_weather_export,
+            "safety.weather.open": self.open_weather_panel,
             # ----- Liaison -----
             "liaison.dashboard": self.open_liaison_dashboard,
             "liaison.unit_log": self.open_liaison_unit_log,
@@ -1732,54 +1710,31 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Tactics and Resources Planner", f"Could not open planner:\n{exc}")
 
 # --- 4.5 Operations ------------------------------------------------------
-    def open_weather_safety_summary(self) -> None:
-        """Open the dockable Weather Safety summary page."""
-        from modules.intel.weather.pages.weather_summary_page import WeatherSummaryPage
-        panel = WeatherSummaryPage(self)
-        self._open_panel(panel, title="Weather Safety")
+    def open_weather_panel(self, initial_tab: str = "forecast") -> None:
+        """Open the single Weather detail panel (replaces the old 11-window layout).
 
-    def open_weather_timeline(self) -> None:
-        """Open the standalone Weather Timeline window."""
-        from modules.intel.weather.infra import ui_factories
-        ui_factories.open_weather_timeline()
+        Both the Planning and Safety menus route here; the panel instance is
+        cached so repeated menu clicks reuse it instead of re-polling.
+        """
+        from utils.incident_context import get_active_incident_id
 
-    def open_weather_aviation(self) -> None:
-        """Open the standalone Aviation Weather window."""
-        from modules.intel.weather.infra import ui_factories
-        ui_factories.open_aviation_window()
+        incident_id = get_active_incident_id()
+        if not incident_id:
+            QMessageBox.warning(self, "Weather", "No active incident.")
+            return
+        panel = getattr(self, "_weather_panel", None)
+        if not _qobject_is_alive(panel) or getattr(panel, "_incident_id", None) != incident_id:
+            from modules.intel.weather.ui.detail_panel import WeatherDetailPanel
+            # Parentless so it's a fully independent top-level window with
+            # its own taskbar entry, matching IncidentMapWindow.
+            panel = WeatherDetailPanel(incident_id, None)
+            self._weather_panel = panel
+            self._open_panel(panel, title="Weather")
+        panel.open_tab(initial_tab)
+        panel.show()
+        panel.raise_()
+        panel.activateWindow()
 
-    def open_weather_advisories(self) -> None:
-        """Open the standalone Advisories & Lightning window."""
-        from modules.intel.weather.infra import ui_factories
-        ui_factories.open_advisories_window()
-
-    def open_weather_hwo(self) -> None:
-        """Open the standalone HWO viewer window."""
-        from modules.intel.weather.infra import ui_factories
-        ui_factories.open_hwo_viewer()
-
-    def open_weather_sun_times(self) -> None:
-        """Open the standalone sunrise and sunset panel."""
-        from modules.intel.weather.infra import ui_factories
-        ui_factories.open_sun_times_panel(self)
-
-    def open_weather_settings(self) -> None:
-        """Open the Weather Safety settings dialog."""
-        from modules.intel.weather.infra import ui_factories
-        ui_factories.open_settings_dialog(self)
-
-    def open_weather_export(self) -> None:
-        """Open the Weather Safety briefing export dialog."""
-        from modules.intel.weather.infra import ui_factories
-        ui_factories.open_export_dialog(self)
-
-    def open_weather_current_forecast(self) -> None:
-        """Open the Current & Forecast weather window."""
-        try:
-            from modules.intel.weather.infra import ui_factories
-            ui_factories.open_current_forecast_window()
-        except Exception as e:
-            QMessageBox.critical(self, "Weather", f"Failed to open Current & Forecast window:\n{e}")
     def open_operations_unit_log(self) -> None:
         from modules import ics214
         incident_id = AppState.get_active_incident()
@@ -2449,7 +2404,7 @@ class MainWindow(QMainWindow):
         from modules import safety
         incident_id = AppState.get_active_incident()
         panel = safety.get_risk_manager_panel(incident_id)
-        self._open_panel(panel, title="Safety Risk Manager")
+        self._open_panel(panel, title="Incident Hazard Register")
 
     def open_safety_iwi(self) -> None:
         from modules import safety

@@ -712,12 +712,12 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         equipment_issued = []
         vehicle_rows = []
 
-    weather_config = {}
     try:
-        weather_config = _client().get(f"/api/incidents/{_iid()}/weather") or {}
+        from modules.intel.weather.services.weather_manager import get_weather_manager
+
+        weather_payload = build_weather_form_payload(get_weather_manager(_iid()))
     except Exception:
-        weather_config = {}
-    weather_payload = build_weather_form_payload(weather_config)
+        weather_payload = {}
 
     context = {
         "task": task_payload,

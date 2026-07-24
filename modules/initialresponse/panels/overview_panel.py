@@ -364,16 +364,22 @@ class InitialOverviewPanel(QWidget):
         self._aircraft_markings = QLineEdit()
         self._aircraft_pilot = QLineEdit()
         self._aircraft_occupants = QLineEdit()
+        self._aircraft_departure_airport = QLineEdit()
+        self._aircraft_destination_airport = QLineEdit()
         self._aircraft_route = QTextEdit()
         self._aircraft_fuel = QLineEdit()
         self._aircraft_elt = QTextEdit()
         self._aircraft_route.setFixedHeight(70)
         self._aircraft_elt.setFixedHeight(70)
+        self._aircraft_departure_airport.setPlaceholderText("ICAO/IATA code, e.g. KDEN")
+        self._aircraft_destination_airport.setPlaceholderText("ICAO/IATA code, e.g. KABC")
         form.addRow("Tail Number", self._aircraft_tail)
         form.addRow("Aircraft Type", self._aircraft_type)
         form.addRow("Color / Markings", self._aircraft_markings)
         form.addRow("Pilot", self._aircraft_pilot)
         form.addRow("Occupants", self._aircraft_occupants)
+        form.addRow("Departure Airport", self._aircraft_departure_airport)
+        form.addRow("Destination Airport", self._aircraft_destination_airport)
         form.addRow("Route / Destination", self._aircraft_route)
         form.addRow("Fuel Endurance", self._aircraft_fuel)
         form.addRow("ELT / Survival Gear", self._aircraft_elt)
@@ -551,6 +557,8 @@ class InitialOverviewPanel(QWidget):
         self._aircraft_markings.setText(str(record.aircraft_info.get("markings", "")))
         self._aircraft_pilot.setText(str(record.aircraft_info.get("pilot", "")))
         self._aircraft_occupants.setText(str(record.aircraft_info.get("occupants", "")))
+        self._aircraft_departure_airport.setText(str(record.aircraft_info.get("departure_airport", "")))
+        self._aircraft_destination_airport.setText(str(record.aircraft_info.get("destination_airport", "")))
         self._aircraft_route.setPlainText(str(record.aircraft_info.get("route", "")))
         self._aircraft_fuel.setText(str(record.aircraft_info.get("fuel_endurance", "")))
         self._aircraft_elt.setPlainText(str(record.aircraft_info.get("elt_survival", "")))
@@ -635,6 +643,8 @@ class InitialOverviewPanel(QWidget):
                 "markings": self._aircraft_markings.text().strip(),
                 "pilot": self._aircraft_pilot.text().strip(),
                 "occupants": self._aircraft_occupants.text().strip(),
+                "departure_airport": self._aircraft_departure_airport.text().strip(),
+                "destination_airport": self._aircraft_destination_airport.text().strip(),
                 "route": self._aircraft_route.toPlainText().strip(),
                 "fuel_endurance": self._aircraft_fuel.text().strip(),
                 "elt_survival": self._aircraft_elt.toPlainText().strip(),

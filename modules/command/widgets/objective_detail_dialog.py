@@ -394,20 +394,12 @@ class ObjectiveDetailDialog(QDialog):
         wa_id = item.data(Qt.UserRole) if item else None
         if wa_id is None:
             return
-        from modules.planning.tactics_resources.windows.work_assignment_detail_window import (
-            WorkAssignmentDetailWindow,
-        )
-        window = WorkAssignmentDetailWindow(work_assignment_id=int(wa_id))
-        window.show()
-        self._detail_windows.append(window)
+        from modules.planning.tactics_resources import open_tactics_resources_planner
+        open_tactics_resources_planner(parent=self)
 
     def _open_planner(self) -> None:
-        from modules.planning.tactics_resources.windows.tactics_resources_planner_window import (
-            TacticsResourcesPlannerWindow,
-        )
-        window = TacticsResourcesPlannerWindow()
-        window.show()
-        self._detail_windows.append(window)
+        from modules.planning.tactics_resources import open_tactics_resources_planner
+        open_tactics_resources_planner(parent=self)
 
     def _populate_tasks(self) -> None:
         self._tasks_table.setRowCount(0)

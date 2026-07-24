@@ -74,9 +74,10 @@ def test_ics208_panel_loads_hazards_and_rebuilds_blocks(monkeypatch) -> None:
     assert "Helmet" in panel._ppe_block_edit.toPlainText()
     assert "Hydrate and rotate crews." in panel._language_block_edit.toPlainText()
     assert "Heat Advisory" in panel._weather_alert_badges.text()
+    assert "final authored safety message is still blank" in panel._attention_items.toPlainText()
 
 
-def test_ics208_panel_inserts_selected_blocks_into_final_message(monkeypatch) -> None:
+def test_ics208_panel_replaces_selected_blocks_into_final_message(monkeypatch) -> None:
     app = _app()
 
     monkeypatch.setattr("modules.safety.panels.ics208_panel.services.get_ics208", lambda *args, **kwargs: {})
@@ -94,7 +95,7 @@ def test_ics208_panel_inserts_selected_blocks_into_final_message(monkeypatch) ->
     panel._weather_block_edit.setPlainText("Weather block")
     panel._special_block_edit.setPlainText("Special block")
     panel._special_block_toggle.setChecked(True)
-    panel._insert_selected_blocks()
+    panel._insert_selected_blocks(mode="replace")
     app.processEvents()
 
     final_text = panel._safety_message.toPlainText()
@@ -102,3 +103,25 @@ def test_ics208_panel_inserts_selected_blocks_into_final_message(monkeypatch) ->
     assert "PPE block" in final_text
     assert "Weather block" in final_text
     assert "Special block" in final_text
+
+
+def test_ics208_panel_appends_selected_blocks_into_final_message(monkeypatch) -> None:
+    app = _app()
+
+    monkeypatch.setattr("modules.safety.panels.ics208_panel.services.get_ics208", lambda *args, **kwargs: {})
+    monkeypatch.setattr("modules.safety.panels.ics208_panel.services.list_hazard_zones", lambda incident_id: [])
+    monkeypatch.setattr("modules.safety.panels.ics208_panel.api_client.get", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        "modules.safety.panels.ics208_panel.build_weather_form_payload",
+        lambda payload: {"summary": "", "alerts": ""},
+    )
+
+    panel = ICS208Panel(incident_id="INC-3")
+    panel._safety_message.setPlainText("Existing authored message")
+    panel._hazards_block_edit.setPlainText("Hazard summary block")
+    panel._insert_selected_blocks(mode="append")
+    app.processEvents()
+
+    final_text = panel._safety_message.toPlainText()
+    assert "Existing authored message" in final_text
+    assert "Hazard summary block" in final_text

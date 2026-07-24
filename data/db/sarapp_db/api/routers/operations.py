@@ -394,26 +394,16 @@ def fetch_task_rows(incident_id: str) -> list[dict]:
     for doc in col.find(sort=[("int_id", 1)]):
         task_int_id = doc["int_id"]
         task_str_id = doc.get("task_id") or str(task_int_id)
-        # active_team_ids is maintained directly by add_task_team ($addToSet)
-        # and remove_task_team/set_team_status ($pull) — it's the team_ids
-        # currently assigned, no separate lookup needed. Tasks created before
-        # this field existed have no key at all; fall back to the older
-        # current_task_id query for those so they don't need a migration.
-        active_ids = doc.get("active_team_ids")
+        task_team_records = list(doc.get("task_teams") or doc.get("assigned_teams") or [])
         assigned = []
-        if active_ids is not None:
-            teams_iter = teams_col.find({
-                "$or": [{"int_id": {"$in": active_ids}}, {"team_id": {"$in": active_ids}}]
-            })
-        else:
-            teams_iter = teams_col.find({"current_task_id": {"$in": [task_int_id, task_str_id]}})
+        teams_iter = teams_col.find({"current_task_id": {"$in": [task_int_id, task_str_id]}})
         for team in teams_iter:
             sortie_id = None
-            for tt in reversed(doc.get("task_teams") or doc.get("assigned_teams") or []):
+            for tt in reversed(task_team_records):
                 if tt.get("team_id") in (team.get("int_id"), team.get("team_id")):
                     sortie_id = tt.get("sortie_id")
                     break
-            assigned.append(team.get("name") or sortie_id or f"Team {team.get('int_id')}")
+            assigned.append(team.get("name") or team.get("callsign") or sortie_id or f"Team {team.get('int_id')}")
         priority = doc.get("priority", "")
         try:
             priority = PRIORITY_MAP.get(int(priority), str(priority))

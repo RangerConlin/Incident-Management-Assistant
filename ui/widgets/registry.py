@@ -35,11 +35,11 @@ from .components import (
     TeamStatusBoardWidget,
     UpcomingTasksWidget,
     VehicleSnapshotWidget,
-    WeatherWidget,
 )
 from .launch_button import LaunchButtonWidget
 from .number_card import NumberCardWidget
 from .number_card_metrics import get_metric, list_metrics
+from modules.intel.weather.ui.dashboard_tile import WeatherDashboardTile
 
 
 def _team_status_items():
@@ -288,7 +288,7 @@ REGISTRY: Dict[str, WidgetSpec] = {
         title="Weather",
         default_size=Size(6, 2),
         min_size=Size(4, 1),
-        component=WeatherWidget,  # type: ignore
+        component=WeatherDashboardTile,  # type: ignore
         data_hooks={"weather.getSnapshot": dp.weather_getSnapshot},
     ),
 

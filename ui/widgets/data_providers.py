@@ -474,7 +474,7 @@ def pio_getPendingApprovals() -> List[str]:
 # ---------------------------------------------------------------------------
 
 def weather_getSnapshot() -> Dict[str, Any]:
-    """Return current weather snapshot from the WeatherApiManager cache.
+    """Return current weather snapshot for the incident's default location.
 
     Returns a dict with keys:
       - advisories: list of dicts (event, severity, headline)
@@ -482,20 +482,28 @@ def weather_getSnapshot() -> Dict[str, Any]:
       - has_data: bool
     """
     try:
-        from modules.intel.weather.services.api_link import WeatherApiManager
-        mgr = WeatherApiManager.instance()
+        from utils.incident_context import get_active_incident_id
+        from modules.intel.weather.services.weather_manager import get_weather_manager
+
+        incident_id = get_active_incident_id()
+        if not incident_id:
+            return {"advisories": [], "metar": {}, "has_data": False}
+        manager = get_weather_manager(incident_id)
+        location = manager.default_location()
+        if location is None:
+            return {"advisories": [], "metar": {}, "has_data": False}
+        snap = manager.snapshot(location.location_id)
         advisories = [
             {
                 "event": a.event,
                 "severity": a.severity or "Unknown",
                 "headline": a.headline or a.event,
             }
-            for a in mgr._advisory_cache
+            for a in (snap.advisories if snap else [])
         ]
-        metar = {
-            station: reading.raw_text
-            for station, reading in mgr._metar_cache.items()
-        }
+        metar = {}
+        if snap and snap.metar:
+            metar[snap.metar.station] = snap.metar.raw_text
         return {"advisories": advisories, "metar": metar, "has_data": bool(advisories or metar)}
     except Exception:
         return {"advisories": [], "metar": {}, "has_data": False}

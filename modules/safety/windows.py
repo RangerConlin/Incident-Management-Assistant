@@ -55,7 +55,7 @@ def get_215A_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_risk_manager_panel(incident_id: object | None = None) -> QWidget:
-    """Return the Safety Risk Manager window, falling back to placeholder on error."""
+    """Return the incident hazard register window, falling back to placeholder on error."""
 
     if RiskManagerWindow is not None:
         try:
@@ -64,8 +64,8 @@ def get_risk_manager_panel(incident_id: object | None = None) -> QWidget:
             pass
 
     return _make_panel(
-        "Safety Risk Manager",
-        "Safety Risk Manager window unavailable in this environment.",
+        "Incident Hazard Register",
+        "Incident Hazard Register window unavailable in this environment.",
     )
 
 

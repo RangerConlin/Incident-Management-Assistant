@@ -1065,14 +1065,16 @@ class FormDataContext:
         if not inc_id:
             return []
         try:
-            rows = _get(f"/api/incidents/{inc_id}/safety/zones") or []
+            rows = _get(f"/api/incidents/{inc_id}/gis/features/by-type/hazard_zone") or []
             return [
                 {
                     "id": row.get("id") or "",
                     "incident_id": row.get("incident_id") or "",
-                    "name": row.get("name") or "",
-                    "coordinates_json": row.get("coordinates_json") or "",
-                    "severity": row.get("severity") or "",
+                    "name": row.get("label") or "",
+                    "coordinates_json": row.get("geometry_wkt") or "",
+                    "geometry_wkt": row.get("geometry_wkt") or "",
+                    "feature_subtype": row.get("feature_subtype") or "",
+                    "severity": row.get("feature_subtype") or row.get("status") or "",
                     "description": row.get("description") or "",
                     "created_at": row.get("created_at") or "",
                     "updated_at": row.get("updated_at") or "",
@@ -1202,13 +1204,15 @@ class FormDataContext:
             return empty
 
     def _build_weather(self, inc_id: str | None) -> dict[str, Any]:
+        empty = {"conditions": "", "summary": "", "alerts": "", "current": {}, "forecast": {}}
         if not inc_id:
-            return build_weather_form_payload({})
+            return empty
         try:
-            config = _get(f"/api/incidents/{inc_id}/weather") or {}
+            from modules.intel.weather.services.weather_manager import get_weather_manager
+
+            return build_weather_form_payload(get_weather_manager(inc_id))
         except Exception:
-            config = {}
-        return build_weather_form_payload(config)
+            return empty
 
     def _build_iwi_reports(self, inc_id: str | None) -> list[dict[str, Any]]:
         if not inc_id:

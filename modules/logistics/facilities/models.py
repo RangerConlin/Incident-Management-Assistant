@@ -8,6 +8,7 @@ FACILITY_TYPES: tuple[str, ...] = (
     "command_post",
     "staging",
     "base",
+    "airport",
     "helibase",
     "helispot",
     "medical",
@@ -35,6 +36,7 @@ class FacilityRecord:
     latitude: float | None = None
     longitude: float | None = None
     geocoded_address: str = ""
+    icao_code: str = ""
     manager_personnel_id: str = ""
     manager_name: str = ""
     contact_name: str = ""
@@ -62,6 +64,7 @@ class FacilityRecord:
             latitude=data.get("latitude"),
             longitude=data.get("longitude"),
             geocoded_address=str(data.get("geocoded_address") or ""),
+            icao_code=str(data.get("icao_code") or ""),
             manager_personnel_id=str(data.get("manager_personnel_id") or ""),
             manager_name=str(data.get("manager_name") or ""),
             contact_name=str(data.get("contact_name") or ""),
@@ -84,6 +87,7 @@ class FacilityRecord:
             "latitude": self.latitude,
             "longitude": self.longitude,
             "geocoded_address": self.geocoded_address,
+            "icao_code": self.icao_code,
             "manager_personnel_id": self.manager_personnel_id,
             "manager_name": self.manager_name,
             "contact_name": self.contact_name,

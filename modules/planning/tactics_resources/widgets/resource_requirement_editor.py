@@ -8,6 +8,7 @@ resources assigned to that requirement below it.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -29,6 +31,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QHeaderView,
 )
 
 from modules.planning.tactics_resources.data.resource_gap_service import ResourceGapService
@@ -56,6 +59,21 @@ class ResourceRequirementEditor(QWidget):
 
     changed = Signal()
 
+    _REQ_COLUMN_WIDTHS = {
+        0: 210,
+        1: 180,
+        2: 86,
+        3: 54,
+        4: 58,
+        5: 54,
+        6: 48,
+    }
+    _ASSIGN_COLUMN_WIDTHS = {
+        0: 96,
+        2: 120,
+        3: 140,
+    }
+
     def __init__(
         self,
         work_assignment_id: int,
@@ -78,46 +96,61 @@ class ResourceRequirementEditor(QWidget):
         top_widget = QWidget()
         top_layout = QVBoxLayout(top_widget)
         top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(8)
 
-        # Toolbar
-        btn_bar = QHBoxLayout()
+        header = QHBoxLayout()
+        title = QLabel("RESOURCE REQUIREMENTS")
+        title.setStyleSheet(
+            f"color:{get_palette().get('fg_muted').name()}; font-weight:700;"
+        )
+        self._summary_label = QLabel("")
+        self._summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
         self._add_btn = QPushButton("Add Requirement")
+        header.addWidget(title)
+        header.addStretch(1)
+        header.addWidget(self._summary_label)
+        header.addWidget(self._add_btn)
+        top_layout.addLayout(header)
+
         self._edit_btn = QPushButton("Edit")
         self._remove_btn = QPushButton("Remove")
-        self._recalc_btn = QPushButton("Recalculate Gaps")
         self._logistics_btn = QPushButton("Create Logistics Request")
         self._logistics_btn.setToolTip("Create a Logistics Resource Request (ICS-213RR) for the selected requirement.")
-        for btn in (self._add_btn, self._edit_btn, self._remove_btn,
-                    self._recalc_btn, self._logistics_btn):
-            btn_bar.addWidget(btn)
-        btn_bar.addStretch(1)
-        top_layout.addLayout(btn_bar)
 
         # Requirements table
-        req_columns = ["Resource Type", "Capability", "Req.", "Assigned", "Available", "Gap", "Priority", "Notes"]
+        req_columns = ["Resource Type", "Capability", "Priority", "Req.", "Assn.", "Avail.", "Gap", "Notes"]
         self._req_table = QTableWidget(0, len(req_columns))
         self._req_table.setHorizontalHeaderLabels(req_columns)
         apply_statusboard_table_behavior(self._req_table, stretch_last_section=True)
+        self._apply_compact_table_header(self._req_table, self._REQ_COLUMN_WIDTHS)
         self._req_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._req_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._req_table.customContextMenuRequested.connect(self._show_req_context_menu)
         top_layout.addWidget(self._req_table)
         splitter.addWidget(top_widget)
 
         # Bottom: actual assigned resources
-        bottom_group = QGroupBox("Actual Assigned Resources (for selected requirement)")
+        bottom_group = QGroupBox("ASSIGNED RESOURCES")
         bottom_layout = QVBoxLayout(bottom_group)
 
         assign_btn_bar = QHBoxLayout()
+        self._assigned_summary_label = QLabel("")
+        self._assigned_summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
         self._assign_btn = QPushButton("Assign Resource")
         self._remove_assign_btn = QPushButton("Remove Assigned")
-        assign_btn_bar.addWidget(self._assign_btn)
-        assign_btn_bar.addWidget(self._remove_assign_btn)
+        assign_btn_bar.addWidget(self._assigned_summary_label)
         assign_btn_bar.addStretch(1)
+        assign_btn_bar.addWidget(self._assign_btn)
         bottom_layout.addLayout(assign_btn_bar)
 
-        assign_columns = ["Kind", "ID", "Display Name", "Status", "Assigned At", "Released At"]
+        assign_columns = ["Kind", "Name", "Status", "Assigned"]
         self._assign_table = QTableWidget(0, len(assign_columns))
         self._assign_table.setHorizontalHeaderLabels(assign_columns)
-        apply_statusboard_table_behavior(self._assign_table, stretch_last_section=True)
+        apply_statusboard_table_behavior(self._assign_table, stretch_last_section=False)
+        self._apply_compact_table_header(self._assign_table, self._ASSIGN_COLUMN_WIDTHS)
+        self._assign_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._assign_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._assign_table.customContextMenuRequested.connect(self._show_assign_context_menu)
         bottom_layout.addWidget(self._assign_table)
         splitter.addWidget(bottom_group)
 
@@ -127,7 +160,6 @@ class ResourceRequirementEditor(QWidget):
         self._add_btn.clicked.connect(self._add_requirement)
         self._edit_btn.clicked.connect(self._edit_requirement)
         self._remove_btn.clicked.connect(self._remove_requirement)
-        self._recalc_btn.clicked.connect(self._recalculate_gaps)
         self._logistics_btn.clicked.connect(self._create_logistics_request)
         self._assign_btn.clicked.connect(self._assign_resource)
         self._remove_assign_btn.clicked.connect(self._remove_assigned)
@@ -141,7 +173,55 @@ class ResourceRequirementEditor(QWidget):
             self.reload()
 
     # ------------------------------------------------------------------
+    def _apply_compact_table_header(self, table: QTableWidget, widths: dict[int, int]) -> None:
+        header = table.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        header.setMinimumSectionSize(36)
+        header.setStyleSheet(
+            "QHeaderView::section { "
+            f"color:{get_palette().get('fg_muted').name()}; "
+            "font-size:10px; font-weight:700; "
+            "padding:3px 6px; "
+            "}"
+        )
+        for column, width in widths.items():
+            if column < table.columnCount():
+                header.setSectionResizeMode(column, QHeaderView.Interactive)
+                table.setColumnWidth(column, width)
+
+    def _format_table_timestamp(self, value: object) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        normalized = text.replace("T", " ")
+        if normalized.endswith("Z"):
+            normalized = f"{normalized[:-1]}+00:00"
+        try:
+            dt = datetime.fromisoformat(normalized)
+        except ValueError:
+            if "." in normalized:
+                normalized = normalized.split(".", 1)[0]
+            return normalized[:19]
+        return f"{dt:%b} {dt.day}, {dt.year} {dt:%H:%M:%S}"
+
+    def _assigned_resource_name(self, assignment) -> str:
+        kind = str(assignment.resource_kind or "").lower()
+        resource_id = str(assignment.resource_id or "")
+        stored_name = str(assignment.display_name or "").strip()
+        if kind == "vehicle":
+            return resource_id or stored_name
+        if kind == "equipment":
+            if stored_name and resource_id and resource_id not in stored_name:
+                return f"{stored_name} ({resource_id})"
+            return stored_name or resource_id
+        if stored_name:
+            return stored_name
+        return resource_id
+
     def _on_theme_changed(self, _name: str) -> None:
+        self._apply_compact_table_header(self._req_table, self._REQ_COLUMN_WIDTHS)
+        self._apply_compact_table_header(self._assign_table, self._ASSIGN_COLUMN_WIDTHS)
+        self._assign_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.reload()
 
     def reload(self) -> None:
@@ -153,55 +233,105 @@ class ResourceRequirementEditor(QWidget):
             QMessageBox.critical(self, "Resources", f"Failed to load resources:\n{exc}")
             return
         self._req_table.setRowCount(0)
+        total_required = 0
+        total_assigned = 0
+        total_gap = 0
+        current_req_ids: set[int] = set()
         for req in reqs:
             row = self._req_table.rowCount()
             self._req_table.insertRow(row)
+            if req.id is not None:
+                current_req_ids.add(int(req.id))
+            total_required += req.quantity_required
+            total_assigned += req.quantity_assigned
             self._req_table.setItem(row, 0, QTableWidgetItem(req.resource_type_text))
             self._req_table.setItem(row, 1, QTableWidgetItem(req.capability_text))
-            self._req_table.setItem(row, 2, QTableWidgetItem(str(req.quantity_required)))
-            self._req_table.setItem(row, 3, QTableWidgetItem(str(req.quantity_assigned)))
-            self._req_table.setItem(row, 4, QTableWidgetItem(str(req.quantity_available)))
-            gap = max(req.quantity_required - req.quantity_assigned, 0)
-            gap_item = QTableWidgetItem(str(gap))
-            if gap > 0:
-                gap_item.setForeground(get_palette().get("danger"))
-            self._req_table.setItem(row, 5, gap_item)
 
             priority_item = QTableWidgetItem(req.priority)
             priority_brushes = wa_priority_colors().get(req.priority)
             if priority_brushes:
                 priority_item.setBackground(priority_brushes["bg"])
                 priority_item.setForeground(priority_brushes["fg"])
-            self._req_table.setItem(row, 6, priority_item)
+            self._req_table.setItem(row, 2, priority_item)
+            self._req_table.setItem(row, 3, QTableWidgetItem(str(req.quantity_required)))
+            self._req_table.setItem(row, 4, QTableWidgetItem(str(req.quantity_assigned)))
+            self._req_table.setItem(row, 5, QTableWidgetItem(str(req.quantity_available)))
+            gap = max(req.quantity_required - req.quantity_assigned, 0)
+            total_gap += gap
+            gap_item = QTableWidgetItem(str(gap))
+            if gap > 0:
+                gap_item.setForeground(get_palette().get("danger"))
+            self._req_table.setItem(row, 6, gap_item)
             self._req_table.setItem(row, 7, QTableWidgetItem(req.notes))
             # Store the DB id in UserRole
             self._req_table.item(row, 0).setData(Qt.UserRole, req.id)
+        self._summary_label.setText(
+            f"{len(reqs)} requirements | {total_required} required | "
+            f"{total_assigned} assigned | {total_gap} gap"
+        )
+        if self._selected_req_id is not None and self._selected_req_id in current_req_ids:
+            self._reload_assigned(self._selected_req_id)
+        else:
+            self._selected_req_id = None
+            self._assign_table.setRowCount(0)
+            self._assigned_summary_label.setText("Select a requirement to view assigned resources")
 
     def _reload_assigned(self, requirement_id: int) -> None:
         """Reload the actual assigned resources for the selected requirement."""
         self._assign_table.setRowCount(0)
+        self._assigned_summary_label.setText("Loading assigned resources...")
         try:
             repo = WorkAssignmentRepository(self._db_path)
             assigned = repo.list_assigned_resources_for_wa(self._work_assignment_id, requirement_id)
         except Exception:
+            self._assigned_summary_label.setText("Assigned resources unavailable")
             return
+        self._assigned_summary_label.setText(f"{len(assigned)} assigned to selected requirement")
         for a in assigned:
             row = self._assign_table.rowCount()
             self._assign_table.insertRow(row)
             self._assign_table.setItem(row, 0, QTableWidgetItem(a.resource_kind))
-            self._assign_table.setItem(row, 1, QTableWidgetItem(a.resource_id))
-            self._assign_table.setItem(row, 2, QTableWidgetItem(a.display_name))
-            self._assign_table.setItem(row, 3, QTableWidgetItem(a.status))
-            self._assign_table.setItem(row, 4, QTableWidgetItem(a.assigned_at))
-            self._assign_table.setItem(row, 5, QTableWidgetItem(a.released_at))
+            self._assign_table.setItem(row, 1, QTableWidgetItem(self._assigned_resource_name(a)))
+            self._assign_table.setItem(row, 2, QTableWidgetItem(a.status))
+            self._assign_table.setItem(row, 3, QTableWidgetItem(self._format_table_timestamp(a.assigned_at)))
             self._assign_table.item(row, 0).setData(Qt.UserRole, a.id)
+
+    def _show_req_context_menu(self, pos) -> None:
+        item = self._req_table.itemAt(pos)
+        if item is not None:
+            self._req_table.setCurrentCell(item.row(), item.column())
+        if self._req_table.currentRow() < 0:
+            return
+        menu = QMenu(self)
+        menu.addAction("Assign Resource", self._assign_resource)
+        menu.addSeparator()
+        menu.addAction("Edit Requirement", self._edit_requirement)
+        menu.addAction("Remove Requirement", self._remove_requirement)
+        menu.addSeparator()
+        menu.addAction("Create Logistics Request", self._create_logistics_request)
+        menu.exec(self._req_table.viewport().mapToGlobal(pos))
+
+    def _show_assign_context_menu(self, pos) -> None:
+        item = self._assign_table.itemAt(pos)
+        if item is not None:
+            self._assign_table.setCurrentCell(item.row(), item.column())
+        if self._assign_table.currentRow() < 0:
+            return
+        menu = QMenu(self)
+        menu.addAction("Remove Assigned Resource", self._remove_assigned)
+        menu.exec(self._assign_table.viewport().mapToGlobal(pos))
 
     def _current_req_id(self) -> int | None:
         row = self._req_table.currentRow()
         if row < 0:
             return None
         item = self._req_table.item(row, 0)
-        return item.data(Qt.UserRole) if item else None
+        if not item:
+            return None
+        try:
+            return int(item.data(Qt.UserRole))
+        except (TypeError, ValueError):
+            return None
 
     def _on_req_selected(self) -> None:
         req_id = self._current_req_id()
@@ -210,6 +340,7 @@ class ResourceRequirementEditor(QWidget):
             self._reload_assigned(req_id)
         else:
             self._assign_table.setRowCount(0)
+            self._assigned_summary_label.setText("Select a requirement to view assigned resources")
 
     # ------------------------------------------------------------------
 
@@ -249,7 +380,7 @@ class ResourceRequirementEditor(QWidget):
         data = dialog.get_data()
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.update_resource_requirement(req_id, data)
+            repo.update_resource_requirement_for_wa(self._work_assignment_id, req_id, data)
             repo.recalculate_resource_gap(req_id)
         except Exception as exc:
             QMessageBox.critical(self, "Edit Requirement", f"Failed to update:\n{exc}")
@@ -268,10 +399,11 @@ class ResourceRequirementEditor(QWidget):
             return
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.remove_resource_requirement(req_id)
+            repo.remove_resource_requirement_for_wa(self._work_assignment_id, req_id)
         except Exception as exc:
             QMessageBox.critical(self, "Remove", f"Failed to remove:\n{exc}")
             return
+        self._selected_req_id = None
         self.reload()
         self.changed.emit()
 
@@ -332,7 +464,7 @@ class ResourceRequirementEditor(QWidget):
         except Exception as exc:
             QMessageBox.critical(self, "Assign Resource", f"Failed to assign:\n{exc}")
             return
-        self._reload_assigned(req_id)
+        self._selected_req_id = req_id
         self.reload()
         self.changed.emit()
 
@@ -344,7 +476,7 @@ class ResourceRequirementEditor(QWidget):
         if not item:
             return
         assignment_id = item.data(Qt.UserRole)
-        req_id = self._current_req_id()
+        req_id = self._current_req_id() or self._selected_req_id
         if req_id is None:
             return
         if QMessageBox.question(
@@ -357,7 +489,7 @@ class ResourceRequirementEditor(QWidget):
         except Exception as exc:
             QMessageBox.critical(self, "Remove", f"Failed to remove:\n{exc}")
             return
-        self._reload_assigned(req_id)
+        self._selected_req_id = req_id
         self.reload()
         self.changed.emit()
 
@@ -463,6 +595,42 @@ class _AssignResourceDialog(QDialog):
 
     _KINDS = ["personnel", "team", "vehicle", "equipment", "aircraft", "facility", "supply", "other"]
 
+    @staticmethod
+    def _resource_id_for(kind: str, item: dict) -> str:
+        kind = kind.lower()
+        if kind == "vehicle":
+            return str(item.get("vehicle_id") or item.get("id") or item.get("resource_id") or "")
+        if kind == "equipment":
+            return str(
+                item.get("equipment_id")
+                or item.get("id")
+                or item.get("equipment_record")
+                or item.get("record_id")
+                or item.get("serial_number")
+                or item.get("resource_id")
+                or ""
+            )
+        if kind == "aircraft":
+            return str(item.get("aircraft_id") or item.get("id") or item.get("resource_id") or "")
+        return str(item.get("id") or item.get("resource_id") or item.get("record_id") or "")
+
+    @classmethod
+    def _display_name_for(cls, kind: str, item: dict, resource_id: str) -> str:
+        kind = kind.lower()
+        if kind in {"personnel", "person", "team"}:
+            return str(item.get("display_name") or item.get("name") or item.get("callsign") or resource_id)
+        if kind == "aircraft":
+            return str(item.get("callsign") or item.get("tail_number") or resource_id)
+        if kind == "vehicle":
+            return resource_id
+        if kind == "equipment":
+            name = str(item.get("name") or item.get("display_name") or "").strip()
+            equipment_id = resource_id.strip()
+            if name and equipment_id and equipment_id not in name:
+                return f"{name} ({equipment_id})"
+            return name or equipment_id
+        return str(item.get("display_name") or item.get("name") or resource_id)
+
     def __init__(
         self,
         requirement_id: int,
@@ -495,8 +663,8 @@ class _AssignResourceDialog(QDialog):
                 row = self._sugg_table.rowCount()
                 self._sugg_table.insertRow(row)
                 kind = str(s.get("resource_kind") or "")
-                res_id = str(s.get("id") or s.get("resource_id") or "")
-                name = str(s.get("display_name") or s.get("name") or s.get("callsign") or "")
+                res_id = self._resource_id_for(kind, s)
+                name = self._display_name_for(kind, s, res_id)
                 self._sugg_table.setItem(row, 0, QTableWidgetItem(kind))
                 self._sugg_table.setItem(row, 1, QTableWidgetItem(res_id))
                 self._sugg_table.setItem(row, 2, QTableWidgetItem(name))
@@ -518,8 +686,8 @@ class _AssignResourceDialog(QDialog):
         form.addRow("Resource ID *", self._id_edit)
 
         self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("Display name")
-        form.addRow("Display Name", self._name_edit)
+        self._name_edit.setPlaceholderText("Name")
+        form.addRow("Name", self._name_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)

@@ -23,7 +23,7 @@ def _cached_docs(incident_id: str, collection: str) -> Optional[List[dict]]:
 
 
 def _sorted_by_id(docs: List[dict]) -> List[dict]:
-    return sorted(docs, key=lambda d: d.get("id") if d.get("id") is not None else 0)
+    return sorted(docs, key=lambda d: d.get("id") if d.get("id") is not None else d.get("int_id", 0))
 
 
 def register_flagged_callback(cb: Callable[[schemas.SafetyReportRead], None]):
@@ -159,20 +159,40 @@ def create_triage_entry(incident_id: str, data: schemas.TriageEntryCreate) -> sc
 # Hazard Zones
 # ---------------------------------------------------------------------------
 
+def _hazard_zone_from_spatial_feature(row: dict) -> schemas.HazardZoneRead:
+    geometry_wkt = row.get("geometry_wkt") or ""
+    return schemas.HazardZoneRead(
+        id=int(row.get("id") or row.get("int_id") or 0),
+        incident_id=row.get("incident_id"),
+        name=row.get("label") or "",
+        coordinates_json=geometry_wkt,
+        geometry_wkt=geometry_wkt,
+        feature_subtype=row.get("feature_subtype"),
+        severity=row.get("feature_subtype") or row.get("status") or "",
+        description=row.get("description") or "",
+        created_at=row.get("created_at") or "",
+        updated_at=row.get("updated_at") or "",
+    )
+
+
 def list_hazard_zones(incident_id: str) -> List[schemas.HazardZoneRead]:
-    cached = _cached_docs(incident_id, "hazard_zones")
+    cached = _cached_docs(incident_id, "spatial_features")
     if cached is not None:
-        return [schemas.HazardZoneRead(**r) for r in _sorted_by_id(cached)]
+        rows = [
+            row
+            for row in cached
+            if row.get("feature_type") == "hazard_zone"
+            and not bool(row.get("deleted"))
+            and not bool(row.get("is_archived"))
+        ]
+        return [_hazard_zone_from_spatial_feature(r) for r in _sorted_by_id(rows)]
     try:
-        rows = api_client.get(f"/api/incidents/{incident_id}/safety/zones") or []
-        return [schemas.HazardZoneRead(**r) for r in rows]
+        rows = api_client.get(
+            f"/api/incidents/{incident_id}/gis/features/by-type/hazard_zone"
+        ) or []
+        return [_hazard_zone_from_spatial_feature(r) for r in rows]
     except Exception:
         return []
-
-
-def create_hazard_zone(incident_id: str, data: schemas.HazardZoneCreate) -> schemas.HazardZoneRead:
-    row = api_client.post(f"/api/incidents/{incident_id}/safety/zones", json=data.dict())
-    return schemas.HazardZoneRead(**row)
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +303,6 @@ __all__ = [
     "list_triage_entries",
     "create_triage_entry",
     "list_hazard_zones",
-    "create_hazard_zone",
     "build_ics206",
     "list_iwi_reports",
     "get_iwi_report",

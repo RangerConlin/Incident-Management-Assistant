@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from sarapp_db.mongo.client import get_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.services.notification_service import list_notifications
 
 router = APIRouter()
 
@@ -217,16 +218,15 @@ def get_operational_summary(incident_id: str) -> dict:
     if in_progress:
         alerts.append({"message": f"{in_progress} task(s) in progress", "source": "Operations"})
 
-    # Weather advisories are cached on the config doc by the weather module
-    # (see modules/intel/weather/services/api_link.py -> weather_payload.advisories).
-    weather_col = db[IncidentCollections.WEATHER_DATA]
-    weather_cfg = weather_col.find_one({"key": "config"}, projection={"weather_payload.advisories": 1})
-    advisories = ((weather_cfg or {}).get("weather_payload") or {}).get("advisories") or []
-    if len(advisories) == 1:
-        event = advisories[0].get("event") or "advisory"
+    # Weather advisories are emitted as notifications by the weather module
+    # (see modules/intel/weather/services/weather_manager.py), source_type="weather_alert".
+    advisories = list_notifications(incident_id, source_type="weather_alert", unread_only=False)
+    active_advisories = [a for a in advisories if not a.get("dismissed_at")]
+    if len(active_advisories) == 1:
+        event = active_advisories[0].get("title") or "advisory"
         alerts.append({"message": f"Weather advisory active: {event}", "source": "Weather"})
-    elif advisories:
-        alerts.append({"message": f"{len(advisories)} weather advisories active", "source": "Weather"})
+    elif active_advisories:
+        alerts.append({"message": f"{len(active_advisories)} weather advisories active", "source": "Weather"})
 
     return {
         "teams": team_counts,

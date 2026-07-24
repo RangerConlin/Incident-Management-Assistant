@@ -135,7 +135,6 @@ class IncidentCollections:
     SAFETY_REPORTS = "safety_reports"
     MEDICAL_INCIDENTS = "medical_incidents"
     TRIAGE_ENTRIES = "triage_entries"
-    HAZARD_ZONES = "hazard_zones"
     ICS_206_BUILDS = "ics_206_builds"
 
     # Radio channels assigned to this incident (subset/override of master radio_channels)
@@ -228,7 +227,9 @@ class IncidentCollections:
     FINANCE_EXPENSES = "finance_expenses"
     FINANCE_APPROVALS = "finance_approvals"
     FINANCE_ATTACHMENTS = "finance_attachments"
-    WEATHER_DATA = "weather_data"
+    WEATHER_DATA = "weather_data"  # legacy — location-codes cache only; see WEATHER_CONFIG/WEATHER_HISTORY
+    WEATHER_CONFIG = "weather_config"
+    WEATHER_HISTORY = "weather_history"
 
     # IAP packages (forms embedded as array within each package document)
     IAP_PACKAGES = "iap_packages"

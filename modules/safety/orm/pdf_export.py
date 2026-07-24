@@ -37,7 +37,7 @@ def build_pdf(*, hazards: Sequence[Hazard], incident_name: str | None = None) ->
     table_header = ["#", "Title", "Category", "Initial SPE", "Residual SPE", "Control Measure"]
     table_data = [table_header]
     for idx, hazard in enumerate(hazards, start=1):
-        initial = f"{hazard.spe_initial.score} ({hazard.spe_initial.band})" if hazard.spe_initial else "—"
+        initial = f"{hazard.default_spe.score} ({hazard.default_spe.band})" if hazard.default_spe else "—"
         residual = f"{hazard.spe_residual.score} ({hazard.spe_residual.band})" if hazard.spe_residual else "—"
         table_data.append(
             [

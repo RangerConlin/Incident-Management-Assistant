@@ -89,23 +89,21 @@ class TriageEntryRead(TriageEntryBase):
 
 
 # ----------------------------------------------------------------------------
-# Hazard Zone
+# Hazard Zone spatial feature view
 # ----------------------------------------------------------------------------
 
 
-class HazardZoneBase(BaseModel):
+class HazardZoneRead(BaseModel):
+    id: int
+    incident_id: Optional[str] = None
     name: Optional[str] = None
     coordinates_json: Optional[str] = None
+    geometry_wkt: Optional[str] = None
+    feature_subtype: Optional[str] = None
     severity: Optional[str] = None
     description: Optional[str] = None
-
-
-class HazardZoneCreate(HazardZoneBase):
-    pass
-
-
-class HazardZoneRead(HazardZoneBase):
-    id: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

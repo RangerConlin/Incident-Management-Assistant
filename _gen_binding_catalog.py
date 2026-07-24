@@ -808,6 +808,8 @@ HAZARD_ZONE_FIELDS = [
     ("incident_id", "Incident ID"),
     ("name", "Name"),
     ("coordinates_json", "Coordinates JSON"),
+    ("geometry_wkt", "Geometry WKT"),
+    ("feature_subtype", "Feature Subtype"),
     ("severity", "Severity"),
     ("description", "Description"),
     ("created_at", "Created At"),
@@ -821,7 +823,7 @@ for i in range(20):
             "label": f"Hazard Zone {i+1} ({ord_}) — {label}",
             "category": "Hazard Zones",
             "source_type": "incident_db",
-            "table": "hazard_zones",
+            "table": "spatial_features",
             "column": col,
             "index": i,
         })

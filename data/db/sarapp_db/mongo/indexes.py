@@ -121,7 +121,7 @@ def _create_hazards_indexes(incident_db: Database) -> None:
     _ensure_index(hazards, [("team_ids", ASCENDING)])
     _ensure_index(hazards, [("work_assignment_ids", ASCENDING)])
     _ensure_index(hazards, [("hazard_zone_ids", ASCENDING)])
-    _ensure_index(hazards, [("spe_initial.band", ASCENDING)])
+    _ensure_index(hazards, [("default_spe.band", ASCENDING)])
     _ensure_index(hazards, [("spe_residual.band", ASCENDING)])
     _ensure_index(hazards, [("deleted", ASCENDING)])
 
@@ -170,7 +170,6 @@ def _create_safety_indexes(incident_db: Database) -> None:
         IncidentCollections.SAFETY_REPORTS,
         IncidentCollections.MEDICAL_INCIDENTS,
         IncidentCollections.TRIAGE_ENTRIES,
-        IncidentCollections.HAZARD_ZONES,
         IncidentCollections.ICS_206_BUILDS,
     ):
         col = incident_db[name]
@@ -334,6 +333,12 @@ def _create_weather_indexes(incident_db: Database) -> None:
     weather = incident_db[IncidentCollections.WEATHER_DATA]
     _ensure_index(weather, [("incident_id", ASCENDING)])
     _ensure_index(weather, [("key", ASCENDING)])
+
+    config = incident_db[IncidentCollections.WEATHER_CONFIG]
+    _ensure_index(config, [("incident_id", ASCENDING)])
+
+    history = incident_db[IncidentCollections.WEATHER_HISTORY]
+    _ensure_index(history, [("incident_id", ASCENDING), ("location_id", ASCENDING), ("recorded_at", DESCENDING)])
 
 
 def _create_facilities_indexes(incident_db: Database) -> None:

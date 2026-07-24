@@ -1,66 +1,78 @@
 """
 HazardAnalysisEditor
 ====================
-Tab widget for managing hazards on a Work Assignment (ICS 215A style).
+ICS 215A-style hazard view for one Work Assignment.
 
-Users can add library hazards (via HazardTypeSearchBox) or free-type new ones.
-Applies default hazards from resource types using HazardPrefillService.
+This widget does not own a separate hazard store. It shows canonical incident
+hazards filtered by their work-assignment link and opens the reusable Incident
+Hazard Detail Window for create/edit.
 """
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
     QDialog,
-    QDialogButtonBox,
-    QFormLayout,
+    QFrame,
     QHBoxLayout,
-    QLineEdit,
+    QLabel,
+    QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
-    QTableWidget,
-    QTableWidgetItem,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from modules.planning.tactics_resources.data.hazard_prefill_service import HazardPrefillService
-from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
-from modules.planning.tactics_resources.models.work_assignment_models import WorkAssignmentHazard
-from utils.table_view_styles import apply_statusboard_table_behavior
+from modules.safety.orm import service as hazard_service
+from modules.safety.orm.models import Hazard
+from modules.safety.orm.ui.incident_hazard_detail_window import IncidentHazardDetailWindow
 from utils.styles import get_palette, subscribe_theme
 
-# Risk level -> semantic palette token. "Unknown" is left uncolored.
-_RISK_PALETTE_TOKEN = {
-    "Low": "success",
-    "Medium": "warning",
+_SPE_PALETTE_TOKEN = {
+    "Slight": "success",
+    "Possible": "warning",
+    "Substantial": "warning",
     "High": "danger",
-    "Extreme": "danger",
+    "Very High": "danger",
 }
 
-# Try to import the HazardTypeSearchBox — degrade gracefully if unavailable
-try:
-    from modules.admin.hazard_types.widgets.hazard_type_search_box import HazardTypeSearchBox
-    _HAS_HAZARD_SEARCH = True
-except ImportError:
-    _HAS_HAZARD_SEARCH = False
 
-_RISK_VALUES = ["Unknown", "Low", "Medium", "High", "Extreme"]
-_LIKELIHOOD_VALUES = ["Unknown", "Unlikely", "Possible", "Likely", "Almost Certain"]
-_SEVERITY_VALUES = ["Unknown", "Negligible", "Marginal", "Critical", "Catastrophic"]
+def _incident_id() -> str | None:
+    try:
+        from utils.incident_context import get_active_incident_id
+
+        value = get_active_incident_id()
+    except Exception:
+        value = None
+    return str(value) if value else None
+
+
+def _join_ids(values: list[int]) -> str:
+    return ", ".join(str(value) for value in values) if values else ""
+
+
+def _spe_text(assessment) -> str:
+    if not assessment:
+        return "Not assessed"
+    return f"{assessment.score} - {assessment.band}"
+
+
+def _spe_band(assessment) -> str:
+    if not assessment:
+        return "Not assessed"
+    return assessment.band or "Not assessed"
 
 
 class HazardAnalysisEditor(QWidget):
     """
-    Displays and edits the hazard analysis for one Work Assignment.
+    Displays incident hazards linked to one Work Assignment.
 
     Signals:
-        changed() — emitted after any add/update/remove/resolve operation.
+        changed() - emitted after any add/update/unlink operation.
     """
 
     changed = Signal()
@@ -72,47 +84,37 @@ class HazardAnalysisEditor(QWidget):
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
-        self._work_assignment_id = work_assignment_id
+        self._work_assignment_id = int(work_assignment_id)
         self._db_path = db_path
-        self._prefill_service = HazardPrefillService()
+        self._hazards: list[Hazard] = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
-        # Toolbar
         btn_bar = QHBoxLayout()
+        self._summary_label = QLabel("")
+        self._summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
         self._add_btn = QPushButton("Add Hazard")
-        self._edit_btn = QPushButton("Edit")
-        self._remove_btn = QPushButton("Remove")
-        self._apply_btn = QPushButton("Apply Default Hazards")
-        self._apply_btn.setToolTip("Adds default hazards from this assignment's resource types.")
-        self._resolve_btn = QPushButton("Mark Resolved / Reopen")
-        for btn in (self._add_btn, self._edit_btn, self._remove_btn,
-                    self._apply_btn, self._resolve_btn):
-            btn_bar.addWidget(btn)
+        btn_bar.addWidget(self._summary_label)
         btn_bar.addStretch(1)
+        btn_bar.addWidget(self._add_btn)
         layout.addLayout(btn_bar)
 
-        # Hazard table
-        columns = [
-            "Hazard", "Category", "Risk", "Likelihood", "Severity",
-            "Control Measure", "Mitigation", "PPE", "Resolved", "Source", "Notes",
-        ]
-        self._table = QTableWidget(0, len(columns))
-        self._table.setHorizontalHeaderLabels(columns)
-        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
-        self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(self._table)
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        self._card_container = QWidget()
+        self._card_layout = QVBoxLayout(self._card_container)
+        self._card_layout.setContentsMargins(0, 0, 0, 0)
+        self._card_layout.setSpacing(8)
+        self._card_layout.addStretch(1)
+        self._scroll.setWidget(self._card_container)
+        layout.addWidget(self._scroll, 1)
 
         self._add_btn.clicked.connect(self._add_hazard)
-        self._edit_btn.clicked.connect(self._edit_hazard)
-        self._remove_btn.clicked.connect(self._remove_hazard)
-        self._apply_btn.clicked.connect(self._apply_default_hazards)
-        self._resolve_btn.clicked.connect(self._toggle_resolved)
 
         try:
-            # subscribe_theme invokes the callback immediately with the
-            # current theme, so this also performs the initial reload().
             subscribe_theme(self, self._on_theme_changed)
         except Exception:
             self.reload()
@@ -120,267 +122,174 @@ class HazardAnalysisEditor(QWidget):
     def _on_theme_changed(self, _name: str) -> None:
         self.reload()
 
-    # ------------------------------------------------------------------
     def reload(self) -> None:
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            hazards = repo.list_hazards(self._work_assignment_id)
-        except Exception as exc:
-            QMessageBox.critical(self, "Hazards", f"Failed to load hazards:\n{exc}")
+        incident_id = _incident_id()
+        if not incident_id:
+            self._hazards = []
+            self._refresh_cards()
             return
-        self._table.setRowCount(0)
-        for h in hazards:
-            self._populate_row(h)
+        try:
+            self._hazards = hazard_service.list_hazards(
+                incident_id,
+                work_assignment_id=self._work_assignment_id,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "ICS 215A Hazards", f"Failed to load hazards:\n{exc}")
+            return
+        self._refresh_cards()
 
-    def _populate_row(self, h: WorkAssignmentHazard) -> None:
-        row = self._table.rowCount()
-        self._table.insertRow(row)
-        self._table.setItem(row, 0, QTableWidgetItem(h.hazard_type_text))
-        self._table.setItem(row, 1, QTableWidgetItem(h.category))
+    def _refresh_cards(self) -> None:
+        while self._card_layout.count() > 1:
+            item = self._card_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        high_count = sum(1 for hazard in self._hazards if _spe_band(hazard.default_spe) in ("High", "Very High"))
+        mitigated_count = sum(1 for hazard in self._hazards if _spe_band(hazard.spe_residual) in ("Slight", "Possible"))
+        self._summary_label.setText(
+            f"{len(self._hazards)} linked hazards | {high_count} high risk | {mitigated_count} mitigated"
+        )
+        if not self._hazards:
+            empty = QLabel("No hazards linked to this strategy.")
+            empty.setAlignment(Qt.AlignCenter)
+            empty.setStyleSheet(f"color:{get_palette().get('fg_muted').name()}; padding:24px;")
+            self._card_layout.insertWidget(0, empty)
+            return
+        for hazard in self._hazards:
+            self._card_layout.insertWidget(self._card_layout.count() - 1, self._build_card(hazard))
 
-        risk_item = QTableWidgetItem(h.risk_level)
-        token = _RISK_PALETTE_TOKEN.get(h.risk_level)
-        if token:
-            risk_item.setForeground(get_palette().get(token))
-        self._table.setItem(row, 2, risk_item)
+    def _build_card(self, hazard: Hazard) -> QFrame:
+        card = QFrame(self._card_container)
+        card.setFrameShape(QFrame.StyledPanel)
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card.setContextMenuPolicy(Qt.CustomContextMenu)
+        card.customContextMenuRequested.connect(lambda pos, h=hazard, c=card: self._show_hazard_context_menu(h, c, pos))
+        card.mouseDoubleClickEvent = lambda _event, h=hazard: self._edit_hazard(h)  # type: ignore[method-assign]
 
-        self._table.setItem(row, 3, QTableWidgetItem(h.likelihood))
-        self._table.setItem(row, 4, QTableWidgetItem(h.severity))
-        self._table.setItem(row, 5, QTableWidgetItem(h.control_measure))
-        self._table.setItem(row, 6, QTableWidgetItem(h.mitigation_text))
-        self._table.setItem(row, 7, QTableWidgetItem(h.ppe_text))
-        resolved_text = "Yes" if h.is_resolved else "No"
-        resolved_item = QTableWidgetItem(resolved_text)
-        if not h.is_resolved:
-            resolved_item.setForeground(get_palette().get("danger"))
-        else:
-            resolved_item.setForeground(get_palette().get("success"))
-        self._table.setItem(row, 8, resolved_item)
-        self._table.setItem(row, 9, QTableWidgetItem(h.source))
-        self._table.setItem(row, 10, QTableWidgetItem(h.notes))
-        self._table.item(row, 0).setData(Qt.UserRole, h.id)
+        initial_band = _spe_band(hazard.default_spe)
+        token = _SPE_PALETTE_TOKEN.get(initial_band, "ctrl_border")
+        border = get_palette().get(token, get_palette().get("ctrl_border")).name()
+        card.setStyleSheet(
+            "QFrame { "
+            f"background:{get_palette().get('bg_raised').name()}; "
+            f"border:1px solid {get_palette().get('ctrl_border').name()}; "
+            f"border-left:4px solid {border}; "
+            "border-radius:6px; "
+            "}"
+        )
 
-    def _current_hazard_id(self) -> int | None:
-        row = self._table.currentRow()
-        if row < 0:
-            return None
-        item = self._table.item(row, 0)
-        return item.data(Qt.UserRole) if item else None
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(6)
+        header = QHBoxLayout()
+        title = QLabel(hazard.title)
+        title.setStyleSheet("font-weight:700;")
+        header.addWidget(title, 1)
+        badge = QLabel(initial_band)
+        badge.setAlignment(Qt.AlignCenter)
+        badge.setStyleSheet(
+            f"background:{border}; color:{get_palette().get('fg').name()}; "
+            "padding:2px 8px; border-radius:4px; font-weight:700;"
+        )
+        header.addWidget(badge)
+        layout.addLayout(header)
 
-    # ------------------------------------------------------------------
+        detail_bits = [part for part in (hazard.category, f"Initial SPE: {_spe_text(hazard.default_spe)}", f"Residual SPE: {_spe_text(hazard.spe_residual)}") if part]
+        detail = QLabel(" | ".join(detail_bits))
+        detail.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
+        layout.addWidget(detail)
+
+        if hazard.control_measure:
+            layout.addWidget(QLabel(f"<b>Control measure:</b> {hazard.control_measure}"))
+        if hazard.mitigation_text:
+            layout.addWidget(QLabel(f"<b>Mitigation:</b> {hazard.mitigation_text}"))
+        if hazard.ppe_text:
+            layout.addWidget(QLabel(f"<b>PPE:</b> {hazard.ppe_text}"))
+        if hazard.safety_message:
+            layout.addWidget(QLabel(f"<b>Safety message:</b> {hazard.safety_message}"))
+        return card
+
+    def _show_hazard_context_menu(self, hazard: Hazard, card: QFrame, pos) -> None:
+        menu = QMenu(self)
+        menu.addAction("Open Detail", lambda: self._edit_hazard(hazard))
+        menu.addAction("Unlink From Strategy", lambda: self._unlink_hazard(hazard))
+        menu.exec(card.mapToGlobal(pos))
 
     def _add_hazard(self) -> None:
-        dialog = _HazardDialog(prefill_service=self._prefill_service, parent=self)
-        if dialog.exec() != QDialog.Accepted:
+        incident_id = _incident_id()
+        if not incident_id:
+            QMessageBox.information(self, "ICS 215A Hazards", "Select an incident first.")
             return
-        data = dialog.get_data()
-        if not data.get("hazard_type_text"):
-            QMessageBox.warning(self, "Add Hazard", "Hazard text is required.")
+        dialog = IncidentHazardDetailWindow(
+            incident_id,
+            self,
+            default_work_assignment_id=self._work_assignment_id,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
+        payload = dialog.result_payload()
+        if not payload:
+            return
+        links = payload.setdefault("links", {})
+        work_assignment_ids = list(links.get("work_assignment_ids") or [])
+        if self._work_assignment_id not in work_assignment_ids:
+            work_assignment_ids.append(self._work_assignment_id)
+        links["work_assignment_ids"] = work_assignment_ids
         try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.add_hazard(self._work_assignment_id, data)
+            hazard_service.create_hazard(incident_id, payload)
         except Exception as exc:
             QMessageBox.critical(self, "Add Hazard", f"Failed to add hazard:\n{exc}")
             return
         self.reload()
         self.changed.emit()
 
-    def _edit_hazard(self) -> None:
-        hazard_id = self._current_hazard_id()
-        if hazard_id is None:
-            QMessageBox.information(self, "Edit", "Select a hazard first.")
+    def _edit_hazard(self, hazard: Hazard | None = None) -> None:
+        incident_id = _incident_id()
+        if hazard is None:
             return
+        if not incident_id:
+            return
+        dialog = IncidentHazardDetailWindow(incident_id, self, hazard=asdict(hazard))
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        payload = dialog.result_payload()
+        if not payload:
+            return
+        links = payload.setdefault("links", {})
+        work_assignment_ids = list(links.get("work_assignment_ids") or [])
+        if self._work_assignment_id not in work_assignment_ids:
+            work_assignment_ids.append(self._work_assignment_id)
+        links["work_assignment_ids"] = work_assignment_ids
         try:
-            repo = WorkAssignmentRepository(self._db_path)
-            hazards = repo.list_hazards(self._work_assignment_id)
-            hazard = next((h for h in hazards if h.id == hazard_id), None)
-        except Exception:
-            hazard = None
-        if not hazard:
-            return
-        dialog = _HazardDialog(existing=hazard, prefill_service=self._prefill_service, parent=self)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        data = dialog.get_data()
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.update_hazard(hazard_id, data)
+            hazard_service.update_hazard(incident_id, hazard.id, payload)
         except Exception as exc:
-            QMessageBox.critical(self, "Edit Hazard", f"Failed to update:\n{exc}")
+            QMessageBox.critical(self, "Incident Hazard Detail", f"Failed to update hazard:\n{exc}")
             return
         self.reload()
         self.changed.emit()
 
-    def _remove_hazard(self) -> None:
-        hazard_id = self._current_hazard_id()
-        if hazard_id is None:
-            QMessageBox.information(self, "Remove", "Select a hazard first.")
+    def _unlink_hazard(self, hazard: Hazard | None = None) -> None:
+        incident_id = _incident_id()
+        if hazard is None:
             return
-        if QMessageBox.question(self, "Remove Hazard", "Remove this hazard?") != QMessageBox.Yes:
+        if not incident_id:
             return
+        if (
+            QMessageBox.question(
+                self,
+                "Unlink Hazard",
+                "Unlink this hazard from the strategy? The hazard will remain in the incident register.",
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+        links = asdict(hazard.links)
+        links["work_assignment_ids"] = [
+            value for value in links.get("work_assignment_ids", []) if int(value) != self._work_assignment_id
+        ]
         try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.remove_hazard(hazard_id)
+            hazard_service.update_hazard(incident_id, hazard.id, {"links": links})
         except Exception as exc:
-            QMessageBox.critical(self, "Remove", f"Failed to remove:\n{exc}")
+            QMessageBox.critical(self, "Unlink Hazard", f"Failed to unlink hazard:\n{exc}")
             return
         self.reload()
         self.changed.emit()
-
-    def _apply_default_hazards(self) -> None:
-        try:
-            added, skipped = self._prefill_service.apply_default_hazards(self._work_assignment_id)
-        except Exception as exc:
-            QMessageBox.critical(self, "Apply Defaults", f"Failed to apply defaults:\n{exc}")
-            return
-        self.reload()
-        self.changed.emit()
-        QMessageBox.information(
-            self,
-            "Default Hazards",
-            f"Added {added} hazard(s). Skipped {skipped} (already present or unavailable).",
-        )
-
-    def _toggle_resolved(self) -> None:
-        hazard_id = self._current_hazard_id()
-        if hazard_id is None:
-            QMessageBox.information(self, "Resolve", "Select a hazard first.")
-            return
-        row = self._table.currentRow()
-        currently_resolved = self._table.item(row, 8).text() == "Yes" if row >= 0 else False
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.mark_hazard_resolved(hazard_id, not currently_resolved)
-        except Exception as exc:
-            QMessageBox.critical(self, "Resolve", f"Failed to update:\n{exc}")
-            return
-        self.reload()
-        self.changed.emit()
-
-
-# ---------------------------------------------------------------------------
-# Add/Edit hazard dialog
-# ---------------------------------------------------------------------------
-
-class _HazardDialog(QDialog):
-    """Dialog for adding or editing a single hazard entry."""
-
-    def __init__(
-        self,
-        existing: WorkAssignmentHazard | None = None,
-        prefill_service: HazardPrefillService | None = None,
-        parent: Optional[QWidget] = None,
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Hazard")
-        self.setModal(True)
-        self.setMinimumWidth(520)
-        self._hazard_type_id: int | None = None
-        self._prefill_service = prefill_service
-
-        layout = QVBoxLayout(self)
-        form = QFormLayout()
-        layout.addLayout(form)
-
-        # Hazard type — smart search or plain text
-        if _HAS_HAZARD_SEARCH:
-            self._hazard_search = HazardTypeSearchBox()
-            self._hazard_search.hazardTypeSelected.connect(self._on_hazard_selected)
-            form.addRow("Hazard *", self._hazard_search)
-        else:
-            self._hazard_search = None
-            self._hazard_text = QLineEdit()
-            self._hazard_text.setPlaceholderText("Hazard name (required)")
-            form.addRow("Hazard *", self._hazard_text)
-
-        self._category_edit = QLineEdit()
-        form.addRow("Category", self._category_edit)
-
-        self._risk_combo = QComboBox()
-        self._risk_combo.addItems(_RISK_VALUES)
-        form.addRow("Risk Level", self._risk_combo)
-
-        self._likelihood_combo = QComboBox()
-        self._likelihood_combo.addItems(_LIKELIHOOD_VALUES)
-        form.addRow("Likelihood", self._likelihood_combo)
-
-        self._severity_combo = QComboBox()
-        self._severity_combo.addItems(_SEVERITY_VALUES)
-        form.addRow("Severity", self._severity_combo)
-
-        self._control_edit = QLineEdit()
-        form.addRow("Control Measure", self._control_edit)
-
-        self._mitigation_edit = QTextEdit()
-        self._mitigation_edit.setFixedHeight(60)
-        form.addRow("Mitigation", self._mitigation_edit)
-
-        self._ppe_edit = QLineEdit()
-        form.addRow("PPE Required", self._ppe_edit)
-
-        self._safety_msg_edit = QLineEdit()
-        form.addRow("Safety Message", self._safety_msg_edit)
-
-        self._notes_edit = QLineEdit()
-        form.addRow("Notes", self._notes_edit)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-        if existing:
-            self._populate(existing)
-
-    def _on_hazard_selected(self, hazard_type_id, hazard_type_text: str) -> None:
-        """Auto-fill fields from the library when a hazard type is selected."""
-        self._hazard_type_id = hazard_type_id
-        if hazard_type_id and self._prefill_service:
-            data = self._prefill_service.build_hazard_from_hazard_type(int(hazard_type_id))
-            if data:
-                self._category_edit.setText(data.get("category", ""))
-                self._risk_combo.setCurrentText(data.get("risk_level", "Unknown"))
-                self._likelihood_combo.setCurrentText(data.get("likelihood", "Unknown"))
-                self._severity_combo.setCurrentText(data.get("severity", "Unknown"))
-                self._control_edit.setText(data.get("control_measure", ""))
-                self._mitigation_edit.setPlainText(data.get("mitigation_text", ""))
-                self._ppe_edit.setText(data.get("ppe_text", ""))
-                self._safety_msg_edit.setText(data.get("safety_message", ""))
-
-    def _populate(self, h: WorkAssignmentHazard) -> None:
-        self._hazard_type_id = h.hazard_type_id
-        if _HAS_HAZARD_SEARCH and self._hazard_search:
-            self._hazard_search.set_value(h.hazard_type_id, h.hazard_type_text)
-        elif hasattr(self, "_hazard_text"):
-            self._hazard_text.setText(h.hazard_type_text)
-        self._category_edit.setText(h.category)
-        self._risk_combo.setCurrentText(h.risk_level)
-        self._likelihood_combo.setCurrentText(h.likelihood)
-        self._severity_combo.setCurrentText(h.severity)
-        self._control_edit.setText(h.control_measure)
-        self._mitigation_edit.setPlainText(h.mitigation_text)
-        self._ppe_edit.setText(h.ppe_text)
-        self._safety_msg_edit.setText(h.safety_message)
-        self._notes_edit.setText(h.notes)
-
-    def get_data(self) -> dict:
-        if _HAS_HAZARD_SEARCH and self._hazard_search:
-            text = self._hazard_search.hazard_type_text or ""
-            htid = self._hazard_search.hazard_type_id
-        else:
-            text = self._hazard_text.text().strip() if hasattr(self, "_hazard_text") else ""
-            htid = self._hazard_type_id
-        return {
-            "hazard_type_id": htid,
-            "hazard_type_text": text,
-            "category": self._category_edit.text().strip(),
-            "risk_level": self._risk_combo.currentText(),
-            "likelihood": self._likelihood_combo.currentText(),
-            "severity": self._severity_combo.currentText(),
-            "control_measure": self._control_edit.text().strip(),
-            "mitigation_text": self._mitigation_edit.toPlainText().strip(),
-            "ppe_text": self._ppe_edit.text().strip(),
-            "safety_message": self._safety_msg_edit.text().strip(),
-            "notes": self._notes_edit.text().strip(),
-        }

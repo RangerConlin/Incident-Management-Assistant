@@ -28,6 +28,7 @@ class FacilityPayload(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     geocoded_address: str = ""
+    icao_code: str = ""
     manager_personnel_id: str = ""
     manager_name: str = ""
     contact_name: str = ""
@@ -50,6 +51,7 @@ def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
         "latitude": doc.get("latitude"),
         "longitude": doc.get("longitude"),
         "geocoded_address": str(doc.get("geocoded_address") or ""),
+        "icao_code": str(doc.get("icao_code") or ""),
         "manager_personnel_id": str(doc.get("manager_personnel_id") or ""),
         "manager_name": str(doc.get("manager_name") or ""),
         "contact_name": str(doc.get("contact_name") or ""),

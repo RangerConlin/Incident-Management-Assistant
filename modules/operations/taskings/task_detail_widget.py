@@ -1201,6 +1201,40 @@ class TaskDetailWindow(QWidget):
         assign_widget = self._build_assignment_details_tab()
         tabs.addTab(assign_widget, "Assignment Details")
 
+        safety_content = QWidget(self)
+        safety_layout = QVBoxLayout(safety_content)
+        try:
+            safety_layout.setContentsMargins(6, 6, 6, 6)
+            safety_layout.setSpacing(8)
+        except Exception:
+            pass
+        safety_header = QLabel("Task Safety", safety_content)
+        try:
+            safety_header.setStyleSheet("font-weight: 600; font-size: 14px;")
+        except Exception:
+            pass
+        self._safety_summary_lbl = QLabel(
+            "Task-level safety context and team assessments will appear here.",
+            safety_content,
+        )
+        self._safety_summary_lbl.setWordWrap(True)
+        self._safety_context_lbl = QLabel("", safety_content)
+        self._safety_context_lbl.setWordWrap(True)
+        self._safety_team_summary_lbl = QLabel("", safety_content)
+        self._safety_team_summary_lbl.setWordWrap(True)
+        self._safety_next_steps_lbl = QLabel(
+            "Next steps: add task hazard rollups, weather/context signals, and per-team risk assessments.",
+            safety_content,
+        )
+        self._safety_next_steps_lbl.setWordWrap(True)
+        safety_layout.addWidget(safety_header)
+        safety_layout.addWidget(self._safety_summary_lbl)
+        safety_layout.addWidget(self._safety_context_lbl)
+        safety_layout.addWidget(self._safety_team_summary_lbl)
+        safety_layout.addWidget(self._safety_next_steps_lbl)
+        safety_layout.addStretch(1)
+        tabs.addTab(safety_content, "Safety")
+
         # Communications tab (ICS 205 linkage)
         comms_container = QWidget(self)
         comms_v = QVBoxLayout(comms_container)
@@ -1837,6 +1871,7 @@ class TaskDetailWindow(QWidget):
             "personnel": self.load_personnel,
             "vehicles": self.load_vehicles,
             "assignment details": self.load_assignment,
+            "safety": self._load_safety,
             "communications": self.load_comms,
             "debriefing": self.load_debriefs,
             "attachments/forms": self.load_attachments,
@@ -1885,6 +1920,42 @@ class TaskDetailWindow(QWidget):
         timer.checkpoint("personnel")
         self.load_vehicles()
         timer.finish("vehicles")
+
+    def _load_safety(self) -> None:
+        team_count = 0
+        primary_name = ""
+        try:
+            from modules.operations.taskings.repository import list_task_teams
+
+            teams = list_task_teams(int(self._task_id))
+            team_count = len(teams)
+            primary = next((team for team in teams if getattr(team, "primary", False)), None)
+            if primary is not None:
+                primary_name = str(getattr(primary, "team_name", "") or "").strip()
+        except Exception:
+            pass
+
+        task_id_text = str(self._header_field_cache.get("task_id") or self._task_id).strip()
+        title_text = str(self._header_field_cache.get("title") or "").strip()
+        assignment_text = str(self._header_field_cache.get("assignment") or "").strip()
+
+        summary_parts = [f"Task {task_id_text}"]
+        if title_text:
+            summary_parts.append(title_text)
+        self._safety_summary_lbl.setText(" - ".join(summary_parts))
+
+        context_parts = []
+        if assignment_text:
+            context_parts.append(f"Assignment: {assignment_text}")
+        context_parts.append("Shared safety signals are not connected yet.")
+        context_parts.append("This tab will become the home for hazard, weather, and risk context.")
+        self._safety_context_lbl.setText(" ".join(context_parts))
+
+        team_parts = [f"Assigned teams: {team_count}."]
+        if primary_name:
+            team_parts.append(f"Primary team: {primary_name}.")
+        team_parts.append("Per-team safety assessments will be added here.")
+        self._safety_team_summary_lbl.setText(" ".join(team_parts))
 
     def _apply_status_background(self, status: str | None) -> None:
         try:

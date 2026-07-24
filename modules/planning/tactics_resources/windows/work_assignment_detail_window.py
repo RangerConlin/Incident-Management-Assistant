@@ -13,47 +13,45 @@ Tabs:
 """
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QCloseEvent, QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
-    QFormLayout,
     QFrame,
-    QGroupBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from modules.logistics.facilities.widgets import FacilityPicker
-from modules.planning.tactics_resources.data.hazard_prefill_service import HazardPrefillService
-from modules.planning.tactics_resources.data.resource_gap_service import ResourceGapService
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import (
-    OUTPUT_STATUS_VALUES,
+    ASSIGNMENT_KIND_VALUES,
     OUTPUT_TYPE_VALUES,
     PLANNING_STATUS_VALUES,
+    PRIORITY_VALUES,
     RESOURCE_STATUS_VALUES,
     SAFETY_STATUS_VALUES,
     WorkAssignment,
+)
+from modules.planning.tactics_resources.services.output_export_service import (
+    generate_work_assignment_output,
 )
 from modules.planning.tactics_resources.widgets.hazard_analysis_editor import HazardAnalysisEditor
 from modules.planning.tactics_resources.widgets.linked_agency_requests_panel import LinkedAgencyRequestsPanel
 from modules.planning.tactics_resources.widgets.linked_tasks_panel import LinkedTasksPanel
 from modules.planning.tactics_resources.widgets.resource_requirement_editor import ResourceRequirementEditor
-from utils.table_view_styles import apply_statusboard_table_behavior
 from utils.styles import (
     get_palette,
     resource_status_colors,
@@ -61,6 +59,30 @@ from utils.styles import (
     wa_planning_status_colors,
     wa_safety_status_colors,
 )
+
+
+def _format_display_timestamp(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    normalized = text.replace("T", " ")
+    if normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
+    try:
+        dt = datetime.fromisoformat(normalized)
+    except ValueError:
+        if "." in normalized:
+            normalized = normalized.split(".", 1)[0]
+        return normalized[:19]
+    return f"{dt:%b} {dt.day}, {dt.year} {dt:%H:%M:%S}"
+
+
+def _format_op_time_range(start_time: object, end_time: object) -> str:
+    start = _format_display_timestamp(start_time)
+    end = _format_display_timestamp(end_time)
+    if start and end:
+        return f"{start} - {end}"
+    return start or end
 
 
 class WorkAssignmentDetailWindow(QWidget):
@@ -84,8 +106,10 @@ class WorkAssignmentDetailWindow(QWidget):
         self.setMinimumSize(900, 680)
         self._work_assignment_id = work_assignment_id
         self._db_path = db_path
-        self._gap_service = ResourceGapService(db_path)
-        self._hazard_service = HazardPrefillService()
+        self._description_text = ""
+        self._notes_text = ""
+        self._prepared_by = ""
+        self._approved_by = ""
 
         # Debounce timer — fires 800 ms after the last field change
         self._save_timer = QTimer(self)
@@ -131,35 +155,144 @@ class WorkAssignmentDetailWindow(QWidget):
         self._build_outputs_tab()
         layout.addWidget(self._tabs, 1)
 
-    def _build_header(self) -> QGroupBox:
-        box = QGroupBox("Strategy")
+    def _build_header(self) -> QFrame:
+        box = QFrame(self)
+        box.setFrameShape(QFrame.StyledPanel)
+        box.setAttribute(Qt.WA_StyledBackground, True)
+        box.setStyleSheet(
+            "QFrame { "
+            f"background:{get_palette().get('bg_raised').name()}; "
+            f"border:1px solid {get_palette().get('ctrl_border').name()}; "
+            "border-radius:6px; "
+            "}"
+        )
         outer = QVBoxLayout(box)
-        outer.setSpacing(4)
+        outer.setContentsMargins(16, 14, 16, 14)
+        outer.setSpacing(6)
 
-        # ---- Action button bar (top) ----
-        btn_bar = QHBoxLayout()
-        self._recalc_btn = QPushButton("Recalculate Gaps")
-        self._apply_hazards_btn = QPushButton("Apply Default Hazards")
-        self._create_task_btn = QPushButton("Create Operations Task")
-        self._link_task_btn = QPushButton("Link Existing Task")
-        for btn in (self._recalc_btn, self._apply_hazards_btn,
-                    self._create_task_btn, self._link_task_btn):
-            btn_bar.addWidget(btn)
-        btn_bar.addStretch(1)
-        outer.addLayout(btn_bar)
+        top_row = QHBoxLayout()
+        top_row.setSpacing(8)
+        self._header_number_label = QLabel("New Strategy")
+        self._header_number_label.setStyleSheet(
+            f"color:{get_palette().get('accent').name()}; font-weight:700;"
+        )
+        self._header_op_label = QLabel("")
+        self._header_op_label.setStyleSheet(
+            f"color:{get_palette().get('accent').name()}; font-weight:700;"
+        )
+        top_row.addWidget(self._header_number_label)
+        top_row.addWidget(self._header_op_label)
+        top_row.addStretch(1)
 
-        # ---- Two-column field area ----
-        cols = QHBoxLayout()
-        cols.setSpacing(16)
+        self._planning_chip = QLabel("")
+        self._safety_chip = QLabel("")
+        self._resource_chip = QLabel("")
+        for chip in (self._planning_chip, self._safety_chip, self._resource_chip):
+            top_row.addWidget(chip)
+        outer.addLayout(top_row)
 
-        left_form = QFormLayout()
-        left_form.setLabelAlignment(Qt.AlignRight)
-        left_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        left_form.setSpacing(4)
+        self._header_title_label = QLabel("New Strategy")
+        self._header_title_label.setStyleSheet("font-size:18px; font-weight:700;")
+        outer.addWidget(self._header_title_label)
 
-        self._number_label = QLabel("")
+        self._header_meta_label = QLabel("")
+        self._header_meta_label.setStyleSheet(
+            f"color:{get_palette().get('fg_muted').name()};"
+        )
+        outer.addWidget(self._header_meta_label)
+
+        self._summary_label = QLabel("Resources: - | Gap: - | Hazards: - | Unresolved: - | Tasks: -")
+        self._summary_label.setStyleSheet(
+            f"color:{get_palette().get('fg_muted').name()}; margin-top:4px;"
+        )
+        outer.addWidget(self._summary_label)
+
+        return box
+
+    @staticmethod
+    def _style_chip(label: QLabel, text: str, brushes: dict | None) -> None:
+        label.setText(text)
+        if not brushes:
+            label.setStyleSheet("")
+            return
+        bg = brushes["bg"].color().name()
+        fg = brushes["fg"].color().name()
+        label.setStyleSheet(
+            f"background:{bg}; color:{fg}; padding:2px 8px; border-radius:4px; font-weight:700;"
+        )
+
+    def _refresh_status_chips(self) -> None:
+        planning = (
+            self._planning_status_combo.currentText()
+            if hasattr(self, "_planning_status_combo")
+            else "Draft"
+        )
+        safety = (
+            self._safety_status_combo.currentText()
+            if hasattr(self, "_safety_status_combo")
+            else "Unchecked"
+        )
+        resource = (
+            self._resource_status_combo.currentText()
+            if hasattr(self, "_resource_status_combo")
+            else "Unreviewed"
+        )
+        self._style_chip(self._planning_chip, planning, wa_planning_status_colors().get(planning))
+        self._style_chip(self._safety_chip, safety, wa_safety_status_colors().get(safety))
+        self._style_chip(self._resource_chip, resource, resource_status_colors().get(resource))
+        self._refresh_header()
+
+    def _refresh_header(self) -> None:
+        if not hasattr(self, "_header_title_label") or not hasattr(self, "_name_edit"):
+            return
+        number = self._number_label.text().strip()
+        name = self._name_edit.text().strip()
+        self._header_number_label.setText(number or "New Strategy")
+        op_text = self._op_period_combo.currentText().strip() if hasattr(self, "_op_period_combo") else ""
+        op_text = op_text.split(" (", 1)[0]
+        self._header_op_label.setText(f"OP: {op_text}" if op_text and op_text != "(none)" else "")
+        self._header_title_label.setText(name or "New Strategy")
+
+        meta_parts: list[str] = []
+        branch = self._branch_combo.currentText().strip()
+        division = self._division_combo.currentText().strip()
+        if branch and branch != "(none)" and division and division != "(none)":
+            meta_parts.append(f"{branch} / {division}")
+        elif branch and branch != "(none)":
+            meta_parts.append(branch)
+        elif division and division != "(none)":
+            meta_parts.append(division)
+        location = self._location_picker.facility_text.strip()
+        if location:
+            meta_parts.append(location)
+        prepared = self._prepared_by.strip()
+        approved = self._approved_by.strip()
+        if prepared:
+            meta_parts.append(f"Prepared by {prepared}")
+        if approved:
+            meta_parts.append(f"Approved by {approved}")
+        self._header_meta_label.setText(" | ".join(meta_parts))
+
+    def _build_overview_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(12)
+
+        assignment_title = QLabel("ASSIGNMENT")
+        assignment_title.setStyleSheet(
+            f"color:{get_palette().get('fg_muted').name()}; font-weight:700;"
+        )
+        layout.addWidget(assignment_title)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(8)
+
         self._name_edit = QLineEdit()
         self._name_edit.setPlaceholderText("Strategy name (required)")
+        self._number_label = QLineEdit()
+        self._number_label.setPlaceholderText("Strategy #")
+
         self._objective_combo = QComboBox()
         self._objective_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._load_objectives()
@@ -177,141 +310,94 @@ class WorkAssignmentDetailWindow(QWidget):
         self._location_picker = FacilityPicker(facility_type=None, parent=self)
         self._location_picker.line_edit.setPlaceholderText("Reporting / destination location (optional)")
 
-        self._branch_combo.currentIndexChanged.connect(self._on_branch_changed)
+        self._kind_combo = QComboBox()
+        self._kind_combo.addItems(ASSIGNMENT_KIND_VALUES)
+        self._priority_combo = QComboBox()
+        self._priority_combo.addItems(PRIORITY_VALUES)
 
-        left_form.addRow("Strategy #", self._number_label)
-        left_form.addRow("Name *", self._name_edit)
-        left_form.addRow("Objective", self._objective_combo)
-        left_form.addRow("Oper. Period", self._op_period_combo)
-        left_form.addRow("Branch", self._branch_combo)
-        left_form.addRow("Division / Group", self._division_combo)
-        left_form.addRow("Location", self._location_picker)
+        def _add_field(row: int, col: int, label: str, widget: QWidget, col_span: int = 1) -> None:
+            lbl = QLabel(label.upper())
+            lbl.setStyleSheet(
+                f"color:{get_palette().get('fg_muted').name()}; font-size:11px; font-weight:700;"
+            )
+            grid.addWidget(lbl, row * 2, col)
+            grid.addWidget(widget, row * 2 + 1, col, 1, col_span)
 
-        right_form = QFormLayout()
-        right_form.setLabelAlignment(Qt.AlignRight)
-        right_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        right_form.setSpacing(4)
+        _add_field(0, 0, "Assignment Name", self._name_edit, 2)
+        _add_field(0, 2, "Assignment #", self._number_label)
+        _add_field(1, 0, "Objective", self._objective_combo)
+        _add_field(1, 1, "Branch", self._branch_combo)
+        _add_field(1, 2, "Division / Group", self._division_combo)
+        _add_field(2, 0, "Kind", self._kind_combo)
+        _add_field(2, 1, "Priority", self._priority_combo)
+        _add_field(3, 0, "Location / Facility", self._location_picker, 3)
+
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 1)
+        layout.addLayout(grid)
 
         self._planning_status_combo = QComboBox()
         self._planning_status_combo.addItems(PLANNING_STATUS_VALUES)
-        self._safety_status_combo = QComboBox()
-        self._safety_status_combo.addItems(SAFETY_STATUS_VALUES)
         self._resource_status_combo = QComboBox()
         self._resource_status_combo.addItems(RESOURCE_STATUS_VALUES)
+        self._safety_status_combo = QComboBox()
+        self._safety_status_combo.addItems(SAFETY_STATUS_VALUES)
 
-        right_form.addRow("Planning Status", self._planning_status_combo)
-        right_form.addRow("Safety Status", self._safety_status_combo)
-        right_form.addRow("Resource Status", self._resource_status_combo)
+        narrative_title = QLabel("OVERVIEW")
+        narrative_title.setStyleSheet(
+            f"color:{get_palette().get('fg_muted').name()}; font-weight:700;"
+        )
+        layout.addWidget(narrative_title)
 
-        cols.addLayout(left_form, 3)
-        divider = QFrame()
-        divider.setFrameShape(QFrame.VLine)
-        divider.setFrameShadow(QFrame.Sunken)
-        cols.addWidget(divider)
-        cols.addLayout(right_form, 2)
-        outer.addLayout(cols)
+        narrative_layout = QVBoxLayout()
+        narrative_layout.setSpacing(8)
 
-        # ---- Status chip row ----
-        chip_row = QHBoxLayout()
-        self._planning_chip = QLabel("")
-        self._safety_chip = QLabel("")
-        self._resource_chip = QLabel("")
-        for chip in (self._planning_chip, self._safety_chip, self._resource_chip):
-            chip_row.addWidget(chip)
-        chip_row.addStretch(1)
-        outer.addLayout(chip_row)
+        def _add_text_area(label: str, widget: QPlainTextEdit, placeholder: str, min_height: int) -> None:
+            lbl = QLabel(label.upper())
+            lbl.setStyleSheet(
+                f"color:{get_palette().get('fg_muted').name()}; font-size:11px; font-weight:700;"
+            )
+            widget.setPlaceholderText(placeholder)
+            widget.setMinimumHeight(min_height)
+            narrative_layout.addWidget(lbl)
+            narrative_layout.addWidget(widget)
 
-        # ---- Summary line ----
-        self._summary_label = QLabel("Resources: — | Gap: — | Hazards: — | Unresolved: — | Tasks: —")
-        outer.addWidget(self._summary_label)
+        self._tactics_edit = QPlainTextEdit()
+        _add_text_area("Tactics Summary", self._tactics_edit, "Tactics summary", 84)
 
-        # ---- Wire action buttons ----
-        self._recalc_btn.clicked.connect(self._recalculate)
-        self._apply_hazards_btn.clicked.connect(self._apply_hazards)
-        self._create_task_btn.clicked.connect(self._create_task)
-        self._link_task_btn.clicked.connect(self._link_task)
+        self._instructions_edit = QPlainTextEdit()
+        _add_text_area("Special Instructions", self._instructions_edit, "Special instructions", 84)
 
-        # ---- Wire auto-save on every field change ----
+        # Wire overview fields for auto-save
+        self._branch_combo.currentIndexChanged.connect(self._on_branch_changed)
+        self._number_label.textChanged.connect(self._schedule_save)
+        self._number_label.textChanged.connect(self._refresh_header)
         self._name_edit.textChanged.connect(self._schedule_save)
+        self._name_edit.textChanged.connect(self._refresh_header)
         self._objective_combo.currentIndexChanged.connect(self._schedule_save)
-        self._op_period_combo.currentIndexChanged.connect(self._schedule_save)
+        self._op_period_combo.currentIndexChanged.connect(self._refresh_header)
         self._branch_combo.currentIndexChanged.connect(self._schedule_save)
+        self._branch_combo.currentIndexChanged.connect(self._refresh_header)
         self._division_combo.currentIndexChanged.connect(self._schedule_save)
+        self._division_combo.currentIndexChanged.connect(self._refresh_header)
         self._location_picker.facilitySelected.connect(lambda *_: self._schedule_save())
+        self._location_picker.facilitySelected.connect(lambda *_: self._refresh_header())
         self._location_picker.textChanged.connect(lambda *_: self._schedule_save())
+        self._location_picker.textChanged.connect(lambda *_: self._refresh_header())
+        self._kind_combo.currentIndexChanged.connect(self._schedule_save)
+        self._priority_combo.currentIndexChanged.connect(self._schedule_save)
         self._planning_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._safety_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._resource_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._planning_status_combo.currentIndexChanged.connect(self._refresh_status_chips)
+        self._planning_status_combo.currentIndexChanged.connect(self._refresh_header)
         self._safety_status_combo.currentIndexChanged.connect(self._refresh_status_chips)
         self._resource_status_combo.currentIndexChanged.connect(self._refresh_status_chips)
-
-        return box
-
-    @staticmethod
-    def _style_chip(label: QLabel, text: str, brushes: dict | None) -> None:
-        label.setText(text)
-        if not brushes:
-            label.setStyleSheet("")
-            return
-        bg = brushes["bg"].color().name()
-        fg = brushes["fg"].color().name()
-        label.setStyleSheet(
-            f"background:{bg}; color:{fg}; padding:2px 8px; border-radius:4px; font-weight:700;"
-        )
-
-    def _refresh_status_chips(self) -> None:
-        planning = self._planning_status_combo.currentText()
-        safety = self._safety_status_combo.currentText()
-        resource = self._resource_status_combo.currentText()
-        self._style_chip(self._planning_chip, planning, wa_planning_status_colors().get(planning))
-        self._style_chip(self._safety_chip, safety, wa_safety_status_colors().get(safety))
-        self._style_chip(self._resource_chip, resource, resource_status_colors().get(resource))
-
-    def _build_overview_tab(self) -> None:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-
-        form = QFormLayout()
-        self._description_edit = QPlainTextEdit()
-        self._description_edit.setPlaceholderText("Assignment description")
-        self._description_edit.setFixedHeight(80)
-        form.addRow("Description", self._description_edit)
-
-        self._tactics_edit = QPlainTextEdit()
-        self._tactics_edit.setPlaceholderText("Tactics summary")
-        self._tactics_edit.setFixedHeight(80)
-        form.addRow("Tactics Summary", self._tactics_edit)
-
-        self._instructions_edit = QPlainTextEdit()
-        self._instructions_edit.setPlaceholderText("Special instructions")
-        self._instructions_edit.setFixedHeight(60)
-        form.addRow("Special Instructions", self._instructions_edit)
-
-        self._notes_edit = QPlainTextEdit()
-        self._notes_edit.setPlaceholderText("Notes")
-        self._notes_edit.setFixedHeight(60)
-        form.addRow("Notes", self._notes_edit)
-
-        self._prepared_edit = QLineEdit()
-        form.addRow("Prepared By", self._prepared_edit)
-
-        self._approved_edit = QLineEdit()
-        form.addRow("Approved By", self._approved_edit)
-
-        self._meta_label = QLabel("")
-        self._meta_label.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-size: 11px;")
-        form.addRow("Created / Updated", self._meta_label)
-
-        # Wire overview fields for auto-save
-        self._description_edit.textChanged.connect(self._schedule_save)
         self._tactics_edit.textChanged.connect(self._schedule_save)
         self._instructions_edit.textChanged.connect(self._schedule_save)
-        self._notes_edit.textChanged.connect(self._schedule_save)
-        self._prepared_edit.textChanged.connect(self._schedule_save)
-        self._approved_edit.textChanged.connect(self._schedule_save)
 
-        layout.addLayout(form)
+        layout.addLayout(narrative_layout)
         layout.addStretch(1)
         self._tabs.addTab(tab, "Overview")
 
@@ -358,25 +444,12 @@ class WorkAssignmentDetailWindow(QWidget):
     def _build_outputs_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-
-        btn_bar = QHBoxLayout()
-        self._output_ready_btn = QPushButton("Mark Ready")
-        self._output_review_btn = QPushButton("Mark Needs Review")
-        self._output_preview_btn = QPushButton("Preview Data")
-        for b in (self._output_ready_btn, self._output_review_btn, self._output_preview_btn):
-            btn_bar.addWidget(b)
-        btn_bar.addStretch(1)
-        layout.addLayout(btn_bar)
-
-        columns = ["Output Type", "Status", "Last Generated", "Generated By", "Notes"]
-        self._outputs_table = QTableWidget(0, len(columns))
-        self._outputs_table.setHorizontalHeaderLabels(columns)
-        apply_statusboard_table_behavior(self._outputs_table, stretch_last_section=True)
-        layout.addWidget(self._outputs_table)
-
-        self._output_ready_btn.clicked.connect(lambda: self._set_output_status("Ready"))
-        self._output_review_btn.clicked.connect(lambda: self._set_output_status("Needs Review"))
-        self._output_preview_btn.clicked.connect(self._preview_output_data)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+        self._outputs_layout = QVBoxLayout()
+        self._outputs_layout.setSpacing(10)
+        layout.addLayout(self._outputs_layout)
+        layout.addStretch(1)
 
         self._tabs.addTab(tab, "Outputs")
 
@@ -411,11 +484,9 @@ class WorkAssignmentDetailWindow(QWidget):
             start_time = row.get("start_time") or ""
             end_time = row.get("end_time") or ""
             label = f"OP {number}"
-            if start_time:
-                label += f" ({start_time}"
-                if end_time:
-                    label += f" – {end_time}"
-                label += ")"
+            time_range = _format_op_time_range(start_time, end_time)
+            if time_range:
+                label += f" ({time_range})"
             self._op_period_combo.addItem(label, op_id)
 
     def _all_positions(self) -> list[dict]:
@@ -516,6 +587,13 @@ class WorkAssignmentDetailWindow(QWidget):
             self._division_combo.setCurrentIndex(div_idx)
         self._location_picker.set_value(wa.location_facility_id, wa.location)
 
+        kind_idx = self._kind_combo.findText(wa.assignment_kind)
+        if kind_idx >= 0:
+            self._kind_combo.setCurrentIndex(kind_idx)
+        priority_idx = self._priority_combo.findText(wa.priority)
+        if priority_idx >= 0:
+            self._priority_combo.setCurrentIndex(priority_idx)
+
         idx = self._planning_status_combo.findText(wa.planning_status)
         if idx >= 0:
             self._planning_status_combo.setCurrentIndex(idx)
@@ -526,15 +604,16 @@ class WorkAssignmentDetailWindow(QWidget):
         if idx >= 0:
             self._resource_status_combo.setCurrentIndex(idx)
         self._refresh_status_chips()
+        self._refresh_header()
 
     def _populate_overview(self, wa: WorkAssignment) -> None:
-        self._description_edit.setPlainText(wa.description)
+        self._description_text = wa.description
+        self._notes_text = wa.notes
+        self._prepared_by = str(wa.prepared_by or "")
+        self._approved_by = str(wa.approved_by or "")
         self._tactics_edit.setPlainText(wa.tactics_summary)
         self._instructions_edit.setPlainText(wa.special_instructions)
-        self._notes_edit.setPlainText(wa.notes)
-        self._prepared_edit.setText(str(wa.prepared_by or ""))
-        self._approved_edit.setText(str(wa.approved_by or ""))
-        self._meta_label.setText(f"Created: {wa.created_at}   Updated: {wa.updated_at}")
+        self._refresh_header()
 
     def _populate_resource_tab(self) -> None:
         """Replace the placeholder widget with a live ResourceRequirementEditor."""
@@ -618,6 +697,7 @@ class WorkAssignmentDetailWindow(QWidget):
         branch_text = self._branch_combo.currentText() if self._branch_combo.currentData() is not None else ""
         div_text = self._division_combo.currentText() if self._division_combo.currentData() is not None else ""
         return {
+            "assignment_number": self._number_label.text().strip(),
             "assignment_name": self._name_edit.text().strip(),
             "objective_id": self._objective_combo.currentData(),
             "operational_period_id": self._op_period_combo.currentData(),
@@ -625,13 +705,17 @@ class WorkAssignmentDetailWindow(QWidget):
             "division_group": div_text,
             "location": self._location_picker.facility_text,
             "location_facility_id": self._location_picker.facility_id,
+            "assignment_kind": self._kind_combo.currentText(),
+            "priority": self._priority_combo.currentText(),
             "planning_status": self._planning_status_combo.currentText(),
             "safety_status": self._safety_status_combo.currentText(),
             "resource_status": self._resource_status_combo.currentText(),
-            "description": self._description_edit.toPlainText().strip(),
+            "description": self._description_text,
             "tactics_summary": self._tactics_edit.toPlainText().strip(),
             "special_instructions": self._instructions_edit.toPlainText().strip(),
-            "notes": self._notes_edit.toPlainText().strip(),
+            "prepared_by": self._prepared_by or None,
+            "approved_by": self._approved_by or None,
+            "notes": self._notes_text,
         }
 
     def _schedule_save(self) -> None:
@@ -673,68 +757,9 @@ class WorkAssignmentDetailWindow(QWidget):
             return False
         self._update_title()
         self._reload_outputs()
+        self._refresh_header()
         self.saved.emit(self._work_assignment_id)
         return True
-
-    # ------------------------------------------------------------------
-    # Header action buttons
-    # ------------------------------------------------------------------
-
-    def _recalculate(self) -> None:
-        if self._work_assignment_id is None:
-            QMessageBox.information(self, "Recalculate", "Save the assignment first.")
-            return
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.recalculate_all_resource_gaps(self._work_assignment_id)
-        except Exception as exc:
-            QMessageBox.critical(self, "Recalculate", f"Failed:\n{exc}")
-            return
-        # Reload the resource tab if it's a live editor
-        if isinstance(self._resources_placeholder, ResourceRequirementEditor):
-            self._resources_placeholder.reload()
-        self._update_summary()
-
-    def _apply_hazards(self) -> None:
-        if self._work_assignment_id is None:
-            QMessageBox.information(self, "Apply Hazards", "Save the assignment first.")
-            return
-        try:
-            added, skipped = self._hazard_service.apply_default_hazards(self._work_assignment_id)
-        except Exception as exc:
-            QMessageBox.critical(self, "Apply Hazards", f"Failed:\n{exc}")
-            return
-        if isinstance(self._hazards_placeholder, HazardAnalysisEditor):
-            self._hazards_placeholder.reload()
-        self._update_summary()
-        if added == 0 and skipped == 0:
-            QMessageBox.information(
-                self, "Default Hazards",
-                "No default hazards are configured for this strategy's resource types.\n\n"
-                "Default hazards are assigned per resource type in the Hazard Type Library "
-                "(Admin > Hazard Types > open a hazard type > 'Resource Type Defaults' tab).",
-            )
-        else:
-            QMessageBox.information(
-                self, "Default Hazards",
-                f"Added {added} hazard(s). Skipped {skipped} (already present or unavailable).",
-            )
-
-    def _create_task(self) -> None:
-        if self._work_assignment_id is None:
-            QMessageBox.information(self, "Create Task", "Save the assignment first.")
-            return
-        if isinstance(self._tasks_placeholder, LinkedTasksPanel):
-            self._tasks_placeholder._create_task()
-            self._update_summary()
-
-    def _link_task(self) -> None:
-        if self._work_assignment_id is None:
-            QMessageBox.information(self, "Link Task", "Save the assignment first.")
-            return
-        if isinstance(self._tasks_placeholder, LinkedTasksPanel):
-            self._tasks_placeholder._link_existing()
-            self._update_summary()
 
     # ------------------------------------------------------------------
     # Outputs tab
@@ -748,82 +773,100 @@ class WorkAssignmentDetailWindow(QWidget):
             outputs = repo.list_outputs(self._work_assignment_id)
         except Exception:
             return
-        self._outputs_table.setRowCount(0)
-        for o in outputs:
-            row = self._outputs_table.rowCount()
-            self._outputs_table.insertRow(row)
-            self._outputs_table.setItem(row, 0, QTableWidgetItem(o.output_type))
-            self._outputs_table.setItem(row, 1, QTableWidgetItem(o.status))
-            self._outputs_table.setItem(row, 2, QTableWidgetItem(o.generated_at))
-            self._outputs_table.setItem(row, 3, QTableWidgetItem(str(o.generated_by or "")))
-            self._outputs_table.setItem(row, 4, QTableWidgetItem(o.notes))
-            self._outputs_table.item(row, 0).setData(Qt.UserRole, o.output_type)
+        while self._outputs_layout.count():
+            item = self._outputs_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        by_type = {output.output_type: output for output in outputs}
+        for output_type in OUTPUT_TYPE_VALUES:
+            output = by_type.get(output_type)
+            self._outputs_layout.addWidget(self._build_output_row(output_type, output))
 
-    def _set_output_status(self, status: str) -> None:
-        row = self._outputs_table.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "Output Status", "Select an output row first.")
-            return
-        output_type = self._outputs_table.item(row, 0).data(Qt.UserRole)
+    def _build_output_row(self, output_type: str, output) -> QFrame:
+        row = QFrame(self)
+        row.setFrameShape(QFrame.StyledPanel)
+        row.setAttribute(Qt.WA_StyledBackground, True)
+        row.setStyleSheet(
+            "QFrame { "
+            f"background:{get_palette().get('bg_raised').name()}; "
+            f"border:1px solid {get_palette().get('ctrl_border').name()}; "
+            "border-radius:6px; "
+            "}"
+        )
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(16, 12, 16, 12)
+        title = QLabel(output_type)
+        title.setStyleSheet("font-weight:700;")
+        layout.addWidget(title, 1)
+
+        generated_at = getattr(output, "generated_at", "") if output else ""
+        generated_file_path = getattr(output, "generated_file_path", "") if output else ""
+        status = getattr(output, "status", "Not Started") if output else "Not Started"
+        notes = getattr(output, "notes", "") if output else ""
+        has_file = bool(generated_file_path and Path(generated_file_path).exists())
+        is_current = status in ("Ready", "Generated") and has_file
+        if generated_at:
+            meta = QLabel(f"Generated {_format_display_timestamp(generated_at)}")
+        elif is_current:
+            meta = QLabel(status)
+        elif notes:
+            meta = QLabel(notes)
+        else:
+            meta = QLabel("Not yet generated")
+        meta.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
+        layout.addWidget(meta)
+
+        badge_text = "Current" if is_current else status or "Not generated"
+        badge = QLabel(badge_text)
+        badge.setAlignment(Qt.AlignCenter)
+        token = "success" if badge_text == "Current" else "warning" if badge_text not in ("Not Started", "Not generated") else "ctrl_border"
+        badge.setStyleSheet(
+            f"background:{get_palette().get(token).name()}; color:{get_palette().get('fg').name()}; "
+            "padding:2px 8px; border-radius:4px; font-weight:700;"
+        )
+        layout.addWidget(badge)
+
+        preview_btn = QPushButton("Preview")
+        preview_btn.setEnabled(has_file)
+        preview_btn.clicked.connect(
+            lambda _checked=False, t=output_type, p=generated_file_path: self._preview_output_file(t, p)
+        )
+        layout.addWidget(preview_btn)
+        generate_btn = QPushButton("Regenerate" if is_current or generated_at else "Generate")
+        generate_btn.clicked.connect(lambda _checked=False, t=output_type: self._generate_output(t))
+        layout.addWidget(generate_btn)
+        return row
+
+    def _generate_output(self, output_type: str) -> None:
+        if self._work_assignment_id is None:
+            if not self._save(quiet=False):
+                return
+        else:
+            if not self._save(quiet=True):
+                return
         try:
+            result = generate_work_assignment_output(self._work_assignment_id, output_type)
             repo = WorkAssignmentRepository(self._db_path)
-            repo.update_output_status(self._work_assignment_id, output_type, status)
+            repo.update_output_status(
+                self._work_assignment_id,
+                output_type,
+                "Generated",
+                generated_file_path=str(result.output_path),
+                generated_at=result.generated_at,
+            )
         except Exception as exc:
-            QMessageBox.critical(self, "Output Status", f"Failed:\n{exc}")
+            QMessageBox.critical(self, "Generate Output", f"Failed to generate {output_type}:\n{exc}")
             return
         self._reload_outputs()
+        QMessageBox.information(self, "Generate Output", f"{output_type} generated:\n{result.output_path}")
 
-    def _preview_output_data(self) -> None:
-        """Show a plain-text preview of all assignment data."""
-        if self._work_assignment_id is None:
+    def _preview_output_file(self, output_type: str, generated_file_path: str) -> None:
+        path = Path(generated_file_path or "")
+        if not generated_file_path or not path.exists():
+            QMessageBox.information(self, "Preview", f"Generate {output_type} before previewing it.")
+            self._reload_outputs()
             return
-        summary = self._gap_service.summarize_assignment_resources(self._work_assignment_id)
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            wa = repo.get_work_assignment(self._work_assignment_id)
-            hazards = repo.list_hazards(self._work_assignment_id)
-            links = repo.list_linked_tasks(self._work_assignment_id)
-        except Exception as exc:
-            QMessageBox.critical(self, "Preview", f"Failed:\n{exc}")
-            return
-        lines = [
-            f"Strategy: {wa.assignment_number} {wa.assignment_name}",
-            f"Kind: {wa.assignment_kind}  Priority: {wa.priority}  Status: {wa.planning_status}",
-            f"Branch: {wa.branch}  Division/Group: {wa.division_group}",
-            "",
-            "--- Description ---",
-            wa.description or "(none)",
-            "",
-            "--- Tactics Summary ---",
-            wa.tactics_summary or "(none)",
-            "",
-            "--- Resources ---",
-            summary,
-            "",
-            "--- Hazards ---",
-        ]
-        for h in hazards:
-            lines.append(
-                f"  • {h.hazard_type_text}  Risk:{h.risk_level}  Resolved:{'Yes' if h.is_resolved else 'No'}"
-            )
-        lines += ["", "--- Linked Tasks ---"]
-        for lnk in links:
-            lines.append(f"  Task {lnk.task_id} ({lnk.link_type})")
-
-        preview_text = "\n".join(lines)
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QPlainTextEdit, QDialogButtonBox
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Output Data Preview")
-        dlg.setMinimumSize(600, 500)
-        lay = QVBoxLayout(dlg)
-        text_edit = QPlainTextEdit()
-        text_edit.setPlainText(preview_text)
-        text_edit.setReadOnly(True)
-        lay.addWidget(text_edit)
-        bb = QDialogButtonBox(QDialogButtonBox.Close)
-        bb.rejected.connect(dlg.reject)
-        lay.addWidget(bb)
-        dlg.exec()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         super().closeEvent(event)

@@ -20,7 +20,7 @@ Add the following to main.py to wire up the menus:
     # As a method on the main window class:
     def open_tactics_resources_planner(self) -> None:
         from modules.planning.tactics_resources import open_tactics_resources_planner
-        open_tactics_resources_planner(parent=self)
+        open_tactics_resources_planner()
 """
 from __future__ import annotations
 
@@ -48,7 +48,8 @@ def open_tactics_resources_planner(
     Parameters
     ----------
     parent:
-        Optional Qt parent for lifetime management.
+        Accepted for older call sites, but intentionally ignored. The main
+        planner board opens parentless so it behaves as an independent window.
     db_path:
         Explicit path to the incident database.
         When None, resolves from incident_context at call time.
@@ -70,7 +71,7 @@ def open_tactics_resources_planner(
     from modules.planning.tactics_resources.windows.tactics_resources_planner_window import (
         TacticsResourcesPlannerWindow,
     )
-    win = TacticsResourcesPlannerWindow(db_path=db_path, parent=parent)
+    win = TacticsResourcesPlannerWindow(db_path=db_path, parent=None)
     _planner_window = _PlannerRef(win)
     win.show()
     return win

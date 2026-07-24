@@ -5,11 +5,69 @@ from PySide6.QtGui import QPen, QColor, QPainter
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QStyle, QTableWidget
 
 
+def _first_visible_column(view) -> int:
+    model = view.model()
+    if model is None:
+        return 0
+    for col in range(model.columnCount()):
+        try:
+            if not view.isColumnHidden(col):
+                return col
+        except Exception:
+            return col
+    return 0
+
+
+def _last_visible_column(view) -> int:
+    model = view.model()
+    if model is None:
+        return 0
+    for col in range(model.columnCount() - 1, -1, -1):
+        try:
+            if not view.isColumnHidden(col):
+                return col
+        except Exception:
+            return col
+    return 0
+
+
+def _paint_row_outline_segment(
+    painter: QPainter,
+    option: QStyleOptionViewItem,
+    index,
+    view,
+    pen: QPen,
+) -> None:
+    rect = option.rect.adjusted(0, 1, 0, -1)
+    if rect.isNull():
+        return
+
+    first_col = _first_visible_column(view)
+    last_col = _last_visible_column(view)
+    is_first = index.column() == first_col
+    is_last = index.column() == last_col
+    if is_first:
+        rect.setLeft(rect.left() + 1)
+    if is_last:
+        rect.setRight(rect.right() - 1)
+
+    painter.save()
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawLine(rect.topLeft(), rect.topRight())
+    painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+    if is_first:
+        painter.drawLine(rect.topLeft(), rect.bottomLeft())
+    if is_last:
+        painter.drawLine(rect.topRight(), rect.bottomRight())
+    painter.restore()
+
+
 class RowOutlineSelectionDelegate(QStyledItemDelegate):
     """Paint selection as an outline across the entire row.
 
     Removes the default filled selection so per-row background colors remain
-    visible, then draws a high-contrast rounded rectangle around the selected
+    visible, then draws a high-contrast outline segment around the selected
     row. Attach to a QTableView/QTableWidget via ``setItemDelegate``.
     """
 
@@ -19,9 +77,15 @@ class RowOutlineSelectionDelegate(QStyledItemDelegate):
         self._pen = QPen(color)
         self._pen.setWidth(width)
         self._radius = radius
+        self._wrap_column_delegate_setter()
 
     def setColor(self, color: QColor) -> None:
         self._pen.setColor(color)
+        for delegate in getattr(self._view, "_row_outline_column_delegates", []):
+            try:
+                delegate.setColor(color)
+            except Exception:
+                pass
 
     def paint(self, painter, option: QStyleOptionViewItem, index):  # type: ignore[override]
         # Suppress the default filled selection and focus rect so cell-level
@@ -37,62 +101,43 @@ class RowOutlineSelectionDelegate(QStyledItemDelegate):
             return
 
         try:
-            if index.column() != self._first_visible_column():
-                return
-
-            row_rect = self._row_rect_for(index.row())
-            if row_rect.isNull():
-                return
-
-            painter.save()
-            painter.setPen(self._pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            try:
-                painter.drawRoundedRect(row_rect, self._radius, self._radius)
-            except Exception:
-                painter.drawRect(row_rect)
-            painter.restore()
+            _paint_row_outline_segment(painter, option, index, self._view, self._pen)
         except Exception:
             # Never let painting errors break the view
             pass
 
-    def _first_visible_column(self) -> int:
-        model = self._view.model()
-        if model is None:
-            return 0
-        for col in range(model.columnCount()):
-            try:
-                if not self._view.isColumnHidden(col):
-                    return col
-            except Exception:
-                return col
-        return 0
+    def _wrap_column_delegate_setter(self) -> None:
+        if getattr(self._view, "_row_outline_wraps_column_delegates", False):
+            return
+        try:
+            original = self._view.setItemDelegateForColumn
+        except Exception:
+            return
 
-    def _row_rect_for(self, row: int):
-        model = self._view.model()
-        if model is None or model.columnCount() <= 0:
-            return self._view.visualRect(self._view.model().index(row, 0)) if model is not None else None
-        first_col = self._first_visible_column()
-        last_col = first_col
-        for col in range(model.columnCount() - 1, -1, -1):
-            try:
-                if not self._view.isColumnHidden(col):
-                    last_col = col
-                    break
-            except Exception:
-                last_col = col
-                break
-        first_rect = self._view.visualRect(model.index(row, first_col))
-        last_rect = self._view.visualRect(model.index(row, last_col))
-        row_rect = first_rect.united(last_rect)
-        row_rect = row_rect.intersected(self._view.viewport().rect())
-        return row_rect.adjusted(1, 1, -1, -1)
+        def set_item_delegate_for_column(column, delegate):
+            if delegate is not None and not isinstance(delegate, IconWithOutlineDelegate):
+                delegate = IconWithOutlineDelegate(
+                    delegate,
+                    self._view,
+                    self._pen.color(),
+                    self._pen.width(),
+                    self._radius,
+                )
+                wrappers = getattr(self._view, "_row_outline_column_delegates", None)
+                if wrappers is None:
+                    wrappers = []
+                    setattr(self._view, "_row_outline_column_delegates", wrappers)
+                wrappers.append(delegate)
+            return original(column, delegate)
+
+        self._view.setItemDelegateForColumn = set_item_delegate_for_column
+        self._view._row_outline_wraps_column_delegates = True  # type: ignore[attr-defined]
 
 
 class IconWithOutlineDelegate(QStyledItemDelegate):
     """Wrapper that renders an inner delegate (e.g., an icon) and then draws
-    a row outline for selections. Ensures the outline appears even when only
-    the special column repaints.
+    a row outline segment for selections. Ensures the outline appears even
+    when a special column delegate repaints the clicked/current cell.
     """
 
     def __init__(self, inner: QStyledItemDelegate, view, color: QColor, width: int = 2, radius: int = 3):
@@ -122,54 +167,9 @@ class IconWithOutlineDelegate(QStyledItemDelegate):
             return
 
         try:
-            if index.column() != self._first_visible_column():
-                return
-
-            row_rect = self._row_rect_for(index.row())
-            if row_rect.isNull():
-                return
-            painter.save()
-            painter.setPen(self._pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            try:
-                painter.drawRoundedRect(row_rect, self._radius, self._radius)
-            except Exception:
-                painter.drawRect(row_rect)
-            painter.restore()
+            _paint_row_outline_segment(painter, option, index, self._view, self._pen)
         except Exception:
             pass
-
-    def _first_visible_column(self) -> int:
-        model = self._view.model()
-        if model is None:
-            return 0
-        for col in range(model.columnCount()):
-            try:
-                if not self._view.isColumnHidden(col):
-                    return col
-            except Exception:
-                return col
-        return 0
-
-    def _row_rect_for(self, row: int):
-        model = self._view.model()
-        if model is None or model.columnCount() <= 0:
-            return self._view.visualRect(self._view.model().index(row, 0)) if model is not None else None
-        first_col = self._first_visible_column()
-        last_col = first_col
-        for col in range(model.columnCount() - 1, -1, -1):
-            try:
-                if not self._view.isColumnHidden(col):
-                    last_col = col
-                    break
-            except Exception:
-                last_col = col
-                break
-        first_rect = self._view.visualRect(model.index(row, first_col))
-        last_rect = self._view.visualRect(model.index(row, last_col))
-        row_rect = first_rect.united(last_rect)
-        row_rect = row_rect.intersected(self._view.viewport().rect())
-        return row_rect.adjusted(1, 1, -1, -1)
 
 
 class RowOutlineTableWidget(QTableWidget):

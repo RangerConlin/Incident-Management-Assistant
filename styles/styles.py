@@ -196,6 +196,9 @@ _WA_SAFETY_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFI
 _WA_PRIORITY_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WA_PRIORITY")
 _WA_PRIORITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WA_PRIORITY")
 
+_WEATHER_SEVERITY_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WEATHER_SEVERITY")
+_WEATHER_SEVERITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WEATHER_SEVERITY")
+
 _light_team_types = _build_team_types(_LIGHT_PROFILE)
 _dark_team_types = _build_team_types(_DARK_PROFILE)
 if not _dark_team_types:
@@ -323,6 +326,10 @@ def wa_priority_colors() -> Dict[str, Dict[str, QBrush]]:
     return _WA_PRIORITY_LIGHT if THEME_NAME == "light" else _WA_PRIORITY_DARK
 
 
+def weather_severity_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _WEATHER_SEVERITY_LIGHT if THEME_NAME == "light" else _WEATHER_SEVERITY_DARK
+
+
 def _qobject_is_valid(obj: object | None) -> bool:
     if obj is None:
         return False
@@ -416,4 +423,5 @@ __all__ = [
     "wa_planning_status_colors",
     "wa_safety_status_colors",
     "wa_priority_colors",
+    "weather_severity_colors",
 ]

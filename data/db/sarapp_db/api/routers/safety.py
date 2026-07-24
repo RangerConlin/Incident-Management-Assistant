@@ -32,10 +32,6 @@ class TriageEntriesRepository(BaseRepository):
     collection_name = IncidentCollections.TRIAGE_ENTRIES
 
 
-class HazardZonesRepository(BaseRepository):
-    collection_name = IncidentCollections.HAZARD_ZONES
-
-
 class HazardsRepository(BaseRepository):
     collection_name = IncidentCollections.HAZARDS
 
@@ -205,27 +201,8 @@ def create_triage_entry(incident_id: str, body: TriageEntryRequest) -> dict[str,
 
 
 # ---------------------------------------------------------------------------
-# Hazard zones / ICS 206 builds
+# ICS 206 builds
 # ---------------------------------------------------------------------------
-
-
-class HazardZoneRequest(BaseModel):
-    name: Optional[str] = None
-    coordinates_json: Optional[str] = None
-    severity: Optional[str] = None
-    description: Optional[str] = None
-
-
-@router.get("/incidents/{incident_id}/safety/zones")
-def list_hazard_zones(incident_id: str) -> list[dict[str, Any]]:
-    repo = HazardZonesRepository(get_incident_db(incident_id))
-    return _query_incident_docs(repo, incident_id)
-
-
-@router.post("/incidents/{incident_id}/safety/zones", status_code=201)
-def create_hazard_zone(incident_id: str, body: HazardZoneRequest) -> dict[str, Any]:
-    repo = HazardZonesRepository(get_incident_db(incident_id))
-    return _insert_incident_doc(repo, incident_id, body.model_dump())
 
 
 @router.post("/incidents/{incident_id}/safety/ics206/build", status_code=201)
@@ -498,16 +475,20 @@ def _score_spe(assessment: Optional[SpeAssessmentInput]) -> Optional[dict[str, A
 class HazardCreate(BaseModel):
     library_hazard_type_id: Optional[int] = None
     title: Optional[str] = None
-    description: str = ""
-    category: str = ""
+    description: Optional[str] = None
+    category: Optional[str] = None
     controls: list[str] = Field(default_factory=list)
     ppe: list[str] = Field(default_factory=list)
-    safety_language: str = ""
+    safety_language: Optional[str] = None
     default_spe: Optional[SpeAssessmentInput] = None
-    spe_initial: Optional[SpeAssessmentInput] = None
     spe_residual: Optional[SpeAssessmentInput] = None
-    location_text: str = ""
-    notes: str = ""
+    location_text: Optional[str] = None
+    notes: Optional[str] = None
+    op_period_ids: list[int] = Field(default_factory=list)
+    task_ids: list[int] = Field(default_factory=list)
+    team_ids: list[int] = Field(default_factory=list)
+    work_assignment_ids: list[int] = Field(default_factory=list)
+    hazard_zone_ids: list[int] = Field(default_factory=list)
     created_by: Optional[str] = None
 
 
@@ -519,10 +500,14 @@ class HazardPatch(BaseModel):
     ppe: Optional[list[str]] = None
     safety_language: Optional[str] = None
     default_spe: Optional[SpeAssessmentInput] = None
-    spe_initial: Optional[SpeAssessmentInput] = None
     spe_residual: Optional[SpeAssessmentInput] = None
     location_text: Optional[str] = None
     notes: Optional[str] = None
+    op_period_ids: Optional[list[int]] = None
+    task_ids: Optional[list[int]] = None
+    team_ids: Optional[list[int]] = None
+    work_assignment_ids: Optional[list[int]] = None
+    hazard_zone_ids: Optional[list[int]] = None
     updated_by: Optional[str] = None
 
 
@@ -549,6 +534,21 @@ def _normalize_text_list(values: list[str]) -> list[str]:
     return normalized
 
 
+def _normalize_int_list(values: list[Any]) -> list[int]:
+    seen: set[int] = set()
+    normalized: list[int] = []
+    for value in values:
+        try:
+            item = int(value)
+        except (TypeError, ValueError):
+            continue
+        if item in seen:
+            continue
+        seen.add(item)
+        normalized.append(item)
+    return normalized
+
+
 def _master_hazard_type_doc(hazard_type_id: int) -> dict[str, Any]:
     doc = _master_hazard_types_repo().find_one({"id": hazard_type_id})
     if doc is None:
@@ -563,7 +563,7 @@ def _hazard_create_payload(body: HazardCreate) -> dict[str, Any]:
         else None
     )
 
-    title = (body.title or "").strip() or str((library_doc or {}).get("name") or "").strip()
+    title = str(body.title or "").strip() or str((library_doc or {}).get("name") or "").strip()
     if not title:
         raise HTTPException(status_code=422, detail="Hazard title is required")
 
@@ -582,24 +582,23 @@ def _hazard_create_payload(body: HazardCreate) -> dict[str, Any]:
     return {
         "hazard_type_id": body.library_hazard_type_id,
         "title": title,
-        "description": body.description.strip() or str((library_doc or {}).get("description") or "").strip(),
-        "category": body.category.strip() or str((library_doc or {}).get("category") or "").strip(),
+        "description": str(body.description or "").strip() or str((library_doc or {}).get("description") or "").strip(),
+        "category": str(body.category or "").strip() or str((library_doc or {}).get("category") or "").strip(),
         "controls": _normalize_text_list(body.controls)
         or _normalize_text_list(list((library_doc or {}).get("controls") or [])),
         "ppe": _normalize_text_list(body.ppe)
         or _normalize_text_list(list((library_doc or {}).get("ppe") or [])),
-        "safety_language": body.safety_language.strip()
+        "safety_language": str(body.safety_language or "").strip()
         or str((library_doc or {}).get("standard_safety_language") or "").strip(),
         "default_spe": _score_spe(default_spe_input),
-        "spe_initial": _score_spe(body.spe_initial),
         "spe_residual": _score_spe(body.spe_residual),
-        "location_text": body.location_text.strip(),
-        "notes": body.notes.strip(),
-        "op_period_ids": [],
-        "task_ids": [],
-        "team_ids": [],
-        "work_assignment_ids": [],
-        "hazard_zone_ids": [],
+        "location_text": str(body.location_text or "").strip(),
+        "notes": str(body.notes or "").strip(),
+        "op_period_ids": _normalize_int_list(body.op_period_ids),
+        "task_ids": _normalize_int_list(body.task_ids),
+        "team_ids": _normalize_int_list(body.team_ids),
+        "work_assignment_ids": _normalize_int_list(body.work_assignment_ids),
+        "hazard_zone_ids": _normalize_int_list(body.hazard_zone_ids),
         "created_by": body.created_by,
     }
 
@@ -657,7 +656,7 @@ def update_hazard(incident_id: str, hazard_id: int, body: HazardPatch) -> dict[s
     if not existing:
         raise HTTPException(status_code=404, detail="Hazard not found")
     updates = body.model_dump(
-        exclude={"default_spe", "spe_initial", "spe_residual"},
+        exclude={"default_spe", "spe_residual"},
         exclude_unset=True,
     )
     if "title" in updates:
@@ -676,12 +675,15 @@ def update_hazard(incident_id: str, hazard_id: int, body: HazardPatch) -> dict[s
         updates["location_text"] = str(updates["location_text"] or "").strip()
     if "notes" in updates:
         updates["notes"] = str(updates["notes"] or "").strip()
+    for linkage_field in ("op_period_ids", "task_ids", "team_ids", "work_assignment_ids"):
+        if linkage_field in updates and updates[linkage_field] is not None:
+            updates[linkage_field] = _normalize_int_list(list(updates[linkage_field]))
+    if "hazard_zone_ids" in updates and updates["hazard_zone_ids"] is not None:
+        updates["hazard_zone_ids"] = _normalize_int_list(list(updates["hazard_zone_ids"]))
     if "default_spe" in body.model_fields_set:
         if body.default_spe is None:
             raise HTTPException(status_code=422, detail="default_spe cannot be null")
         updates["default_spe"] = _score_spe(body.default_spe)
-    if "spe_initial" in body.model_fields_set:
-        updates["spe_initial"] = _score_spe(body.spe_initial)
     if "spe_residual" in body.model_fields_set:
         updates["spe_residual"] = _score_spe(body.spe_residual)
     updates["updated_at"] = _utcnow()
@@ -735,11 +737,16 @@ def get_ics208(incident_id: str, op: int = Query(..., ge=1)) -> dict[str, Any]:
 def upsert_ics208(incident_id: str, body: ICS208Body) -> dict[str, Any]:
     repo = Ics208InstancesRepository(get_incident_db(incident_id))
     existing = repo.find_one({"incident_id": incident_id, "op_period": body.op_period})
-    updates = {**body.model_dump(), "incident_id": incident_id}
+    now = _utcnow()
+    updates = {
+        **body.model_dump(),
+        "incident_id": incident_id,
+        "updated_at": now,
+    }
     if existing:
         repo.update_one(existing["_id"], updates)
         return repo.find_by_id(existing["_id"]) or updates
-    return repo.insert_one(updates)
+    return repo.insert_one({"created_at": now, **updates})
 
 
 def _iwi_repo(incident_id: str) -> IwiReportsRepository:

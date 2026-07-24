@@ -505,7 +505,7 @@ class AlertsWidget(QFrame):
 
 
 class WeatherWidget(QFrame):
-    """Compact weather snippet sourced from WeatherApiManager payload."""
+    """Compact weather snippet sourced from the incident's default weather station."""
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -520,43 +520,43 @@ class WeatherWidget(QFrame):
         self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
 
-        # Lazy connect to API; avoid hard dependency if module omitted
+        self._manager = None
         try:
-            from modules.intel.weather.services.api_link import WeatherApiManager  # type: ignore
-            self._api = WeatherApiManager.instance()
-            self._api.dataUpdated.connect(self._on_data)
-        except Exception:
-            self._api = None
+            from utils.incident_context import get_active_incident_id
+            from modules.intel.weather.services.weather_manager import get_weather_manager
 
-    def _on_data(self, payload: dict) -> None:
-        metar = payload.get("metar") or {}
-        if metar:
-            first = next(iter(metar.values()))
-            decoded = first.get("decoded") or {}
-            t = decoded.get("tempC")
-            wind_dir = decoded.get("windDir")
-            wind_kt = decoded.get("windSpeedKt") or decoded.get("windKt")
-            vis = decoded.get("visStatuteMi") or decoded.get("visibility")
-            parts = []
-            if t is not None:
-                try:
-                    parts.append(f"Temp {float(t):.0f}°C")
-                except Exception:
-                    parts.append(f"Temp {t}")
-            if wind_kt is not None:
-                try:
-                    wd = int(wind_dir) if wind_dir is not None else None
-                except Exception:
-                    wd = None
-                if wd is None:
-                    parts.append(f"Wind {wind_kt} kt")
-                else:
-                    parts.append(f"Wind {wd:03d}/{wind_kt} kt")
-            if vis is not None:
-                parts.append(f"Vis {vis}")
-            self.summary.setText("  •  ".join(parts) if parts else "—")
-        else:
+            incident_id = get_active_incident_id()
+            if incident_id:
+                self._manager = get_weather_manager(incident_id)
+                self._manager.snapshotUpdated.connect(lambda *_: self._on_data())
+                self._on_data()
+        except Exception:
+            self._manager = None
+
+    def _on_data(self) -> None:
+        if self._manager is None:
             self.summary.setText("—")
+            return
+        location = self._manager.default_location()
+        if location is None:
+            self.summary.setText("—")
+            return
+        reading = self._manager.normalized_current(location.location_id)
+        parts = []
+        temp_f = reading.get("temperature_f")
+        if temp_f is not None:
+            parts.append(f"Temp {temp_f:.0f}°F")
+        wind_kt = reading.get("wind_speed_kt")
+        wind_dir = reading.get("wind_direction_deg")
+        if wind_kt is not None:
+            if wind_dir is not None:
+                parts.append(f"Wind {int(wind_dir):03d}/{wind_kt:.0f} kt")
+            else:
+                parts.append(f"Wind {wind_kt:.0f} kt")
+        vis = reading.get("visibility_sm")
+        if vis is not None:
+            parts.append(f"Vis {vis:.0f} sm")
+        self.summary.setText("  •  ".join(parts) if parts else "—")
 
 
 class IncidentInfoWidget(QFrame):

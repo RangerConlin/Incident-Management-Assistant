@@ -166,6 +166,18 @@ WA_SAFETY_STATUS: Dict[str, Dict[str, str]] = {
     "Safety Concern":       {"bg": "#991b1b", "fg": "#ffffff"},
 }
 
+WEATHER_SEVERITY: Dict[str, Dict[str, str]] = {
+    "extreme":  {"bg": "#ef4f6e", "fg": "#1a0508"},
+    "severe":   {"bg": "#ff8a4c", "fg": "#241000"},
+    "moderate": {"bg": "#f0b73a", "fg": "#241a00"},
+    "minor":    {"bg": "#e8d24c", "fg": "#221f00"},
+    "unknown":  {"bg": "#6b7885", "fg": "#e7edf3"},
+    "normal":   {"bg": "#4fd6a0", "fg": "#00241a"},
+    "go":       {"bg": "#4fd6a0", "fg": "#00241a"},
+    "marginal": {"bg": "#f0b73a", "fg": "#241a00"},
+    "no_go":    {"bg": "#ef4f6e", "fg": "#1a0508"},
+}
+
 WA_PRIORITY: Dict[str, Dict[str, str]] = {
     "Low":    {"bg": "#3f3f46", "fg": "#f5f5f5"},
     "Normal": {"bg": "#1d4ed8", "fg": "#ffffff"},
@@ -298,6 +310,7 @@ __all__ = [
     "TEAM_STATUS",
     "TASK_STATUS",
     "NARRATIVE_STATUS",
+    "WEATHER_SEVERITY",
     "TEAM_TYPE_COLORS",
     "INTEL_SUBJECT_STATUS",
     "INTEL_ASSESSMENT_STATUS",

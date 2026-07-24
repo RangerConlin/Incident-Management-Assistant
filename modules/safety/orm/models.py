@@ -34,6 +34,7 @@ class Hazard:
     hazard_type_text: Optional[str]
     source: Optional[str]
     op_period_ids: list[int]
+    hazard_zone_ids: list[int]
     location_text: Optional[str]
     links: HazardLinks
     control_measure: Optional[str]
@@ -41,7 +42,7 @@ class Hazard:
     ppe_text: Optional[str]
     safety_message: Optional[str]
     notes: Optional[str]
-    spe_initial: Optional[SpeAssessment]
+    default_spe: Optional[SpeAssessment]
     spe_residual: Optional[SpeAssessment]
     created_at: Optional[str]
     updated_at: Optional[str]

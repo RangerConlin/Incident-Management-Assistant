@@ -460,35 +460,163 @@ class TeamMapInspectorPanel(QWidget):
         return connected
 
 
-class TeamLocationMapPanel(QWidget):
-    """First-pass GIS shell: top toolbar + map canvas + tracked team markers."""
+class TeamMapCanvas(QWidget):
+    """Bare Leaflet map + live team markers, with no toolbar or inspector.
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    This is the piece :class:`TeamLocationMapPanel` and any other panel that
+    just needs "a map with team dots on it" (e.g. a compact dashboard
+    snapshot) actually share. Basemap switching, zoom controls, view
+    persistence, and the connected-records inspector are toolbar-level
+    concerns that stay in :class:`TeamLocationMapPanel`.
+    """
+
+    teamSelected = Signal(int)
+    mapReady = Signal()
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        center: tuple[float, float] | None = None,
+        zoom: int = _DEFAULT_ZOOM,
+        basemap_key: str = _DEFAULT_BASEMAP,
+    ) -> None:
         super().__init__(parent)
         self._known_located_teams: set[int] = set()
         self._ready = False
-        self._incident_id = str(incident_context.get_active_incident_id() or "default")
-        self._persist_timer = QTimer(self)
-        self._persist_timer.setInterval(3000)
-        self._persist_timer.timeout.connect(self._persist_map_state)
+        self._basemap_key = basemap_key if basemap_key in _BASEMAPS else _DEFAULT_BASEMAP
+
+        incident = incident_cache.active_incident() or {}
+        self.incident_center = center or (
+            float(incident.get("latitude") or _DEFAULT_CENTER[0]),
+            float(incident.get("longitude") or _DEFAULT_CENTER[1]),
+        )
+
         self._bridge = _MapSelectionBridge(self)
-        self._bridge.teamSelected.connect(self._on_team_selected)
+        self._bridge.teamSelected.connect(self.teamSelected.emit)
         self._web_channel = QWebChannel(self)
         self._web_channel.registerObject("mapBridge", self._bridge)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        incident = incident_cache.active_incident() or {}
-        self._incident_center = (
-            float(incident.get("latitude") or _DEFAULT_CENTER[0]),
-            float(incident.get("longitude") or _DEFAULT_CENTER[1]),
+        self._view = QWebEngineView(self)
+        # The map HTML is loaded from a local file:// base URL (the vendored
+        # Leaflet assets), and QtWebEngine blocks "local content" from
+        # fetching remote (https://) subresources by default — silently, an
+        # <img> tile just sits at complete=true/naturalWidth=0 with no error
+        # surfaced to page JS. The OSM tile layer is a remote https fetch
+        # from that local-origin page, so this must be explicitly enabled.
+        self._view.settings().setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
+        self._view.page().setWebChannel(self._web_channel)
+        self._view.loadFinished.connect(self._on_load_finished)
+        layout.addWidget(self._view)
+
+        lat, lon = self.incident_center
+        html = _map_html(lat, lon, zoom, self._basemap_key)
+        base_url = QUrl(_ASSETS_DIR.as_uri() + "/")
+        self._view.setHtml(html, base_url)
+
+        incident_cache.changed.connect(self._on_cache_changed)
+        self.destroyed.connect(lambda _=None: self._disconnect())
+
+    def _disconnect(self) -> None:
+        try:
+            incident_cache.changed.disconnect(self._on_cache_changed)
+        except Exception:
+            pass
+
+    @property
+    def ready(self) -> bool:
+        return self._ready
+
+    def _on_load_finished(self, ok: bool) -> None:
+        if not ok:
+            logger.warning("TeamMapCanvas: map HTML failed to load")
+            return
+        self._ready = True
+        for doc in incident_cache.get_all("teams"):
+            self._apply_team_doc(doc)
+        self.mapReady.emit()
+
+    def _on_cache_changed(self, collection: str, op: str, doc_id: str) -> None:
+        if collection != "teams" or not self._ready:
+            return
+        # A hard-deleted team can't be recovered from the cache to resolve
+        # its int_id for marker removal, but TEAMS docs are soft-deleted by
+        # default (BaseRepository) — the realistic delete path lands here as
+        # an "updated" doc with deleted=True, which _apply_team_doc handles.
+        if op == "deleted":
+            return
+        doc = incident_cache.get("teams", doc_id)
+        if doc is not None:
+            self._apply_team_doc(doc)
+
+    def _apply_team_doc(self, doc: dict[str, Any]) -> None:
+        team_id = doc.get("int_id")
+        if team_id is None:
+            return
+        lat = doc.get("current_location_lat")
+        lon = doc.get("current_location_lon")
+        if lat is None or lon is None or doc.get("deleted"):
+            if team_id in self._known_located_teams:
+                self._known_located_teams.discard(team_id)
+                self._run_js(f"removeMarker({team_id});")
+            return
+        name = doc.get("name") or f"Team {team_id}"
+        self._known_located_teams.add(team_id)
+        self._run_js(f"upsertMarker({team_id}, {json.dumps(name)}, {lat}, {lon});")
+
+    def set_basemap(self, key: str, callback: Any | None = None) -> None:
+        if not self._ready or key not in _BASEMAPS:
+            return
+        self._basemap_key = key
+        self._run_js(f"setBasemap({json.dumps(str(key))});", callback=callback)
+
+    def zoom_in(self) -> None:
+        self._run_js("zoomInMap();")
+
+    def zoom_out(self) -> None:
+        self._run_js("zoomOutMap();")
+
+    def center_on(self, lat: float, lon: float, zoom: int | None = None) -> None:
+        zoom_arg = "" if zoom is None else f", {zoom}"
+        self._run_js(f"centerMap({lat}, {lon}{zoom_arg});")
+
+    def fit_visible(self, callback: Any | None = None) -> None:
+        self._run_js("fitToMarkers();", callback=callback)
+
+    def get_state(self, callback: Any) -> None:
+        self._run_js("getMapState();", callback=callback)
+
+    def _run_js(self, script: str, callback: Any | None = None) -> None:
+        page = self._view.page()
+        if page is not None:
+            if callback is None:
+                page.runJavaScript(script)
+            else:
+                page.runJavaScript(script, 0, callback)
+
+
+class TeamLocationMapPanel(QWidget):
+    """First-pass GIS shell: top toolbar + map canvas + tracked team markers."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._incident_id = str(incident_context.get_active_incident_id() or "default")
+        self._persist_timer = QTimer(self)
+        self._persist_timer.setInterval(3000)
+        self._persist_timer.timeout.connect(self._persist_map_state)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
         saved_view = self._load_saved_view()
-        center_lat = saved_view.get("center_lat", self._incident_center[0])
-        center_lon = saved_view.get("center_lon", self._incident_center[1])
         zoom = saved_view.get("zoom", _DEFAULT_ZOOM)
         basemap_key = saved_view.get("basemap_key", _DEFAULT_BASEMAP)
+        center = (saved_view.get("center_lat"), saved_view.get("center_lon"))
 
         controls = QHBoxLayout()
         controls.setContentsMargins(8, 8, 8, 0)
@@ -507,20 +635,16 @@ class TeamLocationMapPanel(QWidget):
 
         zoom_in_button = QPushButton("+", self)
         zoom_in_button.setFixedWidth(36)
-        zoom_in_button.clicked.connect(lambda: self._run_js("zoomInMap();"))
         controls.addWidget(zoom_in_button)
 
         zoom_out_button = QPushButton("-", self)
         zoom_out_button.setFixedWidth(36)
-        zoom_out_button.clicked.connect(lambda: self._run_js("zoomOutMap();"))
         controls.addWidget(zoom_out_button)
 
         center_button = QPushButton("Center Incident", self)
-        center_button.clicked.connect(self._center_on_incident)
         controls.addWidget(center_button)
 
         fit_visible_button = QPushButton("Fit Visible", self)
-        fit_visible_button.clicked.connect(self._fit_visible)
         controls.addWidget(fit_visible_button)
         controls.addStretch(1)
         layout.addLayout(controls)
@@ -528,36 +652,23 @@ class TeamLocationMapPanel(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.setChildrenCollapsible(False)
 
-        map_shell = QWidget(self)
-        map_shell_layout = QVBoxLayout(map_shell)
-        map_shell_layout.setContentsMargins(0, 0, 0, 0)
+        self._canvas = TeamMapCanvas(self, center=center, zoom=zoom, basemap_key=basemap_key)
+        self._canvas.teamSelected.connect(self._on_team_selected)
+        self._canvas.mapReady.connect(self._persist_timer.start)
 
-        self._view = QWebEngineView(self)
-        # The map HTML is loaded from a local file:// base URL (the vendored
-        # Leaflet assets), and QtWebEngine blocks "local content" from
-        # fetching remote (https://) subresources by default — silently, an
-        # <img> tile just sits at complete=true/naturalWidth=0 with no error
-        # surfaced to page JS. The OSM tile layer is a remote https fetch
-        # from that local-origin page, so this must be explicitly enabled.
-        self._view.settings().setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
-        )
-        self._view.page().setWebChannel(self._web_channel)
-        self._view.loadFinished.connect(self._on_load_finished)
-        map_shell_layout.addWidget(self._view)
+        zoom_in_button.clicked.connect(self._canvas.zoom_in)
+        zoom_out_button.clicked.connect(self._canvas.zoom_out)
+        center_button.clicked.connect(self._center_on_incident)
+        fit_visible_button.clicked.connect(self._fit_visible)
 
         self._inspector = TeamMapInspectorPanel(self)
 
-        splitter.addWidget(map_shell)
+        splitter.addWidget(self._canvas)
         splitter.addWidget(self._inspector)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
         splitter.setSizes([900, 320])
         layout.addWidget(splitter, 1)
-
-        html = _map_html(center_lat, center_lon, zoom, basemap_key)
-        base_url = QUrl(_ASSETS_DIR.as_uri() + "/")
-        self._view.setHtml(html, base_url)
 
         incident_cache.changed.connect(self._on_cache_changed)
         self.destroyed.connect(lambda _=None: self._disconnect())
@@ -570,58 +681,22 @@ class TeamLocationMapPanel(QWidget):
         except Exception:
             pass
 
-    def _on_load_finished(self, ok: bool) -> None:
-        if not ok:
-            logger.warning("TeamLocationMapPanel: map HTML failed to load")
-            return
-        self._ready = True
-        self._persist_timer.start()
-        for doc in incident_cache.get_all("teams"):
-            self._apply_team_doc(doc)
-
     def _on_cache_changed(self, collection: str, op: str, doc_id: str) -> None:
-        if collection != "teams" or not self._ready:
-            if collection in {"tasks", "intel_items", "intel_leads", "incident_personnel"}:
-                self._inspector.refresh()
-            return
-        # A hard-deleted team can't be recovered from the cache to resolve
-        # its int_id for marker removal, but TEAMS docs are soft-deleted by
-        # default (BaseRepository) — the realistic delete path lands here as
-        # an "updated" doc with deleted=True, which _apply_team_doc handles.
-        if op == "deleted":
-            return
-        doc = incident_cache.get("teams", doc_id)
-        if doc is not None:
-            self._apply_team_doc(doc)
-        self._inspector.refresh()
-
-    def _apply_team_doc(self, doc: dict[str, Any]) -> None:
-        team_id = doc.get("int_id")
-        if team_id is None:
-            return
-        lat = doc.get("current_location_lat")
-        lon = doc.get("current_location_lon")
-        if lat is None or lon is None or doc.get("deleted"):
-            if team_id in self._known_located_teams:
-                self._known_located_teams.discard(team_id)
-                self._run_js(f"removeMarker({team_id});")
-            return
-        name = doc.get("name") or f"Team {team_id}"
-        self._known_located_teams.add(team_id)
-        self._run_js(f"upsertMarker({team_id}, {json.dumps(name)}, {lat}, {lon});")
+        if collection in {"tasks", "intel_items", "intel_leads", "incident_personnel"}:
+            self._inspector.refresh()
 
     def _on_basemap_changed(self) -> None:
         key = self._basemap_combo.currentData()
-        if not self._ready or not key:
-            return
-        self._run_js(f"setBasemap({json.dumps(str(key))});", callback=lambda _=None: self._persist_map_state())
+        if key:
+            self._canvas.set_basemap(str(key), callback=lambda _=None: self._persist_map_state())
 
     def _center_on_incident(self) -> None:
-        lat, lon = self._incident_center
-        self._run_js(f"centerMap({lat}, {lon}, {_DEFAULT_ZOOM});", callback=lambda _=None: self._persist_map_state())
+        lat, lon = self._canvas.incident_center
+        self._canvas.center_on(lat, lon, _DEFAULT_ZOOM)
+        self._persist_map_state()
 
     def _fit_visible(self) -> None:
-        self._run_js("fitToMarkers();", callback=lambda _=None: self._persist_map_state())
+        self._canvas.fit_visible(callback=lambda _=None: self._persist_map_state())
 
     def _on_team_selected(self, team_id: int) -> None:
         self._inspector.set_team(team_id)
@@ -631,16 +706,21 @@ class TeamLocationMapPanel(QWidget):
 
     def _load_saved_view(self) -> dict[str, Any]:
         prefix = self._settings_prefix()
+        incident = incident_cache.active_incident() or {}
+        incident_center = (
+            float(incident.get("latitude") or _DEFAULT_CENTER[0]),
+            float(incident.get("longitude") or _DEFAULT_CENTER[1]),
+        )
         zoom_value = _VIEW_SETTINGS.value(f"{prefix}/zoom", _DEFAULT_ZOOM)
         try:
             zoom = int(zoom_value)
         except (TypeError, ValueError):
             zoom = _DEFAULT_ZOOM
         try:
-            center_lat = float(_VIEW_SETTINGS.value(f"{prefix}/center_lat", self._incident_center[0]))
-            center_lon = float(_VIEW_SETTINGS.value(f"{prefix}/center_lon", self._incident_center[1]))
+            center_lat = float(_VIEW_SETTINGS.value(f"{prefix}/center_lat", incident_center[0]))
+            center_lon = float(_VIEW_SETTINGS.value(f"{prefix}/center_lon", incident_center[1]))
         except (TypeError, ValueError):
-            center_lat, center_lon = self._incident_center
+            center_lat, center_lon = incident_center
         basemap_key = str(_VIEW_SETTINGS.value(f"{prefix}/basemap_key", _DEFAULT_BASEMAP) or _DEFAULT_BASEMAP)
         if basemap_key not in _BASEMAPS:
             basemap_key = _DEFAULT_BASEMAP
@@ -652,9 +732,9 @@ class TeamLocationMapPanel(QWidget):
         }
 
     def _persist_map_state(self) -> None:
-        if not self._ready:
+        if not self._canvas.ready:
             return
-        self._run_js("getMapState();", callback=self._save_map_state)
+        self._canvas.get_state(self._save_map_state)
 
     def _save_map_state(self, state: Any) -> None:
         if not isinstance(state, dict):
@@ -673,11 +753,3 @@ class TeamLocationMapPanel(QWidget):
         _VIEW_SETTINGS.setValue(f"{prefix}/center_lon", center_lon)
         _VIEW_SETTINGS.setValue(f"{prefix}/zoom", zoom)
         _VIEW_SETTINGS.setValue(f"{prefix}/basemap_key", basemap_key)
-
-    def _run_js(self, script: str, callback: Any | None = None) -> None:
-        page = self._view.page()
-        if page is not None:
-            if callback is None:
-                page.runJavaScript(script)
-            else:
-                page.runJavaScript(script, 0, callback)

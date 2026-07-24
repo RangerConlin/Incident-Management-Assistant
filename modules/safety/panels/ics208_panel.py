@@ -32,6 +32,7 @@ from utils.api_client import api_client
 from utils.app_signals import app_signals
 from utils.itemview_delegates import RowOutlineTableWidget
 from utils.state import AppState
+from utils.styles import get_palette, subscribe_theme
 
 
 class ICS208Panel(QWidget):
@@ -43,7 +44,9 @@ class ICS208Panel(QWidget):
         self._hazard_rows: list[dict[str, Any]] = []
         self._hazard_zone_names: dict[int, str] = {}
         self._weather_alerts: list[str] = []
+        self._last_loaded_op: Optional[int] = None
         self._build_ui()
+        subscribe_theme(self, self._on_theme_changed)
         self._load()
         app_signals.opPeriodChanged.connect(self._on_op_period_changed)
 
@@ -68,22 +71,26 @@ class ICS208Panel(QWidget):
         self._save_btn = QPushButton("Save")
         self._refresh_btn = QPushButton("Refresh")
         self._rebuild_btn = QPushButton("Rebuild Draft Blocks")
-        self._insert_blocks_btn = QPushButton("Insert Selected Blocks Into Final Message")
+        self._replace_blocks_btn = QPushButton("Replace Final Message With Selected Blocks")
+        self._append_blocks_btn = QPushButton("Append Selected Blocks")
         self._import_weather_btn = QPushButton("Import Cached Weather Summary")
         self._status_lbl = QLabel("")
         self._status_lbl.setWordWrap(True)
+        self._status_lbl.setProperty("role", "muted")
 
         self._save_btn.clicked.connect(self._save)
         self._refresh_btn.clicked.connect(self._load)
         self._rebuild_btn.clicked.connect(self._rebuild_draft_blocks)
-        self._insert_blocks_btn.clicked.connect(self._insert_selected_blocks)
+        self._replace_blocks_btn.clicked.connect(lambda: self._insert_selected_blocks(mode="replace"))
+        self._append_blocks_btn.clicked.connect(lambda: self._insert_selected_blocks(mode="append"))
         self._import_weather_btn.clicked.connect(self._import_weather_summary)
 
         for widget in (
             self._save_btn,
             self._refresh_btn,
             self._rebuild_btn,
-            self._insert_blocks_btn,
+            self._replace_blocks_btn,
+            self._append_blocks_btn,
             self._import_weather_btn,
         ):
             row.addWidget(widget)
@@ -98,6 +105,7 @@ class ICS208Panel(QWidget):
         layout.setSpacing(10)
 
         title = QLabel("Source Inputs")
+        title.setProperty("role", "sectionTitle")
         layout.addWidget(title)
 
         layout.addWidget(self._build_operational_period_card())
@@ -115,6 +123,7 @@ class ICS208Panel(QWidget):
         layout.setSpacing(10)
 
         title = QLabel("Authoring Workspace")
+        title.setProperty("role", "sectionTitle")
         layout.addWidget(title)
         layout.addWidget(self._build_builder_card())
         layout.addWidget(self._build_final_message_card(), 1)
@@ -200,6 +209,7 @@ class ICS208Panel(QWidget):
         layout = QVBoxLayout(box)
 
         self._weather_alert_badges = QLabel("No active alerts cached.")
+        self._weather_alert_badges.setProperty("role", "muted")
         self._weather_alert_badges.setWordWrap(True)
         self._weather_summary = QPlainTextEdit()
         self._weather_summary.setPlaceholderText("Weather summary for this operational period.")
@@ -293,6 +303,63 @@ class ICS208Panel(QWidget):
         data = self._op_combo.currentData()
         return int(data) if data is not None else 1
 
+    def _on_theme_changed(self, _theme_name: str) -> None:
+        self._apply_styles()
+        if hasattr(self, "_hazards_table"):
+            palette = get_palette()
+            self._hazards_table.setOutlineColor(palette.get("ctrl_focus", palette.get("accent")))
+
+    def _apply_styles(self) -> None:
+        palette = get_palette()
+        bg_window = palette.get("bg_window", palette["bg"]).name()
+        bg_panel = palette.get("bg_panel", palette["bg"]).name()
+        bg_raised = palette.get("bg_raised", bg_panel).name()
+        ctrl_bg = palette.get("ctrl_bg", bg_panel).name()
+        ctrl_border = palette.get("ctrl_border", palette["divider"]).name()
+        fg_primary = palette.get("fg_primary", palette["fg"]).name()
+        fg_muted = palette.get("fg_muted", palette["muted"]).name()
+        accent = palette.get("accent").name()
+
+        self.setStyleSheet(
+            f"""
+            ICS208Panel, QWidget {{
+                color: {fg_primary};
+            }}
+            QFrame {{
+                background: {bg_window};
+            }}
+            QGroupBox {{
+                background: {bg_raised};
+                border: 1px solid {ctrl_border};
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 10px;
+                font-weight: 600;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+            }}
+            QPlainTextEdit, QLineEdit, QComboBox, QTableWidget {{
+                background: {ctrl_bg};
+                border: 1px solid {ctrl_border};
+                border-radius: 6px;
+            }}
+            QLabel[role="sectionTitle"] {{
+                font-size: 14px;
+                font-weight: 700;
+                color: {accent};
+            }}
+            QLabel[role="muted"] {{
+                color: {fg_muted};
+            }}
+            QPushButton {{
+                padding: 4px 10px;
+            }}
+            """
+        )
+
     def _on_op_period_changed(self, op_data: object) -> None:
         number = 1
         if isinstance(op_data, dict):
@@ -310,11 +377,15 @@ class ICS208Panel(QWidget):
         if not self._incident_id:
             return
         self._status_lbl.setText("")
+        current_op = self._current_op()
+        op_changed = current_op != self._last_loaded_op
         self._load_ics208_doc()
         self._load_supporting_inputs()
-        self._rebuild_draft_blocks()
+        if op_changed or self._all_builder_blocks_empty():
+            self._rebuild_draft_blocks()
         self._refresh_footer_meta()
         self._refresh_attention_needed()
+        self._last_loaded_op = current_op
 
     def _load_ics208_doc(self) -> None:
         data = services.get_ics208(self._incident_id, self._current_op())
@@ -349,7 +420,7 @@ class ICS208Panel(QWidget):
             rows = []
 
         def rank(row: dict[str, Any]) -> int:
-            band = str(((row.get("spe_initial") or row.get("default_spe") or {}).get("band")) or "")
+            band = str(((row.get("default_spe") or {}).get("band")) or "")
             order = {"Very High": 0, "High": 1, "Substantial": 2, "Possible": 3, "Slight": 4}
             return order.get(band, 5)
 
@@ -370,14 +441,28 @@ class ICS208Panel(QWidget):
         if not self._incident_id:
             return []
         try:
-            weather_config = api_client.get(f"/api/incidents/{self._incident_id}/weather") or {}
+            from modules.intel.weather.services.weather_manager import get_weather_manager
+
+            manager = get_weather_manager(self._incident_id)
+            payload = build_weather_form_payload(manager)
         except Exception:
             return []
-        payload = build_weather_form_payload(weather_config)
         alerts_text = str(payload.get("alerts") or "").strip()
         if not alerts_text:
             return []
         return [line.strip() for line in alerts_text.splitlines() if line.strip()]
+
+    def _all_builder_blocks_empty(self) -> bool:
+        return all(
+            not editor.toPlainText().strip()
+            for editor in (
+                self._hazards_block_edit,
+                self._ppe_block_edit,
+                self._language_block_edit,
+                self._weather_block_edit,
+                self._special_block_edit,
+            )
+        )
 
     def _populate_hazards_table(self) -> None:
         self._hazards_table.setRowCount(len(self._hazard_rows))
@@ -387,7 +472,7 @@ class ICS208Panel(QWidget):
             include_checkbox.stateChanged.connect(self._on_hazard_selection_changed)
 
             zone_name = self._zone_name_for_hazard(hazard)
-            spe_band = str(((hazard.get("spe_initial") or hazard.get("default_spe") or {}).get("band")) or "")
+            spe_band = str(((hazard.get("default_spe") or {}).get("band")) or "")
             hazard_title = str(hazard.get("title") or "")
 
             self._hazards_table.setCellWidget(row_index, 0, include_checkbox)
@@ -400,10 +485,12 @@ class ICS208Panel(QWidget):
             self._hazards_table.selectRow(0)
 
     def _hazard_is_selected_by_default(self, hazard: dict[str, Any]) -> bool:
-        band = str(((hazard.get("spe_initial") or hazard.get("default_spe") or {}).get("band")) or "")
+        band = str(((hazard.get("default_spe") or {}).get("band")) or "")
         if band in {"Very High", "High"}:
             return True
-        return not bool(hazard.get("spe_residual"))
+        if hazard.get("spe_residual"):
+            return False
+        return band in {"Substantial", "Possible"}
 
     def _zone_name_for_hazard(self, hazard: dict[str, Any]) -> str:
         zone_ids = hazard.get("hazard_zone_ids") or []
@@ -431,7 +518,7 @@ class ICS208Panel(QWidget):
         high_hazards = [
             h
             for h in self._hazard_rows
-            if str(((h.get("spe_initial") or h.get("default_spe") or {}).get("band")) or "") in {"Very High", "High"}
+            if str(((h.get("default_spe") or {}).get("band")) or "") in {"Very High", "High"}
         ]
         not_in_briefing = [h for h in high_hazards if h not in selected]
 
@@ -458,7 +545,7 @@ class ICS208Panel(QWidget):
         high_hazards = [
             h
             for h in self._hazard_rows
-            if str(((h.get("spe_initial") or h.get("default_spe") or {}).get("band")) or "") in {"Very High", "High"}
+            if str(((h.get("default_spe") or {}).get("band")) or "") in {"Very High", "High"}
         ]
         missing_high = [h for h in high_hazards if h not in selected]
         if missing_high:
@@ -469,6 +556,8 @@ class ICS208Panel(QWidget):
             issues.append("Site safety plan is marked required but no reference is listed.")
         if self._weather_summary.toPlainText().strip() and not self._weather_block_toggle.isChecked():
             issues.append("Weather summary exists but the Weather Advisory block is not selected.")
+        if selected and not self._safety_message.toPlainText().strip():
+            issues.append("Selected source inputs exist, but the final authored safety message is still blank.")
         if not issues:
             issues.append("No immediate gaps detected.")
         self._attention_items.setPlainText("\n".join(f"- {issue}" for issue in issues))
@@ -489,14 +578,17 @@ class ICS208Panel(QWidget):
             return ""
         lines = []
         for hazard in hazards:
-            band = str(((hazard.get("spe_initial") or hazard.get("default_spe") or {}).get("band")) or "")
+            band = str(((hazard.get("default_spe") or {}).get("band")) or "")
             title = str(hazard.get("title") or "")
             location = str(hazard.get("location_text") or "")
+            controls = list(hazard.get("controls") or [])
             parts = [title]
             if band:
                 parts.append(f"SPE: {band}")
             if location:
                 parts.append(location)
+            if controls:
+                parts.append(f"Controls: {controls[0]}")
             lines.append(" | ".join(parts))
         return "\n".join(lines)
 
@@ -532,7 +624,7 @@ class ICS208Panel(QWidget):
             return f"Alerts: {alerts}\n\n{text}"
         return text
 
-    def _insert_selected_blocks(self) -> None:
+    def _insert_selected_blocks(self, *, mode: str = "replace") -> None:
         parts: list[str] = []
         for toggle, edit in (
             (self._hazards_block_toggle, self._hazards_block_edit),
@@ -548,9 +640,17 @@ class ICS208Panel(QWidget):
         if not parts:
             QMessageBox.information(self, "No Blocks Selected", "Select at least one populated block first.")
             return
-        self._safety_message.setPlainText("\n\n".join(parts))
+
+        block_text = "\n\n".join(parts)
+        existing = self._safety_message.toPlainText().rstrip()
+        if mode == "append" and existing:
+            self._safety_message.setPlainText(f"{existing}\n\n{block_text}")
+            self._status_lbl.setText("Selected blocks appended to the final authored safety message.")
+        else:
+            self._safety_message.setPlainText(block_text)
+            self._status_lbl.setText("Selected blocks inserted into the final authored safety message.")
         self._refresh_footer_meta()
-        self._status_lbl.setText("Selected blocks inserted into the final authored safety message.")
+        self._refresh_attention_needed()
 
     def _save(self) -> None:
         if not self._incident_id:
@@ -573,7 +673,7 @@ class ICS208Panel(QWidget):
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return
-        self._footer_updated.setText(str(saved.get("updated_at") or saved.get("prepared_by_datetime") or ""))
+        self._footer_updated.setText(str(saved.get("updated_at") or ""))
         self._refresh_footer_meta()
         self._status_lbl.setText("Saved.")
 
@@ -581,11 +681,13 @@ class ICS208Panel(QWidget):
         if not self._incident_id:
             return
         try:
-            weather_config = api_client.get(f"/api/incidents/{self._incident_id}/weather") or {}
+            from modules.intel.weather.services.weather_manager import get_weather_manager
+
+            manager = get_weather_manager(self._incident_id)
+            weather_payload = build_weather_form_payload(manager)
         except Exception:
             QMessageBox.warning(self, "Import Failed", "Could not load incident weather data.")
             return
-        weather_payload = build_weather_form_payload(weather_config)
         weather_summary = str(weather_payload.get("summary") or "").strip()
         if not weather_summary:
             QMessageBox.information(self, "No Weather Available", "No cached weather summary is available yet.")
@@ -596,6 +698,8 @@ class ICS208Panel(QWidget):
         self._refresh_weather_badges()
         self._refresh_snapshot()
         self._refresh_attention_needed()
+        if not self._weather_block_edit.toPlainText().strip():
+            self._weather_block_edit.setPlainText(self._build_weather_block())
         self._status_lbl.setText("Imported weather summary.")
 
     def _on_hazard_selection_changed(self) -> None:

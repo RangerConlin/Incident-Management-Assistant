@@ -11,6 +11,7 @@ from .theme_page import ThemePage
 from .notifications_page import NotificationsPage
 from .advanced_page import AdvancedPage
 from .about_page import AboutPage
+from .weather_defaults_page import WeatherDefaultsPage
 
 __all__ = [
     "GeneralPage",
@@ -24,4 +25,5 @@ __all__ = [
     "NotificationsPage",
     "AdvancedPage",
     "AboutPage",
+    "WeatherDefaultsPage",
 ]

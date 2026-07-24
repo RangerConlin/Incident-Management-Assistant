@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -27,10 +28,12 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QHeaderView,
 )
 
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.styles import get_palette, task_status_colors
 
 # Optional integration with Operations Taskings
 try:
@@ -38,6 +41,18 @@ try:
     _HAS_TASK_WINDOW = True
 except ImportError:
     _HAS_TASK_WINDOW = False
+
+
+_PRIORITY_LABELS = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
+
+
+def _priority_label(value: object) -> str:
+    if isinstance(value, int):
+        return _PRIORITY_LABELS.get(value, str(value))
+    text = str(value or "").strip()
+    if text.isdigit():
+        return _PRIORITY_LABELS.get(int(text), text)
+    return text
 
 
 class LinkedTasksPanel(QWidget):
@@ -55,31 +70,39 @@ class LinkedTasksPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
         # Toolbar
         btn_bar = QHBoxLayout()
-        self._create_btn = QPushButton("Create Operations Task")
-        self._link_btn = QPushButton("Link Existing Task")
+        self._summary_label = QLabel("")
+        self._summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
+        self._create_btn = QPushButton("Generate Task")
+        self._link_btn = QPushButton("Link Existing")
         self._open_btn = QPushButton("Open Task Detail")
         self._unlink_btn = QPushButton("Unlink Task")
         self._refresh_btn = QPushButton("Refresh")
-        for btn in (self._create_btn, self._link_btn, self._open_btn,
-                    self._unlink_btn, self._refresh_btn):
-            btn_bar.addWidget(btn)
+        btn_bar.addWidget(self._summary_label)
         btn_bar.addStretch(1)
+        btn_bar.addWidget(self._link_btn)
+        btn_bar.addWidget(self._create_btn)
         layout.addLayout(btn_bar)
 
         if not _HAS_TASK_WINDOW:
             note = QLabel("Note: Task Detail Window launcher not found — Open Task Detail will show task info only.")
-            note.setStyleSheet("color: gray; font-style: italic;")
+            note.setStyleSheet(f"color:{get_palette().get('fg_muted').name()}; font-style: italic;")
             layout.addWidget(note)
 
         # Task table
-        columns = ["Task ID", "Task Name", "Type", "Assigned Team", "Status", "Priority", "Link Type", "Notes"]
+        columns = ["Task #", "Name", "Status", "Team", "Priority"]
         self._table = QTableWidget(0, len(columns))
         self._table.setHorizontalHeaderLabels(columns)
-        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
+        self._table.verticalHeader().setVisible(False)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=False)
+        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._table.doubleClicked.connect(self._open_task)
+        self._table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._show_context_menu)
         layout.addWidget(self._table)
 
         self._create_btn.clicked.connect(self._create_task)
@@ -99,18 +122,29 @@ class LinkedTasksPanel(QWidget):
             QMessageBox.critical(self, "Tasks", f"Failed to load linked tasks:\n{exc}")
             return
         self._table.setRowCount(0)
+        self._summary_label.setText(f"{len(links)} linked tasks")
         for link in links:
             task_info = self._fetch_task_info(link.task_id)
             row = self._table.rowCount()
             self._table.insertRow(row)
-            self._table.setItem(row, 0, QTableWidgetItem(str(link.task_id)))
-            self._table.setItem(row, 1, QTableWidgetItem(task_info.get("title", "")))
-            self._table.setItem(row, 2, QTableWidgetItem(task_info.get("category", "")))
-            self._table.setItem(row, 3, QTableWidgetItem(task_info.get("team", "")))
-            self._table.setItem(row, 4, QTableWidgetItem(task_info.get("status", "")))
-            self._table.setItem(row, 5, QTableWidgetItem(task_info.get("priority", "")))
-            self._table.setItem(row, 6, QTableWidgetItem(link.link_type))
-            self._table.setItem(row, 7, QTableWidgetItem(link.notes))
+            status = task_info.get("status", "")
+            brushes = task_status_colors().get(status.lower())
+            row_items = [
+                QTableWidgetItem(task_info.get("task_number", "")),
+                QTableWidgetItem(task_info.get("title", "")),
+                QTableWidgetItem(status),
+                QTableWidgetItem(task_info.get("team_display", "")),
+                QTableWidgetItem(task_info.get("priority", "")),
+            ]
+            if brushes:
+                for row_item in row_items:
+                    row_item.setBackground(brushes["bg"])
+                    row_item.setForeground(brushes["fg"])
+            full_team_text = task_info.get("team", "")
+            if full_team_text:
+                row_items[3].setToolTip(full_team_text)
+            for column, item in enumerate(row_items):
+                self._table.setItem(row, column, item)
             # Store link.id and task_id in UserRole
             self._table.item(row, 0).setData(Qt.UserRole, (link.id, link.task_id))
 
@@ -124,16 +158,25 @@ class LinkedTasksPanel(QWidget):
                 return {}
             doc = api_client.get(f"/api/incidents/{iid}/operations/tasks/{task_id}")
             if doc:
+                assigned = [
+                    str(tt.get("team_name") or f"Team {tt.get('team_id')}")
+                    for tt in (doc.get("task_teams") or doc.get("assigned_teams") or [])
+                    if tt.get("team_name") or tt.get("team_id") is not None
+                ]
+                team_text = ", ".join(assigned)
+                team_display = team_text if len(assigned) <= 2 else f"{len(assigned)} teams"
                 return {
+                    "task_number": str(doc.get("task_id") or ""),
                     "title": doc.get("title", ""),
                     "category": doc.get("category", ""),
-                    "team": "",
+                    "team": team_text,
+                    "team_display": team_display,
                     "status": doc.get("status", ""),
-                    "priority": doc.get("priority", ""),
+                    "priority": _priority_label(doc.get("priority", "")),
                 }
         except Exception:
             pass
-        return {}
+        return {"task_number": ""}
 
     def _current_link_and_task(self) -> tuple[int | None, int | None]:
         row = self._table.currentRow()
@@ -148,6 +191,19 @@ class LinkedTasksPanel(QWidget):
         return None, None
 
     # ------------------------------------------------------------------
+
+    def _show_context_menu(self, pos) -> None:
+        item = self._table.itemAt(pos)
+        if item is not None:
+            self._table.setCurrentCell(item.row(), item.column())
+        if self._table.currentRow() < 0:
+            return
+        menu = QMenu(self)
+        menu.addAction("Open Task Detail", self._open_task)
+        menu.addAction("Unlink Task", self._unlink_task)
+        menu.addSeparator()
+        menu.addAction("Refresh", self.reload)
+        menu.exec(self._table.viewport().mapToGlobal(pos))
 
     def _create_task(self) -> None:
         """Create a new Operations task from this work assignment."""
@@ -206,7 +262,7 @@ class LinkedTasksPanel(QWidget):
             return
         try:
             repo = WorkAssignmentRepository(self._db_path)
-            repo.unlink_task(link_id)
+            repo.unlink_task_for_wa(self._work_assignment_id, link_id)
         except Exception as exc:
             QMessageBox.critical(self, "Unlink", f"Failed to unlink task:\n{exc}")
             return
@@ -246,6 +302,7 @@ class _LinkTaskDialog(QDialog):
         columns = ["Task ID", "Title", "Status", "Priority"]
         self._task_table = QTableWidget(0, len(columns))
         self._task_table.setHorizontalHeaderLabels(columns)
+        self._task_table.verticalHeader().setVisible(False)
         apply_statusboard_table_behavior(self._task_table, stretch_last_section=True)
         layout.addWidget(self._task_table)
 
@@ -266,14 +323,15 @@ class _LinkTaskDialog(QDialog):
             iid = get_active_incident_id()
             if not iid:
                 return
-            rows = api_client.get(f"/api/incidents/{iid}/operations/tasks") or []
+            rows = api_client.get(f"/api/incidents/{iid}/operations/tasks-for-assignment") or []
         except Exception:
             return
         for r in rows:
-            tid = r.get("task_id") or f"T-{r.get('id', '')}"
+            numeric_id = r.get("id") or r.get("int_id")
+            tid = r.get("task_id") or ""
             title = r.get("title", "")
             status = r.get("status", "")
-            priority = r.get("priority", "")
+            priority = _priority_label(r.get("priority", ""))
             if search_text and search_text not in str(tid).lower() and search_text not in title.lower():
                 continue
             row_idx = self._task_table.rowCount()
@@ -282,7 +340,7 @@ class _LinkTaskDialog(QDialog):
             self._task_table.setItem(row_idx, 1, QTableWidgetItem(title))
             self._task_table.setItem(row_idx, 2, QTableWidgetItem(status))
             self._task_table.setItem(row_idx, 3, QTableWidgetItem(priority))
-            self._task_table.item(row_idx, 0).setData(Qt.UserRole, r.get("id"))
+            self._task_table.item(row_idx, 0).setData(Qt.UserRole, numeric_id)
 
     def _link_selected(self) -> None:
         # If task list available, use selection

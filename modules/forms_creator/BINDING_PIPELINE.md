@@ -422,7 +422,7 @@ that point (follow the debrief table's format below as the template).
 | `safety_reports` | `safety_reports` | Wired | incident safety report list exposed with time/location/severity/flagged metadata |
 | `medical_incidents` | - | Not started | |
 | `triage_entries` | - | Not started | |
-| `hazard_zones` | `hazard_zones` | Wired | zone name, geometry JSON, severity, description, timestamps |
+| `spatial_features` (`feature_type=hazard_zone`) | `hazard_zones` | Wired | GIS hazard-zone features exposed as form-friendly zone rows: name, geometry, subtype/severity, description, timestamps |
 | `hazards` | `cap_orm_summaries` | Wired | CAPF-160 compatibility rows synthesized from canonical hazards; no separate `cap_orm_summaries` collection |
 | `hazards` | `cap_orm_form` | Wired | current operational period ORM form view synthesized from canonical hazards |
 | `hazards` | `cap_orm_hazards` | Wired | current operational period ORM hazard rows exposed from canonical hazards; also drives CAPF 160 repeating hazard rows |

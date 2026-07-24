@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.command import data_access
+from modules.gis.panels.team_location_map_panel import TeamMapCanvas
 from styles import icons as app_icons
 from styles import tokens
 from styles import styles as style_palette
@@ -319,11 +320,22 @@ class PendingApprovalsPanel(_Panel):
 
 
 class GeographicSnapshotPanel(_Panel):
-    """Placeholder until a map/GIS snapshot data source is available."""
+    """Compact live map: the same Leaflet team-location canvas used by the
+    GIS module's Team Location Map panel, without its toolbar or inspector.
+    """
+
+    expandRequested = Signal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__("Geographic snapshot", None, parent)
-        self.set_empty_state("Map integration isn't available yet in this view.")
+        expand_button = self.add_header_button("Expand")
+        expand_button.clicked.connect(self.expandRequested.emit)
+
+        # The map fills the panel directly; it manages its own resizing, so
+        # it replaces the base panel's default (list-oriented) body widget
+        # rather than sitting inside it.
+        self._canvas = TeamMapCanvas(self)
+        self._scroll.setWidget(self._canvas)
 
 
 class SectionHealthPanel(_Panel):
@@ -615,6 +627,9 @@ class ICOverviewWidget(QWidget):
 
         # Middle column: geographic snapshot above task status.
         self._map_panel = GeographicSnapshotPanel()
+        self._map_panel.expandRequested.connect(
+            lambda: self.requestOpenModule.emit("operations.incident_map", {})
+        )
         self._task_status_panel = TaskStatusPanel()
         mid = self._make_column([self._map_panel, self._task_status_panel])
 

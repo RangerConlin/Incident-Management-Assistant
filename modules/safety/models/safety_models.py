@@ -42,13 +42,3 @@ class TriageEntry(Base):
     disposition = Column(String)
 
 
-class HazardZone(Base):
-    __tablename__ = "hazard_zones"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    coordinates_json = Column(Text)
-    severity = Column(String)
-    description = Column(Text)
-
-

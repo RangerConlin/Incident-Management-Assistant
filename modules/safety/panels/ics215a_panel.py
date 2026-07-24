@@ -331,7 +331,7 @@ _CANONICAL_COLS = [
     "Title",
     "Category",
     "Op Period(s)",
-    "Initial SPE",
+    "Default SPE",
     "Residual SPE",
     "Linked Work Assignments",
 ]
@@ -366,7 +366,7 @@ class _CanonicalRegisterTable(QWidget):
             r = self._tbl.rowCount()
             self._tbl.insertRow(r)
 
-            initial = hazard.get("spe_initial") or {}
+            initial = hazard.get("default_spe") or {}
             residual = hazard.get("spe_residual") or {}
             initial_degree = initial.get("band", "")
             residual_degree = residual.get("band", "")

@@ -3,26 +3,21 @@ from __future__ import annotations
 """Qt Widgets panel for managing Incident Objectives."""
 
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Optional
+from html import escape
+from typing import Any, List, Optional
 
-from PySide6.QtCore import (
-    QAbstractTableModel,
-    QModelIndex,
-    QPoint,
-    Qt,
-    QSortFilterProxyModel,
-)
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QAction, QIcon, QTextDocument
 from PySide6.QtPrintSupport import QPrintPreviewDialog, QPrinter
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QHeaderView,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMenu,
     QMessageBox,
+    QScrollArea,
     QSizePolicy,
-    QTableView,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -38,206 +33,181 @@ from modules.command.widgets.objective_detail_dialog import ObjectiveDetailDialo
 from modules.command.widgets.objective_template_picker_dialog import ObjectiveTemplatePickerDialog
 from modules.planning.operational_periods.repository import OperationalPeriodRepository
 from utils import incident_context, timefmt
+from utils.styles import (
+    get_palette,
+    subscribe_theme,
+    task_status_colors,
+    wa_priority_colors,
+)
 
 
-TABLE_COLUMNS = [
-    "#",
-    "Objective",
-    "Priority",
-    "Status",
-    "Owner/Section",
-    "Strategies",
-    "Open Tasks",
-    "OP",
-    "Updated",
-]
+_STATUS_COLOR_KEYS = {
+    "draft": "created",
+    "active": "in progress",
+    "completed": "complete",
+    "cancelled": "cancelled",
+}
 
 
-class ObjectivesFilterProxyModel(QSortFilterProxyModel):
-    """Simple proxy that filters using a case-insensitive search string."""
+def _color_name(key: str, fallback: str = "ctrl_border") -> str:
+    pal = get_palette()
+    color = pal.get(key) or pal.get(fallback)
+    return color.name() if color is not None else ""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+
+def _brush_color(brushes: dict[str, Any] | None, role: str, fallback: str) -> str:
+    if brushes and role in brushes:
+        return brushes[role].color().name()
+    return _color_name(fallback)
+
+
+def _chip(text: str, brushes: dict[str, Any] | None, parent: QWidget | None = None) -> QLabel:
+    label = QLabel(text, parent)
+    label.setAlignment(Qt.AlignCenter)
+    label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    bg = _brush_color(brushes, "bg", "ctrl_bg")
+    fg = _brush_color(brushes, "fg", "fg")
+    border = _color_name("ctrl_border")
+    label.setStyleSheet(
+        f"background:{bg}; color:{fg}; border:1px solid {border}; "
+        "padding:2px 8px; border-radius:4px; font-weight:700;"
+    )
+    return label
+
+
+def _metric_label(label: str, value: str, alert: bool = False) -> QLabel:
+    widget = QLabel(f"<b>{escape(label)}</b>  {escape(value)}")
+    widget.setTextFormat(Qt.RichText)
+    widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    widget.setStyleSheet(f"color:{_color_name('danger' if alert else 'fg')};")
+    return widget
+
+
+def _priority_brushes(priority: str) -> dict[str, Any] | None:
+    return wa_priority_colors().get(priority.title())
+
+
+def _status_brushes(status: str) -> dict[str, Any] | None:
+    key = _STATUS_COLOR_KEYS.get(status.lower())
+    if key:
+        return task_status_colors().get(key)
+    return None
+
+
+class _ObjectiveCard(QFrame):
+    """One contained row card for an incident objective summary."""
+
+    opened = Signal(str)
+    quick_status_requested = Signal(str)
+    complete_requested = Signal(str)
+    duplicate_requested = Signal(str)
+    move_requested = Signal(str, int)
+
+    def __init__(self, objective: ObjectiveSummary, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._search_text = ""
+        self._objective = objective
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
+        self._build_ui()
+        self._apply_style()
 
-    def set_search_text(self, text: str) -> None:
-        self._search_text = text.lower().strip()
-        self.invalidateFilter()
+    def _build_ui(self) -> None:
+        objective = self._objective
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(7)
 
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # type: ignore[override]
-        if not self._search_text:
-            return True
-        model = self.sourceModel()
-        if model is None:
-            return True
-        index = model.index(source_row, 1, source_parent)
-        code_index = model.index(source_row, 0, source_parent)
-        objective_text = str(model.data(index, Qt.DisplayRole) or "").lower()
-        code_text = str(model.data(code_index, Qt.DisplayRole) or "").lower()
-        return self._search_text in objective_text or self._search_text in code_text
+        header = QHBoxLayout()
+        header.setSpacing(8)
+        code = objective.code or f"Objective {objective.display_order + 1}"
+        title = QLabel(f"{code}  {objective.text or '(Untitled Objective)'}", self)
+        title.setWordWrap(True)
+        title.setStyleSheet("font-weight:700; font-size:14px; background:transparent;")
+        title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        header.addWidget(title, 1)
+        header.addWidget(_chip(objective.priority.title(), _priority_brushes(objective.priority), self))
+        header.addWidget(_chip(objective.status.title(), _status_brushes(objective.status), self))
+        layout.addLayout(header)
 
+        meta = QHBoxLayout()
+        meta.setSpacing(10)
+        owner = objective.owner_section or "No owner assigned"
+        op_period = objective.op_period_id or "No OP"
+        owner_label = QLabel(owner, self)
+        owner_label.setStyleSheet(f"color:{_color_name('muted')}; background:transparent;")
+        meta.addWidget(owner_label, 1)
+        op_label = QLabel(f"OP {op_period}" if objective.op_period_id else op_period, self)
+        op_label.setStyleSheet(f"color:{_color_name('muted')}; font-weight:600; background:transparent;")
+        meta.addWidget(op_label)
+        if objective.updated_at:
+            updated = QLabel(f"Updated {timefmt.humanize_relative(objective.updated_at)}", self)
+            updated.setStyleSheet(f"color:{_color_name('muted')}; font-size:11px; background:transparent;")
+            meta.addWidget(updated)
+        layout.addLayout(meta)
 
-class ObjectivesTableModel(QAbstractTableModel):
-    """Table model driving the objectives grid."""
+        footer = QHBoxLayout()
+        footer.setSpacing(18)
+        footer.addWidget(_metric_label("Strategies", str(objective.strategies), alert=objective.strategies == 0))
+        footer.addWidget(
+            _metric_label(
+                "Tasks",
+                f"{objective.open_tasks} open / {objective.total_tasks} total",
+                alert=objective.open_tasks > 0,
+            )
+        )
+        if objective.tags:
+            tags = QLabel("  ".join(f"#{tag}" for tag in objective.tags[:4]), self)
+            tags.setStyleSheet(f"color:{_color_name('muted')}; background:transparent;")
+            footer.addWidget(tags, 1)
+        else:
+            footer.addStretch(1)
+        layout.addLayout(footer)
 
-    def __init__(self, reorder_callback: Callable[[List[int]], None] | None = None) -> None:
-        super().__init__()
-        self._objectives: List[ObjectiveSummary] = []
-        self._reorder_callback = reorder_callback
+    def _apply_style(self) -> None:
+        objective = self._objective
+        border_color = _color_name("ctrl_border")
+        left_border = border_color
+        if objective.status in {"completed", "cancelled"}:
+            left_border = _brush_color(_status_brushes(objective.status), "bg", "ctrl_border")
+        elif objective.priority == "urgent":
+            left_border = _brush_color(_priority_brushes(objective.priority), "bg", "danger")
+        elif objective.priority == "high":
+            left_border = _brush_color(_priority_brushes(objective.priority), "bg", "warning")
+        elif objective.status == "active":
+            left_border = _brush_color(_status_brushes(objective.status), "bg", "accent")
 
-    # -- Qt model overrides -------------------------------------------------
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
-        if parent.isValid():
-            return 0
-        return len(self._objectives)
+        self.setStyleSheet(
+            "_ObjectiveCard { "
+            f"background-color:{_color_name('bg_raised')}; "
+            f"border:1px solid {border_color}; "
+            f"border-left:4px solid {left_border}; "
+            "border-radius:8px; "
+            "}"
+        )
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
-        if parent.isValid():
-            return 0
-        return len(TABLE_COLUMNS)
+    def mouseDoubleClickEvent(self, event) -> None:  # type: ignore[override]
+        if event.button() == Qt.LeftButton:
+            self.opened.emit(self._objective.id)
+        super().mouseDoubleClickEvent(event)
 
-    def headerData(
-        self,
-        section: int,
-        orientation: Qt.Orientation,
-        role: int = Qt.DisplayRole,
-    ) -> object:  # type: ignore[override]
-        if role != Qt.DisplayRole:
-            return None
-        if orientation == Qt.Horizontal:
-            if 0 <= section < len(TABLE_COLUMNS):
-                return TABLE_COLUMNS[section]
-            return None
-        return section + 1
-
-    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> object:  # type: ignore[override]
-        if not index.isValid():
-            return None
-        row = index.row()
-        col = index.column()
-        if row < 0 or row >= len(self._objectives):
-            return None
-        objective = self._objectives[row]
-        if role == Qt.DisplayRole:
-            if col == 0:
-                return objective.code
-            if col == 1:
-                return objective.text
-            if col == 2:
-                return objective.priority.title()
-            if col == 3:
-                return objective.status.title()
-            if col == 4:
-                return objective.owner_section or ""
-            if col == 5:
-                return objective.strategies
-            if col == 6:
-                return objective.open_tasks
-            if col == 7:
-                return objective.op_period_id or ""
-            if col == 8:
-                if objective.updated_at:
-                    return timefmt.humanize_relative(objective.updated_at)
-                return ""
-        if role == Qt.UserRole:
-            return objective.id
-        return None
-
-    def flags(self, index: QModelIndex) -> Qt.ItemFlags:  # type: ignore[override]
-        base = super().flags(index)
-        if not index.isValid():
-            return base
-        return base | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled | Qt.ItemIsSelectable | Qt.ItemIsEnabled
-
-    def supportedDropActions(self) -> Qt.DropActions:  # type: ignore[override]
-        return Qt.MoveAction
-
-    def mimeTypes(self) -> List[str]:  # type: ignore[override]
-        return ["application/x-incident-objective-row"]
-
-    def mimeData(self, indexes: list[QModelIndex]):  # type: ignore[override]
-        from PySide6.QtCore import QMimeData, QByteArray
-
-        mime = QMimeData()
-        if not indexes:
-            return mime
-        row = indexes[0].row()
-        mime.setData("application/x-incident-objective-row", QByteArray(str(row).encode()))
-        return mime
-
-    def dropMimeData(
-        self,
-        data,
-        action: Qt.DropAction,
-        row: int,
-        column: int,
-        parent: QModelIndex,
-    ) -> bool:  # type: ignore[override]
-        if action != Qt.MoveAction:
-            return False
-        if not data.hasFormat("application/x-incident-objective-row"):
-            return False
-        try:
-            source_row = int(bytes(data.data("application/x-incident-objective-row")).decode())
-        except Exception:
-            return False
-        if row == -1:
-            row = parent.row()
-        if row == -1:
-            row = self.rowCount()
-        return self.moveRow(QModelIndex(), source_row, QModelIndex(), row)
-
-    def moveRow(
-        self,
-        sourceParent: QModelIndex,
-        sourceRow: int,
-        destinationParent: QModelIndex,
-        destinationChild: int,
-    ) -> bool:  # type: ignore[override]
-        return self.moveRows(sourceParent, sourceRow, 1, destinationParent, destinationChild)
-
-    def moveRows(
-        self,
-        sourceParent: QModelIndex,
-        sourceRow: int,
-        count: int,
-        destinationParent: QModelIndex,
-        destinationChild: int,
-    ) -> bool:  # type: ignore[override]
-        if count != 1:
-            return False
-        if sourceRow < 0 or sourceRow >= len(self._objectives):
-            return False
-        if destinationChild > len(self._objectives):
-            destinationChild = len(self._objectives)
-        if sourceRow == destinationChild or sourceRow + 1 == destinationChild:
-            return False
-        self.beginMoveRows(sourceParent, sourceRow, sourceRow, destinationParent, destinationChild)
-        objective = self._objectives.pop(sourceRow)
-        insert_row = destinationChild
-        if destinationChild > sourceRow:
-            insert_row -= 1
-        self._objectives.insert(insert_row, objective)
-        self.endMoveRows()
-        self._normalize_display_order()
-        if self._reorder_callback:
-            self._reorder_callback([obj.id for obj in self._objectives])
-        return True
-
-    # -- helpers ------------------------------------------------------------
-    def set_objectives(self, objectives: Iterable[ObjectiveSummary]) -> None:
-        self.beginResetModel()
-        self._objectives = list(objectives)
-        self.endResetModel()
-
-    def objective_for_row(self, row: int) -> Optional[ObjectiveSummary]:
-        if 0 <= row < len(self._objectives):
-            return self._objectives[row]
-        return None
-
-    def _normalize_display_order(self) -> None:
-        for idx, objective in enumerate(self._objectives):
-            objective.display_order = idx
+    def _show_context_menu(self, position: QPoint) -> None:
+        objective_id = self._objective.id
+        menu = QMenu(self)
+        menu.addAction("Edit", lambda: self.opened.emit(objective_id))
+        menu.addAction("Quick Status", lambda: self.quick_status_requested.emit(objective_id))
+        menu.addSeparator()
+        menu.addAction("Add Strategy", lambda: self.opened.emit(objective_id))
+        menu.addAction("Create Task", lambda: self.opened.emit(objective_id))
+        menu.addAction("View All Tasks", lambda: self.opened.emit(objective_id))
+        menu.addAction("Duplicate", lambda: self.duplicate_requested.emit(objective_id))
+        menu.addAction("Complete/Cancel", lambda: self.complete_requested.emit(objective_id))
+        menu.addSeparator()
+        menu.addAction("Move Up", lambda: self.move_requested.emit(objective_id, -1))
+        menu.addAction("Move Down", lambda: self.move_requested.emit(objective_id, 1))
+        menu.exec(self.mapToGlobal(position))
 
 
 @dataclass
@@ -251,6 +221,7 @@ class IncidentObjectivesPanel(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._detail_windows: list[ObjectiveDetailDialog] = []
+        self._objectives: list[ObjectiveSummary] = []
         self._toolbar = QToolBar("Objectives", self)
         self._toolbar.setIconSize(self._toolbar.iconSize())
         self._toolbar.setMovable(False)
@@ -259,36 +230,21 @@ class IncidentObjectivesPanel(QWidget):
         layout.addWidget(self._toolbar)
 
         toolbar_widgets = self._build_toolbar()
+        self._toolbar_widgets = toolbar_widgets
 
-        table_container = QWidget(self)
-        table_layout = QVBoxLayout(table_container)
-        table_layout.setContentsMargins(0, 0, 0, 0)
-        self._table = QTableView(table_container)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self._table.setSortingEnabled(True)
-        self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._table.setDragDropMode(QAbstractItemView.InternalMove)
-        self._table.setDragDropOverwriteMode(False)
-        self._table.setDefaultDropAction(Qt.MoveAction)
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        self._card_container = QWidget(self._scroll)
+        self._card_layout = QVBoxLayout(self._card_container)
+        self._card_layout.setContentsMargins(0, 0, 0, 0)
+        self._card_layout.setSpacing(8)
+        self._card_layout.addStretch(1)
+        self._scroll.setWidget(self._card_container)
+        layout.addWidget(self._scroll, 1)
 
-        self._model = ObjectivesTableModel(self._persist_reorder)
-        self._proxy = ObjectivesFilterProxyModel(self)
-        self._proxy.setSourceModel(self._model)
-        self._table.setModel(self._proxy)
-        header = self._table.horizontalHeader()
-        header.setSectionsMovable(True)
-        header.setStretchLastSection(True)
-
-        self._table.doubleClicked.connect(self._on_double_clicked)
-        self._table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self._table.customContextMenuRequested.connect(self._show_context_menu)
-
-        table_layout.addWidget(self._table)
-        layout.addWidget(table_container)
-
-        toolbar_widgets.search.textChanged.connect(self._proxy.set_search_text)
-
+        toolbar_widgets.search.textChanged.connect(lambda _text: self._render_cards())
+        subscribe_theme(self, self._on_theme_changed)
         self.reload()
 
     # ------------------------------------------------------------------
@@ -297,11 +253,11 @@ class IncidentObjectivesPanel(QWidget):
         new_action.triggered.connect(self._create_objective)
         self._toolbar.addAction(new_action)
 
-        template_action = QAction("New From Template…", self)
+        template_action = QAction("New From Template...", self)
         template_action.triggered.connect(self._create_from_template)
         self._toolbar.addAction(template_action)
 
-        manage_templates_action = QAction("Manage Templates…", self)
+        manage_templates_action = QAction("Manage Templates...", self)
         manage_templates_action.triggered.connect(self._open_template_manager)
         self._toolbar.addAction(manage_templates_action)
 
@@ -316,7 +272,7 @@ class IncidentObjectivesPanel(QWidget):
         self._toolbar.addSeparator()
 
         search_edit = QLineEdit(self)
-        search_edit.setPlaceholderText("Search objectives…")
+        search_edit.setPlaceholderText("Search objectives...")
         search_edit.setClearButtonEnabled(True)
         search_edit.setMaximumWidth(260)
         self._toolbar.addWidget(search_edit)
@@ -347,16 +303,63 @@ class IncidentObjectivesPanel(QWidget):
     def reload(self) -> None:
         incident_id = incident_context.get_active_incident_id()
         if not incident_id:
-            self._model.set_objectives([])
+            self._objectives = []
+            self._render_cards()
             return
         try:
             objectives = ApiObjectiveRepository(str(incident_id)).list_objectives(ObjectiveFilters())
         except Exception as exc:  # pragma: no cover - UI fallback
             QMessageBox.critical(self, "Incident Objectives", f"Failed to load objectives:\n{exc}")
             objectives = []
-        self._model.set_objectives(objectives)
-        if self._table.model() is self._proxy:
-            self._table.sortByColumn(0, Qt.AscendingOrder)
+        self._objectives = sorted(objectives, key=lambda obj: (obj.display_order, obj.code))
+        self._render_cards()
+
+    def _on_theme_changed(self, _name: str) -> None:
+        self._render_cards()
+
+    def _filtered_objectives(self) -> list[ObjectiveSummary]:
+        needle = self._toolbar_widgets.search.text().strip().lower()
+        if not needle:
+            return list(self._objectives)
+        result: list[ObjectiveSummary] = []
+        for objective in self._objectives:
+            haystack = " ".join(
+                [
+                    objective.code,
+                    objective.text,
+                    objective.priority,
+                    objective.status,
+                    objective.owner_section or "",
+                    objective.op_period_id or "",
+                    " ".join(objective.tags),
+                ]
+            ).lower()
+            if needle in haystack:
+                result.append(objective)
+        return result
+
+    def _render_cards(self) -> None:
+        while self._card_layout.count() > 1:
+            item = self._card_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        rows = self._filtered_objectives()
+        if not rows:
+            empty = QLabel("No objectives match the current filters.", self._card_container)
+            empty.setAlignment(Qt.AlignCenter)
+            empty.setStyleSheet(f"color:{_color_name('muted')}; font-style:italic; padding:24px;")
+            self._card_layout.insertWidget(0, empty)
+            return
+
+        for objective in rows:
+            card = _ObjectiveCard(objective, self._card_container)
+            card.opened.connect(self._open_detail)
+            card.quick_status_requested.connect(self._quick_status)
+            card.complete_requested.connect(lambda objective_id: self._quick_status(objective_id, target="completed"))
+            card.duplicate_requested.connect(self._duplicate_objective)
+            card.move_requested.connect(self._move_objective)
+            self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
     # ------------------------------------------------------------------
     def _create_objective(self) -> None:
@@ -450,7 +453,7 @@ class IncidentObjectivesPanel(QWidget):
         QMessageBox.information(
             self,
             "Reorder Objectives",
-            "Drag rows in the table to change their display order.",
+            "Right-click an objective card and use Move Up or Move Down to change the display order.",
         )
 
     def _show_filters_dialog(self) -> None:
@@ -503,7 +506,7 @@ class IncidentObjectivesPanel(QWidget):
         document.setHtml(self._build_preview_html(payload))
         printer = QPrinter(QPrinter.HighResolution)
         preview = QPrintPreviewDialog(printer, self)
-        preview.setWindowTitle("Incident Objectives — Print Preview")
+        preview.setWindowTitle("Incident Objectives - Print Preview")
         preview.paintRequested.connect(document.print_)
         preview.exec()
 
@@ -513,11 +516,11 @@ class IncidentObjectivesPanel(QWidget):
         for obj in payload.get("objectives", []):
             rows.append(
                 "<tr>"
-                f"<td>{obj.get('order', '')}</td>"
-                f"<td>{obj.get('code', '')}</td>"
-                f"<td>{obj.get('text', '')}</td>"
-                f"<td>{obj.get('priority', '').title()}</td>"
-                f"<td>{obj.get('status', '').title()}</td>"
+                f"<td>{escape(str(obj.get('order', '')))}</td>"
+                f"<td>{escape(str(obj.get('code', '')))}</td>"
+                f"<td>{escape(str(obj.get('text', '')))}</td>"
+                f"<td>{escape(str(obj.get('priority', '')).title())}</td>"
+                f"<td>{escape(str(obj.get('status', '')).title())}</td>"
                 "</tr>"
             )
         return (
@@ -528,37 +531,17 @@ class IncidentObjectivesPanel(QWidget):
             + "</table>"
         )
 
-    def _on_double_clicked(self, index: QModelIndex) -> None:
-        self._open_detail_for_index(index)
+    def _objective_by_id(self, objective_id: str) -> ObjectiveSummary | None:
+        return next((objective for objective in self._objectives if objective.id == objective_id), None)
 
-    def _show_context_menu(self, pos: QPoint) -> None:
-        index = self._table.indexAt(pos)
-        if not index.isValid():
-            return
-        menu = QMenu(self._table)
-        menu.addAction("Edit", lambda: self._open_detail_for_index(index))
-        menu.addAction("Quick Status", lambda: self._quick_status(index))
-        menu.addSeparator()
-        menu.addAction("Add Strategy", lambda: self._open_detail_for_index(index))
-        menu.addAction("Create Task", lambda: self._open_detail_for_index(index))
-        menu.addAction("View All Tasks", lambda: self._open_detail_for_index(index))
-        menu.addAction("Duplicate", lambda: self._duplicate_objective(index))
-        menu.addAction("Complete/Cancel", lambda: self._quick_status(index, target="completed"))
-        menu.exec(self._table.viewport().mapToGlobal(pos))
-
-    def _open_detail_for_index(self, proxy_index: QModelIndex) -> None:
-        source_index = self._proxy.mapToSource(proxy_index)
-        objective = self._model.objective_for_row(source_index.row())
-        if not objective:
-            return
-        dialog = ObjectiveDetailDialog(self)
-        dialog.load_objective(objective.id)
+    def _open_detail(self, objective_id: str) -> None:
+        dialog = ObjectiveDetailDialog(self, on_saved=self.reload)
+        dialog.load_objective(objective_id)
         dialog.show()
         self._detail_windows.append(dialog)
 
-    def _quick_status(self, proxy_index: QModelIndex, target: str | None = None) -> None:
-        source_index = self._proxy.mapToSource(proxy_index)
-        objective = self._model.objective_for_row(source_index.row())
+    def _quick_status(self, objective_id: str, target: str | None = None) -> None:
+        objective = self._objective_by_id(objective_id)
         if not objective:
             return
         incident_id = incident_context.get_active_incident_id()
@@ -572,9 +555,8 @@ class IncidentObjectivesPanel(QWidget):
             return
         self.reload()
 
-    def _duplicate_objective(self, proxy_index: QModelIndex) -> None:
-        source_index = self._proxy.mapToSource(proxy_index)
-        objective = self._model.objective_for_row(source_index.row())
+    def _duplicate_objective(self, objective_id: str) -> None:
+        objective = self._objective_by_id(objective_id)
         if not objective:
             return
         incident_id = incident_context.get_active_incident_id()
@@ -595,6 +577,19 @@ class IncidentObjectivesPanel(QWidget):
             QMessageBox.critical(self, "Duplicate Objective", f"Failed to duplicate objective:\n{exc}")
             return
         self.reload()
+
+    def _move_objective(self, objective_id: str, direction: int) -> None:
+        index = next((idx for idx, obj in enumerate(self._objectives) if obj.id == objective_id), -1)
+        if index < 0:
+            return
+        target = index + direction
+        if target < 0 or target >= len(self._objectives):
+            return
+        self._objectives[index], self._objectives[target] = self._objectives[target], self._objectives[index]
+        for display_order, objective in enumerate(self._objectives):
+            objective.display_order = display_order
+        self._persist_reorder([objective.id for objective in self._objectives])
+        self._render_cards()
 
     def _persist_reorder(self, ordered_ids: List[str]) -> None:
         incident_id = incident_context.get_active_incident_id()

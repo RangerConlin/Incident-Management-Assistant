@@ -184,6 +184,18 @@ NARRATIVE_STATUS: Dict[str, Dict[str, str]] = {
     "critical": {"bg": "#f2b8b5", "fg": "#1a1a1a"},
 }
 
+WEATHER_SEVERITY: Dict[str, Dict[str, str]] = {
+    "extreme":  {"bg": "#a3123a", "fg": "#ffffff"},
+    "severe":   {"bg": "#c1440e", "fg": "#ffffff"},
+    "moderate": {"bg": "#946b00", "fg": "#ffffff"},
+    "minor":    {"bg": "#7a6a12", "fg": "#ffffff"},
+    "unknown":  {"bg": "#8b96a1", "fg": "#1c232b"},
+    "normal":   {"bg": "#1f7a52", "fg": "#ffffff"},
+    "go":       {"bg": "#1f7a52", "fg": "#ffffff"},
+    "marginal": {"bg": "#946b00", "fg": "#ffffff"},
+    "no_go":    {"bg": "#a3123a", "fg": "#ffffff"},
+}
+
 TEAM_TYPE_COLORS: Dict[str, str] = {
     "GT":       "#228b22",
     "UDF":      "#ffeb3b",
@@ -305,6 +317,7 @@ __all__ = [
     "TEAM_STATUS",
     "TASK_STATUS",
     "NARRATIVE_STATUS",
+    "WEATHER_SEVERITY",
     "TEAM_TYPE_COLORS",
     "INTEL_SUBJECT_STATUS",
     "INTEL_ASSESSMENT_STATUS",

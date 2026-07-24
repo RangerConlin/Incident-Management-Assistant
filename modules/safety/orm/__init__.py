@@ -1,4 +1,4 @@
-"""Safety Risk Manager module entry point.
+"""Incident Hazard Register module entry point.
 
 The hazard register API is served by sarapp_db.api.routers.safety (MongoDB-backed,
 registered in the main app at /api/incidents/{incident_id}/safety/hazards). This
@@ -12,7 +12,7 @@ __all__ = ["register_ui"]
 
 
 def register_ui(menu_registry) -> None:
-    """Register menu entry for the Safety Risk Manager window."""
+    """Register menu entry for the Incident Hazard Register window."""
     if menu_registry is None:
         return
 
@@ -20,6 +20,6 @@ def register_ui(menu_registry) -> None:
 
     menu_registry.add_item(
         path="safety.risk_manager",
-        title="Safety Risk Manager",
+        title="Incident Hazard Register",
         factory=lambda: RiskManagerWindow(),
     )

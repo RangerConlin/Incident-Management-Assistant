@@ -15,7 +15,6 @@ from typing import Any, Dict, Iterable, List, Optional
 from .base import MetarProvider, TafProvider, get_shared_client
 from ..models.readings import MetarReading, TafReading
 from ..services import settings
-from ..services import cache as weather_cache
 
 from datetime import datetime
 from pathlib import Path
@@ -50,10 +49,6 @@ class NoaaMetarProvider(MetarProvider):
                 LOGGER.warning("METAR fetch HTTP %s for %s", resp.status_code, resp.url)
                 return []
             payload = resp.json()
-            try:
-                weather_cache.write_cache("debug_awc_metar_raw", {"url": str(resp.url), "payload": payload})
-            except Exception:
-                pass
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Failed to fetch METAR: %s", exc)
             return []
@@ -83,10 +78,6 @@ class NoaaTafProvider(TafProvider):
                 LOGGER.warning("TAF fetch HTTP %s for %s", resp.status_code, resp.url)
                 return []
             payload = resp.json()
-            try:
-                weather_cache.write_cache("debug_awc_taf_raw", {"url": str(resp.url), "payload": payload})
-            except Exception:
-                pass
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Failed to fetch TAF: %s", exc)
             return []

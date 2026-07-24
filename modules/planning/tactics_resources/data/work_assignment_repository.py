@@ -106,25 +106,60 @@ def _ra_from_dict(d: dict) -> WorkAssignmentResourceAssignment:
 
 
 def _hazard_from_dict(d: dict) -> WorkAssignmentHazard:
+    default_spe = d.get("default_spe") or {}
+    residual_spe = d.get("spe_residual") or {}
+    controls = d.get("controls") or []
+    ppe = d.get("ppe") or []
     return WorkAssignmentHazard(
         id=d.get("id"),
         work_assignment_id=d.get("work_assignment_id"),
         hazard_type_id=d.get("hazard_type_id"),
-        hazard_type_text=str(d.get("hazard_type_text") or ""),
+        hazard_type_text=str(d.get("hazard_type_text") or d.get("title") or ""),
         category=str(d.get("category") or ""),
-        risk_level=str(d.get("risk_level") or "Unknown"),
-        likelihood=str(d.get("likelihood") or "Unknown"),
-        severity=str(d.get("severity") or "Unknown"),
-        control_measure=str(d.get("control_measure") or ""),
-        mitigation_text=str(d.get("mitigation_text") or ""),
-        ppe_text=str(d.get("ppe_text") or ""),
-        safety_message=str(d.get("safety_message") or ""),
-        source=str(d.get("source") or ""),
-        is_resolved=int(bool(d.get("is_resolved", False))),
+        risk_level=str(default_spe.get("band") or d.get("risk_level") or "Unknown"),
+        likelihood=str(default_spe.get("probability") or d.get("likelihood") or "Unknown"),
+        severity=str(default_spe.get("severity") or d.get("severity") or "Unknown"),
+        control_measure="\n".join(str(value) for value in controls) or str(d.get("control_measure") or ""),
+        mitigation_text=str(d.get("safety_language") or d.get("mitigation_text") or ""),
+        ppe_text="\n".join(str(value) for value in ppe) or str(d.get("ppe_text") or ""),
+        safety_message=str(d.get("safety_language") or d.get("safety_message") or ""),
+        source=str(d.get("source") or ("library" if d.get("hazard_type_id") is not None else "incident")),
+        is_resolved=int(bool(residual_spe and residual_spe.get("band") in {"Slight", "Possible"})),
         notes=str(d.get("notes") or ""),
         created_at=str(d.get("created_at") or ""),
         updated_at=str(d.get("updated_at") or ""),
     )
+
+
+def _canonical_hazard_payload(data: dict[str, Any], work_assignment_id: int | None = None) -> dict[str, Any]:
+    links = dict(data.get("links") or {})
+    work_assignment_ids = list(data.get("work_assignment_ids") or links.get("work_assignment_ids") or [])
+    if work_assignment_id is not None and work_assignment_id not in work_assignment_ids:
+        work_assignment_ids.append(work_assignment_id)
+    default_spe = data.get("default_spe") or {"severity": 1, "probability": 1, "exposure": 1}
+    return {
+        "library_hazard_type_id": data.get("hazard_type_id") or data.get("library_hazard_type_id"),
+        "title": data.get("title") or data.get("hazard_type_text") or "",
+        "description": data.get("description") or "",
+        "category": data.get("category") or "",
+        "controls": data.get("controls")
+        or [line.strip() for line in str(data.get("control_measure") or "").splitlines() if line.strip()],
+        "ppe": data.get("ppe")
+        or [line.strip() for line in str(data.get("ppe_text") or "").splitlines() if line.strip()],
+        "safety_language": data.get("safety_language")
+        or data.get("mitigation_text")
+        or data.get("safety_message")
+        or "",
+        "default_spe": default_spe,
+        "spe_residual": data.get("spe_residual"),
+        "location_text": data.get("location_text") or "",
+        "notes": data.get("notes") or "",
+        "op_period_ids": list(data.get("op_period_ids") or []),
+        "task_ids": list(data.get("task_ids") or links.get("task_ids") or []),
+        "team_ids": list(data.get("team_ids") or links.get("team_ids") or []),
+        "work_assignment_ids": work_assignment_ids,
+        "hazard_zone_ids": list(data.get("hazard_zone_ids") or []),
+    }
 
 
 def _comms_from_dict(d: dict) -> WorkAssignmentComms:
@@ -179,8 +214,8 @@ def _output_from_dict(d: dict) -> WorkAssignmentOutputStatus:
         work_assignment_id=d.get("work_assignment_id"),
         output_type=str(d.get("output_type") or ""),
         status=str(d.get("status") or "Not Started"),
-        generated_file_path=d.get("generated_file_path"),
-        generated_at=d.get("generated_at"),
+        generated_file_path=str(d.get("generated_file_path") or ""),
+        generated_at=str(d.get("generated_at") or ""),
         generated_by=d.get("generated_by"),
         notes=str(d.get("notes") or ""),
     )
@@ -401,12 +436,17 @@ class WorkAssignmentRepository:
 
     def list_hazards(self, work_assignment_id: int) -> list[WorkAssignmentHazard]:
         try:
-            return [_hazard_from_dict(d) for d in _client().get(f"{_base()}/{work_assignment_id}/hazards")]
+            data = _client().get(
+                f"/api/incidents/{_iid()}/safety/hazards",
+                params={"work_assignment_id": work_assignment_id},
+            )
+            return [_hazard_from_dict(d) for d in data]
         except Exception:
             return []
 
     def add_hazard(self, work_assignment_id: int, data: dict[str, Any]) -> int:
-        d = _client().post(f"{_base()}/{work_assignment_id}/hazards", json=data)
+        body = _canonical_hazard_payload(data, work_assignment_id)
+        d = _client().post(f"/api/incidents/{_iid()}/safety/hazards", json=body)
         return int(d.get("id") or 0)
 
     def update_hazard(self, hazard_id: int, data: dict[str, Any]) -> bool:
@@ -414,7 +454,8 @@ class WorkAssignmentRepository:
 
     def update_hazard_for_wa(self, work_assignment_id: int, hazard_id: int, data: dict[str, Any]) -> bool:
         try:
-            _client().patch(f"{_base()}/{work_assignment_id}/hazards/{hazard_id}", json=data)
+            body = _canonical_hazard_payload(data, work_assignment_id)
+            _client().patch(f"/api/incidents/{_iid()}/safety/hazards/{hazard_id}", json=body)
             return True
         except Exception:
             return False
@@ -424,7 +465,17 @@ class WorkAssignmentRepository:
 
     def remove_hazard_for_wa(self, work_assignment_id: int, hazard_id: int) -> None:
         try:
-            _client().delete(f"{_base()}/{work_assignment_id}/hazards/{hazard_id}")
+            hazard = _client().get(f"/api/incidents/{_iid()}/safety/hazards/{hazard_id}")
+            links = {
+                "work_assignment_ids": [
+                    value
+                    for value in (hazard.get("work_assignment_ids") or [])
+                    if int(value) != int(work_assignment_id)
+                ],
+                "team_ids": list(hazard.get("team_ids") or []),
+                "task_ids": list(hazard.get("task_ids") or []),
+            }
+            _client().patch(f"/api/incidents/{_iid()}/safety/hazards/{hazard_id}", json=links)
         except Exception:
             pass
 
@@ -432,10 +483,8 @@ class WorkAssignmentRepository:
         pass
 
     def mark_hazard_resolved_for_wa(self, work_assignment_id: int, hazard_id: int, resolved: bool = True) -> None:
-        try:
-            _client().patch(f"{_base()}/{work_assignment_id}/hazards/{hazard_id}", json={"is_resolved": resolved})
-        except Exception:
-            pass
+        # Canonical hazards no longer store per-work-assignment resolved status.
+        pass
 
     # ------------------------------------------------------------------
     # Communications
@@ -614,11 +663,25 @@ class WorkAssignmentRepository:
         except Exception:
             return []
 
-    def update_output_status(self, work_assignment_id: int, output_type: str, status: str, notes: str = "") -> None:
-        try:
-            _client().patch(f"{_base()}/{work_assignment_id}/outputs/{output_type}", json={"status": status, "notes": notes})
-        except Exception:
-            pass
+    def update_output_status(
+        self,
+        work_assignment_id: int,
+        output_type: str,
+        status: str,
+        notes: str = "",
+        *,
+        generated_file_path: str | None = None,
+        generated_at: str | None = None,
+        generated_by: int | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {"status": status, "notes": notes}
+        if generated_file_path is not None:
+            payload["generated_file_path"] = generated_file_path
+        if generated_at is not None:
+            payload["generated_at"] = generated_at
+        if generated_by is not None:
+            payload["generated_by"] = generated_by
+        _client().patch(f"{_base()}/{work_assignment_id}/outputs/{output_type}", json=payload)
 
     # ------------------------------------------------------------------
     # Status board

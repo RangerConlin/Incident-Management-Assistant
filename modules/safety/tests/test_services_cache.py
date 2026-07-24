@@ -74,12 +74,32 @@ def test_list_triage_entries_reads_from_cache():
 def test_list_hazard_zones_reads_from_cache():
     incident_cache.load_snapshot(
         "INC-CACHE",
-        {"hazard_zones": [{"_id": "h-1", "id": 1, "incident_id": "INC-CACHE", "name": "Cliff Edge"}]},
+        {
+            "spatial_features": [
+                {
+                    "_id": "h-1",
+                    "int_id": 1,
+                    "incident_id": "INC-CACHE",
+                    "feature_type": "hazard_zone",
+                    "label": "Cliff Edge",
+                    "geometry_wkt": "POINT(-83.1 42.1)",
+                    "status": "active",
+                },
+                {
+                    "_id": "p-1",
+                    "int_id": 2,
+                    "incident_id": "INC-CACHE",
+                    "feature_type": "planning_sketch",
+                    "label": "Not a hazard",
+                },
+            ]
+        },
     )
 
     zones = services.list_hazard_zones("INC-CACHE")
     assert [z.id for z in zones] == [1]
     assert zones[0].name == "Cliff Edge"
+    assert zones[0].geometry_wkt == "POINT(-83.1 42.1)"
 
 
 def test_list_and_get_iwi_reports_from_cache():

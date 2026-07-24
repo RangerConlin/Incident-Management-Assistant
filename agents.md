@@ -24,6 +24,7 @@
 - `SARAPP_MONGO_URI` is never hardcoded; read it from the environment only.
 - All incident-database writes go through a `sarapp_db.mongo.repository.BaseRepository` subclass. Routers must never call `insert_one`/`update_one`/`delete_one` directly on a raw collection.
 - All tables must support user-resizable columns and show a clear outer border around the selected row; follow `Design Documents/Instructions/tabledesign.md` when creating or modifying tables.
+- User-facing timestamps must be human readable and must not display precision smaller than seconds; trim milliseconds, microseconds, and nanoseconds from UI text.
 - Never hardcode colors (hex strings, `QColor(r, g, b[, a])`, etc.) in widget/panel code. Every color, including conditional/status row tints, badge chips, and legend swatches, must be defined in `styles/profiles/dark.py` and `styles/profiles/light.py` and consumed through an accessor in `styles/styles.py` (re-exported via `utils/styles.py`), following the existing `TEAM_STATUS`/`RESOURCE_STATUS`/`TASK_STATUS`/`INTEL_*` dict patterns. Widgets that recolor based on domain status must call `subscribe_theme` so they repaint on theme switch instead of only at construction time.
 
 ## Directory Orientation

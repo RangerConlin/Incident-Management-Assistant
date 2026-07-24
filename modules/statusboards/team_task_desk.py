@@ -245,22 +245,16 @@ class TeamTaskDesk(QObject):
         for doc in sorted(tasks, key=lambda t: t.get("int_id") or 0):
             task_int_id = doc.get("int_id")
             task_str_id = doc.get("task_id") or str(task_int_id)
-            active_ids = doc.get("active_team_ids")
-            if active_ids is not None:
-                matching_teams = [
-                    team for team in teams
-                    if team.get("int_id") in active_ids or team.get("team_id") in active_ids
-                ]
-            else:
-                matching_teams = [
-                    team for team in teams
-                    if team.get("current_task_id") in (task_int_id, task_str_id)
-                ]
+            task_team_records = list(doc.get("task_teams") or doc.get("assigned_teams") or [])
+            matching_teams = [
+                team for team in teams
+                if team.get("current_task_id") in (task_int_id, task_str_id)
+                and not (team.get("checked_in") is False or team.get("disbanded") is True)
+            ]
             assigned = []
             primary_team = ""
             team_count = 0
             sortie_ids: set[str] = set()
-            task_team_records = list(doc.get("task_teams") or doc.get("assigned_teams") or [])
             for team in matching_teams:
                 sortie_id = None
                 for tt in reversed(task_team_records):
