@@ -1,5 +1,5 @@
 {
-  "description": "SAR 135 — Clue Report — SAR 1",
+  "description": "SAR 135 - Clue Report - SAR 1",
   "fields": [
     {
       "pdf_field": "1 INCIDENT NAME",
@@ -7,7 +7,10 @@
     },
     {
       "pdf_field": "2 DATE",
-      "source": "tasks.0.task_date"
+      "source": {
+        "key": "sar_135.report_timestamp",
+        "transform": "date_short"
+      }
     },
     {
       "pdf_field": "3 INCIDENT NUMBER",
@@ -15,183 +18,218 @@
     },
     {
       "pdf_field": "clue_id1",
-      "source": ""
+      "source": "sar_135.clue_id"
     },
     {
       "pdf_field": "found_time1",
-      "source": ""
+      "source": {
+        "key": "sar_135.found_time",
+        "transform": "datetime_human"
+      }
     },
     {
       "pdf_field": "found_by1",
-      "source": ""
+      "source": "sar_135.found_by"
     },
     {
       "pdf_field": "7 NAME OF INDIVIDUAL THAT LOCATED CLUE",
-      "source": ""
+      "source": "sar_135.located_by"
     },
     {
       "pdf_field": "description1",
-      "source": ""
-    },
-    {
-      "pdf_field": "description2",
-      "source": ""
-    },
-    {
-      "pdf_field": "description3",
-      "source": ""
-    },
-    {
-      "pdf_field": "description4",
-      "source": ""
-    },
-    {
-      "pdf_field": "description5",
-      "source": ""
-    },
-    {
-      "pdf_field": "description6",
-      "source": ""
+      "source": "sar_135.description_display"
     },
     {
       "pdf_field": "location1",
-      "source": ""
-    },
-    {
-      "pdf_field": "location2",
-      "source": ""
-    },
-    {
-      "pdf_field": "location3",
-      "source": ""
-    },
-    {
-      "pdf_field": "location4",
-      "source": ""
-    },
-    {
-      "pdf_field": "location5",
-      "source": ""
+      "source": "sar_135.location_display"
     },
     {
       "pdf_field": "URGENT REPLY NEEDED TEAM STANDING BY  TIME",
-      "source": ""
+      "source": {
+        "key": "sar_135.urgent_response_needed",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "INFORMATION ONLY",
-      "source": ""
+      "source": {
+        "key": "sar_135.information_only",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "undefined",
-      "source": ""
+      "source": "sar_135.response_due_time"
     },
     {
       "pdf_field": "COLLECT",
-      "source": ""
+      "source": {
+        "key": "sar_135.action.collect",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "MARK AND LEAVE",
-      "source": ""
+      "source": {
+        "key": "sar_135.action.mark_and_leave",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "DISREGARD",
-      "source": ""
+      "source": {
+        "key": "sar_135.action.disregard",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "OTHER",
-      "source": ""
+      "source": {
+        "key": "sar_135.action.other",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "undefined_2",
-      "source": ""
+      "source": "sar_135.action.other_text"
     },
     {
       "pdf_field": "CLUE  SEGMENT PROBABILITIES TO BE COMPLETED BY PLANS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.completed_by_plans"
     },
     {
       "pdf_field": "VERY LIKELY A GOOD CLUE",
-      "source": ""
+      "source": {
+        "key": "sar_135.confidence.very_likely_good",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "PROBABLY A GOOD CLUE",
-      "source": ""
+      "source": {
+        "key": "sar_135.confidence.probably_good",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "MAY BE A GOOD CLUE",
-      "source": ""
+      "source": {
+        "key": "sar_135.confidence.may_be_good",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "PROBABLY NOT A GOOD CLUE",
-      "source": ""
+      "source": {
+        "key": "sar_135.confidence.probably_not_good",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "VERY LIKELY NOT A GOOD CLUE",
-      "source": ""
+      "source": {
+        "key": "sar_135.confidence.very_likely_not_good",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "DONT KNOW",
-      "source": ""
+      "source": {
+        "key": "sar_135.confidence.dont_know",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "VIRTUALLY 100 CERTAIN CLUE MEANS SUBJECT IS IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.virtually_certain"
     },
     {
       "pdf_field": "VERY STRONG CHANCE THAT CLUE MEANS SUBJECT IS IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.very_strong_in"
     },
     {
       "pdf_field": "STRONG CHANCE THAT CLUE MEANS SUBJECT IS IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.strong_in"
     },
     {
       "pdf_field": "BETTER THAN EVEN CHANCE THAT CLUE MEANS  SUBJECT IS IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.better_than_even_in"
     },
     {
       "pdf_field": "NO INFORMATION FROM THE CLUE TO SUGGEST SUBJECT IS OR IS NOT IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.no_information"
     },
     {
       "pdf_field": "BETTER THAN EVEN CHANCE THAT CLUE MEANS SUBJECT IS NOT IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.better_than_even_not_in"
     },
     {
       "pdf_field": "PLANS",
-      "source": ""
+      "source": {
+        "key": "sar_135.route_to.plans",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "INVESTIGATIONS",
-      "source": ""
+      "source": {
+        "key": "sar_135.route_to.investigations",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "DEBRIEFING",
-      "source": ""
+      "source": {
+        "key": "sar_135.route_to.debriefing",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "STRONG CHANCE THAT CLUE MEANS SUBJECT IS NOT IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.strong_not_in"
     },
     {
       "pdf_field": "ATTACH TO CLUE",
-      "source": ""
+      "source": {
+        "key": "sar_135.route_to.attach_to_clue",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "OTHER_2",
-      "source": ""
+      "source": {
+        "key": "sar_135.route_to.other",
+        "checkbox": true,
+        "checked_value": "/On"
+      }
     },
     {
       "pdf_field": "VERY STRONG CHANCE THAT CLUE MEANS SUBJECT IS NOT IN THESE SEGMENTS",
-      "source": ""
+      "source": "sar_135.segment_probabilities.very_strong_not_in"
     },
     {
       "pdf_field": "undefined_3",
-      "source": ""
+      "source": "sar_135.route_to.other_text"
     },
     {
       "pdf_field": "13 SEGMENT PROBABILITY LIST SEGMENTSRow9",
-      "source": ""
+      "source": "sar_135.segment_probabilities.list_segments"
     },
     {
       "pdf_field": "14PREPARED BY",
@@ -199,53 +237,13 @@
     },
     {
       "pdf_field": "15CLUE  SEGMENT PROBABLITIES PREPARED BY",
-      "source": ""
-    },
-    {
-      "pdf_field": "8 DESCRIPTION OF CLUERow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "9 LOCATION FOUNDRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "4 CLUE NUMBER",
-      "source": ""
-    },
-    {
-      "pdf_field": "5DATETIME LOCATED",
-      "source": ""
-    },
-    {
-      "pdf_field": "6 TEAM THAT LOCATED CLUE",
-      "source": ""
+      "source": {
+        "first_of": [
+          "sar_135.segment_probabilities.prepared_by",
+          "prepared_by.name"
+        ]
+      }
     }
   ],
-  "row_groups": [
-    {
-      "ref": "clues",
-      "data_key": "clues",
-      "overflow_mode": "truncate",
-      "rows_per_page": [
-        1
-      ],
-      "col_patterns": {
-        "description": "description{n}",
-        "location": "location{n}",
-        "clue_id": "clue_id{n}",
-        "found_time": "found_time{n}",
-        "found_by": "found_by{n}"
-      }
-    },
-    {
-      "ref": "intel_items",
-      "data_key": "intel_items",
-      "overflow_mode": "truncate",
-      "rows_per_page": [
-        1
-      ],
-      "col_patterns": {}
-    }
-  ]
+  "row_groups": []
 }

@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.gis.map_window.ribbon.flow_layout import FlowLayout
+from styles.tokens import ICON_SIZE_LG
 from utils.styles import ribbon_colors, subscribe_theme
 
 _DEFAULT_MAX_CONTENT_WIDTH = 230
@@ -107,22 +109,32 @@ class RibbonGroup(QFrame):
         text: str,
         *,
         icon_text: str = "",
+        icon: QIcon | None = None,
         checkable: bool = False,
         tooltip: str = "",
         on_click: Callable[[], None] | None = None,
         large: bool = True,
     ) -> QToolButton:
         button = QToolButton(self._content)
-        button.setText(icon_text or text)
         button.setToolTip(tooltip or text)
         button.setCheckable(checkable)
         button.setAutoRaise(True)
-        if large:
-            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-            if icon_text:
-                button.setObjectName("ribbonIconButton")
+        if icon is not None:
+            button.setIcon(icon)
+            button.setIconSize(QSize(ICON_SIZE_LG, ICON_SIZE_LG))
+            button.setText(text)
+            if large:
+                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            else:
+                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         else:
-            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            button.setText(icon_text or text)
+            if large:
+                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+                if icon_text:
+                    button.setObjectName("ribbonIconButton")
+            else:
+                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         button.setMinimumSize(_button_min_size(button, icon_text or text, large=large))
         button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         if on_click is not None:

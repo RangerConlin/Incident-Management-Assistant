@@ -51,6 +51,7 @@ class HubWindow(QMainWindow):
 
         self._registry = FormSetRegistry()
         self._selected_form_id: str | None = None
+        self._selected_mapping_set_id: str | None = None
 
         self._build_toolbar()
         self._build_central()
@@ -142,17 +143,17 @@ class HubWindow(QMainWindow):
         self._form_header.setStyleSheet("font-size: 14px;")
         layout.addWidget(self._form_header)
 
-        # --- Row Groups section ---
-        self._row_groups_box = QGroupBox("Row Groups")
+        # --- Mapping row groups section ---
+        self._row_groups_box = QGroupBox("Mapping Row Groups")
         rg_layout = QVBoxLayout(self._row_groups_box)
 
-        self._rg_empty_label = QLabel("No row groups defined.")
+        self._rg_empty_label = QLabel("Select a form-set version to inspect its mapping row groups.")
         self._rg_empty_label.setStyleSheet("color: gray; font-style: italic;")
         rg_layout.addWidget(self._rg_empty_label)
 
         self._rg_table = QTableWidget()
         self._rg_table.setColumnCount(4)
-        self._rg_table.setHorizontalHeaderLabels(["ID", "Data Key", "Columns", "Actions"])
+        self._rg_table.setHorizontalHeaderLabels(["Ref", "Data Key", "Column Patterns", "Actions"])
         self._rg_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self._rg_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self._rg_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
@@ -163,13 +164,6 @@ class HubWindow(QMainWindow):
         self._rg_table.verticalHeader().setVisible(False)
         self._rg_table.hide()
         rg_layout.addWidget(self._rg_table)
-
-        rg_btn_row = QHBoxLayout()
-        self._add_rg_btn = QPushButton("+ Add Row Group")
-        self._add_rg_btn.clicked.connect(self._on_add_row_group)
-        rg_btn_row.addWidget(self._add_rg_btn)
-        rg_btn_row.addStretch()
-        rg_layout.addLayout(rg_btn_row)
 
         self._row_groups_box.setVisible(False)
         layout.addWidget(self._row_groups_box)
@@ -196,6 +190,7 @@ class HubWindow(QMainWindow):
         self._version_table.verticalHeader().setVisible(False)
         self._version_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._version_table.customContextMenuRequested.connect(self._version_context_menu)
+        self._version_table.itemSelectionChanged.connect(self._on_version_selected)
         layout.addWidget(self._version_table)
 
     def _build_bindings_widget(self) -> QWidget:
@@ -317,8 +312,7 @@ class HubWindow(QMainWindow):
             return
         self._form_header.setText(f"<b>{entry.number}</b> — {entry.title}")
         self._create_version_btn.setEnabled(True)
-        self._refresh_row_groups_display(form_id)
-
+        self._selected_mapping_set_id = None
 
         coverage = self._registry.coverage(form_id)
         sets = self._registry.list_sets()
@@ -394,24 +388,63 @@ class HubWindow(QMainWindow):
             self._version_table.setCellWidget(row, 3, actions_widget)
 
         self._version_table.resizeRowsToContents()
+        self._select_first_mapping_version()
+        self._refresh_row_groups_display(form_id, self._selected_mapping_set_id)
 
     # ------------------------------------------------------------------
     # Row groups display and actions
     # ------------------------------------------------------------------
 
-    def _refresh_row_groups_display(self, form_id: str) -> None:
-        self._row_groups_box.setVisible(False)
-        entry = self._registry.get_form_definition(form_id)
-        row_groups = entry.row_groups if entry else []
+    def _select_first_mapping_version(self) -> None:
+        for row in range(self._version_table.rowCount()):
+            meta = self._version_row_meta.get(row) if hasattr(self, "_version_row_meta") else None
+            if not meta:
+                continue
+            _, set_id, _, has_version = meta
+            mapping_path = self._registry.mapping_path(self._selected_form_id or "", set_id)
+            if has_version and mapping_path and mapping_path.exists():
+                self._version_table.selectRow(row)
+                self._selected_mapping_set_id = set_id
+                return
+
+    def _on_version_selected(self) -> None:
+        if not self._selected_form_id or not hasattr(self, "_version_row_meta"):
+            return
+        selected = self._version_table.selectionModel().selectedRows()
+        if not selected:
+            return
+        row = selected[0].row()
+        meta = self._version_row_meta.get(row)
+        if not meta:
+            return
+        _, set_id, _, has_version = meta
+        self._selected_mapping_set_id = set_id if has_version else None
+        self._refresh_row_groups_display(self._selected_form_id, self._selected_mapping_set_id)
+
+    def _refresh_row_groups_display(self, form_id: str, set_id: str | None = None) -> None:
+        self._row_groups_box.setVisible(True)
+        if not set_id:
+            self._rg_empty_label.setText("Select a form-set version to inspect its mapping row groups.")
+            self._rg_empty_label.show()
+            self._rg_table.hide()
+            self._rg_table.setRowCount(0)
+            return
+
+        row_groups = self._registry.list_mapping_row_groups(form_id, set_id)
+        set_meta = self._registry.get_set(set_id)
+        set_label = set_meta.display_name if set_meta else set_id
 
         if row_groups:
             self._rg_empty_label.hide()
             self._rg_table.show()
             self._rg_table.setRowCount(len(row_groups))
             for row_idx, rg in enumerate(row_groups):
-                self._rg_table.setItem(row_idx, 0, QTableWidgetItem(rg.get("id", "")))
+                self._rg_table.setItem(row_idx, 0, QTableWidgetItem(rg.get("ref", "")))
                 self._rg_table.setItem(row_idx, 1, QTableWidgetItem(rg.get("data_key", "")))
-                col_summary = ", ".join(c.get("id", "?") for c in rg.get("columns", []))
+                col_summary = ", ".join(
+                    f"{col}: {pattern}"
+                    for col, pattern in (rg.get("col_patterns") or {}).items()
+                )
                 self._rg_table.setItem(row_idx, 2, QTableWidgetItem(col_summary))
 
                 actions_widget = QWidget()
@@ -422,77 +455,18 @@ class HubWindow(QMainWindow):
                 edit_btn = QPushButton("Edit")
                 edit_btn.setFixedHeight(24)
                 edit_btn.clicked.connect(
-                    lambda checked=False, idx=row_idx: self._on_edit_row_group(idx)
+                    lambda checked=False, fid=form_id, sid=set_id: self._open_mapper(fid, sid)
                 )
                 actions_layout.addWidget(edit_btn)
-
-                rem_btn = QPushButton("Remove")
-                rem_btn.setFixedHeight(24)
-                rem_btn.setStyleSheet("color: #cc3333;")
-                rem_btn.clicked.connect(
-                    lambda checked=False, idx=row_idx: self._on_remove_row_group(idx)
-                )
-                actions_layout.addWidget(rem_btn)
                 actions_layout.addStretch()
                 self._rg_table.setCellWidget(row_idx, 3, actions_widget)
 
             self._rg_table.resizeRowsToContents()
         else:
+            self._rg_empty_label.setText(f"No row groups in {set_label} mapping.json.")
             self._rg_empty_label.show()
             self._rg_table.hide()
             self._rg_table.setRowCount(0)
-
-    def _on_add_row_group(self) -> None:
-        if not self._selected_form_id:
-            return
-        dlg = ArraySourceDialog(parent=self)
-        if dlg.exec() != ArraySourceDialog.DialogCode.Accepted:
-            return
-        data = dlg.result_data()
-        if not data:
-            return
-        entry = self._registry.get_form_definition(self._selected_form_id)
-        row_groups = list(entry.row_groups) if entry else []
-        row_groups.append(data)
-        self._registry.update_form_row_groups(self._selected_form_id, row_groups)
-        self._refresh_row_groups_display(self._selected_form_id)
-
-    def _on_edit_row_group(self, idx: int) -> None:
-        if not self._selected_form_id:
-            return
-        entry = self._registry.get_form_definition(self._selected_form_id)
-        if not entry or idx >= len(entry.row_groups):
-            return
-        existing = entry.row_groups[idx]
-        dlg = ArraySourceDialog(existing=existing, parent=self)
-        if dlg.exec() != ArraySourceDialog.DialogCode.Accepted:
-            return
-        data = dlg.result_data()
-        if not data:
-            return
-        row_groups = list(entry.row_groups)
-        row_groups[idx] = data
-        self._registry.update_form_row_groups(self._selected_form_id, row_groups)
-        self._refresh_row_groups_display(self._selected_form_id)
-
-    def _on_remove_row_group(self, idx: int) -> None:
-        if not self._selected_form_id:
-            return
-        entry = self._registry.get_form_definition(self._selected_form_id)
-        if not entry or idx >= len(entry.row_groups):
-            return
-        rg = entry.row_groups[idx]
-        reply = QMessageBox.question(
-            self, "Remove Row Group",
-            f"Remove row group '{rg.get('id', '?')}'?\nThis cannot be undone.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        row_groups = list(entry.row_groups)
-        row_groups.pop(idx)
-        self._registry.update_form_row_groups(self._selected_form_id, row_groups)
-        self._refresh_row_groups_display(self._selected_form_id)
 
     # ------------------------------------------------------------------
     # New / Edit / Remove form definition
@@ -851,4 +825,3 @@ class HubWindow(QMainWindow):
         entries = [e for e in entries if e.get("path") != orig_path]
         self._save_binding_catalog(entries)
         self._refresh_binding_tree()
-

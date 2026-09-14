@@ -15,11 +15,14 @@
     },
     {
       "pdf_field": "resource_type",
-      "source": "team.resource_type"
+      "source": {
+        "join": ["team.name", "team.resource_type"],
+        "separator": " - "
+      }
     },
     {
       "pdf_field": "personnel.function.1",
-      "source": "team.role"
+      "source": "team.leader_star"
     },
     {
       "pdf_field": "personnel.name.1",
@@ -199,7 +202,10 @@
     },
     {
       "pdf_field": "freq.command",
-      "source": "channels.0.rx_freq"
+      "source": {
+        "key": "channels.0.rx_freq",
+        "transform": "freq_mhz"
+      }
     },
     {
       "pdf_field": "chan_desc.command",
@@ -211,7 +217,10 @@
     },
     {
       "pdf_field": "freq.tactical",
-      "source": "channels.1.rx_freq"
+      "source": {
+        "key": "channels.1.rx_freq",
+        "transform": "freq_mhz"
+      }
     },
     {
       "pdf_field": "chan_desc.tactical",
@@ -227,7 +236,10 @@
     },
     {
       "pdf_field": "freq.other",
-      "source": "channels.2.rx_freq"
+      "source": {
+        "key": "channels.2.rx_freq",
+        "transform": "freq_mhz"
+      }
     },
     {
       "pdf_field": "chan_desc.other",
@@ -265,15 +277,24 @@
     },
     {
       "pdf_field": "time_briefed",
-      "source": "time_briefed"
+      "source": {
+        "key": "time_briefed",
+        "transform": "datetime_human"
+      }
     },
     {
       "pdf_field": "time_out",
-      "source": "time_out"
+      "source": {
+        "key": "time_out",
+        "transform": "datetime_human"
+      }
     },
     {
       "pdf_field": "time_in",
-      "source": "time_in"
+      "source": {
+        "key": "time_in",
+        "transform": "datetime_human"
+      }
     },
     {
       "pdf_field": "notes",
@@ -358,12 +379,9 @@
       ],
       "col_patterns": {
         "member_agency": "team_members_member_agency{n}",
-        "member_medic": "team_members_member_medic{n}",
+        "member_star": "team_members_member_medic{n}",
         "member_name": "team_members_member_name{n}"
-      },
-      "col_checkboxes": [
-        "member_medic"
-      ]
+      }
     }
   ]
 }

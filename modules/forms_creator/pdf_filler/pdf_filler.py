@@ -667,8 +667,14 @@ class PDFFiller:
 
         if "first_of" in source:
             for path in source["first_of"]:
-                value = self._lookup_path(data, str(path))
+                if isinstance(path, dict):
+                    value = self._resolve_value(data, path)
+                else:
+                    value = self._lookup_path(data, str(path))
                 if value not in (None, ""):
+                    transform = source.get("transform")
+                    if transform:
+                        value = self._apply_transform(value, str(transform))
                     return value
             return source.get("default")
 
@@ -746,35 +752,55 @@ class PDFFiller:
             text = str(value).strip()
             if not text:
                 return ""
-            if text.endswith("Z"):
-                text = text[:-1] + "+00:00"
-            parsed = datetime.fromisoformat(text)
-            return parsed.strftime("%m/%d/%Y")
+            from utils.timefmt import to_datetime
+
+            dt = to_datetime(text)
+            if dt is None:
+                return ""
+            return dt.strftime("%m/%d/%Y")
         if transform == "time_short":
             text = str(value).strip()
             if not text:
                 return ""
-            iso = text
-            if iso.endswith("Z"):
-                iso = iso[:-1] + "+00:00"
-            try:
-                dt = datetime.fromisoformat(iso)
-                return dt.strftime("%H%M")
-            except Exception:
-                digits = ''.join(ch for ch in text if ch.isdigit())
-                if len(digits) == 3:
-                    digits = "0" + digits
-                if len(digits) == 4:
-                    return digits
-                return text
+            from utils.timefmt import abbreviate_tz_name, to_datetime
+
+            dt = to_datetime(text)
+            if dt is not None:
+                tz_abbr = abbreviate_tz_name(dt.tzname() or "")
+                return f"{dt.strftime('%H%M')} {tz_abbr}".strip()
+            digits = ''.join(ch for ch in text if ch.isdigit())
+            if len(digits) == 3:
+                digits = "0" + digits
+            if len(digits) == 4:
+                return digits
+            return text
         if transform == "datetime_short":
             text = str(value).strip()
             if not text:
                 return ""
-            if text.endswith("Z"):
-                text = text[:-1] + "+00:00"
-            dt = datetime.fromisoformat(text)
+            from utils.timefmt import to_datetime
+
+            dt = to_datetime(text)
+            if dt is None:
+                return ""
             return dt.strftime("%m/%d/%Y %H:%M")
+        if transform == "datetime_human":
+            text = str(value).strip()
+            if not text:
+                return ""
+            from utils.timefmt import abbreviate_tz_name, to_datetime
+
+            dt = to_datetime(text)
+            if dt is None:
+                return ""
+            tz_abbr = abbreviate_tz_name(dt.tzname() or "")
+            formatted = dt.strftime("%m/%d/%y %H:%M")
+            return f"{formatted} {tz_abbr}".strip()
+        if transform == "freq_mhz":
+            text = str(value).strip()
+            if not text:
+                return ""
+            return f"{text} MHz"
         raise ValueError(f"Unsupported transform '{transform}'")
 
 
@@ -782,6 +808,13 @@ class PDFFiller:
     def _checkbox_value(value: Any, source: dict[str, Any]) -> str:
         true_value = str(source.get("checked_value", "/Yes"))
         false_value = str(source.get("unchecked_value", "/Off"))
+        if "checked_if" in source:
+            expected_values = source["checked_if"]
+            if not isinstance(expected_values, list):
+                expected_values = [expected_values]
+            normalized_value = str(value).strip().lower()
+            truthy = any(normalized_value == str(expected).strip().lower() for expected in expected_values)
+            return true_value if truthy else false_value
         if isinstance(value, str):
             normalized = value.strip().lower()
             truthy = normalized not in {"", "0", "false", "no", "off", "none"}

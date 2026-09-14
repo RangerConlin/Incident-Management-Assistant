@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from math import asin, ceil, cos, radians, sin, sqrt
 from typing import Any, Dict, List, Mapping, Sequence
 
 from PySide6.QtCore import QObject, Signal
@@ -17,6 +18,7 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
         "name",
         "type",
         "level",
+        "contact_frequency",
         "is_24_7",
         "location_text",
         "latitude",
@@ -46,6 +48,11 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
         "level",
         "adult_trauma_level",
         "pediatric_trauma_level",
+        "lat",
+        "lon",
+        "travel_time_min",
+        "travel_time_air_min",
+        "travel_time_ground_min",
         "notes",
     ],
     "air_ambulance": [
@@ -125,6 +132,31 @@ def _trauma_display(adult_level: int, pediatric_level: int) -> str:
     if pediatric:
         return f"P-{pediatric}"
     return ""
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius_miles = 3958.8
+    d_lat = radians(lat2 - lat1)
+    d_lon = radians(lon2 - lon1)
+    r_lat1 = radians(lat1)
+    r_lat2 = radians(lat2)
+    a = sin(d_lat / 2) ** 2 + cos(r_lat1) * cos(r_lat2) * sin(d_lon / 2) ** 2
+    return 2 * radius_miles * asin(sqrt(a))
+
+
+def _travel_minutes(distance_miles: float, speed_mph: float) -> int:
+    if distance_miles <= 0 or speed_mph <= 0:
+        return 0
+    return max(1, int(ceil((distance_miles / speed_mph) * 60)))
 
 COLLECTIONS = {
     "aid_stations": "ics_206_aid_stations",
@@ -229,6 +261,32 @@ class MedicalBridge(QObject):
         fields = TABLE_FIELDS[table]
         return {field: document.get(field) for field in fields}
 
+    def _icp_coordinates(self) -> tuple[float | None, float | None]:
+        profile = self._db()["incident_profile"].find_one({"incident_id": self._incident_id()}) or {}
+        facility_id = str(profile.get("icp_facility_id") or "")
+        if facility_id:
+            facility = self._db()["facilities"].find_one({"id": facility_id}) or self._db()["facilities"].find_one({"_id": facility_id}) or {}
+            lat = _float_or_none(facility.get("latitude"))
+            lon = _float_or_none(facility.get("longitude"))
+            if lat is not None and lon is not None:
+                return lat, lon
+        return _float_or_none(profile.get("latitude")), _float_or_none(profile.get("longitude"))
+
+    def _with_hospital_travel_times(self, row: Mapping[str, Any]) -> dict[str, Any]:
+        out = dict(row)
+        hospital_lat = _float_or_none(out.get("lat") or out.get("latitude"))
+        hospital_lon = _float_or_none(out.get("lon") or out.get("longitude"))
+        icp_lat, icp_lon = self._icp_coordinates()
+        if None in (icp_lat, icp_lon, hospital_lat, hospital_lon):
+            return out
+        distance = _haversine_miles(float(icp_lat), float(icp_lon), float(hospital_lat), float(hospital_lon))
+        ground_minutes = _travel_minutes(distance, 35.0)
+        air_minutes = _travel_minutes(distance, 120.0)
+        out["travel_time_ground_min"] = ground_minutes
+        out["travel_time_air_min"] = air_minutes
+        out["travel_time_min"] = out.get("travel_time_min") or ground_minutes
+        return out
+
     def _plan_id(self, op_period: int | None = None) -> str:
         op = self._op_period() if op_period is None else int(op_period)
         return f"{self._incident_id()}-MEDICAL-PLAN-{op}"
@@ -295,6 +353,8 @@ class MedicalBridge(QObject):
             "updated_at": now,
         }
         doc.update({field: data.get(field) for field in fields})
+        if table == "hospitals":
+            doc = self._with_hospital_travel_times(doc)
         if table in PLAN_TABLES:
             doc.pop("incident_id", None)
             rows = self._plan_array(table)
@@ -314,6 +374,13 @@ class MedicalBridge(QObject):
         if not updates:
             return False
         updates["updated_at"] = self._now()
+        if table == "hospitals":
+            existing_row = {}
+            for row in self._plan_array(table):
+                if int(row.get("id") or 0) == int(id_value):
+                    existing_row = dict(row)
+                    break
+            updates = self._with_hospital_travel_times({**existing_row, **updates})
         if table in PLAN_TABLES:
             rows = self._plan_array(table)
             matched = False
@@ -416,6 +483,7 @@ class MedicalBridge(QObject):
                     "name": row.get("name"),
                     "type": row.get("type"),
                     "level": "",
+                    "contact_frequency": row.get("phone") or row.get("radio_channel") or "",
                     "is_24_7": 0,
                     "location_text": row.get("address") or "",
                     "latitude": row.get("latitude"),
@@ -468,6 +536,8 @@ class MedicalBridge(QObject):
                     "level": _trauma_display(adult_level, pediatric_level),
                     "adult_trauma_level": adult_level,
                     "pediatric_trauma_level": pediatric_level,
+                    "lat": row.get("lat"),
+                    "lon": row.get("lon"),
                     "notes": row.get("notes"),
                 },
             )

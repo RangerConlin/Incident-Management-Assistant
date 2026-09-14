@@ -174,6 +174,29 @@ class FormSetRegistry:
                 }
         return cov
 
+    def mapping_path(self, form_id: str, set_id: str) -> Path | None:
+        """Return the canonical mapping.json path for a concrete form version."""
+        set_meta = self._sets.get(set_id)
+        if set_meta is None:
+            return None
+        return set_meta.path / form_id / "mapping.json"
+
+    def load_mapping(self, form_id: str, set_id: str) -> dict[str, Any]:
+        """Load the canonical per-version mapping used by the export engine."""
+        mapping_path = self.mapping_path(form_id, set_id)
+        if mapping_path is None or not mapping_path.exists():
+            return {}
+        try:
+            data = json.loads(mapping_path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def list_mapping_row_groups(self, form_id: str, set_id: str) -> list[dict[str, Any]]:
+        """Return row_groups from forms/sets/<set>/<form>/mapping.json."""
+        row_groups = self.load_mapping(form_id, set_id).get("row_groups", [])
+        return row_groups if isinstance(row_groups, list) else []
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------

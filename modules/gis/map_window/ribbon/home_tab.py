@@ -11,6 +11,22 @@ from modules.gis.map_window.map_canvas import BASEMAPS, TOOL_PAN, TOOL_SELECT, T
 from modules.gis.map_window.ribbon.ribbon_group import RibbonGroup
 from modules.gis.map_window.ribbon.ribbon_tab_page import RibbonTabPage
 from modules.gis.services.layer_registry import get_default_layer_registry
+from styles.map_icons import (
+    icon_clue,
+    icon_coordinate_entry,
+    icon_hazard,
+    icon_marker,
+    icon_measure,
+    icon_my_location,
+    icon_next_extent,
+    icon_pan,
+    icon_prev_extent,
+    icon_search,
+    icon_select,
+    icon_task_area,
+    icon_zoom_in,
+    icon_zoom_out,
+)
 
 if TYPE_CHECKING:
     from modules.gis.map_window.incident_map_window import IncidentMapWindow
@@ -34,16 +50,16 @@ class HomeTab(RibbonTabPage):
         group = RibbonGroup("Navigation", self)
         canvas = self._window.map_canvas
 
-        pan_btn = group.add_button("Pan", icon_text="✥", checkable=True, on_click=lambda: canvas.activate_tool(TOOL_PAN))
-        select_btn = group.add_button("Select", icon_text="⬚", checkable=True, on_click=lambda: canvas.activate_tool(TOOL_SELECT))
+        pan_btn = group.add_button("Pan", icon=icon_pan(), checkable=True, on_click=lambda: canvas.activate_tool(TOOL_PAN))
+        select_btn = group.add_button("Select", icon=icon_select(), checkable=True, on_click=lambda: canvas.activate_tool(TOOL_SELECT))
         zoom_in_btn = group.add_button(
-            "Zoom In Box", icon_text="🔍+", checkable=True, on_click=lambda: canvas.activate_tool(TOOL_ZOOM_IN_BOX)
+            "Zoom In Box", icon=icon_zoom_in(), checkable=True, on_click=lambda: canvas.activate_tool(TOOL_ZOOM_IN_BOX)
         )
         zoom_out_btn = group.add_button(
-            "Zoom Out Box", icon_text="🔍-", checkable=True, on_click=lambda: canvas.activate_tool(TOOL_ZOOM_OUT_BOX)
+            "Zoom Out Box", icon=icon_zoom_out(), checkable=True, on_click=lambda: canvas.activate_tool(TOOL_ZOOM_OUT_BOX)
         )
-        group.add_button("Prev Extent", icon_text="◀", on_click=canvas.go_to_previous_extent)
-        group.add_button("Next Extent", icon_text="▶", on_click=canvas.go_to_next_extent)
+        group.add_button("Prev Extent", icon=icon_prev_extent(), on_click=canvas.go_to_previous_extent)
+        group.add_button("Next Extent", icon=icon_next_extent(), on_click=canvas.go_to_next_extent)
 
         tool_buttons = {TOOL_PAN: pan_btn, TOOL_SELECT: select_btn, TOOL_ZOOM_IN_BOX: zoom_in_btn, TOOL_ZOOM_OUT_BOX: zoom_out_btn}
 
@@ -65,9 +81,9 @@ class HomeTab(RibbonTabPage):
         search_edit.returnPressed.connect(lambda: self._window.on_geocoder_search(search_edit.text()))
         group.add_widget(search_edit)
 
-        group.add_button("Search", icon_text="🔎", on_click=lambda: self._window.on_geocoder_search(search_edit.text()))
-        group.add_button("Coordinate Entry", icon_text="⌖", on_click=lambda: self._window.bottom_panel.show_tab("coordinates"))
-        group.add_button("My Location", icon_text="📍", on_click=self._window.on_go_to_my_location)
+        group.add_button("Search", icon=icon_search(), on_click=lambda: self._window.on_geocoder_search(search_edit.text()))
+        group.add_button("Coordinate Entry", icon=icon_coordinate_entry(), on_click=lambda: self._window.bottom_panel.show_tab("coordinates"))
+        group.add_button("My Location", icon=icon_my_location(), on_click=self._window.on_go_to_my_location)
         return group
 
     # -- Operational View -----------------------------------------------------
@@ -81,10 +97,10 @@ class HomeTab(RibbonTabPage):
     # -- Quick Add -----------------------------------------------------------
     def _build_quick_add_group(self) -> RibbonGroup:
         group = RibbonGroup("Quick Add", self)
-        group.add_button("Marker", icon_text="📌", on_click=lambda: self._window.arm_quick_add("marker"))
-        group.add_button("Hazard", icon_text="⚠", on_click=lambda: self._window.arm_quick_add("hazard"))
-        group.add_button("Clue", icon_text="🔎", on_click=lambda: self._window.arm_quick_add("clue"))
-        group.add_button("Task Area", icon_text="▦", on_click=lambda: self._window.arm_quick_add("task_area"))
+        group.add_button("Marker", icon=icon_marker(), on_click=lambda: self._window.arm_quick_add("marker"))
+        group.add_button("Hazard", icon=icon_hazard(), on_click=lambda: self._window.arm_quick_add("hazard"))
+        group.add_button("Clue", icon=icon_clue(), on_click=lambda: self._window.arm_quick_add("clue"))
+        group.add_button("Task Area", icon=icon_task_area(), on_click=lambda: self._window.arm_quick_add("task_area"))
         return group
 
     # -- Selection -------------------------------------------------------
@@ -97,7 +113,7 @@ class HomeTab(RibbonTabPage):
     # -- Map Utilities -----------------------------------------------------
     def _build_map_utilities_group(self) -> RibbonGroup:
         group = RibbonGroup("Map Utilities", self)
-        group.add_button("Measure", icon_text="📏", checkable=True)
+        group.add_button("Measure", icon=icon_measure(), checkable=True)
 
         basemap_menu = QMenu(self)
         for key, config in BASEMAPS.items():

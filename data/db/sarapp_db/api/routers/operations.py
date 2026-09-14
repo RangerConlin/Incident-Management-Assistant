@@ -325,8 +325,6 @@ def create_task(incident_id: str, body: dict[str, Any]) -> dict:
         "location_longitude": body.get("location_longitude"),
         "location_feature_id": body.get("location_feature_id"),
         "assignment": body.get("assignment"),
-        "team_leader": body.get("team_leader"),
-        "team_phone": body.get("team_phone"),
         "created_by": body.get("created_by", ""),
         "created_at": _now(),
         "due_time": body.get("due_time"),
@@ -370,6 +368,8 @@ def update_task(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
         raise HTTPException(404, f"Task {task_id} not found")
     body = dict(body)
     body.pop("int_id", None)
+    body.pop("team_leader", None)
+    body.pop("team_phone", None)
     changed_by = str(body.pop("changed_by", "") or "")
     entries = [
         _audit_entry(label, doc.get(field), new_val, changed_by)

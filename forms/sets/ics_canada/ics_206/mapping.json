@@ -1,477 +1,969 @@
 {
-  "description": "Mapping scaffold for template.pdf",
+  "description": "ICS 206 - Medical Plan - ICS Canada",
   "fields": [
     {
-      "pdf_field": "1 Incident Name_10",
-      "source": ""
-    },
-    {
-      "pdf_field": "7 Prepared by Medical Unit Leader Name",
-      "source": ""
-    },
-    {
-      "pdf_field": "8 Approved by Safety Officer Name",
-      "source": ""
-    },
-    {
-      "pdf_field": "Address Latitude  Longitude if HelipadRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Address Latitude  Longitude if HelipadRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Address Latitude  Longitude if HelipadRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Address Latitude  Longitude if HelipadRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Address Latitude  Longitude if HelipadRow5",
-      "source": ""
-    },
-    {
-      "pdf_field": "AirRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "AirRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "AirRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "AirRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "AirRow5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ambulance ServiceRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ambulance ServiceRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ambulance ServiceRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Ambulance ServiceRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center No 1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center No 2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center No 3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center No 4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center No 5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center Yes 1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center Yes 2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center Yes 3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center Yes 4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Burn Center Yes 5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad No 1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad No 2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad No 3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad No 4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad No 5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad Yes 1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad Yes 2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad Yes 3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad Yes 4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Helipad Yes 5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Trauma Center 1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Trauma Center 2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Trauma Center 3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Trauma Center 4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box Trauma Center 5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box if aviation assests are utilized for rescue",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box1 Level of Service - ALS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box1 Level of Service - BLS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box2 Level of Service - ALS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box2 Level of Service - BLS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box3 Level of Service - ALS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box3 Level of Service - BLS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box4 Level of Service - ALS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Check Box4 Level of Service - BLS",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact Numbers FrequencyRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact Numbers FrequencyRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact Numbers FrequencyRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact Numbers FrequencyRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact Numbers FrequencyRow5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow1_2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow2_2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow3_2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow4_2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Contact NumbersFrequencyRow6",
-      "source": ""
-    },
-    {
-      "pdf_field": "Date From",
-      "source": ""
-    },
-    {
-      "pdf_field": "Date To",
-      "source": ""
-    },
-    {
-      "pdf_field": "DateTime_10",
-      "source": ""
-    },
-    {
-      "pdf_field": "GroundRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "GroundRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "GroundRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "GroundRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "GroundRow5",
-      "source": ""
-    },
-    {
-      "pdf_field": "Hospital NameRow1",
-      "source": ""
-    },
-    {
-      "pdf_field": "Hospital NameRow2",
-      "source": ""
-    },
-    {
-      "pdf_field": "Hospital NameRow3",
-      "source": ""
-    },
-    {
-      "pdf_field": "Hospital NameRow4",
-      "source": ""
-    },
-    {
-      "pdf_field": "Hospital NameRow5",
-      "source": ""
-    },
-    {
-      "pdf_field": "IAP Page_6",
-      "source": ""
+      "pdf_field": "1 INCIDENT NAME",
+      "source": {
+        "key": "incident.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "2 DATE PREPARED",
+      "source": {
+        "first_of": [
+          "ics_206_signatures.date",
+          "prepared_by.date_time"
+        ],
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "time prep",
+      "source": {
+        "first_of": [
+          "ics_206_signatures.date",
+          "prepared_by.date_time"
+        ],
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text1",
+      "source": {
+        "key": "op_period.start",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text2",
+      "source": {
+        "key": "op_period.end",
+        "transform": "date_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text3",
+      "source": {
+        "key": "op_period.start",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text4",
+      "source": {
+        "key": "op_period.end",
+        "transform": "time_short",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Medical Aid StationsRow1",
+      "source": {
+        "key": "ics_206_aid_stations.0.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "LocationRow1",
-      "source": ""
+      "source": {
+        "key": "ics_206_aid_stations.0.location_text",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "LocationRow1-2",
-      "source": ""
+      "pdf_field": "Medical Aid StationsRow2",
+      "source": {
+        "key": "ics_206_aid_stations.1.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "LocationRow2",
-      "source": ""
+      "source": {
+        "key": "ics_206_aid_stations.1.location_text",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "LocationRow2-2",
-      "source": ""
+      "pdf_field": "Medical Aid StationsRow3",
+      "source": {
+        "key": "ics_206_aid_stations.2.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "LocationRow3",
-      "source": ""
+      "source": {
+        "key": "ics_206_aid_stations.2.location_text",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "LocationRow3-2",
-      "source": ""
+      "pdf_field": "Medical Aid StationsRow4",
+      "source": {
+        "key": "ics_206_aid_stations.3.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "LocationRow4",
-      "source": ""
+      "source": {
+        "key": "ics_206_aid_stations.3.location_text",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "LocationRow4-2",
-      "source": ""
+      "pdf_field": "Medical Aid StationsRow5",
+      "source": {
+        "key": "ics_206_aid_stations.4.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "LocationRow5",
-      "source": ""
+      "source": {
+        "key": "ics_206_aid_stations.4.location_text",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "LocationRow6",
-      "source": ""
+      "pdf_field": "Ambulance ServiceRow1",
+      "source": {
+        "key": "ics_206_ambulance_services.0.name",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "NameRow1",
-      "source": ""
+      "pdf_field": "LocationRow1_2",
+      "source": {
+        "key": "ics_206_ambulance_services.0.location",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "NameRow2",
-      "source": ""
+      "pdf_field": "Contact number or frequencyRow1",
+      "source": {
+        "key": "ics_206_ambulance_services.0.phone",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "NameRow3",
-      "source": ""
+      "pdf_field": "Check Box5",
+      "source": {
+        "key": "ics_206_ambulance_services.0.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          2,
+          "2",
+          "ALS"
+        ]
+      }
     },
     {
-      "pdf_field": "NameRow4",
-      "source": ""
+      "pdf_field": "Check Box6",
+      "source": {
+        "key": "ics_206_ambulance_services.0.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          1,
+          "1",
+          "BLS"
+        ]
+      }
     },
     {
-      "pdf_field": "NameRow5",
-      "source": ""
+      "pdf_field": "Ambulance ServiceRow2",
+      "source": {
+        "key": "ics_206_ambulance_services.1.name",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "NameRow6",
-      "source": ""
+      "pdf_field": "LocationRow2_2",
+      "source": {
+        "key": "ics_206_ambulance_services.1.location",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - No, Row 1",
-      "source": ""
+      "pdf_field": "Contact number or frequencyRow2",
+      "source": {
+        "key": "ics_206_ambulance_services.1.phone",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - No, Row 2",
-      "source": ""
+      "pdf_field": "Check Box7",
+      "source": {
+        "key": "ics_206_ambulance_services.1.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          2,
+          "2",
+          "ALS"
+        ]
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - No, Row 3",
-      "source": ""
+      "pdf_field": "Check Box8",
+      "source": {
+        "key": "ics_206_ambulance_services.1.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          1,
+          "1",
+          "BLS"
+        ]
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - No, Row 4",
-      "source": ""
+      "pdf_field": "Ambulance ServiceRow3",
+      "source": {
+        "key": "ics_206_ambulance_services.2.name",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - No, Row 5",
-      "source": ""
+      "pdf_field": "LocationRow3_2",
+      "source": {
+        "key": "ics_206_ambulance_services.2.location",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - No, Row 6",
-      "source": ""
+      "pdf_field": "Contact number or frequencyRow3",
+      "source": {
+        "key": "ics_206_ambulance_services.2.phone",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - Yes, Row 1",
-      "source": ""
+      "pdf_field": "Check Box9",
+      "source": {
+        "key": "ics_206_ambulance_services.2.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          2,
+          "2",
+          "ALS"
+        ]
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - Yes, Row 2",
-      "source": ""
+      "pdf_field": "Check Box10",
+      "source": {
+        "key": "ics_206_ambulance_services.2.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          1,
+          "1",
+          "BLS"
+        ]
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - Yes, Row 3",
-      "source": ""
+      "pdf_field": "Ambulance ServiceRow4",
+      "source": {
+        "key": "ics_206_ambulance_services.3.name",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - Yes, Row 4",
-      "source": ""
+      "pdf_field": "LocationRow4_2",
+      "source": {
+        "key": "ics_206_ambulance_services.3.location",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - Yes, Row 5",
-      "source": ""
+      "pdf_field": "Contact number or frequencyRow4",
+      "source": {
+        "key": "ics_206_ambulance_services.3.phone",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Paramedics on Site - Yes, Row 6",
-      "source": ""
+      "pdf_field": "Check Box11",
+      "source": {
+        "key": "ics_206_ambulance_services.3.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          2,
+          "2",
+          "ALS"
+        ]
+      }
     },
     {
-      "pdf_field": "Signature_11",
-      "source": ""
+      "pdf_field": "Check Box12",
+      "source": {
+        "key": "ics_206_ambulance_services.3.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          1,
+          "1",
+          "BLS"
+        ]
+      }
     },
     {
-      "pdf_field": "Signature_12",
-      "source": ""
+      "pdf_field": "Ambulance ServiceRow5",
+      "source": {
+        "key": "ics_206_ambulance_services.4.name",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Special Medical Emergency Procedures",
-      "source": ""
+      "pdf_field": "LocationRow5_2",
+      "source": {
+        "key": "ics_206_ambulance_services.4.location",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Time From",
-      "source": ""
+      "pdf_field": "Contact number or frequencyRow5",
+      "source": {
+        "key": "ics_206_ambulance_services.4.phone",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Time To",
-      "source": ""
+      "pdf_field": "Check Box13",
+      "source": {
+        "key": "ics_206_ambulance_services.4.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          2,
+          "2",
+          "ALS"
+        ]
+      }
     },
     {
-      "pdf_field": "Trauma Center - Level (Row 1)",
-      "source": ""
+      "pdf_field": "Check Box14",
+      "source": {
+        "key": "ics_206_ambulance_services.4.service_level",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          1,
+          "1",
+          "BLS"
+        ]
+      }
     },
     {
-      "pdf_field": "Trauma Center - Level (Row 2)",
-      "source": ""
+      "pdf_field": "Hospital NameRow1",
+      "source": {
+        "key": "ics_206_hospitals.0.name",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Trauma Center - Level (Row 3)",
-      "source": ""
+      "pdf_field": "Address Lat and Long if HelipadRow1",
+      "source": {
+        "key": "ics_206_hospitals.0.address_lat_lon",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Trauma Center - Level (Row 4)",
-      "source": ""
+      "pdf_field": "Contact number or frequencyRow1_2",
+      "source": {
+        "key": "ics_206_hospitals.0.contact_frequency",
+        "default": ""
+      }
     },
     {
-      "pdf_field": "Trauma Center - Level (Row 5)",
-      "source": ""
+      "pdf_field": "Yes6",
+      "source": {
+        "key": "ics_206_hospitals.0.helipad",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No6",
+      "source": {
+        "key": "ics_206_hospitals.0.helipad",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Yes11",
+      "source": {
+        "key": "ics_206_hospitals.0.burn_center",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No11",
+      "source": {
+        "key": "ics_206_hospitals.0.burn_center",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow2",
+      "source": {
+        "key": "ics_206_hospitals.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Lat and Long if HelipadRow2",
+      "source": {
+        "key": "ics_206_hospitals.1.address_lat_lon",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact number or frequencyRow2_2",
+      "source": {
+        "key": "ics_206_hospitals.1.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Yes7",
+      "source": {
+        "key": "ics_206_hospitals.1.helipad",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No7",
+      "source": {
+        "key": "ics_206_hospitals.1.helipad",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Yes12",
+      "source": {
+        "key": "ics_206_hospitals.1.burn_center",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No12",
+      "source": {
+        "key": "ics_206_hospitals.1.burn_center",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow3",
+      "source": {
+        "key": "ics_206_hospitals.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Lat and Long if HelipadRow3",
+      "source": {
+        "key": "ics_206_hospitals.2.address_lat_lon",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact number or frequencyRow3_2",
+      "source": {
+        "key": "ics_206_hospitals.2.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Yes8",
+      "source": {
+        "key": "ics_206_hospitals.2.helipad",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No8",
+      "source": {
+        "key": "ics_206_hospitals.2.helipad",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Yes13",
+      "source": {
+        "key": "ics_206_hospitals.2.burn_center",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No13",
+      "source": {
+        "key": "ics_206_hospitals.2.burn_center",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow4",
+      "source": {
+        "key": "ics_206_hospitals.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Lat and Long if HelipadRow4",
+      "source": {
+        "key": "ics_206_hospitals.3.address_lat_lon",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact number or frequencyRow4_2",
+      "source": {
+        "key": "ics_206_hospitals.3.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Yes9",
+      "source": {
+        "key": "ics_206_hospitals.3.helipad",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No9",
+      "source": {
+        "key": "ics_206_hospitals.3.helipad",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Yes14",
+      "source": {
+        "key": "ics_206_hospitals.3.burn_center",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No14",
+      "source": {
+        "key": "ics_206_hospitals.3.burn_center",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Hospital NameRow5",
+      "source": {
+        "key": "ics_206_hospitals.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Address Lat and Long if HelipadRow5",
+      "source": {
+        "key": "ics_206_hospitals.4.address_lat_lon",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Contact number or frequencyRow5_2",
+      "source": {
+        "key": "ics_206_hospitals.4.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Yes10",
+      "source": {
+        "key": "ics_206_hospitals.4.helipad",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No10",
+      "source": {
+        "key": "ics_206_hospitals.4.helipad",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Yes15",
+      "source": {
+        "key": "ics_206_hospitals.4.burn_center",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "No15",
+      "source": {
+        "key": "ics_206_hospitals.4.burn_center",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "8. SPECIAL MEDICAL EMERGENCY PROCEDURES",
+      "source": {
+        "key": "ics_206_procedures.content",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "PREPARED BY Medical Unit Leader",
+      "source": {
+        "first_of": [
+          "ics_206_signatures.prepared_by",
+          "organization.medical_unit_leader.name",
+          "prepared_by.name"
+        ],
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "10 APPROVED BY Safety Officer",
+      "source": {
+        "first_of": [
+          "ics_206_signatures.approved_by",
+          "organization.safety_officer.name"
+        ],
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text5",
+      "source": {
+        "key": "ics_206_aid_stations.0.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text6",
+      "source": {
+        "key": "ics_206_aid_stations.1.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text7",
+      "source": {
+        "key": "ics_206_aid_stations.2.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text8",
+      "source": {
+        "key": "ics_206_aid_stations.3.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Text9",
+      "source": {
+        "key": "ics_206_aid_stations.4.contact_frequency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Check Box15",
+      "source": {
+        "key": "ics_206_aid_stations.0.paramedics_on_site",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Check Box16",
+      "source": {
+        "key": "ics_206_aid_stations.0.paramedics_on_site",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Check Box17",
+      "source": {
+        "key": "ics_206_aid_stations.1.paramedics_on_site",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Check Box20",
+      "source": {
+        "key": "ics_206_aid_stations.1.paramedics_on_site",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Check Box18",
+      "source": {
+        "key": "ics_206_aid_stations.2.paramedics_on_site",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Check Box21",
+      "source": {
+        "key": "ics_206_aid_stations.2.paramedics_on_site",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Check Box19",
+      "source": {
+        "key": "ics_206_aid_stations.3.paramedics_on_site",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Check Box22",
+      "source": {
+        "key": "ics_206_aid_stations.3.paramedics_on_site",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Check Box23",
+      "source": {
+        "key": "ics_206_aid_stations.4.paramedics_on_site",
+        "checkbox": true,
+        "default": false
+      }
+    },
+    {
+      "pdf_field": "Check Box24",
+      "source": {
+        "key": "ics_206_aid_stations.4.paramedics_on_site",
+        "checkbox": true,
+        "default": false,
+        "checked_if": [
+          false,
+          "false",
+          "0",
+          "no",
+          "off",
+          ""
+        ]
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow1",
+      "source": {
+        "key": "ics_206_hospitals.0.travel_time_air_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow1_2",
+      "source": {
+        "key": "ics_206_hospitals.0.travel_time_ground_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow2",
+      "source": {
+        "key": "ics_206_hospitals.1.travel_time_air_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow2_2",
+      "source": {
+        "key": "ics_206_hospitals.1.travel_time_ground_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow3",
+      "source": {
+        "key": "ics_206_hospitals.2.travel_time_air_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow3_2",
+      "source": {
+        "key": "ics_206_hospitals.2.travel_time_ground_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow4",
+      "source": {
+        "key": "ics_206_hospitals.3.travel_time_air_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow4_2",
+      "source": {
+        "key": "ics_206_hospitals.3.travel_time_ground_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow5",
+      "source": {
+        "key": "ics_206_hospitals.4.travel_time_air_min",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Travel Time Air GrndRow5_2",
+      "source": {
+        "key": "ics_206_hospitals.4.travel_time_ground_min",
+        "default": ""
+      }
     }
   ]
 }

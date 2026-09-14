@@ -1665,6 +1665,7 @@ class MainWindow(QMainWindow):
             widget.setAutoRefresh(30000)
         except Exception:
             pass
+        widget.openFullPlannerRequested.connect(self.open_tactics_resources_planner)
         self._open_panel(widget, title="Planning — At-a-Glance")
 
     def open_planning_approvals(self) -> None:

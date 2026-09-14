@@ -233,8 +233,15 @@ class IntelItemDetailWindow(QMainWindow):
         layout.addWidget(self._header_confidence_chip)
         layout.addWidget(self._header_trend)
         layout.addWidget(edit_btn)
+        if self._is_clue_item():
+            export_sar135_btn = QPushButton("Export Clue Report")
+            export_sar135_btn.clicked.connect(self._export_sar135)
+            layout.addWidget(export_sar135_btn)
         layout.addWidget(add_obs_btn)
         return w
+
+    def _is_clue_item(self) -> bool:
+        return str(self._item.item_type or "").strip().lower() == "clue"
 
     def _build_overview_tab(self) -> QWidget:
         w = QWidget()
@@ -678,3 +685,28 @@ class IntelItemDetailWindow(QMainWindow):
                 self._tabs.removeTab(0)
                 self._tabs.insertTab(0, self._build_overview_tab(), "Overview")
                 self._tabs.setCurrentIndex(0)
+
+    def _export_sar135(self) -> None:
+        if not self._is_clue_item():
+            QMessageBox.information(
+                self,
+                "SAR 135 Export",
+                "SAR 135 can only be exported for Intel items with type Clue.",
+            )
+            return
+        try:
+            from modules.intel.services.sar135_export_service import generate_sar135
+
+            result = generate_sar135(
+                clue_id=self._item.id,
+                incident_id=self._service.incident_id,
+            )
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(result.output_path)))
+            self._write_log("form_exported", f"SAR 135 exported: {result.output_path.name}")
+        except Exception as exc:
+            _log.exception("Could not export SAR 135 for clue %s", self._item.id)
+            QMessageBox.warning(
+                self,
+                "SAR 135 Export",
+                f"Could not export SAR 135:\n{exc}",
+            )

@@ -15,7 +15,10 @@
     },
     {
       "pdf_field": "uc_name1",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.0.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "DeputyRow1",
@@ -23,7 +26,10 @@
     },
     {
       "pdf_field": "uc_agency1",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.0.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "Deputy",
@@ -31,7 +37,10 @@
     },
     {
       "pdf_field": "uc_name2",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.1.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "DeputyRow2",
@@ -39,7 +48,10 @@
     },
     {
       "pdf_field": "uc_agency2",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.1.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "DeputyRow1_2",
@@ -51,7 +63,10 @@
     },
     {
       "pdf_field": "uc_name3",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.2.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "DeputyRow3",
@@ -59,7 +74,10 @@
     },
     {
       "pdf_field": "uc_agency3",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.2.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "Staging Area Manager",
@@ -67,7 +85,10 @@
     },
     {
       "pdf_field": "uc_name4",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.3.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "DeputyRow4",
@@ -75,7 +96,10 @@
     },
     {
       "pdf_field": "uc_agency4",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.3.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "Staging Area Manager_2",
@@ -83,7 +107,10 @@
     },
     {
       "pdf_field": "uc_name5",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.4.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "DeputyRow5",
@@ -91,7 +118,10 @@
     },
     {
       "pdf_field": "uc_agency5",
-      "source": ""
+      "source": {
+        "key": "uc_commanders.4.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "Staging Area ManagerRow1",
@@ -147,11 +177,17 @@
     },
     {
       "pdf_field": "rep_agency1",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.0.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "rep_name1",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.0.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "div_4_name1",
@@ -159,11 +195,17 @@
     },
     {
       "pdf_field": "rep_agency2",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.1.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "rep_name2",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.1.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "div_5_name1",
@@ -171,11 +213,17 @@
     },
     {
       "pdf_field": "rep_agency3",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.2.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "rep_name3",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.2.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "DivisionGroup_6",
@@ -183,11 +231,17 @@
     },
     {
       "pdf_field": "rep_agency4",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.3.agency",
+        "default": ""
+      }
     },
     {
       "pdf_field": "rep_name4",
-      "source": ""
+      "source": {
+        "key": "org_agency_reps.3.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "branch_id2",
@@ -255,7 +309,10 @@
     },
     {
       "pdf_field": "tech_name1",
-      "source": ""
+      "source": {
+        "key": "planning_tech_specialists.0.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "9 Intelligence  Investigations Section",
@@ -263,11 +320,17 @@
     },
     {
       "pdf_field": "tech_specialty1",
-      "source": ""
+      "source": {
+        "key": "planning_tech_specialists.0.specialty",
+        "default": ""
+      }
     },
     {
       "pdf_field": "tech_name2",
-      "source": ""
+      "source": {
+        "key": "planning_tech_specialists.1.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "Chief_3",
@@ -275,11 +338,17 @@
     },
     {
       "pdf_field": "tech_specialty2",
-      "source": ""
+      "source": {
+        "key": "planning_tech_specialists.1.specialty",
+        "default": ""
+      }
     },
     {
       "pdf_field": "tech_name3",
-      "source": ""
+      "source": {
+        "key": "planning_tech_specialists.2.name",
+        "default": ""
+      }
     },
     {
       "pdf_field": "Deputy_5",
@@ -572,11 +641,11 @@
       "data_key": "uc_commanders",
       "overflow_mode": "truncate",
       "rows_per_page": [
-        1
+        5
       ],
       "col_patterns": {
-        "uc_name": "uc_name{n}",
-        "uc_agency": "uc_agency{n}"
+        "name": "uc_name{n}",
+        "agency": "uc_agency{n}"
       }
     },
     {
@@ -584,22 +653,22 @@
       "data_key": "org_branches",
       "overflow_mode": "truncate",
       "rows_per_page": [
-        1
+        2
       ],
       "col_patterns": {
-        "branch_id": "branch_id{n}",
-        "branch_director": "branch_director{n}",
-        "branch_deputy": "branch_deputy{n}",
-        "div_1_name": "div_1_name{n}",
-        "div_2_name": "div_2_name{n}",
-        "div_3_name": "div_3_name{n}",
-        "div_4_name": "div_4_name{n}",
-        "div_5_name": "div_5_name{n}",
-        "div_1_supervisor": "div_1_supervisor{n}",
-        "div_2_supervisor": "div_2_supervisor{n}",
-        "div_3_supervisor": "div_3_supervisor{n}",
-        "div_4_supervisor": "div_4_supervisor{n}",
-        "div_5_supervisor": "div_5_supervisor{n}"
+        "name": "branch_id{n}",
+        "director_name": "branch_director{n}",
+        "deputy_name": "branch_deputy{n}",
+        "divisions.0.name": "div_1_name{n}",
+        "divisions.1.name": "div_2_name{n}",
+        "divisions.2.name": "div_3_name{n}",
+        "divisions.3.name": "div_4_name{n}",
+        "divisions.4.name": "div_5_name{n}",
+        "divisions.0.supervisor_name": "div_1_supervisor{n}",
+        "divisions.1.supervisor_name": "div_2_supervisor{n}",
+        "divisions.2.supervisor_name": "div_3_supervisor{n}",
+        "divisions.3.supervisor_name": "div_4_supervisor{n}",
+        "divisions.4.supervisor_name": "div_5_supervisor{n}"
       }
     },
     {
@@ -607,11 +676,11 @@
       "data_key": "org_agency_reps",
       "overflow_mode": "truncate",
       "rows_per_page": [
-        1
+        4
       ],
       "col_patterns": {
-        "rep_agency": "rep_agency{n}",
-        "rep_name": "rep_name{n}"
+        "agency": "rep_agency{n}",
+        "name": "rep_name{n}"
       }
     },
     {
@@ -619,11 +688,11 @@
       "data_key": "planning_tech_specialists",
       "overflow_mode": "truncate",
       "rows_per_page": [
-        1
+        3
       ],
       "col_patterns": {
-        "tech_specialty": "tech_specialty{n}",
-        "tech_name": "tech_name{n}"
+        "specialty": "tech_specialty{n}",
+        "name": "tech_name{n}"
       }
     }
   ]

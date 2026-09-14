@@ -91,6 +91,11 @@ def _coerce_service_level(row: dict[str, Any]) -> int:
     return 0
 
 
+def _infer_paramedics_on_site(row: dict[str, Any]) -> bool:
+    text = " ".join(str(row.get(key) or "") for key in ("type", "level")).lower()
+    return "als" in text or "paramedic" in text
+
+
 class FormDataContext:
     """Assemble a nested dict from the active incident and master API."""
 
@@ -185,6 +190,7 @@ class FormDataContext:
         data["meetings"]        = self._build_meetings(inc_id)
         data["subject"]         = {"name": "", "sex": "", "dob": "", "race": "", "lkp_place": "", "lkp_time": ""}
         data["debrief"]         = self._empty_debrief_shape()
+        data["sar_135"]         = self._empty_sar_135_shape()
 
         data["aircraft"]        = self._build_aircraft()
         data["personnel"]       = self._build_personnel()
@@ -269,7 +275,13 @@ class FormDataContext:
         if not inc_id:
             return empty
         try:
-            doc = _get(f"/api/incidents/{inc_id}")
+            # NOTE: the bare "/api/incidents/{id}" route does not exist on
+            # the server (only sub-resources like "/profile" do) - hitting
+            # it always 404'd, silently swallowed by the except below, so
+            # every form using incident.name/number/type/etc. rendered
+            # blank. "/profile" (ic_overview.get_profile) is the real
+            # incident-summary endpoint; don't revert to the bare path.
+            doc = _get(f"/api/incidents/{inc_id}/profile")
             if doc:
                 icp_facility_id = str(doc.get("icp_facility_id") or "")
                 icp_facility_name = ""
@@ -282,13 +294,13 @@ class FormDataContext:
                 return {
                     "id": doc.get("id", ""),
                     "name": doc.get("name", ""),
-                    "number": doc.get("number", "") or doc.get("incident_number", ""),
-                    "type": doc.get("type", "") or doc.get("incident_type", ""),
+                    "number": doc.get("number", ""),
+                    "type": doc.get("type", ""),
                     "description": doc.get("description", ""),
-                    "icp_location": icp_facility_name,
+                    "icp_location": icp_facility_name or doc.get("icp_location", ""),
                     "icp_facility_id": icp_facility_id,
                     "icp_facility_name": icp_facility_name,
-                    "start_time": doc.get("start_time", "") or doc.get("start_date", ""),
+                    "start_time": doc.get("start_time", ""),
                 }
         except Exception:
             pass
@@ -1385,6 +1397,62 @@ class FormDataContext:
 
     _DEBRIEF_TYPE_KEYS = ("ground", "area", "tracking", "hasty", "air_general", "air_sar")
 
+    @staticmethod
+    def _empty_sar_135_shape() -> dict[str, Any]:
+        """Default empty shape so sar_135.* paths resolve before a clue is selected."""
+        return {
+            "clue_id": "",
+            "report_timestamp": "",
+            "found_time": "",
+            "found_by": "",
+            "located_by": "",
+            "description": "",
+            "description_display": "",
+            "description_lines": ["", "", "", "", "", ""],
+            "location": "",
+            "location_display": "",
+            "location_lines": ["", "", "", "", ""],
+            "urgent_response_needed": False,
+            "information_only": False,
+            "response_due_time": "",
+            "action": {
+                "collect": False,
+                "mark_and_leave": False,
+                "disregard": False,
+                "other": False,
+                "other_text": "",
+            },
+            "confidence": {
+                "very_likely_good": False,
+                "probably_good": False,
+                "may_be_good": False,
+                "probably_not_good": False,
+                "very_likely_not_good": False,
+                "dont_know": False,
+            },
+            "segment_probabilities": {
+                "completed_by_plans": "",
+                "virtually_certain": "",
+                "very_strong_in": "",
+                "strong_in": "",
+                "better_than_even_in": "",
+                "no_information": "",
+                "better_than_even_not_in": "",
+                "strong_not_in": "",
+                "very_strong_not_in": "",
+                "list_segments": "",
+                "prepared_by": "",
+            },
+            "route_to": {
+                "plans": False,
+                "investigations": False,
+                "debriefing": False,
+                "attach_to_clue": False,
+                "other": False,
+                "other_text": "",
+            },
+        }
+
     @classmethod
     def _empty_debrief_shape(cls) -> dict[str, Any]:
         """Default empty shape so debrief.* paths always resolve, even with
@@ -1514,6 +1582,21 @@ class FormDataContext:
         pediatric_level = _coerce_trauma_level(row.get("pediatric_trauma_level"))
         if pediatric_level == 0 and row.get("pediatric_capability") and adult_level:
             pediatric_level = adult_level
+        address = row.get("address") or ""
+        lat = row.get("lat") if row.get("lat") is not None else row.get("latitude")
+        lon = row.get("lon") if row.get("lon") is not None else row.get("longitude")
+        lat = lat if lat is not None else ""
+        lon = lon if lon is not None else ""
+        coordinates = ", ".join(str(part) for part in (lat, lon) if part not in (None, ""))
+        address_lat_lon = " ".join(part for part in (address, coordinates) if part)
+        contact_frequency = " / ".join(
+            part
+            for part in (
+                row.get("phone_er") or row.get("phone") or row.get("phone_switchboard"),
+                row.get("ambulance_radio_channel"),
+            )
+            if part
+        )
         return {
             "id": row.get("id") or "",
             "hospital_id": row.get("hospital_id") or "",
@@ -1525,12 +1608,14 @@ class FormDataContext:
             "phone_switchboard": row.get("phone_switchboard") or "",
             "fax": row.get("fax") or "",
             "email": row.get("email") or "",
-            "address": row.get("address") or "",
+            "address": address,
+            "address_lat_lon": address_lat_lon,
             "city": row.get("city") or "",
             "state": row.get("state") or "",
             "zip": row.get("zip") or "",
             "contact": row.get("contact") or "",
             "contact_name": row.get("contact_name") or "",
+            "contact_frequency": contact_frequency,
             "helipad": bool(row.get("helipad")),
             "burn_center": bool(row.get("burn_center")),
             "pediatric_capability": bool(row.get("pediatric_capability")),
@@ -1538,11 +1623,14 @@ class FormDataContext:
             "pediatric_trauma_level": pediatric_level,
             "trauma_level_display": _format_trauma_display(adult_level, pediatric_level),
             "travel_time_min": row.get("travel_time_min") or "",
+            "travel_time_air_min": row.get("travel_time_air_min") or "",
+            "travel_time_ground_min": row.get("travel_time_ground_min") or row.get("travel_time_min") or "",
+            "travel_time_display": row.get("travel_time_ground_min") or row.get("travel_time_min") or "",
             "bed_available": row.get("bed_available") or "",
             "diversion_status": row.get("diversion_status") or "",
             "ambulance_radio_channel": row.get("ambulance_radio_channel") or "",
-            "lat": row.get("lat") if row.get("lat") is not None else "",
-            "lon": row.get("lon") if row.get("lon") is not None else "",
+            "lat": lat,
+            "lon": lon,
             "notes": row.get("notes") or "",
             "is_active": bool(row.get("is_active", True)),
             "op_period": row.get("op_period") or "",
@@ -1596,11 +1684,14 @@ class FormDataContext:
                     "name": row.get("name") or "",
                     "type": row.get("type") or "",
                     "level": row.get("level") or "",
+                    "contact_frequency": row.get("contact_frequency") or "",
                     "facility_id": row.get("facility_id") or "",
                     "location_text": row.get("location_text") or "",
                     "latitude": row.get("latitude"),
                     "longitude": row.get("longitude"),
                     "is_24_7": bool(row.get("is_24_7")),
+                    "paramedics_on_site": _infer_paramedics_on_site(row),
+                    "manager_name": row.get("manager_name") or "",
                     "notes": row.get("notes") or "",
                 }
                 for row in rows

@@ -21,6 +21,52 @@ from models.queries import (
 
 logger = logging.getLogger(__name__)
 
+CAPF109_ES_QUALIFICATION_CODES = {"GTL", "GTM1", "GTM2", "GTM3", "UDF", "UDH", "UAST", "UAS-MP"}
+CAPF109_CERT_TYPE_CODES = {
+    6001: "GTM3",
+    6002: "GTM2",
+    6003: "GTM1",
+    6004: "GTL",
+    6006: "UDF",
+}
+
+
+def _split_tokens(value: Any) -> list[str]:
+    text = _safe_text(value)
+    if not text:
+        return []
+    import re
+
+    return [token.strip() for token in re.split(r"[,;/\n]+", text) if token.strip()]
+
+
+def _capf109_es_qualifications(row: dict[str, Any]) -> str:
+    codes: list[str] = []
+
+    def add_code(value: Any) -> None:
+        text = _safe_text(value).upper().replace(" ", "")
+        if text == "UASMP":
+            text = "UAS-MP"
+        if text in CAPF109_ES_QUALIFICATION_CODES and text not in codes:
+            codes.append(text)
+
+    for token in _split_tokens(row.get("role")) + _split_tokens(row.get("primary_role")):
+        add_code(token)
+
+    certs = row.get("certifications")
+    if isinstance(certs, str):
+        for token in _split_tokens(certs):
+            add_code(token)
+    elif isinstance(certs, list):
+        for cert in certs:
+            if isinstance(cert, dict):
+                add_code(cert.get("code") or cert.get("name") or CAPF109_CERT_TYPE_CODES.get(cert.get("cert_type_id")))
+            else:
+                add_code(cert)
+
+    return ", ".join(codes)
+
+
 PRIORITY_MAP = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
 PRIORITY_INT_MAP = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 
@@ -149,8 +195,6 @@ def _task_model_from_doc(doc: Dict[str, Any], *, priority: Any | None = None) ->
         assigned_to=None,
         due_time=doc.get("due_time"),
         assignment=doc.get("assignment") or "",
-        team_leader=doc.get("team_leader") or "",
-        team_phone=doc.get("team_phone") or "",
     )
 
 
@@ -196,10 +240,6 @@ def update_task_header(task_id: int, patch: Dict[str, Any]) -> None:
                 translated["location_feature_id"] = None
     if "assignment" in patch:
         translated["assignment"] = str(patch["assignment"]) or None
-    if "team_leader" in patch:
-        translated["team_leader"] = str(patch["team_leader"]) or None
-    if "team_phone" in patch:
-        translated["team_phone"] = str(patch["team_phone"]) or None
     if not translated:
         return
     translated["changed_by"] = _active_user_display()
@@ -513,6 +553,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
     for row in personnel_rows:
         member_name = _safe_text(row.get("name") or row.get("identifier") or row.get("callsign"))
         member_role = _safe_text(row.get("role"))
+        member_es_qualifications = _capf109_es_qualifications(row)
         member_phone = _safe_text(row.get("phone"))
         member_agency = _safe_text(row.get("organization") or row.get("agency") or row.get("home_unit"))
         normalized_people.append(
@@ -526,8 +567,10 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
                 "home_unit": member_agency,
                 "member_agency": member_agency,
                 "member_medic": bool(row.get("is_medic")),
+                "member_leader": False,
                 "role": member_role,
                 "member_role": member_role,
+                "member_es_qualifications": member_es_qualifications,
                 "phone": member_phone,
                 "member_phone": member_phone,
                 "callsign": _safe_text(row.get("callsign") or row.get("identifier")),
@@ -538,6 +581,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         selected_task_team.get("team_leader")
         or full_team_dict.get("team_leader_name")
     )
+    leader_callsign = ""
     leader_phone = _safe_text(
         selected_task_team.get("team_leader_phone")
         or full_team_dict.get("team_leader_phone")
@@ -553,21 +597,17 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
                         leader_name = row["member_name"]
                     if not leader_phone:
                         leader_phone = _safe_text(row.get("phone"))
+                    leader_callsign = _safe_text(row.get("callsign"))
                     break
             except Exception:
                 continue
-    if not leader_name and normalized_people:
-        leader_name = normalized_people[0]["member_name"]
-    leader_agency = ""
-    for row in normalized_people:
-        if leader_name and row["member_name"] and row["member_name"].strip().lower() == leader_name.strip().lower():
-            leader_agency = row["member_agency"]
-            break
-    if not leader_agency and normalized_people:
-        leader_agency = normalized_people[0]["member_agency"]
 
+    # leader_index must be resolved against a *confirmed* leader_name (from
+    # team_leader/team_leader_name/team_leader_id above) — not the
+    # first-listed-member fallback below, which would otherwise make this
+    # match trivially true against whoever happens to be first.
+    leader_index: Optional[int] = None
     if normalized_people:
-        leader_index = None
         leader_id = full_team_dict.get("team_leader_id")
         if leader_id not in (None, ""):
             for index, row in enumerate(normalized_people):
@@ -582,10 +622,32 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
                 if row["member_name"] and row["member_name"].strip().lower() == leader_name.strip().lower():
                     leader_index = index
                     break
+        if leader_index is not None:
+            normalized_people[leader_index]["member_leader"] = True
+            if not leader_callsign:
+                leader_callsign = _safe_text(normalized_people[leader_index].get("callsign"))
         if leader_index not in (None, 0):
             normalized_people = [normalized_people[leader_index]] + [
                 row for idx, row in enumerate(normalized_people) if idx != leader_index
             ]
+
+    for row in normalized_people:
+        row["member_star"] = "L" if row.get("member_leader") else ("M" if row.get("member_medic") else "")
+
+    if not leader_name and normalized_people:
+        leader_name = normalized_people[0]["member_name"]
+    if not leader_callsign and normalized_people:
+        for row in normalized_people:
+            if leader_name and row["member_name"] and row["member_name"].strip().lower() == leader_name.strip().lower():
+                leader_callsign = _safe_text(row.get("callsign"))
+                break
+    leader_agency = ""
+    for row in normalized_people:
+        if leader_name and row["member_name"] and row["member_name"].strip().lower() == leader_name.strip().lower():
+            leader_agency = row["member_agency"]
+            break
+    if not leader_agency and normalized_people:
+        leader_agency = normalized_people[0]["member_agency"]
 
     team_name = _safe_text(
         selected_task_team.get("team_name")
@@ -599,11 +661,14 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         "team_id": team_id,
         "id": team_id,
         "name": team_name,
-        "callsign": _safe_text(full_team_dict.get("callsign") or selected_task_team.get("sortie_number")),
+        "callsign": _safe_text(full_team_dict.get("callsign")),
+        "sortie_number": _safe_text(selected_task_team.get("sortie_number") or selected_task_team.get("sortie_id")),
         "resource_type": resource_type_name or _safe_text(full_team_dict.get("team_type") or selected_task_team.get("team_type")),
         "role": _safe_text(full_team_dict.get("role") or "Team Leader"),
+        "leader_star": "L" if leader_index is not None else "",
         "status": _safe_text(selected_task_team.get("status") or full_team_dict.get("status")),
         "leader_name": leader_name,
+        "leader_callsign": leader_callsign,
         "leader_agency": leader_agency,
         "leader_phone": leader_phone,
         "team_leader": leader_name,
@@ -661,8 +726,19 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
     if assignment.get("air"):
         assignment_payload["air"] = dict(assignment.get("air") or {})
 
-    team_member_rows = normalized_people[:8]
-    additional_names = ", ".join(row["member_name"] for row in normalized_people[8:] if row.get("member_name"))
+    # normalized_people[0] is shown separately in the form's dedicated row-1
+    # fields (personnel.name.1/agency.1/function.1). When a leader was
+    # actually confirmed, they're the one at index 0 (moved there above), so
+    # the team_members row_group table starts at index 1 to avoid repeating
+    # them. When no leader could be confirmed, there's nothing special about
+    # index 0 (it's just whichever member happened to be listed first), so
+    # it stays part of the table like every other member.
+    if leader_index is not None:
+        team_member_rows = normalized_people[1:9]
+        additional_names = ", ".join(row["member_name"] for row in normalized_people[9:] if row.get("member_name"))
+    else:
+        team_member_rows = normalized_people[:8]
+        additional_names = ", ".join(row["member_name"] for row in normalized_people[8:] if row.get("member_name"))
     capf109_member_rows = normalized_people[:13]
 
     attachments = []
@@ -719,6 +795,16 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
     except Exception:
         weather_payload = {}
 
+    try:
+        header = _client().get(f"/api/incidents/{_iid()}/header")
+    except Exception:
+        header = {}
+    incident_payload = {
+        "name": _safe_text(header.get("incident_name")),
+        "number": _safe_text(header.get("incident_number")),
+        "icp_location": _safe_text(header.get("icp_location")),
+    }
+
     context = {
         "task": task_payload,
         "team": team_payload,
@@ -726,6 +812,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         "assignment": assignment_payload,
         "tasks": [task_payload],
         "weather": weather_payload,
+        "incident": incident_payload,
         "team_members": team_member_rows,
         "personnel": capf109_member_rows,
         "vehicles": vehicle_rows,
@@ -743,7 +830,7 @@ def _build_assignment_export_context(task_id: int, team: Optional[Dict[str, Any]
         "time_briefed": team_payload["briefed_ts"],
         "time_out": team_payload["enroute_ts"],
         "time_in": team_payload["complete_ts"] or team_payload["arrival_ts"],
-        "notes": task_payload["description"] or assignment_payload["ground"]["present_search_efforts"],
+        "notes": "",
         "resource_type": team_payload["resource_type"],
         "weather_summary": weather_payload.get("summary", ""),
     }

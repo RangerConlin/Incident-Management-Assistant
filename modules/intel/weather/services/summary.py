@@ -77,6 +77,8 @@ def _format_current(label: str, reading: Dict[str, Any]) -> str:
     wind = reading.get("wind_speed_kt")
     if wind is not None:
         parts.append(f"Wind {wind:.0f}kt")
+    if len(parts) == 1:
+        return ""
     return " | ".join(parts)
 
 

@@ -18,6 +18,7 @@ PILL_BG_MUTED = "#2d2d33"
 # Icon sizing --------------------------------------------------------------
 ICON_SIZE_SM = 16
 ICON_SIZE_MD = 20
+ICON_SIZE_LG = 24
 
 # Typography / layout helpers ---------------------------------------------
 DEFAULT_PADDING = 12
@@ -46,6 +47,7 @@ __all__ = [
     "PILL_BG_MUTED",
     "ICON_SIZE_SM",
     "ICON_SIZE_MD",
+    "ICON_SIZE_LG",
     "DEFAULT_PADDING",
     "SMALL_PADDING",
     "TINY_PADDING",

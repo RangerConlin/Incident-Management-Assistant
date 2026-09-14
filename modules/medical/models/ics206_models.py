@@ -22,6 +22,7 @@ class AidStation:
     name: str = ""
     type: str = ""
     level: str = ""
+    contact_frequency: str = ""
     is_24_7: bool = False
     location_text: str = ""
     latitude: Optional[float] = None
@@ -58,6 +59,11 @@ class Hospital:
     helipad: bool = False
     burn_center: bool = False
     level: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    travel_time_min: Optional[int] = None
+    travel_time_air_min: Optional[int] = None
+    travel_time_ground_min: Optional[int] = None
     notes: str = ""
 
     def to_dict(self) -> Dict[str, Any]:  # pragma: no cover - simple proxy

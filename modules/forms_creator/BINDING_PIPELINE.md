@@ -407,7 +407,7 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `communications_plan` | - | Not started | per-operational-period communications planning record; current live form generation passes ICS-205 special instructions as `extra_data["channels_notes"]` rather than wiring this collection through layer 1 |
+| `communications_plan` | - | Not started (handled one layer up instead) | per-operational-period communications planning record; not wired into `context.py`/layer 1 - instead, the ICS-205 **export builder** (`modules/forms_creator/exporting/builders/communications.py`, see `modules/forms_creator/exporting/EXPORT_SERVICE.md`) fetches `special_instructions` for the selected operational period directly and overlays it as `extra_data["channels_notes"]` at export time. `incident_channels` (below) gets the same op-period-aware, `include_on_205`-filtered treatment from that same builder, overriding the raw passthrough this table's `incident_channels` row describes. |
 | `incident_channels` | `channels` | Wired | full incident-channel payload exposed, including ICS-205-relevant fields (`system`, assignment division/team, include_on_205, sort/line flags) plus compatibility aliases (`name`, `assignment`, `remarks`) |
 | `communications_log` | `comm_log` | Wired | full communications log entry payload exposed for layer 1/2; create/update/delete metadata lives on each log entry |
 | `ics_214_logs` | `narrative` | Wired | ICS 214 stream entries are flattened into the legacy narrative shape (`timestamp`, `narrative`, `entered_by`, `team_num`, `critical`) with extra source metadata preserved alongside |
@@ -416,8 +416,8 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `ics_206_aid_stations` | `ics_206_aid_stations` | Wired | op-scoped aid station rows exposed with name, type, level, 24/7 flag, and notes |
-| `medical_plan` | `ics_206_ambulance_services`, `ics_206_hospitals`, `ics_206_air_ambulance`, `ics_206_medical_comms`, `ics_206_procedures`, `ics_206_signatures` | Wired | canonical op-scoped medical plan document. Layer 1 keeps the established ICS-206 context keys/API paths, but the data now comes from embedded sections inside `medical_plan`; service level and trauma display remain computed in the context builder |
+| `ics_206_aid_stations` | `ics_206_aid_stations` | Wired | op-scoped aid station rows exposed with name, type, level, contact/frequency, inferred paramedics-on-site flag, 24/7 flag, manager, location, and notes |
+| `medical_plan` | `ics_206_ambulance_services`, `ics_206_hospitals`, `ics_206_air_ambulance`, `ics_206_medical_comms`, `ics_206_procedures`, `ics_206_signatures` | Wired | canonical op-scoped medical plan document. Layer 1 keeps the established ICS-206 context keys/API paths, but the data now comes from embedded sections inside `medical_plan`; service level, trauma display, hospital address/coordinate display, contact/frequency display, and stored air/ground travel-time fields are normalized in the context builder |
 | `hazards` | `hazards` | Wired | generic incident snapshot-backed read exposes planning/tactics hazard entries with normalized safety fields (`hazard_type_text`, risk/likelihood/severity, controls, PPE, safety message, resolved flag, notes) |
 | `safety_reports` | `safety_reports` | Wired | incident safety report list exposed with time/location/severity/flagged metadata |
 | `medical_incidents` | - | Not started | |
@@ -761,7 +761,7 @@ fresh raw copy.
 | cap | capf_104a | 72 | (none) | - | Needs mapping |
 | cap | capf_160 | 131 | 31 | 131 | Wired - header uses `cap_orm_form` and `prepared_by`; body uses repeating `cap_orm_hazards` rows with `continuation.pdf` as the 11-row overflow sheet; test-fill verified zero warnings (signature widgets intentionally left blank) |
 | cap | capf_106 | 40 | 40 | 40 | Wired |
-| cap | capf_109 | 109 | 244 | 109 | Wired (mapping has ~135 extra entries beyond the template's 109 fields - likely stale/leftover, not harmful; low-priority cleanup) |
+| cap | capf_109 | 109 | 109 | 109 | Wired - stale non-template mapping entries removed; all real leaf fields are bound, with debrief checkbox fields using exact-choice matching |
 | cap | ics_309 | 103 | 106 | 103 | Wired |
 | cap | miwgf_52 | 69 | (none) | - | Needs mapping |
 | fema | ics_201 | 178 | 226 | 178 | Wired |
@@ -770,7 +770,7 @@ fresh raw copy.
 | fema | ics_204 | 77 | 106 | 77 | Wired |
 | fema | ics_205 | 99 | 108 | 99 | Wired |
 | fema | ics_205a | (none) | 56 | - | Needs template (mapping orphaned) |
-| fema | ics_206 | 118 | 122 | 118 | Wired |
+| fema | ics_206 | 116 | 116 | 116 | Wired - source-backed medical-plan fields test-fill verified zero warnings; aid-station contact/frequency is stored, paramedics-on-site is inferred from ALS/Paramedic aid-station values, and hospital air/ground travel times are stored when ICP/hospital coordinates allow calculation |
 | fema | ics_207 | 41 | 70 | 41 | Wired |
 | fema | ics_208 | 14 | 28 | 14 | Wired |
 | fema | ics_209 | (none) | 32 | - | Needs template (mapping orphaned) |
@@ -792,6 +792,7 @@ fresh raw copy.
 | ics_canada | ics_201 | 160 | 169 | 160 | Wired |
 | ics_canada | ics_203 | 117 | 195 | 69 | Mapped, not yet test-fill verified |
 | ics_canada | ics_205 | 85 | 7 | 85 | Wired - row-group coverage fills the 13 channel rows; test-fill verified zero warnings |
+| ics_canada | ics_206 | 105 | 105 | 105 | Wired - source-backed medical-plan fields test-fill verified zero warnings; aid-station contact/frequency is stored, paramedics-on-site is inferred from ALS/Paramedic aid-station values, and hospital air/ground travel times are stored when ICP/hospital coordinates allow calculation |
 | ics_canada | ics_207 | 114 | 120 | 98 | Mapped, not yet test-fill verified |
 | ics_canada | ics_208 | 13 | 14 | 13 | Wired |
 | ics_canada | ics_214 | 148 | 84 | 78 | Mapped, not yet test-fill verified |

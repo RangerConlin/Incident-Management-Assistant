@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from modules.intel.weather.models.location import WeatherLocation
+from modules.intel.weather.services.summary import build_weather_form_payload
 from modules.intel.weather.services import weather_manager as wm_module
 
 
@@ -110,3 +111,14 @@ def test_configure_polling_enforces_one_minute_floor(monkeypatch):
     manager = _make_manager(monkeypatch, [])
     manager.configure_polling(0)
     assert manager.polling_minutes() == 1
+
+
+def test_weather_form_payload_does_not_emit_address_without_readings(monkeypatch):
+    location = WeatherLocation(location_id="loc-address", label="4054 HORTON RD")
+    manager = _make_manager(monkeypatch, [location])
+
+    payload = build_weather_form_payload(manager)
+
+    assert payload["current"]["local"] == ""
+    assert payload["conditions"] == ""
+    assert payload["summary"] == ""

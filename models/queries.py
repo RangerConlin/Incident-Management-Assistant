@@ -63,6 +63,7 @@ def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
             "role": getattr(ident, "primary_role", None) or "",
             "phone": getattr(ident, "phone", None) or "",
             "callsign": getattr(ident, "callsign", None) or "",
+            "certifications": getattr(ident, "certifications", None) or [],
             "identifier": getattr(ident, "callsign", None) or "",
             "rank": getattr(ident, "rank", None) or "",
             "organization": organization,

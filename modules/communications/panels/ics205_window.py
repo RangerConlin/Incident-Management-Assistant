@@ -461,32 +461,22 @@ class ICS205Window(QWidget):
 
     def _generate_pdf(self):
         import os
-        from pathlib import Path
-        from PySide6.QtWidgets import QFileDialog, QMessageBox
-        from modules.forms_creator.engine import generate as generate_form
+        from PySide6.QtWidgets import QMessageBox
+        from modules.communications.services.ics205_export_service import generate_ics205
 
         incident = AppState.get_active_incident()
-        default_name = f"ICS-205_{incident}.pdf"
-        out_path, _ = QFileDialog.getSaveFileName(
-            self, "Save ICS-205 PDF", default_name, "PDF Files (*.pdf)"
-        )
-        if not out_path:
-            return
+        op_period_id = self.cmb_op_period.currentData()
         try:
-            result = generate_form(
-                "ics_205",
-                Path(out_path),
+            result = generate_ics205(
                 incident_id=str(incident),
-                extra_data={
-                    "channels_notes": self.ed_special_instructions.toPlainText().strip(),
-                },
+                op_period_id=op_period_id,
             )
         except Exception as exc:
             QMessageBox.critical(self, "Generate ICS-205", f"Failed to generate the PDF:\n{exc}")
             return
-        self.status.showMessage(f"Saved {result}", 5000)
+        self.status.showMessage(f"Saved {result.output_path}", 5000)
         try:
-            os.startfile(str(result))  # noqa: S606 - user explicitly chose this path
+            os.startfile(str(result.output_path))  # noqa: S606 - user explicitly chose this path
         except Exception:
             pass
 
