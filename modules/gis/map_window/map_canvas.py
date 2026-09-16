@@ -85,6 +85,19 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
     padding: 3px 6px;
     white-space: nowrap;
   }}
+  .imw-team-marker-label {{
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(17, 24, 39, 0.28);
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+    color: #111827;
+    font: 700 12px/1.2 Arial, sans-serif;
+    padding: 3px 6px;
+    white-space: nowrap;
+  }}
+  .imw-team-marker-label::before {{
+    display: none;
+  }}
   .imw-zoombox {{
     border: 2px dashed #2F80ED;
     background: rgba(47, 128, 237, 0.12);
@@ -102,6 +115,7 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
   var map = L.map('map', {{ zoomControl: true, rotate: false }}).setView([{center_lat}, {center_lon}], {zoom});
   var basemapLayer = null;
   var featureLayers = {{}};
+  var teamMarkers = {{}};
   var currentTool = 'pan';
   var drawVertices = [];
   var drawPreviewLayer = null;
@@ -244,6 +258,36 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
     }}
   }}
 
+  function upsertTeamMarker(teamId, name, lat, lon, updatedAt) {{
+    var key = String(teamId);
+    var label = name || ('Team ' + key);
+    if (teamMarkers[key]) {{
+      teamMarkers[key].setLatLng([lat, lon]);
+    }} else {{
+      teamMarkers[key] = L.marker([lat, lon]).addTo(map);
+    }}
+    var popup = '<strong>' + label + '</strong><br />' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+    if (updatedAt) {{
+      popup += '<br />Updated: ' + updatedAt;
+    }}
+    teamMarkers[key].bindPopup(popup);
+    teamMarkers[key].bindTooltip(label, {{
+      permanent: true,
+      direction: 'top',
+      offset: [0, -10],
+      opacity: 1,
+      className: 'imw-team-marker-label'
+    }});
+  }}
+
+  function removeTeamMarker(teamId) {{
+    var key = String(teamId);
+    if (teamMarkers[key]) {{
+      map.removeLayer(teamMarkers[key]);
+      delete teamMarkers[key];
+    }}
+  }}
+
   function highlightFeature(featureId) {{
     Object.keys(featureLayers).forEach(function(key) {{
       var layer = featureLayers[key];
@@ -314,6 +358,7 @@ class MapBridge(QObject):
 class MapCanvas(QWidget):
     """Central map widget: Leaflet view + tool state + extent history."""
 
+    mapReady = Signal()
     toolChanged = Signal(str)
     cursorPositionChanged = Signal(float, float)
     featureSelected = Signal(str)
@@ -325,6 +370,7 @@ class MapCanvas(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._ready = False
+        self._pending_js: list[tuple[str, Any | None]] = []
         self._incident_id = str(incident_context.get_active_incident_id() or "default")
         self.tools = ToolController(default_tool=TOOL_PAN)
         self.tools.subscribe(self._on_tool_activated)
@@ -371,6 +417,11 @@ class MapCanvas(QWidget):
             logger.warning("MapCanvas: map HTML failed to load")
             return
         self._ready = True
+        pending = self._pending_js
+        self._pending_js = []
+        for script, callback in pending:
+            self._run_js(script, callback=callback)
+        self.mapReady.emit()
 
     def is_ready(self) -> bool:
         return self._ready
@@ -472,6 +523,23 @@ class MapCanvas(QWidget):
     def highlight_feature(self, feature_id: int | str) -> None:
         self._run_js(f"highlightFeature({json.dumps(str(feature_id))});")
 
+    def upsert_team_marker(
+        self,
+        team_id: int | str,
+        name: str,
+        lat: float,
+        lon: float,
+        updated_at: str | None = None,
+    ) -> None:
+        self._run_js(
+            "upsertTeamMarker("
+            f"{json.dumps(str(team_id))}, {json.dumps(name)}, {float(lat)}, {float(lon)}, "
+            f"{json.dumps(updated_at or '')});"
+        )
+
+    def remove_team_marker(self, team_id: int | str) -> None:
+        self._run_js(f"removeTeamMarker({json.dumps(str(team_id))});")
+
     # -- Persistence --------------------------------------------------------
     def _settings_prefix(self) -> str:
         return f"map_view/{self._incident_id}"
@@ -515,6 +583,9 @@ class MapCanvas(QWidget):
 
     # -- JS bridge ------------------------------------------------------
     def _run_js(self, script: str, callback: Any | None = None) -> None:
+        if not self._ready:
+            self._pending_js.append((script, callback))
+            return
         page = self._view.page()
         if page is None:
             return
