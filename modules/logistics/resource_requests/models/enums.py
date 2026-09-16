@@ -72,7 +72,12 @@ class FulfillmentStatus(_StrEnum):
 
 ALLOWED_STATUS_TRANSITIONS = {
     RequestStatus.DRAFT: {RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.CANCELLED},
-    RequestStatus.SUBMITTED: {RequestStatus.REVIEWED, RequestStatus.DENIED, RequestStatus.CANCELLED},
+    RequestStatus.SUBMITTED: {
+        RequestStatus.REVIEWED,
+        RequestStatus.APPROVED,
+        RequestStatus.DENIED,
+        RequestStatus.CANCELLED,
+    },
     RequestStatus.REVIEWED: {RequestStatus.APPROVED, RequestStatus.DENIED, RequestStatus.CANCELLED},
     RequestStatus.APPROVED: {RequestStatus.ASSIGNED, RequestStatus.DENIED, RequestStatus.CANCELLED},
     RequestStatus.ASSIGNED: {RequestStatus.INTRANSIT, RequestStatus.CANCELLED},

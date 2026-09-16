@@ -26,6 +26,10 @@ class IncidentPaths:
         return self.incident_folder / "incident.db"
 
     @property
+    def spatial_db(self) -> Path:
+        return self.incident_folder / "spatial.db"
+
+    @property
     def manifest(self) -> Path:
         return self.incident_folder / "incident.json"
 
@@ -186,6 +190,7 @@ def ensure_incident_structure(paths: IncidentPaths, metadata: dict[str, Any] | N
     paths.incident_folder.mkdir(parents=True, exist_ok=True)
     for directory in _required_incident_dirs(paths):
         directory.mkdir(parents=True, exist_ok=True)
+    paths.spatial_db.touch(exist_ok=True)
     if metadata is not None and (not paths.manifest.exists() or metadata.get("updated_at")):
         write_incident_manifest(paths, metadata)
 

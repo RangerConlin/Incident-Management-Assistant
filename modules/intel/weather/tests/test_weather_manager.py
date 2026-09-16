@@ -103,7 +103,79 @@ def test_successful_metar_poll_updates_snapshot_and_records_history(monkeypatch)
     assert snap.metar is not None
     assert snap.metar.station == "KTST"
     assert recorded, "a successful METAR fetch must record a history sample"
-    assert recorded[0]["temperature_f"] is not None
+    assert any(sample.get("temperature_f") is not None for sample in recorded)
+
+
+def test_point_location_fetches_nws_observation_for_current_conditions(monkeypatch):
+    _app()
+    location = WeatherLocation(location_id="loc-point", label="ICP", latitude=39.0, longitude=-77.0)
+    manager = _make_manager(monkeypatch, [location])
+
+    from modules.intel.weather.models.readings import MetarReading
+
+    observation = MetarReading(
+        station="KDCA",
+        decoded={
+            "temp": 22.0,
+            "wspd": 6.0,
+            "visib": 10.0,
+            "altim": 1015.0,
+            "relative_humidity_pct": 55.0,
+        },
+    )
+    monkeypatch.setattr(manager._observation_provider, "fetch_current_observation", lambda lat, lon: observation)
+    monkeypatch.setattr(manager._forecast_provider, "fetch_forecast", lambda lat, lon: [])
+    monkeypatch.setattr(manager._advisory_provider, "fetch_advisories", lambda lat, lon: [])
+    monkeypatch.setattr(manager._hwo_provider, "fetch_hwo", lambda lat, lon: {})
+
+    recorded = []
+    monkeypatch.setattr(
+        wm_module.history_recorder,
+        "record",
+        lambda incident_id, loc_id, normalized: recorded.append(normalized),
+    )
+
+    finished = []
+    manager.pollFinished.connect(lambda: finished.append(True))
+    manager.refresh_all()
+    assert _pump(lambda: bool(finished))
+
+    reading = manager.normalized_current("loc-point")
+    assert round(reading["temperature_f"]) == 72
+    assert reading["relative_humidity_pct"] == 55.0
+    assert any(round(sample.get("temperature_f", 0)) == 72 for sample in recorded)
+
+
+def test_nws_observation_payload_converts_to_current_reading():
+    from modules.intel.weather.data_providers.noaa_observations import _parse_observation
+
+    observation = _parse_observation(
+        "KDCA",
+        {
+            "properties": {
+                "timestamp": "2026-09-14T12:00:00+00:00",
+                "temperature": {"value": 20.0},
+                "dewpoint": {"value": 10.0},
+                "windSpeed": {"value": 5.0},
+                "windGust": {"value": 8.0},
+                "windDirection": {"value": 270.0},
+                "visibility": {"value": 16093.44},
+                "barometricPressure": {"value": 101500.0},
+                "relativeHumidity": {"value": 52.0},
+                "cloudLayers": [{"amount": "BKN", "base": {"value": 914.4}}],
+            }
+        },
+    )
+
+    reading = wm_module._normalize_metar_reading(observation)
+
+    assert observation is not None
+    assert round(reading["temperature_f"]) == 68
+    assert round(reading["wind_speed_kt"]) == 10
+    assert round(reading["visibility_sm"]) == 10
+    assert reading["barometric_pressure_hpa"] == 1015.0
+    assert round(reading["ceiling_ft"]) == 3000
+    assert reading["relative_humidity_pct"] == 52.0
 
 
 def test_configure_polling_enforces_one_minute_floor(monkeypatch):

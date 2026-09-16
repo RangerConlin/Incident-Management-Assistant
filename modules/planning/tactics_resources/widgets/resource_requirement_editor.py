@@ -67,6 +67,7 @@ class ResourceRequirementEditor(QWidget):
         4: 58,
         5: 54,
         6: 48,
+        8: 130,
     }
     _ASSIGN_COLUMN_WIDTHS = {
         0: 96,
@@ -85,6 +86,8 @@ class ResourceRequirementEditor(QWidget):
         self._db_path = db_path
         self._gap_service = ResourceGapService(db_path)
         self._selected_req_id: int | None = None
+        self._req_by_id: dict[int, object] = {}
+        self._logistics_request_window: QWidget | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -118,7 +121,7 @@ class ResourceRequirementEditor(QWidget):
         self._logistics_btn.setToolTip("Create a Logistics Resource Request (ICS-213RR) for the selected requirement.")
 
         # Requirements table
-        req_columns = ["Resource Type", "Capability", "Priority", "Req.", "Assn.", "Avail.", "Gap", "Notes"]
+        req_columns = ["Resource Type", "Capability", "Priority", "Req.", "Assn.", "Avail.", "Gap", "Notes", "Logistics Request"]
         self._req_table = QTableWidget(0, len(req_columns))
         self._req_table.setHorizontalHeaderLabels(req_columns)
         apply_statusboard_table_behavior(self._req_table, stretch_last_section=True)
@@ -237,11 +240,13 @@ class ResourceRequirementEditor(QWidget):
         total_assigned = 0
         total_gap = 0
         current_req_ids: set[int] = set()
+        self._req_by_id = {}
         for req in reqs:
             row = self._req_table.rowCount()
             self._req_table.insertRow(row)
             if req.id is not None:
                 current_req_ids.add(int(req.id))
+                self._req_by_id[int(req.id)] = req
             total_required += req.quantity_required
             total_assigned += req.quantity_assigned
             self._req_table.setItem(row, 0, QTableWidgetItem(req.resource_type_text))
@@ -263,6 +268,12 @@ class ResourceRequirementEditor(QWidget):
                 gap_item.setForeground(get_palette().get("danger"))
             self._req_table.setItem(row, 6, gap_item)
             self._req_table.setItem(row, 7, QTableWidgetItem(req.notes))
+            logistics_request_id = getattr(req, "logistics_request_id", None)
+            if logistics_request_id:
+                status_text = self._fetch_logistics_status(str(logistics_request_id)) or "Linked"
+            else:
+                status_text = ""
+            self._req_table.setItem(row, 8, QTableWidgetItem(status_text))
             # Store the DB id in UserRole
             self._req_table.item(row, 0).setData(Qt.UserRole, req.id)
         self._summary_label.setText(
@@ -308,7 +319,10 @@ class ResourceRequirementEditor(QWidget):
         menu.addAction("Edit Requirement", self._edit_requirement)
         menu.addAction("Remove Requirement", self._remove_requirement)
         menu.addSeparator()
-        menu.addAction("Create Logistics Request", self._create_logistics_request)
+        current_req_id = self._current_req_id()
+        req = self._req_by_id.get(current_req_id) if current_req_id is not None else None
+        menu_label = "View Logistics Request" if req is not None and getattr(req, "logistics_request_id", None) else "Create Logistics Request"
+        menu.addAction(menu_label, self._create_logistics_request)
         menu.exec(self._req_table.viewport().mapToGlobal(pos))
 
     def _show_assign_context_menu(self, pos) -> None:
@@ -336,6 +350,13 @@ class ResourceRequirementEditor(QWidget):
     def _on_req_selected(self) -> None:
         req_id = self._current_req_id()
         self._selected_req_id = req_id
+        req = self._req_by_id.get(req_id) if req_id is not None else None
+        if req is not None and getattr(req, "logistics_request_id", None):
+            self._logistics_btn.setText("View Logistics Request")
+            self._logistics_btn.setToolTip("Open the logistics resource request already linked to this requirement.")
+        else:
+            self._logistics_btn.setText("Create Logistics Request")
+            self._logistics_btn.setToolTip("Create a Logistics Resource Request (ICS-213RR) for the selected requirement.")
         if req_id is not None:
             self._reload_assigned(req_id)
         else:
@@ -417,10 +438,47 @@ class ResourceRequirementEditor(QWidget):
         self.reload()
         self.changed.emit()
 
+    def _fetch_logistics_status(self, request_id: str) -> str:
+        try:
+            from utils.api_client import api_client
+            from utils.incident_context import get_active_incident_id
+
+            incident_id = get_active_incident_id()
+            if not incident_id:
+                return ""
+            data = api_client.get(
+                f"/api/incidents/{incident_id}/logistics/resource-requests/{request_id}"
+            )
+            return str((data or {}).get("status") or "")
+        except Exception:
+            return ""
+
+    def _open_logistics_request(self, request_id: str) -> None:
+        try:
+            from modules import logistics
+            from utils.incident_context import get_active_incident_id
+
+            incident_id = get_active_incident_id()
+            panel = logistics.get_213rr_panel(incident_id, open_request_id=request_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "Logistics Request", f"Failed to open request:\n{exc}")
+            return
+        panel.setWindowTitle("Resource Request (ICS-213RR)")
+        panel.setAttribute(Qt.WA_DeleteOnClose, True)
+        panel.resize(1000, 700)
+        panel.show()
+        # Keep a reference so Qt doesn't garbage-collect the standalone window.
+        self._logistics_request_window = panel
+
     def _create_logistics_request(self) -> None:
         req_id = self._current_req_id()
         if req_id is None:
             QMessageBox.information(self, "Create Logistics Request", "Select a requirement row first.")
+            return
+        req = self._req_by_id.get(req_id)
+        existing_id = getattr(req, "logistics_request_id", None) if req is not None else None
+        if existing_id:
+            self._open_logistics_request(str(existing_id))
             return
         try:
             repo = WorkAssignmentRepository(self._db_path)

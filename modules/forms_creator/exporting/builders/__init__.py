@@ -7,6 +7,7 @@ from .generic import register_generic_builders
 from .ics import register_ics_builders
 from .intel import register_intel_builders
 from .medical import register_medical_builders
+from .resource_requests import register_resource_request_builders
 from .task_assignments import register_task_assignment_builders
 from .work_assignments import register_work_assignment_builders
 
@@ -27,6 +28,10 @@ def default_registry() -> ExportRegistry:
     register_intel_builders(registry)
     register_task_assignment_builders(registry)
     register_work_assignment_builders(registry)
+    # Registered after the generic ICS builders so ICS 213RR's resource-request
+    # builder (pulls from modules.logistics.resource_requests) overrides the
+    # generic passthrough entry registered above.
+    register_resource_request_builders(registry)
     return registry
 
 
@@ -37,6 +42,7 @@ __all__ = [
     "register_ics_builders",
     "register_intel_builders",
     "register_medical_builders",
+    "register_resource_request_builders",
     "register_task_assignment_builders",
     "register_work_assignment_builders",
 ]

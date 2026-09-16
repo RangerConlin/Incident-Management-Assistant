@@ -12,6 +12,7 @@ from modules.logistics.facilities.widgets import FacilityPicker
 from .. import get_service
 from ..api import printers
 from ..api.service import ResourceRequestService
+from ..export_service import generate_ics213rr
 from ..api.validators import ValidationError
 from ..models.enums import ApprovalAction, Priority, RequestStatus
 from .dialogs import AssignDialog, EtaDialog, NoteDialog
@@ -304,8 +305,10 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
     def _print_ics(self) -> None:
         if not self.current_request_id:
             return
-        path = printers.render_ics_213rr(self.current_request_id)
-        QtWidgets.QMessageBox.information(self, "PDF Generated", f"ICS-213 RR exported to {path}")
+        result = generate_ics213rr(request_id=self.current_request_id)
+        QtWidgets.QMessageBox.information(
+            self, "PDF Generated", f"ICS-213 RR exported to {result.output_path}"
+        )
 
     def _print_summary(self) -> None:
         if not self.current_request_id:

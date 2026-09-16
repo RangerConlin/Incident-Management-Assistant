@@ -1358,9 +1358,9 @@ class TeamDetailBridge(QObject):
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
-            from modules.operations.taskings.repository import add_task_team
+            from modules.operations.taskings import repository as task_repo
 
-            add_task_team(int(task_id), int(self._team.team_id))
+            task_repo.add_task_team(int(task_id), int(self._team.team_id))
             self._team.current_task_id = int(task_id)
             self.teamChanged.emit()
             self._emit_incident_refresh()
@@ -1372,17 +1372,17 @@ class TeamDetailBridge(QObject):
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
-            from modules.operations.taskings.repository import list_task_teams, remove_task_team_from_task
+            from modules.operations.taskings import repository as task_repo
 
             removed = False
-            for task_team in list_task_teams(int(task_id)):
+            for task_team in task_repo.list_task_teams(int(task_id)):
                 try:
                     row_team_id = int(getattr(task_team, "team_id"))
                     row_id = int(getattr(task_team, "id"))
                 except (TypeError, ValueError):
                     continue
                 if row_team_id == int(self._team.team_id):
-                    remove_task_team_from_task(int(task_id), row_id, team_id=row_team_id)
+                    task_repo.remove_task_team_from_task(int(task_id), row_id, team_id=row_team_id)
                     removed = True
                     break
             if not removed:

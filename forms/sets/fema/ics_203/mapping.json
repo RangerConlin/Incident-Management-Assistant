@@ -50,7 +50,7 @@
     { "pdf_field": "Support Branch Supply Unit", "source": "organization.supply_unit_leader.name" },
     { "pdf_field": "Support Branch Facilities Unit", "source": "organization.facilities_unit_leader.name" },
     { "pdf_field": "Support Branch Ground Support Unit", "source": "organization.ground_support_unit_leader.name" },
-    { "pdf_field": "Service Branch Director", "source": "organization.service_branch_director.title" },
+    { "pdf_field": "Service Branch Director", "source": "organization.service_branch_director.name" },
     { "pdf_field": "Service Branch Communications Unit", "source": "organization.communications_unit_leader.name" },
     { "pdf_field": "Service Branch Medical Unit", "source": "organization.medical_unit_leader.name" },
     { "pdf_field": "Service Branch Food Unit", "source": "organization.food_unit_leader.name" },

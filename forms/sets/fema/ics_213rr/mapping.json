@@ -7,11 +7,97 @@
     },
     {
       "pdf_field": "2 DateTime",
-      "source": ""
+      "source": {
+        "key": "resource_request.created_utc",
+        "transform": "datetime_human",
+        "default": ""
+      }
     },
     {
       "pdf_field": "3 Resource Request Number",
-      "source": "incident"
+      "source": "resource_request.request_number"
+    },
+    {
+      "pdf_field": "5 Requested DeliveryReporting Location",
+      "source": "resource_request.delivery_location"
+    },
+    {
+      "pdf_field": "6 Suitable Substitutes andor Suggested Sources",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Requested by NamePosition",
+      "source": ""
+    },
+    {
+      "pdf_field": "8. Priority: Urgent",
+      "source": {
+        "key": "resource_request.priority",
+        "checkbox": true,
+        "checked_if": "IMMEDIATE",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "8. Priority: Routine",
+      "source": {
+        "key": "resource_request.priority",
+        "checkbox": true,
+        "checked_if": "ROUTINE",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "8. Priority: Low",
+      "source": ""
+    },
+    {
+      "pdf_field": "9. Section Chief Approval",
+      "source": ""
+    },
+    {
+      "pdf_field": "10 Logistics Order Number",
+      "source": ""
+    },
+    {
+      "pdf_field": "11 Supplier PhoneFaxEmail",
+      "source": ""
+    },
+    {
+      "pdf_field": "12 Name of SupplierPOC",
+      "source": ""
+    },
+    {
+      "pdf_field": "13 Notes",
+      "source": "resource_request.justification"
+    },
+    {
+      "pdf_field": "14. Approval Signature of Authorized Log Rep",
+      "source": ""
+    },
+    {
+      "pdf_field": "15 DateTime",
+      "source": ""
+    },
+    {
+      "pdf_field": "16. Order placed by: SPUL",
+      "source": ""
+    },
+    {
+      "pdf_field": "16. Order placed by: PROC",
+      "source": ""
+    },
+    {
+      "pdf_field": "17 ReplyComments from Finance",
+      "source": ""
+    },
+    {
+      "pdf_field": "18. Finance Section Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "19 DateTime",
+      "source": ""
     },
     {
       "pdf_field": "QtyRow1",
@@ -264,270 +350,17 @@
     {
       "pdf_field": "CostRow9",
       "source": ""
-    },
+    }
+  ],
+  "row_groups": [
     {
-      "pdf_field": "5 Requested DeliveryReporting Location",
-      "source": ""
-    },
-    {
-      "pdf_field": "6 Suitable Substitutes andor Suggested Sources",
-      "source": ""
-    },
-    {
-      "pdf_field": "7 Requested by NamePosition",
-      "source": ""
-    },
-    {
-      "pdf_field": "8. Priority: Urgent",
-      "source": ""
-    },
-    {
-      "pdf_field": "8. Priority: Routine",
-      "source": ""
-    },
-    {
-      "pdf_field": "8. Priority: Low",
-      "source": ""
-    },
-    {
-      "pdf_field": "9. Section Chief Approval",
-      "source": ""
-    },
-    {
-      "pdf_field": "10 Logistics Order Number",
-      "source": ""
-    },
-    {
-      "pdf_field": "11 Supplier PhoneFaxEmail",
-      "source": ""
-    },
-    {
-      "pdf_field": "12 Name of SupplierPOC",
-      "source": ""
-    },
-    {
-      "pdf_field": "13 Notes",
-      "source": ""
-    },
-    {
-      "pdf_field": "14. Approval Signature of Authorized Log Rep",
-      "source": ""
-    },
-    {
-      "pdf_field": "15 DateTime",
-      "source": ""
-    },
-    {
-      "pdf_field": "16. Order placed by: SPUL",
-      "source": ""
-    },
-    {
-      "pdf_field": "16. Order placed by: PROC",
-      "source": ""
-    },
-    {
-      "pdf_field": "17 ReplyComments from Finance",
-      "source": ""
-    },
-    {
-      "pdf_field": "18. Finance Section Signature",
-      "source": ""
-    },
-    {
-      "pdf_field": "19 DateTime",
-      "source": ""
-    },
-    {
-      "pdf_field": "IncidentName",
-      "source": "incident.name"
-    },
-    {
-      "pdf_field": "DateTimeOrdered",
-      "source": {
-        "key": "prepared_by.date_time",
-        "transform": "datetime_short",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "DateTimeNeeded",
-      "source": {
-        "key": "tasks.0.due_time",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "RequestedByName",
-      "source": "prepared_by.name"
-    },
-    {
-      "pdf_field": "RequestedByPosition",
-      "source": "prepared_by.position"
-    },
-    {
-      "pdf_field": "ResourceType1",
-      "source": {
-        "key": "resource_types.0.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceType2",
-      "source": {
-        "key": "resource_types.1.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceType3",
-      "source": {
-        "key": "resource_types.2.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceType4",
-      "source": {
-        "key": "resource_types.3.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceType5",
-      "source": {
-        "key": "resource_types.4.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceType6",
-      "source": {
-        "key": "resource_types.5.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceKind1",
-      "source": {
-        "key": "resource_types.0.category",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceKind2",
-      "source": {
-        "key": "resource_types.1.category",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceKind3",
-      "source": {
-        "key": "resource_types.2.category",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceKind4",
-      "source": {
-        "key": "resource_types.3.category",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceKind5",
-      "source": {
-        "key": "resource_types.4.category",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceKind6",
-      "source": {
-        "key": "resource_types.5.category",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceDescription1",
-      "source": {
-        "key": "resource_types.0.planning_display_name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceDescription2",
-      "source": {
-        "key": "resource_types.1.planning_display_name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceDescription3",
-      "source": {
-        "key": "resource_types.2.planning_display_name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceDescription4",
-      "source": {
-        "key": "resource_types.3.planning_display_name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceDescription5",
-      "source": {
-        "key": "resource_types.4.planning_display_name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "ResourceDescription6",
-      "source": {
-        "key": "resource_types.5.planning_display_name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "DeliveryLocation",
-      "source": {
-        "key": "incident.icp_location",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "LogisticsChief",
-      "source": {
-        "key": "organization.logistics_section_chief.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "FinanceChief",
-      "source": {
-        "key": "organization.finance_admin_section_chief.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "OperationsChief",
-      "source": {
-        "key": "organization.operations_section_chief.name",
-        "default": ""
-      }
-    },
-    {
-      "pdf_field": "PreparedBy",
-      "source": "prepared_by.name"
-    },
-    {
-      "pdf_field": "PreparedDateTime",
-      "source": {
-        "key": "prepared_by.date_time",
-        "transform": "datetime_short",
-        "default": ""
+      "ref": "resource_request_items",
+      "overflow_mode": "truncate",
+      "rows_per_page": [9],
+      "col_patterns": {
+        "qty": "QtyRow{n}",
+        "kind": "KindRow{n}",
+        "description": "Detailed Item Description Vital characteristics brand specs experience size etcRow{n}"
       }
     }
   ]

@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 
 from utils.styles import ribbon_colors, subscribe_theme
 
-_MIN_CONTENT_HEIGHT = 74
+_MIN_CONTENT_HEIGHT = 48
 
 
 class RibbonWidget(QFrame):

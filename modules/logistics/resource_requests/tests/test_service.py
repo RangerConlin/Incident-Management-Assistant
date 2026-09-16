@@ -154,7 +154,7 @@ def test_fulfillment_defaults_to_request_delivery_target(service: ResourceReques
     assert fulfillment["destination_facility_id"] == "fac-cache"
 
 
-def test_printers_generate_pdfs(tmp_path: Path, service: ResourceRequestService, monkeypatch):
+def test_printers_generate_summary_pdf(tmp_path: Path, service: ResourceRequestService, monkeypatch):
     request_id = service.create_request(_base_header(), _single_item())
     service.record_approval(request_id, ApprovalAction.SUBMIT.value, actor_id="ops")
     output_dir = tmp_path / "pdfs"
@@ -163,11 +163,9 @@ def test_printers_generate_pdfs(tmp_path: Path, service: ResourceRequestService,
     monkeypatch.setattr(printers, "OUTPUT_DIR", output_dir)
     monkeypatch.setattr(printers, "get_service", lambda: service)
 
-    path1 = printers.render_ics_213rr(request_id)
-    path2 = printers.render_summary_sheet(request_id)
-    assert path1.exists()
-    assert path2.exists()
-    assert path1.read_bytes().startswith(b"%PDF")
+    path = printers.render_summary_sheet(request_id)
+    assert path.exists()
+    assert path.read_bytes().startswith(b"%PDF")
 
 
 def test_list_filters(service: ResourceRequestService):

@@ -38,6 +38,7 @@ from ..data_providers.noaa_forecast import NoaaForecastProvider
 from ..data_providers.noaa_hwo import NoaaHwoProvider
 from ..data_providers.noaa_metar_taf import NoaaMetarProvider, NoaaTafProvider
 from ..data_providers.noaa_nws_advisories import NoaaNwsAdvisoryProvider
+from ..data_providers.noaa_observations import NoaaObservationProvider
 from ..models.advisory import Advisory
 from ..models.location import WeatherLocation, WeatherSnapshot
 from ..models.readings import MetarReading
@@ -53,8 +54,7 @@ def _normalize_metar_reading(metar: Optional[MetarReading]) -> Dict[str, Any]:
 
     AWC field names: temp/dewp in Celsius, wdir/wspd/wgst in degrees/knots,
     visib in statute miles, altim in hPa, clouds: [{cover, base_ft}, ...].
-    Relative humidity isn't reported directly — computed from temp/dewpoint
-    via the Magnus approximation (a real calculation, not a fabricated value).
+    NWS point observations are normalized into the same decoded shape.
     """
     if metar is None or not metar.decoded:
         return {}
@@ -78,7 +78,10 @@ def _normalize_metar_reading(metar: Optional[MetarReading]) -> Dict[str, Any]:
                 ceiling_ft = float(base)
                 break
     out["ceiling_ft"] = ceiling_ft
-    if isinstance(temp_c, (int, float)) and isinstance(dewp_c, (int, float)):
+    rh = d.get("relative_humidity_pct")
+    if isinstance(rh, (int, float)):
+        out["relative_humidity_pct"] = rh
+    elif isinstance(temp_c, (int, float)) and isinstance(dewp_c, (int, float)):
         try:
             a, b = 17.625, 243.04
             gamma_t = (a * temp_c) / (b + temp_c)
@@ -124,6 +127,7 @@ class WeatherManager(QObject):
         self._forecast_provider = NoaaForecastProvider()
         self._hwo_provider = NoaaHwoProvider()
         self._advisory_provider = NoaaNwsAdvisoryProvider()
+        self._observation_provider = NoaaObservationProvider()
         self._watchers: List[Any] = []
         # Qt's default AutoConnection becomes a queued connection whenever the
         # emitting thread differs from this QObject's (main-thread) affinity,
@@ -361,6 +365,8 @@ class WeatherManager(QObject):
         if location.icao_codes:
             jobs.append(lambda tick: self._fetch_metar(location, tick))
             jobs.append(lambda tick: self._fetch_taf(location, tick))
+        elif location.latitude is not None and location.longitude is not None:
+            jobs.append(lambda tick: self._fetch_observation(location, tick))
         if location.latitude is not None and location.longitude is not None:
             jobs.append(lambda tick: self._fetch_forecast(location, tick))
             jobs.append(lambda tick: self._fetch_advisories(location, tick))
@@ -465,6 +471,25 @@ class WeatherManager(QObject):
             _on_taf,
             location_id=location.location_id,
             provider_name="taf",
+            tick=tick,
+        )
+
+    def _fetch_observation(self, location: WeatherLocation, tick: Callable[[], None]) -> None:
+        def _on_observation(reading):
+            snap = self._snapshots.setdefault(location.location_id, WeatherSnapshot(location_id=location.location_id))
+            snap.metar = reading
+            self.snapshotUpdated.emit(location.location_id, snap)
+            history_recorder.record(
+                self._incident_id,
+                location.location_id,
+                _normalize_metar_reading(reading),
+            )
+
+        self._run_async(
+            lambda: self._observation_provider.fetch_current_observation(location.latitude, location.longitude),
+            _on_observation,
+            location_id=location.location_id,
+            provider_name="observation",
             tick=tick,
         )
 

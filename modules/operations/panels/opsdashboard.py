@@ -460,6 +460,7 @@ class OpsGlanceWidget(QWidget):
     def update_team_snapshot(self, teams: List[Dict[str, Any]]) -> None:
         self._teams_list.clear()
         for tm in teams[:6]:
+            team_id = tm.get("id") or tm.get("team_id") or tm.get("int_id")
             name = tm.get("name") or "(team)"
             status = tm.get("status") or ""
             assigned = tm.get("assigned") or tm.get("task") or ""
@@ -479,7 +480,7 @@ class OpsGlanceWidget(QWidget):
                 bits.append("  |  ".join(meta))
             text = "  —  ".join(bits)
             item = QListWidgetItem(text)
-            item.setData(Qt.UserRole, name)
+            item.setData(Qt.UserRole, team_id)
             self._teams_list.addItem(item)
 
     @Slot(list)
@@ -536,7 +537,10 @@ class OpsGlanceWidget(QWidget):
             return None
         return item.data(Qt.UserRole)
 
-    def _get_selected_team_name(self) -> Optional[str]:
+    def selected_task_id(self) -> Optional[str]:
+        return self._get_selected_task_id()
+
+    def _get_selected_team_id(self) -> Optional[str]:
         item = self._teams_list.currentItem()
         if not item:
             return None
@@ -553,8 +557,8 @@ class OpsGlanceWidget(QWidget):
             self.reassignRequested.emit(str(tid), None)
 
     def _emit_reassign_selected_team(self) -> None:
-        team = self._get_selected_team_name()
-        self.reassignRequested.emit(None, team)
+        team_id = self._get_selected_team_id()
+        self.reassignRequested.emit(None, team_id)
 
     def _emit_mark_complete_selected_task(self) -> None:
         tid = self._get_selected_task_id()

@@ -547,12 +547,15 @@ def update_team(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
 @router.delete("/incidents/{incident_id}/operations/teams/{team_id}")
 def delete_team(incident_id: str, team_id: int) -> dict:
     teams_repo = _teams_repo(incident_id)
+    tasks_repo = _tasks_repo(incident_id)
     doc = _find_by_int_id(teams_repo, team_id)
     if doc:
         teams_repo.delete_one(doc["_id"])
-    # Remove from task_teams arrays across every task in one bulk operation —
-    # not a single-document broadcast-able write, so this stays a raw call.
-    _tasks(incident_id).update_many({}, {"$pull": {"task_teams": {"team_id": team_id}}})
+    for task in tasks_repo.find_many({"task_teams": {"$elemMatch": {"team_id": team_id}}}):
+        tasks_repo.apply_update(
+            task["_id"],
+            {"$pull": {"task_teams": {"team_id": team_id}, "active_team_ids": team_id}},
+        )
     return {"ok": True}
 
 

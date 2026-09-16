@@ -67,6 +67,7 @@ class FlowLayout(QLayout):
         effective_rect = rect.adjusted(left, top, -right, -bottom)
         x = effective_rect.x()
         y = effective_rect.y()
+        row_right = effective_rect.right() + 1
         line_height = 0
         spacing = self.spacing()
 
@@ -75,9 +76,9 @@ class FlowLayout(QLayout):
             # for any not-yet-polished/shown widget (e.g. right after
             # construction, before the window is ever shown), which would
             # make height calculations silently collapse to 0.
-            item_size = item.sizeHint()
+            item_size = item.sizeHint().expandedTo(item.minimumSize())
             next_x = x + item_size.width() + spacing
-            if next_x - spacing > effective_rect.right() and line_height > 0:
+            if x + item_size.width() > row_right and line_height > 0:
                 x = effective_rect.x()
                 y = y + line_height + spacing
                 next_x = x + item_size.width() + spacing

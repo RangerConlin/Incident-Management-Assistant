@@ -8,7 +8,7 @@ from io import BytesIO
 from typing import Optional
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
@@ -19,7 +19,7 @@ def build_weather_briefing_pdf(*, incident_name: Optional[str], manager: Weather
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=letter,
+        pagesize=landscape(letter),
         title="Weather Briefing",
         leftMargin=36,
         rightMargin=36,

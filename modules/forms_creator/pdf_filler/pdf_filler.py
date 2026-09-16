@@ -452,8 +452,11 @@ class PDFFiller:
                 value = row_value(row, source_key)
                 if fdef.get("checkbox"):
                     field_values[field_name] = self._checkbox_value(value, fdef)
-                else:
-                    field_values[field_name] = "" if value is None else str(value)
+                    continue
+                transform = fdef.get("transform")
+                if transform and value not in (None, ""):
+                    value = self._apply_transform(value, str(transform))
+                field_values[field_name] = "" if value is None else str(value)
 
         return warnings
 

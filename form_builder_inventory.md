@@ -12,7 +12,7 @@ after the first two passes miscounted — see Revision History.
 |---|---:|---:|---:|---:|---:|---|
 | ICS 201 | Partial (42.1%) | Partial (50.3%) | Partial (41.4%) | - | - | Generic exists; precise possible |
 | ICS 202 | Bound | Not Bound | Bound | - | - | Generic exists; precise possible |
-| ICS 203 | Partial (87.1%) | Partial (22.6%) | Partial (69.7%) | - | - | Generic exists; precise possible |
+| ICS 203 | Partial (87.1%)¶ | Partial (96.2%)¶ | Partial (76.2%)¶ | - | - | Precise ICS-203 builder exists (`Ics203FormBuilder`) |
 | ICS 204 | Partial (11.7%) | Not Bound | - | - | - | Generic + work-assignment builders exist |
 | ICS 205 | Bound | Bound | Bound | - | - | Generic exists; precise possible |
 | ICS 205A | Mapping | Not Bound | - | - | - | Generic exists; precise possible via ICS Canada |
@@ -21,9 +21,9 @@ after the first two passes miscounted — see Revision History.
 | ICS 208 | Partial (57.1%) | Partial (66.7%) | - | - | - | Generic exists; precise possible |
 | ICS 209 | Mapping | Not Bound | - | - | - | Generic exists; precise possible via ICS Canada |
 | ICS 210 | Mapping | Not Bound | - | - | - | Generic exists; precise possible via ICS Canada |
-| ICS 211 | Partial (2.5%) | Not Bound | - | - | - | Generic exists; precise possible |
+| ICS 211 | Partial (65.6%)‖ | Not Bound | - | - | - | Generic exists; precise possible |
 | ICS 213 | Partial (6.7%) | Not Bound | - | - | - | Generic exists; precise possible |
-| ICS 213RR | Partial (2.4%) | Not Bound | - | - | - | Generic + work-assignment builders exist |
+| ICS 213RR | Partial (40.5%)§ | Not Bound | - | - | - | Precise resource-request builder exists |
 | ICS 214 | Partial (98.8%) | Partial (53.8%) | Partial (94.7%) | - | - | Generic exists; precise possible |
 | ICS 215 | Mapping | Not Bound | - | - | - | Generic + work-assignment builders exist |
 | ICS 215A | Bound | Not Bound | - | - | - | Generic + work-assignment builders exist |
@@ -71,6 +71,89 @@ after the first two passes miscounted — see Revision History.
 ‡ `forms/sets/sar/sar_100b/mapping.json` and `forms/sets/sar/sar_102/mapping.json` are both the
 generic starter scaffold (`"fields": []`, `_comment: "Replace source values..."`), and neither
 `template.pdf` has AcroForm fields either. No actual binding work has been done on either.
+
+§ `forms/sets/fema/ics_213rr/mapping.json` was rebuilt 2026-09-14: the previous mapping mixed the
+real FEMA field names (mostly unbound) with a second block of ~30 stray field names
+(`IncidentName`, `ResourceType1..6`, `organization.logistics_section_chief.name`, etc.) that don't
+exist in `template.pdf` at all — leftovers copied from an unrelated form/domain. That block was
+removed and the real fields wired to `modules.logistics.resource_requests` via
+`modules.forms_creator.exporting.builders.resource_requests.ResourceRequestFormBuilder`. The
+remaining unbound leaf fields have no current data source: per-item `Type`/`Cost`/arrival-date
+columns (the `RequestItem` model only tracks kind/description/quantity/unit), the requestor's
+name/position (only a `created_by_id`, no personnel lookup wired), substitute-sources text, the
+logistics order number and supplier contact info, the finance reply/section chief/log-rep
+signature fields (three are `/Sig` widgets anyway, not fillable text), and the "Low" priority
+checkbox (the app's `Priority` enum is `IMMEDIATE`/`HIGH`/`ROUTINE`, which doesn't line up 1:1 with
+the form's `Urgent`/`Routine`/`Low` — `HIGH` currently renders as no checkbox at all). ICS Canada's
+`ics_213rr` mapping was not touched in this pass.
+
+¶ ICS 203 re-audited and largely rebuilt 2026-09-14 (see `BINDING_PIPELINE.md`'s checklist for the
+per-field detail):
+- **FEMA** (87.1%, unchanged number): fixed one real bug found in passing — the `Service Branch
+  Director` field was bound to `organization.service_branch_director.title` (the position's own
+  title text) instead of `.name` (the assigned person), the only field on this form still doing
+  that after the earlier `ics_203` resolution session. Bound-field count didn't change since the
+  field already counted as "bound" (wrongly) before the fix. The remaining 15 unbound leaf fields
+  are all fields already documented as unresolved/no-data-source in the "ics_203 resolution"
+  section of `BINDING_PIPELINE.md` from the earlier session (`Operations Section Alternate`,
+  `Air Ops Branch Director 2/3`, `Branch Director Deputy 1/3/5`, etc.) — nothing new found.
+- **ICS Canada** (22.6% → 96.2%): the mapping was built against a differently-renamed copy of this
+  PDF — almost every `organization.*`/branch/division field name was missing the real template's
+  numeric/lettered section prefix (`5. `, `7. `, `8. `, `9. `, `a.`, `b.`, `c.`, `d. `), and the
+  `org_branches` row-group used a single `{n}`-substitution pattern that can't express this
+  template's real (irregular) division-supervisor field naming across the three branches. Rebuilt
+  field-by-field against the real template's AcroForm names; org_branches now uses explicit
+  `org_branches.<0-2>.*` entries instead of a row_groups pattern (see BINDING_PIPELINE.md's ICS-203
+  section for why, mirroring the earlier FEMA case). Also dropped ~55 dead/duplicate mapping
+  entries (empty-source placeholders, and entries referencing field names that don't exist in this
+  template at all). The remaining 4 unbound fields (`d. AIR OPERATIONS BRANCH Position1/2`,
+  `Row1/2`) have no printed label anywhere on the form to key off of — left unresolved, same
+  ambiguity as FEMA's analogous fields.
+- **USCG** (69.7% → 76.2%): most of the pre-existing bindings were already accurate, but ~50 of the
+  mapping's `fields[]` entries were dead weight — either references to field names that don't exist
+  anywhere in this template (leftover from an unrelated form/version), or redundant empty-source
+  placeholders for fields the `org_branches`/`planning_tech_specialists` row_groups already cover.
+  Those placeholders were silently shadowing the row-groups' real values in `PDFFiller.fill()`'s
+  warnings output (the row-group fill still ran and produced a correct PDF, but every test-fill
+  logged dozens of false "no value resolved" warnings for fields that were actually filled) — a
+  real test-fill went from 82 warnings to 37. Also split the `planning_tech_specialists` row_group
+  in two (name: 3 rows, specialty: 2 rows — the template only has `tech_specialty1`/`2`, not `3`),
+  and fixed `Date/Time0`/`Date/Time1` (operational period) from raw ISO timestamps to the
+  `datetime_human` transform per this repo's human-readable-timestamp rule. Checking real widget
+  `/Rect` positions (not just field names) found `DivisionGroup_6`/`_12` are branch 1/2's 6th
+  division/group slot (immediately below their `div_5_name{1,2}` row, same row spacing) — bound to
+  `org_branches.<0,1>.divisions.5.name`. The remaining `DivisionGroup_13`-`_18` sit in a visually
+  separate block (a ~56pt gap versus the ~14.5pt spacing used everywhere else, containing the
+  Logistics/Intelligence section headers) with no `branch_id3` field printed for a third branch —
+  confirmed with the user these are the Intelligence/Investigations Section's own Division/Group
+  list (USCG gives Intel more emphasis than FEMA/ICS-Canada do), printed without a repeated
+  Branch/Director/Deputy header since Intel's Chief/Deputy already have their own fields elsewhere
+  (`Chief_3`/`Deputy_5`). `_build_org_branches` isn't scoped to Operations Section - it returns
+  every `classification == "branch"` unit incident-wide - so an Intel branch lands in the same
+  `org_branches` list positionally; bound to `org_branches.2.divisions.<0-5>.name`.
+
+‖ `forms/sets/fema/ics_211/mapping.json` rebuilt 2026-09-14 (2.5% → 65.6%): the old mapping mixed
+the real per-row field names (`R1 State`, `R2 Category`, etc. — all with empty `source`) with ~90
+stray entries (`IncidentName`, `Name1`-`Name20`, `Agency1`-`Agency20`, `RadioID1`-`RadioID20`,
+`PreparedBy`, `CheckInDateTime`, `CheckInLocation`, etc.) that don't exist anywhere in this
+template — the same leftover-mapping pattern seen in the `ics_213rr` and `ics_221` cases. Those
+stray entries were removed. The 8-row repeating check-in table (18 columns x 8 rows, real field
+names irregular per row — e.g. row 1 is `R1 Order Request`, row 2 is `R2 Order Request Row2`) is
+now filled from a new `context.py` builder, `_build_checkin_list`, exposed as `data["checkin_list"]`
+and wired via the `pdf_filler.py` row_groups `row_fields` mechanism (explicit per-row field-name
+list — same lesson as the FEMA/ICS-Canada `ics_203` cases: irregular per-row naming can't use a
+`{n}`-substitution `col_patterns` pattern). `row_fields` gained `transform` support in this pass
+(previously only the top-level `fields[]` mechanism supported it) so `Date/Time Check In` can use
+the existing `datetime_human` transform instead of a hand-rolled format.
+
+`_build_checkin_list` flattens every currently-checked-in resource (any type) from the unified
+`resource_status` collection, joined against the per-type master record for agency/kind/type, plus
+checked-in teams (from `/checkin/teams/checked-state`) as separate Strike Team/Task Force rows.
+Nine of the eighteen per-row columns still have no real data anywhere in the app and are left
+blank: State, Order/Request #, Home Unit (vehicle/aircraft/equipment — personnel's `home_unit`
+master field is wired), Departure Point, Method of Travel, Other Qualifications, and Date
+Resources Returned to Unit. See this session's final report for the full "no data source" list and
+the Agency-vs-Home-Unit field-mapping judgment call.
 
 ## Methodology
 

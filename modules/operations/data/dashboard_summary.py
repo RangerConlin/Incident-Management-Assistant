@@ -34,18 +34,20 @@ def summarize_team_kpis(teams: list[dict[str, Any]]) -> dict[str, int]:
 def build_team_snapshot_rows(teams: list[dict[str, Any]], limit: int = 6) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for team in teams[:limit]:
-        rows.append(
-            {
-                "name": str(team.get("name") or team.get("team_name") or "Team"),
-                "status": str(team.get("status") or "").title(),
-                "assigned": str(
-                    team.get("assignment")
-                    or team.get("task")
-                    or team.get("current_task_id")
-                    or ""
-                ),
-                "leader": str(team.get("leader") or team.get("leader_name") or ""),
-                "last_checkin_at": str(team.get("last_checkin_at") or team.get("last_checkin_ts") or ""),
-            }
-        )
+        row = {
+            "name": str(team.get("name") or team.get("team_name") or "Team"),
+            "status": str(team.get("status") or "").title(),
+            "assigned": str(
+                team.get("assignment")
+                or team.get("task")
+                or team.get("current_task_id")
+                or ""
+            ),
+            "leader": str(team.get("leader") or team.get("leader_name") or ""),
+            "last_checkin_at": str(team.get("last_checkin_at") or team.get("last_checkin_ts") or ""),
+        }
+        team_id = team.get("int_id") or team.get("team_id")
+        if team_id not in (None, ""):
+            row["id"] = str(team_id)
+        rows.append(row)
     return rows

@@ -141,6 +141,7 @@ class FormDataContext:
         "Resources Unit Leader":                 "resources_unit_leader",
         "Documentation Unit Leader":             "documentation_unit_leader",
         "Demobilization Unit Leader":            "demobilization_unit_leader",
+        "Environmental Unit Leader":             "environmental_unit_leader",
         # Finance/Admin Section units
         "Time Unit Leader":                      "time_unit_leader",
         "Procurement Unit Leader":               "procurement_unit_leader",
@@ -196,6 +197,7 @@ class FormDataContext:
         data["personnel"]       = self._build_personnel()
         data["master_vehicles"] = self._build_master_vehicles()
         data["equipment"]       = self._build_equipment()
+        data["checkin_list"]    = self._build_checkin_list(inc_id)
         data["hospitals"]       = self._build_hospitals()
         data["ems_agencies"]    = self._build_ems_agencies()
         data["ics_206_aid_stations"] = self._build_ics_206_aid_stations(inc_id, current_op)
@@ -1570,6 +1572,161 @@ class FormDataContext:
             return _get("/api/master/equipment") or []
         except Exception:
             return []
+
+    # ------------------------------------------------------------------
+    # Check-in list (ICS 211)
+    # ------------------------------------------------------------------
+
+    _CHECKED_IN_STATUSES = {
+        "Checked In",
+        "Assigned",
+        "Available",
+        "Out of Service",
+        "Preparing for Demobilization",
+    }
+    _CHECKIN_MASTER_BASE = {
+        "personnel": "/api/master/personnel",
+        "vehicle": "/api/master/vehicles",
+        "aircraft": "/api/master/aircraft",
+        "equipment": "/api/master/equipment",
+    }
+
+    def _build_checkin_list(self, inc_id: str | None) -> list[dict[str, Any]]:
+        """Flatten every checked-in resource (any type) into ICS-211 rows.
+
+        Single resources (personnel/vehicle/aircraft/equipment) come from the
+        unified ``resource_status`` collection; checked-in teams are added as
+        separate Strike Team/Task Force rows. Several ICS-211 columns (state,
+        order/request #, home unit, departure point, method of travel, other
+        qualifications, date returned to unit) have no corresponding data
+        anywhere in the app yet and are intentionally left blank here.
+        """
+        if not inc_id:
+            return []
+
+        resource_types_by_id = {
+            str(rt.get("id")): rt.get("name") for rt in self._build_resource_types() if rt.get("id") is not None
+        }
+
+        rows: list[dict[str, Any]] = []
+        try:
+            statuses = _get(f"/api/incidents/{inc_id}/resource-status") or []
+        except Exception:
+            statuses = []
+
+        for row in statuses:
+            if str(row.get("status") or "") not in self._CHECKED_IN_STATUSES:
+                continue
+            entity_type = str(row.get("entity_type") or "").strip()
+            base = self._CHECKIN_MASTER_BASE.get(entity_type)
+            record_id = row.get("record_id")
+            master: dict[str, Any] = {}
+            if base and record_id is not None:
+                try:
+                    master = _get(f"{base}/{record_id}") or {}
+                except Exception:
+                    master = {}
+
+            resource_type_id = master.get("resource_type_id")
+            kind = resource_types_by_id.get(str(resource_type_id), "") if resource_type_id is not None else ""
+            home_unit = ""
+            if entity_type == "personnel":
+                kind = master.get("primary_role") or master.get("role") or "Personnel"
+                incident_contact = master.get("phone") or master.get("callsign") or ""
+                home_unit = master.get("home_unit") or ""
+                agency = ""
+                type_value = ""
+            elif entity_type == "vehicle":
+                incident_contact = ""
+                agency = master.get("organization") or ""
+                type_value = master.get("vehicle_type") or master.get("model") or ""
+            elif entity_type == "aircraft":
+                incident_contact = ""
+                agency = master.get("organization") or ""
+                type_value = master.get("type") or master.get("aircraft_type") or ""
+            elif entity_type == "equipment":
+                incident_contact = ""
+                agency = master.get("organization") or ""
+                type_value = master.get("equipment_type") or ""
+            else:
+                incident_contact = ""
+                agency = ""
+                type_value = ""
+
+            rows.append({
+                "agency": agency,
+                "category": entity_type.title(),
+                "kind": kind,
+                "type": type_value,
+                "resource_name_or_id": row.get("resource_name") or row.get("resource_id") or "",
+                "st_or_tf": "Single Resource",
+                "date_time_check_in": row.get("checked_in_time") or "",
+                "leader_name": "",
+                "total_personnel": "",
+                "incident_contact": incident_contact,
+                "home_unit": home_unit,
+                "departure_point": "",
+                "method_of_travel": "",
+                "incident_assignment": row.get("assigned_to") or "",
+                "other_qualifications": "",
+                "date_resources_to_unit": "",
+            })
+
+        try:
+            teams = _get(
+                f"/api/incidents/{inc_id}/checkin/teams/checked-state",
+                checked_in=True,
+                include_disbanded=False,
+            ) or []
+        except Exception:
+            teams = []
+
+        for team in teams:
+            leader_name = ""
+            leader_id = team.get("team_leader") or team.get("team_leader_id") or team.get("leader_personnel_id")
+            if leader_id:
+                try:
+                    leader = _get(f"/api/master/personnel/{leader_id}") or {}
+                    leader_name = leader.get("name") or ""
+                except Exception:
+                    leader_name = ""
+
+            member_count = 0
+            members_raw = team.get("members_json") or team.get("members")
+            if isinstance(members_raw, str):
+                import json as _json
+                try:
+                    member_count = len(_json.loads(members_raw))
+                except Exception:
+                    member_count = 0
+            elif isinstance(members_raw, list):
+                member_count = len(members_raw)
+
+            rows.append({
+                "agency": "",
+                "category": "Team",
+                "kind": team.get("team_type") or "Team",
+                "type": "",
+                "resource_name_or_id": team.get("name") or "",
+                "st_or_tf": "Strike Team/Task Force",
+                "date_time_check_in": (
+                    team.get("checked_in_at")
+                    or team.get("last_checkin_at")
+                    or team.get("checkin_reference_at")
+                    or ""
+                ),
+                "leader_name": leader_name,
+                "total_personnel": str(member_count) if member_count else "",
+                "incident_contact": team.get("phone") or team.get("leader_phone") or "",
+                "home_unit": "",
+                "departure_point": "",
+                "method_of_travel": "",
+                "incident_assignment": team.get("assignment") or "",
+                "other_qualifications": "",
+                "date_resources_to_unit": "",
+            })
+
+        return rows
 
     # ------------------------------------------------------------------
     # Medical (master + incident ICS 206)

@@ -23,6 +23,10 @@ from modules.forms_creator.exporting.builders.intel import (
     intel_form_key,
 )
 from modules.forms_creator.exporting.builders.medical import Ics206FormBuilder
+from modules.forms_creator.exporting.builders.resource_requests import (
+    ResourceRequestFormBuilder,
+    register_resource_request_builders,
+)
 from modules.forms_creator.exporting.builders.task_assignments import (
     TASK_ASSIGNMENT_FORM_IDS,
     TaskAssignmentFormBuilder,
@@ -202,14 +206,6 @@ def test_ics203_variant_row_group_bindings_are_wired():
     expected = {
         "uc_commanders": {"name"},
         "org_agency_reps": {"agency", "name"},
-        "planning_tech_specialists": {"name", "specialty"},
-        "org_branches": {
-            "name",
-            "director_name",
-            "deputy_name",
-            "divisions.0.name",
-            "divisions.0.supervisor_name",
-        },
     }
 
     for form_set_id in ("uscg", "ics_canada"):
@@ -221,6 +217,54 @@ def test_ics203_variant_row_group_bindings_are_wired():
             columns = set(row_groups[ref]["col_patterns"])
             assert required_columns <= columns
             assert row_groups[ref]["rows_per_page"][0] > 1
+
+        # planning_tech_specialists names and specialties can need different row
+        # counts per template (some templates have fewer specialty slots than
+        # name slots), so each form set wires them as one or two row_groups
+        # covering "name" and "specialty" between them.
+        tech_columns = {
+            col
+            for row in mapping["row_groups"]
+            if row["data_key"] == "planning_tech_specialists"
+            for col in row["col_patterns"]
+        }
+        assert {"name", "specialty"} <= tech_columns
+
+
+def test_ics203_org_branches_bindings_are_wired():
+    # uscg's org_branches field-name numbering is regular ({n} per branch), so
+    # it uses a row_groups col_pattern; fema and ics_canada have irregular
+    # per-branch field naming (see BINDING_PIPELINE.md's ics_203 sections) and
+    # use explicit org_branches.<index>.* fields instead. Either mechanism
+    # must resolve real data for at least the first branch/division slot.
+    root = Path(__file__).resolve().parents[3]
+
+    mapping_path = root / "forms" / "sets" / "uscg" / "ics_203" / "mapping.json"
+    mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+    row_groups = {row["ref"]: row for row in mapping["row_groups"]}
+    columns = set(row_groups["org_branches"]["col_patterns"])
+    assert {
+        "name",
+        "director_name",
+        "deputy_name",
+        "divisions.0.name",
+        "divisions.0.supervisor_name",
+    } <= columns
+    assert row_groups["org_branches"]["rows_per_page"][0] > 1
+
+    def _source_key(entry_source):
+        if isinstance(entry_source, str):
+            return entry_source
+        if isinstance(entry_source, dict):
+            return str(entry_source.get("key") or "")
+        return ""
+
+    for form_set_id in ("fema", "ics_canada"):
+        mapping_path = root / "forms" / "sets" / form_set_id / "ics_203" / "mapping.json"
+        mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+        explicit_sources = {_source_key(entry.get("source")) for entry in mapping["fields"]}
+        assert any(src.startswith("org_branches.0.") for src in explicit_sources)
+        assert any(src.startswith("org_branches.0.divisions.0.") for src in explicit_sources)
 
 
 def test_ics206_builder_is_registered_instead_of_generic():
@@ -617,3 +661,81 @@ def test_generic_builder_prepares_fallback_export(monkeypatch, tmp_path):
     assert prepared.extra_data["manual"] == {"checked": True}
     assert prepared.extra_data["export"]["form_label"] == "SAR 125"
     assert prepared.extra_data["export"]["builder_level"] == "generic"
+
+
+def test_resource_request_builder_is_registered_instead_of_generic():
+    registry = default_registry()
+    assert isinstance(registry.get("ics_213rr"), ResourceRequestFormBuilder)
+    assert isinstance(registry.get("ICS 213RR"), ResourceRequestFormBuilder)
+    assert isinstance(registry.get(ics_form_key("ics_213rr")), ResourceRequestFormBuilder)
+
+
+def test_resource_request_builder_requires_target_id():
+    import pytest
+
+    with pytest.raises(ValueError):
+        ResourceRequestFormBuilder().build(ExportRequest(form_key="ics_213rr"))
+
+
+def test_resource_request_builder_prepares_export_context(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "modules.forms_creator.exporting.builders.generic.incident_context.get_active_incident_id",
+        lambda: "INC-1",
+    )
+    monkeypatch.setattr(
+        "modules.forms_creator.exporting.builders.generic.incident_context.get_active_incident_paths",
+        lambda: type("Paths", (), {"forms_generated": tmp_path})(),
+    )
+    monkeypatch.setattr(
+        "modules.forms_creator.exporting.builders.resource_requests.utcnow_seconds",
+        lambda: "2026-07-27 12:30:45+00:00",
+    )
+    monkeypatch.setattr(
+        "modules.forms_creator.exporting.builders.resource_requests.api_client.get",
+        lambda path: {
+            "id": "rr-00000042",
+            "incident_id": "INC-1",
+            "title": "Need water pumps",
+            "requesting_section": "Operations",
+            "priority": "IMMEDIATE",
+            "status": "SUBMITTED",
+            "created_utc": "2026-07-27T12:00:00Z",
+            "needed_by_utc": "2026-07-27T18:00:00Z",
+            "delivery_location": "Base Camp",
+            "justification": "Flooding in sector 4",
+            "items": [
+                {"id": "i1", "kind": "EQUIPMENT", "description": "Trash pump", "quantity": 2, "unit": "each"},
+            ],
+        },
+    )
+
+    prepared = ResourceRequestFormBuilder().build(
+        ExportRequest(form_key="ics_213rr", target_id="rr-00000042")
+    )
+
+    assert prepared.form_id == "ics_213rr"
+    assert prepared.incident_id == "INC-1"
+    assert prepared.output_path.name == "ics_213rr_resource_request_rr-00000042_2026-07-27_12-30-45.pdf"
+    assert prepared.extra_data["resource_request"]["request_number"] == "RR-00000042"
+    assert prepared.extra_data["resource_request"]["priority"] == "IMMEDIATE"
+    assert prepared.extra_data["resource_request"]["delivery_location"] == "Base Camp"
+    assert prepared.extra_data["resource_request_items"][0]["description"] == "Trash pump"
+    assert prepared.metadata["data_domain"] == "resource_request"
+
+
+def test_resource_request_builder_raises_when_request_missing(monkeypatch):
+    monkeypatch.setattr(
+        "modules.forms_creator.exporting.builders.generic.incident_context.get_active_incident_id",
+        lambda: "INC-1",
+    )
+    monkeypatch.setattr(
+        "modules.forms_creator.exporting.builders.resource_requests.api_client.get",
+        lambda path: None,
+    )
+
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        ResourceRequestFormBuilder().build(
+            ExportRequest(form_key="ics_213rr", target_id="missing")
+        )

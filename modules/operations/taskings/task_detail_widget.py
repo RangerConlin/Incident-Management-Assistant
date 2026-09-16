@@ -2178,6 +2178,20 @@ class TaskDetailWindow(QWidget):
             return
         self._persist_header_fields({'status': status})
 
+    @staticmethod
+    def _team_status_key(status: str) -> str:
+        key = str(status or "").strip().lower()
+        return {
+            "en route": "enroute",
+            "on scene": "arrival",
+            "discovery/find": "find",
+            "discovery": "find",
+            "rtb": "returning",
+            "returning": "returning",
+            "complete": "complete",
+            "completed": "complete",
+        }.get(key, key)
+
     def _on_task_type_changed(self, value: str) -> None:
         if getattr(self, '_loading_header', False):
             return
@@ -3827,7 +3841,7 @@ class TaskDetailWindow(QWidget):
                     if team_id is None:
                         dlg.reject(); return
                     from modules.operations.data.repository import set_team_status
-                    set_team_status(int(team_id), sel)
+                    set_team_status(int(team_id), self._team_status_key(sel))
                     dlg.accept()
                 except Exception:
                     dlg.reject()

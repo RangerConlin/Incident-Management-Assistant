@@ -1,8 +1,10 @@
 import os
+from io import BytesIO
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
+from pypdf import PdfReader
 
 from modules.intel.weather.services import weather_manager as wm_module
 
@@ -60,3 +62,23 @@ def test_briefing_pdf_with_no_active_alerts(monkeypatch):
 
     data = build_weather_briefing_pdf(incident_name=None, manager=manager)
     assert data.startswith(b"%PDF")
+
+
+def test_briefing_pdf_uses_landscape_letter_page(monkeypatch):
+    _app()
+    monkeypatch.setattr(
+        wm_module.client,
+        "get_config",
+        lambda incident_id: {"polling_minutes": 10, "thresholds": {}, "locations": []},
+    )
+    monkeypatch.setattr(wm_module.client, "list_airport_facilities", lambda incident_id: [])
+    monkeypatch.setattr(wm_module.client, "get_initial_response_aircraft_info", lambda incident_id: {})
+
+    manager = wm_module.WeatherManager("TEST-PDF-LANDSCAPE")
+
+    from modules.intel.weather.export.briefing_pdf import build_weather_briefing_pdf
+
+    data = build_weather_briefing_pdf(incident_name="Test Incident", manager=manager)
+    page = PdfReader(BytesIO(data)).pages[0]
+
+    assert float(page.mediabox.width) > float(page.mediabox.height)

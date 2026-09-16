@@ -78,6 +78,23 @@ def _validate_initialized_schema(conn: sqlite3.Connection) -> None:
         )
 
 
+def _ensure_legacy_sqlite_tables(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            title TEXT,
+            message TEXT,
+            source_type TEXT,
+            source_id TEXT,
+            read_at TEXT,
+            dismissed_at TEXT
+        )
+        """
+    )
+
+
 def initialize_incident_database(
     db_path: Path,
     *,
@@ -102,6 +119,7 @@ def initialize_incident_database(
 
     try:
         with sqlite3.connect(path) as conn:
+            _ensure_legacy_sqlite_tables(conn)
             _validate_initialized_schema(conn)
     except Exception as exc:
         try:

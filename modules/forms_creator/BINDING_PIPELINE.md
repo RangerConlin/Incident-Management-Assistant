@@ -397,6 +397,7 @@ that point (follow the debrief table's format below as the template).
 | `task_debriefs` | `debrief` | **Wired** | see "Worked example" below for full field list |
 | `resource_requests` | - | Not started | Canonical incident resource request / ICS-213RR collection |
 | `incident_personnel` | - | Not started | assigned/checked-in roster; also backs the `team_members` stub below |
+| `resource_status` | `checkin_list` | Partial | ICS-211 check-in list, added 2026-09-14: `_build_checkin_list` flattens every checked-in personnel/vehicle/aircraft/equipment row (joined against the per-type master record) plus checked-in teams as Strike Team/Task Force rows. No source exists yet for: state, order/request #, home unit (vehicle/aircraft/equipment only — personnel's `home_unit` master field is wired), departure point, method of travel, other qualifications, or date resources returned to unit |
 
 ### Logistics
 
@@ -728,6 +729,124 @@ for this form exists in this repo yet. Decided 2026-06-23: leave this as
 silent truncation for now rather than adding an overflow warning or a
 continuation page - revisit if it becomes a real problem.
 
+### ICS Canada `ics_203` rebuild (2026-09-14, worked example)
+
+Re-auditing `forms/sets/ics_canada/ics_203/mapping.json` found it was written
+against a differently-renamed copy of this PDF, the same failure mode as the
+FEMA case above but never diagnosed - not a broken `/AcroForm` this time,
+just field names that don't match. The real template's leaf fields carry a
+numeric or lettered section prefix the mapping didn't have:
+
+| Section | Real prefix | Mapping had |
+|---|---|---|
+| Incident Command and Staff | `5. ` | a single leading space, no digit |
+| Planning Section (+ tech specialists) | `7. ` / `7.` | no prefix |
+| Logistics Section | `8. ` | no prefix |
+| Operations Section | `9. ` | no prefix |
+| Branches (Support/Service/Air Ops labels) | `a. ` / `b. ` / `d. ` | no prefix |
+| Branch/division row-group fields | `a.` / `b.` / `c.` | no prefix (`branch_id1`, `div_1_name1`, ...) |
+
+`10 FINANCIALADMINISTRATION SECTION ...` and the `rep_agency{n}`/`rep_name{n}`/
+`uc_name{n}`/`tech_name{n}`/`tech_specialty{n}` row-group fields already had
+correct real names and needed no change.
+
+**The `org_branches` row-group couldn't be reused as-is.** The old mapping's
+`org_branches` row_group used one `{n}`-substitution pattern
+(`branch_id{n}`, `div_1_supervisor{n}`, ...) meant to iterate `n=1,2,3` across
+the three branches - but the real per-branch prefix is a letter (`a.`/`b.`/
+`c.`), not a trailing digit, and even within that, branch `a`'s division
+fields end in `_supervisor1` while both `b` and `c` end in `_supervisor2`
+regardless of division index (a real quirk in how this PDF's fields were
+authored, confirmed against the live `/AcroForm` field list, not a guess).
+Same lesson as the FEMA `ics_203` fix: when a form's real field numbering is
+irregular, use explicit `fields[]` entries per branch/division instead of a
+`{n}`-substitution row_group. Rebuilt as 3 sets of explicit
+`org_branches.<0-2>.name` / `.director_name` / `.deputy_name` /
+`.divisions.<0-4>.name` / `.divisions.<0-4>.supervisor_name` entries.
+
+**The operational-period date/time fields needed real PDF-structure
+inspection**, not just a rename. The mapping had bare `"0"`/`"1"`/`"2"` as
+`pdf_field` values - those are group/parent node names (`/FT` is `None`), not
+real fillable widgets, so nothing was ever being written for "4. Operational
+Period" on this form at all. Walking the real `/AcroForm` field tree (see
+"Building a new form folder" above for the pattern) found the real leaf
+fields are `Text17.0.0`, `Text17.0.1`, `Text17.1`, `Text17.2` - a 2x2 grid
+identified by widget `/Rect` position (left column top/bottom, right column
+top/bottom) and bound to `op_period.start_date` / `.start_time` /
+`.end_date` / `.end_time` respectively. This is a judgment call made from
+geometry, not a printed label - see the open questions in this session's
+final report if you want to double-check it against the live template.
+
+Also removed ~55 dead entries from the old mapping: duplicate empty-source
+placeholders for fields now covered by the rebuilt `org_branches` (a common
+pattern - see "Always test-fill before calling a mapping done" above; an
+empty-source `fields[]` entry for a name a row_group also covers produces a
+spurious "no value resolved" warning even though the row_group fill
+overwrites it correctly afterward), and references to field names
+(`AgencyRow4`, `Representative Row5`, bare `"a"`/`"b"`/`"c"`/`"d"` group
+names, etc.) that don't exist anywhere in this template.
+
+Result: **96.2% of real leaf fields (102/106) now bound**, up from 22.6%.
+The remaining 4 (`d. AIR OPERATIONS BRANCH Position1`/`Position2`/`Row1`/
+`Row2`) have no printed label anywhere on the form to key off of - left
+unresolved, the same kind of ambiguity as FEMA's `Operations Section
+Alternate` fields.
+
+### USCG `ics_203` cleanup (2026-09-14)
+
+Unlike the ICS Canada case, USCG's bound-field percentage (69.7%) was
+already accurate - but ~50 of the mapping's 141 `fields[]` entries were
+either references to field names absent from this template entirely
+(leftover from a different form/version, e.g. `Branch_2`, `Deputy_2`,
+`Technical Specialists`, several `DivisionGroup_N` numbers), or redundant
+empty-source placeholders for fields the `org_branches` and
+`planning_tech_specialists` row_groups already cover
+(`branch_id1`/`2`, `div_N_name{1,2}`, `div_N_supervisor{1,2}`). Those
+placeholders don't corrupt the output - `PDFFiller.fill()`'s row_groups pass
+runs after the main `fields[]` pass and overwrites the same `field_values`
+dict key - but they do pollute the warnings list, which is the whole
+signal the "always test-fill" convention depends on: a real fixture
+test-fill went from 82 warnings down to 37 once they were removed, all 37
+now genuinely unresolved fields. Also split the single
+`planning_tech_specialists` row_group (which had one `rows_per_page` shared
+between `tech_name{n}` and `tech_specialty{n}`) into two, since the
+template has `tech_name1`-`3` but only `tech_specialty1`-`2` - the old
+single-group definition was generating a nonexistent `tech_specialty3`
+target. Finally, `Date/Time0`/`Date/Time1` (the operational period) were
+bound to raw `op_period.start`/`.end` ISO strings; changed to the
+`datetime_human` transform per this repo's "user-facing timestamps must be
+human readable" rule (see agents.md).
+
+**`DivisionGroup_6` and `DivisionGroup_12` turned out to be fixable**, found
+by checking real widget `/Rect` y-coordinates rather than guessing from the
+name alone: `DivisionGroup_6`'s box sits immediately below `div_5_name1`
+with the same row spacing as `div_1_name1`-`div_5_name1` above it, and
+`branch_id2` (branch 2's header) starts right after it - i.e. it's branch
+1's **6th** division/group slot, not a separate section. `DivisionGroup_12`
+is the same pattern one row below `div_5_name2`, i.e. branch 2's 6th
+division/group slot. Bound both to `org_branches.0.divisions.5.name` /
+`org_branches.1.divisions.5.name` (`_build_org_branches` has no cap on
+division count per branch - only this template's fixed row slots do, same
+"known accepted limitation" as FEMA's `ics_203` - see above).
+
+The remaining `DivisionGroup_13`-`_18` (6 fields) sit in a separate, later
+block: physically separated from the branch 2 block by a ~56pt gap (versus
+the ~14.5pt row spacing used everywhere else) that contains the Logistics/
+Intelligence section's Chief/Deputy fields, and this template has no
+`branch_id3` field for a third branch to hang them off of. Confirmed with
+the user: USCG's ICS 203 gives the Intelligence/Investigations Section its
+own Division/Group list (a heavier emphasis on Intel than FEMA/ICS-Canada
+give it), printed without a repeated Branch/Director/Deputy header box
+since Intel's Chief/Deputy already have their own fields elsewhere on the
+form (`Chief_3`/`Deputy_5`). `_build_org_branches` isn't scoped to
+Operations Section - it returns every `classification == "branch"` org
+unit incident-wide - so an Intel branch naturally lands in the same
+`org_branches` list as the two Ops branches, just without a form field for
+its own name/director/deputy. Bound `DivisionGroup_13`-`_18` to
+`org_branches.2.divisions.<0-5>.name` (positional: whatever branch sorts
+third, by the same `sort_order`/`title` ordering `_build_org_branches`
+already uses). 76.2% of real leaf fields bound (93/122), up from 71.3%.
+
 ### Orphaned mappings (concrete example)
 
 Several forms have a real, substantial `mapping.json` already written,
@@ -766,7 +885,7 @@ fresh raw copy.
 | cap | miwgf_52 | 69 | (none) | - | Needs mapping |
 | fema | ics_201 | 178 | 226 | 178 | Wired |
 | fema | ics_202 | 35 | 35 | 35 | Wired |
-| fema | ics_203 | 116 | 116 | 116 | **Wired, end-to-end** - both field names and data builders done this session, see "ics_203 resolution" above; verified with a realistic nested test dict, zero warnings |
+| fema | ics_203 | 116 | 116 | 116 | **Wired, end-to-end** (re-verified 2026-09-14) - both field names and data builders done in an earlier session, see "ics_203 resolution" above; one real bug found and fixed this session (`Service Branch Director` was bound to `.title` instead of `.name` - the only field still doing that). Test-fill against a realistic fixture: 15 warnings, all genuinely unresolved/no-data-source fields already documented above, zero unexpected |
 | fema | ics_204 | 77 | 106 | 77 | Wired |
 | fema | ics_205 | 99 | 108 | 99 | Wired |
 | fema | ics_205a | (none) | 56 | - | Needs template (mapping orphaned) |
@@ -777,7 +896,7 @@ fresh raw copy.
 | fema | ics_210 | (none) | 56 | - | Needs template (mapping orphaned) |
 | fema | ics_211 | 157 | 223 | 157 | Wired |
 | fema | ics_213 | 15 | 28 | 15 | Wired |
-| fema | ics_213rr | (none) | 29 | - | Needs template (mapping orphaned) |
+| fema | ics_213rr | 34 | 84 | 34 | Wired - rebuilt 2026-09-14 via `ResourceRequestFormBuilder`; remaining unbound leaf fields have no current data source (see `form_builder_inventory.md` footnote §). This table's older row above was stale — `template.pdf` has existed the whole time, it was the mapping that was wrong (mixed in ~30 stray field names from an unrelated form). |
 | fema | ics_214 | 84 | 86 | 84 | Wired |
 | fema | ics_215 | (none) | 50 | - | Needs template (mapping orphaned) |
 | fema | ics_215a | 55 | 13 | 55 | Wired - raw FEMA template added; uses repeating `ics_215a_rows`; test-fill verified zero warnings |
@@ -790,7 +909,7 @@ fresh raw copy.
 | fema | ics_233 | 378 | (none) | - | Needs mapping |
 | fema | ics_309 | 0 | (none) | - | Non-fillable source PDF, no mapping started - source file has 0 fields and 0 annotations (not corruption, never a fillable AcroForm) |
 | ics_canada | ics_201 | 160 | 169 | 160 | Wired |
-| ics_canada | ics_203 | 117 | 195 | 69 | Mapped, not yet test-fill verified |
+| ics_canada | ics_203 | 106 | 83 | 83 | **Wired** (rebuilt 2026-09-14) - the old mapping (117/195/69 in this table's stale numbers) was built against a differently-renamed copy of the PDF; almost every field name was missing this template's real numeric/lettered section prefix (`5. `, `7. `, `a.`, `b.`, `c.`, `d. `, etc.), see "ICS-203 (ICS Canada) resolution" below. 96.2% of real leaf fields now bound (102/106); test-fill verified 4 warnings, all genuinely unresolved (no printed label on the form to key off of) |
 | ics_canada | ics_205 | 85 | 7 | 85 | Wired - row-group coverage fills the 13 channel rows; test-fill verified zero warnings |
 | ics_canada | ics_206 | 105 | 105 | 105 | Wired - source-backed medical-plan fields test-fill verified zero warnings; aid-station contact/frequency is stored, paramedics-on-site is inferred from ALS/Paramedic aid-station values, and hospital air/ground travel times are stored when ICP/hospital coordinates allow calculation |
 | ics_canada | ics_207 | 114 | 120 | 98 | Mapped, not yet test-fill verified |
@@ -823,7 +942,7 @@ fresh raw copy.
 | sar | sar_307 | 510 | (none) | - | Needs mapping |
 | uscg | ics_201 | 256 | 259 | 256 | Wired |
 | uscg | ics_202 | 14 | 14 | 14 | Wired |
-| uscg | ics_203 | 122 | 141 | 122 | Wired |
+| uscg | ics_203 | 122 | 98 | 98 | Wired (cleaned up 2026-09-14) - most of the mapping's 141 `fields[]` entries that weren't dead weight were already accurate, but ~50 of them were dead weight: references to field names that don't exist in this template at all, or redundant empty-source placeholders shadowing values the `org_branches`/`planning_tech_specialists` row_groups already supplied - a real test-fill went from 82 false-positive warnings down to 37, then to 29 genuine ones after removing them and binding the `DivisionGroup_N` block (see below). Also split `planning_tech_specialists` into two row_groups (name: 3 rows, specialty: 2 - the template has no `tech_specialty3`) and fixed the operational-period `Date/Time0`/`Date/Time1` fields from raw ISO strings to the `datetime_human` transform. 76.2% of real leaf fields bound (93/122), up from 69.7% |
 | uscg | ics_207 | 71 | 71 | 71 | Wired |
 | uscg | ics_214 | 57 | 59 | 57 | Wired |
 | uscg | ics_205 | 150 | 10 | 150 | Wired - mapped this session from the provided USCG PDF; test-fill verified zero warnings |

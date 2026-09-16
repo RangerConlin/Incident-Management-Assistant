@@ -24,7 +24,7 @@ ACTION_STATUS_MAP = {
 
 ALLOWED_STATUS_TRANSITIONS = {
     "DRAFT": {"DRAFT", "SUBMITTED", "CANCELLED"},
-    "SUBMITTED": {"REVIEWED", "DENIED", "CANCELLED"},
+    "SUBMITTED": {"REVIEWED", "APPROVED", "DENIED", "CANCELLED"},
     "REVIEWED": {"APPROVED", "DENIED", "CANCELLED"},
     "APPROVED": {"ASSIGNED", "DENIED", "CANCELLED"},
     "ASSIGNED": {"INTRANSIT", "CANCELLED"},
@@ -35,6 +35,12 @@ ALLOWED_STATUS_TRANSITIONS = {
     "CANCELLED": {"REVIEWED"},
     "CLOSED": set(),
 }
+
+TERMINAL_STATUSES = {"CLOSED", "DENIED", "CANCELLED"}
+
+# Once a request has left DRAFT, these header fields describe the request as
+# submitted and can no longer be silently rewritten via PATCH.
+LOCKED_AFTER_SUBMISSION_FIELDS = {"title", "requesting_section", "priority"}
 
 
 class LogisticsResourceRequestsRepository(BaseRepository):
@@ -135,7 +141,16 @@ def update_request(incident_id: str, request_id: str, body: dict[str, Any]) -> d
     body.pop("id", None)
     body.pop("incident_id", None)
     actor_id = body.pop("actor_id", None)
-    if doc.get("status", "DRAFT") != "DRAFT":
+    current_status = doc.get("status", "DRAFT")
+    if current_status in TERMINAL_STATUSES:
+        raise HTTPException(400, f"Request in terminal status {current_status} cannot be modified")
+    if current_status != "DRAFT":
+        locked = LOCKED_AFTER_SUBMISSION_FIELDS.intersection(body)
+        if locked:
+            raise HTTPException(
+                400,
+                "Cannot modify critical fields after submission: " + ", ".join(sorted(locked)),
+            )
         body["version"] = doc.get("version", 1) + 1
     audit_entry = {"event": "update", "ts_utc": _now(), "actor_id": actor_id, "fields": list(body.keys())}
     repo.apply_update(
@@ -187,18 +202,23 @@ def record_approval(incident_id: str, request_id: str, body: dict[str, Any]) -> 
     action = str(body.get("action", "")).upper()
     actor_id = str(body.get("actor_id", "unknown"))
     note = body.get("note")
+    if action not in ACTION_STATUS_MAP:
+        raise HTTPException(400, f"Unknown approval action: {action}")
+    if action == "DENY" and not note:
+        raise HTTPException(400, "Denial requires a note for audit trail compliance")
+
+    current = doc.get("status", "DRAFT")
+    target_status = ACTION_STATUS_MAP[action]
+    allowed = ALLOWED_STATUS_TRANSITIONS.get(current, set())
+    if target_status not in allowed:
+        raise HTTPException(400, f"Cannot {action} while status is {current}")
+
     approval_id = _new_id()
     now = _now()
     approval = {"id": approval_id, "action": action, "actor_id": actor_id, "note": note, "ts_utc": now}
-    updates: dict = {}
-    target_status = ACTION_STATUS_MAP.get(action)
-    if target_status:
-        current = doc.get("status", "DRAFT")
-        allowed = ALLOWED_STATUS_TRANSITIONS.get(current, set())
-        if target_status in allowed:
-            updates["status"] = target_status
-            if current != "DRAFT":
-                updates["version"] = doc.get("version", 1) + 1
+    updates: dict = {"status": target_status}
+    if current != "DRAFT":
+        updates["version"] = doc.get("version", 1) + 1
     updates["last_updated_utc"] = now
     audit_entry = {"event": f"approval:{action}", "ts_utc": now, "actor_id": actor_id}
     repo.apply_update(

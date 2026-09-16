@@ -45,7 +45,7 @@ DEV_MODE = True
 FORCE_DEFAULT_LAYOUT = False
 
 # ==== DEBUG LOGIN BYPASS (set to True to skip login) ====
-DEBUG_BYPASS_LOGIN = True  # <--- Toggle this to True to skip login dialog
+DEBUG_BYPASS_LOGIN = False  # <--- Toggle this to True to skip login dialog
 DEBUG_INCIDENT_ID = "2025-FAIR"
 DEBUG_USER_ID = "405021"
 DEBUG_ROLE = "Incident Commander"
@@ -1786,15 +1786,15 @@ class MainWindow(QMainWindow):
 
         w.openTaskRequested.connect(_open_task)
 
-        def _reassign(task_id_or_none, team_name_or_none) -> None:
+        def _reassign(task_id_or_none, team_id_or_none) -> None:
             # Route to relevant UI for reassignment
             try:
                 if task_id_or_none:
                     from modules.operations.taskings.windows import open_task_detail_window
                     open_task_detail_window(int(task_id_or_none))
-                elif team_name_or_none:
+                elif team_id_or_none:
                     from modules.operations.teams.windows import open_team_detail_window
-                    open_team_detail_window(None)
+                    open_team_detail_window(int(team_id_or_none))
             except Exception as exc:
                 print(f"[warn] reassign action failed: {exc}")
 
@@ -1815,20 +1815,45 @@ class MainWindow(QMainWindow):
 
         def _export_214() -> None:
             try:
-                from modules.operations.taskings.repository import export_audit_csv
-                path = export_audit_csv()
+                task_id = w.selected_task_id()
+                if task_id is None:
+                    try:
+                        QMessageBox.information(self, "Export 214", "Select a task first.")
+                    except Exception:
+                        print("[info] Select a task first.")
+                    return
+                from pathlib import Path
+                from modules.operations.taskings.repository import export_audit_as_214
+                out_dir = Path("data") / "exports" / str(iid) / f"task_{int(task_id)}"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                path = export_audit_as_214(int(task_id), str(out_dir / "ics_214.pdf"))
                 try:
-                    QMessageBox.information(self, "Exported 214", f"Audit CSV saved to:\n{path}")
+                    QMessageBox.information(self, "Exported 214", f"ICS-214 PDF saved to:\n{path}")
                 except Exception:
-                    print(f"[info] Audit CSV saved to: {path}")
+                    print(f"[info] ICS-214 PDF saved to: {path}")
             except Exception as exc:
                 print(f"[warn] export 214 failed: {exc}")
 
         w.export214Requested.connect(_export_214)
 
         def _print_204() -> None:
-            # Open Assignments Dashboard for printing controls; specialized print flows live there
-            self.open_operations_dashboard()
+            try:
+                task_id = w.selected_task_id()
+                if task_id is None:
+                    try:
+                        QMessageBox.information(self, "Print 204", "Select a task first.")
+                    except Exception:
+                        print("[info] Select a task first.")
+                    return
+                from modules.operations.taskings.repository import export_assignment_forms
+                exports = export_assignment_forms(int(task_id), ["ICS 204"])
+                path = exports[0].get("file_path") if exports else ""
+                try:
+                    QMessageBox.information(self, "Printed 204", f"ICS-204 PDF saved to:\n{path}")
+                except Exception:
+                    print(f"[info] ICS-204 PDF saved to: {path}")
+            except Exception as exc:
+                print(f"[warn] print 204 failed: {exc}")
 
         w.print204Requested.connect(_print_204)
 
@@ -1949,7 +1974,7 @@ class MainWindow(QMainWindow):
                 sorted_tasks = sorted(open_tasks, key=lambda t: (-_prio(t.get("priority")), _due_val(t.get("due_time"))))
                 w.update_top_tasks([
                     {
-                        "id": t.get("task_id") or t.get("id", ""),
+                        "id": t.get("int_id") or t.get("id") or "",
                         "title": t.get("title") or "(untitled)",
                         "assignee": t.get("assignment") or "",
                         "due": (str(t.get("due_time") or ""))[-5:],
@@ -2211,10 +2236,10 @@ class MainWindow(QMainWindow):
         panel = logistics.get_resource_status_board_panel(incident_id)
         self._open_panel(panel, title="Resource Status Board")
 
-    def open_logistics_213rr(self) -> None:
+    def open_logistics_213rr(self, request_id: str | None = None) -> None:
         from modules import logistics
         incident_id = AppState.get_active_incident()
-        panel = logistics.get_213rr_panel(incident_id)
+        panel = logistics.get_213rr_panel(incident_id, open_request_id=request_id)
         self._open_panel(panel, title="Resource Request (ICS-213RR)")
 
     def open_logistics_facilities(self) -> None:

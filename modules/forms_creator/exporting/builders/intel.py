@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import textwrap
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, replace
 from typing import Any
 
 from modules.forms_creator.exporting.builders.generic import _active_incident_id, _output_path
@@ -279,9 +279,12 @@ class Sar135ClueFormBuilder:
             export_data = {**existing_export_data, **export_data}
         extra_data["export"] = export_data
 
+        output_request = (
+            request if request.target_type else replace(request, target_type="intel_item")
+        )
         return PreparedExport(
             form_id=self.form_id,
-            output_path=_output_path(self.form_id, request, generated_at),
+            output_path=_output_path(self.form_id, output_request, generated_at),
             incident_id=incident_id,
             form_set_id=request.form_set_id or self.form_set_id,
             extra_data=extra_data,

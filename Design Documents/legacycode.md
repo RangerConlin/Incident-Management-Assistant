@@ -77,7 +77,8 @@ Add entries below this line.
 - Legacy Source: callers that still request form output through `export_form_unified()` instead of the canonical `engine.generate()` or `ExportService` path.
 - Removal Condition: every production caller of `export_form_unified()` has been migrated to `modules.forms_creator.exporting.ExportService` or a direct `engine.generate()` call using `forms/sets/**/mapping.json`.
 - Verification: `rg -n "export_form_unified" modules tests` shows no production callers.
-- Known Callers: `modules/command/widgets/objective_detail_dialog.py`, `modules/command/panels/incident_objectives_panel.py`, `modules/safety/print_ics_206.py`, `modules/logistics/print_ics_213_rr.py`, `modules/operations/taskings/repository.py`.
+- Known Callers: `modules/command/widgets/objective_detail_dialog.py`, `modules/command/panels/incident_objectives_panel.py`, `modules/safety/print_ics_206.py`, `modules/operations/taskings/repository.py`.
+- Update 2026-09-13: `modules/logistics/print_ics_213_rr.py` (a prior known caller, already dead — nothing imported it) was removed. ICS 213RR now exports via `modules.forms_creator.exporting.builders.resource_requests.ResourceRequestFormBuilder` / `modules.logistics.resource_requests.export_service.generate_ics213rr`, not this bridge.
 
 ### Forms Creator database template service
 - Status: `legacy-compat-active`
@@ -95,6 +96,14 @@ Add entries below this line.
 - Legacy Source: earlier PDF filler workflow that predates the Forms Creator Hub and MapperWindow form-set registry.
 - Removal Condition: no standalone UI entry point uses `pdf_filler_widget.py`, and any useful discovery behavior is either removed or rewritten to use `FormSetRegistry`.
 - Verification: `rg -n "pdf_filler_widget|mapping_discovery|modules/forms_creator/mappings|\\.mapping\\.json" modules tests` shows no production callers outside intentional import/scanning tools.
+
+### Legacy SQLAlchemy resource-request models
+- Status: `legacy-compat-candidate`
+- Location: `modules/logistics/models/resource_request.py` (`LogisticsResourceRequest`, `LogisticsRequestApproval`, `LogisticsRequestAssignment`, `LogisticsResourceItem`)
+- Purpose: pre-Mongo SQLAlchemy models for logistics resource requests, superseded by `modules/logistics/resource_requests/` (Mongo-backed, via `data/db/sarapp_db/api/routers/logistics_resource_requests.py`).
+- Legacy Source: `data/db/sarapp_db/migrations/migrate_logistics_resource_requests_to_resource_requests.py` confirms the cutover already happened.
+- Removal Condition: confirm no code outside `modules/logistics/models/` imports these classes, then delete the file (and its `models/__init__.py` export) outright.
+- Verification: `rg -n "LogisticsResourceRequest|LogisticsRequestApproval|LogisticsRequestAssignment|LogisticsResourceItem" modules data` shows no callers outside `modules/logistics/models/` itself (checked 2026-09-13 — none found).
 
 ### Outdated forms guidance
 - Status: `legacy-compat-candidate`

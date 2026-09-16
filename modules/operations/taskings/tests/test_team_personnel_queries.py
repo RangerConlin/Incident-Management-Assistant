@@ -40,6 +40,7 @@ def test_fetch_team_personnel_allows_identity_without_home_unit(monkeypatch):
             "role": "Searcher",
             "phone": "555-0100",
             "callsign": "A1",
+            "certifications": [],
             "identifier": "A1",
             "rank": "LT",
             "organization": "",

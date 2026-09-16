@@ -82,7 +82,7 @@ def get_quick_checkin_panel(incident_id: object | None = None) -> QWidget:
     return QuickCheckInWindow()
 
 
-def get_213rr_panel(incident_id: object | None = None) -> QWidget:
+def get_213rr_panel(incident_id: object | None = None, open_request_id: str | None = None) -> QWidget:
     """Return the full Resource Request (ICS-213RR) workspace panel."""
 
     from modules.logistics.resource_requests import get_service
@@ -115,7 +115,10 @@ def get_213rr_panel(incident_id: object | None = None) -> QWidget:
     splitter = QSplitter(QtCore.Qt.Orientation.Horizontal, container)
     list_panel = ResourceRequestListPanel(service=service, parent=splitter)
     detail_panel = ResourceRequestDetailPanel(service=service, parent=splitter)
-    detail_panel.start_new()
+    if open_request_id:
+        detail_panel.load_request(str(open_request_id))
+    else:
+        detail_panel.start_new()
 
     splitter.addWidget(list_panel)
     splitter.addWidget(detail_panel)

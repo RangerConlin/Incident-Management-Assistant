@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.gis.map_window.ribbon.flow_layout import FlowLayout
-from styles.tokens import ICON_SIZE_LG
+from styles.tokens import ICON_SIZE_MD, ICON_SIZE_SM
 from utils.styles import ribbon_colors, subscribe_theme
 
 _DEFAULT_MAX_CONTENT_WIDTH = 230
@@ -84,10 +84,17 @@ class RibbonGroup(QFrame):
         self._label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         outer.addWidget(self._label)
 
-        # A full title would barely be narrower than the group itself,
-        # defeating the point of collapsing — show just its first word
-        # (the full name is still in the tooltip).
-        short_title = title.split(" ")[0][:10]
+        # Collapsed groups should be true overflow affordances, not wide
+        # renamed copies of the full group. The tooltip keeps the full name.
+        short_titles = {
+            "Navigation": "Nav",
+            "Find / Go To": "Find",
+            "Operational View": "View",
+            "Quick Add": "Add",
+            "Selection": "Sel",
+            "Map Utilities": "Map",
+        }
+        short_title = short_titles.get(title, title.split(" ")[0][:6])
         self._collapse_button = QToolButton(self)
         self._collapse_button.setObjectName("ribbonGroupCollapsed")
         self._collapse_button.setText(f"{short_title} ▾")
@@ -102,6 +109,12 @@ class RibbonGroup(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
 
         subscribe_theme(self, self._on_theme_changed)
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt override
+        return self.expanded_target_size()
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 - Qt override
+        return self.expanded_target_size()
 
     # ------------------------------------------------------------------
     def add_button(
@@ -121,7 +134,8 @@ class RibbonGroup(QFrame):
         button.setAutoRaise(True)
         if icon is not None:
             button.setIcon(icon)
-            button.setIconSize(QSize(ICON_SIZE_LG, ICON_SIZE_LG))
+            icon_size = ICON_SIZE_MD if large else ICON_SIZE_SM
+            button.setIconSize(QSize(icon_size, icon_size))
             button.setText(text)
             if large:
                 button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -209,7 +223,10 @@ class RibbonGroup(QFrame):
         else:
             spacing = self._buttons_row.spacing()
             natural_width = sum(
-                self._buttons_row.itemAt(i).widget().sizeHint().width() for i in range(count)
+                self._buttons_row.itemAt(i).widget().sizeHint().expandedTo(
+                    self._buttons_row.itemAt(i).widget().minimumSize()
+                ).width()
+                for i in range(count)
             )
             natural_width += spacing * (count - 1)
             content_width = min(self._max_content_width, natural_width)
@@ -253,6 +270,17 @@ class RibbonGroup(QFrame):
 
     def collapsed_target_width(self) -> int:
         return self._collapse_button.sizeHint().width()
+
+    def collapsed_target_size(self) -> QSize:
+        margins = self._outer.contentsMargins()
+        hint = self._collapse_button.sizeHint()
+        return QSize(
+            hint.width() + margins.left() + margins.right(),
+            hint.height() + margins.top() + margins.bottom(),
+        )
+
+    def target_size_for_state(self, collapsed: bool) -> QSize:
+        return self.collapsed_target_size() if collapsed else self.expanded_target_size()
 
     def _show_popup(self) -> None:
         if self._popup is None:

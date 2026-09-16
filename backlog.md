@@ -44,8 +44,6 @@ Individual Meeting Detail Windows
 Situation Report
   - Move to under the command menu
   
-Weather
-
 **************************************************************************************************************
 [Operations]
 Operations Dashboard
@@ -55,6 +53,7 @@ Operations Section Organization
 Team Status Board
 
 Task Board
+  - Remove the location type field - should be automatically determined by the entry 
 **************************************************************************************************************
 [Team Detail Window]
 
