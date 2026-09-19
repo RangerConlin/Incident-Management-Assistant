@@ -14,6 +14,7 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
     "aid_stations": [
         "id",
         "op_period",
+        "version",
         "facility_id",
         "name",
         "type",
@@ -78,9 +79,14 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
         "id",
         "op_period",
         "prepared_by",
+        "prepared_by_id",
         "position",
-        "approved_by",
+        "prepared_at",
         "date",
+        "approved_by",
+        "approved_by_id",
+        "approved_by_position",
+        "approved_at",
     ],
 }
 
@@ -167,12 +173,30 @@ PLAN_TABLES = {"ambulance_services", "hospitals", "air_ambulance", "medical_comm
 PLAN_SINGLE_SECTIONS = {"procedures", "ics206_signatures"}
 PLAN_SECTION_FIELD = {"ics206_signatures": "signatures"}
 
+# Plan lifecycle, shared with modules.approvals (ApprovalStatus). Only a
+# version that has not been submitted for approval can be edited.
+APPROVAL_NOT_STARTED = "not_started"
+APPROVAL_PENDING = "pending"
+APPROVAL_APPROVED = "approved"
+APPROVAL_REJECTED = "rejected"
+APPROVAL_LABELS = {
+    APPROVAL_NOT_STARTED: "Draft",
+    APPROVAL_PENDING: "In review",
+    APPROVAL_APPROVED: "Approved",
+    APPROVAL_REJECTED: "Rejected",
+}
+
 
 class MedicalBridge(QObject):
     """MongoDB helper used by :class:`modules.medical.panels.ics206_panel.ICS206Panel`."""
 
     data_changed = Signal(str)
     toast = Signal(str)
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        # (op_period, version) the panel has selected; None means "latest".
+        self._selected: tuple[int, int] | None = None
 
     def _incident_id(self) -> str:
         incident_id = get_active_incident_id()
@@ -229,12 +253,14 @@ class MedicalBridge(QObject):
         db = self._db()
         incident_id = self._incident_id()
         aid_stations = db[COLLECTIONS["aid_stations"]]
-        aid_stations.create_index([("incident_id", 1), ("op_period", 1)])
+        aid_stations.create_index([("incident_id", 1), ("op_period", 1), ("version", 1)])
         aid_stations.create_index([("id", 1)], unique=True)
         aid_stations.create_index([("deleted", 1)])
         plan = db[COLLECTIONS["medical_plan"]]
         plan.create_index(
-            [("incident_id", 1), ("op_period", 1)], unique=True
+            [("incident_id", 1), ("op_period", 1), ("version", 1)],
+            unique=True,
+            name="medical_plan_unique_per_op_version",
         )
         plan.create_index([("plan_id", 1)], unique=True)
         # Touch the database so connection issues surface during panel startup.
@@ -242,12 +268,99 @@ class MedicalBridge(QObject):
         if not incident_id:
             raise RuntimeError("No active incident selected")
 
-    def _base_query(self, op_period: int | None = None) -> dict[str, Any]:
+    def _base_query(self) -> dict[str, Any]:
         return {
             "incident_id": self._incident_id(),
-            "op_period": self._op_period() if op_period is None else int(op_period),
+            "op_period": self._op_period(),
+            "version": self._version(),
             "deleted": {"$ne": True},
         }
+
+    # ------------------------------------------------------------------
+    # Versions
+    # ------------------------------------------------------------------
+    def _plan_docs(self, op_period: int) -> list[dict[str, Any]]:
+        return self._medical_plan_repo().find_many(
+            {"incident_id": self._incident_id(), "op_period": int(op_period)},
+            sort=[("version", 1)],
+        )
+
+    def _latest_version(self, op_period: int) -> int:
+        docs = self._plan_docs(op_period)
+        return max((int(doc.get("version") or 1) for doc in docs), default=1)
+
+    def _version(self) -> int:
+        """Version the panel is working on for the active OP (latest by default)."""
+        op = self._op_period()
+        if self._selected and self._selected[0] == op:
+            return self._selected[1]
+        return self._latest_version(op)
+
+    def current_version(self) -> int:
+        return self._version()
+
+    def select_version(self, version: int | None) -> None:
+        """Point the bridge at ``version`` of the active OP (``None`` = latest)."""
+        self._selected = None if version is None else (self._op_period(), int(version))
+        self.data_changed.emit("all")
+
+    def approval_status(self) -> str:
+        return str(self._ensure_plan().get("approval_status") or APPROVAL_NOT_STARTED)
+
+    def is_locked(self) -> bool:
+        return self.approval_status() != APPROVAL_NOT_STARTED
+
+    def _assert_editable(self) -> None:
+        status = self.approval_status()
+        if status != APPROVAL_NOT_STARTED:
+            raise RuntimeError(
+                f"Version {self._version()} is {APPROVAL_LABELS[status].lower()} and locked. "
+                "Create a new version to make changes."
+            )
+
+    def approval_target(self) -> tuple[str, str]:
+        """(incident_id, plan_id) identifying this version's approval chain."""
+        return self._incident_id(), str(self._ensure_plan()["plan_id"])
+
+    def current_person(self) -> dict[str, str] | None:
+        """Identify the signed-in user from the master personnel record."""
+        from utils.api_client import api_client
+
+        person_record = AppState.get_active_user_id()
+        if person_record in (None, ""):
+            return None
+        person = api_client.get(f"/api/master/personnel/{int(person_record)}") or {}
+        name = str(person.get("name") or "").strip()
+        if not name:
+            return None
+        return {
+            "personnel_id": str(person.get("id") or person.get("person_record") or person_record),
+            "name": name,
+            "position": str(person.get("primary_role") or person.get("role") or "").strip(),
+        }
+
+    @staticmethod
+    def local_stamp(iso_value: str) -> str:
+        from utils.timefmt import to_datetime
+
+        dt = to_datetime(iso_value)
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M") if dt else ""
+
+    def list_versions(self) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for doc in self._plan_docs(self._op_period()):
+            sig = doc.get("signatures") if isinstance(doc.get("signatures"), dict) else {}
+            out.append({
+                "version": int(doc.get("version") or 1),
+                "approval_status": str(doc.get("approval_status") or APPROVAL_NOT_STARTED),
+                "change_note": str(doc.get("change_note") or ""),
+                "created_at": str(doc.get("created_at") or ""),
+                "prepared_by": str(sig.get("prepared_by") or ""),
+                "prepared_at": str(sig.get("prepared_at") or ""),
+                "approved_by": str(sig.get("approved_by") or ""),
+                "approved_at": str(sig.get("approved_at") or ""),
+            })
+        return out
 
     def _next_id(self, table: str) -> int:
         if table == "aid_stations":
@@ -287,50 +400,60 @@ class MedicalBridge(QObject):
         out["travel_time_min"] = out.get("travel_time_min") or ground_minutes
         return out
 
-    def _plan_id(self, op_period: int | None = None) -> str:
-        op = self._op_period() if op_period is None else int(op_period)
-        return f"{self._incident_id()}-MEDICAL-PLAN-{op}"
+    def _plan_id(self, op_period: int, version: int) -> str:
+        return f"{self._incident_id()}-MEDICAL-PLAN-{int(op_period)}-V{int(version)}"
 
-    def _empty_plan_doc(self, op_period: int | None = None) -> dict[str, Any]:
-        op = self._op_period() if op_period is None else int(op_period)
+    def _prepared_stamp(self) -> dict[str, Any]:
+        """Prepared-by details for a new version: whoever is signed in right now."""
+        person = self.current_person()
+        now = self._now()
         return {
-            "plan_id": self._plan_id(op),
+            "prepared_by": person["name"] if person else "",
+            "prepared_by_id": person["personnel_id"] if person else "",
+            "position": person["position"] if person else "",
+            "prepared_at": now,
+            "date": self.local_stamp(now),
+            "approved_by": "",
+            "approved_by_id": "",
+            "approved_by_position": "",
+            "approved_at": "",
+        }
+
+    def _empty_plan_doc(self, op_period: int, version: int) -> dict[str, Any]:
+        return {
+            "plan_id": self._plan_id(op_period, version),
             "incident_id": self._incident_id(),
-            "op_period": op,
+            "op_period": op_period,
+            "version": version,
+            "approval_status": APPROVAL_NOT_STARTED,
+            "change_note": "",
             "ambulance_services": [],
             "hospitals": [],
             "air_ambulance": [],
             "medical_comms": [],
-            "procedures": {"id": 1, "op_period": op, "content": ""},
-            "signatures": {
-                "id": 1,
-                "op_period": op,
-                "prepared_by": "",
-                "position": "",
-                "approved_by": "",
-                "date": "",
-            },
+            "procedures": {"id": 1, "op_period": op_period, "content": ""},
+            "signatures": {"id": 1, "op_period": op_period, **self._prepared_stamp()},
             "deleted": False,
         }
 
-    def _ensure_plan(self, op_period: int | None = None) -> dict[str, Any]:
+    def _ensure_plan(self) -> dict[str, Any]:
         repo = self._medical_plan_repo()
-        op = self._op_period() if op_period is None else int(op_period)
-        query = {"incident_id": self._incident_id(), "op_period": op}
-        doc = repo.find_one(query)
+        op = self._op_period()
+        version = self._version()
+        doc = repo.find_one({"incident_id": self._incident_id(), "op_period": op, "version": version})
         if doc:
             return doc
-        return repo.insert_one(self._empty_plan_doc(op))
+        return repo.insert_one(self._empty_plan_doc(op, version))
 
-    def _plan_array(self, table: str, op_period: int | None = None) -> list[dict[str, Any]]:
-        doc = self._ensure_plan(op_period)
+    def _plan_array(self, table: str) -> list[dict[str, Any]]:
+        doc = self._ensure_plan()
         rows = doc.get(table) or []
         if not isinstance(rows, list):
             return []
         return [dict(row) for row in rows if not row.get("deleted")]
 
-    def _update_plan(self, updates: dict[str, Any], op_period: int | None = None) -> bool:
-        doc = self._ensure_plan(op_period)
+    def _update_plan(self, updates: dict[str, Any]) -> bool:
+        doc = self._ensure_plan()
         return self._medical_plan_repo().update_one(doc["_id"], updates)
 
     def list_table(self, table: str) -> List[Dict[str, Any]]:
@@ -341,13 +464,15 @@ class MedicalBridge(QObject):
         return [self._clean_doc(table, strip_mongo_id(row) or {}) for row in rows]
 
     def add_record(self, table: str, data: Dict[str, Any]) -> int:
+        self._assert_editable()
         now = self._now()
         row_id = self._next_id(table)
-        fields = [c for c in TABLE_FIELDS[table] if c not in ("id", "op_period")]
+        fields = [c for c in TABLE_FIELDS[table] if c not in ("id", "op_period", "version")]
         doc = {
             "id": row_id,
             "incident_id": self._incident_id(),
             "op_period": self._op_period(),
+            "version": self._version(),
             "deleted": False,
             "created_at": now,
             "updated_at": now,
@@ -366,10 +491,11 @@ class MedicalBridge(QObject):
         return row_id
 
     def update_record(self, table: str, id_value: int, data: Dict[str, Any]) -> bool:
+        self._assert_editable()
         updates = {
             key: value
             for key, value in data.items()
-            if key in TABLE_FIELDS[table] and key not in ("id", "op_period")
+            if key in TABLE_FIELDS[table] and key not in ("id", "op_period", "version")
         }
         if not updates:
             return False
@@ -401,6 +527,7 @@ class MedicalBridge(QObject):
         return result
 
     def delete_record(self, table: str, id_value: int) -> bool:
+        self._assert_editable()
         if table in PLAN_TABLES:
             rows = self._plan_array(table)
             matched = False
@@ -430,6 +557,7 @@ class MedicalBridge(QObject):
         return str(row.get("content") or "") if isinstance(row, dict) else ""
 
     def save_procedures(self, text: str) -> None:
+        self._assert_editable()
         op = self._op_period()
         self._update_plan({
             "procedures": {
@@ -447,27 +575,105 @@ class MedicalBridge(QObject):
         if not isinstance(row, dict):
             return {}
         return {
-            "prepared_by": row.get("prepared_by"),
-            "position": row.get("position"),
-            "approved_by": row.get("approved_by"),
-            "date": row.get("date"),
+            field: row.get(field) or ""
+            for field in TABLE_FIELDS["ics206_signatures"]
+            if field not in ("id", "op_period")
         }
 
-    def save_signatures(self, data: Dict[str, Any]) -> None:
+    def mark_pending(self) -> None:
+        """Lock the selected draft while its approval chain runs."""
+        self._assert_editable()
+        self._update_plan({"approval_status": APPROVAL_PENDING})
+        self.data_changed.emit("all")
+
+    def apply_approval_outcome(self, outcome: str) -> None:
+        """Record a finished approval chain (``approved`` or ``rejected``).
+
+        On approval the signed-in user, who just signed the final step, is
+        stamped as the approver.
+        """
+        if outcome not in (APPROVAL_APPROVED, APPROVAL_REJECTED):
+            raise ValueError(f"Not a final approval outcome: {outcome}")
+        updates: dict[str, Any] = {"approval_status": outcome}
+        if outcome == APPROVAL_APPROVED:
+            person = self.current_person()
+            if person is None:
+                raise RuntimeError("No signed-in user; cannot record an approver.")
+            signatures = dict(self._ensure_plan().get("signatures") or {})
+            signatures.update({
+                "approved_by": person["name"],
+                "approved_by_id": person["personnel_id"],
+                "approved_by_position": person["position"],
+                "approved_at": self._now(),
+            })
+            updates["signatures"] = signatures
+        self._update_plan(updates)
+        self.data_changed.emit("all")
+
+    def _copy_version(
+        self, source: Mapping[str, Any], op_period: int, version: int, change_note: str
+    ) -> dict[str, Any]:
+        """Return a new plan doc for ``version`` seeded from ``source`` (unsaved)."""
         now = self._now()
-        self._update_plan({
-            "signatures": {
-                "id": 1,
-                "op_period": self._op_period(),
-                "prepared_by": data.get("prepared_by"),
-                "position": data.get("position"),
-                "approved_by": data.get("approved_by"),
-                "date": data.get("date"),
-                "deleted": False,
-                "updated_at": now,
-            }
+        plan = strip_mongo_id(dict(source)) or {}
+        plan.update({
+            "plan_id": self._plan_id(op_period, version),
+            "incident_id": self._incident_id(),
+            "op_period": op_period,
+            "version": version,
+            "approval_status": APPROVAL_NOT_STARTED,
+            "change_note": change_note,
+            "deleted": False,
+            "created_at": now,
+            "updated_at": now,
         })
-        self.data_changed.emit("ics206_signatures")
+        for table in PLAN_TABLES:
+            plan[table] = [
+                {**row, "op_period": op_period, "deleted": False, "created_at": now, "updated_at": now}
+                for row in (source.get(table) or [])
+                if not row.get("deleted")
+            ]
+        plan["procedures"] = {**dict(source.get("procedures") or {}), "op_period": op_period, "updated_at": now}
+        plan["signatures"] = {"id": 1, "op_period": op_period, **self._prepared_stamp()}
+        return plan
+
+    def _copy_aid_stations(
+        self, source_op: int, source_version: int, target_op: int, target_version: int
+    ) -> None:
+        now = self._now()
+        for source in self._collection("aid_stations").find({
+            "incident_id": self._incident_id(),
+            "op_period": source_op,
+            "version": source_version,
+            "deleted": {"$ne": True},
+        }):
+            doc = {
+                field: source.get(field)
+                for field in TABLE_FIELDS["aid_stations"]
+                if field not in ("id", "op_period", "version")
+            }
+            doc.update({
+                "id": self._next_id("aid_stations"),
+                "incident_id": self._incident_id(),
+                "op_period": target_op,
+                "version": target_version,
+                "deleted": False,
+                "created_at": now,
+                "updated_at": now,
+            })
+            self._aid_stations_repo().insert_one(doc)
+
+    def create_new_version(self, change_note: str = "") -> int:
+        """Copy the selected version into a new draft and switch to it."""
+        op = self._op_period()
+        source = self._ensure_plan()
+        source_version = int(source.get("version") or 1)
+        version = self._latest_version(op) + 1
+        self._medical_plan_repo().insert_one(self._copy_version(source, op, version, change_note.strip()))
+        self._copy_aid_stations(op, source_version, op, version)
+        self._selected = (op, version)
+        self.data_changed.emit("all")
+        return version
 
     def _import_master_rows(self, collection: str, query: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         rows = self._master_db()[collection].find(query or {"deleted": {"$ne": True}})
@@ -574,79 +780,28 @@ class MedicalBridge(QObject):
         return len(rows)
 
     def duplicate_last_op(self) -> bool:
+        """Replace the selected draft's contents with the previous OP's latest version."""
+        self._assert_editable()
         cur_op = self._op_period()
-        aid_row = self._collection("aid_stations").find_one(
-            {
-                "incident_id": self._incident_id(),
-                "op_period": {"$lt": cur_op},
-                "deleted": {"$ne": True},
-            },
-            sort=[("op_period", -1)],
+        cur_version = self._version()
+        previous = self._medical_plan_repo().find_many(
+            {"incident_id": self._incident_id(), "op_period": {"$lt": cur_op}},
+            sort=[("op_period", -1), ("version", -1)],
+            limit=1,
         )
-        plan_row = self._collection("medical_plan").find_one(
-            {
-                "incident_id": self._incident_id(),
-                "op_period": {"$lt": cur_op},
-                "deleted": {"$ne": True},
-            },
-            sort=[("op_period", -1)],
-        )
-        if not aid_row and not plan_row:
+        if not previous:
             return False
+        source = previous[0]
+        source_op = int(source["op_period"])
+        source_version = int(source.get("version") or 1)
+        target = self._ensure_plan()
+        copy = self._copy_version(source, cur_op, cur_version, str(target.get("change_note") or ""))
+        copy.pop("_id", None)
+        copy.pop("created_at", None)
+        self._medical_plan_repo().update_one(target["_id"], copy)
         now = self._now()
-        copied = False
-        if aid_row:
-            prev = int(aid_row["op_period"])
-            for source in self._collection("aid_stations").find(
-                {"incident_id": self._incident_id(), "op_period": prev, "deleted": {"$ne": True}}
-            ):
-                doc = {field: source.get(field) for field in TABLE_FIELDS["aid_stations"] if field not in ("id", "op_period")}
-                doc.update(
-                    {
-                        "id": self._next_id("aid_stations"),
-                        "incident_id": self._incident_id(),
-                        "op_period": cur_op,
-                        "deleted": False,
-                        "created_at": now,
-                        "updated_at": now,
-                    }
-                )
-                self._aid_stations_repo().insert_one(doc)
-                copied = True
-        if plan_row:
-            plan = strip_mongo_id(plan_row) or {}
-            plan["plan_id"] = self._plan_id(cur_op)
-            plan["incident_id"] = self._incident_id()
-            plan["op_period"] = cur_op
-            plan["deleted"] = False
-            plan["created_at"] = now
-            plan["updated_at"] = now
-            for table in PLAN_TABLES:
-                rows = []
-                for source in plan.get(table) or []:
-                    row = dict(source)
-                    row["op_period"] = cur_op
-                    row["deleted"] = False
-                    row["created_at"] = now
-                    row["updated_at"] = now
-                    rows.append(row)
-                plan[table] = rows
-            procedures = dict(plan.get("procedures") or {})
-            procedures["op_period"] = cur_op
-            procedures["updated_at"] = now
-            plan["procedures"] = procedures
-            signatures = dict(plan.get("signatures") or {})
-            signatures["op_period"] = cur_op
-            signatures["updated_at"] = now
-            plan["signatures"] = signatures
-            existing = self._medical_plan_repo().find_one({
-                "incident_id": self._incident_id(),
-                "op_period": cur_op,
-            })
-            if existing:
-                self._medical_plan_repo().update_one(existing["_id"], plan)
-            else:
-                self._medical_plan_repo().insert_one(plan)
-            copied = True
+        for existing in self._collection("aid_stations").find(self._base_query()):
+            self._aid_stations_repo().update_one(existing["_id"], {"deleted": True, "updated_at": now})
+        self._copy_aid_stations(source_op, source_version, cur_op, cur_version)
         self.data_changed.emit("all")
-        return copied
+        return True

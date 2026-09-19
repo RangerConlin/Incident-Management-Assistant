@@ -21,7 +21,8 @@ _VALID_ACTIONS = {"approved", "rejected", "acknowledged"}
 # Extend this as new approvable entity types are wired up.
 _ENTITY_COLLECTIONS: dict[str, tuple[str, str]] = {
     "ics_205": (IncidentCollections.COMMUNICATIONS_PLAN, "plan_id"),
-    "ics_206": (IncidentCollections.ICS_206_BUILDS, "id"),
+    # One approval chain per ICS-206 version; entity_id is the medical_plan `plan_id`.
+    "ics_206": (IncidentCollections.MEDICAL_PLAN, "plan_id"),
     "iwi_report": (IncidentCollections.IWI_REPORTS, "id"),
     "iap": (IncidentCollections.FORMS, "id"),
 }

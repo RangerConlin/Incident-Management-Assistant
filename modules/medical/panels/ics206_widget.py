@@ -1,11 +1,10 @@
-"""Single-page ICS-206 Medical Plan panel backed by MedicalBridge."""
+"""Single-page ICS-206 Medical Plan panel (collapsible drawers, versioned) backed by MedicalBridge."""
 
 from __future__ import annotations
 
 from typing import Any, Optional
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -14,6 +13,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -24,16 +24,28 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from bridge.medical_bridge import MedicalBridge
+from bridge.medical_bridge import (
+    APPROVAL_APPROVED,
+    APPROVAL_LABELS,
+    APPROVAL_NOT_STARTED,
+    APPROVAL_PENDING,
+    APPROVAL_REJECTED,
+    MedicalBridge,
+)
+from modules.approvals.panels.approval_timeline import ApprovalTimeline
+from modules.approvals.service import ApprovalService
 from modules.logistics.facilities.service import FacilitiesService
 from modules.logistics.facilities.widgets.facility_picker import FacilityPicker
 from utils.app_signals import app_signals
 from utils.table_view_styles import apply_statusboard_table_behavior
 from utils.state import AppState
+from utils.styles import medical_plan_status_colors, subscribe_theme
+from utils.timefmt import to_datetime
 
 
 # ---------------------------------------------------------------------------
@@ -261,10 +273,53 @@ class RowEditDialog(QDialog):
 
 
 # ---------------------------------------------------------------------------
+# Drawer (collapsible section)
+# ---------------------------------------------------------------------------
+
+class DrawerSection(QFrame):
+    """A titled section whose body is collapsed until the header is clicked."""
+
+    def __init__(self, title: str, content: QWidget, parent=None):
+        super().__init__(parent)
+        self._title = title
+        self._content = content
+        self.setFrameShape(QFrame.StyledPanel)
+
+        self._toggle = QToolButton()
+        self._toggle.setCheckable(True)
+        self._toggle.setChecked(False)
+        self._toggle.setAutoRaise(True)
+        self._toggle.setArrowType(Qt.RightArrow)
+        self._toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        font = self._toggle.font()
+        font.setBold(True)
+        self._toggle.setFont(font)
+        self._toggle.setText(title)
+        self._toggle.toggled.connect(self._on_toggled)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(4)
+        layout.addWidget(self._toggle)
+        layout.addWidget(content)
+        content.setVisible(False)
+
+    def set_summary(self, summary: str) -> None:
+        self._toggle.setText(f"{self._title}  ({summary})" if summary else self._title)
+
+    def _on_toggled(self, expanded: bool) -> None:
+        self._toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self._content.setVisible(expanded)
+
+
+# ---------------------------------------------------------------------------
 # Resource section widget (table + toolbar)
 # ---------------------------------------------------------------------------
 
 class ResourceSection(QWidget):
+    countChanged = Signal(int)
+
     def __init__(self, spec: dict, bridge: MedicalBridge, parent=None):
         super().__init__(parent)
         self._spec = spec
@@ -275,37 +330,25 @@ class ResourceSection(QWidget):
 
     def _build(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 4, 0, 8)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        # Section header
-        header = QLabel(self._spec["label"])
-        font = QFont()
-        font.setBold(True)
-        font.setPointSize(9)
-        header.setFont(font)
-        header.setStyleSheet("color: #1a237e;")
-        layout.addWidget(header)
-
-        # Toolbar
         toolbar = QHBoxLayout()
-        add_btn = QPushButton("Add")
-        edit_btn = QPushButton("Edit")
-        remove_btn = QPushButton("Remove")
-        import_btn = QPushButton("Import from Master")
-        import_btn.setStyleSheet("color: #1565c0;")
-        add_btn.clicked.connect(self._add)
-        edit_btn.clicked.connect(self._edit)
-        remove_btn.clicked.connect(self._remove)
-        import_btn.clicked.connect(self._import)
-        toolbar.addWidget(add_btn)
-        toolbar.addWidget(edit_btn)
-        toolbar.addWidget(remove_btn)
+        self._add_btn = QPushButton("Add")
+        self._edit_btn = QPushButton("Edit")
+        self._remove_btn = QPushButton("Remove")
+        self._import_btn = QPushButton("Import from Master")
+        self._add_btn.clicked.connect(self._add)
+        self._edit_btn.clicked.connect(self._edit)
+        self._remove_btn.clicked.connect(self._remove)
+        self._import_btn.clicked.connect(self._import)
+        toolbar.addWidget(self._add_btn)
+        toolbar.addWidget(self._edit_btn)
+        toolbar.addWidget(self._remove_btn)
         toolbar.addStretch()
-        toolbar.addWidget(import_btn)
+        toolbar.addWidget(self._import_btn)
         layout.addLayout(toolbar)
 
-        # Table
         cols = self._spec["columns"]
         self._table = QTableWidget(0, len(cols))
         self._table.setHorizontalHeaderLabels(cols)
@@ -316,10 +359,9 @@ class ResourceSection(QWidget):
         self._table.doubleClicked.connect(self._edit)
         layout.addWidget(self._table)
 
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("color: #e0e0e0;")
-        layout.addWidget(line)
+    def set_read_only(self, read_only: bool) -> None:
+        for btn in (self._add_btn, self._edit_btn, self._remove_btn, self._import_btn):
+            btn.setEnabled(not read_only)
 
     def refresh(self) -> None:
         try:
@@ -334,6 +376,7 @@ class ResourceSection(QWidget):
                 t.setItem(r, c, QTableWidgetItem(val))
         t.resizeColumnsToContents()
         t.horizontalHeader().setStretchLastSection(True)
+        self.countChanged.emit(len(self._rows))
 
     def _selected_row(self) -> Optional[dict]:
         idx = self._table.currentRow()
@@ -351,6 +394,8 @@ class ResourceSection(QWidget):
                 QMessageBox.critical(self, "Error", str(exc))
 
     def _edit(self) -> None:
+        if not self._edit_btn.isEnabled():
+            return
         row = self._selected_row()
         if not row:
             return
@@ -388,8 +433,16 @@ class ResourceSection(QWidget):
 # Main ICS-206 panel
 # ---------------------------------------------------------------------------
 
+def _display_stamp(value: str) -> str:
+    """Human-readable local timestamp, whole seconds."""
+    dt = to_datetime(value) if value else None
+    return dt.astimezone().strftime("%Y-%m-%d %H:%M:%S") if dt else ""
+
+
 class ICS206Panel(QWidget):
-    """Single-page ICS-206 Medical Plan panel."""
+    """Single-page ICS-206 Medical Plan panel with collapsible drawers and versioning."""
+
+    VERSION_COLUMNS = ["Version", "Status", "Prepared By", "Prepared", "Approved By", "Approved", "Change Note"]
 
     def __init__(self, incident_id: Optional[str] = None, parent=None):
         super().__init__(parent)
@@ -399,158 +452,440 @@ class ICS206Panel(QWidget):
         except Exception:
             self._bridge = None
         self._sections: list[ResourceSection] = []
+        self._locked = False
+        self._approval_status = APPROVAL_NOT_STARTED
         self._build_ui()
         if self._bridge:
-            self._load_text_sections()
+            self._bridge.data_changed.connect(self._on_data_changed)
+            self._refresh_all()
         app_signals.opPeriodChanged.connect(self._on_op_period_changed)
 
+    # ------------------------------------------------------------------
+    # Layout
+    # ------------------------------------------------------------------
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Header bar
         header_bar = QWidget()
-        header_bar.setStyleSheet("background: #e8eaf6; padding: 6px;")
-        header_layout = QHBoxLayout(header_bar)
-        header_layout.setContentsMargins(12, 6, 12, 6)
+        header_layout = QVBoxLayout(header_bar)
+        header_layout.setContentsMargins(12, 8, 12, 8)
+        header_layout.setSpacing(6)
+
+        title_row = QHBoxLayout()
         title = QLabel("Medical Plan (ICS-206)")
-        title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1a237e;")
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        op_lbl = QLabel("Op Period:")
+        title_font = title.font()
+        title_font.setPointSize(title_font.pointSize() + 3)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        title_row.addWidget(title)
+        title_row.addStretch()
+        title_row.addWidget(QLabel("Op Period:"))
         self._op_label = QLabel(str(AppState.get_active_op_period() or 1))
-        self._op_label.setStyleSheet("font-weight: 700; min-width: 24px;")
+        op_font = self._op_label.font()
+        op_font.setBold(True)
+        self._op_label.setFont(op_font)
+        title_row.addWidget(self._op_label)
+        header_layout.addLayout(title_row)
+
+        version_row = QHBoxLayout()
+        version_row.addWidget(QLabel("Version:"))
+        self._version_combo = QComboBox()
+        self._version_combo.setMinimumWidth(150)
+        self._version_combo.currentIndexChanged.connect(self._on_version_selected)
+        version_row.addWidget(self._version_combo)
+        self._status_chip = QLabel()
+        self._status_chip.setAlignment(Qt.AlignCenter)
+        version_row.addWidget(self._status_chip)
+        self._new_version_btn = QPushButton("New Version…")
+        self._new_version_btn.setToolTip("Copy the selected version into a new draft version")
+        self._new_version_btn.clicked.connect(self._create_version)
+        self._submit_btn = QPushButton("Submit for Approval…")
+        self._submit_btn.setToolTip(
+            "Send the selected version through the ICS-206 approval chain (Medical Unit Leader, then Safety Officer)"
+        )
+        self._submit_btn.clicked.connect(self._submit_for_approval)
+        self._reject_btn = QPushButton("Reject…")
+        self._reject_btn.setToolTip("Reject the selected version at your approval step")
+        self._reject_btn.clicked.connect(self._reject)
+        self._reject_btn.setVisible(False)
+        version_row.addWidget(self._new_version_btn)
+        version_row.addWidget(self._submit_btn)
+        version_row.addWidget(self._reject_btn)
+        version_row.addStretch()
+        self._copy_prev_btn = QPushButton("Copy from Previous OP")
+        self._copy_prev_btn.setToolTip(
+            "Replace this draft's contents with the plan from the previous operational period"
+        )
+        self._copy_prev_btn.clicked.connect(self._duplicate_op)
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self._refresh_all)
-        dup_btn = QPushButton("Copy from Previous OP")
-        dup_btn.setToolTip("Copy all resource entries from the previous operational period into this one")
-        dup_btn.clicked.connect(self._duplicate_op)
-        header_layout.addWidget(op_lbl)
-        header_layout.addWidget(self._op_label)
-        header_layout.addWidget(refresh_btn)
-        header_layout.addWidget(dup_btn)
-        outer.addWidget(header_bar)
+        version_row.addWidget(self._copy_prev_btn)
+        version_row.addWidget(refresh_btn)
+        header_layout.addLayout(version_row)
 
-        # Scrollable body
+        self._lock_note = QLabel()
+        self._lock_note.setWordWrap(True)
+        self._lock_note.setVisible(False)
+        header_layout.addWidget(self._lock_note)
+        self._timeline = ApprovalTimeline()
+        self._timeline.sign_requested.connect(self._on_sign_requested)
+        self._timeline.setVisible(False)
+        header_layout.addWidget(self._timeline)
+        outer.addWidget(header_bar)
+        subscribe_theme(self, self._apply_theme)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         body = QWidget()
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(12, 12, 12, 12)
-        body_layout.setSpacing(4)
+        body_layout.setSpacing(6)
 
         if self._bridge is None:
             body_layout.addWidget(QLabel("Medical bridge unavailable — no active incident."))
             body_layout.addStretch()
             scroll.setWidget(body)
             outer.addWidget(scroll, 1)
+            for widget in (self._version_combo, self._new_version_btn, self._submit_btn, self._copy_prev_btn):
+                widget.setEnabled(False)
             return
 
-        # Resource tables
+        self._drawers: list[DrawerSection] = []
         for spec in SECTIONS:
             section = ResourceSection(spec, self._bridge)
+            drawer = DrawerSection(spec["label"], section)
+            section.countChanged.connect(lambda n, d=drawer: d.set_summary(str(n)))
+            section.countChanged.emit(len(section._rows))
             self._sections.append(section)
-            body_layout.addWidget(section)
+            body_layout.addWidget(drawer)
 
-        # Procedures
-        proc_lbl = QLabel("Medical Emergency Procedures")
-        proc_font = QFont()
-        proc_font.setBold(True)
-        proc_font.setPointSize(9)
-        proc_lbl.setFont(proc_font)
-        proc_lbl.setStyleSheet("color: #1a237e; padding-top: 6px;")
-        body_layout.addWidget(proc_lbl)
-        self._procedures = QTextEdit()
-        self._procedures.setPlaceholderText(
-            "Describe emergency procedures — reporting, on-scene care, transport decisions, communications plan, extraction notes…"
-        )
-        self._procedures.setMinimumHeight(120)
-        body_layout.addWidget(self._procedures)
-        save_proc_btn = QPushButton("Save Procedures")
-        save_proc_btn.setFixedWidth(140)
-        save_proc_btn.clicked.connect(self._save_procedures)
-        body_layout.addWidget(save_proc_btn, alignment=Qt.AlignLeft)
-
-        # Divider
-        div = QFrame()
-        div.setFrameShape(QFrame.HLine)
-        div.setStyleSheet("color: #e0e0e0; margin-top: 8px;")
-        body_layout.addWidget(div)
-
-        # Signatures
-        sig_lbl = QLabel("Prepared By / Approved By")
-        sig_lbl.setFont(proc_font)
-        sig_lbl.setStyleSheet("color: #1a237e; padding-top: 4px;")
-        body_layout.addWidget(sig_lbl)
-        sig_grid = QHBoxLayout()
-        self._prepared_by = QLineEdit()
-        self._prepared_by.setPlaceholderText("Prepared by")
-        self._position = QLineEdit()
-        self._position.setPlaceholderText("Position / Title")
-        self._approved_by = QLineEdit()
-        self._approved_by.setPlaceholderText("Approved by")
-        self._sig_date = QLineEdit()
-        self._sig_date.setPlaceholderText("Date / Time")
-        for lbl_text, widget in [
-            ("Prepared By", self._prepared_by),
-            ("Position", self._position),
-            ("Approved By", self._approved_by),
-            ("Date", self._sig_date),
-        ]:
-            col = QVBoxLayout()
-            col.addWidget(QLabel(lbl_text))
-            col.addWidget(widget)
-            sig_grid.addLayout(col)
-        body_layout.addLayout(sig_grid)
-        save_sig_btn = QPushButton("Save")
-        save_sig_btn.setFixedWidth(80)
-        save_sig_btn.clicked.connect(self._save_signatures)
-        body_layout.addWidget(save_sig_btn, alignment=Qt.AlignLeft)
+        body_layout.addWidget(DrawerSection("Medical Emergency Procedures", self._build_procedures()))
+        body_layout.addWidget(DrawerSection("Prepared By / Approved By", self._build_signoff()))
+        self._history_drawer = DrawerSection("Version History", self._build_history())
+        body_layout.addWidget(self._history_drawer)
         body_layout.addStretch()
 
         scroll.setWidget(body)
         outer.addWidget(scroll, 1)
 
+    def _build_procedures(self) -> QWidget:
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self._procedures = QTextEdit()
+        self._procedures.setPlaceholderText(
+            "Describe emergency procedures — reporting, on-scene care, transport decisions, communications plan, extraction notes…"
+        )
+        self._procedures.setMinimumHeight(120)
+        layout.addWidget(self._procedures)
+        self._save_proc_btn = QPushButton("Save Procedures")
+        self._save_proc_btn.setFixedWidth(140)
+        self._save_proc_btn.clicked.connect(self._save_procedures)
+        layout.addWidget(self._save_proc_btn, alignment=Qt.AlignLeft)
+        return box
+
+    def _build_signoff(self) -> QWidget:
+        box = QWidget()
+        form = QFormLayout(box)
+        form.setContentsMargins(0, 0, 0, 0)
+        self._prepared_by = QLabel()
+        self._prepared_position = QLabel()
+        self._prepared_at = QLabel()
+        self._approved_by = QLabel()
+        self._approved_position = QLabel()
+        self._approved_at = QLabel()
+        form.addRow("Prepared by", self._prepared_by)
+        form.addRow("Position", self._prepared_position)
+        form.addRow("Prepared at", self._prepared_at)
+        form.addRow("Approved by", self._approved_by)
+        form.addRow("Position", self._approved_position)
+        form.addRow("Approved at", self._approved_at)
+        return box
+
+    def _build_history(self) -> QWidget:
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        hint = QLabel("Double-click a version to open it.")
+        layout.addWidget(hint)
+        self._history_table = QTableWidget(0, len(self.VERSION_COLUMNS))
+        self._history_table.setHorizontalHeaderLabels(self.VERSION_COLUMNS)
+        apply_statusboard_table_behavior(self._history_table, stretch_last_section=True)
+        self._history_table.verticalHeader().setVisible(False)
+        self._history_table.setAlternatingRowColors(True)
+        self._history_table.setFixedHeight(140)
+        self._history_table.doubleClicked.connect(self._open_history_version)
+        layout.addWidget(self._history_table)
+        return box
+
+    # ------------------------------------------------------------------
+    # Theme
+    # ------------------------------------------------------------------
+    def _apply_theme(self, _name: str = "") -> None:
+        status = getattr(self, "_status_key", "draft")
+        colors = medical_plan_status_colors().get(status)
+        if not colors:
+            return
+        self._status_chip.setStyleSheet(
+            "QLabel { border-radius: 8px; padding: 2px 10px; font-weight: 600;"
+            f" background: {colors['bg'].color().name()}; color: {colors['fg'].color().name()}; }}"
+        )
+
+    # ------------------------------------------------------------------
+    # Loading
+    # ------------------------------------------------------------------
+    def _on_data_changed(self, table: str) -> None:
+        if table == "all":
+            self._refresh_all()
+
+    def _refresh_all(self) -> None:
+        if not self._bridge:
+            return
+        self._op_label.setText(str(AppState.get_active_op_period() or 1))
+        try:
+            versions = self._bridge.list_versions()
+            current = self._bridge.current_version()
+            status = self._bridge.approval_status()
+        except Exception as exc:
+            self._lock_note.setText(str(exc))
+            self._lock_note.setVisible(True)
+            return
+        self._approval_status = status
+        self._locked = status != APPROVAL_NOT_STARTED
+        self._load_versions(versions, current)
+        for section in self._sections:
+            section.set_read_only(self._locked)
+            section.refresh()
+        self._load_text_sections()
+        self._apply_lock_state(current)
+
+    def _load_versions(self, versions: list[dict], current: int) -> None:
+        self._version_combo.blockSignals(True)
+        self._version_combo.clear()
+        known = {row["version"] for row in versions}
+        if current not in known:
+            # The selected version has no saved plan yet (first open of an OP).
+            versions = versions + [{"version": current, "approval_status": APPROVAL_NOT_STARTED}]
+        for row in versions:
+            label = f"v{row['version']} — {APPROVAL_LABELS.get(row['approval_status'], row['approval_status'])}"
+            self._version_combo.addItem(label, row["version"])
+        idx = self._version_combo.findData(current)
+        self._version_combo.setCurrentIndex(max(idx, 0))
+        self._version_combo.blockSignals(False)
+
+        table = self._history_table
+        table.setRowCount(len(versions))
+        for r, row in enumerate(versions):
+            cells = [
+                f"v{row['version']}",
+                APPROVAL_LABELS.get(row["approval_status"], row["approval_status"]),
+                row.get("prepared_by") or "",
+                _display_stamp(row.get("prepared_at") or ""),
+                row.get("approved_by") or "",
+                _display_stamp(row.get("approved_at") or ""),
+                row.get("change_note") or "",
+            ]
+            for c, val in enumerate(cells):
+                table.setItem(r, c, QTableWidgetItem(val))
+            if row["version"] == current:
+                table.selectRow(r)
+        table.resizeColumnsToContents()
+        table.horizontalHeader().setStretchLastSection(True)
+        self._history_drawer.set_summary(f"{len(versions)}")
+
     def _load_text_sections(self) -> None:
         try:
-            text = self._bridge.get_procedures()
-            self._procedures.setPlainText(text)
+            self._procedures.setPlainText(self._bridge.get_procedures())
         except Exception:
             pass
         try:
             sigs = self._bridge.get_signatures()
-            self._prepared_by.setText(sigs.get("prepared_by") or "")
-            self._position.setText(sigs.get("position") or "")
-            self._approved_by.setText(sigs.get("approved_by") or "")
-            self._sig_date.setText(sigs.get("date") or "")
         except Exception:
-            pass
+            sigs = {}
+        self._prepared_by.setText(sigs.get("prepared_by") or "—")
+        self._prepared_position.setText(sigs.get("position") or "—")
+        self._prepared_at.setText(_display_stamp(sigs.get("prepared_at") or "") or "—")
+        self._approved_by.setText(sigs.get("approved_by") or "Not approved")
+        self._approved_position.setText(sigs.get("approved_by_position") or "—")
+        self._approved_at.setText(_display_stamp(sigs.get("approved_at") or "") or "—")
 
+    def _apply_lock_state(self, version: int) -> None:
+        status = self._approval_status
+        locked = self._locked
+        self._status_key = status
+        self._status_chip.setText(
+            APPROVAL_LABELS[status] + (" — locked" if status == APPROVAL_APPROVED else "")
+        )
+        self._apply_theme()
+        self._procedures.setReadOnly(locked)
+        self._save_proc_btn.setEnabled(not locked)
+        self._submit_btn.setEnabled(not locked)
+        self._copy_prev_btn.setEnabled(not locked)
+        self._lock_note.setVisible(locked)
+        if locked:
+            self._lock_note.setText(
+                f"Version {version} is {APPROVAL_LABELS[status].lower()} and locked. Use New Version to make changes."
+            )
+        self._load_approval_state()
+
+    def _person_record(self) -> int:
+        uid = AppState.get_active_user_id()
+        return int(uid) if uid and str(uid).isdigit() else 0
+
+    def _load_approval_state(self) -> None:
+        """Show the approval chain for the selected version and who can act on it."""
+        self._reject_btn.setVisible(False)
+        if self._approval_status == APPROVAL_NOT_STARTED:
+            self._timeline.set_state(None)
+            self._timeline.setVisible(False)
+            return
+        try:
+            incident_id, plan_id = self._bridge.approval_target()
+            service = ApprovalService(incident_id)
+            instance = service.get("ics_206", plan_id)
+            person_record = self._person_record()
+            assignment_type = service.assignment_type_for(person_record) if person_record else None
+        except Exception as exc:
+            self._timeline.setVisible(False)
+            self._lock_note.setText(f"{self._lock_note.text()}  (Approval details unavailable: {exc})")
+            return
+        self._timeline.set_state(instance, person_record, assignment_type)
+        self._timeline.setVisible(instance is not None)
+        if instance is not None and self._approval_status == APPROVAL_PENDING and person_record:
+            self._reject_btn.setVisible(
+                any(
+                    service.can_sign(instance, step.step_id, person_record, assignment_type or "primary")
+                    for step in instance.steps
+                )
+            )
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
     def _on_op_period_changed(self, op_data: object) -> None:
-        """Update the OP label when the active period changes program-wide."""
-        number: int | str = "—"
-        if isinstance(op_data, dict):
-            number = op_data.get("number", "—")
-        elif isinstance(op_data, int):
-            number = op_data
-        self._op_label.setText(str(number))
+        """Reload the plan for the newly active operational period."""
+        if not self._bridge:
+            return
+        self._bridge.select_version(None)
 
-    def _refresh_all(self) -> None:
-        self._op_label.setText(str(AppState.get_active_op_period() or 1))
-        for section in self._sections:
-            section.refresh()
-        self._load_text_sections()
+    def _on_version_selected(self, index: int) -> None:
+        version = self._version_combo.itemData(index)
+        if self._bridge and version is not None:
+            self._bridge.select_version(int(version))
+
+    def _open_history_version(self, index) -> None:
+        item = self._history_table.item(index.row(), 0)
+        if self._bridge and item is not None:
+            self._bridge.select_version(int(item.text().lstrip("v")))
+
+    def _create_version(self) -> None:
+        if not self._bridge:
+            return
+        source = self._bridge.current_version()
+        note, ok = QInputDialog.getText(
+            self,
+            "New Version",
+            f"Create a new draft version from v{source}.\nWhat changed? (optional)",
+        )
+        if not ok:
+            return
+        try:
+            self._bridge.create_new_version(note)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", str(exc))
+
+    def _submit_for_approval(self) -> None:
+        if not self._bridge:
+            return
+        version = self._bridge.current_version()
+        if QMessageBox.question(
+            self,
+            "Submit for Approval",
+            f"Submit v{version} for approval?\n\nThe version will be locked while it is in review. "
+            "If it is rejected, create a new version to make changes.",
+        ) != QMessageBox.Yes:
+            return
+        try:
+            incident_id, plan_id = self._bridge.approval_target()
+            ApprovalService(incident_id).start("ics_206", plan_id)
+            self._bridge.mark_pending()
+        except Exception as exc:
+            QMessageBox.critical(self, "Submission Failed", str(exc))
+
+    def _on_sign_requested(self, step_id: str) -> None:
+        self._act_on_step(step_id, "approved")
+
+    def _reject(self) -> None:
+        if not self._bridge:
+            return
+        try:
+            incident_id, plan_id = self._bridge.approval_target()
+            service = ApprovalService(incident_id)
+            instance = service.get("ics_206", plan_id)
+            person_record = self._person_record()
+            assignment_type = service.assignment_type_for(person_record)
+            step = next(
+                (
+                    s for s in (instance.steps if instance else [])
+                    if service.can_sign(instance, s.step_id, person_record, assignment_type)
+                ),
+                None,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Reject Failed", str(exc))
+            return
+        if step is None:
+            QMessageBox.information(self, "Reject", "No approval step is waiting on you.")
+            return
+        reason, ok = QInputDialog.getText(self, "Reject Version", f"Why is this being rejected at '{step.label}'?")
+        if ok:
+            self._act_on_step(step.step_id, "rejected", reason.strip() or None)
+
+    def _act_on_step(self, step_id: str, action: str, notes: Optional[str] = None) -> None:
+        if not self._bridge:
+            return
+        try:
+            incident_id, plan_id = self._bridge.approval_target()
+            service = ApprovalService(incident_id)
+            instance = service.get("ics_206", plan_id)
+            if instance is None:
+                raise RuntimeError("This version has not been submitted for approval.")
+            person_record = self._person_record()
+            assignment_type = service.assignment_type_for(person_record) if person_record else "primary"
+            if not service.can_sign(instance, step_id, person_record, assignment_type):
+                raise RuntimeError("You are not able to act on this approval step.")
+            step = next(s for s in instance.steps if s.step_id == step_id)
+            updated = service.sign(
+                instance,
+                step_id=step_id,
+                actor_id=str(person_record),
+                role_at_time=step.resolved_role or step.role,
+                assignment_type=assignment_type,
+                action=action,
+                notes=notes,
+            )
+            if updated.status in (APPROVAL_APPROVED, APPROVAL_REJECTED):
+                self._bridge.apply_approval_outcome(updated.status)
+            else:
+                self._refresh_all()
+        except Exception as exc:
+            QMessageBox.critical(self, "Approval Failed", str(exc))
 
     def _duplicate_op(self) -> None:
         if not self._bridge:
             return
+        if QMessageBox.question(
+            self,
+            "Copy from Previous OP",
+            f"Replace the contents of v{self._bridge.current_version()} with the previous operational period's plan?",
+        ) != QMessageBox.Yes:
+            return
         try:
-            copied = self._bridge.duplicate_last_op()
-            if copied:
-                self._refresh_all()
-                QMessageBox.information(self, "Copied", "Resource entries copied from the previous operational period.")
+            if self._bridge.duplicate_last_op():
+                QMessageBox.information(self, "Copied", "Plan copied from the previous operational period.")
             else:
                 QMessageBox.information(self, "Nothing to Copy", "No entries found in a prior operational period.")
         except Exception as exc:
@@ -561,18 +896,5 @@ class ICS206Panel(QWidget):
             return
         try:
             self._bridge.save_procedures(self._procedures.toPlainText().strip())
-        except Exception as exc:
-            QMessageBox.critical(self, "Save Failed", str(exc))
-
-    def _save_signatures(self) -> None:
-        if not self._bridge:
-            return
-        try:
-            self._bridge.save_signatures({
-                "prepared_by": self._prepared_by.text().strip(),
-                "position": self._position.text().strip(),
-                "approved_by": self._approved_by.text().strip(),
-                "date": self._sig_date.text().strip(),
-            })
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))

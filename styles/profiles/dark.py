@@ -285,6 +285,15 @@ LIAISON_PRIORITY: Dict[str, Dict[str, str]] = {
     "Critical": {"bg": "#b91c1c", "fg": "#ffffff"},
 }
 
+# ICS-206 Medical Plan version chips, keyed by approval status
+# (not_started = editable draft; every other status locks the version).
+MEDICAL_PLAN_STATUS: Dict[str, Dict[str, str]] = {
+    "not_started": {"bg": "#475569", "fg": "#ffffff"},
+    "pending":     {"bg": "#b45309", "fg": "#ffffff"},
+    "approved":    {"bg": "#16a34a", "fg": "#ffffff"},
+    "rejected":    {"bg": "#b91c1c", "fg": "#ffffff"},
+}
+
 LIAISON_REPORT_STATE: Dict[str, Dict[str, str]] = {
     "ready":     {"bg": "#16a34a", "fg": "#ffffff"},
     "not_ready": {"bg": "#b45309", "fg": "#ffffff"},
@@ -302,7 +311,48 @@ LIAISON_REQUEST_STATUS: Dict[str, Dict[str, str]] = {
     "Cancelled":   {"bg": "#52525b", "fg": "#f5f5f5"},
 }
 
+# Map symbology (Incident Map window) — stroke/fill hue per style_key.
+# Keys match modules/gis/map_window/symbology.py. The basemap is a raster
+# that does not follow the app theme, so light and dark use the same hues.
+MAP_SYMBOL_COLORS: Dict[str, str] = {
+    # Planned-event lines
+    "primary_event_route":     "#1a9c2e",
+    "alternate_event_route":   "#1a9c2e",
+    "pedestrian_flow":         "#1e6bd6",
+    "vehicle_flow":            "#7a3fe0",
+    "shuttle_route":           "#f59a23",
+    "emergency_access_route":  "#e11d1d",
+    "detour_route":            "#f0801a",
+    "evacuation_route":        "#e91e8c",
+    "staff_service_route":     "#1565c0",
+    "road_closure":            "#c1121f",
+    "soft_closure":            "#f57c00",
+    "barricade_line":          "#111111",
+    "queue_divider":           "#616161",
+    "temporary_barrier":       "#7b4a2a",
+    "course_edge":             "#29b6f6",
+    "no_cross_line":           "#e11d1d",
+    "crossing_control_zone":   "#f5b301",
+    # Planned-event polygons
+    "ceremony_area":           "#2f6fe0",
+    "spectator_area":          "#29b6f6",
+    "vendor_area":             "#8e5bd6",
+    "volunteer_area":          "#2e9e3f",
+    "staff_area":              "#8d6748",
+    "logistics_area":          "#6b7280",
+    "general_parking":         "#e6c229",
+    "accessible_parking":      "#1e6bd6",
+    "overflow_parking":        "#e6c229",
+    "queue_area":              "#f57c00",
+    "restricted_area":         "#d32f2f",
+    "emergency_keep_clear":    "#d32f2f",
+    "hazard_area":             "#d32f2f",
+    "rehab_area":              "#1fa9a0",
+    "command_area":            "#6a3fd0",
+}
+
 __all__ = [
+    "MAP_SYMBOL_COLORS",
     "NAMED_COLORS",
     "PALETTE",
     "SURFACE",
@@ -322,6 +372,7 @@ __all__ = [
     "LIAISON_AGENCY_STATUS",
     "LIAISON_PRIORITY",
     "LIAISON_REPORT_STATE",
+    "MEDICAL_PLAN_STATUS",
     "LIAISON_REQUEST_STATUS",
     "WA_PLANNING_STATUS",
     "WA_SAFETY_STATUS",

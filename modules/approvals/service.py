@@ -130,6 +130,15 @@ class ApprovalService:
         self._write_status_to_entity(instance)
         return instance
 
+    def assignment_type_for(self, person_record: int) -> str:
+        """Assignment type (primary/deputy/trainee) of a person's active assignment."""
+        from modules.command.incident_organization.controller import IncidentOrganizationController
+        org = IncidentOrganizationController(self.incident_id)
+        assignments = org.list_assignments_for_person(person_record, active_only=True)
+        if assignments:
+            return getattr(assignments[0], "assignment_type", "primary") or "primary"
+        return "primary"
+
     # ------------------------------------------------------------------
     # Inbox query
 

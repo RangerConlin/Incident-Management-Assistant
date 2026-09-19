@@ -76,8 +76,8 @@ and legacy/cleanup concerns. It does not describe `sarapp_system` or
 
 | Collection | Purpose |
 |---|---|
-| `ics_206_aid_stations` | ICS-206 aid station entries for the medical plan. |
-| `medical_plan` | Canonical per-operational-period medical plan / ICS-206 document. Embeds ambulance service references/details, hospital references/details, air ambulance references/details, medical communications rows, emergency procedures, and prepared/approved signature metadata. |
+| `ics_206_aid_stations` | ICS-206 aid station entries for the medical plan; scoped by `op_period` + `version`. |
+| `medical_plan` | Canonical medical plan / ICS-206 document, one per (`op_period`, `version`). `approval_status` (`not_started`/`pending`/`approved`/`rejected`, shared with `approval_instances`) drives editing: only `not_started` versions are editable, and changes to a submitted version go in a new version (`change_note` records why). Each version's approval chain (`entity_type` `ics_206`, `entity_id` = `plan_id`) runs Medical Unit Leader then Safety Officer. `signatures.prepared_by*` is stamped from the signed-in user when a version is created and `signatures.approved_by*` from the final signer; neither is free text. Embeds ambulance service references/details, hospital references/details, air ambulance references/details, medical communications rows, emergency procedures, and prepared/approved signature metadata. |
 | `ics_206_builds` | Generated or staged ICS-206 build records. |
 | `medical_incidents` | Medical incident records associated with safety/medical reporting. |
 | `triage_entries` | Triage records for patient or medical-response tracking. |

@@ -21,6 +21,7 @@ from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
+from modules.gis.map_window.symbology import resolve_symbol_style
 from modules.gis.map_window.tools.tool_controller import ToolController
 from modules.gis.models.geometry_types import GeometryType
 from modules.gis.models.spatial_feature import SpatialFeature
@@ -258,19 +259,117 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
     if (drawPreviewLayer) {{ map.removeLayer(drawPreviewLayer); drawPreviewLayer = null; }}
   }}
 
-  function upsertFeature(featureId, label, featureType, geometryType, coordsJson, styleColor) {{
+  var featureDecor = {{}};
+  var DECOR_SPACING_PX = 44;
+
+  function decorSvg(kind, color, angle) {{
+    var rot = 'transform:rotate(' + angle + 'deg);';
+    if (kind === 'arrow') {{
+      return '<svg width="16" height="16" viewBox="0 0 16 16" style="' + rot + '"><path d="M3 2 L14 8 L3 14 Z" fill="' + color + '" stroke="#fff" stroke-width="1"/></svg>';
+    }}
+    if (kind === 'cross') {{
+      return '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 3 L13 13 M13 3 L3 13" stroke="' + color + '" stroke-width="2.5" fill="none"/></svg>';
+    }}
+    if (kind === 'tick') {{
+      return '<svg width="16" height="16" viewBox="0 0 16 16" style="' + rot + '"><path d="M8 1 L8 15" stroke="' + color + '" stroke-width="3" fill="none"/></svg>';
+    }}
+    if (kind === 'square') {{
+      return '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" fill="#fff" stroke="' + color + '" stroke-width="2.5"/></svg>';
+    }}
+    return '';
+  }}
+
+  function placeDecorations(featureId) {{
+    var d = featureDecor[featureId];
+    if (!d) {{ return; }}
+    d.group.clearLayers();
+    var pts = d.coords.map(function(c) {{ return map.latLngToLayerPoint(c); }});
+    var carry = DECOR_SPACING_PX / 2;
+    for (var i = 0; i < pts.length - 1; i++) {{
+      var a = pts[i], b = pts[i + 1];
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      if (len === 0) {{ continue; }}
+      var angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      var pos = carry;
+      while (pos <= len) {{
+        var p = L.point(a.x + dx * pos / len, a.y + dy * pos / len);
+        L.marker(map.layerPointToLatLng(p), {{
+          interactive: false,
+          keyboard: false,
+          icon: L.divIcon({{ className: 'imw-deco', html: decorSvg(d.kind, d.color, angle), iconSize: [16, 16], iconAnchor: [8, 8] }})
+        }}).addTo(d.group);
+        pos += DECOR_SPACING_PX;
+      }}
+      carry = pos - len;
+    }}
+  }}
+
+  map.on('zoomend', function() {{
+    Object.keys(featureDecor).forEach(placeDecorations);
+  }});
+
+  function ensureFillPattern(layer, pattern, color) {{
+    var renderer = layer._renderer || (map.getRenderer && map.getRenderer(layer));
+    var svg = renderer && renderer._container;
+    if (!svg || svg.tagName.toLowerCase() !== 'svg') {{ return null; }}
+    var id = 'imw-pat-' + pattern + '-' + color.replace('#', '');
+    if (!svg.querySelector('#' + id)) {{
+      var ns = 'http://www.w3.org/2000/svg';
+      var defs = svg.querySelector('defs') || svg.insertBefore(document.createElementNS(ns, 'defs'), svg.firstChild);
+      var pat = document.createElementNS(ns, 'pattern');
+      pat.setAttribute('id', id);
+      pat.setAttribute('patternUnits', 'userSpaceOnUse');
+      pat.setAttribute('width', '8');
+      pat.setAttribute('height', '8');
+      var inner = '<rect width="8" height="8" fill="' + color + '" fill-opacity="0.16"/>';
+      if (pattern === 'hatch') {{
+        pat.setAttribute('patternTransform', 'rotate(45)');
+        inner += '<line x1="0" y1="0" x2="0" y2="8" stroke="' + color + '" stroke-width="2.5"/>';
+      }} else if (pattern === 'crosshatch') {{
+        pat.setAttribute('patternTransform', 'rotate(45)');
+        inner += '<line x1="0" y1="0" x2="0" y2="8" stroke="' + color + '" stroke-width="2"/>' +
+                 '<line x1="0" y1="0" x2="8" y2="0" stroke="' + color + '" stroke-width="2"/>';
+      }} else {{
+        inner += '<circle cx="4" cy="4" r="1.6" fill="' + color + '"/>';
+      }}
+      pat.innerHTML = inner;
+      defs.appendChild(pat);
+    }}
+    return 'url(#' + id + ')';
+  }}
+
+  function upsertFeature(featureId, label, featureType, geometryType, coordsJson, styleColor, styleJson) {{
     var coords = JSON.parse(coordsJson);
+    var sym = styleJson ? JSON.parse(styleJson) : null;
     if (featureLayers[featureId]) {{
       map.removeLayer(featureLayers[featureId]);
     }}
+    if (featureDecor[featureId]) {{
+      map.removeLayer(featureDecor[featureId].group);
+      delete featureDecor[featureId];
+    }}
     var layer = null;
-    var color = styleColor || {json.dumps(map_accent)};
+    var color = (sym && sym.color) || styleColor || {json.dumps(map_accent)};
     if (geometryType === 'POINT') {{
       layer = L.marker(coords[0]);
     }} else if (geometryType === 'LINE') {{
-      layer = L.polyline(coords, {{ color: color, weight: 3 }});
+      layer = L.polyline(coords, {{
+        color: color,
+        weight: sym ? sym.weight : 3,
+        dashArray: sym && sym.dashArray ? sym.dashArray : null,
+        lineCap: sym && sym.roundCaps ? 'round' : 'butt'
+      }});
+      layer._imwBaseWeight = sym ? sym.weight : 3;
     }} else if (geometryType === 'POLYGON') {{
-      layer = L.polygon(coords, {{ color: color, weight: 2, fillOpacity: 0.18 }});
+      layer = L.polygon(coords, {{
+        color: color,
+        weight: sym ? sym.weight : 2,
+        dashArray: sym && sym.dashArray ? sym.dashArray : null,
+        fillColor: color,
+        fillOpacity: sym ? sym.fillOpacity : 0.18
+      }});
+      layer._imwBaseWeight = sym ? sym.weight : 2;
     }}
     if (!layer) {{ return; }}
     layer.bindTooltip(label || '', {{ permanent: false, className: 'imw-feature-label' }});
@@ -288,13 +387,34 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
       }}
     }});
     layer.addTo(map);
+    if (geometryType === 'POLYGON' && sym && sym.fillPattern && layer._path) {{
+      var patternUrl = ensureFillPattern(layer, sym.fillPattern, color);
+      if (patternUrl) {{
+        layer._imwPatternUrl = patternUrl;
+        layer._path.setAttribute('fill', patternUrl);
+        layer._path.setAttribute('fill-opacity', '1');
+      }}
+    }}
     featureLayers[featureId] = layer;
+    if (geometryType === 'LINE' && sym && sym.decoration) {{
+      featureDecor[featureId] = {{
+        kind: sym.decoration,
+        color: color,
+        coords: coords,
+        group: L.layerGroup().addTo(map)
+      }};
+      placeDecorations(featureId);
+    }}
   }}
 
   function removeFeature(featureId) {{
     if (featureLayers[featureId]) {{
       map.removeLayer(featureLayers[featureId]);
       delete featureLayers[featureId];
+    }}
+    if (featureDecor[featureId]) {{
+      map.removeLayer(featureDecor[featureId].group);
+      delete featureDecor[featureId];
     }}
   }}
 
@@ -382,6 +502,10 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
       var layer = featureLayers[key];
       if (layer.setStyle) {{
         layer.setStyle({{ weight: (String(key) === String(featureId)) ? 5 : (layer._imwBaseWeight || 2) }});
+        if (layer._imwPatternUrl && layer._path) {{
+          layer._path.setAttribute('fill', layer._imwPatternUrl);
+          layer._path.setAttribute('fill-opacity', '1');
+        }}
       }}
     }});
   }}
@@ -610,11 +734,13 @@ class MapCanvas(QWidget):
             else str(feature.geometry_type)
         )
         resolved_color = color or get_palette()["btn_focus"].name()
+        symbol = resolve_symbol_style(feature.style_key)
+        symbol_json = json.dumps(symbol) if symbol else None
         self._run_js(
             "upsertFeature("
             f"{json.dumps(feature.id)}, {json.dumps(feature.label)}, {json.dumps(feature.feature_type.value)}, "
             f"{json.dumps(geometry_type)}, "
-            f"{json.dumps(json.dumps(coords))}, {json.dumps(resolved_color)});"
+            f"{json.dumps(json.dumps(coords))}, {json.dumps(resolved_color)}, {json.dumps(symbol_json)});"
         )
 
     def remove_feature(self, feature_id: int | str) -> None:

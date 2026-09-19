@@ -93,6 +93,9 @@ class RibbonGroup(QFrame):
             "Quick Add": "Add",
             "Selection": "Sel",
             "Map Utilities": "Map",
+            "Operational Points": "Points",
+            "Operational Lines": "Lines",
+            "Operational Areas": "Areas",
         }
         short_title = short_titles.get(title, title.split(" ")[0][:6])
         self._collapse_button = QToolButton(self)

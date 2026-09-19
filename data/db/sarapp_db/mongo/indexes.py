@@ -150,17 +150,21 @@ def _create_communications_plan_indexes(incident_db: Database) -> None:
 def _create_medical_indexes(incident_db: Database) -> None:
     aid_stations = incident_db[IncidentCollections.ICS_206_AID_STATIONS]
     _ensure_index(aid_stations, [("incident_id", ASCENDING)])
-    _ensure_index(aid_stations, [("op_period", ASCENDING)])
+    _ensure_index(aid_stations, [("op_period", ASCENDING), ("version", ASCENDING)])
     _ensure_index(aid_stations, [("id", ASCENDING)], unique=True)
     _ensure_index(aid_stations, [("deleted", ASCENDING)])
 
     plan = incident_db[IncidentCollections.MEDICAL_PLAN]
     _ensure_index(plan, [("incident_id", ASCENDING)])
+    # Superseded by the per-version unique index below (one plan per OP used to
+    # be enforced; ICS-206 now keeps several versions per OP).
+    _drop_index_if_exists(plan, "medical_plan_unique_per_op")
+    _drop_index_if_exists(plan, "incident_id_1_op_period_1")
     _ensure_index(
         plan,
-        [("incident_id", ASCENDING), ("op_period", ASCENDING)],
+        [("incident_id", ASCENDING), ("op_period", ASCENDING), ("version", ASCENDING)],
         unique=True,
-        name="medical_plan_unique_per_op",
+        name="medical_plan_unique_per_op_version",
     )
     _ensure_index(plan, [("plan_id", ASCENDING)], unique=True)
 

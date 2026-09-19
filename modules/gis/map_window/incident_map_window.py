@@ -37,6 +37,8 @@ from modules.gis.map_window.tools.draw_tools import (
     rectangle_to_wkt,
 )
 from modules.gis.map_window.tools.quick_add_tool import QuickAddController
+from modules.gis.map_window.tools.feature_builder import build_drawn_feature
+from modules.gis.map_window.tools.operational_geometry_tool import OperationalGeometryController
 from modules.gis.map_window.tools.operational_point_tool import OperationalPointController
 from modules.gis.models.feature_types import FeatureType
 from modules.gis.models.geometry_types import GeometryType
@@ -74,6 +76,9 @@ class IncidentMapWindow(QMainWindow):
         )
         self.operational_points = (
             OperationalPointController(self.repository, self.feature_registry) if self.repository else None
+        )
+        self.operational_geometry = (
+            OperationalGeometryController(self.repository, self.feature_registry) if self.repository else None
         )
 
         self._selected_feature: SpatialFeature | None = None
@@ -315,8 +320,7 @@ class IncidentMapWindow(QMainWindow):
         if self.quick_add is None:
             QMessageBox.warning(self, "Quick Add", "No active incident; cannot create features.")
             return
-        if self.operational_points is not None:
-            self.operational_points.disarm()
+        self._disarm_operational_tools(keep_quick_add=True)
         self.quick_add.arm(kind, on_created=self._on_feature_created)
         self.map_canvas.activate_tool("select")
 
@@ -340,8 +344,7 @@ class IncidentMapWindow(QMainWindow):
         if self.operational_points is None:
             QMessageBox.warning(self, "Operational Point", "No active incident; cannot create features.")
             return
-        if self.quick_add is not None:
-            self.quick_add.disarm()
+        self._disarm_operational_tools(keep_points=True)
         try:
             definition = self.operational_points.arm(
                 feature_type_value,
@@ -353,14 +356,72 @@ class IncidentMapWindow(QMainWindow):
         self.map_canvas.activate_tool("select")
         self.bottom_panel.append_log(f"Click the map to place a {definition.display_name}.")
 
+    def _disarm_operational_tools(
+        self,
+        *,
+        keep_quick_add: bool = False,
+        keep_points: bool = False,
+        keep_geometry: bool = False,
+    ) -> None:
+        """Placement modes are mutually exclusive; disarm all but the one being armed."""
+        if self.quick_add is not None and not keep_quick_add:
+            self.quick_add.disarm()
+        if self.operational_points is not None and not keep_points:
+            self.operational_points.disarm()
+        if self.operational_geometry is not None and not keep_geometry:
+            self.operational_geometry.disarm()
+
+    # -- Operational Lines / Areas -------------------------------------------
+    def start_operational_line(self, feature_type_value: str, subtype: str | None = None) -> None:
+        self._start_operational_geometry(feature_type_value, GeometryType.LINE, subtype)
+
+    def start_operational_area(self, feature_type_value: str, subtype: str | None = None) -> None:
+        self._start_operational_geometry(feature_type_value, GeometryType.POLYGON, subtype)
+
+    def _start_operational_geometry(
+        self, feature_type_value: str, geometry_type: GeometryType, subtype: str | None = None
+    ) -> None:
+        if self.operational_geometry is None:
+            QMessageBox.warning(self, "Operational Geometry", "No active incident; cannot create features.")
+            return
+        self._disarm_operational_tools(keep_geometry=True)
+        try:
+            definition = self.operational_geometry.arm(
+                feature_type_value,
+                geometry_type,
+                subtype=subtype,
+                on_created=self._on_feature_created,
+            )
+        except (KeyError, ValueError):
+            logger.warning("Unsupported operational %s type: %s", geometry_type.value, feature_type_value)
+            return
+        self.map_canvas.cancel_active_draw()
+        self.map_canvas.activate_tool(self.operational_geometry.draw_tool_key)
+        self.bottom_panel.append_log(
+            f"Click the map to draw a {definition.display_name}; double-click to finish."
+        )
+
     # -- Draw ---------------------------------------------------------------
     def activate_draw_tool(self, tool_key: str) -> None:
+        self._disarm_operational_tools()
         self.map_canvas.activate_tool(tool_key)
 
     def _on_draw_completed(self, tool_key: str, vertices: list[tuple[float, float]]) -> None:
         if self.repository is None:
             return
         lonlat = [(lon, lat) for lat, lon in vertices]
+        if self.operational_geometry is not None and self.operational_geometry.armed_type is not None:
+            try:
+                self.operational_geometry.complete(lonlat)
+            except ValueError:
+                self.bottom_panel.append_log("Not enough vertices; keep drawing and double-click to finish.")
+                return
+            except Exception:
+                logger.exception("Failed to persist operational geometry")
+                self.bottom_panel.append_log("Could not create the feature; draw it again to retry.")
+                return
+            self.map_canvas.activate_tool("select")
+            return
         try:
             if tool_key in {"draw_point"}:
                 geometry_wkt = points_to_wkt(lonlat)
@@ -595,7 +656,4 @@ class IncidentMapWindow(QMainWindow):
     def _on_escape(self) -> None:
         self.map_canvas.reset_tool()
         self.map_canvas.cancel_active_draw()
-        if self.quick_add is not None:
-            self.quick_add.disarm()
-        if self.operational_points is not None:
-            self.operational_points.disarm()
+        self._disarm_operational_tools()
