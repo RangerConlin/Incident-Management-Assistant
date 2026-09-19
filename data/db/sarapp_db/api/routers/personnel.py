@@ -85,6 +85,23 @@ def _clean_scalar(value: Any) -> str:
     return str(value).strip() if value not in (None, "") else ""
 
 
+def _find_person_id_duplicate(
+    repo: PersonnelRepository,
+    person_id: Any,
+    *,
+    exclude_record: int | None = None,
+) -> dict[str, Any] | None:
+    visible_id = _clean_scalar(person_id)
+    if not visible_id:
+        return None
+    for doc in repo.find_many({}, sort=[("person_record", 1)]):
+        if exclude_record is not None and doc.get("person_record") == exclude_record:
+            continue
+        if _clean_scalar(doc.get("person_id")) == visible_id:
+            return doc
+    return None
+
+
 def _duplicate_fingerprint(source: dict[str, Any]) -> tuple[tuple[str, str], ...]:
     """Build a stable fingerprint for exact-clone prevention.
 
@@ -166,6 +183,16 @@ def create_person(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     body = dict(body)
     body.pop("_id", None)
     body.pop(_RECORD_FIELD, None)
+    person_id_duplicate = _find_person_id_duplicate(repo, body.get("person_id"))
+    if person_id_duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A personnel record with this person_id already exists "
+                f"(person_record {person_id_duplicate.get('person_record')})."
+            ),
+        )
+
     duplicate = _find_exact_duplicate(repo, body)
     if duplicate:
         raise HTTPException(
