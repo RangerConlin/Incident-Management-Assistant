@@ -9,6 +9,7 @@ pytest.importorskip("PySide6")
 from PySide6.QtWidgets import QApplication
 
 from modules.logistics.checkin.panels.CheckInPanel import CheckInPanel
+from modules.logistics.checkin.qr_code import parse_checkin_code
 from modules.logistics.checkin.widgets import ICS211CheckInWindow
 from modules.logistics.checkin.widgets.checkin_window import QuickCheckInWindow
 from modules.logistics.windows import get_quick_checkin_panel
@@ -104,3 +105,28 @@ def test_quick_window_checkout_action_sets_demobilized(qt_app: QApplication) -> 
 def test_get_quick_checkin_panel_returns_quick_window(qt_app: QApplication) -> None:
     panel = get_quick_checkin_panel()
     assert isinstance(panel, QuickCheckInWindow)
+
+
+def test_parse_checkin_code_extracts_person_id() -> None:
+    assert parse_checkin_code("SARAPP:CHECKIN:v1:405021") == "405021"
+    assert parse_checkin_code("  sarapp:checkin:v1: CAP-405021 \n") == "CAP-405021"
+
+
+def test_parse_checkin_code_ignores_ordinary_search_text() -> None:
+    assert parse_checkin_code("405021") is None
+    assert parse_checkin_code("Alex Scanner") is None
+    assert parse_checkin_code("SARAPP:CHECKIN:v1:") is None
+    assert parse_checkin_code("") is None
+
+
+def test_quick_window_resolves_scanned_checkin_qr(qt_app: QApplication) -> None:
+    service = _StubService()
+    window = QuickCheckInWindow(checkin_service=service)
+
+    window._entry.setText("SARAPP:CHECKIN:v1:CAP-405021")
+    window.lookup_record()
+    window.apply_status("Checked In")
+
+    assert ("search", "personnel", "CAP-405021") in service.calls
+    assert ("checked_in", "405021") in service.calls
+    assert "Alex Scanner" in window._display.toPlainText()

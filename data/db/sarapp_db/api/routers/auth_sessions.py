@@ -13,8 +13,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
+from sarapp_db.api.routers.personnel import PersonnelRepository
 from sarapp_db.mongo.collection_names import MasterCollections
-from sarapp_db.mongo.database_manager import DB_MASTER
+from sarapp_db.mongo.database_manager import DB_MASTER, get_master_db
+from sarapp_db.mongo.int_id import next_record_id
 from sarapp_db.mongo.mongo_client import get_client
 
 router = APIRouter()
@@ -68,6 +70,46 @@ def _normalize_person(doc: dict[str, Any] | None) -> dict[str, Any] | None:
     clean["id"] = str(person_record) if person_record is not None else None
     clean["primary_role"] = clean.get("primary_role") or clean.get("role") or clean.get("rank")
     return clean
+
+
+def _personnel_repo() -> PersonnelRepository:
+    return PersonnelRepository(get_master_db())
+
+
+def _full_name(person: dict[str, Any]) -> str:
+    first = str(person.get("first_name") or "").strip()
+    last = str(person.get("last_name") or "").strip()
+    return " ".join(part for part in (first, last) if part) or str(person.get("name") or "").strip()
+
+
+# Optional master-record fields a client may supply when creating its own
+# profile (all stored as plain text on the personnel record).
+_PROFILE_TEXT_FIELDS = ("organization", "title", "phone", "email", "radio_id")
+
+
+def _login_person(person: dict[str, Any]) -> dict[str, Any]:
+    """The slice of a personnel record that login clients may see."""
+
+    return {
+        "person_record": person.get("person_record"),
+        "person_id": str(person.get("person_id") or ""),
+        "first_name": person.get("first_name") or "",
+        "last_name": person.get("last_name") or "",
+        "name": _full_name(person),
+        **{field: person.get(field) or "" for field in _PROFILE_TEXT_FIELDS},
+    }
+
+
+def _person_id_matches(person_id: str) -> list[dict[str, Any]]:
+    """All personnel records whose visible person_id equals ``person_id``."""
+
+    matches = list(_personnel_col().find({"person_id": person_id}))
+    if person_id.isdigit():
+        seen = {m.get("person_record") for m in matches}
+        for match in _personnel_col().find({"person_id": int(person_id)}):
+            if match.get("person_record") not in seen:
+                matches.append(match)
+    return matches
 
 
 def _find_person(identifier: Any) -> dict[str, Any] | None:
@@ -148,6 +190,97 @@ def _session_response(session: dict[str, Any]) -> dict[str, Any]:
     return doc
 
 
+@router.get("/lookup")
+def lookup_person(person_id: str = Query(...)) -> dict[str, Any]:
+    """Check a login ID against the personnel roster.
+
+    Returns ``status`` of ``found`` (with the person), ``not_found`` (the client
+    should offer to create a profile) or ``ambiguous`` (several records share
+    the ID, so it cannot be used to sign in until the roster is fixed).
+    """
+
+    value = person_id.strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="person_id is required")
+    matches = _person_id_matches(value)
+    if not matches:
+        return {"status": "not_found", "person": None}
+    if len(matches) > 1:
+        return {"status": "ambiguous", "person": None}
+    return {"status": "found", "person": _login_person(matches[0])}
+
+
+@router.post("/register", status_code=201)
+def register_person(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Create the personnel record for a login ID that has none yet."""
+
+    person_id = str(body.get("person_id") or "").strip()
+    first_name = str(body.get("first_name") or "").strip()
+    last_name = str(body.get("last_name") or "").strip()
+    if not (person_id and first_name and last_name):
+        raise HTTPException(status_code=400, detail="person_id, first_name and last_name are required")
+    if _person_id_matches(person_id):
+        raise HTTPException(
+            status_code=409,
+            detail="A personnel record with this ID already exists; sign in instead.",
+        )
+
+    optional = {
+        field: str(body.get(field) or "").strip() for field in _PROFILE_TEXT_FIELDS
+    }
+    repo = _personnel_repo()
+    now = _utcnow()
+    saved = repo.insert_one(
+        {
+            "person_record": next_record_id(repo._col, "person_record"),
+            "person_id": person_id,
+            "first_name": first_name,
+            "last_name": last_name,
+            **{field: value for field, value in optional.items() if value},
+            "status": "available",
+            "created_at": now,
+            "updated_at": now,
+        }
+    )
+    return {"status": "found", "person": _login_person(saved)}
+
+
+@router.put("/profile")
+def update_profile(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Apply a device's profile to the personnel (master) record for its ID.
+
+    The device is the source of truth for what the person entered, so each
+    non-blank field overwrites the record. Blank fields are left alone rather
+    than cleared, so a partly filled profile on a new device can't wipe details
+    an administrator entered. ``person_id`` identifies the record and is never
+    changed here.
+    """
+
+    person_id = str(body.get("person_id") or "").strip()
+    if not person_id:
+        raise HTTPException(status_code=400, detail="person_id is required")
+    matches = _person_id_matches(person_id)
+    if not matches:
+        raise HTTPException(status_code=404, detail="No personnel record matches this ID.")
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="Several personnel records share this ID; ask an administrator to fix the roster.",
+        )
+
+    person = matches[0]
+    updates = {
+        field: value
+        for field in ("first_name", "last_name", *_PROFILE_TEXT_FIELDS)
+        if (value := str(body.get(field) or "").strip())
+        and value != str(person.get(field) or "")
+    }
+    if updates:
+        _personnel_repo().update_one(person["_id"], updates)
+        person = {**person, **updates}
+    return {"status": "found", "person": _login_person(person)}
+
+
 @router.post("/sessions", status_code=201)
 def start_session(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     username = str(body.get("username") or body.get("user_id") or "").strip()
@@ -158,10 +291,21 @@ def start_session(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     user_id = str(body.get("user_id") or username)
     existing_user = _users_col().find_one({"user_id": user_id}) or _users_col().find_one({"username": username})
     person_record = _resolve_person_record(body, existing_user)
+    person = _find_person(person_record)
+    if person is None:
+        ambiguous = len(_person_id_matches(username)) > 1
+        raise HTTPException(
+            status_code=409 if ambiguous else 404,
+            detail=(
+                "Several personnel records share this ID; ask an administrator to fix the roster."
+                if ambiguous
+                else "No personnel record matches this ID; create a profile first."
+            ),
+        )
     user_doc = {
         "user_id": user_id,
         "username": username,
-        "display_name": body.get("display_name") or body.get("name") or username,
+        "display_name": _full_name(person) or username,
         "badge_number": body.get("badge_number"),
         "person_record": person_record,
         "updated_at": now,

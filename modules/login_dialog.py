@@ -224,6 +224,45 @@ class RemoteServerDialog(QDialog):
         self.accept()
 
 
+class CreateProfileDialog(QDialog):
+    """Collects the name for a login ID that has no personnel record yet."""
+
+    def __init__(self, parent: QWidget | None, person_id: str) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Create Your Profile")
+        self.setModal(True)
+
+        note = QLabel(
+            f"No personnel record matches ID \"{person_id}\". Enter your name to "
+            "create one and continue signing in."
+        )
+        note.setWordWrap(True)
+        self.first_name_edit = QLineEdit()
+        self.last_name_edit = QLineEdit()
+
+        form = QFormLayout()
+        form.addRow("First name", self.first_name_edit)
+        form.addRow("Last name", self.last_name_edit)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        self.buttons.accepted.connect(self._on_accept)
+        self.buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(note)
+        layout.addLayout(form)
+        layout.addWidget(self.buttons)
+
+    def names(self) -> tuple[str, str]:
+        return self.first_name_edit.text().strip(), self.last_name_edit.text().strip()
+
+    def _on_accept(self) -> None:
+        if not all(self.names()):
+            QMessageBox.warning(self, "Missing Info", "Enter both a first and last name.")
+            return
+        self.accept()
+
+
 class LoginDialog(QDialog):
     """Modal startup splash for online sign-in, registration, or offline launch."""
 
@@ -462,6 +501,46 @@ class LoginDialog(QDialog):
         AppState.set_active_user_role("Offline")
         self.accept()
 
+    def _ensure_profile(self, person_id: str) -> str | None:
+        """Match the login ID to a personnel record, creating one if needed.
+
+        Returns the person's display name, or None when sign-in should stop
+        (unknown/ambiguous ID the user declined to fix, or a server error).
+        """
+
+        from utils.api_client import api_client
+
+        try:
+            result = api_client.get("/api/auth/lookup", params={"person_id": person_id}) or {}
+        except Exception as exc:
+            QMessageBox.warning(self, "Login Failed", f"Could not check this ID with the server: {exc}")
+            return None
+
+        status = result.get("status")
+        if status == "found":
+            return str((result.get("person") or {}).get("name") or person_id)
+        if status == "ambiguous":
+            QMessageBox.warning(
+                self,
+                "Login Failed",
+                "More than one personnel record uses this ID. Ask an administrator to fix the roster.",
+            )
+            return None
+
+        dialog = CreateProfileDialog(self, person_id)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        first_name, last_name = dialog.names()
+        try:
+            created = api_client.post(
+                "/api/auth/register",
+                json={"person_id": person_id, "first_name": first_name, "last_name": last_name},
+            ) or {}
+        except Exception as exc:
+            QMessageBox.warning(self, "Login Failed", f"Could not create your profile: {exc}")
+            return None
+        return str((created.get("person") or {}).get("name") or f"{first_name} {last_name}")
+
     def _accept(self) -> None:
         incident_id = self.incident_combo.currentData()
         # Users log in with the visible personnel ID.  Resolve it once to the
@@ -473,6 +552,13 @@ class LoginDialog(QDialog):
             if not incident_id or not username or not role or not self.password_edit.text().strip():
                 QMessageBox.warning(self, "Missing Info", "Please sign in, select an incident, and enter Username, Password, and Role.")
                 return
+
+        display_name = username
+        if username and not self._demo_mode:
+            resolved_name = self._ensure_profile(username)
+            if resolved_name is None:
+                return
+            display_name = resolved_name
 
         AppState.set_active_incident(incident_id)
         AppState.set_active_user_id("")
@@ -486,7 +572,7 @@ class LoginDialog(QDialog):
             sid = start_session(
                 username,
                 username=username,
-                display_name=username,
+                display_name=display_name,
                 role=role,
                 incident_id=str(incident_id),
                 mode="cloud",

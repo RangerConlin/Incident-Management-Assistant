@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.logistics.checkin.qr_code import parse_checkin_code
 from modules.logistics.checkin.services import CheckInService, get_service
 from utils import incident_context
 
@@ -56,7 +57,9 @@ class QuickCheckInWindow(QWidget):
         entry_row = QHBoxLayout()
         entry_row.setSpacing(8)
         self._entry = QLineEdit(self)
-        self._entry.setPlaceholderText("Scan or enter personnel ID, CAPID, name, callsign, or phone")
+        self._entry.setPlaceholderText(
+            "Scan a check-in QR, or enter personnel ID, CAPID, name, callsign, or phone"
+        )
         self._entry.returnPressed.connect(self.lookup_record)
         search_btn = QPushButton("Lookup", self)
         search_btn.clicked.connect(self.lookup_record)
@@ -118,7 +121,10 @@ class QuickCheckInWindow(QWidget):
         self._entry.setFocus()
 
     def lookup_record(self) -> None:
-        query = self._entry.text().strip()
+        raw = self._entry.text().strip()
+        # A scanned mobile check-in QR carries the person ID inside a prefix;
+        # anything else is an ordinary search term.
+        query = parse_checkin_code(raw) or raw
         if not query:
             self._display.setPlainText("Enter a personnel identifier to search.")
             self._selected_record = None

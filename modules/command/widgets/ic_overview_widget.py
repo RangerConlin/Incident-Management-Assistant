@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.command import data_access
-from modules.gis.panels.team_location_map_panel import TeamMapCanvas
+from modules.gis.panels.team_map_canvas import TeamMapCanvas
 from styles import icons as app_icons
 from styles import tokens
 from styles import styles as style_palette
@@ -320,9 +320,7 @@ class PendingApprovalsPanel(_Panel):
 
 
 class GeographicSnapshotPanel(_Panel):
-    """Compact live map: the same Leaflet team-location canvas used by the
-    GIS module's Team Location Map panel, without its toolbar or inspector.
-    """
+    """Compact live map with current tracked team locations."""
 
     expandRequested = Signal()
 

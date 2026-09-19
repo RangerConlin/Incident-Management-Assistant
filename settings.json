@@ -152,5 +152,7 @@
         "sortie_count": 24,
         "last_activity_at": 24,
         "linked_strategy_summary": 24
-    }
+    },
+    "cloudServerUrl": "",
+    "cloudConnectCode": "OURS-9165"
 }

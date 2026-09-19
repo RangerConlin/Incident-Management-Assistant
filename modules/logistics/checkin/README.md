@@ -30,3 +30,13 @@ with existing data files.
 The database schemas are placeholders and will be expanded in future
 iterations.  Additional validation and error handling should be added
 as the application evolves.
+
+## QR check-in
+
+The mobile app shows each person a personal check-in QR encoding
+`SARAPP:CHECKIN:v1:<person_id>`.  Quick Check In (`widgets/checkin_window.py`)
+recognises that code in its entry field — a keyboard-wedge scanner types it
+there, or it can be pasted — and looks the person up by the embedded ID.  The
+status buttons still confirm the actual check-in.  The parser lives in
+`qr_code.py`; the mobile side (`lib/utils/check_in_qr.dart`) must keep the same
+prefix.

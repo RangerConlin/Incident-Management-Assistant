@@ -1,6 +1,6 @@
 """MapCanvas: general-purpose Leaflet map widget for the Incident Map window.
 
-Adapted from modules/gis/panels/team_location_map_panel.py's QWebEngineView +
+Adapted from the GIS QWebEngineView +
 vendored-Leaflet + QWebChannel embedding pattern, but generalized for
 multiple feature types, pan/select/zoom-box tools, an extent (back/forward)
 stack, and draw/quick-add click handling. North-up only — no rotation
@@ -24,8 +24,10 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 from modules.gis.map_window.tools.tool_controller import ToolController
 from modules.gis.models.geometry_types import GeometryType
 from modules.gis.models.spatial_feature import SpatialFeature
+from modules.gis.services.team_symbols import TeamSymbolSpec
 from utils import incident_context
 from utils.incident_cache import incident_cache
+from utils.styles import get_palette
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +99,37 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
   }}
   .imw-team-marker-label::before {{
     display: none;
+  }}
+  .imw-team-symbol-wrapper {{
+    background: transparent;
+    border: 0;
+  }}
+  .imw-team-symbol {{
+    align-items: center;
+    background:
+      linear-gradient(145deg, var(--team-fill-highlight) 0%, var(--team-fill) 54%, var(--team-fill-shadow) 100%);
+    border: 5px solid var(--team-border);
+    border-radius: 13px;
+    box-sizing: border-box;
+    box-shadow:
+      inset 0 0 0 3px var(--team-inner-ring),
+      inset 0 2px 4px var(--team-fill-highlight),
+      inset 0 -3px 5px var(--team-fill-shadow),
+      0 0 0 2px var(--team-border-shadow);
+    color: var(--team-text);
+    display: flex;
+    font: 800 14px/1 Arial, sans-serif;
+    height: 44px;
+    justify-content: center;
+    letter-spacing: 0;
+    text-align: center;
+    width: 44px;
+  }}
+  .imw-team-symbol img {{
+    display: block;
+    height: 70%;
+    object-fit: contain;
+    width: 72%;
   }}
   .imw-zoombox {{
     border: 2px dashed #2F80ED;
@@ -258,20 +291,69 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
     }}
   }}
 
-  function upsertTeamMarker(teamId, name, lat, lon, updatedAt) {{
+  function escapeHtml(value) {{
+    return String(value || '').replace(/[&<>"']/g, function(ch) {{
+      return {{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }}[ch];
+    }});
+  }}
+
+  function teamIcon(symbolSpec) {{
+    var spec = symbolSpec || {{}};
+    var fill = spec.fill_color || {json.dumps(get_palette()["accent"].name())};
+    var fillHighlight = spec.fill_highlight_color || fill;
+    var fillShadow = spec.fill_shadow_color || fill;
+    var border = spec.border_color || {json.dumps(get_palette()["accent"].name())};
+    var borderShadow = spec.border_shadow_color || border;
+    var innerRing = spec.inner_ring_color || fill;
+    var text = spec.text_color || {json.dumps(get_palette()["fg"].name())};
+    var centerText = escapeHtml(spec.center_text || 'T');
+    var label = escapeHtml(spec.label || 'Team');
+    var body = centerText;
+    if (spec.icon_url) {{
+      body = '<img alt="" src="' + escapeHtml(spec.icon_url) + '" />';
+    }}
+    var html = '<div class="imw-team-symbol" title="' + label + '" ' +
+      'style="--team-fill:' + fill +
+      ';--team-fill-highlight:' + fillHighlight +
+      ';--team-fill-shadow:' + fillShadow +
+      ';--team-border:' + border +
+      ';--team-border-shadow:' + borderShadow +
+      ';--team-inner-ring:' + innerRing +
+      ';--team-text:' + text + ';">' +
+      body + '</div>';
+    return L.divIcon({{
+      className: 'imw-team-symbol-wrapper',
+      html: html,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+      popupAnchor: [0, -24]
+    }});
+  }}
+
+  function upsertTeamMarker(teamId, name, lat, lon, updatedAt, symbolSpecJson) {{
     var key = String(teamId);
     var label = name || ('Team ' + key);
+    var symbolSpec = {{}};
+    try {{ symbolSpec = JSON.parse(symbolSpecJson || '{{}}'); }} catch (err) {{ symbolSpec = {{}}; }}
+    var icon = teamIcon(symbolSpec);
     if (teamMarkers[key]) {{
       teamMarkers[key].setLatLng([lat, lon]);
+      teamMarkers[key].setIcon(icon);
     }} else {{
-      teamMarkers[key] = L.marker([lat, lon]).addTo(map);
+      teamMarkers[key] = L.marker([lat, lon], {{ icon: icon }}).addTo(map);
     }}
-    var popup = '<strong>' + label + '</strong><br />' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+    var popup = '<strong>' + escapeHtml(label) + '</strong><br />' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+    if (symbolSpec.label) {{
+      popup += '<br />Type: ' + escapeHtml(symbolSpec.label);
+    }}
+    if (symbolSpec.status_key) {{
+      popup += '<br />Status: ' + escapeHtml(symbolSpec.status_key);
+    }}
     if (updatedAt) {{
-      popup += '<br />Updated: ' + updatedAt;
+      popup += '<br />Updated: ' + escapeHtml(updatedAt);
     }}
     teamMarkers[key].bindPopup(popup);
-    teamMarkers[key].bindTooltip(label, {{
+    teamMarkers[key].bindTooltip(escapeHtml(label), {{
       permanent: true,
       direction: 'top',
       offset: [0, -10],
@@ -530,11 +612,29 @@ class MapCanvas(QWidget):
         lat: float,
         lon: float,
         updated_at: str | None = None,
+        symbol: TeamSymbolSpec | dict[str, Any] | None = None,
     ) -> None:
+        if isinstance(symbol, TeamSymbolSpec):
+            symbol_payload: dict[str, Any] = {
+                "team_type": symbol.team_type,
+                "label": symbol.label,
+                "center_text": symbol.center_text,
+                "fill_color": symbol.fill_color,
+                "fill_highlight_color": symbol.fill_highlight_color,
+                "fill_shadow_color": symbol.fill_shadow_color,
+                "border_color": symbol.border_color,
+                "border_shadow_color": symbol.border_shadow_color,
+                "inner_ring_color": symbol.inner_ring_color,
+                "text_color": symbol.text_color,
+                "status_key": symbol.status_key,
+                "icon_url": symbol.icon_url,
+            }
+        else:
+            symbol_payload = dict(symbol or {})
         self._run_js(
             "upsertTeamMarker("
             f"{json.dumps(str(team_id))}, {json.dumps(name)}, {float(lat)}, {float(lon)}, "
-            f"{json.dumps(updated_at or '')});"
+            f"{json.dumps(updated_at or '')}, {json.dumps(json.dumps(symbol_payload))});"
         )
 
     def remove_team_marker(self, team_id: int | str) -> None:

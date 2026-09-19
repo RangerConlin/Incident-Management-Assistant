@@ -51,7 +51,7 @@ MODULE_ACTIONS: dict[str, str] = {
     "operations.section_org": "Operations Section Organization",
     "operations.team_status": "Team Status Board",
     "operations.task_board": "Task Board",
-    "operations.team_location_map": "Team Location Map",
+    "operations.incident_map": "Incident Map",
     "logistics.dashboard": "Logistics Dashboard",
     "logistics.unit_log": "Logistics Unit Log ICS-214",
     "logistics.211": "Check-In ICS-211",

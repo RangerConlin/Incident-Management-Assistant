@@ -43,7 +43,9 @@ from modules.gis.models.spatial_feature import SpatialFeature
 from modules.gis.services.feature_registry import get_default_feature_registry
 from modules.gis.services.geometry_service import GeometryBufferError, GeometryService
 from modules.gis.services.spatial_repository import SpatialRepository
+from modules.gis.services.team_symbols import team_symbol_spec
 from utils.incident_cache import incident_cache
+from utils.styles import subscribe_theme
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +114,7 @@ class IncidentMapWindow(QMainWindow):
         self._wire_signals()
         incident_cache.changed.connect(self._on_cache_changed)
         self.destroyed.connect(lambda _=None: self._disconnect_cache())
+        subscribe_theme(self, lambda *_: self._refresh_team_markers())
 
         escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         escape_shortcut.activated.connect(self._on_escape)
@@ -208,7 +211,8 @@ class IncidentMapWindow(QMainWindow):
             return
         name = str(doc.get("name") or f"Team {team_id}")
         updated_at = str(doc.get("current_location_updated_at") or "")
-        self.map_canvas.upsert_team_marker(team_id, name, lat_value, lon_value, updated_at)
+        symbol = team_symbol_spec(doc.get("team_type"), doc.get("status"))
+        self.map_canvas.upsert_team_marker(team_id, name, lat_value, lon_value, updated_at, symbol)
         self._located_team_ids.add(team_id)
 
     @staticmethod

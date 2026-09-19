@@ -833,7 +833,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
-        self._add_action(m_ops, "Team Location Map", None, "operations.team_location_map")
         self._add_action(m_ops, "Incident Map", None, "operations.incident_map")
 
         # ----- Logistics -----
@@ -1154,7 +1153,6 @@ class MainWindow(QMainWindow):
             "operations.section_org": self.open_operations_section_org,
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
-            "operations.team_location_map": self.open_operations_team_location_map,
             "operations.incident_map": self.open_operations_incident_map,
             "operations.narrative": self.open_operations_narrative,
 
@@ -2060,18 +2058,6 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Task Status", f"Task Status panel could not be loaded.\n{e}")
             except Exception:
                 print(f"[warn] Task Status panel could not be loaded: {e}")
-
-    def open_operations_team_location_map(self) -> None:
-        try:
-            from modules.gis.panels.team_location_map_panel import TeamLocationMapPanel
-            panel = TeamLocationMapPanel(self)
-            self._open_dock_widget(panel, title="Team Location Map", preferred_size=(900, 650))
-            return
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Team Location Map", f"Team Location Map panel could not be loaded.\n{e}")
-            except Exception:
-                print(f"[warn] Team Location Map panel could not be loaded: {e}")
 
     def open_operations_incident_map(self) -> None:
         try:
@@ -3066,7 +3052,6 @@ class MainWindow(QMainWindow):
         "ICS-214 Activity Log — Operations": "open_operations_unit_log",
         "Team Status": "open_operations_team_status",
         "Task Status": "open_operations_task_board",
-        "Team Location Map": "open_operations_team_location_map",
         "ICS-214 Activity Log — Logistics": "open_logistics_unit_log",
         "ICS-214 Activity Log — Communications": "open_comms_unit_log",
         "Notification Center": "open_notification_center",
