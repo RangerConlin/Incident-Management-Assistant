@@ -219,5 +219,20 @@ Cost Summary
     - During the start and login process, need to have a way to force a refresh to the server without closing and restarting
 
 **************************************************************************************************************
+[GIS]
+  - Aviation Facilities reference layer (noted only, no work started). Searchable dataset to add to maps and
+    use during search planning (nearest airstrips/heliports/helibases to a PLS or search area). Not
+    medical-related and not incident-scoped; it is shared master/reference data.
+    - Source: BTS/FAA NTAD "Aviation Facilities" public ArcGIS Feature Service (item id
+      88c147b65ced41d4a1ecb8dac2e9e7e4), layer 0:
+      https://services.arcgis.com/xOi1kZaI0eWDREZv/ArcGIS/rest/services/NTAD_Aviation_Facilities/FeatureServer/0
+      No API key. Supports spatial/where queries (JSON/GeoJSON/PBF, 2000 records max per request).
+      Updated every 28 days from the FAA.
+    - Leaning toward a local master-collection copy (offline/LAN friendly) with periodic refresh through a
+      BaseRepository subclass, a master router (text search, bbox, near-point radius), a new layer in
+      `LayerRegistry`, and a third result group in `MapSearchController`. Open questions: facility types to
+      include by default, and who triggers the refresh (LAN console vs. schedule).
+
+**************************************************************************************************************
 [Logs]
   - Logs need to be able to write to multiple streams at once.  Would like to be able to generate a log for each individual person, but i dont think writing a separate stream is a good idea.  perhaps something that generates from a lookup of everything that person has done?

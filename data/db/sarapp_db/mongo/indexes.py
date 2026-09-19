@@ -413,12 +413,25 @@ def _create_audit_logs_indexes(incident_db: Database) -> None:
 # Master database indexes
 # ---------------------------------------------------------------------------
 
+def _create_nearby_facility_exclusions_indexes(master_db: Database) -> None:
+    exclusions = master_db[MasterCollections.NEARBY_FACILITY_EXCLUSIONS]
+    _ensure_index(exclusions, [("source_ref", ASCENDING)], unique=True)
+
+
+def _create_hospital_directory_indexes(master_db: Database) -> None:
+    directory = master_db[MasterCollections.HOSPITAL_DIRECTORY]
+    _ensure_index(directory, [("cms_id", ASCENDING)], unique=True)
+    _ensure_index(directory, [("state", ASCENDING), ("active", ASCENDING)])
+
+
 def create_master_indexes(master_db: Database) -> None:
     """Create required indexes for the sarapp_master database."""
     _create_personnel_indexes(master_db)
     _create_radio_channels_indexes(master_db)
     _create_hospitals_indexes(master_db)
     _create_ems_agencies_indexes(master_db)
+    _create_nearby_facility_exclusions_indexes(master_db)
+    _create_hospital_directory_indexes(master_db)
     _create_hazard_types_indexes(master_db)
     _create_vehicles_indexes(master_db)
     _create_aircraft_indexes(master_db)

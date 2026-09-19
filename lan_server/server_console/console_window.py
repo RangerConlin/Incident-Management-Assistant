@@ -224,7 +224,12 @@ class ServerConsoleWindow(QMainWindow):
         return root
 
     # Requests the console generates itself while monitoring the server.
-    _CONSOLE_POLL_PATHS = frozenset({"/health", "/server-info", "/api/client-connections"})
+    _CONSOLE_POLL_PATHS = frozenset({
+        "/health",
+        "/server-info",
+        "/api/client-connections",
+        "/api/auth/sessions/active",
+    })
 
     def _build_traffic_tab(self) -> QWidget:
         widget = QWidget(self)

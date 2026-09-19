@@ -5,11 +5,13 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -83,6 +85,7 @@ SECTIONS = [
     {
         "key": "ambulance_services",
         "label": "Ambulance Services",
+        "nearby": True,
         "import_method": "import_ambulance_services",
         "columns": ["Name", "Type", "Phone", "Location", "Notes"],
         "fields": [
@@ -103,6 +106,7 @@ SECTIONS = [
     {
         "key": "hospitals",
         "label": "Hospitals",
+        "nearby": True,
         "import_method": "import_hospitals",
         "columns": ["Name", "Address", "Phone", "Helipad", "Burn Ctr", "Trauma Level", "Ground", "Air", "Notes"],
         "fields": [
@@ -273,6 +277,219 @@ class RowEditDialog(QDialog):
 
 
 # ---------------------------------------------------------------------------
+# Nearby facility picker
+# ---------------------------------------------------------------------------
+
+class HiddenFacilitiesDialog(QDialog):
+    """Facilities hidden from nearby searches, with a way to restore them."""
+
+    COLUMNS = ["Name", "Address", "Reason", "Hidden By"]
+
+    def __init__(self, bridge: MedicalBridge, parent=None):
+        super().__init__(parent)
+        self._bridge = bridge
+        self._rows: list[dict] = []
+        self.setWindowTitle("Hidden Facilities")
+        self.resize(720, 340)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("These facilities never appear in nearby searches, for any incident."))
+        self._table = QTableWidget(0, len(self.COLUMNS))
+        self._table.setHorizontalHeaderLabels(self.COLUMNS)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
+        self._table.verticalHeader().setVisible(False)
+        self._table.setAlternatingRowColors(True)
+        layout.addWidget(self._table, 1)
+
+        row = QHBoxLayout()
+        restore_btn = QPushButton("Restore Selected")
+        restore_btn.clicked.connect(self._restore)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        row.addWidget(restore_btn)
+        row.addStretch()
+        row.addWidget(close_btn)
+        layout.addLayout(row)
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            self._rows = self._bridge.list_hidden_nearby()
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", str(exc))
+            self._rows = []
+        self._table.setRowCount(len(self._rows))
+        for r, row in enumerate(self._rows):
+            for c, key in enumerate(["name", "address", "reason", "excluded_by"]):
+                self._table.setItem(r, c, QTableWidgetItem(str(row.get(key) or "")))
+        self._table.resizeColumnsToContents()
+        self._table.horizontalHeader().setStretchLastSection(True)
+
+    def _restore(self) -> None:
+        idx = self._table.currentRow()
+        if not 0 <= idx < len(self._rows):
+            return
+        try:
+            self._bridge.restore_nearby(self._rows[idx]["id"])
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", str(exc))
+            return
+        self._load()
+
+
+class NearbyPickerDialog(QDialog):
+    """Search for facilities near the incident and tick the ones to add to the plan."""
+
+    COLUMNS = ["Add", "Name", "Address", "Phone", "Distance (mi)", "Data as of"]
+
+    def __init__(self, label: str, table_key: str, bridge: MedicalBridge, parent=None):
+        super().__init__(parent)
+        self._table_key = table_key
+        self._bridge = bridge
+        self._rows: list[dict] = []
+        self.setWindowTitle(f"Find Nearby — {label}")
+        self.resize(820, 460)
+
+        layout = QVBoxLayout(self)
+        search_row = QHBoxLayout()
+        search_row.addWidget(QLabel("Within"))
+        self._radius = QDoubleSpinBox()
+        self._radius.setRange(1, 100)
+        self._radius.setDecimals(0)
+        self._radius.setValue(25)
+        self._radius.setSuffix(" mi of the incident")
+        search_row.addWidget(self._radius)
+        search_btn = QPushButton("Search")
+        search_btn.clicked.connect(self._search)
+        search_row.addWidget(search_btn)
+        self._refresh_check = QCheckBox("Re-read source data")
+        self._refresh_check.setToolTip("Fetch the latest hospital list instead of using the saved copy")
+        self._refresh_check.setVisible(table_key == "hospitals")
+        search_row.addWidget(self._refresh_check)
+        search_row.addStretch()
+        layout.addLayout(search_row)
+
+        self._status = QLabel()
+        self._status.setWordWrap(True)
+        layout.addWidget(self._status)
+
+        self._table = QTableWidget(0, len(self.COLUMNS))
+        self._table.setHorizontalHeaderLabels(self.COLUMNS)
+        apply_statusboard_table_behavior(self._table, stretch_last_section=True)
+        self._table.verticalHeader().setVisible(False)
+        self._table.setAlternatingRowColors(True)
+        layout.addWidget(self._table, 1)
+
+        self._note = QLabel()
+        self._note.setWordWrap(True)
+        layout.addWidget(self._note)
+
+        curate_row = QHBoxLayout()
+        hide_btn = QPushButton("Hide Highlighted Entry…")
+        hide_btn.setToolTip("Remove a wrong entry (closed, prison hospital, doesn't exist) from all future searches")
+        hide_btn.clicked.connect(self._hide_selected)
+        hidden_btn = QPushButton("Hidden Facilities…")
+        hidden_btn.clicked.connect(lambda: HiddenFacilitiesDialog(self._bridge, self).exec())
+        curate_row.addWidget(hide_btn)
+        curate_row.addWidget(hidden_btn)
+        curate_row.addStretch()
+        layout.addLayout(curate_row)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._add_btn = buttons.button(QDialogButtonBox.Ok)
+        self._add_btn.setText("Add Selected")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self._search()
+
+    def _search(self) -> None:
+        self._table.setRowCount(0)
+        self._rows = []
+        self._status.setText("Searching… (the first search in a new state can take a few seconds)")
+        self._status.repaint()
+        QGuiApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            found = self._bridge.find_nearby(self._table_key, self._radius.value(), self._refresh_check.isChecked())
+        except Exception as exc:
+            self._status.setText(f"Search failed: {exc}")
+            return
+        finally:
+            QGuiApplication.restoreOverrideCursor()
+        self._refresh_check.setChecked(False)
+        self._rows = found.get("results", [])
+        summary = f"{len(self._rows)} found." if self._rows else "Nothing found in that radius."
+        self._status.setText(" ".join([summary, *found.get("warnings", [])]))
+        self._note.setText(found.get("note", ""))
+        self._table.setRowCount(len(self._rows))
+        for r, row in enumerate(self._rows):
+            check = QTableWidgetItem()
+            if row["already_added"]:
+                check.setFlags(Qt.ItemIsEnabled)
+                check.setCheckState(Qt.Checked)
+                check.setToolTip("Already in this plan")
+            else:
+                check.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+                check.setCheckState(Qt.Unchecked)
+            self._table.setItem(r, 0, check)
+            approximate = bool(row.get("location_approximate"))
+            values = [
+                row["name"],
+                row["address"],
+                row.get("phone", ""),
+                f"{'~' if approximate else ''}{row['distance_mi']:.1f}",
+                row["source_date"],
+            ]
+            for c, value in enumerate(values, start=1):
+                item = QTableWidgetItem(value)
+                if approximate and c == 4:
+                    item.setToolTip("Approximate: placed at the centre of the ZIP code area")
+                self._table.setItem(r, c, item)
+        self._table.resizeColumnsToContents()
+        self._table.horizontalHeader().setStretchLastSection(True)
+
+    HIDE_REASONS = [
+        "Closed or no longer exists",
+        "Prison or correctional facility",
+        "Not available to the public",
+        "Duplicate or wrong location",
+    ]
+
+    def _hide_selected(self) -> None:
+        idx = self._table.currentRow()
+        if not 0 <= idx < len(self._rows):
+            QMessageBox.information(self, "Hide", "Click a row first, then hide it.")
+            return
+        row = self._rows[idx]
+        reason, ok = QInputDialog.getItem(
+            self,
+            "Hide Facility",
+            f"Hide '{row['name']}' from all future searches (every incident).\nWhy?",
+            self.HIDE_REASONS,
+            0,
+            True,
+        )
+        if not ok:
+            return
+        try:
+            self._bridge.hide_nearby(self._table_key, row, reason.strip())
+        except Exception as exc:
+            QMessageBox.critical(self, "Hide Failed", str(exc))
+            return
+        self._rows.pop(idx)
+        self._table.removeRow(idx)
+        self._status.setText(f"{len(self._rows)} found. '{row['name']}' hidden.")
+
+    def selected_rows(self) -> list[dict]:
+        return [
+            row
+            for r, row in enumerate(self._rows)
+            if not row["already_added"] and self._table.item(r, 0).checkState() == Qt.Checked
+        ]
+
+
+# ---------------------------------------------------------------------------
 # Drawer (collapsible section)
 # ---------------------------------------------------------------------------
 
@@ -338,6 +555,10 @@ class ResourceSection(QWidget):
         self._edit_btn = QPushButton("Edit")
         self._remove_btn = QPushButton("Remove")
         self._import_btn = QPushButton("Import from Master")
+        self._nearby_btn = QPushButton("Find Nearby…")
+        self._nearby_btn.setToolTip("Search for facilities near the incident and pick which to add")
+        self._nearby_btn.setVisible(bool(self._spec.get("nearby")))
+        self._nearby_btn.clicked.connect(self._find_nearby)
         self._add_btn.clicked.connect(self._add)
         self._edit_btn.clicked.connect(self._edit)
         self._remove_btn.clicked.connect(self._remove)
@@ -346,6 +567,7 @@ class ResourceSection(QWidget):
         toolbar.addWidget(self._edit_btn)
         toolbar.addWidget(self._remove_btn)
         toolbar.addStretch()
+        toolbar.addWidget(self._nearby_btn)
         toolbar.addWidget(self._import_btn)
         layout.addLayout(toolbar)
 
@@ -360,7 +582,7 @@ class ResourceSection(QWidget):
         layout.addWidget(self._table)
 
     def set_read_only(self, read_only: bool) -> None:
-        for btn in (self._add_btn, self._edit_btn, self._remove_btn, self._import_btn):
+        for btn in (self._add_btn, self._edit_btn, self._remove_btn, self._import_btn, self._nearby_btn):
             btn.setEnabled(not read_only)
 
     def refresh(self) -> None:
@@ -418,6 +640,22 @@ class ResourceSection(QWidget):
                 self.refresh()
             except Exception as exc:
                 QMessageBox.critical(self, "Error", str(exc))
+
+    def _find_nearby(self) -> None:
+        dlg = NearbyPickerDialog(self._spec["label"], self._spec["key"], self._bridge, self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        picked = dlg.selected_rows()
+        if not picked:
+            return
+        try:
+            added = self._bridge.add_nearby(self._spec["key"], picked)
+            self.refresh()
+            QMessageBox.information(
+                self, "Added", f"Added {added} from the nearby search. Review each entry and fill in the missing details."
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", str(exc))
 
     def _import(self) -> None:
         try:

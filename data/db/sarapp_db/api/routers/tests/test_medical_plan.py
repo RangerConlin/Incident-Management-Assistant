@@ -222,3 +222,275 @@ def test_ics206_versions_approval_workflow_and_lock(monkeypatch):
     db["approval_instances"].delete_many({})
     db["approval_records"].delete_many({})
     _clear(db)
+
+
+NEARBY_ROWS = [
+    {
+        "source_ref": "usgs_structures:amb-1",
+        "name": "Jackson Community Ambulance",
+        "address": "429 Ingham Street, Jackson, MI 49201",
+        "lat": 42.2518,
+        "lon": -84.4099,
+        "distance_mi": 5.5,
+        "source_date": "2018-08-01",
+        "source": "test",
+    },
+    {
+        "source_ref": "usgs_structures:amb-2",
+        "name": "Huron Valley Ambulance",
+        "address": "755 S Main Street, Chelsea, MI 48118",
+        "lat": 42.3104,
+        "lon": -84.0148,
+        "distance_mi": 21.0,
+        "source_date": "2016-08-12",
+        "source": "test",
+    },
+]
+HOSPITAL_ROWS = [
+    {
+        "source_ref": "cms:TEST-H1",
+        "name": "Test General Hospital",
+        "address": "205 N East Ave, Jackson, MI 49201",
+        "phone": "(517) 555-0101",
+        "lat": 42.2511,
+        "lon": -84.3928,
+        "distance_mi": 5.9,
+        "source_date": "2026-09-19",
+        "source": "test",
+    },
+    {
+        "source_ref": "cms:TEST-H2",
+        "name": "Test Community Hospital",
+        "address": "168 S Howell St, Hillsdale, MI 49242",
+        "phone": "",
+        "lat": 41.9187,
+        "lon": -84.6317,
+        "distance_mi": 22.0,
+        "source_date": "2026-09-19",
+        "source": "test",
+    },
+]
+
+
+def _nearby_setup(monkeypatch):
+    """Incident with coordinates, patched external lookups, API routed in-process."""
+    from sarapp_db.api.routers import medical as medical_router
+    from sarapp_db.services.hospital_directory import HospitalDirectory
+    from utils.api_client import api_client
+
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+    db["incident_profile"].delete_many({})
+    db["incident_profile"].insert_one({"incident_id": INCIDENT_ID, "latitude": 42.18, "longitude": -84.46})
+    incident_context.set_active_incident(INCIDENT_ID)
+    AppState._active_incident_number = INCIDENT_ID
+    AppState.set_active_op_period(1)
+
+    calls = []
+
+    def fake_ambulances(kind, lat, lon, radius_mi):
+        calls.append(("ambulance", kind, lat, lon, radius_mi))
+        return [dict(row) for row in NEARBY_ROWS]
+
+    def fake_hospitals(self, lat, lon, radius_mi, refresh=False, states=None):
+        calls.append(("hospital", lat, lon, radius_mi, refresh))
+        return [dict(row) for row in HOSPITAL_ROWS], ["1 emergency hospital(s) could not be located: X (Y, MI)."]
+
+    monkeypatch.setattr(medical_router, "find_nearby", fake_ambulances)
+    monkeypatch.setattr(HospitalDirectory, "find_nearby", fake_hospitals)
+    app = create_app()
+    api_client.configure_test_transport(app)
+    return db, app, medical_router, calls
+
+
+def test_ics206_nearby_lookup_and_add(monkeypatch):
+    from sarapp_db.services.nearby_medical import NearbyLookupError
+
+    db, app, medical_router, calls = _nearby_setup(monkeypatch)
+    try:
+        bridge = _bridge()
+        found = bridge.find_nearby("ambulance_services", 30)
+        assert calls == [("ambulance", "ambulance-services", 42.18, -84.46, 30.0)]
+        assert "ALS/BLS" in found["note"]
+        rows = found["results"]
+        assert [row["already_added"] for row in rows] == [False, False]
+
+        assert bridge.add_nearby("ambulance_services", rows) == 2
+        saved = bridge.list_table("ambulance_services")
+        assert [row["name"] for row in saved] == ["Jackson Community Ambulance", "Huron Valley Ambulance"]
+        assert saved[0]["location"] == "429 Ingham Street, Jackson, MI 49201"
+        assert saved[0]["source_ref"] == "usgs_structures:amb-1"
+        assert not saved[0]["type"] and not saved[0]["phone"]  # not in the source; preparer fills in
+
+        # Already-listed facilities are flagged and never added twice.
+        again = bridge.find_nearby("ambulance_services", 30)["results"]
+        assert [row["already_added"] for row in again] == [True, True]
+        assert bridge.add_nearby("ambulance_services", again) == 0
+        assert len(bridge.list_table("ambulance_services")) == 2
+
+        # Hospitals come from the directory: phone, coordinates and travel times carry over,
+        # and directory warnings reach the caller.
+        hospitals = bridge.find_nearby("hospitals", 40, refresh=True)
+        assert calls[-1] == ("hospital", 42.18, -84.46, 40.0, True)
+        assert "could not be located" in hospitals["warnings"][0]
+        assert bridge.add_nearby("hospitals", hospitals["results"][:1]) == 1
+        hospital = bridge.list_table("hospitals")[0]
+        assert hospital["name"] == "Test General Hospital"
+        assert hospital["phone"] == "(517) 555-0101"
+        assert hospital["source_ref"] == "cms:TEST-H1"
+        assert hospital["lat"] == 42.2511
+        assert hospital["travel_time_ground_min"]
+
+        # Locked versions reject additions.
+        bridge.mark_pending()
+        with pytest.raises(RuntimeError, match="locked"):
+            bridge.add_nearby("ambulance_services", [dict(NEARBY_ROWS[0], source_ref="x", name="Other", already_added=False)])
+
+        with TestClient(app) as client:
+            assert client.get("/api/medical/nearby/fire-stations", params={"lat": 1, "lon": 1}).status_code == 404
+            assert client.get("/api/medical/nearby/hospitals", params={"lat": 999, "lon": 1}).status_code == 422
+
+            def failing(kind, lat, lon, radius_mi):
+                raise NearbyLookupError("upstream down")
+
+            monkeypatch.setattr(medical_router, "find_nearby", failing)
+            down = client.get("/api/medical/nearby/ambulance-services", params={"lat": 1, "lon": 1})
+            assert down.status_code == 502 and "upstream down" in down.json()["detail"]
+    finally:
+        db["incident_profile"].delete_many({})
+        _clear(db)
+
+
+def test_ics206_hidden_facilities_are_excluded_from_nearby(monkeypatch):
+    from sarapp_db.mongo.database_manager import get_master_db
+
+    db, app, medical_router, calls = _nearby_setup(monkeypatch)
+    master = get_master_db()["nearby_facility_exclusions"]
+    test_refs = [row["source_ref"] for row in NEARBY_ROWS + HOSPITAL_ROWS]
+    master.delete_many({"source_ref": {"$in": test_refs}})
+    try:
+        bridge = _bridge()
+        assert len(bridge.find_nearby("ambulance_services", 25)["results"]) == 2
+
+        bridge.hide_nearby("ambulance_services", NEARBY_ROWS[0], "Closed or no longer exists")
+        assert [r["name"] for r in bridge.find_nearby("ambulance_services", 25)["results"]] == ["Huron Valley Ambulance"]
+        hidden = [row for row in bridge.list_hidden_nearby() if row["source_ref"] in test_refs]
+        assert len(hidden) == 1
+        assert hidden[0]["reason"] == "Closed or no longer exists"
+        assert hidden[0]["excluded_by"] == "Med Lead"
+
+        # Hiding is per facility kind (hospitals are unaffected) and cannot be done twice.
+        assert len(bridge.find_nearby("hospitals", 25)["results"]) == 2
+        bridge.hide_nearby("hospitals", HOSPITAL_ROWS[1], "Prison or correctional facility")
+        assert [r["name"] for r in bridge.find_nearby("hospitals", 25)["results"]] == ["Test General Hospital"]
+        with pytest.raises(Exception, match="already hidden"):
+            bridge.hide_nearby("ambulance_services", NEARBY_ROWS[0], "again")
+
+        for row in hidden + [r for r in bridge.list_hidden_nearby() if r["source_ref"] in test_refs and r["source_ref"] != hidden[0]["source_ref"]]:
+            bridge.restore_nearby(row["id"])
+        assert len(bridge.find_nearby("ambulance_services", 25)["results"]) == 2
+        assert len(bridge.find_nearby("hospitals", 25)["results"]) == 2
+    finally:
+        master.delete_many({"source_ref": {"$in": test_refs}})
+        db["incident_profile"].delete_many({})
+        _clear(db)
+
+
+def _cms(facility_id, name, street, city="SPRINGFIELD", phone="(555) 010-0000"):
+    return {
+        "facility_id": facility_id,
+        "facility_name": name,
+        "address": street,
+        "citytown": city,
+        "state": "ZZ",
+        "zip_code": "11111",
+        "countyparish": "TEST",
+        "telephone_number": phone,
+        "hospital_type": "Acute Care Hospitals",
+        "hospital_ownership": "Voluntary non-profit - Private",
+        "emergency_services": "Yes",
+    }
+
+
+def test_hospital_directory_refresh_cache_and_search(monkeypatch):
+    from sarapp_db.mongo.database_manager import get_master_db
+    from sarapp_db.services import hospital_directory as hd
+    from sarapp_db.services.geocoding import GeocodeResult
+    from sarapp_db.services.nearby_medical import NearbyLookupError
+
+    coll = get_master_db()["hospital_directory"]
+    coll.delete_many({"state": "ZZ"})
+    directory = hd.HospitalDirectory(get_master_db())
+    try:
+        cms = [
+            _cms("900001", "MERCY GENERAL HOSPITAL", "1 MAIN STREET"),
+            _cms("900002", "ST LUKE'S MEDICAL CENTER OF THE VALLEY", "ONE TEST WAY", phone="(555) 010-0002"),
+            _cms("900003", "NOWHERE HOSPITAL", "99999 UNKNOWN ROAD"),
+        ]
+        calls = {"cms": 0, "batch": []}
+
+        def fake_cms(state):
+            calls["cms"] += 1
+            return [dict(row) for row in cms]
+
+        def fake_batch(addresses):
+            calls["batch"].append(dict(addresses))
+            return {"900001": (42.20, -84.40)}  # 900002 and 900003 fall through to single lookups
+
+        def fake_single(address):
+            if address.startswith("1 TEST WAY"):
+                return GeocodeResult(address=address, latitude=42.30, longitude=-84.50)
+            return None
+
+        monkeypatch.setattr(hd, "fetch_cms_er_hospitals", fake_cms)
+        monkeypatch.setattr(hd, "batch_geocode", fake_batch)
+        monkeypatch.setattr(hd, "geocode_address", fake_single)
+        monkeypatch.setattr(hd, "zip_centroids", lambda zips: {})
+
+        rows, warnings = directory.find_nearby(42.18, -84.46, 25, states=["ZZ"])
+        assert [r["name"] for r in rows] == ["Mercy General Hospital", "St Luke's Medical Center of the Valley"]
+        assert rows[0]["source_ref"] == "cms:900001"
+        assert rows[0]["address"] == "1 Main Street, Springfield, ZZ 11111"
+        assert rows[0]["phone"] == "(555) 010-0000"
+        assert rows[0]["distance_mi"] < rows[1]["distance_mi"]
+        assert len(warnings) == 1 and "Nowhere Hospital" in warnings[0]
+        # Street numbers CMS spelled out are normalised before geocoding.
+        assert calls["batch"][0]["900002"][0] == "1 TEST WAY"
+
+        # Radius is honoured.
+        near, _ = directory.find_nearby(42.18, -84.46, 5, states=["ZZ"])
+        assert [r["name"] for r in near] == ["Mercy General Hospital"]
+
+        # A fresh cache is used without contacting CMS again.
+        assert calls["cms"] == 1
+
+        # Hospitals no geocoder can place fall back to the ZIP area's centre, flagged approximate.
+        monkeypatch.setattr(hd, "zip_centroids", lambda zips: {"11111": (42.19, -84.45)})
+        rows, warnings = directory.find_nearby(42.18, -84.46, 25, refresh=True, states=["ZZ"])
+        assert calls["cms"] == 2
+        assert warnings == []
+        by_name = {r["name"]: r for r in rows}
+        assert by_name["Nowhere Hospital"]["location_approximate"] is True
+        assert by_name["Mercy General Hospital"]["location_approximate"] is False
+
+        # A forced refresh retires hospitals CMS no longer lists (closed / lost its ER).
+        cms.pop(1)
+        rows, _ = directory.find_nearby(42.18, -84.46, 25, refresh=True, states=["ZZ"])
+        assert [r["name"] for r in rows] == ["Nowhere Hospital", "Mercy General Hospital"]
+        assert calls["cms"] == 3
+        assert coll.find_one({"cms_id": "900002"})["active"] is False
+
+        # If CMS is unreachable the saved copy is still served, with a warning.
+        def down(state):
+            raise NearbyLookupError("CMS down")
+
+        monkeypatch.setattr(hd, "fetch_cms_er_hospitals", down)
+        rows, warnings = directory.find_nearby(42.18, -84.46, 25, refresh=True, states=["ZZ"])
+        assert [r["name"] for r in rows] == ["Nowhere Hospital", "Mercy General Hospital"]
+        assert any("Could not refresh ZZ" in w for w in warnings)
+
+        # ...but an uncached state has nothing to fall back on.
+        with pytest.raises(NearbyLookupError):
+            directory.find_nearby(42.18, -84.46, 25, states=["ZY"])
+    finally:
+        coll.delete_many({"state": {"$in": ["ZZ", "ZY"]}})

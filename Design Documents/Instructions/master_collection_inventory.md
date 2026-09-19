@@ -68,6 +68,7 @@ collections.
 |---|---|
 | `hospitals` | Master hospital directory used by medical planning, ICS-206, and facility selection. |
 | `ems_agencies` | Master EMS agency directory used by medical planning and ICS-206 ambulance/EMS references. |
+| `nearby_facility_exclusions` | Facilities (keyed by external `source_ref`) hidden from the ICS-206 "Find Nearby" search because the public source data is wrong (closed, prison hospital, never existed). Shared across incidents; preparers add and restore entries from the picker. |
 
 ## Incident And Planning Templates
 

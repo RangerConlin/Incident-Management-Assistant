@@ -5,11 +5,25 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.services.hospital_directory import SOURCE_LABEL as HOSPITAL_SOURCE_LABEL
+from sarapp_db.services.hospital_directory import HospitalDirectory
+from sarapp_db.services.nearby_medical import MAX_RADIUS_MI, NearbyLookupError, find_nearby
+from sarapp_db.services.nearby_medical import SOURCE_LABEL as AMBULANCE_SOURCE_LABEL
+
+NEARBY_KINDS = {"ambulance-services", "hospitals"}
+_AMBULANCE_NOTE = (
+    "Source data has names, addresses and locations only. Phone numbers and service level "
+    "(ALS/BLS) are left blank - fill them in after adding."
+)
+_HOSPITAL_NOTE = (
+    "Hospitals with emergency services, from CMS. Trauma level, helipad and burn center are not "
+    "in the source - fill them in after adding."
+)
 
 router = APIRouter()
 
@@ -25,6 +39,11 @@ class Ics206AidStationsRepository(BaseRepository):
 
 class MedicalPlanRepository(BaseRepository):
     collection_name = IncidentCollections.MEDICAL_PLAN
+
+
+class NearbyFacilityExclusionsRepository(BaseRepository):
+    collection_name = MasterCollections.NEARBY_FACILITY_EXCLUSIONS
+    soft_deletes = False
 
 
 def _normalize(doc: dict[str, Any] | None) -> dict[str, Any]:
@@ -54,6 +73,75 @@ def list_ems_agencies(
         ]
     docs = repo.find_many(query, sort=[("name", 1)])
     return [_normalize(doc) for doc in docs]
+
+
+@router.get("/medical/nearby/{kind}")
+def nearby_medical_facilities(
+    kind: str,
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    radius_mi: float = Query(25.0, gt=0, le=MAX_RADIUS_MI),
+    refresh: bool = Query(False, description="Re-read the source before searching (hospitals only)"),
+) -> dict[str, Any]:
+    """Candidate ambulance services / ER hospitals near a point, nearest first.
+
+    Returns ``{"results": [...], "warnings": [...], "note": str, "source": str}``.
+    """
+    if kind not in NEARBY_KINDS:
+        raise HTTPException(404, f"Unknown facility kind: {kind}")
+    warnings: list[str] = []
+    try:
+        if kind == "hospitals":
+            rows, warnings = HospitalDirectory(get_master_db()).find_nearby(lat, lon, radius_mi, refresh=refresh)
+            note, source = _HOSPITAL_NOTE, HOSPITAL_SOURCE_LABEL
+        else:
+            rows = find_nearby(kind, lat, lon, radius_mi)
+            note, source = _AMBULANCE_NOTE, AMBULANCE_SOURCE_LABEL
+    except NearbyLookupError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    hidden = {
+        doc["source_ref"]
+        for doc in NearbyFacilityExclusionsRepository(get_master_db()).find_many({"kind": kind})
+    }
+    return {
+        "results": [row for row in rows if row["source_ref"] not in hidden],
+        "warnings": warnings,
+        "note": note,
+        "source": source,
+    }
+
+
+@router.get("/medical/nearby-exclusions")
+def list_nearby_exclusions() -> list[dict[str, Any]]:
+    docs = NearbyFacilityExclusionsRepository(get_master_db()).find_many({}, sort=[("name", 1)])
+    return [{**_normalize(doc), "id": doc["_id"]} for doc in docs]
+
+
+@router.post("/medical/nearby-exclusions", status_code=201)
+def add_nearby_exclusion(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Hide a facility from every future nearby search (shared across incidents)."""
+    source_ref = str(body.get("source_ref") or "").strip()
+    kind = str(body.get("kind") or "").strip()
+    if not source_ref or kind not in NEARBY_KINDS:
+        raise HTTPException(422, "source_ref and a valid kind are required")
+    repo = NearbyFacilityExclusionsRepository(get_master_db())
+    if repo.find_one({"source_ref": source_ref}):
+        raise HTTPException(409, "That facility is already hidden")
+    doc = repo.insert_one({
+        "source_ref": source_ref,
+        "kind": kind,
+        "name": str(body.get("name") or "").strip(),
+        "address": str(body.get("address") or "").strip(),
+        "reason": str(body.get("reason") or "").strip(),
+        "excluded_by": str(body.get("excluded_by") or "").strip(),
+    })
+    return {**_normalize(doc), "id": doc["_id"]}
+
+
+@router.delete("/medical/nearby-exclusions/{exclusion_id}", status_code=204)
+def remove_nearby_exclusion(exclusion_id: str) -> None:
+    if not NearbyFacilityExclusionsRepository(get_master_db()).delete_one(exclusion_id):
+        raise HTTPException(404, "Exclusion not found")
 
 
 def _served_versions(incident_id: str, op: int | None, version: int | None) -> dict[int, int]:

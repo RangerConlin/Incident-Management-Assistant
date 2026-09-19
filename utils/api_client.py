@@ -97,8 +97,9 @@ class _APIClient:
     # Public request helpers
     # ------------------------------------------------------------------
 
-    def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
-        return self._send("GET", path, params=params)
+    def get(self, path: str, *, params: dict[str, Any] | None = None, timeout: float | None = None) -> Any:
+        """GET ``path``.  ``timeout`` (seconds) overrides the default for slow endpoints."""
+        return self._send("GET", path, params=params, timeout=timeout)
 
     def post(self, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
         return self._send("POST", path, json=json, params=params)
@@ -160,7 +161,7 @@ class _APIClient:
         return self._base_url + ("" if path.startswith("/") else "/") + path
 
     def _request_with_retry(
-        self, method: str, url: str, *, json: Any, params: dict[str, Any] | None
+        self, method: str, url: str, *, json: Any, params: dict[str, Any] | None, timeout: float | None = None
     ) -> httpx.Response:
         """Send a request, retrying once on a stale pooled connection.
 
@@ -170,17 +171,26 @@ class _APIClient:
         already-closed socket with no response. Retrying once with a fresh
         connection resolves it without masking real server-down errors.
         """
+        extra = {} if timeout is None else {"timeout": timeout}
         try:
-            return self._client.request(method, url, json=json, params=params or None)
+            return self._client.request(method, url, json=json, params=params or None, **extra)
         except httpx.RemoteProtocolError:
-            return self._client.request(method, url, json=json, params=params or None)
+            return self._client.request(method, url, json=json, params=params or None, **extra)
 
-    def _send(self, method: str, path: str, *, json: Any = None, params: dict[str, Any] | None = None) -> Any:
+    def _send(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: Any = None,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> Any:
         url = self._build_url(path)
         if params:
             params = {k: v for k, v in params.items() if v is not None}
         try:
-            resp = self._request_with_retry(method, url, json=json, params=params)
+            resp = self._request_with_retry(method, url, json=json, params=params, timeout=timeout)
         except httpx.TransportError as exc:
             raise APIError(f"Server unreachable: {exc}") from exc
         except Exception as exc:

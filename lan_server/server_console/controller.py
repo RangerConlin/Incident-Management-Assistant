@@ -63,16 +63,65 @@ def fetch_health(base_url: str, *, timeout_seconds: float = 1.0) -> HealthCheckR
 
 
 def fetch_client_connections(base_url: str, *, timeout_seconds: float = 1.0) -> list[dict[str, Any]]:
-    """List durable client connections from the server registry API.
+    """List mobile/web connections plus active desktop sessions.
 
     Raises OSError-family/urllib errors on failure so callers can distinguish
     "no clients" from "endpoint unreachable" (e.g. MongoDB down).
     """
 
-    url = f"{base_url.rstrip('/')}/api/client-connections"
+    connections = _fetch_json_list(
+        f"{base_url.rstrip('/')}/api/client-connections",
+        timeout_seconds=timeout_seconds,
+    )
+    sessions = fetch_active_sessions(base_url, timeout_seconds=timeout_seconds)
+    return [*connections, *(_session_to_client_connection(session) for session in sessions)]
+
+
+def fetch_active_sessions(base_url: str, *, timeout_seconds: float = 1.0) -> list[dict[str, Any]]:
+    """List active desktop login sessions from the auth presence API."""
+
+    return _fetch_json_list(
+        f"{base_url.rstrip('/')}/api/auth/sessions/active",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def _fetch_json_list(url: str, *, timeout_seconds: float) -> list[dict[str, Any]]:
     with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return payload if isinstance(payload, list) else []
+
+
+def _session_to_client_connection(session: dict[str, Any]) -> dict[str, Any]:
+    person = session.get("personnel") if isinstance(session.get("personnel"), dict) else {}
+    user = session.get("user") if isinstance(session.get("user"), dict) else {}
+    display_name = (
+        session.get("display_name")
+        or person.get("name")
+        or user.get("display_name")
+        or session.get("username")
+        or session.get("user_id")
+        or ""
+    )
+    person_record = (
+        session.get("person_record")
+        or person.get("person_record")
+        or user.get("person_record")
+    )
+    return {
+        "connection_kind": "desktop_session",
+        "device_id": session.get("session_id"),
+        "platform": "desktop",
+        "device_name": session.get("device_name"),
+        "display_name": display_name,
+        "person_record": person_record,
+        "person_id": person.get("person_id") or session.get("username") or user.get("username"),
+        "incident_id": session.get("incident_id"),
+        "role": session.get("role"),
+        "status": session.get("status"),
+        "location_tracking_enabled": False,
+        "last_seen_at": session.get("last_seen_at") or session.get("started_at"),
+    }
 
 
 def check_port(settings: ServerConsoleSettings, *, timeout_seconds: float = 0.75) -> PortCheckResult:

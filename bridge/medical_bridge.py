@@ -31,6 +31,7 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
     "ambulance_services": [
         "id",
         "op_period",
+        "source_ref",
         "name",
         "type",
         "service_level",
@@ -41,6 +42,7 @@ TABLE_FIELDS: Dict[str, Sequence[str]] = {
     "hospitals": [
         "id",
         "op_period",
+        "source_ref",
         "name",
         "address",
         "phone",
@@ -170,6 +172,9 @@ COLLECTIONS = {
 }
 
 PLAN_TABLES = {"ambulance_services", "hospitals", "air_ambulance", "medical_comms"}
+# Plan tables that can be filled from the nearby-facility lookup -> API kind.
+NEARBY_KINDS = {"ambulance_services": "ambulance-services", "hospitals": "hospitals"}
+NEARBY_SEARCH_TIMEOUT_S = 180.0
 PLAN_SINGLE_SECTIONS = {"procedures", "ics206_signatures"}
 PLAN_SECTION_FIELD = {"ics206_signatures": "signatures"}
 
@@ -384,6 +389,86 @@ class MedicalBridge(QObject):
             if lat is not None and lon is not None:
                 return lat, lon
         return _float_or_none(profile.get("latitude")), _float_or_none(profile.get("longitude"))
+
+    def find_nearby(self, table: str, radius_mi: float, refresh: bool = False) -> dict[str, Any]:
+        """Facilities near the incident that could be added to ``table``.
+
+        Returns ``{"results", "warnings", "note", "source"}``.  Each result
+        carries ``already_added`` so the picker can grey out entries the
+        selected version already lists.
+        """
+        from utils.api_client import api_client
+
+        lat, lon = self._icp_coordinates()
+        if lat is None or lon is None:
+            raise RuntimeError("The incident has no location set, so nearby facilities cannot be searched.")
+        found = api_client.get(
+            f"/api/medical/nearby/{NEARBY_KINDS[table]}",
+            params={"lat": lat, "lon": lon, "radius_mi": radius_mi, "refresh": refresh},
+            # The first search in a state downloads and geocodes its hospitals.
+            timeout=NEARBY_SEARCH_TIMEOUT_S,
+        ) or {}
+        rows = found.get("results") or []
+        existing = self._plan_array(table)
+        refs = {str(row.get("source_ref")) for row in existing if row.get("source_ref")}
+        names = {str(row.get("name") or "").strip().lower() for row in existing}
+        return {
+            **found,
+            "results": [
+                {**row, "already_added": row["source_ref"] in refs or row["name"].strip().lower() in names}
+                for row in rows
+            ],
+        }
+
+    def hide_nearby(self, table: str, row: Mapping[str, Any], reason: str) -> None:
+        """Hide ``row`` from all future nearby searches (closed, not public, etc.)."""
+        from utils.api_client import api_client
+
+        person = self.current_person()
+        api_client.post(
+            "/api/medical/nearby-exclusions",
+            json={
+                "source_ref": row["source_ref"],
+                "kind": NEARBY_KINDS[table],
+                "name": row["name"],
+                "address": row["address"],
+                "reason": reason,
+                "excluded_by": person["name"] if person else "",
+            },
+        )
+
+    def list_hidden_nearby(self) -> list[dict[str, Any]]:
+        from utils.api_client import api_client
+
+        return api_client.get("/api/medical/nearby-exclusions") or []
+
+    def restore_nearby(self, exclusion_id: str) -> None:
+        from utils.api_client import api_client
+
+        api_client.delete(f"/api/medical/nearby-exclusions/{exclusion_id}")
+
+    def add_nearby(self, table: str, rows: Sequence[Mapping[str, Any]]) -> int:
+        """Add lookup results to ``table``.  Fields the source lacks are left blank."""
+        self._assert_editable()
+        added = 0
+        for row in rows:
+            if row.get("already_added"):
+                continue
+            base = {"source_ref": row["source_ref"], "name": row["name"]}
+            if table == "ambulance_services":
+                base.update({"service_level": 0, "location": row["address"]})
+            else:
+                base.update({
+                    "address": row["address"],
+                    "phone": row.get("phone", ""),
+                    "lat": row["lat"],
+                    "lon": row["lon"],
+                    "helipad": 0,
+                    "burn_center": 0,
+                })
+            self.add_record(table, base)
+            added += 1
+        return added
 
     def _with_hospital_travel_times(self, row: Mapping[str, Any]) -> dict[str, Any]:
         out = dict(row)
