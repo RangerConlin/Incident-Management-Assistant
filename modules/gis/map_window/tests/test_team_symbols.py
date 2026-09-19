@@ -12,7 +12,7 @@ def test_team_symbol_uses_status_alias_for_border() -> None:
         spec = team_symbol_spec("GT", "Returning to Base")
 
         assert spec.status_key == "returning"
-        assert spec.border_color == style_palette.team_status_colors()["returning"]["bg"].color().name()
+        assert spec.border_color == style_palette.team_status_light_colors()["returning"]["bg"].color().name()
     finally:
         style_palette.set_theme(original_theme)
 
@@ -59,3 +59,16 @@ def test_symbol_spec_includes_frame_shading_colors() -> None:
     assert spec.border_shadow_color
     assert spec.inner_ring_color
     assert spec.fill_highlight_color != spec.fill_shadow_color
+
+
+def test_status_border_uses_light_palette_in_dark_theme() -> None:
+    original_theme = style_palette.THEME_NAME
+    try:
+        style_palette.set_theme("dark")
+
+        spec = team_symbol_spec("GT", "Available")
+
+        assert spec.border_color == style_palette.team_status_light_colors()["available"]["bg"].color().name()
+        assert spec.border_color != style_palette.team_status_colors()["available"]["bg"].color().name()
+    finally:
+        style_palette.set_theme(original_theme)

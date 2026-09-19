@@ -124,7 +124,7 @@ def team_symbol_spec(team_type: object, status: object) -> TeamSymbolSpec:
     palette = style_palette.get_palette()
     fill = QColor(team_type_colors.get(fill_type) or team_type_colors.get(symbol.code) or palette["accent"])
     status_key = _normalize_status(status)
-    status_colors = style_palette.team_status_colors()
+    status_colors = style_palette.team_status_light_colors()
     border_hex = _brush_hex(status_colors, status_key, palette["accent"])
     border_color = QColor(border_hex)
     text = _contrast_text_color(fill)

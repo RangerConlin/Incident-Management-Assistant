@@ -8,19 +8,14 @@ from PySide6.QtWidgets import QMenu, QMessageBox, QWidget
 
 from modules.gis.map_window.ribbon.ribbon_group import RibbonGroup
 from modules.gis.map_window.ribbon.ribbon_tab_page import RibbonTabPage
-from modules.gis.models.geometry_types import GeometryType
-from modules.gis.services.feature_registry import get_default_feature_registry
+from modules.gis.map_window.operational_point_types import (
+    OPERATIONAL_POINT_TYPES,
+    primary_operational_point_types,
+)
+from styles.map_icons import icon_marker
 
 if TYPE_CHECKING:
     from modules.gis.map_window.incident_map_window import IncidentMapWindow
-
-_PRIMARY_POINT_TYPES = [
-    ("LZ", "Landing Zone", "landing_zone"),
-    ("Access Pt", "Access Point", "check_in_point"),
-    ("Roadblock", "Roadblock", "roadblock"),
-    ("Medical", "Medical Point", "med_unit_location"),
-    ("Comms Site", "Communications Site", "repeater_site"),
-]
 
 _DRAW_TOOLS = [
     ("Point", "draw_point"),
@@ -37,8 +32,6 @@ class IncidentTab(RibbonTabPage):
     def __init__(self, window: "IncidentMapWindow", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._window = window
-        self._feature_registry = get_default_feature_registry()
-
         self.add_group(self._build_operational_points_group())
         self.add_group(self._build_draw_group())
         self.add_group(self._build_edit_group())
@@ -48,25 +41,24 @@ class IncidentTab(RibbonTabPage):
     # -- Operational Points ------------------------------------------------
     def _build_operational_points_group(self) -> RibbonGroup:
         group = RibbonGroup("Operational Points", self)
-        for label, full_name, feature_type_value in _PRIMARY_POINT_TYPES:
+        template_icon = icon_marker()
+        for definition in primary_operational_point_types():
             group.add_button(
-                label,
-                tooltip=full_name,
+                definition.short_label or definition.display_name,
+                icon=template_icon,
+                tooltip=definition.display_name,
                 large=False,
-                on_click=lambda _=False, ft=feature_type_value: self._window.start_operational_point(ft),
+                on_click=lambda _=False, ft=definition.feature_type.value: self._window.start_operational_point(ft),
             )
 
         more_menu = QMenu(self)
-        point_types = [
-            ft for ft in self._feature_registry.list_feature_types()
-            if GeometryType.POINT in self._feature_registry.get(ft).allowed_geometry_types
-        ]
-        for feature_type in point_types:
-            action = more_menu.addAction(feature_type.value.replace("_", " ").title())
+        for definition in OPERATIONAL_POINT_TYPES:
+            action = more_menu.addAction(template_icon, definition.display_name)
             action.triggered.connect(
-                lambda _checked=False, ft=feature_type.value: self._window.start_operational_point(ft)
+                lambda _checked=False, ft=definition.feature_type.value: self._window.start_operational_point(ft)
             )
-        group.add_menu_button("More", more_menu, large=False)
+        more_button = group.add_menu_button("More", more_menu, large=False)
+        more_button.setIcon(template_icon)
         return group
 
     # -- Draw -----------------------------------------------------------

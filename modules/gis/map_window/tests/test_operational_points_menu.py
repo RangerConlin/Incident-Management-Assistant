@@ -1,20 +1,12 @@
-"""FeatureRegistry-driven Operational Points 'More' menu population.
-
-Mirrors the filter used by IncidentTab._build_operational_points_group:
-list feature types whose allowed geometry types include POINT.
-"""
+"""Operational-point catalog coverage and registry compatibility."""
 
 from modules.gis.models.geometry_types import GeometryType
+from modules.gis.map_window.operational_point_types import OPERATIONAL_POINT_TYPES
 from modules.gis.services.feature_registry import get_default_feature_registry
 
 
 def _point_feature_type_values() -> set[str]:
-    registry = get_default_feature_registry()
-    return {
-        ft.value
-        for ft in registry.list_feature_types()
-        if GeometryType.POINT in registry.get(ft).allowed_geometry_types
-    }
+    return {definition.feature_type.value for definition in OPERATIONAL_POINT_TYPES}
 
 
 def test_point_feature_types_include_expected_primaries():
@@ -33,3 +25,10 @@ def test_point_or_polygon_types_are_included():
     values = _point_feature_type_values()
     assert "hazard_zone" in values
     assert "clue" in values
+
+
+def test_all_catalog_types_are_registered_for_point_geometry():
+    registry = get_default_feature_registry()
+    for definition in OPERATIONAL_POINT_TYPES:
+        registration = registry.get(definition.feature_type)
+        assert GeometryType.POINT in registration.allowed_geometry_types

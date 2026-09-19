@@ -70,6 +70,7 @@ TOOL_ZOOM_OUT_BOX = "zoom_out_box"
 
 def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str) -> str:
     basemap_config = json.dumps(_BASEMAPS)
+    map_accent = get_palette()["btn_focus"].name()
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -132,7 +133,7 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
     width: 72%;
   }}
   .imw-zoombox {{
-    border: 2px dashed #2F80ED;
+    border: 2px dashed {map_accent};
     background: rgba(47, 128, 237, 0.12);
     position: absolute;
   }}
@@ -214,7 +215,10 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
         drawVertices = [];
         return;
       }}
-      drawPreviewLayer = L.polyline(drawVertices, {{ color: '#2F80ED', dashArray: '4 4' }}).addTo(map);
+      drawPreviewLayer = L.polyline(
+        drawVertices,
+        {{ color: {json.dumps(map_accent)}, dashArray: '4 4' }}
+      ).addTo(map);
     }}
   }});
 
@@ -254,15 +258,15 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
     if (drawPreviewLayer) {{ map.removeLayer(drawPreviewLayer); drawPreviewLayer = null; }}
   }}
 
-  function upsertFeature(featureId, label, geometryType, coordsJson, styleColor) {{
+  function upsertFeature(featureId, label, featureType, geometryType, coordsJson, styleColor) {{
     var coords = JSON.parse(coordsJson);
     if (featureLayers[featureId]) {{
       map.removeLayer(featureLayers[featureId]);
     }}
     var layer = null;
-    var color = styleColor || '#2F80ED';
+    var color = styleColor || {json.dumps(map_accent)};
     if (geometryType === 'POINT') {{
-      layer = L.circleMarker(coords[0], {{ radius: 7, color: color, fillColor: color, fillOpacity: 0.85 }});
+      layer = L.marker(coords[0]);
     }} else if (geometryType === 'LINE') {{
       layer = L.polyline(coords, {{ color: color, weight: 3 }});
     }} else if (geometryType === 'POLYGON') {{
@@ -270,6 +274,9 @@ def _map_html(center_lat: float, center_lon: float, zoom: int, basemap_key: str)
     }}
     if (!layer) {{ return; }}
     layer.bindTooltip(label || '', {{ permanent: false, className: 'imw-feature-label' }});
+    if (geometryType === 'POINT') {{
+      layer.bindPopup('<strong>' + escapeHtml(label) + '</strong><br />Type: ' + escapeHtml(featureType));
+    }}
     layer.on('click', function(evt) {{
       L.DomEvent.stopPropagation(evt);
       if (mapBridge && mapBridge.notifyFeatureClicked) {{ mapBridge.notifyFeatureClicked(String(featureId)); }}
@@ -590,13 +597,24 @@ class MapCanvas(QWidget):
         self.fit_bounds(south, west, north, east)
 
     # -- Features -----------------------------------------------------------
-    def upsert_feature(self, feature: SpatialFeature, coords: list[tuple[float, float]], color: str = "#2F80ED") -> None:
+    def upsert_feature(
+        self,
+        feature: SpatialFeature,
+        coords: list[tuple[float, float]],
+        color: str | None = None,
+    ) -> None:
         """coords are (lat, lon) pairs already parsed from geometry_wkt by the caller."""
-        geometry_type = feature.geometry_type.value if isinstance(feature.geometry_type, GeometryType) else str(feature.geometry_type)
+        geometry_type = (
+            feature.geometry_type.value
+            if isinstance(feature.geometry_type, GeometryType)
+            else str(feature.geometry_type)
+        )
+        resolved_color = color or get_palette()["btn_focus"].name()
         self._run_js(
             "upsertFeature("
-            f"{json.dumps(feature.id)}, {json.dumps(feature.label)}, {json.dumps(geometry_type)}, "
-            f"{json.dumps(json.dumps(coords))}, {json.dumps(color)});"
+            f"{json.dumps(feature.id)}, {json.dumps(feature.label)}, {json.dumps(feature.feature_type.value)}, "
+            f"{json.dumps(geometry_type)}, "
+            f"{json.dumps(json.dumps(coords))}, {json.dumps(resolved_color)});"
         )
 
     def remove_feature(self, feature_id: int | str) -> None:

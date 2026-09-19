@@ -258,6 +258,12 @@ def team_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TEAM_STATUS_LIGHT if THEME_NAME == "light" else _TEAM_STATUS_DARK
 
 
+def team_status_light_colors() -> Dict[str, Dict[str, QBrush]]:
+    """Return team-status colors from the light palette regardless of theme."""
+
+    return _TEAM_STATUS_LIGHT
+
+
 def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TASK_STATUS_LIGHT if THEME_NAME == "light" else _TASK_STATUS_DARK
 
@@ -404,6 +410,7 @@ __all__ = [
     "set_theme",
     "subscribe_theme",
     "team_status_colors",
+    "team_status_light_colors",
     "ribbon_colors",
     "task_status_colors",
     "narrative_status_colors",

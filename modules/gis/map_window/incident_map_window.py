@@ -37,6 +37,7 @@ from modules.gis.map_window.tools.draw_tools import (
     rectangle_to_wkt,
 )
 from modules.gis.map_window.tools.quick_add_tool import QuickAddController
+from modules.gis.map_window.tools.operational_point_tool import OperationalPointController
 from modules.gis.models.feature_types import FeatureType
 from modules.gis.models.geometry_types import GeometryType
 from modules.gis.models.spatial_feature import SpatialFeature
@@ -71,11 +72,13 @@ class IncidentMapWindow(QMainWindow):
         self.quick_add = (
             QuickAddController(self.repository, self.feature_registry) if self.repository else None
         )
+        self.operational_points = (
+            OperationalPointController(self.repository, self.feature_registry) if self.repository else None
+        )
 
         self._selected_feature: SpatialFeature | None = None
         self._features_by_id: dict[str, SpatialFeature] = {}
         self._located_team_ids: set[int] = set()
-        self._pending_operational_point_type: str | None = None
 
         central = QWidget(self)
         self.setCentralWidget(central)
@@ -312,6 +315,8 @@ class IncidentMapWindow(QMainWindow):
         if self.quick_add is None:
             QMessageBox.warning(self, "Quick Add", "No active incident; cannot create features.")
             return
+        if self.operational_points is not None:
+            self.operational_points.disarm()
         self.quick_add.arm(kind, on_created=self._on_feature_created)
         self.map_canvas.activate_tool("select")
 
@@ -319,9 +324,12 @@ class IncidentMapWindow(QMainWindow):
         if self.quick_add is not None and self.quick_add.armed_kind is not None:
             self.quick_add.place_at(lat, lon)
             return
-        if self._pending_operational_point_type is not None:
-            self._create_operational_point(self._pending_operational_point_type, lat, lon)
-            self._pending_operational_point_type = None
+        if self.operational_points is not None and self.operational_points.armed_type is not None:
+            try:
+                self.operational_points.place_at(lat, lon)
+            except Exception:
+                logger.exception("Failed to persist operational point")
+                self.bottom_panel.append_log("Could not create the operational point; click again to retry.")
 
     def _on_feature_created(self, feature: SpatialFeature) -> None:
         self._refresh_feature_index()
@@ -329,56 +337,21 @@ class IncidentMapWindow(QMainWindow):
 
     # -- Operational Points --------------------------------------------------
     def start_operational_point(self, feature_type_value: str) -> None:
-        self._pending_operational_point_type = feature_type_value
-        self.map_canvas.activate_tool("select")
-        self.bottom_panel.append_log(f"Click the map to place a {feature_type_value.replace('_', ' ')}.")
-
-    def _create_operational_point(self, feature_type_value: str, lat: float, lon: float) -> None:
-        if self.repository is None:
+        if self.operational_points is None:
+            QMessageBox.warning(self, "Operational Point", "No active incident; cannot create features.")
             return
+        if self.quick_add is not None:
+            self.quick_add.disarm()
         try:
-            feature_type = FeatureType(feature_type_value)
-            registration = self.feature_registry.get(feature_type)
-        except (ValueError, KeyError):
+            definition = self.operational_points.arm(
+                feature_type_value,
+                on_created=self._on_feature_created,
+            )
+        except (KeyError, ValueError):
+            logger.warning("Unsupported operational point type: %s", feature_type_value)
             return
-        from datetime import datetime, timezone
-
-        now = datetime.now(timezone.utc)
-        feature = SpatialFeature(
-            id=None,
-            incident_id=self.repository.incident_id,
-            feature_type=feature_type,
-            feature_subtype=None,
-            geometry_type=GeometryType.POINT,
-            label=feature_type_value.replace("_", " ").title(),
-            description=None,
-            status="active",
-            source_module="gis.map_window",
-            source_record_type="operational_point",
-            source_record_id="",
-            geometry_wkt=f"POINT({lon:.7f} {lat:.7f})",
-            centroid_lat=lat,
-            centroid_lon=lon,
-            bbox_min_lat=lat,
-            bbox_min_lon=lon,
-            bbox_max_lat=lat,
-            bbox_max_lon=lon,
-            elevation_m=None,
-            start_time=now,
-            end_time=None,
-            is_planning_only=False,
-            is_visible=True,
-            is_locked=False,
-            is_archived=False,
-            layer_key=registration.default_layer_key,
-            style_key=registration.default_style_key,
-            created_at=now,
-            updated_at=now,
-            created_by=None,
-            updated_by=None,
-        )
-        created = self.repository.create_feature(feature)
-        self._on_feature_created(created)
+        self.map_canvas.activate_tool("select")
+        self.bottom_panel.append_log(f"Click the map to place a {definition.display_name}.")
 
     # -- Draw ---------------------------------------------------------------
     def activate_draw_tool(self, tool_key: str) -> None:
@@ -624,4 +597,5 @@ class IncidentMapWindow(QMainWindow):
         self.map_canvas.cancel_active_draw()
         if self.quick_add is not None:
             self.quick_add.disarm()
-        self._pending_operational_point_type = None
+        if self.operational_points is not None:
+            self.operational_points.disarm()

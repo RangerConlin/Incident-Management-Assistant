@@ -582,7 +582,13 @@ def set_team_status(incident_id: str, team_id: int, body: dict[str, Any]) -> dic
     if not team:
         raise HTTPException(404, f"Team {team_id} not found")
 
-    updates: dict = {"status": display, "status_updated": now}
+    # Any status change resets the Last Update timer baseline (all clients).
+    updates: dict = {
+        "status": display,
+        "status_updated": now,
+        "last_checkin_at": now,
+        "checkin_reference_at": now,
+    }
     current_task_id = team.get("current_task_id")
 
     if status_key in {"available", "avail", "free", "unassigned"}:
@@ -861,7 +867,15 @@ def set_task_team_status(incident_id: str, task_id: int, tt_id: int, body: dict[
     if team_id is not None:
         team = _find_by_int_id(teams_repo, team_id)
         if team:
-            teams_repo.update_one(team["_id"], {"status": display, "status_updated": now})
+            teams_repo.update_one(
+                team["_id"],
+                {
+                    "status": display,
+                    "status_updated": now,
+                    "last_checkin_at": now,
+                    "checkin_reference_at": now,
+                },
+            )
 
     entry = _audit_entry(
         f"Team Status ({tt_list[idx].get('team_name') or team_id})",
