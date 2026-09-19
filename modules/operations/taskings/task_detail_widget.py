@@ -166,23 +166,66 @@ class _ButtonDelegate(QStyledItemDelegate):
         return False
 
 
-def _resolve_person_display(value: Any) -> str:
+def _resolve_person_display(value: Any, cache: Dict[str, Any] | None = None) -> str:
+    """Resolve a raw person identifier to a display name.
+
+    Checks the locally-held ``incident_personnel`` IncidentCache collection
+    first (no network call) before falling back to the per-person API detail
+    read and, as a last resort, the full user roster. ``cache`` is optional
+    and shared across a batch of rows (e.g. one table load) so repeated
+    identifiers and the IncidentCache index/``/api/auth/users`` list are
+    each built or fetched at most once per batch instead of once per row.
+    """
     if value in (None, ""):
         return ""
     raw = str(value).strip()
     if not raw:
         return ""
+    if cache is not None and raw in cache:
+        return cache[raw]
+
+    def _store(result: str) -> str:
+        if cache is not None:
+            cache[raw] = result
+        return result
+
+    try:
+        from utils.incident_cache import incident_cache
+        if cache is not None and "__personnel_by_id__" in cache:
+            personnel_by_id = cache["__personnel_by_id__"]
+        else:
+            personnel_by_id: Dict[str, Dict[str, Any]] = {}
+            for person in incident_cache.get_all("incident_personnel"):
+                prec = person.get("person_record") or person.get("master_id")
+                if prec is not None:
+                    personnel_by_id[str(prec)] = person
+            if cache is not None:
+                cache["__personnel_by_id__"] = personnel_by_id
+        person = personnel_by_id.get(raw)
+        if person:
+            name = person.get("name") or (
+                f"{person.get('first_name') or ''} {person.get('last_name') or ''}".strip()
+            )
+            if name:
+                return _store(str(name))
+    except Exception:
+        pass
     try:
         from modules.logistics.checkin import repository as ci_repo
         ident = ci_repo.get_person_identity(raw)
         if ident and getattr(ident, "name", None):
-            return str(ident.name)
+            return _store(str(ident.name))
     except Exception:
         pass
     try:
-        from utils.api_client import api_client
-
-        for user in api_client.get("/api/auth/users") or []:
+        if cache is not None and "__users__" in cache:
+            users = cache["__users__"]
+        else:
+            from utils.api_client import api_client
+            users = api_client.get("/api/auth/users") or []
+            if cache is not None:
+                cache["__users__"] = users
+        for user in users:
             identifiers = {
                 str(user.get("user_id") or "").strip(),
                 str(user.get("username") or "").strip(),
@@ -191,12 +234,10 @@ def _resolve_person_display(value: Any) -> str:
                 str(user.get("person_record") or "").strip(),
             }
             if raw in identifiers:
-                return str(user.get("display_name") or user.get("username") or "").strip()
+                return _store(str(user.get("display_name") or user.get("username") or "").strip())
     except Exception:
         pass
-    if raw.isdigit():
-        return ""
-    return ""
+    return _store("")
 
 
 def _ics_position_abbreviation(title: str) -> str:
@@ -2697,13 +2738,14 @@ class TaskDetailWindow(QWidget):
             self._att_model.setRowCount(0)
         except Exception:
             return
+        person_cache: Dict[str, Any] = {}
         for r in rows:
             items = []
             items.append(QStandardItem(str(r.get("filename") or "")))
             type_item = QStandardItem(str(r.get("type") or "Other"))
             type_item.setEditable(True)
             items.append(type_item)
-            items.append(QStandardItem(_resolve_person_display(r.get("uploaded_by") or "")))
+            items.append(QStandardItem(_resolve_person_display(r.get("uploaded_by") or "", cache=person_cache)))
             items.append(QStandardItem(str(_fmt_ts_compact(r.get("timestamp") or ""))))
             try:
                 sizeb = int(r.get("size_bytes") or 0)
@@ -2996,12 +3038,14 @@ class TaskDetailWindow(QWidget):
         except Exception:
             rows = []
         self._nar_model.removeRows(0, self._nar_model.rowCount())
+        person_cache: Dict[str, Any] = {}
         for r in rows:
             rid = str(r.get("id") or "")
             raw_ts = str(r.get("timestamp") or "")
             ts = _fmt_ts_compact(raw_ts)
             entry = str(r.get("narrative") or "")
-            by = _resolve_person_display(r.get("entered_by_display") or r.get("entered_by") or "")
+            display = r.get("entered_by_display")
+            by = str(display) if display else _resolve_person_display(r.get("entered_by") or "", cache=person_cache)
             position = self._narrative_position_display(r)
             crit = 1 if (r.get("critical") in (1, "1", True, "true", "True")) else 0
             items = [
@@ -4606,17 +4650,18 @@ class TaskDetailWindow(QWidget):
                 err_msg = ""
         self._deb_model.removeRows(0, self._deb_model.rowCount())
         labels = self._debrief_type_labels()
+        person_cache: Dict[str, Any] = {}
         for r in rows:
             rid = int(r.get("int_id") or r.get("id") or 0)
             sortie = str(r.get("sortie_number") or "")
-            debriefer = _resolve_person_display(r.get("debriefer_id") or "")
+            debriefer = _resolve_person_display(r.get("debriefer_id") or "", cache=person_cache)
             types_keys = list(r.get("types") or [])
             types_disp = ", ".join(labels.get(k, k) for k in types_keys)
             status = str(r.get("status") or "Draft")
             review_state = "Reviewed" if str(r.get("status") or "").strip().lower() == "reviewed" else (
                 "Pending Review" if (r.get("flagged_for_review") in (True, 1, "1")) else ""
             )
-            reviewed_by = _resolve_person_display(r.get("reviewed_by") or "")
+            reviewed_by = _resolve_person_display(r.get("reviewed_by") or "", cache=person_cache)
             reviewed_at = _fmt_ts_compact(r.get("reviewed_at"))
             updated = _fmt_ts_compact(r.get("updated_at"))
             row = [

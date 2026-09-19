@@ -351,11 +351,39 @@ def set_team_status(team_id: int, status_key: str) -> None:
         _log.warning("ICS-214 auto-log failed for team status: %s", exc, exc_info=True)
 
 
-def list_tasks_for_assignment() -> List[Dict[str, Any]]:
+def _cached_tasks() -> List[Dict[str, Any]] | None:
+    """Return every cached task document for the active incident, if loaded."""
     try:
-        return _client().get(f"{_base()}/tasks-for-assignment")
+        from utils.incident_cache import incident_cache
+        if incident_cache.incident_id != _iid():
+            return None
+        return incident_cache.get_all("tasks")
     except Exception:
-        return []
+        return None
+
+
+def list_tasks_for_assignment() -> List[Dict[str, Any]]:
+    docs = _cached_tasks()
+    if docs is None:
+        try:
+            return _client().get(f"{_base()}/tasks-for-assignment")
+        except Exception:
+            return []
+    try:
+        docs = sorted(docs, key=lambda d: int(d.get("int_id") or 0))
+    except Exception:
+        pass
+    rows: List[Dict[str, Any]] = []
+    for doc in docs:
+        rows.append({
+            "id": doc.get("int_id"),
+            "task_id": doc.get("task_id"),
+            "title": doc.get("title"),
+            "status": _task_status_label(doc.get("status")),
+            "priority": _priority_label(doc.get("priority")),
+            "location": doc.get("location") or "",
+        })
+    return rows
 
 
 def set_team_assignment_status_for_task(task_id: int, tt_id: int, status_key: str) -> None:

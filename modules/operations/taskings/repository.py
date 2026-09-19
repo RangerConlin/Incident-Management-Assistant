@@ -298,71 +298,111 @@ def _task_team_models(rows: List[Dict[str, Any]]) -> List[TaskTeam]:
     return out
 
 
-def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
-    """Return task personnel plus personnel inherited from attached teams."""
-    rows: List[Dict[str, Any]] = []
-    try:
-        rows.extend(_client().get(f"{_base()}/tasks/{task_id}/personnel") or [])
-    except Exception:
-        pass
-    seen: set[str] = {str(r.get("id") or r.get("personnel_id") or r.get("name") or "") for r in rows}
-    for team in list_task_teams(task_id):
-        team_data = asdict(team) if is_dataclass(team) else dict(team)
-        team_id = team_data.get("team_id") or team_data.get("id")
-        if team_id in (None, ""):
+def _parse_id_list(value: Any) -> List[int]:
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        try:
+            import json
+            value = json.loads(value)
+        except Exception:
+            return []
+    if not isinstance(value, (list, tuple)):
+        return []
+    out: List[int] = []
+    for item in value:
+        try:
+            out.append(int(item))
+        except (TypeError, ValueError):
             continue
-        for person in fetch_team_personnel(int(team_id)):
-            key = str(person.get("id") or person.get("name") or "")
-            if key and key in seen:
+    return out
+
+
+def _cached_personnel_by_id() -> Optional[Dict[int, Dict[str, Any]]]:
+    """Index the cached ``incident_personnel`` collection by person_record/master_id."""
+    try:
+        from utils.incident_cache import incident_cache
+
+        if incident_cache.incident_id != _iid():
+            return None
+        by_id: Dict[int, Dict[str, Any]] = {}
+        for person in incident_cache.get_all("incident_personnel"):
+            pid = person.get("master_id") if person.get("master_id") is not None else person.get("person_record")
+            try:
+                by_id[int(pid)] = person
+            except (TypeError, ValueError):
                 continue
-            if key:
-                seen.add(key)
-            rows.append({
+        return by_id
+    except Exception:
+        return None
+
+
+def _personnel_rollup_from_cache(task_id: int) -> Optional[List[Dict[str, Any]]]:
+    """Roll up task personnel from IncidentCache's ``tasks``/``teams``/``incident_personnel``
+    collections, mirroring the server's own rollup (a person is on the task because
+    their team is). Returns ``None`` when the cache isn't loaded/current so the caller
+    can fall back to the API rollup endpoint.
+    """
+    task_doc = _cached_task_doc(task_id)
+    teams = _cached_all_teams()
+    personnel_by_id = _cached_personnel_by_id()
+    if task_doc is None or teams is None or personnel_by_id is None:
+        return None
+    teams_by_id = {int(t.get("int_id")): t for t in teams if t.get("int_id") is not None}
+    team_ids = [tt.get("team_id") for tt in (task_doc.get("task_teams") or []) if tt.get("team_id") is not None]
+    out: List[Dict[str, Any]] = []
+    for tid in team_ids:
+        team = teams_by_id.get(int(tid))
+        if not team:
+            continue
+        member_ids = _parse_id_list(team.get("members_json") or team.get("member_person_records") or team.get("member_personnel_ids"))
+        for pid in member_ids:
+            person = personnel_by_id.get(pid)
+            if not person:
+                continue
+            name = person.get("name") or (
+                f"{person.get('first_name') or ''} {person.get('last_name') or ''}".strip()
+            )
+            out.append({
                 "active": True,
-                "id": person.get("id"),
-                "name": person.get("name") or person.get("identifier") or person.get("callsign") or "",
+                "name": name,
+                "id": pid,
                 "rank": person.get("rank") or "",
                 "role": person.get("role") or "",
-                "organization": person.get("organization") or person.get("agency") or person.get("home_unit") or "",
+                "organization": person.get("organization") or "",
                 "phone": person.get("phone") or "",
-                "team_name": team_data.get("team_name") or "",
             })
-    return rows
+    return out
+
+
+def list_task_personnel(task_id: int) -> List[Dict[str, Any]]:
+    """Return task personnel, rolled up from the teams assigned to the task.
+
+    Prefers a local rollup over IncidentCache's already-loaded collections;
+    falls back to the server's equivalent rollup endpoint when the cache is
+    not loaded/current for this incident.
+    """
+    cached = _personnel_rollup_from_cache(task_id)
+    if cached is not None:
+        return cached
+    try:
+        return _client().get(f"{_base()}/tasks/{task_id}/personnel") or []
+    except Exception:
+        return []
 
 
 def list_task_vehicles(task_id: int) -> List[Dict[str, Any]]:
-    """Return task vehicles plus vehicles inherited from attached teams."""
-    rows: List[Dict[str, Any]] = []
+    """Return task vehicles, rolled up server-side from the teams assigned to the task."""
     try:
-        rows.extend(_client().get(f"{_base()}/tasks/{task_id}/vehicles") or [])
+        return _client().get(f"{_base()}/tasks/{task_id}/vehicles") or []
     except Exception:
-        pass
-    seen: set[str] = {str(r.get("id") or r.get("vehicle_id") or r.get("license_plate") or "") for r in rows}
-    for team in list_task_teams(task_id):
-        team_data = asdict(team) if is_dataclass(team) else dict(team)
-        team_id = team_data.get("team_id") or team_data.get("id")
-        if team_id in (None, ""):
-            continue
-        for vehicle in fetch_team_vehicles(int(team_id)):
-            key = str(vehicle.get("id") or vehicle.get("name") or vehicle.get("callsign") or "")
-            if key and key in seen:
-                continue
-            if key:
-                seen.add(key)
-            rows.append({
-                "active": True,
-                "id": vehicle.get("id"),
-                "license_plate": vehicle.get("license_plate") or vehicle.get("plate") or vehicle.get("callsign") or "",
-                "type": vehicle.get("type") or vehicle.get("name") or "",
-                "organization": vehicle.get("organization") or team_data.get("team_name") or "",
-            })
-    return rows
+        return []
 
 
 def list_task_aircraft(task_id: int) -> List[Dict[str, Any]]:
-    """Aircraft list deferred until aircraft module migrated."""
+    """Return task aircraft, rolled up server-side from the teams assigned to the task."""
     try:
-        return _client().get(f"{_base()}/tasks/{task_id}/aircraft")
+        return _client().get(f"{_base()}/tasks/{task_id}/aircraft") or []
     except Exception:
         return []
 

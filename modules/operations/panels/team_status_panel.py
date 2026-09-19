@@ -813,19 +813,20 @@ class TeamStatusPanel(QWidget):
         if needs_task:
             menu.addSeparator()
         # Then: statuses that require a task
+        assignable_tasks: list | None = None
+        if current_task_id is None and needs_task:
+            try:
+                from modules.operations.data.repository import list_tasks_for_assignment  # type: ignore
+            except Exception:
+                list_tasks_for_assignment = None  # type: ignore
+            try:
+                assignable_tasks = list_tasks_for_assignment() if list_tasks_for_assignment else []
+            except Exception:
+                assignable_tasks = []
         for status in needs_task:
             if current_task_id is None:
                 sub = QMenu(_display_label(status), self)
-                try:
-                    from modules.operations.data.repository import list_tasks_for_assignment  # type: ignore
-                except Exception:
-                    list_tasks_for_assignment = None  # type: ignore
-                tasks = []
-                if list_tasks_for_assignment:
-                    try:
-                        tasks = list_tasks_for_assignment()
-                    except Exception:
-                        tasks = []
+                tasks = assignable_tasks or []
                 if not tasks:
                     act = sub.addAction('(no tasks)'); act.setEnabled(False)
                 else:
