@@ -320,6 +320,11 @@ class MainWindow(QMainWindow):
         # Prepare a Mission Status label (will live inside a dock, not fixed)
         self.active_incident_label = QLabel()
         self.update_active_incident_label()
+        try:
+            from utils.app_signals import app_signals
+            app_signals.userChanged.connect(lambda *_: self.update_active_incident_label())
+        except Exception:
+            pass
 
         # Connection status line — sits below the incident label in Mission Status dock
         self.connection_status_label = QLabel()
@@ -3767,16 +3772,41 @@ class MainWindow(QMainWindow):
         incident = _get_active_incident_cached() if incident_id else None
         user_id = AppState.get_active_user_display()
         user_role = AppState.get_active_user_role()
+        user_profile = self._active_user_profile()
+        user_name = user_profile.get("name") or user_id or "-"
+        user_agency = (
+            user_profile.get("agency")
+            or user_profile.get("organization")
+            or user_profile.get("home_unit")
+            or "-"
+        )
+        user_rank = user_profile.get("rank") or "-"
         if incident:
-            text = f"Incident: {incident['number']} | {incident['name']}  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+            incident_text = f"Incident: {incident['number']} | {incident['name']}"
         else:
-            text = f"Incident: No Incident Loaded  •  User: {user_id or '-'}  •  Role: {user_role or '-'}"
+            incident_text = "Incident: No Incident Loaded"
+        text = (
+            f"{incident_text}\n"
+            f"User: {user_name}  •  Agency: {user_agency}  •  "
+            f"Rank: {user_rank}  •  Role: {user_role or '-'}"
+        )
         if hasattr(self, "active_incident_label"):
             self.active_incident_label.setText(text)
         try:
             self._refresh_toolkit_menu_gates(incident)
         except Exception:
             pass
+
+    def _active_user_profile(self) -> dict:
+        """Return the active user's personnel details for status display."""
+        person_record = AppState.get_active_user_id()
+        if person_record in (None, ""):
+            return {}
+        try:
+            from utils.api_client import api_client
+            return api_client.get(f"/api/master/personnel/{int(person_record)}") or {}
+        except Exception:
+            return {}
 
 
 # Lightweight widget used by the Widgets submenu for simple metrics

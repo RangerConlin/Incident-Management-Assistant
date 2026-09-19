@@ -72,6 +72,7 @@ class IncidentMapWindow(QMainWindow):
 
         self._selected_feature: SpatialFeature | None = None
         self._features_by_id: dict[str, SpatialFeature] = {}
+        self._located_team_ids: set[int] = set()
         self._pending_operational_point_type: str | None = None
 
         central = QWidget(self)
@@ -87,6 +88,7 @@ class IncidentMapWindow(QMainWindow):
         outer_layout.addWidget(self.contextual_strip)
 
         self.map_canvas = MapCanvas(self)
+        self.map_canvas.mapReady.connect(self._refresh_team_markers)
 
         self.home_tab = HomeTab(self)
         self.ribbon.add_tab("home", "Home", self.home_tab)
@@ -108,11 +110,20 @@ class IncidentMapWindow(QMainWindow):
 
         self._build_status_bar()
         self._wire_signals()
+        incident_cache.changed.connect(self._on_cache_changed)
+        self.destroyed.connect(lambda _=None: self._disconnect_cache())
 
         escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         escape_shortcut.activated.connect(self._on_escape)
 
         self._refresh_feature_index()
+        self._refresh_team_markers()
+
+    def _disconnect_cache(self) -> None:
+        try:
+            incident_cache.changed.disconnect(self._on_cache_changed)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     def _build_placeholder_tab(self, title: str) -> QWidget:
@@ -155,6 +166,57 @@ class IncidentMapWindow(QMainWindow):
         self.contextual_strip.connect_edit_vertices(self.on_edit_vertices)
         self.contextual_strip.connect_buffer(self.open_buffer_dialog)
         self.contextual_strip.connect_delete(self.on_delete_selected_feature)
+
+    def _on_cache_changed(self, collection: str, op: str, doc_id: str) -> None:
+        if collection != "teams":
+            return
+        if op == "deleted":
+            self._refresh_team_markers()
+            return
+        doc = incident_cache.get("teams", doc_id)
+        if doc is None:
+            self._refresh_team_markers()
+            return
+        self._apply_team_marker(doc)
+
+    def _refresh_team_markers(self) -> None:
+        seen: set[int] = set()
+        for doc in incident_cache.get_all("teams"):
+            team_id = self._team_int_id(doc)
+            if team_id is not None:
+                seen.add(team_id)
+            self._apply_team_marker(doc)
+        for team_id in self._located_team_ids - seen:
+            self.map_canvas.remove_team_marker(team_id)
+        self._located_team_ids.intersection_update(seen)
+
+    def _apply_team_marker(self, doc: dict) -> None:
+        team_id = self._team_int_id(doc)
+        if team_id is None:
+            return
+        lat = doc.get("current_location_lat")
+        lon = doc.get("current_location_lon")
+        if lat is None or lon is None or doc.get("deleted"):
+            if team_id in self._located_team_ids:
+                self.map_canvas.remove_team_marker(team_id)
+                self._located_team_ids.discard(team_id)
+            return
+        try:
+            lat_value = float(lat)
+            lon_value = float(lon)
+        except (TypeError, ValueError):
+            return
+        name = str(doc.get("name") or f"Team {team_id}")
+        updated_at = str(doc.get("current_location_updated_at") or "")
+        self.map_canvas.upsert_team_marker(team_id, name, lat_value, lon_value, updated_at)
+        self._located_team_ids.add(team_id)
+
+    @staticmethod
+    def _team_int_id(doc: dict) -> int | None:
+        try:
+            return int(doc.get("int_id"))
+        except (TypeError, ValueError):
+            return None
 
     # -- Feature index / table ------------------------------------------
     def _refresh_feature_index(self) -> None:

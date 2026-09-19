@@ -90,6 +90,19 @@ def _find_unique_person_by_person_id(person_id: Any) -> dict[str, Any] | None:
     if not value:
         return None
     matches = list(_personnel_col().find({"person_id": value}).sort("person_record", 1))
+    if value.isdigit():
+        numeric_matches = list(
+            _personnel_col().find({"person_id": int(value)}).sort("person_record", 1)
+        )
+        seen: set[object] = {
+            match.get("_id", match.get("person_record"))
+            for match in matches
+        }
+        for match in numeric_matches:
+            key = match.get("_id", match.get("person_record"))
+            if key not in seen:
+                matches.append(match)
+                seen.add(key)
     if len(matches) != 1:
         return None
     return matches[0]
@@ -101,14 +114,14 @@ def _resolve_person_record(body: dict[str, Any], existing_user: dict[str, Any] |
         person = _find_person(explicit)
         if person:
             return int(person["person_record"]) if person.get("person_record") is not None else None
-    existing_record = (existing_user or {}).get("person_record")
-    if existing_record is not None:
-        return int(existing_record)
 
     for candidate in (body.get("username"), body.get("user_id")):
         person = _find_unique_person_by_person_id(candidate)
         if person and person.get("person_record") is not None:
             return int(person["person_record"])
+    existing_record = (existing_user or {}).get("person_record")
+    if existing_record is not None:
+        return int(existing_record)
     return None
 
 
