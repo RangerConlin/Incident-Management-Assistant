@@ -27,6 +27,10 @@ from .server_info import (
 logger = logging.getLogger(__name__)
 
 
+def _is_loopback_host(server: ServerInfo) -> bool:
+    return server.host.strip().lower() in {"localhost", "::1"} or server.host.startswith("127.")
+
+
 def build_cloud_url(base_url: str | None, connect_code: str | None) -> str | None:
     """Combine a cloud router base URL and connect code into a tunnel URL.
 
@@ -92,8 +96,12 @@ class ConnectionManager:
             "Searching LAN for SARApp Servers",
         )
         servers = self.discover_servers(timeout_seconds=discovery_timeout_seconds)
-        if servers:
-            return self.connect_to_server(servers[0], mode=ConnectionMode.LAN)
+        # Loopback announcements come from this machine's own offline server
+        # and must never shadow a real LAN server that was also heard.
+        for server in sorted(servers, key=_is_loopback_host):
+            snapshot = self.connect_to_server(server, mode=ConnectionMode.LAN)
+            if snapshot.is_connected:
+                return snapshot
 
         cloud_snapshot = self.try_cloud_connection()
         if cloud_snapshot.is_connected:
