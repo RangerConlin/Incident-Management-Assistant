@@ -1042,41 +1042,87 @@ def list_task_personnel(incident_id: str, task_id: int) -> list[dict]:
 @router.get("/incidents/{incident_id}/operations/tasks/{task_id}/vehicles")
 def list_task_vehicles(incident_id: str, task_id: int) -> list[dict]:
     """Vehicles rolled up from every team's roster on this task."""
+    return _task_vehicle_rows(_task_team_docs(incident_id, task_id))
+
+
+def _task_vehicle_rows(teams: list[dict]) -> list[dict]:
     master_vehicles = get_master_db()[MasterCollections.VEHICLES]
-    out: list[dict] = []
-    for team in _task_team_docs(incident_id, task_id):
-        for vid in _parse_id_list(team.get("vehicles_json") or team.get("vehicle_ids")):
-            v = master_vehicles.find_one({"$or": [{"int_id": vid}, {"vehicle_id": vid}]})
-            if not v:
+    vehicle_ids = [
+        vehicle_id
+        for team in teams
+        for vehicle_id in _parse_id_list(team.get("vehicles_json") or team.get("vehicle_ids"))
+    ]
+    docs = list(master_vehicles.find({
+        "$or": [
+            {"int_id": {"$in": vehicle_ids}},
+            {"vehicle_id": {"$in": vehicle_ids}},
+        ]
+    })) if vehicle_ids else []
+    by_id: dict[int, dict] = {}
+    for doc in docs:
+        for value in (doc.get("int_id"), doc.get("vehicle_id")):
+            try:
+                by_id[int(value)] = doc
+            except (TypeError, ValueError):
                 continue
-            out.append({
-                "active": True,
-                "id": v.get("vehicle_id") or v.get("int_id"),
-                "license_plate": v.get("license_plate") or "",
-                "type": v.get("type") or "",
-                "organization": v.get("organization") or "",
-            })
+    out: list[dict] = []
+    for vehicle_id in vehicle_ids:
+        vehicle = by_id.get(vehicle_id)
+        if not vehicle:
+            continue
+        out.append({
+            "active": True,
+            "id": vehicle.get("vehicle_id") or vehicle.get("int_id"),
+            "license_plate": vehicle.get("license_plate") or "",
+            "type": vehicle.get("type") or "",
+            "organization": vehicle.get("organization") or "",
+        })
     return out
 
 
 @router.get("/incidents/{incident_id}/operations/tasks/{task_id}/aircraft")
 def list_task_aircraft(incident_id: str, task_id: int) -> list[dict]:
     """Aircraft rolled up from every team's roster on this task."""
+    return _task_aircraft_rows(_task_team_docs(incident_id, task_id))
+
+
+def _task_aircraft_rows(teams: list[dict]) -> list[dict]:
     master_aircraft = get_master_db()[MasterCollections.AIRCRAFT]
+    aircraft_ids = [
+        aircraft_id
+        for team in teams
+        for aircraft_id in _parse_id_list(team.get("aircraft_json") or team.get("aircraft_ids"))
+    ]
+    docs = list(master_aircraft.find({"int_id": {"$in": aircraft_ids}})) if aircraft_ids else []
+    by_id: dict[int, dict] = {}
+    for doc in docs:
+        try:
+            by_id[int(doc.get("int_id"))] = doc
+        except (TypeError, ValueError):
+            continue
     out: list[dict] = []
-    for team in _task_team_docs(incident_id, task_id):
-        for aid in _parse_id_list(team.get("aircraft_json") or team.get("aircraft_ids")):
-            a = master_aircraft.find_one({"int_id": aid})
-            if not a:
-                continue
-            out.append({
-                "active": True,
-                "callsign": a.get("callsign") or "",
-                "tail_number": a.get("tail_number") or "",
-                "type": a.get("type") or "",
-                "organization": a.get("organization") or "",
-            })
+    for aircraft_id in aircraft_ids:
+        aircraft = by_id.get(aircraft_id)
+        if not aircraft:
+            continue
+        out.append({
+            "active": True,
+            "callsign": aircraft.get("callsign") or "",
+            "tail_number": aircraft.get("tail_number") or "",
+            "type": aircraft.get("type") or "",
+            "organization": aircraft.get("organization") or "",
+        })
     return out
+
+
+@router.get("/incidents/{incident_id}/operations/tasks/{task_id}/assets")
+def list_task_assets(incident_id: str, task_id: int) -> dict[str, list[dict]]:
+    """Return vehicle and aircraft rollups using one task/team lookup."""
+    teams = _task_team_docs(incident_id, task_id)
+    return {
+        "vehicles": _task_vehicle_rows(teams),
+        "aircraft": _task_aircraft_rows(teams),
+    }
 
 
 # ---------------------------------------------------------------------------

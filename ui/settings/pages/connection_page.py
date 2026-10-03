@@ -26,7 +26,7 @@ class ConnectionPage(QWidget):
         layout.addRow("Cloud server URL:", cloud_url)
 
         connect_code = QLineEdit()
-        connect_code.setPlaceholderText("e.g. ABCD-1234 (blank = connect to URL directly)")
+        connect_code.setPlaceholderText("e.g. ABCD-1234 (both blank = built-in default)")
         bind_lineedit(connect_code, bridge, "cloudConnectCode", "", normalize=str.upper)
         layout.addRow("Connect code:", connect_code)
 

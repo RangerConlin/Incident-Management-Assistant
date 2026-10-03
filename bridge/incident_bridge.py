@@ -21,6 +21,84 @@ class IncidentBridge(QObject):
 
     # --- Narrative CRUD ----------------------------------------------------
 
+    def _cached_narratives(
+        self,
+        incident_id: str,
+        task_id: int,
+        search_text: str,
+        critical_only: bool,
+        team_filter: str,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Return the embedded narrative from IncidentCache when available."""
+        try:
+            from utils.incident_cache import incident_cache
+
+            if incident_cache.incident_id != incident_id:
+                return None
+            tasks = incident_cache.get_all("tasks")
+            if not tasks:
+                return None
+            personnel = incident_cache.get_all("incident_personnel")
+        except Exception:
+            return None
+
+        names: dict[str, str] = {}
+        for person in personnel:
+            person_record = person.get("person_record")
+            if person_record is None:
+                person_record = person.get("master_id")
+            if person_record is None:
+                continue
+            name = person.get("name") or (
+                f"{person.get('first_name') or ''} {person.get('last_name') or ''}".strip()
+            )
+            names[str(person_record)] = str(name or "")
+
+        needle = str(search_text or "").lower()
+        rows: List[Dict[str, Any]] = []
+        matched_task = False
+        for task in tasks:
+            current_task_id = int(task.get("int_id") or 0)
+            if task_id and current_task_id != int(task_id):
+                continue
+            matched_task = True
+            for entry in task.get("narrative") or []:
+                row = dict(entry)
+                row["id"] = str(row.get("id") or row.get("entry_id") or "")
+                row["task_id"] = int(row.get("task_id") or current_task_id)
+                row["timestamp"] = str(row.get("timestamp") or row.get("ts_utc") or "")
+                row["narrative"] = str(
+                    row.get("narrative") or row.get("text") or row.get("entry_text") or ""
+                )
+                row["entered_by"] = str(
+                    row.get("entered_by")
+                    or row.get("author_user_id")
+                    or row.get("author_display_name")
+                    or ""
+                )
+                row["entered_by_display"] = names.get(row["entered_by"], "")
+                row["team_num"] = str(
+                    row.get("team_num") or row.get("team") or row.get("team_name") or ""
+                )
+                row["critical"] = (
+                    1 if row.get("critical") in (True, 1, "1", "true", "True") else 0
+                )
+                if critical_only and not row["critical"]:
+                    continue
+                if team_filter and row["team_num"] != str(team_filter):
+                    continue
+                if (
+                    needle
+                    and needle not in row["narrative"].lower()
+                    and needle not in row["entered_by"].lower()
+                ):
+                    continue
+                rows.append(row)
+        if task_id and not matched_task:
+            return None
+        rows.sort(key=lambda row: row.get("timestamp") or "", reverse=True)
+        return rows
+
     @Slot(int, str, bool, str, result=list)
     def listTaskNarrative(
         self,
@@ -34,6 +112,15 @@ class IncidentBridge(QObject):
             return []
         try:
             from utils.api_client import api_client
+            cached = self._cached_narratives(
+                iid,
+                taskId,
+                searchText,
+                criticalOnly,
+                teamFilter,
+            )
+            if cached is not None:
+                return cached
             params: dict[str, Any] = {}
             if taskId:
                 params["task_id"] = taskId
@@ -43,38 +130,7 @@ class IncidentBridge(QObject):
                 params["critical_only"] = True
             if teamFilter:
                 params["team"] = teamFilter
-            rows = api_client.get(f"/api/incidents/{iid}/narratives", params=params) or []
-            # Resolve entered_by to a display name.
-            # entered_by is stored as a stringified person_record integer.
-            # get_person_identity() requires the canonical internal record key.
-            try:
-                from modules.logistics.checkin import repository as ci_repo
-                names_cache: dict[str, str] = {}
-                for r in rows:
-                    eb = r.get("entered_by")
-                    r["entered_by_display"] = ""
-                    if not eb:
-                        continue
-                    key = str(eb)
-                    if key in names_cache:
-                        r["entered_by_display"] = names_cache[key]
-                        continue
-                    try:
-                        uid = int(key)
-                    except (ValueError, TypeError):
-                        names_cache[key] = ""
-                        r["entered_by_display"] = ""
-                        continue
-                    try:
-                        ident = ci_repo.get_person_identity(uid)
-                        disp = ident.name if ident and getattr(ident, "name", None) else ""
-                    except Exception:
-                        disp = ""
-                    names_cache[key] = disp
-                    r["entered_by_display"] = disp
-            except Exception:
-                pass
-            return rows
+            return api_client.get(f"/api/incidents/{iid}/narratives", params=params) or []
         except Exception as exc:
             print("[IncidentBridge.listTaskNarrative]", exc)
             return []

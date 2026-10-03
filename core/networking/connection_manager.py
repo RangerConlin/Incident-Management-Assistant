@@ -23,8 +23,12 @@ from .server_info import (
     ServerInfo,
     utc_now,
 )
+from .tls import system_ssl_context
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CLOUD_ROUTER_URL = "https://sarapp.arcadiacommandsolutions.com"
+DEFAULT_CLOUD_CONNECT_CODE = "OURS-9165"
 
 
 def _is_loopback_host(server: ServerInfo) -> bool:
@@ -48,6 +52,33 @@ def build_cloud_url(base_url: str | None, connect_code: str | None) -> str | Non
     if not code or "/r/" in base:
         return base
     return f"{base}/r/{code}"
+
+
+def resolve_cloud_url(
+    *,
+    environment_url: str | None = None,
+    configured_url: str | None = None,
+    configured_connect_code: str | None = None,
+) -> str | None:
+    """Resolve the desktop cloud target from overrides and built-in defaults.
+
+    A full environment URL always wins.  When neither saved field is set, the
+    known router and incident-server connect code are used together.  Supplying
+    a custom URL with no code still supports a direct, router-less server.
+    """
+
+    env_url = (environment_url or "").strip()
+    if env_url:
+        return env_url.rstrip("/")
+
+    base_url = (configured_url or "").strip()
+    connect_code = (configured_connect_code or "").strip()
+    if not base_url and not connect_code:
+        base_url = DEFAULT_CLOUD_ROUTER_URL
+        connect_code = DEFAULT_CLOUD_CONNECT_CODE
+    else:
+        base_url = base_url or DEFAULT_CLOUD_ROUTER_URL
+    return build_cloud_url(base_url, connect_code)
 
 
 class SnapshotListener(Protocol):
@@ -220,7 +251,11 @@ class ConnectionManager:
 
     def _check_server_health(self, base_url: str) -> bool:
         try:
-            response = httpx.get(f"{base_url}/health", timeout=self.request_timeout_seconds)
+            response = httpx.get(
+                f"{base_url}/health",
+                timeout=self.request_timeout_seconds,
+                verify=system_ssl_context(),
+            )
             return 200 <= response.status_code < 300
         except httpx.HTTPError as exc:
             logger.info("SARApp server health check failed for %s: %s", base_url, exc)

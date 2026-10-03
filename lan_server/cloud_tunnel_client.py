@@ -28,6 +28,8 @@ from urllib.parse import urlparse
 import httpx
 import websockets
 
+from core.networking.tls import system_ssl_context
+
 logger = logging.getLogger(__name__)
 
 _ROUTER_URL_ENV_VAR = "SARAPP_CLOUD_ROUTER_URL"
@@ -123,18 +125,12 @@ def _filtered_headers(headers: dict[str, str]) -> dict[str, str]:
 
 
 def _router_ssl_context(router_url: str | None) -> ssl.SSLContext | None:
-    """Return a stable CA-backed SSL context for cloud-router WSS dials."""
+    """Return a system-trusted SSL context for cloud-router WSS dials."""
 
     if not router_url or urlparse(router_url).scheme.lower() != "wss":
         return None
 
-    try:
-        import certifi
-    except ImportError:
-        logger.debug("certifi is not installed; using Python default TLS trust store")
-        return ssl.create_default_context()
-
-    return ssl.create_default_context(cafile=certifi.where())
+    return system_ssl_context()
 
 
 class CloudTunnelClient:

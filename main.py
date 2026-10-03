@@ -3911,30 +3911,22 @@ def _start_local_offline_mode(app: QApplication, manager: object | None = None) 
     return True
 
 
-# Default cloud server base URL — update this if the VPS address changes.
-# Overridable per-install via Settings → Connection (cloudServerUrl) or the
-# SARAPP_CLOUD_URL environment variable.
-_DEFAULT_CLOUD_URL = "http://srv1707346.hstgr.cloud:8765"
-
-
 def _resolve_cloud_url() -> str | None:
     """Resolve the cloud fallback URL used when no LAN server is found.
 
     Priority: SARAPP_CLOUD_URL env var (full URL, may already include a
     /r/<connect-code> router path) > Settings (cloudServerUrl +
-    cloudConnectCode) > built-in default. When a connect code is configured,
-    it is appended as the cloud router's /r/<code> tunnel path.
+    cloudConnectCode) > built-in router/connect-code pair. When a connect code
+    is configured, it is appended as the cloud router's /r/<code> tunnel path.
     """
-    from core.networking import build_cloud_url
-
-    env_url = (os.getenv("SARAPP_CLOUD_URL") or "").strip()
-    if env_url:
-        return env_url.rstrip("/")
+    from core.networking import resolve_cloud_url
 
     settings = SettingsManager()
-    base_url = str(settings.get("cloudServerUrl") or "").strip() or _DEFAULT_CLOUD_URL
-    connect_code = str(settings.get("cloudConnectCode") or "").strip()
-    return build_cloud_url(base_url, connect_code)
+    return resolve_cloud_url(
+        environment_url=os.getenv("SARAPP_CLOUD_URL"),
+        configured_url=settings.get("cloudServerUrl"),
+        configured_connect_code=settings.get("cloudConnectCode"),
+    )
 
 
 def _initialize_connectivity(app: QApplication, *, prompt_on_failure: bool = True) -> object | None:

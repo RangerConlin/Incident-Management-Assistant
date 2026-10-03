@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from functools import partial
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
-from PySide6.QtCore import Qt, Signal, QEvent, QRegularExpression
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal, QEvent, QRegularExpression
 from PySide6.QtGui import QStandardItem, QStandardItemModel, QColor, QPalette, QRegularExpressionValidator, QDoubleValidator
 from PySide6.QtWidgets import (
     QWidget,
@@ -46,6 +47,32 @@ from utils.perf import PerfTimer
 from utils.table_view_styles import apply_statusboard_table_behavior
 
 logger = logging.getLogger(__name__)
+
+
+class _SectionLoadSignals(QObject):
+    succeeded = Signal(str, object, float)
+    failed = Signal(str, str, float)
+
+
+class _SectionLoadRunnable(QRunnable):
+    """Fetch one task-detail section without touching Qt widgets."""
+
+    def __init__(self, key: str, fetch: Callable[[], Any]) -> None:
+        super().__init__()
+        self.key = key
+        self.fetch = fetch
+        self.signals = _SectionLoadSignals()
+
+    def run(self) -> None:  # type: ignore[override]
+        started = time.perf_counter()
+        try:
+            result = self.fetch()
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            self.signals.failed.emit(self.key, str(exc), elapsed_ms)
+            return
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        self.signals.succeeded.emit(self.key, result, elapsed_ms)
 
 
 def _to_variant(obj: Any) -> Any:
@@ -166,7 +193,12 @@ class _ButtonDelegate(QStyledItemDelegate):
         return False
 
 
-def _resolve_person_display(value: Any, cache: Dict[str, Any] | None = None) -> str:
+def _resolve_person_display(
+    value: Any,
+    cache: Dict[str, Any] | None = None,
+    *,
+    allow_network: bool = True,
+) -> str:
     """Resolve a raw person identifier to a display name.
 
     Checks the locally-held ``incident_personnel`` IncidentCache collection
@@ -210,6 +242,8 @@ def _resolve_person_display(value: Any, cache: Dict[str, Any] | None = None) -> 
                 return _store(str(name))
     except Exception:
         pass
+    if not allow_network:
+        return _store("")
     try:
         from modules.logistics.checkin import repository as ci_repo
         ident = ci_repo.get_person_identity(raw)
@@ -474,6 +508,8 @@ class TaskDetailWindow(QWidget):
         super().__init__(parent)
         self._task_id = int(task_id)
         self._loaded_sections: set[str] = set()
+        self._loading_sections: set[str] = set()
+        self._section_runners: Dict[str, _SectionLoadRunnable] = {}
         # Title is updated after header load; keep minimal placeholder
         self.setWindowTitle("Task Detail")
 
@@ -1891,9 +1927,9 @@ class TaskDetailWindow(QWidget):
         self._load_header()
         timer.checkpoint("header")
         self._load_section_once("Narrative")
-        timer.checkpoint("narrative")
+        timer.checkpoint("narrative scheduled")
         self._load_section_once("Teams")
-        timer.finish("teams")
+        timer.finish("teams scheduled")
 
     def _on_main_tab_changed(self, index: int) -> None:
         try:
@@ -1904,11 +1940,17 @@ class TaskDetailWindow(QWidget):
 
     def _load_section_once(self, label: str) -> None:
         key = str(label or "").strip().lower()
-        if not key or key in self._loaded_sections:
+        if not key or key in self._loaded_sections or key in self._loading_sections:
+            return
+        async_loaders = {
+            "narrative": self._fetch_narrative_rows,
+            "teams": self._fetch_team_group,
+        }
+        async_loader = async_loaders.get(key)
+        if async_loader is not None:
+            self._start_async_section_load(key, async_loader)
             return
         loaders = {
-            "narrative": self.load_narrative,
-            "teams": self._load_team_group,
             "personnel": self.load_personnel,
             "vehicles": self.load_vehicles,
             "assignment details": self.load_assignment,
@@ -1931,6 +1973,60 @@ class TaskDetailWindow(QWidget):
         except Exception:
             timer.finish("failed")
             pass
+
+    def _start_async_section_load(self, key: str, fetch: Callable[[], Any]) -> None:
+        self._loading_sections.add(key)
+        runner = _SectionLoadRunnable(key, fetch)
+        self._section_runners[key] = runner
+        runner.signals.succeeded.connect(self._on_async_section_loaded)
+        runner.signals.failed.connect(self._on_async_section_failed)
+        QThreadPool.globalInstance().start(runner)
+
+    def _on_async_section_loaded(self, key: str, result: Any, fetch_ms: float) -> None:
+        render_started = time.perf_counter()
+        try:
+            if key == "narrative":
+                self._apply_narrative_rows(result or [])
+            elif key == "teams":
+                payload = result or {}
+                self._apply_team_rows(payload.get("teams") or [])
+                self._apply_personnel_rows(payload.get("personnel") or [])
+                self._apply_vehicle_rows(
+                    payload.get("vehicles") or [],
+                    payload.get("aircraft") or [],
+                )
+            else:
+                return
+            self._loaded_sections.add(key)
+            render_ms = (time.perf_counter() - render_started) * 1000.0
+            logger.debug(
+                "TaskDetailWindow[%s] section '%s': fetch %.1f ms, render %.1f ms",
+                self._task_id,
+                key,
+                fetch_ms,
+                render_ms,
+            )
+        except Exception:
+            logger.exception(
+                "TaskDetailWindow[%s] section '%s': render failed after %.1f ms fetch",
+                self._task_id,
+                key,
+                fetch_ms,
+            )
+        finally:
+            self._loading_sections.discard(key)
+            self._section_runners.pop(key, None)
+
+    def _on_async_section_failed(self, key: str, error: str, fetch_ms: float) -> None:
+        self._loading_sections.discard(key)
+        self._section_runners.pop(key, None)
+        logger.warning(
+            "TaskDetailWindow[%s] section '%s': fetch failed in %.1f ms: %s",
+            self._task_id,
+            key,
+            fetch_ms,
+            error,
+        )
 
     def _load_current_log_tab(self) -> None:
         try:
@@ -1961,6 +2057,23 @@ class TaskDetailWindow(QWidget):
         timer.checkpoint("personnel")
         self.load_vehicles()
         timer.finish("vehicles")
+
+    def _fetch_team_group(self) -> Dict[str, Any]:
+        from modules.operations.taskings.repository import (
+            list_task_assets,
+            list_task_personnel,
+            list_task_teams,
+        )
+
+        teams = [_to_variant(row) for row in (list_task_teams(int(self._task_id)) or [])]
+        personnel = list_task_personnel(int(self._task_id)) or []
+        assets = list_task_assets(int(self._task_id))
+        return {
+            "teams": teams,
+            "personnel": personnel,
+            "vehicles": assets.get("vehicles") or [],
+            "aircraft": assets.get("aircraft") or [],
+        }
 
     def _load_safety(self) -> None:
         team_count = 0
@@ -3032,11 +3145,16 @@ class TaskDetailWindow(QWidget):
             self._loading_header = False
 
     # --- Narrative Ops ---
-    def load_narrative(self) -> None:
+    def _fetch_narrative_rows(self) -> List[Dict[str, Any]]:
         try:
-            rows: List[Dict[str, Any]] = self._ib().listTaskNarrative(self._task_id, "", False, "") or []
+            return self._ib().listTaskNarrative(self._task_id, "", False, "") or []
         except Exception:
-            rows = []
+            return []
+
+    def load_narrative(self) -> None:
+        self._apply_narrative_rows(self._fetch_narrative_rows())
+
+    def _apply_narrative_rows(self, rows: List[Dict[str, Any]]) -> None:
         self._nar_model.removeRows(0, self._nar_model.rowCount())
         person_cache: Dict[str, Any] = {}
         for r in rows:
@@ -3045,7 +3163,11 @@ class TaskDetailWindow(QWidget):
             ts = _fmt_ts_compact(raw_ts)
             entry = str(r.get("narrative") or "")
             display = r.get("entered_by_display")
-            by = str(display) if display else _resolve_person_display(r.get("entered_by") or "", cache=person_cache)
+            by = str(display) if display else _resolve_person_display(
+                r.get("entered_by") or "",
+                cache=person_cache,
+                allow_network=False,
+            )
             position = self._narrative_position_display(r)
             crit = 1 if (r.get("critical") in (1, "1", True, "true", "True")) else 0
             items = [
@@ -3603,12 +3725,21 @@ class TaskDetailWindow(QWidget):
     # --- Vehicles Ops ---
     def load_vehicles(self) -> None:
         try:
-            from modules.operations.taskings.repository import list_task_vehicles, list_task_aircraft
-            vrows = list_task_vehicles(int(self._task_id)) or []
-            arows = list_task_aircraft(int(self._task_id)) or []
+            from modules.operations.taskings.repository import list_task_assets
+
+            assets = list_task_assets(int(self._task_id))
+            vrows = assets.get("vehicles") or []
+            arows = assets.get("aircraft") or []
         except Exception:
             vrows = []
             arows = []
+        self._apply_vehicle_rows(vrows, arows)
+
+    def _apply_vehicle_rows(
+        self,
+        vrows: List[Dict[str, Any]],
+        arows: List[Dict[str, Any]],
+    ) -> None:
         # Vehicles table
         try:
             self._veh_model.removeRows(0, self._veh_model.rowCount())
@@ -3725,6 +3856,15 @@ class TaskDetailWindow(QWidget):
 
     # --- Teams Ops ---
     def load_teams(self) -> None:
+        try:
+            from modules.operations.taskings.repository import list_task_teams
+
+            rows = [_to_variant(row) for row in (list_task_teams(int(self._task_id)) or [])]
+        except Exception:
+            rows = []
+        self._apply_team_rows(rows)
+
+    def _apply_team_rows(self, rows: List[Dict[str, Any]]) -> None:
         # Temporarily disconnect itemChanged to avoid save-trigger during populate
         _reconnect_item_changed = False
         try:
@@ -3733,15 +3873,6 @@ class TaskDetailWindow(QWidget):
         except Exception:
             # Either not connected yet or disconnect failed; continue
             pass
-        try:
-            from modules.operations.taskings.repository import list_task_teams
-            rows = list_task_teams(int(self._task_id)) or []
-            try:
-                rows = [_to_variant(r) for r in rows]
-            except Exception:
-                pass
-        except Exception:
-            rows = []
         self._teams_model.removeRows(0, self._teams_model.rowCount())
         def _ts2(v):
             s = _fmt_ts(v)
@@ -4055,6 +4186,9 @@ class TaskDetailWindow(QWidget):
             rows = list_task_personnel(int(self._task_id)) or []
         except Exception:
             rows = []
+        self._apply_personnel_rows(rows)
+
+    def _apply_personnel_rows(self, rows: List[Dict[str, Any]]) -> None:
         self._pers_model.removeRows(0, self._pers_model.rowCount())
         for p in rows:
             active = bool(p.get('active'))

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from sarapp_db.api.app import create_app
 from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.api.routers import task_narratives
 
 
 INCIDENT_ID = "TESTCACHE_NARRATIVES"
@@ -122,3 +123,32 @@ def test_task_narratives_can_filter_embedded_entries():
 
     db["tasks"].delete_many({})
     db["task_narratives"].delete_many({})
+
+
+def test_narrative_author_names_are_resolved_in_one_query(monkeypatch):
+    queries = []
+
+    class _Personnel:
+        def find(self, query):
+            queries.append(query)
+            return [
+                {"person_record": 1, "name": "Alex Morgan"},
+                {"person_record": 2, "first_name": "Jamie", "last_name": "Lee"},
+            ]
+
+    class _MasterDb:
+        def __getitem__(self, _name):
+            return _Personnel()
+
+    monkeypatch.setattr(task_narratives, "get_master_db", lambda: _MasterDb())
+    rows = [{"entered_by": "1"}, {"entered_by": "2"}, {"entered_by": "1"}]
+
+    task_narratives._attach_entered_by_display(rows)
+
+    assert len(queries) == 1
+    assert set(queries[0]["person_record"]["$in"]) == {1, 2}
+    assert [row["entered_by_display"] for row in rows] == [
+        "Alex Morgan",
+        "Jamie Lee",
+        "Alex Morgan",
+    ]

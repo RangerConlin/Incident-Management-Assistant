@@ -34,11 +34,17 @@ the LAN server; the router never touches MongoDB and never runs any
   already include `/r/<code>`) > Settings → Connection (`cloudServerUrl` +
   `cloudConnectCode`, combined via
   `core.networking.build_cloud_url` into `<url>/r/<code>`) > built-in default
-  URL. The existing LAN→cloud fallback flow
+  pair (`https://sarapp.arcadiacommandsolutions.com` and `OURS-9165`). A
+  custom saved URL with a blank code remains a direct, router-less target.
+  The existing LAN→cloud fallback flow
   (`ConnectionManager.try_cloud_connection`) then health-checks that URL —
   the router's `/r/<code>/health` proxies straight through to the LAN
   server's real `/health` — and `ServerInfo.base_url` keeps the full tunnel
   path so all subsequent API traffic goes through the router.
+- Desktop HTTPS health checks and API clients use the operating-system TLS
+  trust store while retaining certificate and hostname verification. This is
+  required on Windows hosts with enterprise or antivirus HTTPS inspection,
+  whose trusted root may not exist in Python's bundled CA set.
 
 ## Connect codes
 - A short, human-shareable code (e.g. `ABCD-1234`) identifies one LAN

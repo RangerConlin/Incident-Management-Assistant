@@ -14,10 +14,13 @@ Usage:
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+from core.networking.tls import system_ssl_context
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +52,7 @@ class _APIClient:
         return httpx.Client(
             base_url=self._base_url,
             timeout=_TIMEOUT_SECONDS,
+            verify=system_ssl_context(),
             limits=httpx.Limits(
                 max_keepalive_connections=10,
                 max_connections=20,
@@ -189,14 +193,27 @@ class _APIClient:
         url = self._build_url(path)
         if params:
             params = {k: v for k, v in params.items() if v is not None}
+        request_started = time.perf_counter()
         try:
             resp = self._request_with_retry(method, url, json=json, params=params, timeout=timeout)
         except httpx.TransportError as exc:
             raise APIError(f"Server unreachable: {exc}") from exc
         except Exception as exc:
             raise APIError(f"Request failed: {exc}") from exc
-
-        return self._handle_response(resp)
+        request_ms = (time.perf_counter() - request_started) * 1000.0
+        decode_started = time.perf_counter()
+        try:
+            return self._handle_response(resp)
+        finally:
+            decode_ms = (time.perf_counter() - decode_started) * 1000.0
+            logger.debug(
+                "API %s %s: request %.1f ms, decode %.1f ms, status %s",
+                method,
+                path,
+                request_ms,
+                decode_ms,
+                resp.status_code,
+            )
 
     def _handle_response(self, resp: httpx.Response) -> Any:
         if resp.status_code >= 400:

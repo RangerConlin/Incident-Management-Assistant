@@ -182,7 +182,7 @@ class RemoteServerDialog(QDialog):
         )
         self.connect_code_edit = QLineEdit()
         self.connect_code_edit.setPlaceholderText(
-            "e.g. ABCD-1234 (blank = connect to URL directly)"
+            "e.g. ABCD-1234 (both blank = built-in default)"
         )
         self.connect_code_edit.textChanged.connect(self._normalize_connect_code)
 

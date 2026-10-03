@@ -407,6 +407,18 @@ def list_task_aircraft(task_id: int) -> List[Dict[str, Any]]:
         return []
 
 
+def list_task_assets(task_id: int) -> Dict[str, List[Dict[str, Any]]]:
+    """Return both task vehicle categories in one API round trip."""
+    try:
+        result = _client().get(f"{_base()}/tasks/{task_id}/assets") or {}
+    except Exception:
+        return {"vehicles": [], "aircraft": []}
+    return {
+        "vehicles": list(result.get("vehicles") or []),
+        "aircraft": list(result.get("aircraft") or []),
+    }
+
+
 def get_task_assignment(task_id: int) -> Dict[str, Any]:
     cached = _cached_task_doc(task_id)
     if cached is not None:

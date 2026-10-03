@@ -71,3 +71,24 @@ def test_list_task_personnel_falls_back_to_api_without_active_cache(monkeypatch)
 
     assert rows == [{"id": 1, "name": "Fallback Person"}]
     assert calls == ["/api/incidents/INC-NO-CACHE/operations/tasks/9/personnel"]
+
+
+def test_list_task_assets_uses_one_combined_endpoint(monkeypatch):
+    monkeypatch.setattr(repository.incident_context, "get_active_incident_id", lambda: "INC-ASSETS")
+    calls: list[str] = []
+
+    class _FakeClient:
+        def get(self, path, *args, **kwargs):
+            calls.append(path)
+            return {
+                "vehicles": [{"id": "V-1"}],
+                "aircraft": [{"callsign": "EAGLE"}],
+            }
+
+    monkeypatch.setattr(repository, "_client", lambda: _FakeClient())
+
+    assets = repository.list_task_assets(4)
+
+    assert assets["vehicles"] == [{"id": "V-1"}]
+    assert assets["aircraft"] == [{"callsign": "EAGLE"}]
+    assert calls == ["/api/incidents/INC-ASSETS/operations/tasks/4/assets"]

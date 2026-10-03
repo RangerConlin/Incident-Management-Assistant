@@ -7,8 +7,8 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from sarapp_db.mongo.collection_names import IncidentCollections
-from sarapp_db.mongo.database_manager import get_incident_db
+from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
+from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
@@ -86,6 +86,34 @@ def _canonical_entered_by(value: Any) -> str:
         raise HTTPException(422, "entered_by must be a person_record") from exc
 
 
+def _attach_entered_by_display(rows: list[dict[str, Any]]) -> None:
+    """Resolve all narrative authors with one master-personnel query."""
+    person_records: set[int] = set()
+    for row in rows:
+        try:
+            person_record = int(row.get("entered_by") or 0)
+        except (TypeError, ValueError):
+            continue
+        if person_record:
+            person_records.add(person_record)
+    if not person_records:
+        return
+
+    personnel = get_master_db()[MasterCollections.PERSONNEL]
+    docs = personnel.find({"person_record": {"$in": list(person_records)}})
+    names = {
+        str(doc.get("person_record")): str(
+            doc.get("name")
+            or f"{doc.get('first_name') or ''} {doc.get('last_name') or ''}".strip()
+            or ""
+        )
+        for doc in docs
+        if doc.get("person_record") is not None
+    }
+    for row in rows:
+        row["entered_by_display"] = names.get(str(row.get("entered_by") or ""), "")
+
+
 @router.get("/incidents/{incident_id}/narratives")
 def list_narratives(
     incident_id: str,
@@ -113,6 +141,7 @@ def list_narratives(
                 continue
             results.append(doc)
     results.sort(key=lambda d: str(d.get("timestamp") or ""), reverse=True)
+    _attach_entered_by_display(results)
     return results
 
 

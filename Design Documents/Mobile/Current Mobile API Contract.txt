@@ -1,15 +1,19 @@
 SARApp Mobile API Contract - Current Server Alignment
 
 Source of truth inspected:
-C:\Users\Brendan\Documents\GitHub\Incident-Management-Assistant\cloud_server
+- data/db/sarapp_db/api/app.py (LAN server API)
+- Design Documents/Instructions/cloud_router_architecture.md (remote routing)
 
 Server runtime:
-- FastAPI application is created in cloud_server\sarapp_db\api\app.py
-- Cloud server listens on port 8765 by default
-- Mobile MVP hardcoded cloud base URL: http://srv1707346.hstgr.cloud:8765
-- Health check: GET /health
-- Server metadata: GET /server-info
-- Mongo URI is configured with SARAPP_MONGO_URI
+- FastAPI application is created in data/db/sarapp_db/api/app.py and runs on
+  the incident LAN server, which listens on port 8765 by default.
+- cloud_server is a stateless reverse-tunnel router and has no MongoDB or
+  sarapp_db router copy.
+- Remote base URL: https://sarapp.arcadiacommandsolutions.com/r/<connect_code>
+- Current default connect code: OURS-9165
+- Remote health check: GET /r/<connect_code>/health
+- Remote server metadata: GET /r/<connect_code>/server-info
+- SARAPP_MONGO_URI is configured only on the LAN server.
 
 Current MongoDB structure:
 - sarapp_system: server/app state and incident registry
@@ -19,7 +23,10 @@ Current MongoDB structure:
 Important terminology update:
 - Use "incident", not "mission", for API contracts.
 - Current server does not expose POST /api/mobile/login or JWT/token auth.
-- Current mobile MVP should treat a successful GET /health as server connection.
+- Current mobile MVP should treat a successful tunneled GET
+  /r/<connect_code>/health as server connection. The cloud router's bare
+  /health endpoint only confirms router health and does not prove that an
+  incident LAN server is reachable.
 - If mobile auth is added later, it should be designed as a new server feature and documented separately.
 
 MVP mobile endpoints:
