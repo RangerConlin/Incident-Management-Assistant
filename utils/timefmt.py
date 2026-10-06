@@ -1,15 +1,37 @@
 """Utility helpers for rendering timestamps in the UI."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable, Optional
+from datetime import datetime, timezone, tzinfo
+from typing import Any, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from dateutil import tz as dateutil_tz
 
 
 _LOCAL_TZ = datetime.now().astimezone().tzinfo or timezone.utc
+DISPLAY_TIMEZONE_SETTING = "displayTimeZone"
+SYSTEM_TIMEZONE_KEY = "system"
+
+_COMMON_TIMEZONES: tuple[tuple[str, str], ...] = (
+    (SYSTEM_TIMEZONE_KEY, "System time zone"),
+    ("UTC", "UTC"),
+    ("America/New_York", "Eastern Time"),
+    ("America/Chicago", "Central Time"),
+    ("America/Denver", "Mountain Time"),
+    ("America/Phoenix", "Arizona Time"),
+    ("America/Los_Angeles", "Pacific Time"),
+    ("America/Anchorage", "Alaska Time"),
+    ("Pacific/Honolulu", "Hawaii Time"),
+)
 
 
-def _coerce_datetime(value: Any) -> Optional[datetime]:
-    """Best-effort conversion to an aware ``datetime`` in the local timezone."""
+def _coerce_datetime(
+    value: Any,
+    *,
+    target_tz: tzinfo | None = None,
+    assume_naive_utc: bool = False,
+) -> Optional[datetime]:
+    """Best-effort conversion to an aware ``datetime`` in the requested timezone."""
 
     if value is None:
         return None
@@ -32,8 +54,8 @@ def _coerce_datetime(value: Any) -> Optional[datetime]:
         return None
 
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=_LOCAL_TZ)
-    return dt.astimezone(_LOCAL_TZ)
+        dt = dt.replace(tzinfo=timezone.utc if assume_naive_utc else _LOCAL_TZ)
+    return dt.astimezone(target_tz or get_display_timezone())
 
 
 def _try_isoformat(value: str) -> Optional[datetime]:
@@ -64,6 +86,62 @@ def _try_datetime_from_formats(value: str) -> Optional[datetime]:
     return None
 
 
+def display_timezone_options() -> tuple[tuple[str, str], ...]:
+    """Return the supported display timezone choices as ``(key, label)`` pairs."""
+
+    return _COMMON_TIMEZONES
+
+
+def get_display_timezone_key(default: str = SYSTEM_TIMEZONE_KEY) -> str:
+    """Read the persisted display timezone key from app settings."""
+
+    try:
+        from utils.settingsmanager import SettingsManager
+
+        value = SettingsManager().get(DISPLAY_TIMEZONE_SETTING, default)
+    except Exception:
+        value = default
+    key = str(value or default).strip()
+    valid = {option_key for option_key, _label in _COMMON_TIMEZONES}
+    return key if key in valid else default
+
+
+def get_display_timezone() -> tzinfo:
+    """Return the configured display timezone, falling back to the system timezone."""
+
+    key = get_display_timezone_key()
+    if key == SYSTEM_TIMEZONE_KEY:
+        return _LOCAL_TZ
+    if key == "UTC":
+        return timezone.utc
+    try:
+        return ZoneInfo(key)
+    except ZoneInfoNotFoundError:
+        fallback = dateutil_tz.gettz(key)
+        return fallback or _LOCAL_TZ
+
+
+def format_display_datetime(
+    value: Any,
+    *,
+    default: str = "",
+    include_seconds: bool = True,
+    include_timezone: bool = False,
+) -> str:
+    """Format a stored timestamp in the user-selected display timezone."""
+
+    dt = _coerce_datetime(value, assume_naive_utc=True)
+    if dt is None:
+        return default
+    fmt = "%m/%d/%Y %H:%M:%S" if include_seconds else "%m/%d/%Y %H:%M"
+    text = dt.strftime(fmt)
+    if include_timezone:
+        tz_name = abbreviate_tz_name(dt.tzname() or "")
+        if tz_name:
+            text = f"{text} {tz_name}"
+    return text
+
+
 def humanize_relative(value: Any, *, now: Any | None = None, default: str = "—") -> str:
     """Return a compact ``hh:mm`` style label describing how long ago ``value`` occurred."""
 
@@ -71,9 +149,9 @@ def humanize_relative(value: Any, *, now: Any | None = None, default: str = "—
     if dt is None:
         return default
 
-    reference = _coerce_datetime(now) if now is not None else datetime.now(tz=_LOCAL_TZ)
+    reference = _coerce_datetime(now) if now is not None else datetime.now(tz=get_display_timezone())
     if reference is None:
-        reference = datetime.now(tz=_LOCAL_TZ)
+        reference = datetime.now(tz=get_display_timezone())
 
     delta = reference - dt
     sign = 1
@@ -119,9 +197,9 @@ def minutes_since(value: Any, *, now: Any | None = None) -> Optional[int]:
     dt = _coerce_datetime(value)
     if dt is None:
         return None
-    reference = _coerce_datetime(now) if now is not None else datetime.now(tz=_LOCAL_TZ)
+    reference = _coerce_datetime(now) if now is not None else datetime.now(tz=get_display_timezone())
     if reference is None:
-        reference = datetime.now(tz=_LOCAL_TZ)
+        reference = datetime.now(tz=get_display_timezone())
     diff = reference - dt
     return int(diff.total_seconds() // 60)
 
@@ -176,7 +254,13 @@ def abbreviate_tz_name(name: str) -> str:
 __all__ = [
     "humanize_relative",
     "format_local_hhmm",
+    "format_display_datetime",
+    "display_timezone_options",
+    "get_display_timezone",
+    "get_display_timezone_key",
     "minutes_since",
     "to_datetime",
     "abbreviate_tz_name",
+    "DISPLAY_TIMEZONE_SETTING",
+    "SYSTEM_TIMEZONE_KEY",
 ]

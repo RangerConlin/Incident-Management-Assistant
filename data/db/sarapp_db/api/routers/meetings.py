@@ -142,6 +142,98 @@ _DEPRECATED_BUILTIN_TEMPLATE_SLUGS = {
 }
 
 
+_BUILTIN_MEETING_TEMPLATES: list[dict[str, Any]] = [
+    {
+        "slug": "objectives-meeting",
+        "name": "Objectives Meeting",
+        "default_duration_minutes": 45,
+        "agenda_sections": ["Incident priorities", "Command emphasis", "End state", "Objective approval"],
+        "required_attendee_roles": ["Incident Commander", "Planning Section Chief", "Operations Section Chief"],
+        "optional_attendee_roles": ["Command Staff", "Agency Representatives"],
+        "prep_checklist_items": ["Review current situation", "Prepare objective recommendations"],
+        "agenda_checklist_items": ["Confirm command emphasis", "Approve operational objectives"],
+        "closeout_checklist_items": ["Publish approved objectives", "Notify section leads of changes"],
+    },
+    {
+        "slug": "strategy-meeting",
+        "name": "Strategy Meeting",
+        "default_duration_minutes": 45,
+        "agenda_sections": ["Situation analysis", "Strategic alternatives", "Constraints", "Recommended direction"],
+        "required_attendee_roles": ["Incident Commander", "Operations Section Chief", "Planning Section Chief"],
+        "optional_attendee_roles": ["Safety Officer", "Intel/Investigations Supervisor"],
+        "prep_checklist_items": ["Gather field intelligence", "Review command emphasis"],
+        "agenda_checklist_items": ["Compare strategic options", "Select recommended strategy"],
+        "closeout_checklist_items": ["Route strategy decisions", "Prepare tactics input"],
+    },
+    {
+        "slug": "command-general-staff",
+        "name": "Command and General Staff Meeting",
+        "default_duration_minutes": 60,
+        "agenda_sections": ["Commander's intent", "Section updates", "Constraints", "Open decisions"],
+        "required_attendee_roles": ["Incident Commander", "Command Staff", "General Staff"],
+        "optional_attendee_roles": ["Technical Specialists", "Agency Representatives"],
+        "prep_checklist_items": ["Confirm section inputs", "Review current objectives"],
+        "agenda_checklist_items": ["Capture decisions", "Confirm planning timeline"],
+        "closeout_checklist_items": ["Route decisions to Planning log", "Update action owners"],
+    },
+    {
+        "slug": "tactics",
+        "name": "Tactics Meeting",
+        "default_duration_minutes": 45,
+        "agenda_sections": ["Objectives", "Tactical assignments", "Resource needs", "Safety concerns"],
+        "required_attendee_roles": ["Operations Section Chief", "Planning Section Chief", "Safety Officer"],
+        "optional_attendee_roles": ["Logistics Section Chief", "Branch Directors"],
+        "prep_checklist_items": ["Gather situation status", "Review resource availability"],
+        "agenda_checklist_items": ["Validate tactics", "Identify resource shortfalls"],
+        "closeout_checklist_items": ["Send resource gaps for follow-up", "Update draft ICS-215 inputs"],
+    },
+    {
+        "slug": "planning-prep",
+        "name": "Planning Preparation Meeting",
+        "default_duration_minutes": 30,
+        "agenda_sections": ["Timeline review", "Worksheet owners", "Data needs", "Open blockers"],
+        "required_attendee_roles": ["Planning Section Chief", "Resources Unit Leader", "Situation Unit Leader"],
+        "optional_attendee_roles": ["Documentation Unit Leader", "Operations Section Chief"],
+        "prep_checklist_items": ["Collect current planning status", "Review prior action items"],
+        "agenda_checklist_items": ["Assign worksheet owners", "Confirm planning meeting inputs"],
+        "closeout_checklist_items": ["Capture deadlines", "Follow up on missing inputs"],
+    },
+    {
+        "slug": "planning",
+        "name": "Planning Meeting",
+        "default_duration_minutes": 60,
+        "agenda_sections": ["Situation review", "Objectives approval", "Plan components", "Deadlines"],
+        "required_attendee_roles": ["Incident Commander", "Planning Section Chief", "Operations Section Chief"],
+        "optional_attendee_roles": ["Logistics Section Chief", "Finance/Admin Section Chief"],
+        "prep_checklist_items": ["Prepare proposed objectives", "Compile section plan inputs"],
+        "agenda_checklist_items": ["Approve objectives", "Confirm IAP components"],
+        "closeout_checklist_items": ["Assign IAP owners", "Publish planning timeline changes"],
+    },
+    {
+        "slug": "operations-briefing",
+        "name": "Operational Period Briefing",
+        "default_duration_minutes": 30,
+        "agenda_sections": ["Current situation", "Assignments", "Communications", "Safety message"],
+        "required_attendee_roles": ["Operations Section Chief", "Supervisors", "Safety Officer"],
+        "optional_attendee_roles": ["Incident Commander", "Liaison Officer"],
+        "prep_checklist_items": ["Finalize assignment materials", "Confirm briefing location"],
+        "agenda_checklist_items": ["Brief assignments", "Brief safety and communications"],
+        "closeout_checklist_items": ["Record attendance", "Capture late changes"],
+    },
+    {
+        "slug": "safety-briefing",
+        "name": "Safety Briefing",
+        "default_duration_minutes": 20,
+        "agenda_sections": ["Hazards", "Controls", "Emergency procedures", "Questions"],
+        "required_attendee_roles": ["Safety Officer", "Operations Supervisors"],
+        "optional_attendee_roles": ["Medical Unit Leader"],
+        "prep_checklist_items": ["Review current hazards", "Prepare safety message"],
+        "agenda_checklist_items": ["Brief controls", "Confirm emergency procedures"],
+        "closeout_checklist_items": ["Route safety items to log", "Update safety documentation"],
+    },
+]
+
+
 def _dedupe_template_docs(docs: List[dict]) -> List[dict]:
     deduped: list[dict] = []
     seen_names: set[str] = set()
@@ -497,25 +589,11 @@ def _col_get(incident_id: str, meeting_id: int) -> dict:
 # -------------------------------------------------------------------------
 
 def _seed_missing_templates() -> None:
-    try:
-        from modules.planning.meetings.seeds import ICS_MEETING_TEMPLATES
-        repo = _templates_repo()
-        for t in ICS_MEETING_TEMPLATES:
-            if repo.find_one({"slug": t.slug}):
-                continue
-            payload = {
-                "slug": t.slug,
-                "name": t.name,
-                "default_duration_minutes": int(t.default_duration_minutes),
-                "agenda_sections": t.agenda_sections,
-                "required_attendee_roles": t.required_attendee_roles,
-                "optional_attendee_roles": t.optional_attendee_roles,
-                "prep_checklist_items": t.prep_checklist_items,
-                "agenda_checklist_items": t.agenda_checklist_items,
-                "closeout_checklist_items": t.closeout_checklist_items,
-                "appears_on_ics230_default": bool(t.appears_on_ics230_default),
-                "active": bool(t.active),
-            }
-            repo.insert_one(payload)
-    except Exception:
-        pass
+    repo = _templates_repo()
+    for template in _BUILTIN_MEETING_TEMPLATES:
+        if repo.find_one({"slug": template["slug"]}):
+            continue
+        payload = dict(template)
+        payload.setdefault("appears_on_ics230_default", True)
+        payload.setdefault("active", True)
+        repo.insert_one(payload)

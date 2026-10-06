@@ -150,3 +150,34 @@ def test_local_only_person_display_does_not_use_network(monkeypatch) -> None:
     )
 
     assert widget._resolve_person_display("404", allow_network=False) == ""
+
+
+def test_narrative_table_wraps_and_resizes_long_entries(monkeypatch) -> None:
+    _app()
+    monkeypatch.setattr(widget.TaskDetailWindow, "_initial_load", lambda self: None)
+
+    window = widget.TaskDetailWindow(1)
+    try:
+        long_entry = " ".join(["long narrative entry"] * 30)
+        window._apply_narrative_rows(
+            [
+                {
+                    "id": "entry-long",
+                    "timestamp": "2026-10-03T11:00:00+00:00",
+                    "narrative": long_entry,
+                    "entered_by_display": "Alex Morgan",
+                    "critical": False,
+                }
+            ]
+        )
+
+        header = window._nar_table.horizontalHeader()
+        header.setSectionResizeMode(2, widget.QHeaderView.Interactive)
+        window._nar_table.setColumnWidth(2, 140)
+        window._nar_table.resizeRowsToContents()
+
+        assert window._nar_table.wordWrap() is True
+        assert window._nar_model.headerData(1, Qt.Horizontal) == "Date/Time"
+        assert window._nar_table.rowHeight(0) > window._nar_table.verticalHeader().minimumSectionSize()
+    finally:
+        window.close()

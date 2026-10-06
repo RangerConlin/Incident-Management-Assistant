@@ -120,6 +120,9 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     from sarapp_db.api.routers import hazard_types
     app.include_router(hazard_types.router, prefix="/api/hazard-types", tags=["hazard-types"])
 
+    from sarapp_db.api.routers import gar_templates
+    app.include_router(gar_templates.router, prefix="/api/gar-templates", tags=["gar-templates"])
+
     from sarapp_db.api.routers import resource_types
     app.include_router(resource_types.router, prefix="/api/resource-types", tags=["resource-types"])
 

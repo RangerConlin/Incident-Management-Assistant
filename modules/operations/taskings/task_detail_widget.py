@@ -45,6 +45,7 @@ from modules.gis.services.spatial_repository import SpatialRepository
 from utils.geocoding import geocode_address
 from utils.perf import PerfTimer
 from utils.table_view_styles import apply_statusboard_table_behavior
+from utils.timefmt import format_display_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -86,37 +87,11 @@ def _to_variant(obj: Any) -> Any:
 
 
 def _fmt_ts(ts: str | None) -> str:
-    if not ts:
-        return ""
-    s = str(ts)
-    if "." in s:
-        tz_idx = max(s.find("Z"), s.find("+", s.find(".")))
-        if tz_idx > 0:
-            s = s[: s.find(".")] + s[tz_idx:]
-        else:
-            s = s[: s.find(".")]
-    try:
-        if s.endswith("Z"):
-            s = s[:-1] + "+00:00"
-        dt = datetime.fromisoformat(s)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        else:
-            dt = dt.astimezone(timezone.utc)
-        return dt.strftime("%m/%d/%Y %H:%M:%S")
-    except Exception:
-        return str(ts)
+    return format_display_datetime(ts, default=str(ts or ""), include_seconds=True)
 
 
 def _fmt_ts_compact(ts: str | None) -> str:
-    text = _fmt_ts(ts)
-    if not text:
-        return ""
-    try:
-        date_part, time_part = text.split(" ", 1)
-        return f"{date_part} {time_part[:5]}"
-    except Exception:
-        return text
+    return format_display_datetime(ts, default=str(ts or ""), include_seconds=True)
 
 
 class _YesNoDelegate(QStyledItemDelegate):
@@ -843,7 +818,7 @@ class TaskDetailWindow(QWidget):
 
         # Narrative tab
         # Add a small dropdown cue on Critical to make editability obvious
-        self._nar_headers_base = ["ID", "Date/Time (UTC)", "Entry", "Entered By", "Position", "Critical", "214+"]
+        self._nar_headers_base = ["ID", "Date/Time", "Entry", "Entered By", "Position", "Critical", "214+"]
         self._nar_model = QStandardItemModel(0, len(self._nar_headers_base), self)
         self._nar_model.setHorizontalHeaderLabels(self._nar_headers_base)
         nar_content = QWidget(self)
@@ -888,7 +863,12 @@ class TaskDetailWindow(QWidget):
         self._nar_table.setAlternatingRowColors(True)
         self._nar_table.setColumnHidden(0, True)
         self._nar_table.setSortingEnabled(True)
-        self._nar_table.setWordWrap(False)
+        self._nar_table.setWordWrap(True)
+        try:
+            self._nar_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+            self._nar_table.verticalHeader().setMinimumSectionSize(28)
+        except Exception:
+            pass
         hh: QHeaderView = self._nar_table.horizontalHeader()
         # Default: interactive columns; make Entry column stretch to fill remaining width
         try:
@@ -896,6 +876,7 @@ class TaskDetailWindow(QWidget):
             hh.setSectionResizeMode(QHeaderView.Interactive)
             hh.setSectionResizeMode(2, QHeaderView.Stretch)  # Entry
             hh.setSortIndicatorShown(True)
+            hh.sectionResized.connect(lambda *_args: self._nar_table.resizeRowsToContents())
             # Add visual dividers between header sections to make resize handles obvious
             try:
                 hh.setSectionsClickable(True)
@@ -1299,16 +1280,25 @@ class TaskDetailWindow(QWidget):
         self._safety_context_lbl.setWordWrap(True)
         self._safety_team_summary_lbl = QLabel("", safety_content)
         self._safety_team_summary_lbl.setWordWrap(True)
-        self._safety_next_steps_lbl = QLabel(
-            "Next steps: add task hazard rollups, weather/context signals, and per-team risk assessments.",
-            safety_content,
-        )
-        self._safety_next_steps_lbl.setWordWrap(True)
         safety_layout.addWidget(safety_header)
         safety_layout.addWidget(self._safety_summary_lbl)
         safety_layout.addWidget(self._safety_context_lbl)
         safety_layout.addWidget(self._safety_team_summary_lbl)
-        safety_layout.addWidget(self._safety_next_steps_lbl)
+
+        from modules.operations.taskings.team_gar_rollup import TeamGarRollupPanel
+        from modules.planning.tactics_resources.widgets.hazard_analysis_editor import HazardAnalysisEditor
+
+        gar_sep = QFrame(safety_content)
+        gar_sep.setFrameShape(QFrame.HLine)
+        safety_layout.addWidget(gar_sep)
+        self._gar_rollup = TeamGarRollupPanel(self._task_id, safety_content)
+        safety_layout.addWidget(self._gar_rollup)
+
+        hazard_sep = QFrame(safety_content)
+        hazard_sep.setFrameShape(QFrame.HLine)
+        safety_layout.addWidget(hazard_sep)
+        self._hazard_editor = HazardAnalysisEditor(self._task_id, parent=safety_content, link_kind="task")
+        safety_layout.addWidget(self._hazard_editor)
         safety_layout.addStretch(1)
         tabs.addTab(safety_content, "Safety")
 
@@ -2108,8 +2098,16 @@ class TaskDetailWindow(QWidget):
         team_parts = [f"Assigned teams: {team_count}."]
         if primary_name:
             team_parts.append(f"Primary team: {primary_name}.")
-        team_parts.append("Per-team safety assessments will be added here.")
         self._safety_team_summary_lbl.setText(" ".join(team_parts))
+
+        try:
+            self._gar_rollup.reload()
+        except Exception:
+            pass
+        try:
+            self._hazard_editor.reload()
+        except Exception:
+            pass
 
     def _apply_status_background(self, status: str | None) -> None:
         try:
@@ -3195,7 +3193,7 @@ class TaskDetailWindow(QWidget):
             except Exception:
                 pass
         # Default widths
-        self._nar_table.setColumnWidth(1, 105)  # Date/Time (UTC)
+        self._nar_table.setColumnWidth(1, 140)  # Date/Time
         self._nar_table.setColumnWidth(3, 140)  # Entered By
         self._nar_table.setColumnWidth(4, 120)  # Team
         self._nar_table.setColumnWidth(5, 88)   # Critical
@@ -3207,6 +3205,10 @@ class TaskDetailWindow(QWidget):
         try:
             # Default sort by time desc
             self._nar_table.sortByColumn(1, Qt.DescendingOrder)
+        except Exception:
+            pass
+        try:
+            self._nar_table.resizeRowsToContents()
         except Exception:
             pass
 

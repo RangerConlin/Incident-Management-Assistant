@@ -51,6 +51,9 @@ class MasterCollections:
     HAZARD_TYPES = "hazard_types"
     SAFETY_ANALYSIS_TEMPLATES = "safety_analysis_templates"
 
+    # GAR (Green-Amber-Red) risk-assessment scoring rubrics
+    GAR_TEMPLATES = "gar_templates"
+
     # Facilities
     HOSPITALS = "hospitals"
     EMS_AGENCIES = "ems_agencies"

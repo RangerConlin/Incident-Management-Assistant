@@ -1,64 +1,70 @@
-"""Entry point for the SARApp cloud router.
+"""Hosted SARApp cloud server entry point.
 
-Runs as a headless service. No GUI. Intended to be started by a process
-manager (systemd, Docker, etc.) or directly from the command line.
-
-This process is a stateless reverse-tunnel proxy: it has no MongoDB
-connection of its own. LAN servers dial out to it and register under a
-connect code; field/remote devices hit `/r/<connect_code>/...` and their
-requests are forwarded down the matching tunnel. See
-`Design Documents/Instructions/cloud_router_architecture.md`.
-
-Environment variables:
-    SARAPP_CLOUD_ROUTER_TOKEN   Shared secret LAN servers must present to register a tunnel
-
-Usage:
-    python main.py
-    python main.py --host 0.0.0.0 --port 8765 --name "Production Cloud Router"
+This replaces the former stateless reverse-tunnel router. The hosted cloud
+server is a LAN-server-equivalent backend running on a VPS: it serves the
+normal SARApp API under the same connect-code URL shape clients already use.
 """
 
 from __future__ import annotations
 
-import argparse
-import logging
-import threading
+import uvicorn
 
-from server_manager import SARAppServerManager
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S",
+from cloud_server.config import load_settings
+from cloud_server.dashboard import create_dashboard_router
+from cloud_server.prefix import ConnectCodePrefixMiddleware
+from cloud_server.runtime import RequestLog, ServerRuntime
+from cloud_server.tunnel_client import (
+    CloudTunnelClient,
+    get_cloud_router_token,
+    get_cloud_router_url,
 )
-logger = logging.getLogger("sarapp.cloud")
+from sarapp_db.api.app import create_app
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="SARApp Cloud Router")
-    parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--name", default=None)
-    args = parser.parse_args(argv)
-
-    manager = SARAppServerManager(
-        host=args.host,
-        port=args.port,
-        server_name=args.name,
+def create_cloud_app():
+    settings = load_settings()
+    runtime = ServerRuntime(
+        server_id=settings.server_id,
+        server_name=settings.server_name,
+        connect_code=settings.connect_code,
+        requests=RequestLog(limit=settings.request_log_limit),
     )
-    manager.start()
-    logger.info(
-        "SARApp Cloud Router started — %s  port %d",
-        manager.server_info.server_name,
-        manager.port,
+    app = create_app(
+        server_info_fn=runtime.server_info,
+        request_log_fn=runtime.requests.append,
     )
+    app.include_router(create_dashboard_router(settings, runtime))
+    app.add_middleware(ConnectCodePrefixMiddleware, connect_code=settings.connect_code)
 
-    try:
-        threading.Event().wait()
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-        manager.stop()
+    tunnel_client = CloudTunnelClient(
+        local_port=8000,
+        server_id=settings.server_id,
+        server_name=settings.server_name,
+        cloud_router_url=get_cloud_router_url(),
+        token=get_cloud_router_token(),
+        connect_code=settings.connect_code,
+    )
+    app.state.cloud_tunnel_client = tunnel_client
+
+    @app.on_event("startup")
+    def _start_cloud_router_tunnel() -> None:
+        tunnel_client.start()
+
+    @app.on_event("shutdown")
+    def _stop_cloud_router_tunnel() -> None:
+        tunnel_client.stop()
+
+    return app
+
+
+app = create_cloud_app()
+
+
+def main() -> int:
+    uvicorn.run("cloud_server.main:app", host="0.0.0.0", port=8000, proxy_headers=True)
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -1,11 +1,11 @@
 """
 HazardAnalysisEditor
 ====================
-ICS 215A-style hazard view for one Work Assignment.
+ICS 215A-style hazard view for one Work Assignment or one Task.
 
 This widget does not own a separate hazard store. It shows canonical incident
-hazards filtered by their work-assignment link and opens the reusable Incident
-Hazard Detail Window for create/edit.
+hazards filtered by their work-assignment or task link and opens the reusable
+Incident Hazard Detail Window for create/edit.
 """
 from __future__ import annotations
 
@@ -67,9 +67,15 @@ def _spe_band(assessment) -> str:
     return assessment.band or "Not assessed"
 
 
+_LINK_KIND_LABELS = {
+    "work_assignment": "strategy",
+    "task": "task",
+}
+
+
 class HazardAnalysisEditor(QWidget):
     """
-    Displays incident hazards linked to one Work Assignment.
+    Displays incident hazards linked to one Work Assignment or one Task.
 
     Signals:
         changed() - emitted after any add/update/unlink operation.
@@ -79,12 +85,18 @@ class HazardAnalysisEditor(QWidget):
 
     def __init__(
         self,
-        work_assignment_id: int,
+        link_id: int,
         db_path: str | None = None,
         parent: Optional[QWidget] = None,
+        *,
+        link_kind: str = "work_assignment",
     ) -> None:
         super().__init__(parent)
-        self._work_assignment_id = int(work_assignment_id)
+        if link_kind not in _LINK_KIND_LABELS:
+            raise ValueError(f"Unknown link_kind: {link_kind!r}")
+        self._link_kind = link_kind
+        self._link_id = int(link_id)
+        self._link_label = _LINK_KIND_LABELS[link_kind]
         self._db_path = db_path
         self._hazards: list[Hazard] = []
 
@@ -131,7 +143,7 @@ class HazardAnalysisEditor(QWidget):
         try:
             self._hazards = hazard_service.list_hazards(
                 incident_id,
-                work_assignment_id=self._work_assignment_id,
+                **{f"{self._link_kind}_id": self._link_id},
             )
         except Exception as exc:
             QMessageBox.critical(self, "ICS 215A Hazards", f"Failed to load hazards:\n{exc}")
@@ -149,7 +161,7 @@ class HazardAnalysisEditor(QWidget):
             f"{len(self._hazards)} linked hazards | {high_count} high risk | {mitigated_count} mitigated"
         )
         if not self._hazards:
-            empty = QLabel("No hazards linked to this strategy.")
+            empty = QLabel(f"No hazards linked to this {self._link_label}.")
             empty.setAlignment(Qt.AlignCenter)
             empty.setStyleSheet(f"color:{get_palette().get('fg_muted').name()}; padding:24px;")
             self._card_layout.insertWidget(0, empty)
@@ -208,10 +220,13 @@ class HazardAnalysisEditor(QWidget):
             layout.addWidget(QLabel(f"<b>Safety message:</b> {hazard.safety_message}"))
         return card
 
+    def _link_field(self) -> str:
+        return f"{self._link_kind}_ids"
+
     def _show_hazard_context_menu(self, hazard: Hazard, card: QFrame, pos) -> None:
         menu = QMenu(self)
         menu.addAction("Open Detail", lambda: self._edit_hazard(hazard))
-        menu.addAction("Unlink From Strategy", lambda: self._unlink_hazard(hazard))
+        menu.addAction(f"Unlink From {self._link_label.title()}", lambda: self._unlink_hazard(hazard))
         menu.exec(card.mapToGlobal(pos))
 
     def _add_hazard(self) -> None:
@@ -222,7 +237,7 @@ class HazardAnalysisEditor(QWidget):
         dialog = IncidentHazardDetailWindow(
             incident_id,
             self,
-            default_work_assignment_id=self._work_assignment_id,
+            **{f"default_{self._link_kind}_id": self._link_id},
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -230,10 +245,11 @@ class HazardAnalysisEditor(QWidget):
         if not payload:
             return
         links = payload.setdefault("links", {})
-        work_assignment_ids = list(links.get("work_assignment_ids") or [])
-        if self._work_assignment_id not in work_assignment_ids:
-            work_assignment_ids.append(self._work_assignment_id)
-        links["work_assignment_ids"] = work_assignment_ids
+        link_field = self._link_field()
+        linked_ids = list(links.get(link_field) or [])
+        if self._link_id not in linked_ids:
+            linked_ids.append(self._link_id)
+        links[link_field] = linked_ids
         try:
             hazard_service.create_hazard(incident_id, payload)
         except Exception as exc:
@@ -255,10 +271,11 @@ class HazardAnalysisEditor(QWidget):
         if not payload:
             return
         links = payload.setdefault("links", {})
-        work_assignment_ids = list(links.get("work_assignment_ids") or [])
-        if self._work_assignment_id not in work_assignment_ids:
-            work_assignment_ids.append(self._work_assignment_id)
-        links["work_assignment_ids"] = work_assignment_ids
+        link_field = self._link_field()
+        linked_ids = list(links.get(link_field) or [])
+        if self._link_id not in linked_ids:
+            linked_ids.append(self._link_id)
+        links[link_field] = linked_ids
         try:
             hazard_service.update_hazard(incident_id, hazard.id, payload)
         except Exception as exc:
@@ -277,14 +294,15 @@ class HazardAnalysisEditor(QWidget):
             QMessageBox.question(
                 self,
                 "Unlink Hazard",
-                "Unlink this hazard from the strategy? The hazard will remain in the incident register.",
+                f"Unlink this hazard from the {self._link_label}? The hazard will remain in the incident register.",
             )
             != QMessageBox.StandardButton.Yes
         ):
             return
+        link_field = self._link_field()
         links = asdict(hazard.links)
-        links["work_assignment_ids"] = [
-            value for value in links.get("work_assignment_ids", []) if int(value) != self._work_assignment_id
+        links[link_field] = [
+            value for value in links.get(link_field, []) if int(value) != self._link_id
         ]
         try:
             hazard_service.update_hazard(incident_id, hazard.id, {"links": links})

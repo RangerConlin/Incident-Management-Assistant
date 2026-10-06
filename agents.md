@@ -16,7 +16,7 @@
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
 - No `backend/` directory. Files belong under the existing root/module structure such as `modules/`, `lan_server/`, `cloud_server/`, `server/`, or `data/` as appropriate.
-- `cloud_server/` is a stateless reverse-tunnel router, not a second backend. It has no MongoDB connection and runs no `sarapp_db` routers; LAN servers dial out to it and register under a connect code, and it forwards field-device HTTP/WebSocket traffic down that tunnel. There is no mirrored `sarapp_db` copy under `cloud_server/` (removed 2026-07-12, see `Design Documents/legacycode.md`) — apply all incident/master router, schema, and database changes to the active LAN server source under `data/db/sarapp_db/` only; see `Design Documents/Instructions/cloud_router_architecture.md` for the router's own protocol and files.
+- `cloud_server/` is the hosted VPS/container server. It runs the same shared `sarapp_db` FastAPI app as the LAN server, connects to its own MongoDB container, and exposes the app under the existing connect-code URL shape (`/r/<code>/...`) so clients do not distinguish LAN vs cloud. Keep incident/master router, schema, and database changes in `data/db/sarapp_db/`; `cloud_server/` only owns hosted packaging, connect-code path handling, and the per-server dashboard. See `Design Documents/Instructions/cloud_router_architecture.md`.
 - Database framework belongs under `data/`, not `core/`.
 - Never create demo/fake data unless instructed; only migrate or use data that already exists.
 - Do not add backward-compatibility shims, alias fields, or legacy fallback reads/writes in production code. If a data shape change needs help, use a one-time conversion/migration script to rewrite existing data into the new canonical format, then keep the app code on the canonical shape only.
@@ -36,7 +36,7 @@
 - `data/db/sarapp_db/`: Installable MongoDB package with collection constants, indexes, database manager, and API routers.
 - `server/`: Built-in offline server runtime used by the desktop client.
 - `lan_server/`: Standalone LAN server runtime and console tooling.
-- `cloud_server/`: Headless cloud reverse-tunnel router (`cloud_server/router/`) — nothing else lives here.
+- `cloud_server/`: Hosted Docker/Traefik cloud server wrapper, per-server dashboard, and Mongo backup import/export tooling.
 
 ## Coding Defaults
 - Target Python 3.11.
@@ -44,7 +44,7 @@
 - Prefer PySide6 widgets for UI work and open panels through established factories so ADS behavior stays consistent.
 - UI code uses `utils/api_client.py`; do not add direct DB access to widgets or bridges.
 - The shared FastAPI surface is `data/db/sarapp_db/api/app.py`; keep architecture notes and new server-facing work aligned with that entry point.
-- When touching incident/master routers under `data/db/sarapp_db/api/routers/`, do NOT mirror changes to `cloud_server/`; the cloud router doesn't run those routers at all (see `Design Documents/Instructions/cloud_router_architecture.md`).
+- When touching incident/master routers under `data/db/sarapp_db/api/routers/`, do not duplicate them under `cloud_server/`; the cloud server imports the shared app from `data/db/sarapp_db/api/app.py`.
 
 ## Testing Expectations
 - Run or update relevant `pytest` coverage with each code change.
@@ -67,7 +67,7 @@
 - Text encoding hygiene: `Design Documents/Instructions/text_encoding_hygiene.md`
 - Product structure, module inventory, and roadmap: `Design Documents/Instructions/product_structure.md`
 - Planned real-time architecture: `Design Documents/Instructions/realtime_architecture_roadmap.md`
-- Cloud router (reverse tunnel) architecture: `Design Documents/Instructions/cloud_router_architecture.md`
+- Cloud server hosting architecture: `Design Documents/Instructions/cloud_router_architecture.md`
 - Planned Events Toolkit Phase 0 audit (reuse matrix, domain boundaries, hardening backlog): `Design Documents/Instructions/planned_events_phase0_audit.md`
 
 ## Updating Instructions

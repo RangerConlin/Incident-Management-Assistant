@@ -267,6 +267,7 @@ class IncidentHazardDetailWindow(QDialog):
         hazard: Optional[dict] = None,
         default_op_period: object = 1,
         default_work_assignment_id: int | None = None,
+        default_task_id: int | None = None,
     ):
         super().__init__(parent)
         self._incident_id = incident_id
@@ -275,7 +276,7 @@ class IncidentHazardDetailWindow(QDialog):
         self._links: dict[str, list[int]] = {
             "work_assignment_ids": [int(default_work_assignment_id)] if default_work_assignment_id else [],
             "team_ids": [],
-            "task_ids": [],
+            "task_ids": [int(default_task_id)] if default_task_id else [],
         }
         self._hazard_types = ApiHazardTypeRepository().list_hazard_types()
 

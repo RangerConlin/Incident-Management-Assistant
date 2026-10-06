@@ -1,24 +1,54 @@
 services:
-  sarapp-cloud:
+  app:
     build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: sarapp-cloud
+      context: ..
+      dockerfile: cloud_server/Dockerfile
     restart: unless-stopped
-    ports:
-      - "8765:8765"
     environment:
-      - SARAPP_CLOUD_ROUTER_TOKEN=${SARAPP_CLOUD_ROUTER_TOKEN:?SARAPP_CLOUD_ROUTER_TOKEN must be set}
-      - SARAPP_SERVER_NAME=${SARAPP_SERVER_NAME:-SARApp Cloud Router}
-      - SARAPP_ROUTER_REQUEST_TIMEOUT_SECONDS=${SARAPP_ROUTER_REQUEST_TIMEOUT_SECONDS:-30}
-      - SARAPP_ROUTER_HEARTBEAT_INTERVAL_SECONDS=${SARAPP_ROUTER_HEARTBEAT_INTERVAL_SECONDS:-15}
-      - SARAPP_ROUTER_HEARTBEAT_TIMEOUT_SECONDS=${SARAPP_ROUTER_HEARTBEAT_TIMEOUT_SECONDS:-45}
-      - SARAPP_ROUTER_MAX_PENDING_REQUESTS=${SARAPP_ROUTER_MAX_PENDING_REQUESTS:-200}
-      - SARAPP_ROUTER_MAX_WS_CHANNELS=${SARAPP_ROUTER_MAX_WS_CHANNELS:-100}
-      - SARAPP_ROUTER_MAX_BODY_BYTES=${SARAPP_ROUTER_MAX_BODY_BYTES:-20971520}
-      - SARAPP_ROUTER_REGISTER_RATE_LIMIT=${SARAPP_ROUTER_REGISTER_RATE_LIMIT:-10}
+      SARAPP_MONGO_URI: mongodb://mongo:27017
+      SARAPP_CONNECT_CODE: ${SARAPP_CONNECT_CODE:?set SARAPP_CONNECT_CODE}
+      SARAPP_SERVER_NAME: ${SARAPP_SERVER_NAME:-SARApp Cloud Server DB}
+      SARAPP_SERVER_ID: ${SARAPP_SERVER_ID:-sarapp-cloud-server-db-${SARAPP_CONNECT_CODE}}
+      SARAPP_CLOUD_ROUTER_URL: ${SARAPP_CLOUD_ROUTER_URL:-}
+      SARAPP_CLOUD_ROUTER_TOKEN: ${SARAPP_CLOUD_ROUTER_TOKEN:-}
+      CLOUD_ADMIN_USERNAME: ${CLOUD_ADMIN_USERNAME:-admin}
+      CLOUD_ADMIN_PASSWORD: ${CLOUD_ADMIN_PASSWORD:?set CLOUD_ADMIN_PASSWORD}
+      CLOUD_SESSION_SECRET: ${CLOUD_SESSION_SECRET:?set CLOUD_SESSION_SECRET}
+      CLOUD_BACKUP_DIR: /var/lib/sarapp/backups
+      CLOUD_UPDATE_COMMAND: ${CLOUD_UPDATE_COMMAND:-}
+    volumes:
+      - backups:/var/lib/sarapp/backups
+      # Optional for one-click updates that run docker compose from inside the dashboard:
+      # - /var/run/docker.sock:/var/run/docker.sock
+      # - ..:/deploy/sarapp
+    depends_on:
+      - mongo
+    labels:
+      - traefik.enable=${TRAEFIK_DIRECT_ENABLE:-false}
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}.rule=PathPrefix(`/r/${SARAPP_CONNECT_CODE}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}.tls=true
+      - traefik.http.services.${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}.loadbalancer.server.port=8000
     networks:
-      - sarapp-net
+      - traefik
+      - internal
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - internal
+
+volumes:
+  mongo-data:
+  backups:
 
 networks:
-  sarapp-net:
+  internal:
+    internal: true
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}
+

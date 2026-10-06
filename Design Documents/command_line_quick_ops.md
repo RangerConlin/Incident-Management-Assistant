@@ -302,7 +302,7 @@ Rules:
 - UI command code must not call MongoDB directly.
 - Writes must go through existing API/server paths.
 - If an API endpoint does not exist for a command, add the API/repository path first.
-- Keep cloud router changes out of scope unless command behavior specifically involves reverse-tunnel routing.
+- Keep hosted cloud server changes out of scope unless command behavior specifically involves cloud-hosted server deployment or connect-code routing.
 
 ## Preview And Confirmation
 

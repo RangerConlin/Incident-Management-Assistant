@@ -56,11 +56,24 @@ Task Board
   - Remove the location type field - should be automatically determined by the entry 
 **************************************************************************************************************
 [Team Detail Window]
+  - Usability redesign needed (modules/operations/teams/panels/team_detail_window.py, 2026-10-05) —
+    the window has grown tab-by-tab (Personnel/Vehicles/Equipment/Logistics/Logs/Safety) without a
+    pass on overall layout/flow; revisit information hierarchy and navigation once there's time to
+    design it properly rather than keep bolting tabs on.
+    -- Confirmed unusable in practice for the new GAR Safety tab (modules/operations/teams/panels/gar_editor.py,
+       2026-10-05): the dynamic group/row/combo-box layout doesn't fit well in the window as built. GAR
+       editor UX needs to be redesigned alongside the window redesign, not patched in isolation.
 
 **************************************************************************************************************
 [Task Detail Window]
   - Communications channels need a selector for channel type (primary/alternate/etc)
   - 104/109 exports need to be tied to a specific team somehow
+  - Safety tab GUI redesign needed (modules/operations/taskings/task_detail_widget.py, 2026-10-05) — the
+    tab now stacks a free-text safety summary, the TeamGarRollupPanel (team GAR roll-up,
+    modules/operations/taskings/team_gar_rollup.py), and the HazardAnalysisEditor (linked hazard SPE
+    notes, modules/planning/tactics_resources/widgets/hazard_analysis_editor.py) in one plain vertical
+    column with no real layout pass. Needs an actual information-hierarchy design, not three widgets
+    stacked in a QVBoxLayout.
 
 **************************************************************************************************************
 [Logistics]
@@ -124,8 +137,6 @@ Forms
   just without the caching speedup).
 **************************************************************************************************************
 [Safety]
-  - Integrate USCG GAR model on the task/assignment side (SPE hazard scoring is done — see Safety Risk Manager, modules/safety/orm/)
-    -- New Safety tab in the task detail window?
   - Restore Safety Analysis Templates as reusable groupings of master hazard library entries for quick import into the tactics/planning workflow.
     -- Keep `hazard_types` as the single source of truth; templates only store grouped hazard selections, ordering, and any import-oriented metadata needed by planning/tactics.
 Safety Message ICS 208

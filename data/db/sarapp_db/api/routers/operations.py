@@ -656,6 +656,129 @@ def reset_team_comm_timer(incident_id: str, team_id: int, body: dict[str, Any]) 
     return _strip(repo.find_by_id(doc["_id"]))
 
 
+# ---------------------------------------------------------------------------
+# Team GAR (Green-Amber-Red) risk assessment — template-driven scoring
+# ---------------------------------------------------------------------------
+# GAR is assessed per team, not per task: a task can carry multiple teams,
+# each with its own risk posture. An assessment is normally made once per
+# operational period (at team briefing/activation) but can be redone anytime
+# conditions change — every save appends a new entry rather than overwriting,
+# so "current" is simply the most recent entry and history falls out for free.
+#
+# The scoring rubric itself is not hardcoded: each incident has a default
+# GAR template (an admin-editable master-library document — see
+# gar_templates.py) and a specific assessment can override that default,
+# since a multi-agency incident may have teams that each score against their
+# own org's rubric. The assessment stores a full denormalized snapshot of
+# the template's resolved selections/score/band so editing a template later
+# never rewrites the meaning of past assessments.
+
+
+class IncidentProfileRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_PROFILE
+    soft_deletes = False
+
+
+def _profile_repo(incident_id: str) -> IncidentProfileRepository:
+    return IncidentProfileRepository(get_db(f"sarapp_incident_{incident_id}"))
+
+
+def _active_op_period_id(incident_id: str) -> Optional[int]:
+    from sarapp_db.api.routers.operational_periods import get_active_period
+
+    period = get_active_period(incident_id)
+    return period.get("id") if period else None
+
+
+def _gar_templates_repo():
+    from sarapp_db.api.routers.gar_templates import GarTemplatesRepository
+
+    return GarTemplatesRepository(get_master_db())
+
+
+def _default_gar_template_id(incident_id: str) -> Optional[int]:
+    doc = _profile_repo(incident_id).find_one({"incident_id": incident_id})
+    value = doc.get("default_gar_template_id") if doc else None
+    return int(value) if value is not None else None
+
+
+@router.get("/incidents/{incident_id}/operations/gar-default-template")
+def get_default_gar_template(incident_id: str) -> dict:
+    return {"template_id": _default_gar_template_id(incident_id)}
+
+
+@router.patch("/incidents/{incident_id}/operations/gar-default-template")
+def set_default_gar_template(incident_id: str, body: dict[str, Any]) -> dict:
+    repo = _profile_repo(incident_id)
+    doc = repo.find_one({"incident_id": incident_id})
+    if not doc:
+        raise HTTPException(404, f"Incident '{incident_id}' not found")
+    template_id = body.get("template_id")
+    repo.update_one(doc["_id"], {"default_gar_template_id": template_id})
+    return {"template_id": template_id}
+
+
+def _score_gar(incident_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    from sarapp_db.api.routers.gar_templates import score_selections
+
+    template_id = body.get("template_id")
+    if template_id is None:
+        template_id = _default_gar_template_id(incident_id)
+    if template_id is None:
+        raise HTTPException(422, "No GAR template specified and the incident has no default template set.")
+    template = _gar_templates_repo().find_one({"id": int(template_id)})
+    if template is None:
+        raise HTTPException(404, f"GAR template {template_id} not found")
+
+    selections = body.get("selections") or []
+    if not isinstance(selections, list) or not selections:
+        raise HTTPException(422, "At least one GAR row selection is required.")
+    try:
+        result = score_selections(template, selections)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+    return {
+        **result,
+        "template_id": int(template_id),
+        "template_name": template.get("name") or "",
+        "notes": str(body.get("notes") or ""),
+        "assessed_by": str(body.get("assessed_by") or ""),
+        "assessed_at": _now(),
+        "operational_period_id": _active_op_period_id(incident_id),
+    }
+
+
+@router.get("/incidents/{incident_id}/operations/teams/{team_id}/gar")
+def get_team_gar(incident_id: str, team_id: int) -> dict:
+    col = _teams(incident_id)
+    doc = col.find_one({"int_id": team_id})
+    if not doc:
+        raise HTTPException(404, f"Team {team_id} not found")
+    history = list(doc.get("gar_assessments") or [])
+    current = history[-1] if history else None
+    return {"current": current, "history": history}
+
+
+@router.post("/incidents/{incident_id}/operations/teams/{team_id}/gar", status_code=201)
+def save_team_gar(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
+    repo = _teams_repo(incident_id)
+    team = _find_by_int_id(repo, team_id)
+    if not team:
+        raise HTTPException(404, f"Team {team_id} not found")
+    assessment = _score_gar(incident_id, body)
+    previous_history = list(team.get("gar_assessments") or [])
+    previous_score = previous_history[-1].get("score") if previous_history else None
+    audit_entry = _audit_entry("GAR Score", previous_score, assessment["score"], assessment["assessed_by"])
+    repo.apply_update(
+        team["_id"],
+        {"$push": {"gar_assessments": assessment, "audit": {"$each": [audit_entry]}}},
+    )
+    updated = repo.find_by_id(team["_id"])
+    history = list(updated.get("gar_assessments") or [])
+    return {"current": history[-1] if history else None, "history": history}
+
+
 @router.get("/incidents/{incident_id}/operations/team-assignment-rows")
 def fetch_team_assignment_rows(incident_id: str) -> list[dict]:
     """Summary rows for the Team Status board."""
@@ -1249,6 +1372,8 @@ def save_task_assignment(incident_id: str, task_id: int, body: dict[str, Any]) -
     repo.update_one(task["_id"], {"task_assignment": body})
     updated = repo.find_by_id(task["_id"])
     return updated.get("task_assignment") or {}
+
+
 
 
 # ---------------------------------------------------------------------------

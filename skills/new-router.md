@@ -23,9 +23,9 @@ async def create(data: MySchema):
     """Create new item"""
 ```
 
-This is the only copy that needs to exist. `cloud_server/` is a stateless
-reverse-tunnel router (see `Design Documents/Instructions/cloud_router_architecture.md`)
-and never runs `sarapp_db` routers, so there is nothing to mirror.
+This is the only copy that needs to exist. `cloud_server/` imports the shared
+FastAPI app from `data/db/sarapp_db/api/app.py` and must not keep a mirrored
+router tree, so there is nothing to mirror.
 
 ## Options
 

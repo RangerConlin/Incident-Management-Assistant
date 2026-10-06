@@ -109,6 +109,7 @@ def list_hazards(
     op_period: Optional[int] = None,
     category: Optional[str] = None,
     work_assignment_id: Optional[int] = None,
+    task_id: Optional[int] = None,
     hazard_zone_id: Optional[int] = None,
 ) -> list[Hazard]:
     params: dict[str, Any] = {}
@@ -118,6 +119,8 @@ def list_hazards(
         params["category"] = category
     if work_assignment_id is not None:
         params["work_assignment_id"] = work_assignment_id
+    if task_id is not None:
+        params["task_id"] = task_id
     if hazard_zone_id is not None:
         params["hazard_zone_id"] = hazard_zone_id
     docs = api_client.get(f"/api/incidents/{incident_id}/safety/hazards", params=params) or []

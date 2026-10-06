@@ -7,19 +7,35 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from modules.command.incident_organization.models import (
-    ASSIGNMENT_TYPE_ASSISTANT,
-    ASSIGNMENT_TYPE_DEPUTY,
-    ASSIGNMENT_TYPE_PRIMARY,
-    ASSIGNMENT_TYPE_STAFF_ASSISTANT,
-    ASSIGNMENT_TYPE_TRAINEE,
-    normalize_assignment_type,
-)
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+ASSIGNMENT_TYPE_PRIMARY = "primary"
+ASSIGNMENT_TYPE_DEPUTY = "deputy"
+ASSIGNMENT_TYPE_ASSISTANT = "assistant"
+ASSIGNMENT_TYPE_STAFF_ASSISTANT = "staff_assistant"
+ASSIGNMENT_TYPE_TRAINEE = "trainee"
+_ACTIVE_ASSIGNMENT_TYPES = {
+    ASSIGNMENT_TYPE_PRIMARY,
+    ASSIGNMENT_TYPE_DEPUTY,
+    ASSIGNMENT_TYPE_ASSISTANT,
+    ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+    ASSIGNMENT_TYPE_TRAINEE,
+}
+_LEGACY_ASSIGNMENT_TYPE_ALIASES = {
+    "staff assistant": ASSIGNMENT_TYPE_STAFF_ASSISTANT,
+}
+
+
+def normalize_assignment_type(value: object) -> str:
+    assignment_type = str(value or ASSIGNMENT_TYPE_PRIMARY).strip().lower()
+    if not assignment_type:
+        return ASSIGNMENT_TYPE_PRIMARY
+    assignment_type = _LEGACY_ASSIGNMENT_TYPE_ALIASES.get(assignment_type, assignment_type)
+    return assignment_type if assignment_type in _ACTIVE_ASSIGNMENT_TYPES else ASSIGNMENT_TYPE_PRIMARY
 
 
 class IncidentOrgRepository(BaseRepository):
@@ -263,24 +279,82 @@ def _template_to_dict(doc: dict) -> dict[str, Any]:
 
 
 def _builtin_templates() -> list[dict[str, Any]]:
-    try:
-        from modules.command.incident_organization.repository import (
-            _default_organization_templates,
-        )
-        templates = _default_organization_templates()
-        result = []
-        for i, t in enumerate(templates):
-            result.append({
-                "id": -(i + 1),
-                "template_id": -(i + 1),
-                "incident_id": None,
-                "name": t.name,
-                "description": t.description,
-                "payload": t.payload,
-            })
-        return result
-    except Exception:
-        return []
+    basic_payload = [
+        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
+        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
+        {"key": "pio", "parent_key": "ic", "title": "Public Information Officer", "classification": "position"},
+        {"key": "liaison", "parent_key": "ic", "title": "Liaison Officer", "classification": "position"},
+        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
+        {"key": "planning", "parent_key": "ic", "title": "Planning Section Chief", "classification": "section"},
+        {"key": "logistics", "parent_key": "ic", "title": "Logistics Section Chief", "classification": "section"},
+        {"key": "finance", "parent_key": "ic", "title": "Finance/Administration Section Chief", "classification": "section"},
+    ]
+    expanded_payload = basic_payload + [
+        {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
+        {"key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch", "classification": "branch", "is_air_ops": True},
+        {"key": "resources_unit", "parent_key": "planning", "title": "Resources Unit Leader", "classification": "position"},
+        {"key": "situation_unit", "parent_key": "planning", "title": "Situation Unit Leader", "classification": "position"},
+        {"key": "documentation_unit", "parent_key": "planning", "title": "Documentation Unit Leader", "classification": "position"},
+        {"key": "demob_unit", "parent_key": "planning", "title": "Demobilization Unit Leader", "classification": "position"},
+        {"key": "time_unit", "parent_key": "finance", "title": "Time Unit Leader", "classification": "position"},
+        {"key": "procurement_unit", "parent_key": "finance", "title": "Procurement Unit Leader", "classification": "position"},
+        {"key": "comp_claims_unit", "parent_key": "finance", "title": "Compensation/Claims Unit Leader", "classification": "position"},
+        {"key": "cost_unit", "parent_key": "finance", "title": "Cost Unit Leader", "classification": "position"},
+    ]
+    sar_minimal_payload = [
+        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
+        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
+        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
+        {"key": "staging", "parent_key": "ops", "title": "Staging Area Manager", "classification": "position"},
+    ]
+    cap_payload = [
+        {"key": "ic", "title": "Incident Commander", "classification": "command", "is_critical": True},
+        {"key": "safety", "parent_key": "ic", "title": "Safety Officer", "classification": "position"},
+        {"key": "liaison", "parent_key": "ic", "title": "Liaison Officer", "classification": "position"},
+        {"key": "pio", "parent_key": "ic", "title": "Public Information Officer", "classification": "position"},
+        {"key": "planning", "parent_key": "ic", "title": "Planning Section Chief", "classification": "section"},
+        {"key": "situation_unit", "parent_key": "planning", "title": "Situation Unit Leader", "classification": "position"},
+        {"key": "logistics", "parent_key": "ic", "title": "Logistics Section Chief", "classification": "section"},
+        {"key": "communications_unit", "parent_key": "logistics", "title": "Communications Unit Leader", "classification": "position"},
+        {"key": "finance", "parent_key": "ic", "title": "Finance/Administration Section Chief", "classification": "section"},
+        {"key": "intel", "parent_key": "ic", "title": "Intelligence Section Chief", "classification": "section"},
+        {"key": "ops", "parent_key": "ic", "title": "Operations Section Chief", "classification": "section"},
+        {"key": "ground_ops_branch", "parent_key": "ops", "title": "Ground Operations Branch", "classification": "branch"},
+        {"key": "air_ops_branch", "parent_key": "ops", "title": "Air Operations Branch", "classification": "branch", "is_air_ops": True},
+    ]
+    templates = [
+        (
+            "ICS Command & General Staff (Basic)",
+            "Incident Commander, Command Staff, and the four Section Chiefs.",
+            basic_payload,
+        ),
+        (
+            "Type 3 Incident (Expanded)",
+            "Basic structure plus air operations and standard Planning/Finance units.",
+            expanded_payload,
+        ),
+        (
+            "SAR Initial Response (Minimal)",
+            "Minimal initial-response SAR structure for early tasking.",
+            sar_minimal_payload,
+        ),
+        (
+            "Civil Air Patrol (Standard)",
+            "CAP-oriented command, general staff, intelligence, ground operations, and air operations structure.",
+            cap_payload,
+        ),
+    ]
+    return [
+        {
+            "id": -(i + 1),
+            "template_id": -(i + 1),
+            "incident_id": None,
+            "name": name,
+            "description": description,
+            "payload": payload,
+        }
+        for i, (name, description, payload) in enumerate(templates)
+    ]
 
 
 @router.get("/{incident_id}/org/templates")

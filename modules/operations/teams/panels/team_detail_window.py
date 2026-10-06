@@ -1840,11 +1840,17 @@ class TeamDetailWindow(QMainWindow):
         self._equipment_tab = QWidget()
         self._logistics_tab = QWidget()
         self._logs_tab = QWidget()
+        self._safety_tab = QWidget()
         self._tabs.addTab(self._personnel_tab, "Personnel (Ground)")
         self._tabs.addTab(self._assets_tab, "Vehicles")
         self._tabs.addTab(self._equipment_tab, "Equipment")
         self._tabs.addTab(self._logistics_tab, "Logistics")
         self._tabs.addTab(self._logs_tab, "Logs")
+        self._tabs.addTab(self._safety_tab, "Safety")
+
+        self._safety_layout = QVBoxLayout(self._safety_tab)
+        self._safety_layout.setContentsMargins(6, 6, 6, 6)
+        self._gar_editor: Optional[QWidget] = None
 
         personnel_layout = QVBoxLayout(self._personnel_tab)
         personnel_layout.setContentsMargins(0, 0, 0, 0)
@@ -2276,10 +2282,24 @@ class TeamDetailWindow(QMainWindow):
         self._update_assistance_ui()
         self._update_member_detail_button()
         self._apply_status_palette()
+        self._refresh_safety_tab()
 
         self._updating = False
         try:
             self._load_team_ics214()
+        except Exception:
+            pass
+
+    def _refresh_safety_tab(self) -> None:
+        if self._team_id is None:
+            return
+        if self._gar_editor is None:
+            from modules.operations.teams.panels.gar_editor import GarAssessmentEditor
+
+            self._gar_editor = GarAssessmentEditor(self._team_id, self._safety_tab)
+            self._safety_layout.addWidget(self._gar_editor)
+        try:
+            self._gar_editor.reload()
         except Exception:
             pass
 

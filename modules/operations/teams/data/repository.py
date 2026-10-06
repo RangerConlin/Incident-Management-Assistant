@@ -347,3 +347,46 @@ def set_team_ci_status(team_id: int, ci_status: str) -> None:
         _client().patch(f"{_base()}/teams/{team_id}", json={"ci_status": ci_status})
     except Exception:
         pass
+
+
+def _active_user_display() -> str:
+    try:
+        from utils.state import AppState
+        uid = AppState.get_active_user_id()
+        return str(uid) if uid is not None else ""
+    except Exception:
+        return ""
+
+
+def get_team_gar(team_id: int) -> dict[str, Any]:
+    """Return {"current": {...} | None, "history": [...]} for a team's GAR assessments."""
+    cached = _cached_team_doc(team_id)
+    if cached is not None:
+        history = list(cached.get("gar_assessments") or [])
+        return {"current": history[-1] if history else None, "history": history}
+    try:
+        return _client().get(f"{_base()}/teams/{team_id}/gar")
+    except Exception:
+        return {"current": None, "history": []}
+
+
+def save_team_gar(
+    team_id: int,
+    template_id: int,
+    selections: list[dict[str, Any]],
+    notes: str = "",
+) -> dict[str, Any]:
+    """Append a new GAR assessment for a team, scored against `template_id`.
+
+    `selections` is a list of {"group_id", "row_id", "option_id"} covering
+    every row in that template; score/band/required_reviewer/
+    operational_period_id are computed server-side. Every call appends — it
+    never overwrites — so a reassessment mid-op-period keeps the prior
+    assessment in history."""
+    body = {
+        "template_id": template_id,
+        "selections": selections,
+        "notes": notes,
+        "assessed_by": _active_user_display(),
+    }
+    return _client().post(f"{_base()}/teams/{team_id}/gar", json=body)

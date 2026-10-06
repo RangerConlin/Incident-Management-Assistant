@@ -741,6 +741,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Communications Resources (ICS-217)", None, "communications.217")
         self._add_action(m_edit, "EMS Agencies", None, "edit.ems")
         self._add_action(m_edit, "Equipment", None, "edit.equipment")
+        self._add_action(m_edit, "GAR Template Library", None, "edit.gar_templates")
         self._add_action(m_edit, "Hazard Type Library", None, "edit.hazard_types")
         self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
@@ -1122,6 +1123,7 @@ class MainWindow(QMainWindow):
             "edit.equipment": self.open_edit_equipment,
             "edit.resource_types": self.open_edit_resource_types,
             "edit.hazard_types": self.open_edit_hazard_types,
+            "edit.gar_templates": self.open_edit_gar_templates,
             "communications.217": self.open_edit_comms_resources,
             "edit.safety_templates": self.open_edit_safety_templates,
             "edit.units_organizations": self.open_edit_units_organizations,
@@ -1525,6 +1527,22 @@ class MainWindow(QMainWindow):
             )
             return
         open_hazard_type_library(parent=self)
+
+    def open_edit_gar_templates(self) -> None:
+        """Open the GAR Template Manager from the Edit menu."""
+
+        try:
+            from modules.admin.gar_templates.windows.gar_template_manager_window import (
+                GarTemplateManagerWindow,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "GAR Template Manager",
+                f"Unable to load GAR Template Manager.\n{exc}",
+            )
+            return
+        GarTemplateManagerWindow(parent=self).exec()
 
     def open_edit_comms_resources(self) -> None:
         try:
@@ -4094,7 +4112,7 @@ if __name__ == "__main__":
             _connection_manager.add_listener(_on_pre_connection_changed)
             _on_pre_connection_changed(_connection_manager.snapshot)
 
-        from modules.login_dialog import LoginDialog
+        from modules.login_dialog import LoginDialog, attempt_remembered_login
         try:
             _startup_mode = int(_early_settings.get('startupBehaviorIndex', 0) or 0)
         except Exception:
@@ -4107,22 +4125,35 @@ if __name__ == "__main__":
                 _ConnectionState_pre.CONNECTED_CLOUD,
             }
         )
-        login = LoginDialog(
-            demo_mode=bool(getattr(args, 'demo', False)),
-            default_incident_number=_default_incident,
-            api_available=_online_available,
-            settings_manager=_early_settings,
-        )
 
-        def _handle_start_offline() -> None:
-            if _start_local_offline_mode(app, _connection_manager):
-                login.complete_offline_start()
-            else:
-                login.offline_start_failed()
+        _remembered_session = None
+        if not bool(getattr(args, 'demo', False)):
+            try:
+                _remembered_session = attempt_remembered_login(
+                    settings_manager=_early_settings,
+                    api_available=_online_available,
+                )
+            except Exception:
+                logger.exception("Remembered login resume failed; falling back to full sign-in")
+                _remembered_session = None
 
-        login.startOfflineRequested.connect(_handle_start_offline)
-        if login.exec() != QDialog.Accepted:
-            sys.exit(0)
+        if _remembered_session is None:
+            login = LoginDialog(
+                demo_mode=bool(getattr(args, 'demo', False)),
+                default_incident_number=_default_incident,
+                api_available=_online_available,
+                settings_manager=_early_settings,
+            )
+
+            def _handle_start_offline() -> None:
+                if _start_local_offline_mode(app, _connection_manager):
+                    login.complete_offline_start()
+                else:
+                    login.offline_start_failed()
+
+            login.startOfflineRequested.connect(_handle_start_offline)
+            if login.exec() != QDialog.Accepted:
+                sys.exit(0)
 
     # Build main window after session is established
     settings_manager = _early_settings

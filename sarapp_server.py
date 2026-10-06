@@ -12,9 +12,9 @@ def _ensure_repo_packages_on_path() -> None:
     """Allow local runs without requiring editable installs first.
 
     Only ``data/db`` is added here — it is the canonical ``sarapp_db``
-    package. ``cloud_server`` ships its own standalone copy of ``sarapp_db``
-    for Docker deployment; it must never take priority over the canonical
-    package for the local desktop server, so it is intentionally excluded.
+    package. ``cloud_server`` imports that same package for Docker
+    deployment; local desktop runs should keep resolving the canonical package
+    from ``data/db``.
     """
     repo_root = Path(__file__).resolve().parent
     package_root = repo_root / "data" / "db"
