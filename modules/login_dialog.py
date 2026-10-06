@@ -360,96 +360,6 @@ def _finish_session(
     return str(incident_id), str(person_record or ""), role
 
 
-class QuickResumeDialog(IncidentSelectionDialog):
-    """Incident picker shown when a remembered login bypasses full sign-in."""
-
-    switchAccountRequested = Signal()
-
-    def __init__(
-        self,
-        parent: QWidget | None = None,
-        *,
-        display_name: str,
-        default_incident_number: str | None = None,
-        api_available: bool = True,
-    ) -> None:
-        super().__init__(
-            parent,
-            default_incident_number=default_incident_number,
-            api_available=api_available,
-        )
-        self.setWindowTitle("Select Incident")
-
-        welcome = QLabel(f"Signed in as {display_name}")
-        self.layout().insertWidget(0, welcome)
-
-        self.btn_switch_account = QPushButton("Sign in as someone else")
-        self.layout().insertWidget(self.layout().count() - 1, self.btn_switch_account)
-        self.btn_switch_account.clicked.connect(self._on_switch_account)
-
-    def _on_switch_account(self) -> None:
-        self.switchAccountRequested.emit()
-        self.reject()
-
-
-def attempt_remembered_login(
-    *,
-    settings_manager,
-    api_available: bool,
-    parent: QWidget | None = None,
-) -> tuple[str, str, str] | None:
-    """Try to resume a remembered sign-in, skipping straight to incident
-    selection. Returns (incident_id, person_record, role) on success, or
-    None if there's no remembered login, the user declines, or resolution
-    fails — in every None case the caller should fall back to the full
-    LoginDialog.
-    """
-
-    if settings_manager is None or not api_available:
-        return None
-    if not settings_manager.get("rememberLogin"):
-        return None
-    username = str(settings_manager.get("rememberedUsername") or "").strip()
-    role = str(settings_manager.get("rememberedRole") or "").strip()
-    if not username or not role:
-        return None
-
-    display_name = _resolve_person_record(parent, username)
-    if display_name is None:
-        return None
-
-    dialog = QuickResumeDialog(
-        parent,
-        display_name=display_name,
-        default_incident_number=settings_manager.get("lastIncidentNumber"),
-        api_available=api_available,
-    )
-    forgotten = False
-
-    def _on_switch_account() -> None:
-        nonlocal forgotten
-        forgotten = True
-
-    dialog.switchAccountRequested.connect(_on_switch_account)
-    if dialog.exec() != QDialog.Accepted:
-        if forgotten:
-            settings_manager.set("rememberLogin", False)
-        return None
-
-    incident_id = dialog.selected_incident_id()
-    if not incident_id:
-        return None
-
-    return _finish_session(
-        parent=parent,
-        username=username,
-        role=role,
-        incident_id=incident_id,
-        display_name=display_name,
-        incidents=dialog._incidents,
-    )
-
-
 class LoginDialog(QDialog):
     """Modal startup splash for online sign-in, registration, or offline launch."""
 
@@ -513,6 +423,8 @@ class LoginDialog(QDialog):
         self.btn_start_offline.setObjectName("secondaryButton")
         self.btn_connect_remote = QPushButton("Connect to Remote Server...")
         self.btn_connect_remote.setObjectName("secondaryButton")
+        self.btn_connection_library = QPushButton("Connection Library...")
+        self.btn_connection_library.setObjectName("secondaryButton")
         self.btn_submit_register = QPushButton("Submit Registration")
         self.btn_submit_register.setObjectName("primaryButton")
         self.btn_back_to_login = QPushButton("Back to Login")
@@ -538,6 +450,7 @@ class LoginDialog(QDialog):
         self.btn_submit_register.clicked.connect(self._submit_registration)
         self.btn_start_offline.clicked.connect(self._request_offline_start)
         self.btn_connect_remote.clicked.connect(self._on_connect_remote)
+        self.btn_connection_library.clicked.connect(self._on_connection_library)
         self.btn_new_incident.clicked.connect(self._on_create_new_incident)
         self.incident_combo.currentIndexChanged.connect(self._update_continue_enabled)
         self.username_edit.textChanged.connect(self._update_continue_enabled)
@@ -694,6 +607,7 @@ class LoginDialog(QDialog):
 
         secondary_row = QHBoxLayout()
         secondary_row.addWidget(self.btn_connect_remote)
+        secondary_row.addWidget(self.btn_connection_library)
         secondary_row.addWidget(self.btn_start_offline)
         layout.addLayout(secondary_row)
         layout.addStretch(1)
@@ -926,6 +840,32 @@ class LoginDialog(QDialog):
                 "the next launch or connection retry.",
             )
 
+    def _on_connection_library(self) -> None:
+        settings_manager = self._settings_manager
+        if settings_manager is None:
+            from utils.settingsmanager import SettingsManager
+            settings_manager = SettingsManager()
+            self._settings_manager = settings_manager
+
+        from modules.connection_library import ConnectionLibraryDialog
+
+        dlg = ConnectionLibraryDialog(self, settings_manager)
+        dlg.sessionReady.connect(self._on_library_session_ready)
+        dlg.connectionSelected.connect(self._on_library_connection_selected)
+        dlg.exec()
+
+    def _on_library_session_ready(self, incident_id: str, person_record: str, role: str) -> None:
+        self.sessionReady.emit(incident_id, person_record, role)
+        self.accept()
+
+    def _on_library_connection_selected(self, connection, incident_number: str) -> None:
+        self._api_available = True
+        self._load_incidents()
+        self._select_incident(incident_number)
+        self._update_continue_enabled()
+        self._update_status_label()
+        self.username_edit.setFocus()
+
     def _request_offline_start(self) -> None:
         self.btn_start_offline.setEnabled(False)
         self.btn_start_offline.setText("Starting Offline...")
@@ -951,8 +891,9 @@ class LoginDialog(QDialog):
         return _resolve_person_record(self, person_id)
 
     def _prefill_remembered_login(self) -> None:
-        """Pre-fill username/role/remember-me when falling back to the full
-        form after a remembered sign-in (e.g. quick resume failed offline)."""
+        """Pre-fill username/password/role/remember-me when falling back to
+        the full form after a remembered sign-in (e.g. quick resume failed
+        offline)."""
 
         if self._settings_manager is None:
             return
@@ -966,17 +907,27 @@ class LoginDialog(QDialog):
             idx = self.role_combo.findText(role)
             if idx >= 0:
                 self.role_combo.setCurrentIndex(idx)
+        encrypted_password = str(self._settings_manager.get("rememberedPassword") or "")
+        if encrypted_password:
+            from utils.secure_storage import decrypt_secret
+            password = decrypt_secret(encrypted_password)
+            if password is not None:
+                self.password_edit.setText(password)
         self.chk_remember.setChecked(True)
 
-    def _save_remember_preference(self, username: str, role: str) -> None:
+    def _save_remember_preference(self, username: str, role: str, password: str) -> None:
         if self._settings_manager is None:
             return
         if self.chk_remember.isChecked():
             self._settings_manager.set("rememberLogin", True)
             self._settings_manager.set("rememberedUsername", username)
             self._settings_manager.set("rememberedRole", role)
+            from utils.secure_storage import encrypt_secret
+            encrypted_password = encrypt_secret(password)
+            self._settings_manager.set("rememberedPassword", encrypted_password or "")
         elif self._settings_manager.get("rememberLogin"):
             self._settings_manager.set("rememberLogin", False)
+            self._settings_manager.set("rememberedPassword", "")
 
     def _accept(self) -> None:
         incident_id = self.incident_combo.currentData()
@@ -1011,7 +962,7 @@ class LoginDialog(QDialog):
         incident_id_str, person_record, role = result
 
         if username and not self._demo_mode:
-            self._save_remember_preference(username, role)
+            self._save_remember_preference(username, role, self.password_edit.text())
 
         self.sessionReady.emit(incident_id_str, person_record, role)
         self.accept()
@@ -1020,8 +971,6 @@ class LoginDialog(QDialog):
 __all__ = [
     "IncidentSelectionDialog",
     "LoginDialog",
-    "QuickResumeDialog",
     "RemoteServerDialog",
     "STATIC_ROLES",
-    "attempt_remembered_login",
 ]

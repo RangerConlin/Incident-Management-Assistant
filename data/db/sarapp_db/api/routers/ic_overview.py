@@ -149,8 +149,11 @@ def _seed_weather_config(incident_id: str, weather_thresholds: Optional[Dict[str
         logging.getLogger(__name__).exception("Failed to seed weather_config for incident %s", incident_id)
 
 
-@router.post("", status_code=201)
-def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
+def create_incident_records(body: CreateIncidentRequest) -> dict[str, Any]:
+    """Create the system registry doc and incident_profile doc for a new
+    incident, and seed its weather_config. Shared by the create-incident
+    route and the incident importer (see sarapp_db.export_import.importer),
+    so both paths produce an identical incident shape."""
     sys_repo = _system_incidents_repo()
     if sys_repo.find_one({"number": body.number}):
         raise HTTPException(409, f"Incident with number '{body.number}' already exists")
@@ -190,6 +193,11 @@ def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
     registry_doc.pop("_id", None)
     registry_doc["id"] = incident_id
     return registry_doc
+
+
+@router.post("", status_code=201)
+def create_incident(body: CreateIncidentRequest) -> dict[str, Any]:
+    return create_incident_records(body)
 
 
 # ---------------------------------------------------------------------------

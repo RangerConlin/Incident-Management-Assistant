@@ -15,8 +15,8 @@
 
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
-- No `backend/` directory. Files belong under the existing root/module structure such as `modules/`, `lan_server/`, `cloud_server/`, `server/`, or `data/` as appropriate.
-- `cloud_server/` is the hosted VPS/container server. It runs the same shared `sarapp_db` FastAPI app as the LAN server, connects to its own MongoDB container, and exposes the app under the existing connect-code URL shape (`/r/<code>/...`) so clients do not distinguish LAN vs cloud. Keep incident/master router, schema, and database changes in `data/db/sarapp_db/`; `cloud_server/` only owns hosted packaging, connect-code path handling, and the per-server dashboard. See `Design Documents/Instructions/cloud_router_architecture.md`.
+- No `backend/` directory. Files belong under the existing root/module structure such as `modules/`, `lan_server/`, `cloud_server/`, `cloud_router/`, `server/`, or `data/` as appropriate.
+- `cloud_server/` is the hosted VPS/container server. It runs the same shared `sarapp_db` FastAPI app as the LAN server, connects to its own MongoDB container, and exposes the app under the existing connect-code URL shape (`/r/<code>/...`) so clients do not distinguish LAN vs cloud. Keep incident/master router, schema, and database changes in `data/db/sarapp_db/`; `cloud_server/` only owns hosted packaging, connect-code path handling, and the per-server dashboard. `cloud_router/` is the separate, stateless reverse-tunnel proxy that `cloud_server/` and LAN servers each register with; it owns the public `/r/<code>/...` URL and has no database/incident-data code — do not merge it with `cloud_server/`. See `Design Documents/Instructions/cloud_router_architecture.md`.
 - Database framework belongs under `data/`, not `core/`.
 - Never create demo/fake data unless instructed; only migrate or use data that already exists.
 - Do not add backward-compatibility shims, alias fields, or legacy fallback reads/writes in production code. If a data shape change needs help, use a one-time conversion/migration script to rewrite existing data into the new canonical format, then keep the app code on the canonical shape only.
@@ -34,9 +34,11 @@
 - `styles/`, `utils/styles.py`: Shared palette and styling helpers.
 - `utils/`: App state, logging, filesystem, theme, and incident context. Extend instead of duplicating.
 - `data/db/sarapp_db/`: Installable MongoDB package with collection constants, indexes, database manager, and API routers.
+- `data/db/sarapp_db/export_import/`: Universal incident export/import package format (zip of collections + GridFS attachments) used by the `incident_transfer` router to move a whole incident between servers as a file.
 - `server/`: Built-in offline server runtime used by the desktop client.
 - `lan_server/`: Standalone LAN server runtime and console tooling.
-- `cloud_server/`: Hosted Docker/Traefik cloud server wrapper, per-server dashboard, and Mongo backup import/export tooling.
+- `cloud_server/`: Hosted Docker/Traefik cloud server wrapper, per-server dashboard, and Mongo backup import/export tooling. Dials out to and registers with `cloud_router/`, the same way a LAN server does.
+- `cloud_router/`: Standalone, stateless reverse-tunnel proxy. Owns the public `/r/<CONNECT_CODE>/...` URL and forwards traffic to whichever LAN/cloud server has registered that connect code. No database, no incident data, no shared files/imports with `cloud_server/`.
 
 ## Coding Defaults
 - Target Python 3.11.

@@ -55,6 +55,7 @@ TRAEFIK_NETWORK=cloud_server_sarapp-net
 CLOUD_ADMIN_USERNAME=admin
 CLOUD_ADMIN_PASSWORD=<dashboard-password>
 CLOUD_SESSION_SECRET=<long-random-string>
+CLOUD_UPDATE_COMMAND=cd /deploy/sarapp-cloud-server-db && git pull --ff-only && cd cloud_server && docker compose -p ${COMPOSE_PROJECT_NAME} --env-file .env up -d --build --remove-orphans
 ```
 
 Generate `CLOUD_SESSION_SECRET` with:

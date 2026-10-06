@@ -104,6 +104,33 @@ class BaseRepository:
         self._broadcast("created", doc["_id"], doc)
         return doc
 
+    def bulk_insert(self, documents: List[Dict[str, Any]]) -> int:
+        """Insert many documents as-is, stamping any missing defaults.
+
+        Unlike insert_one, this does not broadcast per document — used for
+        bulk restores (e.g. incident import) where the target incident has
+        no live viewers yet and per-document broadcasts would just flood the
+        WebSocket hub for no one.
+        """
+        if not documents:
+            return 0
+        now = _utcnow_iso()
+        docs = []
+        for document in documents:
+            doc = dict(document)
+            if "_id" not in doc or not doc["_id"]:
+                doc["_id"] = _new_id()
+            doc.setdefault("created_at", now)
+            doc.setdefault("updated_at", now)
+            if self.soft_deletes:
+                doc.setdefault("deleted", False)
+            docs.append(doc)
+        try:
+            self._col.insert_many(docs)
+        except Exception as exc:
+            raise RepositoryError(f"bulk_insert failed on '{self.collection_name}': {exc}") from exc
+        return len(docs)
+
     def update_one(
         self,
         doc_id: str,

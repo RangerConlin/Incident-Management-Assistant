@@ -206,6 +206,7 @@ Cost Summary
 
 **************************************************************************************************************
 [Initial Response]
+  - Initial response initial window has a minimum height that exceeds the height of the monitor several times over.  In addition multiple tabs have broken formatting or things that dont translate to dark mode at all.  
 
 **************************************************************************************************************
 [Reference Library]
@@ -227,7 +228,6 @@ Cost Summary
         avoid adding new duplicate collections or fields.
     - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
     - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
-    - During the start and login process, need to have a way to force a refresh to the server without closing and restarting
 
 **************************************************************************************************************
 [GIS]

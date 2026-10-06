@@ -1,11 +1,20 @@
 # Cloud Server Hosting Architecture
 
 ## Purpose
-`cloud_server/` is the VPS/container-hosted SARApp Cloud Server DB. It replaces the
-old stateless reverse-tunnel router. A cloud server is intentionally treated
-as a LAN-server-equivalent backend: it serves the shared FastAPI app from
-`data/db/sarapp_db/api/app.py`, connects to its own MongoDB container, and
-uses the same connect-code URL shape clients already understand.
+`cloud_server/` is the VPS/container-hosted SARApp Cloud Server DB. A cloud
+server is intentionally treated as a LAN-server-equivalent backend: it serves
+the shared FastAPI app from `data/db/sarapp_db/api/app.py`, connects to its
+own MongoDB container, and uses the same connect-code URL shape clients
+already understand.
+
+`cloud_server/` does **not** replace the stateless reverse-tunnel router —
+that router (`cloud_router/`) is still live, required infrastructure.
+`cloud_server/` dials *out* to it and registers a connect code exactly like a
+LAN server does; the router is what actually owns the public
+`/r/<CONNECT_CODE>/...` URL and forwards traffic down whichever tunnel is
+registered for that code. The two are independent services with no shared
+files or imports — see `cloud_router/README.md` for why its source lived
+only in git history for a while (commit `fed5fbcc`) before being restored.
 
 Clients should not need a different workflow for LAN vs cloud. A cloud URL
 such as `https://example.org/r/ABCD-1234` must expose the normal `/health`,

@@ -692,6 +692,9 @@ class MainWindow(QMainWindow):
         self._add_action(m_menu, "New Incident", "Ctrl+N", "menu.new_incident")
         self._add_action(m_menu, "Open Incident", "Ctrl+O", "menu.open_incident")
         self._add_action(m_menu, "Save Incident", "Ctrl+S", "menu.save_incident")
+        m_menu.addSeparator()
+        self._add_action(m_menu, "Export Incident…", None, "menu.export_incident")
+        self._add_action(m_menu, "Import Incident…", None, "menu.import_incident")
         self._add_action(m_menu, "Settings", None, "menu.settings")
         self._add_action(m_menu, "Notification Center", "Ctrl+Shift+N", "menu.notification_center")
         profiles_menu = m_menu.addMenu("Profiles")
@@ -1106,6 +1109,8 @@ class MainWindow(QMainWindow):
             "menu.new_incident": self.open_menu_new_incident,
             "menu.open_incident": self.open_menu_open_incident,
             "menu.save_incident": self.open_menu_save_incident,
+            "menu.export_incident": self.open_menu_export_incident,
+            "menu.import_incident": self.open_menu_import_incident,
             "menu.settings": self.open_menu_settings,
             "menu.notification_center": self.open_notification_center,
             "menu.exit": self.open_menu_exit,  # special-case: still exits
@@ -1316,6 +1321,55 @@ class MainWindow(QMainWindow):
             "Save Incident",
             "Incident data is saved automatically through the API. No manual save step is required.",
         )
+
+    def open_menu_export_incident(self) -> None:
+        from utils.incident_context import get_active_incident_id
+
+        incident_id = get_active_incident_id()
+        if not incident_id:
+            QMessageBox.warning(self, "Export Incident", "No incident is currently active.")
+            return
+
+        default_name = f"{AppState.get_active_incident() or incident_id}.zip"
+        path, _ = QFileDialog.getSaveFileName(self, "Export Incident", default_name, "Zip Files (*.zip)")
+        if not path:
+            return
+
+        try:
+            from utils.api_client import api_client
+
+            data = api_client.get_bytes(f"/api/incidents/{incident_id}/export")
+            with open(path, "wb") as fh:
+                fh.write(data)
+            QMessageBox.information(self, "Export Incident", f"Exported to {path}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Export Incident", f"Failed to export: {exc}")
+
+    def open_menu_import_incident(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Import Incident", "", "Zip Files (*.zip)")
+        if not path:
+            return
+
+        from modules.incidents.import_incident_dialog import ImportIncidentDialog
+
+        dlg = ImportIncidentDialog(path, self)
+        dlg.imported.connect(self._on_incident_imported)
+        dlg.exec()
+
+    def _on_incident_imported(self, imported) -> None:
+        QMessageBox.information(
+            self,
+            "Incident Imported",
+            f"Incident '{imported.name}' ({imported.number}) imported. "
+            "Use Open Incident to switch to it.",
+        )
+        if hasattr(self, "incident_selection_window") and hasattr(
+            self.incident_selection_window, "reload_missions"
+        ):
+            try:
+                self.incident_selection_window.reload_missions()
+            except Exception:
+                logger.exception("Failed to refresh incident selection window")
 
     def open_menu_settings(self) -> None:
         """Open the widget-based Settings window."""
@@ -4112,7 +4166,7 @@ if __name__ == "__main__":
             _connection_manager.add_listener(_on_pre_connection_changed)
             _on_pre_connection_changed(_connection_manager.snapshot)
 
-        from modules.login_dialog import LoginDialog, attempt_remembered_login
+        from modules.login_dialog import LoginDialog
         try:
             _startup_mode = int(_early_settings.get('startupBehaviorIndex', 0) or 0)
         except Exception:
@@ -4126,34 +4180,28 @@ if __name__ == "__main__":
             }
         )
 
-        _remembered_session = None
-        if not bool(getattr(args, 'demo', False)):
-            try:
-                _remembered_session = attempt_remembered_login(
-                    settings_manager=_early_settings,
-                    api_available=_online_available,
-                )
-            except Exception:
-                logger.exception("Remembered login resume failed; falling back to full sign-in")
-                _remembered_session = None
+        # Always show the themed login screen, even for a remembered sign-in —
+        # "Remember me" only pre-fills username/role/incident (see
+        # LoginDialog._prefill_remembered_login) so returning users still get
+        # one consistent screen and a chance to switch connections before
+        # continuing, instead of being dropped straight into incident
+        # selection on a server they can't change.
+        login = LoginDialog(
+            demo_mode=bool(getattr(args, 'demo', False)),
+            default_incident_number=_default_incident,
+            api_available=_online_available,
+            settings_manager=_early_settings,
+        )
 
-        if _remembered_session is None:
-            login = LoginDialog(
-                demo_mode=bool(getattr(args, 'demo', False)),
-                default_incident_number=_default_incident,
-                api_available=_online_available,
-                settings_manager=_early_settings,
-            )
+        def _handle_start_offline() -> None:
+            if _start_local_offline_mode(app, _connection_manager):
+                login.complete_offline_start()
+            else:
+                login.offline_start_failed()
 
-            def _handle_start_offline() -> None:
-                if _start_local_offline_mode(app, _connection_manager):
-                    login.complete_offline_start()
-                else:
-                    login.offline_start_failed()
-
-            login.startOfflineRequested.connect(_handle_start_offline)
-            if login.exec() != QDialog.Accepted:
-                sys.exit(0)
+        login.startOfflineRequested.connect(_handle_start_offline)
+        if login.exec() != QDialog.Accepted:
+            sys.exit(0)
 
     # Build main window after session is established
     settings_manager = _early_settings

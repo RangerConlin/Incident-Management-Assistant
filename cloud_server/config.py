@@ -28,6 +28,8 @@ class CloudSettings:
     admin_password_hash: str
     session_secret: str
     backup_dir: str
+    config_dir: str
+    firebase_credentials_path: str
     request_log_limit: int
 
 
@@ -48,6 +50,11 @@ def load_settings() -> CloudSettings:
         admin_password_hash=password_hash,
         session_secret=_env("CLOUD_SESSION_SECRET", secrets.token_urlsafe(32)),
         backup_dir=_env("CLOUD_BACKUP_DIR", "/var/lib/sarapp/backups"),
+        config_dir=_env("CLOUD_CONFIG_DIR", "/var/lib/sarapp/config"),
+        firebase_credentials_path=_env(
+            "SARAPP_FIREBASE_CREDENTIALS_PATH",
+            "/var/lib/sarapp/config/firebase_credentials.json",
+        ),
         request_log_limit=_int_env("CLOUD_REQUEST_LOG_LIMIT", 500),
     )
 

@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     environment:
       SARAPP_MONGO_URI: mongodb://mongo:27017
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}
       SARAPP_CONNECT_CODE: ${SARAPP_CONNECT_CODE:?set SARAPP_CONNECT_CODE}
       SARAPP_SERVER_NAME: ${SARAPP_SERVER_NAME:-SARApp Cloud Server DB}
       SARAPP_SERVER_ID: ${SARAPP_SERVER_ID:-sarapp-cloud-server-db-${SARAPP_CONNECT_CODE}}
@@ -15,12 +16,15 @@ services:
       CLOUD_ADMIN_PASSWORD: ${CLOUD_ADMIN_PASSWORD:?set CLOUD_ADMIN_PASSWORD}
       CLOUD_SESSION_SECRET: ${CLOUD_SESSION_SECRET:?set CLOUD_SESSION_SECRET}
       CLOUD_BACKUP_DIR: /var/lib/sarapp/backups
+      CLOUD_CONFIG_DIR: /var/lib/sarapp/config
+      SARAPP_FIREBASE_CREDENTIALS_PATH: /var/lib/sarapp/config/firebase_credentials.json
       CLOUD_UPDATE_COMMAND: ${CLOUD_UPDATE_COMMAND:-}
     volumes:
       - backups:/var/lib/sarapp/backups
-      # Optional for one-click updates that run docker compose from inside the dashboard:
-      # - /var/run/docker.sock:/var/run/docker.sock
-      # - ..:/deploy/sarapp
+      - config:/var/lib/sarapp/config
+      # Required only when CLOUD_UPDATE_COMMAND runs git/docker updates from the dashboard.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ..:/deploy/sarapp-cloud-server-db
     depends_on:
       - mongo
     labels:
@@ -44,6 +48,7 @@ services:
 volumes:
   mongo-data:
   backups:
+  config:
 
 networks:
   internal:

@@ -15,6 +15,27 @@
 - Stable master/global lookup reads should use `utils.catalog_cache.catalog_cache` where practical, with explicit invalidation after catalog writes.
 - Do not cache large binary/export content in RAM by default. Heavy/history collections should be recent-only, capped, or paged.
 
+## Incident Export/Import
+- `data/db/sarapp_db/export_import/` builds and restores a universal, portable
+  incident package: a zip of `manifest.json` + one `collections/<name>.json`
+  per non-empty `IncidentCollections.*` collection (dumped with
+  `bson.json_util`) + every GridFS attachment blob under `attachments/`.
+- Exposed via `data/db/sarapp_db/api/routers/incident_transfer.py`:
+  `GET /api/incidents/{incident_id}/export` and `POST /api/incidents/import`.
+- Import always creates a **brand-new incident** (never merges into an
+  existing one) via the shared `create_incident_records()` helper in
+  `ic_overview.py`. It also rewrites any `incident_id` field embedded inside
+  restored documents (and GridFS metadata) to the new incident, and remaps
+  `attachments.gridfs_file_id` to the re-uploaded file's new id — both ids
+  change on import even though document `_id`s are preserved as-is.
+- Bulk restores go through `BaseRepository.bulk_insert()` (no per-document
+  broadcast, unlike `insert_one`) rather than a raw `insert_many` on the
+  collection, keeping every incident-database write funneled through a
+  `BaseRepository` subclass per the hard rule.
+- Known gap: `finance_attachments` documents store a local filesystem
+  `file_path` rather than a GridFS id (see `Design Documents/legacycode.md`),
+  so those files don't travel with an export — only the metadata row does.
+
 ## Templates And Config
 - Templates/forms live in `data/forms`, `data/templates`, and `profiles/`.
 - Theme tokens live in `utils.theme_manager` and `styles/palette.py`.

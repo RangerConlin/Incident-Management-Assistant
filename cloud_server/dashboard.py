@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hmac
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from html import escape
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
@@ -92,7 +94,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
 <body>
   <header>
     <strong>SARApp Cloud Server DB</strong>
-    <nav><a href="{root_path}/dashboard">Dashboard</a><a href="{root_path}/dashboard/backups">Backups</a><a href="{root_path}/dashboard/logout">Logout</a></nav>
+    <nav><a href="{root_path}/dashboard">Dashboard</a><a href="{root_path}/dashboard/connections">Connections</a><a href="{root_path}/dashboard/logs">Logs</a><a href="{root_path}/dashboard/backups">Backups</a><a href="{root_path}/dashboard/settings">Settings</a><a href="{root_path}/dashboard/logout">Logout</a></nav>
   </header>
   <main>{body}</main>
 </body>
@@ -103,13 +105,54 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
 def _active_connections() -> list[dict[str, Any]]:
     cutoff = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat(timespec="seconds")
     col = get_master_db()[MasterCollections.CLIENT_CONNECTIONS]
-    return list(
+    mobile_connections = list(
         col.find(
             {"status": {"$ne": "revoked"}, "last_seen_at": {"$gte": cutoff}},
             {"_id": 0, "connection_token_hash": 0},
             sort=[("last_seen_at", -1)],
         )
     )
+    return [*mobile_connections, *_active_desktop_sessions()]
+
+
+def _active_desktop_sessions() -> list[dict[str, Any]]:
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=300)).isoformat(timespec="seconds")
+    db = get_master_db()
+    sessions = db[MasterCollections.USER_SESSIONS]
+    users = db[MasterCollections.USERS]
+    personnel = db[MasterCollections.PERSONNEL]
+    rows: list[dict[str, Any]] = []
+    for session in sessions.find(
+        {"ended_at": None, "status": {"$ne": "offline"}, "last_seen_at": {"$gte": cutoff}},
+        {"_id": 0},
+        sort=[("last_seen_at", -1)],
+    ):
+        user = users.find_one({"user_id": session.get("user_id")}, {"_id": 0}) or {}
+        person = personnel.find_one({"person_record": session.get("person_record")}, {"_id": 0}) or {}
+        rows.append(
+            {
+                "connection_kind": "desktop_session",
+                "device_id": session.get("session_id"),
+                "platform": "desktop",
+                "device_name": session.get("device_name"),
+                "display_name": session.get("display_name") or user.get("display_name"),
+                "person_record": session.get("person_record"),
+                "person_id": person.get("person_id") or session.get("username") or user.get("username"),
+                "incident_id": session.get("incident_id"),
+                "role": session.get("role"),
+                "status": session.get("status"),
+                "location_tracking_enabled": False,
+                "last_seen_at": session.get("last_seen_at") or session.get("started_at"),
+            }
+        )
+    return rows
+
+
+def _firebase_status(settings: CloudSettings) -> dict[str, str]:
+    path = settings.firebase_credentials_path
+    if path and Path(path).is_file():
+        return {"status": "configured", "path": path}
+    return {"status": "not configured", "path": path}
 
 
 def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> APIRouter:
@@ -165,6 +208,7 @@ def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> 
         connections = _active_connections()
         traffic = runtime.requests.latest(20)
         updates = update_state()
+        firebase = _firebase_status(settings)
         update_status = "running" if updates["running"] else "idle"
         update_body = (
             f"""<form method="post" action="{request.scope.get("root_path") or ""}/dashboard/update">
@@ -190,6 +234,11 @@ def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> 
     <p>Status: <strong>{escape(update_status)}</strong></p>
     <p class="muted">Last return code: {escape(str(updates["last_returncode"]))}</p>
     {update_body}
+  </section>
+  <section class="card"><h2>Firebase</h2>
+    <p>Status: <strong>{escape(firebase["status"])}</strong></p>
+    <p class="muted">{escape(firebase["path"])}</p>
+    <p><a href="{request.scope.get("root_path") or ""}/dashboard/settings">Manage settings</a></p>
   </section>
 </div>
 <section class="card" style="margin-top:16px;"><h2>Update Log</h2>
@@ -220,11 +269,54 @@ def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> 
         rows = _active_connections()
         body = f"""
 <section class="card"><h1>Active Connections</h1>
-  <table><tr><th>Device</th><th>Person</th><th>Platform</th><th>Incident</th><th>Team</th><th>Last Seen</th></tr>
-  {"".join(f"<tr><td>{escape(str(r.get('device_name') or r.get('device_id') or ''))}</td><td>{escape(str(r.get('person_id') or r.get('person_record') or ''))}</td><td>{escape(str(r.get('platform') or ''))}</td><td>{escape(str(r.get('incident_id') or ''))}</td><td>{escape(str(r.get('team_name') or r.get('team_id') or ''))}</td><td>{escape(str(r.get('last_seen_at') or ''))}</td></tr>" for r in rows)}
+  <table><tr><th>Type</th><th>Device</th><th>Person</th><th>Platform</th><th>Incident</th><th>Team</th><th>Last Seen</th></tr>
+  {"".join(f"<tr><td>{escape(str(r.get('connection_kind') or 'client'))}</td><td>{escape(str(r.get('device_name') or r.get('device_id') or ''))}</td><td>{escape(str(r.get('display_name') or r.get('person_id') or r.get('person_record') or ''))}</td><td>{escape(str(r.get('platform') or ''))}</td><td>{escape(str(r.get('incident_id') or ''))}</td><td>{escape(str(r.get('team_name') or r.get('team_id') or ''))}</td><td>{escape(str(r.get('last_seen_at') or ''))}</td></tr>" for r in rows)}
   </table>
 </section>"""
         return _page("Connections", body, request)
+
+    @router.get("/dashboard/logs", response_class=HTMLResponse, response_model=None)
+    def logs_page(request: Request) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        rows = runtime.logs.latest(500)
+        body = f"""
+<section class="card"><h1>Server Logs</h1>
+  <pre style="white-space:pre-wrap;max-height:70vh;overflow:auto;">{escape(chr(10).join(reversed(rows)))}</pre>
+</section>"""
+        return _page("Logs", body, request)
+
+    @router.get("/dashboard/settings", response_class=HTMLResponse, response_model=None)
+    def settings_page(request: Request) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        firebase = _firebase_status(settings)
+        body = f"""
+<section class="card"><h1>Settings</h1>
+  <h2>Firebase Push Notifications</h2>
+  <p>Status: <strong>{escape(firebase["status"])}</strong></p>
+  <p class="muted">Credential path: {escape(firebase["path"])}</p>
+  <form method="post" enctype="multipart/form-data" action="{request.scope.get("root_path") or ""}/dashboard/settings/firebase">
+    <p><input type="file" name="file" accept=".json" required></p>
+    <p><button type="submit">Upload Firebase Key</button></p>
+  </form>
+</section>"""
+        return _page("Settings", body, request)
+
+    @router.post("/dashboard/settings/firebase")
+    async def upload_firebase_key(request: Request, file: UploadFile = File(...)) -> RedirectResponse:
+        _require_session(settings, request)
+        destination = Path(settings.firebase_credentials_path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        data = await file.read()
+        json.loads(data.decode("utf-8"))
+        destination.write_bytes(data)
+        os.environ["SARAPP_FIREBASE_CREDENTIALS_PATH"] = str(destination)
+        return RedirectResponse(f"{request.scope.get('root_path') or ''}/dashboard/settings", status_code=303)
 
     @router.get("/dashboard/backups", response_class=HTMLResponse, response_model=None)
     def backups_page(request: Request) -> Response:

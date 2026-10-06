@@ -7,12 +7,14 @@ normal SARApp API under the same connect-code URL shape clients already use.
 
 from __future__ import annotations
 
+import logging
+
 import uvicorn
 
 from cloud_server.config import load_settings
 from cloud_server.dashboard import create_dashboard_router
 from cloud_server.prefix import ConnectCodePrefixMiddleware
-from cloud_server.runtime import RequestLog, ServerRuntime
+from cloud_server.runtime import RequestLog, RuntimeLogHandler, ServerRuntime
 from cloud_server.tunnel_client import (
     CloudTunnelClient,
     get_cloud_router_token,
@@ -33,6 +35,10 @@ def create_cloud_app():
         server_info_fn=runtime.server_info,
         request_log_fn=runtime.requests.append,
     )
+    log_handler = RuntimeLogHandler(runtime.logs)
+    logging.getLogger().addHandler(log_handler)
+    logging.getLogger().setLevel(logging.INFO)
+    app.state.cloud_log_handler = log_handler
     app.include_router(create_dashboard_router(settings, runtime))
     app.add_middleware(ConnectCodePrefixMiddleware, connect_code=settings.connect_code)
 
@@ -53,6 +59,7 @@ def create_cloud_app():
     @app.on_event("shutdown")
     def _stop_cloud_router_tunnel() -> None:
         tunnel_client.stop()
+        logging.getLogger().removeHandler(log_handler)
 
     return app
 

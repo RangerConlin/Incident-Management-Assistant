@@ -151,6 +151,9 @@ _NARRATIVE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFI
 _TEAM_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "TEAM_STATUS")
 _TEAM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "TEAM_STATUS")
 
+_CONNECTION_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "CONNECTION_STATUS")
+_CONNECTION_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "CONNECTION_STATUS")
+
 _RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "RESOURCE_STATUS")
 _RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "RESOURCE_STATUS")
 
@@ -274,6 +277,10 @@ def team_status_light_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TEAM_STATUS_LIGHT
 
 
+def connection_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _CONNECTION_STATUS_LIGHT if THEME_NAME == "light" else _CONNECTION_STATUS_DARK
+
+
 def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TASK_STATUS_LIGHT if THEME_NAME == "light" else _TASK_STATUS_DARK
 
@@ -350,6 +357,90 @@ def weather_severity_colors() -> Dict[str, Dict[str, QBrush]]:
     return _WEATHER_SEVERITY_LIGHT if THEME_NAME == "light" else _WEATHER_SEVERITY_DARK
 
 
+def form_dialog_stylesheet(object_name: str) -> str:
+    """Shared QSS for the app's styled form dialogs (login, new incident, ...).
+
+    Styles plain QLineEdit/QComboBox/QCheckBox controls and the
+    `#primaryButton`/`#secondaryButton`/`#fieldLabel`/`#dialogTitle`/
+    `#dialogSubtitle` object-name conventions used across those dialogs, plus
+    the dialog's own window background keyed by `object_name`. Callers can
+    append additional rules (e.g. a branding panel) after this string.
+    """
+    pal = get_palette()
+    bg_window = pal["bg_window"].name()
+    bg_raised = pal["bg_raised"].name()
+    ctrl_border = pal["ctrl_border"].name()
+    ctrl_hover = pal["ctrl_hover"].name()
+    ctrl_focus = pal["ctrl_focus"].name()
+    fg_primary = pal["fg_primary"].name()
+    fg_muted = pal["fg_muted"].name()
+    btn_focus = pal["btn_focus"].name()
+    btn_focus_hover = pal["btn_focus"].darker(110).name()
+    btn_disabled = pal["btn_disabled"].name()
+
+    return f"""
+        QDialog#{object_name} {{ background: {bg_window}; }}
+        QLabel#dialogTitle {{
+            color: {fg_primary};
+            font-size: 16px;
+            font-weight: 500;
+        }}
+        QLabel#dialogSubtitle {{
+            color: {fg_muted};
+            font-size: 12px;
+        }}
+        QLabel#fieldLabel {{
+            color: {fg_muted};
+            font-size: 12px;
+        }}
+        QLineEdit, QComboBox {{
+            background: {bg_raised};
+            border: 1px solid {ctrl_border};
+            border-radius: 6px;
+            padding: 0 10px;
+            min-height: 32px;
+            color: {fg_primary};
+            font-size: 13px;
+        }}
+        QLineEdit:focus, QComboBox:focus {{
+            border: 1px solid {ctrl_focus};
+        }}
+        QCheckBox {{
+            color: {fg_muted};
+            font-size: 12px;
+        }}
+        QPushButton#primaryButton {{
+            background: {btn_focus};
+            border: none;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 500;
+            min-height: 34px;
+            padding: 0 16px;
+        }}
+        QPushButton#primaryButton:hover {{
+            background: {btn_focus_hover};
+        }}
+        QPushButton#primaryButton:disabled {{
+            background: {btn_disabled};
+            color: {fg_muted};
+        }}
+        QPushButton#secondaryButton {{
+            background: transparent;
+            border: 1px solid {ctrl_border};
+            border-radius: 6px;
+            color: {fg_muted};
+            font-size: 12px;
+            min-height: 30px;
+            padding: 0 12px;
+        }}
+        QPushButton#secondaryButton:hover {{
+            background: {ctrl_hover};
+        }}
+    """
+
+
 def _qobject_is_valid(obj: object | None) -> bool:
     if obj is None:
         return False
@@ -423,8 +514,10 @@ __all__ = [
     "apply_app_palette",
     "set_theme",
     "subscribe_theme",
+    "form_dialog_stylesheet",
     "team_status_colors",
     "team_status_light_colors",
+    "connection_status_colors",
     "ribbon_colors",
     "map_symbol_colors",
     "task_status_colors",

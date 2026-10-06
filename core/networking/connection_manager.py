@@ -232,6 +232,53 @@ class ConnectionManager:
         )
         return self.snapshot
 
+    def connect_to_url(self, url: str, *, server_name: str = "SARApp Cloud") -> ConnectionSnapshot:
+        """Connect to an explicit cloud/router URL, bypassing LAN discovery
+        and ``self.cloud_url``.
+
+        Used when the UI lets a user pick one of several saved connections
+        (e.g. the login screen's connection library) rather than relying on
+        the automatic LAN-then-cloud startup flow. Going through this method
+        instead of reconfiguring ``api_client`` directly keeps
+        ``ConnectionManager.snapshot`` as the single source of truth, so
+        every other listener (the status bar label, the post-login
+        ``api_client`` sync in ``main.py``) agrees on which server is active
+        instead of silently reverting to whatever ``startup_connect`` found.
+        """
+
+        from urllib.parse import urlparse
+
+        normalized = (url or "").strip().rstrip("/")
+        if not normalized:
+            self._set_snapshot(
+                ConnectionState.DISCONNECTED, None, ConnectionHealth.DISCONNECTED, "No URL configured"
+            )
+            return self.snapshot
+
+        parsed = urlparse(normalized)
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        server = ServerInfo(server_id=f"manual:{normalized}", server_name=server_name, host=normalized, port=port)
+
+        if not self._check_server_health(normalized):
+            self._set_snapshot(
+                ConnectionState.DISCONNECTED,
+                None,
+                ConnectionHealth.DISCONNECTED,
+                f"Unable to connect to {server_name}",
+            )
+            return self.snapshot
+
+        connected = replace(server, connected_timestamp=utc_now(), last_heartbeat=utc_now())
+        self.heartbeats.observe(connected)
+        self._set_snapshot(
+            ConnectionState.CONNECTED_CLOUD,
+            ConnectionMode.CLOUD,
+            ConnectionHealth.HEALTHY,
+            f"Connected to {connected.server_name}",
+            connected,
+        )
+        return self.snapshot
+
     def enter_offline_mode(self) -> ConnectionSnapshot:
         self._set_snapshot(ConnectionState.OFFLINE, ConnectionMode.OFFLINE, ConnectionHealth.DISCONNECTED, "Offline Mode active")
         return self.snapshot

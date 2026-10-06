@@ -9,13 +9,16 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QDialogButtonBox,
-    QFormLayout,
+    QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+from utils.styles import form_dialog_stylesheet, subscribe_theme
 
 
 @dataclass(slots=True)
@@ -80,32 +83,78 @@ class NewIncidentDialog(QDialog):
 
     def __init__(self, parent: None | QWidget = None) -> None:
         super().__init__(parent)
+        self.setObjectName("NewIncidentDialog")
         self.setWindowTitle("New Incident")
         self.setModal(True)
+        self.setMinimumWidth(420)
 
         self._name = QLineEdit()
+        self._name.setPlaceholderText("e.g. Oak Ridge Search")
         self._number = QLineEdit()
+        self._number.setPlaceholderText("e.g. 26-118")
         self._type = QComboBox()
         self._type.addItems(_load_incident_types())
         self._desc = QLineEdit()
+        self._desc.setPlaceholderText("Brief summary of the incident")
         self._location = QLineEdit()
-        self._training = QCheckBox("Training Incident?")
+        self._location.setPlaceholderText("ICP address or coordinates")
+        self._training = QCheckBox("Training incident")
 
-        form = QFormLayout()
-        form.addRow("Name", self._name)
-        form.addRow("Number", self._number)
-        form.addRow("Type", self._type)
-        form.addRow("Description", self._desc)
-        form.addRow("ICP Location", self._location)
-        form.addRow(self._training)
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setObjectName("secondaryButton")
+        self.btn_create = QPushButton("Create Incident")
+        self.btn_create.setObjectName("primaryButton")
+        self.btn_create.setDefault(True)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self._handle_accept)
-        buttons.rejected.connect(self._handle_reject)
+        title = QLabel("New Incident")
+        title.setObjectName("dialogTitle")
+        subtitle = QLabel("Set up a new incident record to start operations.")
+        subtitle.setObjectName("dialogSubtitle")
+        subtitle.setWordWrap(True)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addWidget(buttons)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(14)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addSpacing(6)
+
+        name_row = QHBoxLayout()
+        name_row.addWidget(self._labeled_field("Name", self._name), 2)
+        name_row.addWidget(self._labeled_field("Number", self._number), 1)
+        layout.addLayout(name_row)
+
+        layout.addWidget(self._labeled_field("Type", self._type))
+        layout.addWidget(self._labeled_field("Description", self._desc))
+        layout.addWidget(self._labeled_field("ICP Location", self._location))
+        layout.addWidget(self._training)
+
+        layout.addSpacing(6)
+        button_row = QHBoxLayout()
+        button_row.addStretch(1)
+        button_row.addWidget(self.btn_cancel)
+        button_row.addWidget(self.btn_create)
+        layout.addLayout(button_row)
+
+        self.btn_create.clicked.connect(self._handle_accept)
+        self.btn_cancel.clicked.connect(self._handle_reject)
+
+        self._apply_styles()
+        subscribe_theme(self, lambda *_: self._apply_styles())
+
+    def _labeled_field(self, label_text: str, field: QWidget) -> QWidget:
+        wrap = QWidget()
+        layout = QVBoxLayout(wrap)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        label = QLabel(label_text)
+        label.setObjectName("fieldLabel")
+        layout.addWidget(label)
+        layout.addWidget(field)
+        return wrap
+
+    def _apply_styles(self) -> None:
+        self.setStyleSheet(form_dialog_stylesheet("NewIncidentDialog"))
 
     def _handle_accept(self) -> None:
         meta = IncidentMeta(

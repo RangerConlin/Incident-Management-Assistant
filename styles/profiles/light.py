@@ -184,6 +184,13 @@ NARRATIVE_STATUS: Dict[str, Dict[str, str]] = {
     "critical": {"bg": "#f2b8b5", "fg": "#1a1a1a"},
 }
 
+# Login screen's saved-connection library — reachability of a saved server.
+CONNECTION_STATUS: Dict[str, Dict[str, str]] = {
+    "online":   {"bg": "#43A047", "fg": "#ffffff"},
+    "offline":  {"bg": "#E53935", "fg": "#ffffff"},
+    "checking": {"bg": "#90A4AE", "fg": "#1a1a1a"},
+}
+
 WEATHER_SEVERITY: Dict[str, Dict[str, str]] = {
     "extreme":  {"bg": "#a3123a", "fg": "#ffffff"},
     "severe":   {"bg": "#c1440e", "fg": "#ffffff"},
@@ -367,6 +374,7 @@ __all__ = [
     "TEAM_STATUS",
     "TASK_STATUS",
     "NARRATIVE_STATUS",
+    "CONNECTION_STATUS",
     "WEATHER_SEVERITY",
     "TEAM_TYPE_COLORS",
     "INTEL_SUBJECT_STATUS",

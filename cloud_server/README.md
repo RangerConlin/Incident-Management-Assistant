@@ -91,29 +91,23 @@ configured with:
 - `CLOUD_SESSION_SECRET`
 
 The dashboard shows server status, MongoDB health, active client connections,
-recent API traffic, backup export, backup import, and optional one-click
-updates.
+recent API traffic, backup export, backup import, and one-click updates.
 
 ## One-Click Updates
 
-The update button is disabled unless `CLOUD_UPDATE_COMMAND` is set. The
-browser never supplies command text; the dashboard only starts the fixed
-command from the environment and shows its recent output.
+The update button is enabled by `CLOUD_UPDATE_COMMAND`. The browser never
+supplies command text; the dashboard only starts the fixed command from the
+environment and shows its recent output.
 
-For a Compose-on-host deployment, the command usually needs Docker access and
-the deployment directory mounted into the container. Example concept:
+The default Compose file mounts the Docker socket and the sparse checkout into
+the app container so this command can update the host deployment:
 
-```yaml
-volumes:
-  - /var/run/docker.sock:/var/run/docker.sock
-  - /opt/sarapp-cloud-server-db:/deploy/sarapp-cloud-server-db
-environment:
-  CLOUD_UPDATE_COMMAND: "cd /deploy/sarapp-cloud-server-db && docker compose --env-file .env pull && docker compose --env-file .env up -d"
+```env
+CLOUD_UPDATE_COMMAND=cd /deploy/sarapp-cloud-server-db && git pull --ff-only && cd cloud_server && docker compose -p ${COMPOSE_PROJECT_NAME} --env-file .env up -d --build --remove-orphans
 ```
 
-That requires a cloud-server image with the Docker CLI installed. A safer
-production version is to run a small host-side updater service with narrowly
-scoped permissions and point `CLOUD_UPDATE_COMMAND` at that service instead.
+That is operationally convenient but powerful: anyone with dashboard admin
+access can trigger a Docker rebuild/restart for this stack.
 
 ## Backup Import/Export
 

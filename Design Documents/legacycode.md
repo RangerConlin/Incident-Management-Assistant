@@ -38,6 +38,14 @@ Copy this section for each tracked item.
 
 Add entries below this line.
 
+### Finance Attachments Use Filesystem Paths Instead Of GridFS
+- Status: `legacy-compat-candidate`
+- Location: `data/db/sarapp_db/api/routers/finance.py` (`AttachmentBody.file_path`, `create_attachment`)
+- Purpose: Finance/admin attachments (fuel receipts, expense backup, etc.) store a local filesystem `file_path` string on the `finance_attachments` document instead of storing the file's bytes in GridFS like every other incident attachment (`IncidentCollections.ATTACHMENTS`, via `data/db/sarapp_db/api/routers/attachments.py`).
+- Legacy Source: Predates the GridFS attachment convention adopted for the main `attachments` collection; never migrated to match.
+- Removal Condition: `finance_attachments` uploads go through the same GridFS pattern as `attachments` (store bytes in `attachment_files`, reference by `gridfs_file_id`), and existing `finance_attachments` rows with a bare `file_path` are migrated or backfilled.
+- Verification: Confirmed while building the universal incident export/import format (`data/db/sarapp_db/export_import/`) — exporting an incident bundles every GridFS attachment, but a finance attachment's actual file lives outside Mongo entirely and does not travel with the export, only its metadata row does.
+
 ### Forms Creator legacy template registry and renderer
 - Status: `legacy-compat-candidate`
 - Location: `modules/forms_creator/templating.py`, `modules/forms_creator/render.py`, `data/templates/registry.json`, `data/templates/**`

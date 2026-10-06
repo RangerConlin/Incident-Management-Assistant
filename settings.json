@@ -121,7 +121,7 @@
     "statusboard.team.columns.hidden": [
         "vehicle"
     ],
-    "lastIncidentNumber": "abc-123",
+    "lastIncidentNumber": "afc2e40b-691b-43f7-9755-e31c26410a2d",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
@@ -154,5 +154,28 @@
         "linked_strategy_summary": 24
     },
     "cloudServerUrl": "",
-    "cloudConnectCode": ""
+    "cloudConnectCode": "DEMO-0001",
+    "savedConnections": [
+        {
+            "id": "9f574424680e47e5b19f1d417523f8f8",
+            "name": "Demo Server",
+            "connect_code": "DEMO-0001",
+            "server_url": "",
+            "last_status": "online",
+            "last_checked": "2026-10-06T07:54:01.921422+00:00"
+        },
+        {
+            "id": "fb8918a91ed446ccae626706c6d0a762",
+            "name": "Test 1",
+            "connect_code": "OURS-9165",
+            "server_url": "",
+            "last_status": "online",
+            "last_checked": "2026-10-06T07:54:02.650994+00:00"
+        }
+    ],
+    "lastConnectionId": "9f574424680e47e5b19f1d417523f8f8",
+    "rememberLogin": true,
+    "rememberedUsername": "405021",
+    "rememberedRole": "Incident Commander",
+    "rememberedPassword": ""
 }

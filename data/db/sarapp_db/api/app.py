@@ -132,6 +132,9 @@ def create_app(server_info_fn=None, request_log_fn=None) -> FastAPI:
     from sarapp_db.api.routers import incident_org
     app.include_router(incident_org.router, prefix="/api/incidents", tags=["incident-org"])
 
+    from sarapp_db.api.routers import incident_transfer
+    app.include_router(incident_transfer.router, prefix="/api", tags=["incident-transfer"])
+
     from sarapp_db.api.routers import lookup_types
     app.include_router(lookup_types.router, prefix="/api/lookup", tags=["lookup-types"])
 
