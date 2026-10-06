@@ -60,3 +60,12 @@ def test_dashboard_requires_login(monkeypatch) -> None:
     assert response.status_code == 303
     assert response.headers["location"] == "/r/TEST-1234/dashboard/login"
 
+
+def test_unprefixed_router_forwarded_dashboard_requires_login(monkeypatch) -> None:
+    client = _client(monkeypatch)
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard/login"
+

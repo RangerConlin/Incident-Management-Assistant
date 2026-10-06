@@ -58,5 +58,7 @@ class ConnectCodePrefixMiddleware:
     def _is_unprefixed_router_path(path: str) -> bool:
         if path in {"/health", "/server-info", "/openapi.json", "/docs", "/redoc"}:
             return True
+        if path == "/dashboard" or path.startswith("/dashboard/"):
+            return True
         return path == "/api" or path.startswith("/api/")
 
