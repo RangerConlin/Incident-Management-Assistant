@@ -14,6 +14,11 @@ cd cloud_server
 docker compose -p sarapp-cloud-server-db-test --env-file .env up -d --build --remove-orphans
 ```
 
+From Windows, double-click `cloud_server/update_vps_cloud_server_db.cmd` or
+make a desktop shortcut to it. The shortcut opens SSH to the VPS, runs the same
+update flow, shows `docker compose ps`, and leaves the SSH session open in
+`/opt/sarapp-cloud-server-db/cloud_server`.
+
 Check the app logs:
 
 ```bash

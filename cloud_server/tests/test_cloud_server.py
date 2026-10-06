@@ -67,5 +67,5 @@ def test_unprefixed_router_forwarded_dashboard_requires_login(monkeypatch) -> No
     response = client.get("/dashboard")
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/dashboard/login"
+    assert response.headers["location"] == "/r/TEST-1234/dashboard/login"
 

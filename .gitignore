@@ -67,6 +67,7 @@ _tmp_*
 tmp_*
 /tmp
 /tests
+/cloud_server/tests
 
 old qml/
 

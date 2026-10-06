@@ -37,7 +37,9 @@ class ConnectCodePrefixMiddleware:
         # requests arrive without /r/<code>. Keep the public direct path form
         # working too for optional Traefik access and local diagnostics.
         if self._is_unprefixed_router_path(path):
-            await self.app(scope, receive, send)
+            next_scope = dict(scope)
+            next_scope["root_path"] = self.prefix
+            await self.app(next_scope, receive, send)
             return
 
         if path != self.prefix and not path.startswith(f"{self.prefix}/"):
