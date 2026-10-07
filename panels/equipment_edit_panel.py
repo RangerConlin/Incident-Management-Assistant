@@ -41,7 +41,6 @@ from notifications.models import Notification
 from notifications.services import get_notifier
 from utils.edit_window_kit import (
     ExportDialog,
-    FieldSpec,
     ImportWizard,
     PillDelegate,
     PaginationControls,
@@ -81,15 +80,11 @@ CONDITION_COLORS: dict[str, tuple[str, str]] = {
     "unknown": ("#757575", "#ffffff"),
 }
 
-FIELDS: list[FieldSpec] = [
-    FieldSpec("name", "Name", required=True),
-    FieldSpec("type", "Type"),
-    FieldSpec("id_number", "ID Number"),
-    FieldSpec("serial_number", "Serial Number"),
-    FieldSpec("condition", "Condition"),
-    FieldSpec("notes", "Notes"),
-]
-_FIELD_LABELS = {spec.key: spec.label for spec in FIELDS}
+# Field list/labels are shared with the central web GUI
+# (cloud_router/master_db/webgui.py) via modules.logistics.equipment_catalog_io,
+# so an exported file from one is importable into the other.
+from modules.logistics.equipment_catalog_io import FIELDS, FIELD_LABELS as _FIELD_LABELS
+
 _COLUMN_KEYS = [spec.key for spec in FIELDS]
 
 

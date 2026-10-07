@@ -106,7 +106,7 @@ This is optional: leaving `SARAPP_CLOUD_ROUTER_MONGO_URI` unset at deploy
 time keeps `cloud_router/` running as the plain stateless proxy it always
 was, with no embedded database mounted.
 
-**Web GUI (MVP, `cloud_router/master_db/webgui.py`):** a plain server-rendered
+**Web GUI (`cloud_router/master_db/webgui.py`):** a plain server-rendered
 HTML + vanilla-JS-free CRUD GUI at `/central-master/gui/...` (same
 session-cookie admin login pattern as `cloud_server/dashboard.py`, env vars
 `CENTRAL_MASTER_ADMIN_USERNAME`/`CENTRAL_MASTER_ADMIN_PASSWORD[_SHA256]`/
@@ -119,8 +119,33 @@ introspect generically). The GUI never touches Mongo directly: each
 `/central-master/api/master/...` HTTP routes call (e.g.
 `sarapp_db.api.routers.personnel.create_person`), invoked in-process as
 plain Python functions rather than looping an HTTP call back into the same
-app — the code path is identical either way. Extending to more collections
-is tracked in `backlog.md`.
+app — the code path is identical either way. Delete is included
+(`personnel_router.delete_person`/`equipment_router.delete_equipment`) —
+both master routers already exposed a delete endpoint; the GUI just hadn't
+wired it for personnel yet. Extending to more collections is tracked in
+`backlog.md`.
+
+**Import/export (web GUI):** `/gui/{collection}/export?format=csv|xlsx` and
+`/gui/{collection}/import` use the *same* column set and row-mapping as the
+desktop Edit-menu panels, via a shared Qt-free module each panel and the
+web GUI both import — `modules/personnel/catalog_io.py` (field list,
+`personnel_export_row`/`build_personnel_import_payload`, certification
+code parsing against the hardcoded catalog in `modules/personnel/models/
+cert_catalog.py`) and `modules/logistics/equipment_catalog_io.py` (equipment's
+field list — its import/export is a flat passthrough, no special row
+shaping). These modules have zero PySide6 import, unlike `utils/
+edit_window_kit.py` (which the desktop panels still use for their own
+Qt-specific dialogs) — the web GUI runs inside cloud_router's process,
+which has no Qt dependency, so CSV/XLSX reading and writing is a small
+reimplementation in `webgui.py` using `csv`/`openpyxl` directly rather than
+importing `write_export_file` from that Qt-coupled module. Because
+`ui/personnel/ui_personnel.py` and `panels/equipment_edit_panel.py` import
+their field lists/row-mapping from these same shared modules now (instead
+of defining their own copies), a file exported from the desktop panel and
+one exported from the web GUI use identical columns and are interchangeable
+for import on either side. `cloud_router/Dockerfile` copies just these two
+`modules/` files (plus their `__init__.py`s and `cert_catalog.py`) into the
+image — not all of `modules/`, which depends on Qt.
 
 **Server ↔ central sync relay (`data/db/sarapp_db/sync/`):** implemented as
 push-on-write with a local outbox, not MongoDB change streams — every
@@ -150,6 +175,18 @@ wins (ties go to the incoming write). `data/db/sync_local_to_cloud.py` (the
 old one-way full-replace script) no longer touches `sarapp_master` at all,
 to avoid clobbering this relay's state; it's scoped to incident database
 mirroring only now.
+
+**Manual resync trigger:** `data/db/sarapp_db/api/routers/sync_trigger.py`
+(`POST /api/sync-trigger/resync`, mounted on every `mode="full"` server —
+LAN/cloud/offline, never on cloud_router's `master_only` process) calls
+`sync.loop.run_one_tick()` immediately instead of waiting for
+`CentralSyncLoop`'s next scheduled tick, so a user doesn't have to wait up
+to the poll interval for a change to show up. The desktop Personnel
+Inventory window (`ui/personnel/ui_personnel.py`) and Equipment panel
+(`panels/equipment_edit_panel.py`) each have a "Resync" button next to
+Add/Delete/Import/Export that calls this endpoint and then refreshes the
+list. Reports `{"synced": false, "reason": "..."}` rather than erroring
+when sync isn't configured on that server.
 
 Deletes relay too: `BaseRepository.delete_one` (hard delete, used by
 `soft_deletes=False` collections like `equipment`) relays via a

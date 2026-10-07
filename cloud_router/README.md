@@ -8,16 +8,6 @@ websocket and register a connect code; field/remote clients hit
 matching tunnel. It still has no idea what's inside the requests it
 forwards, and never holds or forwards *incident* data of its own.
 
-**This code was deleted from the repo on 2026-10-06** (commit `fed5fbcc`)
-when `cloud_server/` was rewritten from "stateless router" into today's
-LAN-equivalent hosted backend. The router itself was never decommissioned,
-though — per `cloud_server/README.md`, the new `cloud_server/` backend
-*also* dials out and registers with this same router, exactly like a LAN
-server does. It is still live production infrastructure (deployed as the
-`sarapp-cloud` container, port 8765), so its source was restored here from
-git history (`fed5fbcc^:cloud_server/`) rather than being left only
-reachable via `git show`.
-
 `cloud_router/` and `cloud_server/` are two independent services that do
 not share any files or imports:
 

@@ -129,6 +129,150 @@ def test_create_and_edit_personnel_record(monkeypatch) -> None:
         _clear_personnel()
 
 
+def test_personnel_delete_removes_record(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_personnel()
+    try:
+        created = client.post(
+            "/central-master/gui/personnel/new",
+            data={"name": "GUI Test Delete Person"},
+        )
+        assert created.status_code == 303
+
+        from sarapp_db.api.routers.personnel import list_personnel
+
+        doc = next(d for d in list_personnel(search="", limit=200) if d["name"] == "GUI Test Delete Person")
+        record_id = doc["person_record"]
+
+        edit_page = client.get(f"/central-master/gui/personnel/{record_id}")
+        assert "Delete" in edit_page.text
+
+        deleted = client.post(f"/central-master/gui/personnel/{record_id}/delete")
+        assert deleted.status_code == 303
+
+        remaining = [d for d in list_personnel(search="", limit=200) if d["name"] == "GUI Test Delete Person"]
+        assert remaining == []
+    finally:
+        _clear_personnel()
+
+
+def test_personnel_export_csv_contains_record(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_personnel()
+    try:
+        client.post(
+            "/central-master/gui/personnel/new",
+            data={"name": "GUI Test Export Person", "callsign": "Echo-1"},
+        )
+
+        response = client.get("/central-master/gui/personnel/export?format=csv")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/csv")
+        assert "GUI Test Export Person" in response.text
+        assert "Echo-1" in response.text
+        assert "Name" in response.text  # label header, not the raw field key
+    finally:
+        _clear_personnel()
+
+
+def test_personnel_export_xlsx_round_trips_through_import(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_personnel()
+    try:
+        client.post(
+            "/central-master/gui/personnel/new",
+            data={"name": "GUI Test Roundtrip Person", "primary_role": "Medic", "callsign": "Echo-2"},
+        )
+
+        exported = client.get("/central-master/gui/personnel/export?format=xlsx")
+        assert exported.status_code == 200
+        assert exported.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        # Clear and re-import from the exported file — proves the file is a
+        # faithful round trip, not just "some bytes came back".
+        from sarapp_db.api.routers.personnel import list_personnel
+
+        _clear_personnel()
+        assert list_personnel(search="GUI Test Roundtrip Person", limit=200) == []
+
+        imported = client.post(
+            "/central-master/gui/personnel/import",
+            files={"file": ("export.xlsx", exported.content, "application/octet-stream")},
+        )
+        assert imported.status_code == 200
+        assert "1" in imported.text  # "1 Personnel imported"
+
+        reimported = list_personnel(search="GUI Test Roundtrip Person", limit=200)
+        assert len(reimported) == 1
+        assert reimported[0]["callsign"] == "Echo-2"
+        assert reimported[0]["primary_role"] == "Medic"
+    finally:
+        _clear_personnel()
+
+
+def test_personnel_import_csv_with_certifications(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_personnel()
+    try:
+        csv_content = (
+            "Name,Primary Role,Certifications\r\n"
+            "GUI Test CSV Person,Searcher,EMT:2\r\n"
+        )
+        imported = client.post(
+            "/central-master/gui/personnel/import",
+            files={"file": ("people.csv", csv_content.encode("utf-8"), "text/csv")},
+        )
+        assert imported.status_code == 200
+        assert "1" in imported.text
+
+        from sarapp_db.api.routers.personnel import list_personnel
+
+        docs = list_personnel(search="GUI Test CSV Person", limit=200)
+        assert len(docs) == 1
+        assert docs[0]["certifications"]
+    finally:
+        _clear_personnel()
+
+
+def test_equipment_export_and_import_round_trip(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_equipment()
+    try:
+        client.post(
+            "/central-master/gui/equipment/new",
+            data={"name": "GUI Test Export Radio", "type": "Radio", "serial_number": "SN-1"},
+        )
+
+        exported = client.get("/central-master/gui/equipment/export?format=csv")
+        assert exported.status_code == 200
+        assert "GUI Test Export Radio" in exported.text
+
+        from sarapp_db.api.routers.equipment import list_equipment
+
+        _clear_equipment()
+        assert list_equipment(search="GUI Test Export Radio", limit=200) == []
+
+        imported = client.post(
+            "/central-master/gui/equipment/import",
+            files={"file": ("equipment.csv", exported.content, "text/csv")},
+        )
+        assert imported.status_code == 200
+
+        reimported = list_equipment(search="GUI Test Export Radio", limit=200)
+        assert len(reimported) == 1
+        assert reimported[0]["serial_number"] == "SN-1"
+    finally:
+        _clear_equipment()
+
+
 def test_equipment_delete_removes_record(monkeypatch) -> None:
     client = _client(monkeypatch)
     _login(client)

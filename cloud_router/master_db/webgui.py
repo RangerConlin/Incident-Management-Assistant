@@ -23,14 +23,16 @@ below rather than derived from a schema that doesn't exist at runtime.
 
 from __future__ import annotations
 
+import csv
 import hmac
+import io
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dc_field
 from datetime import datetime, timedelta, timezone
 from html import escape
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, Form, HTTPException, Request, Response
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from master_db.config import MasterGuiSettings, hash_password, load_settings
@@ -56,7 +58,20 @@ class CollectionSpec:
     get_fn: Callable[[int], dict[str, Any]]
     create_fn: Callable[[dict[str, Any]], dict[str, Any]]
     update_fn: Callable[[int, dict[str, Any]], dict[str, Any]]
-    delete_fn: Callable[[int], None]
+    delete_fn: Optional[Callable[[int], None]]
+    # Import/export use a separate, usually larger field list than the
+    # on-page edit form above — matching the desktop Edit-menu panel's
+    # column set exactly (shared via modules.personnel.catalog_io /
+    # modules.logistics.equipment_catalog_io) so a file exported from one
+    # is importable into the other. `export_row_fn`/`import_payload_fn`
+    # default to a flat passthrough over `export_fields` for collections
+    # with no special row-shaping (e.g. equipment); personnel supplies its
+    # own to handle emergency/contact-info grouping and certification
+    # code parsing, same as the desktop panel.
+    export_fields: list[str] = dc_field(default_factory=list)
+    export_field_labels: dict[str, str] = dc_field(default_factory=dict)
+    export_row_fn: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None
+    import_payload_fn: Optional[Callable[[dict[str, str]], dict[str, Any]]] = None
 
 
 def _build_collection_specs() -> dict[str, CollectionSpec]:
@@ -65,6 +80,17 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     # never actually serve the GUI.
     from sarapp_db.api.routers import personnel as personnel_router
     from sarapp_db.api.routers import equipment as equipment_router
+    from modules.personnel.catalog_io import (
+        PERSONNEL_FIELDS,
+        PERSONNEL_FIELD_LABELS,
+        build_personnel_import_payload,
+        certification_catalogs,
+        personnel_export_row,
+    )
+    from modules.logistics.equipment_catalog_io import FIELDS as EQUIPMENT_EXPORT_FIELDS
+
+    personnel_catalog_by_code, personnel_catalog_by_id = certification_catalogs()
+    equipment_export_field_keys = [f.key for f in EQUIPMENT_EXPORT_FIELDS]
 
     specs = [
         CollectionSpec(
@@ -95,7 +121,11 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=lambda record_id, body: personnel_router.update_person(
                 record_id, body, active_incident_id=None
             ),
-            delete_fn=None,  # personnel.py exposes no delete route today.
+            delete_fn=personnel_router.delete_person,
+            export_fields=[f.key for f in PERSONNEL_FIELDS],
+            export_field_labels=PERSONNEL_FIELD_LABELS,
+            export_row_fn=lambda doc: personnel_export_row(doc, personnel_catalog_by_id),
+            import_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
         ),
         CollectionSpec(
             key="equipment",
@@ -114,6 +144,12 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             create_fn=equipment_router.create_equipment,
             update_fn=equipment_router.update_equipment,
             delete_fn=equipment_router.delete_equipment,
+            export_fields=equipment_export_field_keys,
+            export_field_labels={f.key: f.label for f in EQUIPMENT_EXPORT_FIELDS},
+            export_row_fn=lambda doc: {key: doc.get(key, "") for key in equipment_export_field_keys},
+            import_payload_fn=lambda row: {
+                key: row.get(key, "") for key in equipment_export_field_keys if row.get(key)
+            },
         ),
     ]
     return {spec.key: spec for spec in specs}
@@ -228,6 +264,77 @@ def _parse_form_body(spec: CollectionSpec, form: dict[str, str]) -> dict[str, An
     return body
 
 
+def _stringify(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    return str(value)
+
+
+def _export_bytes(spec: CollectionSpec, rows: list[dict[str, Any]], fmt: str) -> bytes:
+    """Same column shape as `utils/edit_window_kit.write_export_file`
+    (desktop) — headers are labels, one row per record — reimplemented
+    here instead of imported, since that module pulls in PySide6 and this
+    process has no Qt dependency."""
+    export_rows = [spec.export_row_fn(row) if spec.export_row_fn else row for row in rows]
+    headers = [spec.export_field_labels.get(key, key.title()) for key in spec.export_fields]
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(headers)
+        for row in export_rows:
+            sheet.append([_stringify(row.get(key)) for key in spec.export_fields])
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(headers)
+    for row in export_rows:
+        writer.writerow([_stringify(row.get(key)) for key in spec.export_fields])
+    return buffer.getvalue().encode("utf-8")
+
+
+def _read_import_rows(spec: CollectionSpec, filename: str, data: bytes) -> list[dict[str, str]]:
+    """Parse an uploaded CSV/XLSX export back into field-keyed row dicts.
+    Matches each column header against a field's label or key
+    (case-insensitive) — the same labels `_export_bytes` writes, so a file
+    round-trips through either this page or the desktop panel's own
+    Export/Import."""
+    label_by_key = spec.export_field_labels
+    key_by_header = {label.strip().lower(): key for key, label in label_by_key.items()}
+    key_by_header.update({key.strip().lower(): key for key in spec.export_fields})
+
+    def _row_from_headers(headers: list[str], values: list[Any]) -> dict[str, str]:
+        row: dict[str, str] = {}
+        for header, value in zip(headers, values):
+            key = key_by_header.get(str(header or "").strip().lower())
+            if key:
+                row[key] = _stringify(value)
+        return row
+
+    if filename.lower().endswith(".xlsx"):
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        sheet = workbook.active
+        rows_iter = sheet.iter_rows(values_only=True)
+        headers = [str(h or "") for h in next(rows_iter, [])]
+        return [_row_from_headers(headers, list(values)) for values in rows_iter]
+
+    text = data.decode("utf-8-sig")
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if not rows:
+        return []
+    headers = rows[0]
+    return [_row_from_headers(headers, values) for values in rows[1:]]
+
+
 def create_master_gui_router() -> APIRouter:
     """Build the `/gui/...` router. Call once per app; routes read live
     settings/specs on each request rather than freezing them at import."""
@@ -309,7 +416,15 @@ def create_master_gui_router() -> APIRouter:
                 f'<tr><td><a href="{root_path}/gui/{collection_key}/{record_id}">{record_id}</a></td>{cells}</tr>'
             )
         body = f"""<section class="card"><h1>{escape(spec.title)}</h1>
-  <p><a href="{root_path}/gui/{collection_key}/new">+ New {escape(spec.title)}</a></p>
+  <p>
+    <a href="{root_path}/gui/{collection_key}/new">+ New {escape(spec.title)}</a>
+    &nbsp;|&nbsp;
+    <a href="{root_path}/gui/{collection_key}/export?format=csv">Export CSV</a>
+    &nbsp;|&nbsp;
+    <a href="{root_path}/gui/{collection_key}/export?format=xlsx">Export XLSX</a>
+    &nbsp;|&nbsp;
+    <a href="{root_path}/gui/{collection_key}/import">Import</a>
+  </p>
   <table><tr><th>{escape(spec.record_field)}</th>{header_cells}</tr>{''.join(rows)}</table>
 </section>"""
         return _page(spec.title, body, request)
@@ -342,6 +457,77 @@ def create_master_gui_router() -> APIRouter:
         spec.create_fn(body)
         root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
+
+    @router.get("/gui/{collection_key}/export", response_model=None)
+    def export_collection(request: Request, collection_key: str, format: str = "csv") -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        fmt = "xlsx" if format == "xlsx" else "csv"
+        data = _export_bytes(spec, spec.list_fn(), fmt)
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if fmt == "xlsx" else "text/csv"
+        filename = f"{collection_key}.{fmt}"
+        return Response(
+            content=data,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    @router.get("/gui/{collection_key}/import", response_class=HTMLResponse, response_model=None)
+    def import_form(request: Request, collection_key: str) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        root_path = request.scope.get("root_path") or ""
+        body = f"""<section class="card"><h1>Import {escape(spec.title)}</h1>
+  <p class="muted">Upload a CSV or XLSX file exported from this page or the desktop Edit-menu panel — same columns, matched by header.</p>
+  <form method="post" enctype="multipart/form-data" action="{root_path}/gui/{collection_key}/import">
+    <input type="file" name="file" accept=".csv,.xlsx" required>
+    <p style="margin-top:16px;"><button type="submit">Import</button></p>
+  </form>
+</section>"""
+        return _page(f"Import {spec.title}", body, request)
+
+    @router.post("/gui/{collection_key}/import", response_class=HTMLResponse, response_model=None)
+    async def import_collection(request: Request, collection_key: str, file: UploadFile = File(...)) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        data = await file.read()
+        rows = _read_import_rows(spec, file.filename or "", data)
+
+        created = 0
+        errors: list[str] = []
+        for index, row in enumerate(rows, start=1):
+            try:
+                payload = spec.import_payload_fn(row) if spec.import_payload_fn else dict(row)
+                spec.create_fn(payload)
+                created += 1
+            except Exception as exc:  # noqa: BLE001 - one bad row must not abort the rest
+                errors.append(f"Row {index}: {exc}")
+
+        root_path = request.scope.get("root_path") or ""
+        error_html = (
+            "<ul>" + "".join(f"<li>{escape(e)}</li>" for e in errors) + "</ul>" if errors else ""
+        )
+        body = f"""<section class="card"><h1>Import Complete</h1>
+  <p>{created} {escape(spec.title)} imported{f", {len(errors)} error(s)" if errors else ""}.</p>
+  {error_html}
+  <p><a href="{root_path}/gui/{collection_key}">Back to {escape(spec.title)}</a></p>
+</section>"""
+        return _page("Import Complete", body, request)
 
     @router.get("/gui/{collection_key}/{record_id}", response_class=HTMLResponse, response_model=None)
     def edit_form(request: Request, collection_key: str, record_id: int) -> Response:

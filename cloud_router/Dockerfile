@@ -11,6 +11,20 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY cloud_router /app
 COPY data/db/sarapp_db /app/sarapp_db
 
+# The web GUI's personnel import/export shares its field list and row
+# mapping with the desktop Edit-menu panel (modules/personnel/catalog_io.py,
+# modules/logistics/equipment_catalog_io.py — see cloud_router/master_db/
+# webgui.py) rather than duplicating it, so this image needs those specific
+# modules/ files even though the rest of modules/ (which depends on Qt) is
+# not included here. cert_catalog.py is catalog_io.py's own dependency
+# (the hardcoded certification catalog it reads).
+COPY modules/__init__.py /app/modules/__init__.py
+COPY modules/personnel/__init__.py /app/modules/personnel/__init__.py
+COPY modules/personnel/catalog_io.py /app/modules/personnel/catalog_io.py
+COPY modules/personnel/models/cert_catalog.py /app/modules/personnel/models/cert_catalog.py
+COPY modules/logistics/__init__.py /app/modules/logistics/__init__.py
+COPY modules/logistics/equipment_catalog_io.py /app/modules/logistics/equipment_catalog_io.py
+
 ENV PYTHONPATH=/app
 
 EXPOSE 8765
