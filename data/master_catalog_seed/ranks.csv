@@ -39,24 +39,24 @@ Rank Structure ID,Rank Structure Name,Rank Code,Rank Name,Short Display,Sort Ord
 ,Volunteer / NGO (Standard),COOR,Coordinator,Coord,3,Yes
 ,Volunteer / NGO (Standard),MGR,Manager,Mgr,4,Yes
 ,Volunteer / NGO (Standard),DIR,Director,Dir,5,Yes
-,CAP Cadet (Standard),C/AB,Cadet Airman Basic,C/AB,0,Yes
-,CAP Cadet (Standard),C/AMN,Cadet Airman,C/Amn,1,Yes
-,CAP Cadet (Standard),C/A1C,Cadet Airman First Class,C/A1C,2,Yes
-,CAP Cadet (Standard),C/SRA,Cadet Senior Airman,C/SrA,3,Yes
-,CAP Cadet (Standard),C/SSGT,Cadet Staff Sergeant,C/SSgt,4,Yes
-,CAP Cadet (Standard),C/TSGT,Cadet Technical Sergeant,C/TSgt,5,Yes
-,CAP Cadet (Standard),C/MSGT,Cadet Master Sergeant,C/MSgt,6,Yes
-,CAP Cadet (Standard),C/SMSGT,Cadet Senior Master Sergeant,C/SMSgt,7,Yes
-,CAP Cadet (Standard),C/CMSGT,Cadet Chief Master Sergeant,C/CMSgt,8,Yes
-,CAP Cadet (Standard),C/2DLT,Cadet Second Lieutenant,C/2d Lt,9,Yes
-,CAP Cadet (Standard),C/1STLT,Cadet First Lieutenant,C/1st Lt,10,Yes
-,CAP Cadet (Standard),C/CAPT,Cadet Captain,C/Capt,11,Yes
-,CAP Cadet (Standard),C/MAJ,Cadet Major,C/Maj,12,Yes
-,CAP Cadet (Standard),C/LTCOL,Cadet Lieutenant Colonel,C/Lt Col,13,Yes
-,CAP Cadet (Standard),C/COL,Cadet Colonel,C/Col,14,Yes
-,CAP Senior Member (Standard),2DLT,Second Lieutenant,2d Lt,0,Yes
-,CAP Senior Member (Standard),1STLT,First Lieutenant,1st Lt,1,Yes
-,CAP Senior Member (Standard),CAPT,Captain,Capt,2,Yes
-,CAP Senior Member (Standard),MAJ,Major,Maj,3,Yes
-,CAP Senior Member (Standard),LTCOL,Lieutenant Colonel,Lt Col,4,Yes
-,CAP Senior Member (Standard),COL,Colonel,Col,5,Yes
+,Civil Air Patrol (Standard),C/AB,Cadet Airman Basic,C/AB,0,Yes
+,Civil Air Patrol (Standard),C/AMN,Cadet Airman,C/Amn,1,Yes
+,Civil Air Patrol (Standard),C/A1C,Cadet Airman First Class,C/A1C,2,Yes
+,Civil Air Patrol (Standard),C/SRA,Cadet Senior Airman,C/SrA,3,Yes
+,Civil Air Patrol (Standard),C/SSGT,Cadet Staff Sergeant,C/SSgt,4,Yes
+,Civil Air Patrol (Standard),C/TSGT,Cadet Technical Sergeant,C/TSgt,5,Yes
+,Civil Air Patrol (Standard),C/MSGT,Cadet Master Sergeant,C/MSgt,6,Yes
+,Civil Air Patrol (Standard),C/SMSGT,Cadet Senior Master Sergeant,C/SMSgt,7,Yes
+,Civil Air Patrol (Standard),C/CMSGT,Cadet Chief Master Sergeant,C/CMSgt,8,Yes
+,Civil Air Patrol (Standard),C/2DLT,Cadet Second Lieutenant,C/2d Lt,9,Yes
+,Civil Air Patrol (Standard),C/1STLT,Cadet First Lieutenant,C/1st Lt,10,Yes
+,Civil Air Patrol (Standard),C/CAPT,Cadet Captain,C/Capt,11,Yes
+,Civil Air Patrol (Standard),C/MAJ,Cadet Major,C/Maj,12,Yes
+,Civil Air Patrol (Standard),C/LTCOL,Cadet Lieutenant Colonel,C/Lt Col,13,Yes
+,Civil Air Patrol (Standard),C/COL,Cadet Colonel,C/Col,14,Yes
+,Civil Air Patrol (Standard),2DLT,Second Lieutenant,2d Lt,15,Yes
+,Civil Air Patrol (Standard),1STLT,First Lieutenant,1st Lt,16,Yes
+,Civil Air Patrol (Standard),CAPT,Captain,Capt,17,Yes
+,Civil Air Patrol (Standard),MAJ,Major,Maj,18,Yes
+,Civil Air Patrol (Standard),LTCOL,Lieutenant Colonel,Lt Col,19,Yes
+,Civil Air Patrol (Standard),COL,Colonel,Col,20,Yes

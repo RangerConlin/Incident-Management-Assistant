@@ -446,7 +446,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             import_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
             form_row_fn=lambda doc: personnel_export_row(doc, personnel_catalog_by_id),
             form_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
-            list_fields=["name", "callsign", "rank", "home_unit", "status", "phone", "is_medic"],
+            list_fields=["first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
         ),
         CollectionSpec(
             key="equipment",
@@ -674,7 +674,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     .button-link.secondary {{ background:var(--panel-2); color:var(--text); }}
     .button-link:hover {{ text-decoration:none; border-color:#3c88c8; }}
     .grid-search {{ max-width:420px; min-width:min(100%, 260px); }}
-    .table-wrap {{ overflow:auto; border:1px solid var(--line); border-radius:8px; max-height:72vh; background:var(--panel); }}
+    .table-wrap {{ overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--panel); }}
     table {{ width:100%; border-collapse:separate; border-spacing:0; min-width:900px; }}
     .nested-edit-table {{ min-width:760px; }}
     .nested-edit-table input[type=text] {{ min-width:120px; }}
@@ -1338,12 +1338,28 @@ def create_master_gui_router() -> APIRouter:
         shown_names = spec.list_fields or [f.name for f in spec.fields]
         shown_fields = [field_by_name[name] for name in shown_names if name in field_by_name and name != "sort_order"]
         header_cells = "".join(f'<th class="sortable">{escape(f.label)}</th>' for f in shown_fields)
+        list_cell_fn = spec.list_cell_fn
+        if collection_key == "personnel":
+            from sarapp_db.api.routers import organizations as organizations_router
+
+            short_by_org_name = {
+                str(o.get("name") or ""): str(o.get("short_name") or "")
+                for o in organizations_router.list_organizations(search="")
+            }
+
+            def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
+                if field_name == "home_unit":
+                    name = str(row_doc.get("home_unit") or "")
+                    short = _short_by_name.get(name, "")
+                    return f"{short} - {name}" if short and name else name
+                return row_doc.get(field_name)
+
         rows = []
         for doc in docs:
             record_id = doc.get(spec.record_field)
             display_doc = _form_doc(spec, doc)
             cells = "".join(
-                f"<td>{_cell_html(spec.list_cell_fn(doc, f.name) if spec.list_cell_fn else display_doc.get(f.name, ''))}</td>"
+                f"<td>{_cell_html(list_cell_fn(display_doc, f.name) if list_cell_fn else display_doc.get(f.name, ''))}</td>"
                 for f in shown_fields
             )
             row_href = f"{root_path}/gui/{collection_key}/{record_id}"

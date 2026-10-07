@@ -98,8 +98,7 @@ def _clear_seed_catalog_rows():
         "EMS (Standard)",
         "Search and Rescue (Standard)",
         "Volunteer / NGO (Standard)",
-        "CAP Cadet (Standard)",
-        "CAP Senior Member (Standard)",
+        "Civil Air Patrol (Standard)",
     ]
     rank_names = [
         "Firefighter", "Engineer / Driver", "Lieutenant", "Captain",
@@ -171,13 +170,14 @@ def test_create_and_edit_personnel_record(monkeypatch) -> None:
     try:
         created = client.post(
             "/central-master/gui/personnel/new",
-            data={"name": "GUI Test Person", "primary_role": "Searcher"},
+            data={"name": "GUI Test Person"},
         )
         assert created.status_code == 303
         assert created.headers["location"] == "/central-master/gui/personnel"
 
         listing = client.get("/central-master/gui/personnel")
-        assert "GUI Test Person" in listing.text
+        assert "GUI" in listing.text
+        assert "Test Person" in listing.text
 
         from sarapp_db.api.routers.personnel import list_personnel
 
@@ -195,7 +195,6 @@ def test_create_and_edit_personnel_record(monkeypatch) -> None:
             f"/central-master/gui/personnel/{record_id}",
             data={
                 "name": "GUI Test Person Updated",
-                "primary_role": "Searcher",
                 "emergency_primary_name": "GUI Test Contact",
                 "contact_city": "Testville",
             },
@@ -793,14 +792,14 @@ def test_master_catalog_seed_csvs_are_uploadable(monkeypatch) -> None:
         assert len(ranks) == 1
         assert ranks[0]["rank_code"] == "FF"
 
-        cap_cadet_structure = next(row for row in list_rank_structures(search="CAP Cadet"))
-        cadet_ranks = list_ranks(structure_id=cap_cadet_structure["int_id"], search="Cadet Airman Basic")
+        cap_structure = next(row for row in list_rank_structures(search="Civil Air Patrol"))
+        cadet_ranks = list_ranks(structure_id=cap_structure["int_id"], search="Cadet Airman Basic")
         assert len(cadet_ranks) == 1
         assert cadet_ranks[0]["rank_code"] == "C/AB"
 
-        cap_senior_structure = next(row for row in list_rank_structures(search="CAP Senior Member"))
-        senior_ranks = list_ranks(structure_id=cap_senior_structure["int_id"], search="Colonel")
+        senior_ranks = list_ranks(structure_id=cap_structure["int_id"], search="Colonel")
         assert any(r["rank_code"] == "COL" for r in senior_ranks)
+        assert any(r["rank_code"] == "C/COL" for r in senior_ranks)
     finally:
         _clear_seed_catalog_rows()
 
