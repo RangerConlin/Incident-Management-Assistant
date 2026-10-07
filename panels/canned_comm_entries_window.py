@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from utils.constants import TEAM_STATUSES
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 from modules.communications.traffic_log.models import (
     PRIORITY_EMERGENCY,
     PRIORITY_PRIORITY,
@@ -255,6 +256,9 @@ class CannedCommEntriesWindow(QMainWindow):
         toolbar.addWidget(self.import_button)
         toolbar.addWidget(self.export_button)
 
+        self.sync_status_label = make_sync_status_label()
+        toolbar.addWidget(self.sync_status_label)
+
         toolbar.addStretch()
 
         toolbar.addWidget(QLabel("Category:"))
@@ -310,6 +314,7 @@ class CannedCommEntriesWindow(QMainWindow):
         self._update_button_states()
         self.refresh_entries()
         self.resize(1200, 500)
+        refresh_sync_status_label(self, self.sync_status_label, "canned_comm_entries")
 
     def current_entry(self) -> Optional[dict]:
         rows = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []

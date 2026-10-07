@@ -8,6 +8,7 @@ normal SARApp API under the same connect-code URL shape clients already use.
 from __future__ import annotations
 
 import logging
+import os
 
 import uvicorn
 
@@ -21,6 +22,7 @@ from cloud_server.tunnel_client import (
     get_cloud_router_url,
 )
 from sarapp_db.api.app import create_app
+from sarapp_db.sync.config import derive_central_master_url
 from sarapp_db.sync.loop import CentralSyncLoop
 
 
@@ -43,20 +45,27 @@ def create_cloud_app():
     app.include_router(create_dashboard_router(settings, runtime))
     app.add_middleware(ConnectCodePrefixMiddleware, connect_code=settings.connect_code)
 
+    cloud_router_url = get_cloud_router_url()
     tunnel_client = CloudTunnelClient(
         local_port=8000,
         server_id=settings.server_id,
         server_name=settings.server_name,
-        cloud_router_url=get_cloud_router_url(),
+        cloud_router_url=cloud_router_url,
         token=get_cloud_router_token(),
         connect_code=settings.connect_code,
     )
     app.state.cloud_tunnel_client = tunnel_client
 
-    # No-ops entirely when SARAPP_CENTRAL_MASTER_URL isn't set, so starting
-    # it unconditionally costs nothing for deployments that haven't opted
-    # into the central master database — see
+    # The central catalog lives inside cloud_router itself — there is no
+    # separate URL to configure for it. Derive SARAPP_CENTRAL_MASTER_URL
+    # from the same cloud_router_url this server already uses for its
+    # tunnel (see sarapp_db.sync.config.derive_central_master_url).
+    # No-ops entirely when that's unset, so starting the loop
+    # unconditionally costs nothing for deployments with no tunnel — see
     # Design Documents/Instructions/cloud_router_architecture.md.
+    derived_central_master_url = derive_central_master_url(cloud_router_url)
+    if derived_central_master_url:
+        os.environ["SARAPP_CENTRAL_MASTER_URL"] = derived_central_master_url
     central_sync_loop = CentralSyncLoop()
     app.state.central_sync_loop = central_sync_loop
 

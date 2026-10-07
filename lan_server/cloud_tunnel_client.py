@@ -112,6 +112,8 @@ def get_connect_code() -> str | None:
     return code or None
 
 
+
+
 def generate_connect_code() -> str:
     """Produce a short human-shareable code, e.g. ``ABCD-1234``."""
 

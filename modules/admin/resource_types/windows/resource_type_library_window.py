@@ -45,6 +45,8 @@ from utils.edit_window_kit import (
     PillDelegate,
     PaginationControls,
     default_export_directory,
+    make_sync_status_label,
+    refresh_sync_status_label,
     run_async,
     write_export_file,
 )
@@ -162,6 +164,7 @@ class ResourceTypeLibraryWindow(QWidget):
 
         self._build_ui()
         self.refresh()
+        refresh_sync_status_label(self, self.sync_status_label, "resource_types")
 
     # ----- UI construction -------------------------------------------------
     def _build_ui(self) -> None:
@@ -223,6 +226,9 @@ class ResourceTypeLibraryWindow(QWidget):
         self.export_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         self.export_button.setCursor(Qt.CursorShape.PointingHandCursor)
         header.addWidget(self.export_button)
+
+        self.sync_status_label = make_sync_status_label()
+        header.addWidget(self.sync_status_label)
 
         card_layout.addLayout(header)
 

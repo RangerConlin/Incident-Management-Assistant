@@ -54,6 +54,8 @@ __all__ = [
     "ExportDialog",
     "run_async",
     "write_export_file",
+    "make_sync_status_label",
+    "refresh_sync_status_label",
 ]
 
 
@@ -700,3 +702,48 @@ def run_async(
     worker.failed.connect(on_error)
     worker.finished.connect(_cleanup)
     worker.start()
+
+
+def make_sync_status_label() -> QLabel:
+    """Build the "Last synced: ..." label an Edit-menu catalog window shows
+    near its Resync button (or, for a collection with no resync action yet,
+    wherever the window's header otherwise ends). Starts blank — call
+    ``refresh_sync_status_label`` once the window is wired up to populate it.
+    """
+    label = QLabel("")
+    label.setStyleSheet("color: #666;")
+    return label
+
+
+def refresh_sync_status_label(owner: QObject, label: QLabel, collection: str) -> None:
+    """Populate/update a sync-status label for ``collection`` (a
+    ``MasterCollections`` name) by calling ``GET /api/sync-trigger/status``.
+
+    Reflects the collection's real state rather than guessing: disabled when
+    this server has no central-catalog sync configured at all, "not synced
+    here yet" when the collection isn't in ``SYNCABLE_MASTER_COLLECTIONS``
+    (e.g. a lockdown collection with no local writes to sync), "never" when
+    syncable but no pull has landed yet, otherwise the last-pulled time.
+    ``owner`` must outlive the call — same contract as ``run_async``.
+    """
+    from utils.api_client import api_client
+    from utils.timefmt import humanize_relative
+
+    def _task() -> dict[str, Any]:
+        return api_client.get("/api/sync-trigger/status") or {}
+
+    def _done(status: dict[str, Any]) -> None:
+        if not status.get("enabled"):
+            label.setText("Central catalog sync: disabled")
+            return
+        last_pulled = status.get("last_pulled") or {}
+        if collection not in last_pulled:
+            label.setText("Central catalog sync: not available for this catalog yet")
+            return
+        timestamp = last_pulled[collection]
+        label.setText(f"Last synced: {humanize_relative(timestamp, default='never')}" if timestamp else "Last synced: never")
+
+    def _error(_message: str) -> None:
+        label.setText("Last synced: unknown")
+
+    run_async(owner, _task, _done, _error)

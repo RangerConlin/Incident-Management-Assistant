@@ -28,3 +28,10 @@ def force_resync() -> dict[str, Any]:
 
     run_one_tick()
     return {"synced": True}
+
+
+@router.get("/status")
+def sync_status() -> dict[str, Any]:
+    from sarapp_db.sync.status import get_sync_status
+
+    return get_sync_status()

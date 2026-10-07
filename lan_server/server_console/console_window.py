@@ -56,6 +56,7 @@ class ServerConsoleWindow(QMainWindow):
     log_line = Signal(str)
     operation_done = Signal(str, bool)
     client_connections_updated = Signal(bool, list)
+    sync_status_updated = Signal(dict)
 
     def __init__(self, store: ServerConsoleSettingsStore | None = None) -> None:
         super().__init__()
@@ -66,6 +67,7 @@ class ServerConsoleWindow(QMainWindow):
         self._last_health_status = "Stopped"
         self._client_connections_poll_active = False
         self._last_client_connections_ok: bool | None = None
+        self._sync_status_poll_active = False
         self._traffic_seq = -1
         self.setWindowTitle("SARApp Server Console")
         self.resize(900, 720)
@@ -73,6 +75,7 @@ class ServerConsoleWindow(QMainWindow):
         self._load_settings_into_fields()
         self._connect_signals()
         self._refresh_status()
+        self._poll_sync_status()
         self._append_log("Server Console opened. Settings loaded.")
 
         # Route the server engine's own logging (uvicorn, sarapp_db, the
@@ -128,12 +131,13 @@ class ServerConsoleWindow(QMainWindow):
         self.discovery_label = QLabel("Not broadcasting")
         self.health_label = QLabel("Stopped")
         self.tunnel_label = QLabel("Disabled")
+        self.sync_label = QLabel("Disabled")
         for title, widget in [
             ("Server status", self.status_label), ("Server name", self.name_label),
             ("Host", self.host_label), ("Port", self.port_label), ("Server ID", self.server_id_label),
             ("Version", self.version_label), ("Started time", self.started_label),
             ("Discovery status", self.discovery_label), ("Health", self.health_label),
-            ("Cloud tunnel", self.tunnel_label),
+            ("Cloud tunnel", self.tunnel_label), ("Central catalog sync", self.sync_label),
         ]:
             form.addRow(title + ":", widget)
         layout.addWidget(status_box)
@@ -270,6 +274,7 @@ class ServerConsoleWindow(QMainWindow):
         self.log_line.connect(self._append_log_from_thread)
         self.operation_done.connect(self._operation_finished)
         self.client_connections_updated.connect(self._apply_client_connections)
+        self.sync_status_updated.connect(self._apply_sync_status)
         self.traffic_clear_button.clicked.connect(self._clear_traffic)
         self.traffic_polling_check.toggled.connect(self._rebuild_traffic_table)
 
@@ -419,7 +424,38 @@ class ServerConsoleWindow(QMainWindow):
             self._append_log("Health check success." if result.ok else f"Health check error: {result.message}")
         self.health_label.setText(status)
         self._poll_client_connections()
+        self._poll_sync_status()
         self._refresh_status()
+
+    def _poll_sync_status(self) -> None:
+        """Refresh the central-catalog sync status off the UI thread — it's
+        a local Mongo read (see ServerConsoleController.sync_status), but
+        mirrors _poll_client_connections's threading rather than assuming
+        that's always cheap enough for a 3s UI-thread tick."""
+
+        if self._sync_status_poll_active:
+            return
+        self._sync_status_poll_active = True
+
+        def runner() -> None:
+            try:
+                status = self.controller.sync_status()
+            except Exception as exc:  # noqa: BLE001 - surface polling errors in the log
+                self.log_line.emit(self.logs.add(f"Sync status check failed: {exc}"))
+                status = {"enabled": False, "central_master_url": "", "pending_count": 0, "last_pulled": {}}
+            finally:
+                self._sync_status_poll_active = False
+            self.sync_status_updated.emit(status)
+
+        threading.Thread(target=runner, name="sarapp-console-sync-status", daemon=True).start()
+
+    def _apply_sync_status(self, status: dict) -> None:
+        if not status.get("enabled"):
+            self.sync_label.setText("Disabled")
+            return
+        pending = status.get("pending_count", 0)
+        pending_text = "up to date" if pending == 0 else f"{pending} pending"
+        self.sync_label.setText(f"Enabled — {pending_text}")
 
     def _poll_client_connections(self) -> None:
         """Refresh the client connections table off the UI thread."""

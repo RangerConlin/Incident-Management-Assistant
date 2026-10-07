@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from notifications.models import Notification
 from notifications.services import get_notifier
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 
 from ..data.hazard_type_repository import ApiHazardTypeRepository
 from ..models.hazard_type_models import HAZARD_CATEGORIES, HazardType
@@ -56,6 +57,7 @@ class HazardTypeLibraryWindow(QWidget):
 
         self._update_button_states()
         self.refresh_hazard_types()
+        refresh_sync_status_label(self, self.sync_status_label, "hazard_types")
 
     def _build_toolbar(self) -> QHBoxLayout:
         toolbar = QHBoxLayout()
@@ -86,6 +88,9 @@ class HazardTypeLibraryWindow(QWidget):
         self.save_button.clicked.connect(self._save_current)
         self.discard_button.clicked.connect(self._discard_changes)
         self.refresh_button.clicked.connect(self._refresh_with_prompt)
+
+        self.sync_status_label = make_sync_status_label()
+        toolbar.addWidget(self.sync_status_label)
         return toolbar
 
     def _build_splitter(self) -> QSplitter:

@@ -226,3 +226,14 @@ class ServerConsoleController:
         destination = firebase_credentials.store_uploaded_credentials(source_path)
         self.settings.firebase_credentials_path = str(destination)
         return destination
+
+    def sync_status(self) -> dict[str, Any]:
+        """Return the current central-catalog sync snapshot (see
+        `sarapp_db.sync.status.get_sync_status`) for the console's status
+        display. Direct, in-process Mongo read — this console is the same
+        process as the server once started, same as `firebase_credentials_status`
+        reads local state rather than calling the server's own HTTP API."""
+
+        from sarapp_db.sync.status import get_sync_status
+
+        return get_sync_status()

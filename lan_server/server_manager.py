@@ -7,6 +7,7 @@ uvicorn and advertises itself on the LAN via UDP discovery.
 from __future__ import annotations
 
 import argparse
+import os
 import socket
 import threading
 import time
@@ -28,6 +29,7 @@ from lan_server.cloud_tunnel_client import (
     get_cloud_router_url,
     get_connect_code,
 )
+from sarapp_db.sync.config import derive_central_master_url
 from lan_server.networking.discovery import DiscoveryBroadcaster
 from lan_server.notification_trigger_loop import NotificationTriggerLoop
 from sarapp_db.sync.loop import CentralSyncLoop
@@ -79,16 +81,24 @@ class SARAppServerManager:
         self._thread: threading.Thread | None = None
         self._broadcaster = DiscoveryBroadcaster(self.server_info, port=discovery_port)
         self._notification_trigger_loop = NotificationTriggerLoop()
-        # No-ops entirely when SARAPP_CENTRAL_MASTER_URL isn't set, so
-        # starting it unconditionally costs nothing for deployments that
-        # haven't opted into the central master database — see
+        # The central catalog lives inside cloud_router itself — there is no
+        # separate URL to configure for it. Whatever this server already
+        # uses to reach cloud_router for its tunnel is also where the
+        # central catalog is, so derive SARAPP_CENTRAL_MASTER_URL from the
+        # same cloud_router_url (see cloud_tunnel_client.derive_central_master_url).
+        # No-ops entirely when that's unset, so starting the loop
+        # unconditionally costs nothing for deployments with no tunnel — see
         # Design Documents/Instructions/cloud_router_architecture.md.
+        effective_cloud_router_url = cloud_router_url or get_cloud_router_url()
+        derived_central_master_url = derive_central_master_url(effective_cloud_router_url)
+        if derived_central_master_url:
+            os.environ["SARAPP_CENTRAL_MASTER_URL"] = derived_central_master_url
         self._central_sync_loop = CentralSyncLoop()
         self._tunnel_client = CloudTunnelClient(
             local_port=self.port,
             server_id=self.server_info.server_id,
             server_name=self.server_info.server_name,
-            cloud_router_url=cloud_router_url or get_cloud_router_url(),
+            cloud_router_url=effective_cloud_router_url,
             token=get_cloud_router_token(),
             connect_code=connect_code or get_connect_code(),
         )

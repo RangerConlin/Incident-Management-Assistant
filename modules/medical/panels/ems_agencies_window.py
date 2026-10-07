@@ -41,6 +41,7 @@ from styles import styles as app_styles
 from styles import tokens
 from utils.state import AppState
 from utils.app_signals import app_signals
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 
 from ..data.ems_agencies_schema import (
     EMSAgencyRepository,
@@ -238,6 +239,7 @@ class EMSAgenciesWindow(QMainWindow):
         self._restore_geometry()
         self._refresh_all()
         self._register_signals()
+        refresh_sync_status_label(self, self.sync_status_label, "ems_agencies")
 
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
@@ -279,6 +281,9 @@ class EMSAgenciesWindow(QMainWindow):
         toolbar.addWidget(self.export_button)
 
         toolbar.addAction(self.act_refresh)
+
+        self.sync_status_label = make_sync_status_label()
+        toolbar.addWidget(self.sync_status_label)
 
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)

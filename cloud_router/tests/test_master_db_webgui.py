@@ -71,6 +71,19 @@ def _clear_aircraft():
     get_client()["sarapp_central_master"]["aircraft"].delete_many({"aircraft_id": {"$regex": "^GUI Test"}})
 
 
+def _clear_resource_types():
+    from sarapp_db.mongo.collection_names import MasterCollections
+    from sarapp_db.mongo.database_manager import get_client
+
+    db = get_client()["sarapp_central_master"]
+    db[MasterCollections.RESOURCE_TYPES].delete_many(
+        {"name": {"$regex": "^GUI Test"}}
+    )
+    db[MasterCollections.RESOURCE_CAPABILITIES].delete_many(
+        {"name": {"$regex": "^GUI Test"}}
+    )
+
+
 def _clear_organization_catalog():
     from sarapp_db.mongo.collection_names import MasterCollections
     from sarapp_db.mongo.database_manager import get_client
@@ -164,6 +177,8 @@ def test_login_then_index_lists_collections(monkeypatch) -> None:
     assert "Vehicles" in response.text
     assert "Organization Types" in response.text
     assert "Rank Structures" in response.text
+    assert "Resource Types" in response.text
+    assert "Resource Capabilities" in response.text
     assert "Organizations" in response.text
     assert 'href="/central-master/gui/ranks"' not in response.text
     assert "Console Users" in response.text
@@ -257,6 +272,10 @@ def test_personnel_organization_and_rank_are_catalog_dropdowns(monkeypatch) -> N
         assert 'data-combo-depends="home_unit"' in new_page.text
         assert 'data-combo-depmap-for="home_unit"' in new_page.text
         assert "TL - GUI Test Team Leader" in new_page.text
+        assert 'name="emergency_blood_type"' in new_page.text
+        assert "O+" in new_page.text
+        assert 'name="contact_state"' in new_page.text
+        assert "MI" in new_page.text
     finally:
         _clear_personnel()
         _clear_organization_catalog()
@@ -313,8 +332,21 @@ def test_asset_catalogs_use_searchable_organization_picker(monkeypatch) -> None:
     _clear_equipment()
     _clear_vehicles()
     _clear_aircraft()
+    _clear_resource_types()
     _clear_organization_catalog()
     try:
+        from sarapp_db.mongo.collection_names import MasterCollections
+        from sarapp_db.mongo.database_manager import get_client
+
+        get_client()["sarapp_central_master"][MasterCollections.RESOURCE_TYPES].insert_one({
+            "_id": "gui-test-vehicle-resource-type",
+            "resource_type_id": "901",
+            "name": "GUI Test Vehicle Resource Type",
+            "resource_name": "GUI Test Vehicle Resource Type",
+            "category": "Vehicle",
+            "source": "AHJ Custom",
+            "is_active": True,
+        })
         client.post(
             "/central-master/gui/organizations/new",
             data={
@@ -334,6 +366,26 @@ def test_asset_catalogs_use_searchable_organization_picker(monkeypatch) -> None:
             assert 'name="organization"' in page.text
             assert 'data-fk-combo="1"' in page.text
             assert "GUI Test Asset Org" in page.text
+
+        vehicle_page = client.get("/central-master/gui/vehicles/new")
+        assert "Passenger Vehicle" in vehicle_page.text
+        assert "In Service" in vehicle_page.text
+        assert 'type="number" step="1" name="year"' in vehicle_page.text
+        assert 'type="number" step="1" name="capacity"' in vehicle_page.text
+        assert 'name="resource_type_id"' in vehicle_page.text
+        assert "GUI Test Vehicle Resource Type (Vehicle - AHJ Custom)" in vehicle_page.text
+
+        aircraft_page = client.get("/central-master/gui/aircraft/new")
+        assert "Helicopter" in aircraft_page.text
+        assert "Out of Service" in aircraft_page.text
+        assert "Jet A" in aircraft_page.text
+        assert "Advanced" in aircraft_page.text
+        assert 'type="number" step="1" name="range_nm"' in aircraft_page.text
+        assert 'type="number" step="0.1" name="endurance_hr"' in aircraft_page.text
+        assert 'type="checkbox" name="radio_vhf_air"' in aircraft_page.text
+        assert 'type="checkbox" name="cap_ifr"' in aircraft_page.text
+        assert 'name="base"' in aircraft_page.text
+        assert "<datalist" in aircraft_page.text
 
         client.post(
             "/central-master/gui/equipment/new",
@@ -358,12 +410,111 @@ def test_asset_catalogs_use_searchable_organization_picker(monkeypatch) -> None:
             assert 'data-inline-collection=' in listing.text
             assert 'data-field="organization"' in listing.text
             assert 'data-editor="select"' in listing.text
-            assert "GUI Test Asset Org" in listing.text
+            assert "GTAO - GUI Test Asset Org" in listing.text
+
+        vehicle_listing = client.get("/central-master/gui/vehicles")
+        assert 'data-field="type_id"' in vehicle_listing.text
+        assert 'data-field="status_id"' in vehicle_listing.text
+        assert "Passenger Vehicle" in vehicle_listing.text
+        assert "Available" in vehicle_listing.text
     finally:
         _clear_equipment()
         _clear_vehicles()
         _clear_aircraft()
+        _clear_resource_types()
         _clear_organization_catalog()
+
+
+def test_organization_rank_foreign_keys_use_searchable_pickers(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_organization_catalog()
+    try:
+        client.post(
+            "/central-master/gui/organization-types/new",
+            data={"name": "GUI Test Org Type", "is_active": "on"},
+        )
+        client.post(
+            "/central-master/gui/rank-structures/new",
+            data={"name": "GUI Test Rank Structure", "is_active": "on"},
+        )
+
+        rank_structure_page = client.get("/central-master/gui/rank-structures/new")
+        assert rank_structure_page.status_code == 200
+        assert 'name="organization_type_id"' in rank_structure_page.text
+        assert 'data-fk-combo="1"' in rank_structure_page.text
+        assert "GUI Test Org Type" in rank_structure_page.text
+
+        organization_page = client.get("/central-master/gui/organizations/new")
+        assert organization_page.status_code == 200
+        assert 'name="parent_organization_id"' in organization_page.text
+        assert 'name="organization_type_id"' in organization_page.text
+        assert 'name="default_rank_structure_id"' in organization_page.text
+        assert "GUI Test Rank Structure" in organization_page.text
+
+        rank_page = client.get("/central-master/gui/ranks/new")
+        assert rank_page.status_code == 200
+        assert 'name="rank_structure_id"' in rank_page.text
+        assert 'data-fk-combo="1"' in rank_page.text
+        assert "GUI Test Rank Structure" in rank_page.text
+    finally:
+        _clear_organization_catalog()
+
+
+def test_resource_type_catalogs_use_desktop_control_types(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_resource_types()
+    try:
+        type_page = client.get("/central-master/gui/resource-types/new")
+        assert type_page.status_code == 200
+        assert 'name="category"' in type_page.text
+        assert "Vehicle" in type_page.text
+        assert 'name="source"' in type_page.text
+        assert "AHJ Custom" in type_page.text
+        assert 'type="number" step="0.1" name="typical_quantity"' in type_page.text
+        assert 'type="number" step="1" name="typical_team_size"' in type_page.text
+        assert 'type="checkbox" name="is_kit_cache"' in type_page.text
+        assert 'type="checkbox" name="is_consumable"' in type_page.text
+        assert 'type="checkbox" name="is_active" checked' in type_page.text
+
+        created_type = client.post(
+            "/central-master/gui/resource-types/new",
+            data={
+                "name": "GUI Test Resource Type",
+                "resource_name": "GUI Test Resource Type Display",
+                "category": "Vehicle",
+                "source": "AHJ Custom",
+                "typical_quantity": "2.5",
+                "typical_team_size": "4",
+                "is_active": "on",
+            },
+        )
+        assert created_type.status_code == 303
+
+        capability_page = client.get("/central-master/gui/resource-capabilities/new")
+        assert capability_page.status_code == 200
+        assert 'type="checkbox" name="is_active" checked' in capability_page.text
+
+        created_capability = client.post(
+            "/central-master/gui/resource-capabilities/new",
+            data={
+                "name": "GUI Test Capability",
+                "category": "Vehicle",
+                "description": "Cloud GUI test",
+                "is_active": "on",
+            },
+        )
+        assert created_capability.status_code == 303
+
+        type_listing = client.get("/central-master/gui/resource-types")
+        assert "GUI Test Resource Type" in type_listing.text
+        assert "Vehicle" in type_listing.text
+
+        capability_listing = client.get("/central-master/gui/resource-capabilities")
+        assert "GUI Test Capability" in capability_listing.text
+    finally:
+        _clear_resource_types()
 
 
 def test_personnel_delete_removes_record(monkeypatch) -> None:
@@ -838,6 +989,7 @@ def test_rank_structure_edit_page_manages_nested_ranks(monkeypatch) -> None:
         assert edit_page.status_code == 200
         assert "Ranks In This Structure" in edit_page.text
         assert f"/central-master/gui/rank-structures/{structure_id}/ranks" in edit_page.text
+        assert 'type="number" step="1" name="sort_order_0"' in edit_page.text
 
         saved = client.post(
             f"/central-master/gui/rank-structures/{structure_id}/ranks",
@@ -919,6 +1071,10 @@ def test_console_user_can_be_created_and_used_for_login(monkeypatch) -> None:
     _login(client)
     _clear_console_users()
     try:
+        new_page = client.get("/central-master/gui/console-users/new")
+        assert new_page.status_code == 200
+        assert 'type="password" name="password"' in new_page.text
+
         created = client.post(
             "/central-master/gui/console-users/new",
             data={

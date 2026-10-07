@@ -20,6 +20,7 @@ class TeamTypesEditorDialog(BaseTypeEditorDialog):
         ColumnSpec("updated_at", "Updated"),
     ]
     repository = ApiTeamTypesRepository
+    sync_collection = "team_types"
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)

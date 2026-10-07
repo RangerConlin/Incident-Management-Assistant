@@ -58,6 +58,7 @@ from modules.planning.models.objectives_dao import (
     ObjectiveTemplate,
     ObjectivesDAO,
 )
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 
 
 TAG_SEPARATOR = ", "
@@ -334,6 +335,7 @@ class ObjectivesEditor(_QMainWindow):
         self._load_filters(preserve_selection=False)
         self._refresh_table()
         self._register_shortcuts()
+        refresh_sync_status_label(self, self.sync_status_label, "objective_templates")
 
     # UI construction ---------------------------------------------------
     def _build_ui(self) -> None:
@@ -352,6 +354,9 @@ class ObjectivesEditor(_QMainWindow):
         table_layout = QVBoxLayout(table_container)
         table_layout.setContentsMargins(0, 0, 0, 0)
         table_layout.setSpacing(4)
+
+        self.sync_status_label = make_sync_status_label()
+        table_layout.addWidget(self.sync_status_label)
 
         self._table = QTableView()
         self._table.setModel(self._model)

@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.admin.gar_templates.data import gar_template_repository as repo
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 
 _GROUP_LEVEL = 0
 _ROW_LEVEL = 1
@@ -80,6 +81,9 @@ class GarTemplateManagerWindow(QDialog):
         list_btns.addWidget(self._clone_btn)
         list_btns.addWidget(self._toggle_active_btn)
         left.addLayout(list_btns)
+
+        self._sync_status_label = make_sync_status_label()
+        left.addWidget(self._sync_status_label)
 
         left_widget = QWidget()
         left_widget.setLayout(left)
@@ -160,6 +164,7 @@ class GarTemplateManagerWindow(QDialog):
 
         self._set_editor_enabled(False)
         self.reload()
+        refresh_sync_status_label(self, self._sync_status_label, "gar_templates")
 
     # ---- Template list ----
 

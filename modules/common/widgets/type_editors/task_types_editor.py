@@ -22,6 +22,7 @@ class TaskTypesEditorDialog(BaseTypeEditorDialog):
     ]
     repository = ApiTaskTypesRepository
     has_priority_field = True
+    sync_collection = "task_types"
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)

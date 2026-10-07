@@ -7,6 +7,7 @@ erroring, so sync is purely opt-in per deployment.
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 _URL_ENV_VAR = "SARAPP_CENTRAL_MASTER_URL"
 _TOKEN_ENV_VAR = "SARAPP_CLOUD_ROUTER_TOKEN"  # same shared secret the tunnel already uses
@@ -41,3 +42,27 @@ def sync_interval_seconds() -> float:
         return float(os.environ.get(_INTERVAL_ENV_VAR, str(DEFAULT_INTERVAL_SECONDS)))
     except ValueError:
         return DEFAULT_INTERVAL_SECONDS
+
+
+def derive_central_master_url(cloud_router_url: str | None) -> str:
+    """Derive the central-catalog sync endpoint from a tunnel-registration
+    URL — the central catalog lives inside cloud_router's own process,
+    mounted at `/central-master` on the same app that serves
+    `/tunnel/register` (see `cloud_router/router/app.py`). A server that
+    already knows how to reach cloud_router for its tunnel (LAN server's
+    `cloud_router_url` setting, or the hosted cloud server's own tunnel
+    config) needs no separate, manually-configured central-catalog URL:
+    same host, swap the `ws(s)://` scheme for `http(s)://`, drop the
+    `/tunnel/register` path, and add the `/central-master` mount point.
+
+    Returns "" when `cloud_router_url` is empty/unset — no tunnel means no
+    central catalog to sync to either.
+    """
+
+    if not cloud_router_url:
+        return ""
+    parsed = urlparse(cloud_router_url)
+    if not parsed.netloc:
+        return ""
+    scheme = "https" if parsed.scheme in ("wss", "https") else "http"
+    return f"{scheme}://{parsed.netloc}/central-master"

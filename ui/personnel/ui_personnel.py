@@ -32,6 +32,8 @@ from utils.edit_window_kit import (
     FieldSpec,
     ImportWizard,
     default_export_directory as _default_export_directory,
+    make_sync_status_label,
+    refresh_sync_status_label,
     run_async,
     write_export_file,
 )
@@ -886,6 +888,7 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
 
         self._build_ui()
         self.refresh()
+        refresh_sync_status_label(self, self.sync_status_label, "personnel")
 
     # ----- UI construction -------------------------------------------------
     def _build_ui(self) -> None:
@@ -942,6 +945,9 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         self.resync_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.resync_button.setToolTip("Force an immediate resync with the central master catalog")
         header.addWidget(self.resync_button)
+
+        self.sync_status_label = make_sync_status_label()
+        header.addWidget(self.sync_status_label)
 
         card_layout.addLayout(header)
 
@@ -1258,6 +1264,7 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         if result.get("synced"):
             self._show_toast("Resync complete", "Personnel catalog resynced with the central master database.")
             self.refresh()
+            refresh_sync_status_label(self, self.sync_status_label, "personnel")
         else:
             reason = result.get("reason") or "Central sync is not configured on this server."
             self._show_toast("Resync unavailable", reason, severity="warning")

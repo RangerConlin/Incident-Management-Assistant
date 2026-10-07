@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QKeySequence, QShortcut, QTextDocument
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 from utils.itemview_delegates import RowOutlineSelectionDelegate
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
@@ -1353,6 +1354,7 @@ class AircraftInventoryWindow(QMainWindow):
         self._setup_shortcuts()
         self._load_records()
         self.resize(1000, 650)
+        refresh_sync_status_label(self, self.sync_status_label, "aircraft")
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -1378,6 +1380,8 @@ class AircraftInventoryWindow(QMainWindow):
         self.export_btn.clicked.connect(self._export_records)
         for btn in (self.add_btn, self.edit_btn, self.import_btn, self.export_btn):
             toolbar.addWidget(btn)
+        self.sync_status_label = make_sync_status_label()
+        toolbar.addWidget(self.sync_status_label)
         layout.addLayout(toolbar)
 
         # Filters

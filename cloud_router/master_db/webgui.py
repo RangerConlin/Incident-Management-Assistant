@@ -45,7 +45,7 @@ _SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 class FieldSpec:
     name: str
     label: str
-    input_type: str = "text"  # "text" | "checkbox" | "textarea"
+    input_type: str = "text"  # "text" | "password" | "number" | "checkbox" | "textarea" | "select" | "select_fk" | "combo"
     value_type: str = "str"  # "str" | "int" | "float" | "bool"
 
 
@@ -198,6 +198,125 @@ def _gui_user_valid(username: str, password: str) -> bool:
     return hmac.compare_digest(hash_password(password), str(doc.get("password_hash") or ""))
 
 
+def _resource_type_create_payload(resource_type_body_cls: type, body: dict[str, Any]) -> Any:
+    payload = {key: value for key, value in body.items() if value is not None}
+    return resource_type_body_cls(**payload)
+
+
+def _resource_type_update_payload(resource_type_body_cls: type, body: dict[str, Any]) -> Any:
+    payload = {key: value for key, value in body.items() if value is not None}
+    return resource_type_body_cls(**payload)
+
+
+def _get_resource_capability(capability_id: int) -> dict[str, Any]:
+    from sarapp_db.api.routers import resource_types as resource_types_router
+
+    for row in resource_types_router.list_capabilities(include_inactive=True, category="All"):
+        if row.get("id") == capability_id:
+            return row
+    raise HTTPException(status_code=404, detail="Capability not found")
+
+
+def _save_resource_capability(capability_body_cls: type, body: dict[str, Any]) -> dict[str, Any]:
+    payload = {key: value for key, value in body.items() if value is not None}
+    return capability_body_cls(**payload)
+
+
+def _create_resource_capability(body: dict[str, Any]) -> dict[str, Any]:
+    from sarapp_db.api.routers import resource_types as resource_types_router
+
+    return resource_types_router.save_capability(
+        _save_resource_capability(resource_types_router.SaveCapabilityRequest, body)
+    )
+
+
+def _update_resource_capability(capability_id: int, body: dict[str, Any]) -> dict[str, Any]:
+    from sarapp_db.api.routers import resource_types as resource_types_router
+
+    payload = dict(body)
+    payload["capability_id"] = str(capability_id)
+    return resource_types_router.save_capability(
+        _save_resource_capability(resource_types_router.SaveCapabilityRequest, payload)
+    )
+
+
+def _csv_to_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [part.strip() for part in str(value or "").split(",") if part.strip()]
+
+
+def _list_to_csv(value: Any) -> str:
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value if str(item).strip())
+    return str(value or "")
+
+
+def _hazard_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    row = dict(doc)
+    default_spe = row.get("default_spe") or {}
+    row["default_spe_severity"] = default_spe.get("severity", 1)
+    row["default_spe_probability"] = default_spe.get("probability", 1)
+    row["default_spe_exposure"] = default_spe.get("exposure", 1)
+    row["aliases"] = _list_to_csv(row.get("aliases"))
+    row["controls"] = _list_to_csv(row.get("controls"))
+    row["ppe"] = _list_to_csv(row.get("ppe"))
+    return row
+
+
+def _hazard_form_payload(hazard_body_cls: type, spe_input_cls: type, form: dict[str, Any]) -> Any:
+    return hazard_body_cls(
+        name=str(form.get("name") or ""),
+        category=str(form.get("category") or "Other"),
+        description=str(form.get("description") or ""),
+        aliases=_csv_to_list(form.get("aliases")),
+        controls=_csv_to_list(form.get("controls")),
+        ppe=_csv_to_list(form.get("ppe")),
+        standard_safety_language=str(form.get("standard_safety_language") or ""),
+        default_spe=spe_input_cls(
+            severity=int(form.get("default_spe_severity") or 1),
+            probability=int(form.get("default_spe_probability") or 1),
+            exposure=int(form.get("default_spe_exposure") or 1),
+        ),
+        active=bool(form.get("active")),
+    )
+
+
+def _template_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    row = dict(doc)
+    row["tags"] = _list_to_csv(row.get("tags"))
+    return row
+
+
+def _objective_template_payload(form: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "code": str(form.get("code") or "") or None,
+        "title": str(form.get("title") or ""),
+        "description": str(form.get("description") or ""),
+        "default_section": str(form.get("default_section") or "") or None,
+        "priority": str(form.get("priority") or "Normal"),
+        "active": bool(form.get("active")),
+        "tags": _csv_to_list(form.get("tags")),
+    }
+
+
+def _strategy_template_payload(form: dict[str, Any]) -> dict[str, Any]:
+    objective_template_id: int | None
+    raw_objective_id = str(form.get("objective_template_id") or "").strip()
+    objective_template_id = int(raw_objective_id) if raw_objective_id else None
+    return {
+        "objective_template_id": objective_template_id,
+        "title": str(form.get("title") or ""),
+        "description": str(form.get("description") or ""),
+        "assignment_kind": str(form.get("assignment_kind") or "Ground"),
+        "branch": str(form.get("branch") or "") or None,
+        "division_group": str(form.get("division_group") or "") or None,
+        "priority": str(form.get("priority") or "Normal"),
+        "active": bool(form.get("active")),
+        "tags": _csv_to_list(form.get("tags")),
+    }
+
+
 def _vehicle_create_payload(vehicle_body_cls: type, body: dict[str, Any]) -> Any:
     payload = {key: value for key, value in body.items() if value is not None}
     return vehicle_body_cls(**payload)
@@ -279,9 +398,16 @@ def _format_home_unit(name: Any, short_by_name: dict[str, str]) -> str:
     return f"{short} - {name}" if short and name else name
 
 
+def _format_organization(name: Any, short_by_name: dict[str, str]) -> str:
+    return _format_home_unit(name, short_by_name)
+
+
 def _organization_list_cell(doc: dict[str, Any], field_name: str) -> Any:
     if field_name == "parent_organization_id":
-        return doc.get("parent_organization_name") or doc.get(field_name)
+        parent_name = doc.get("parent_organization_name")
+        if parent_name:
+            return _format_organization(parent_name, _org_short_name_by_name())
+        return doc.get(field_name)
     if field_name == "organization_type_id":
         return doc.get("organization_type_name") or doc.get(field_name)
     if field_name == "default_rank_structure_id":
@@ -292,6 +418,39 @@ def _organization_list_cell(doc: dict[str, Any], field_name: str) -> Any:
 def _rank_structure_list_cell(doc: dict[str, Any], field_name: str) -> Any:
     if field_name == "organization_type_id":
         return doc.get("organization_type_name") or doc.get(field_name)
+    return doc.get(field_name)
+
+
+def _rank_list_cell(doc: dict[str, Any], field_name: str) -> Any:
+    if field_name == "rank_structure_id":
+        return doc.get("rank_structure_name") or doc.get(field_name)
+    return doc.get(field_name)
+
+
+def _objective_template_title_by_id() -> dict[int, str]:
+    from sarapp_db.api.routers import objective_templates as objective_templates_router
+
+    result: dict[int, str] = {}
+    for row in objective_templates_router.list_objective_templates(
+        search="", include_archived=True, tag=""
+    ):
+        record_id = row.get("int_id_master") or row.get("int_id")
+        if record_id is None:
+            continue
+        try:
+            result[int(record_id)] = str(row.get("title") or row.get("code") or record_id)
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _strategy_template_list_cell(doc: dict[str, Any], field_name: str) -> Any:
+    if field_name == "objective_template_id":
+        objective_id = doc.get("objective_template_id")
+        try:
+            return _objective_template_title_by_id().get(int(objective_id), objective_id)
+        except (TypeError, ValueError):
+            return objective_id
     return doc.get(field_name)
 
 
@@ -329,7 +488,7 @@ def _rank_structure_fields() -> list[FieldSpec]:
     return [
         FieldSpec("name", "Name"),
         FieldSpec("description", "Description", input_type="textarea"),
-        FieldSpec("organization_type_id", "Organization Type ID", value_type="int"),
+        FieldSpec("organization_type_id", "Organization Type ID", input_type="select_fk", value_type="int"),
         FieldSpec("is_template", "Template", input_type="checkbox", value_type="int"),
         FieldSpec("is_system_template", "System Template", input_type="checkbox", value_type="int"),
         FieldSpec("sort_order", "Sort Order", value_type="int"),
@@ -357,7 +516,7 @@ def _organization_fields() -> list[FieldSpec]:
 
 def _rank_fields() -> list[FieldSpec]:
     return [
-        FieldSpec("rank_structure_id", "Rank Structure ID", value_type="int"),
+        FieldSpec("rank_structure_id", "Rank Structure ID", input_type="select_fk", value_type="int"),
         FieldSpec("rank_code", "Rank Code"),
         FieldSpec("rank_name", "Rank Name"),
         FieldSpec("short_display", "Short Display"),
@@ -406,6 +565,46 @@ def _organization_combo_options() -> list[tuple[str, str]]:
     return _personnel_org_rank_options()["organization_options"]
 
 
+def _resource_type_combo_options() -> list[tuple[str, str]]:
+    from sarapp_db.api.routers import resource_types as resource_types_router
+
+    options: list[tuple[str, str]] = []
+    for row in resource_types_router.list_resource_types(
+        search_text="",
+        category="All",
+        source="All",
+        active_filter="Active",
+        include_inactive=False,
+    ):
+        resource_type_id = row.get("resource_type_id") or row.get("id")
+        if resource_type_id is None:
+            continue
+        label = str(row.get("resource_name") or row.get("name") or resource_type_id)
+        category = str(row.get("category") or "").strip()
+        source = str(row.get("source") or "").strip()
+        context = " - ".join(part for part in (category, source) if part)
+        if context:
+            label = f"{label} ({context})"
+        options.append((str(resource_type_id), label))
+    return sorted(options, key=lambda pair: pair[1].lower())
+
+
+_AIRCRAFT_STATUS_OPTIONS = ["Available", "Assigned", "Out of Service", "Standby", "In Transit"]
+_AIRCRAFT_TYPE_OPTIONS = ["Helicopter", "Fixed-Wing", "UAS", "Gyroplane", "Other"]
+_AIRCRAFT_FUEL_OPTIONS = ["Jet A", "Avgas", "Electric", "Other"]
+_AIRCRAFT_MED_CONFIG_OPTIONS = ["None", "Basic", "Advanced"]
+_VEHICLE_STATUS_OPTIONS = ["Available", "In Service", "Out of Service", "Retired"]
+_VEHICLE_TYPE_OPTIONS = ["Passenger Vehicle", "Utility", "Support", "Other"]
+_BLOOD_TYPE_OPTIONS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+_STATE_CODES = [
+    "", "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI",
+    "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN",
+    "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH",
+    "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA",
+    "WV", "WI", "WY",
+]
+
+
 def _build_collection_specs() -> dict[str, CollectionSpec]:
     # Imported lazily (not at module import time) so this module can be
     # imported without sarapp_db being on the path yet in contexts that
@@ -415,6 +614,15 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     from sarapp_db.api.routers import organizations as organizations_router
     from sarapp_db.api.routers import vehicles as vehicles_router
     from sarapp_db.api.routers import aircraft as aircraft_router
+    from sarapp_db.api.routers import resource_types as resource_types_router
+    from sarapp_db.api.routers import hazard_types as hazard_types_router
+    from sarapp_db.api.routers import hospitals as hospitals_router
+    from sarapp_db.api.routers import objective_templates as objective_templates_router
+    from sarapp_db.api.routers import strategy_templates as strategy_templates_router
+    from sarapp_db.api.routers import communications as communications_router
+    from sarapp_db.api.routers import canned_comm_entries as canned_comm_entries_router
+    from modules.admin.resource_types.models.resource_type_models import RESOURCE_CATEGORIES, RESOURCE_SOURCES
+    from modules.admin.hazard_types.models.hazard_type_models import HAZARD_CATEGORIES
     from modules.personnel.catalog_io import (
         PERSONNEL_FIELDS,
         PERSONNEL_FIELD_LABELS,
@@ -430,7 +638,12 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec(
             f.key,
             f.label,
-            input_type="select" if f.key in {"home_unit", "rank"} else "checkbox" if f.key == "is_medic" else "textarea" if f.key in {"notes", "contact_notes", "emergency_medical"} else "text",
+            input_type="select" if f.key in {
+                "home_unit",
+                "rank",
+                "emergency_blood_type",
+                "contact_state",
+            } else "checkbox" if f.key == "is_medic" else "textarea" if f.key in {"notes", "contact_notes", "emergency_medical"} else "text",
         )
         for f in PERSONNEL_FIELDS
     ]
@@ -446,36 +659,141 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec("vehicle_id", "Vehicle ID"),
         FieldSpec("vin", "VIN"),
         FieldSpec("license_plate", "License Plate"),
-        FieldSpec("year", "Year", value_type="int"),
+        FieldSpec("year", "Year", input_type="number", value_type="int"),
         FieldSpec("make", "Make"),
         FieldSpec("model", "Model"),
-        FieldSpec("capacity", "Capacity", value_type="int"),
-        FieldSpec("type_id", "Type"),
-        FieldSpec("status_id", "Status"),
+        FieldSpec("capacity", "Capacity", input_type="number", value_type="int"),
+        FieldSpec("type_id", "Type", input_type="select"),
+        FieldSpec("status_id", "Status", input_type="select"),
         FieldSpec("organization", "Organization", input_type="select"),
-        FieldSpec("resource_type_id", "Resource Type ID", value_type="int"),
+        FieldSpec("resource_type_id", "Resource Type", input_type="select_fk", value_type="int"),
         FieldSpec("tags", "Tags", input_type="textarea"),
     ]
     aircraft_fields = [
         FieldSpec("aircraft_id", "Aircraft ID"),
         FieldSpec("callsign", "Callsign"),
-        FieldSpec("type", "Type"),
+        FieldSpec("type", "Type", input_type="select"),
         FieldSpec("make", "Make"),
         FieldSpec("model", "Model"),
-        FieldSpec("base", "Base"),
+        FieldSpec("base", "Base", input_type="combo"),
         FieldSpec("current_location", "Current Location"),
-        FieldSpec("status", "Status"),
+        FieldSpec("status", "Status", input_type="select"),
+        FieldSpec("assigned_team_name", "Assigned Team"),
         FieldSpec("organization", "Organization", input_type="select"),
-        FieldSpec("fuel_type", "Fuel Type"),
-        FieldSpec("range_nm", "Range NM", value_type="int"),
-        FieldSpec("endurance_hr", "Endurance Hours", value_type="float"),
-        FieldSpec("cruise_kt", "Cruise KT", value_type="int"),
-        FieldSpec("crew_min", "Minimum Crew", value_type="int"),
-        FieldSpec("crew_max", "Maximum Crew", value_type="int"),
+        FieldSpec("fuel_type", "Fuel Type", input_type="select"),
+        FieldSpec("range_nm", "Range NM", input_type="number", value_type="int"),
+        FieldSpec("endurance_hr", "Endurance Hours", input_type="number", value_type="float"),
+        FieldSpec("cruise_kt", "Cruise KT", input_type="number", value_type="int"),
+        FieldSpec("crew_min", "Minimum Crew", input_type="number", value_type="int"),
+        FieldSpec("crew_max", "Maximum Crew", input_type="number", value_type="int"),
+        FieldSpec("adsb_hex", "ADS-B Hex"),
+        FieldSpec("radio_vhf_air", "VHF Air Radio", input_type="checkbox", value_type="bool"),
+        FieldSpec("radio_vhf_sar", "VHF SAR Radio", input_type="checkbox", value_type="bool"),
+        FieldSpec("radio_uhf", "UHF Radio", input_type="checkbox", value_type="bool"),
+        FieldSpec("cap_hoist", "Hoist", input_type="checkbox", value_type="bool"),
+        FieldSpec("cap_nvg", "Night Ops", input_type="checkbox", value_type="bool"),
+        FieldSpec("cap_flir", "FLIR", input_type="checkbox", value_type="bool"),
+        FieldSpec("cap_ifr", "IFR", input_type="checkbox", value_type="bool"),
+        FieldSpec("payload_kg", "Payload / Winch KG", input_type="number", value_type="float"),
+        FieldSpec("med_config", "Medical Config", input_type="select"),
         FieldSpec("serial_number", "Serial Number"),
-        FieldSpec("year", "Year", value_type="int"),
+        FieldSpec("year", "Year", input_type="number", value_type="int"),
         FieldSpec("owner_operator", "Owner / Operator"),
+        FieldSpec("registration_exp", "Registration Expiration"),
+        FieldSpec("inspection_due", "Inspection Due"),
+        FieldSpec("last_100hr", "Last 100-Hour"),
+        FieldSpec("next_100hr", "Next 100-Hour"),
         FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+    resource_type_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("resource_name", "Display Name"),
+        FieldSpec("category", "Category", input_type="select"),
+        FieldSpec("source", "Source", input_type="select"),
+        FieldSpec("owner_agency", "Owner Agency"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("default_unit", "Default Unit"),
+        FieldSpec("typical_quantity", "Typical Quantity", input_type="number", value_type="float"),
+        FieldSpec("typical_team_size", "Typical Team Size", input_type="number", value_type="int"),
+        FieldSpec("is_kit_cache", "Kit / Cache", input_type="checkbox", value_type="bool"),
+        FieldSpec("is_consumable", "Consumable", input_type="checkbox", value_type="bool"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+    resource_capability_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("category", "Category"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+    hospital_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("code", "Code"),
+        FieldSpec("address", "Address"),
+        FieldSpec("city", "City"),
+        FieldSpec("state", "State", input_type="select"),
+        FieldSpec("zip", "ZIP"),
+        FieldSpec("phone", "Phone"),
+        FieldSpec("contact_name", "Contact Name"),
+        FieldSpec("latitude", "Latitude", value_type="float"),
+        FieldSpec("longitude", "Longitude", value_type="float"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+    objective_template_fields = [
+        FieldSpec("code", "Code"),
+        FieldSpec("title", "Title"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("default_section", "Default Section", input_type="select"),
+        FieldSpec("priority", "Priority", input_type="select"),
+        FieldSpec("active", "Active", input_type="checkbox", value_type="bool"),
+        FieldSpec("tags", "Tags"),
+    ]
+    strategy_template_fields = [
+        FieldSpec("objective_template_id", "Objective Template", input_type="select_fk", value_type="int"),
+        FieldSpec("title", "Title"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("assignment_kind", "Assignment Kind", input_type="select"),
+        FieldSpec("branch", "Branch"),
+        FieldSpec("division_group", "Division / Group"),
+        FieldSpec("priority", "Priority", input_type="select"),
+        FieldSpec("active", "Active", input_type="checkbox", value_type="bool"),
+        FieldSpec("tags", "Tags"),
+    ]
+    radio_channel_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("function", "Function"),
+        FieldSpec("rx_freq", "RX Frequency", input_type="number", value_type="float"),
+        FieldSpec("tx_freq", "TX Frequency", input_type="number", value_type="float"),
+        FieldSpec("rx_tone", "RX Tone"),
+        FieldSpec("tx_tone", "TX Tone"),
+        FieldSpec("system", "System"),
+        FieldSpec("mode", "Mode", input_type="select"),
+        FieldSpec("line_a", "ICS 205 Line A", input_type="checkbox", value_type="bool"),
+        FieldSpec("line_c", "ICS 205 Line C", input_type="checkbox", value_type="bool"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+    canned_comm_fields = [
+        FieldSpec("title", "Title"),
+        FieldSpec("category", "Category"),
+        FieldSpec("message", "Message", input_type="textarea"),
+        FieldSpec("priority", "Priority", input_type="select"),
+        FieldSpec("notification_level", "Notification Level", input_type="number", value_type="int"),
+        FieldSpec("status_update", "Status Update"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
+    ]
+    hazard_type_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("category", "Category", input_type="select"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("aliases", "Aliases"),
+        FieldSpec("controls", "Controls"),
+        FieldSpec("ppe", "PPE"),
+        FieldSpec("standard_safety_language", "Standard Safety Language", input_type="textarea"),
+        FieldSpec("default_spe_severity", "Default Severity", input_type="number", value_type="int"),
+        FieldSpec("default_spe_probability", "Default Probability", input_type="number", value_type="int"),
+        FieldSpec("default_spe_exposure", "Default Exposure", input_type="number", value_type="int"),
+        FieldSpec("active", "Active", input_type="checkbox", value_type="bool"),
     ]
 
     specs = [
@@ -541,7 +859,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=vehicles_router.update_vehicle,
             delete_fn=vehicles_router.delete_vehicle,
             list_fields=["vehicle_id", "license_plate", "type_id", "status_id", "organization"],
-            inline_edit_fields=["organization"],
+            inline_edit_fields=["type_id", "status_id", "organization"],
         ),
         CollectionSpec(
             key="aircraft",
@@ -557,6 +875,100 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             delete_fn=aircraft_router.delete_aircraft,
             list_fields=["aircraft_id", "callsign", "type", "status", "organization", "base"],
             inline_edit_fields=["organization"],
+        ),
+        CollectionSpec(
+            key="hospitals",
+            title="Hospitals",
+            record_field="id_master",
+            fields=hospital_fields,
+            list_fn=lambda: hospitals_router.list_hospitals(search=""),
+            get_fn=hospitals_router.get_hospital,
+            create_fn=hospitals_router.create_hospital,
+            update_fn=hospitals_router.update_hospital,
+            delete_fn=hospitals_router.delete_hospital,
+            list_fields=["name", "code", "city", "state", "phone", "contact_name"],
+        ),
+        CollectionSpec(
+            key="hazard-types",
+            title="Hazard Types",
+            record_field="id_master",
+            fields=hazard_type_fields,
+            list_fn=lambda: hazard_types_router.list_hazard_types(
+                search_text="", category="All", active_filter="", include_inactive=True
+            ),
+            get_fn=hazard_types_router.get_hazard_type,
+            create_fn=hazard_types_router.create_hazard_type,
+            update_fn=hazard_types_router.save_hazard_type,
+            delete_fn=None,
+            form_row_fn=_hazard_form_row,
+            import_payload_fn=lambda row: _hazard_form_payload(
+                hazard_types_router.SaveHazardTypeRequest,
+                hazard_types_router.DefaultSpeInput,
+                row,
+            ),
+            form_payload_fn=lambda row: _hazard_form_payload(
+                hazard_types_router.SaveHazardTypeRequest,
+                hazard_types_router.DefaultSpeInput,
+                row,
+            ),
+            list_fields=["name", "category", "description", "active"],
+        ),
+        CollectionSpec(
+            key="objective-templates",
+            title="Objective Templates",
+            record_field="int_id_master",
+            fields=objective_template_fields,
+            list_fn=lambda: objective_templates_router.list_objective_templates(
+                search="", include_archived=True, tag=""
+            ),
+            get_fn=objective_templates_router.get_objective_template,
+            create_fn=objective_templates_router.create_objective_template,
+            update_fn=objective_templates_router.update_objective_template,
+            delete_fn=objective_templates_router.delete_objective_template,
+            form_row_fn=_template_form_row,
+            form_payload_fn=_objective_template_payload,
+            list_fields=["code", "title", "default_section", "priority", "active"],
+        ),
+        CollectionSpec(
+            key="strategy-templates",
+            title="Strategy Templates",
+            record_field="int_id_master",
+            fields=strategy_template_fields,
+            list_fn=lambda: strategy_templates_router.list_strategy_templates(
+                search="", include_archived=True, objective_template_id=None, tag=""
+            ),
+            get_fn=strategy_templates_router.get_strategy_template,
+            create_fn=strategy_templates_router.create_strategy_template,
+            update_fn=strategy_templates_router.update_strategy_template,
+            delete_fn=strategy_templates_router.delete_strategy_template,
+            form_row_fn=_template_form_row,
+            form_payload_fn=_strategy_template_payload,
+            list_cell_fn=_strategy_template_list_cell,
+            list_fields=["title", "objective_template_id", "assignment_kind", "priority", "active"],
+        ),
+        CollectionSpec(
+            key="radio-channels",
+            title="Radio Channels",
+            record_field="id",
+            fields=radio_channel_fields,
+            list_fn=lambda: communications_router.list_master_channels(search=None, band=None, mode=None),
+            get_fn=communications_router.get_master_channel,
+            create_fn=communications_router.create_master_channel,
+            update_fn=communications_router.update_master_channel,
+            delete_fn=communications_router.delete_master_channel,
+            list_fields=["name", "function", "rx_freq", "tx_freq", "mode", "line_a", "line_c"],
+        ),
+        CollectionSpec(
+            key="canned-comm-entries",
+            title="Canned Comm Entries",
+            record_field="id_master",
+            fields=canned_comm_fields,
+            list_fn=lambda: canned_comm_entries_router.list_entries(search="", active_only=False),
+            get_fn=canned_comm_entries_router.get_entry,
+            create_fn=canned_comm_entries_router.create_entry,
+            update_fn=canned_comm_entries_router.update_entry,
+            delete_fn=canned_comm_entries_router.delete_entry,
+            list_fields=["title", "category", "priority", "notification_level", "is_active"],
         ),
         CollectionSpec(
             key="organization-types",
@@ -636,6 +1048,38 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             ],
             export_field_labels={"rank_structure_name": "Rank Structure Name"},
             import_payload_fn=_rank_import_payload,
+            list_cell_fn=_rank_list_cell,
+        ),
+        CollectionSpec(
+            key="resource-types",
+            title="Resource Types",
+            record_field="id",
+            fields=resource_type_fields,
+            list_fn=lambda: resource_types_router.list_resource_types(
+                search_text="", category="All", source="All", active_filter="All", include_inactive=True
+            ),
+            get_fn=lambda record_id: resource_types_router.get_resource_type(str(record_id)),
+            create_fn=lambda body: resource_types_router.create_resource_type(
+                _resource_type_create_payload(resource_types_router.SaveResourceTypeRequest, body)
+            ),
+            update_fn=lambda record_id, body: resource_types_router.save_resource_type(
+                str(record_id),
+                _resource_type_update_payload(resource_types_router.SaveResourceTypeRequest, body),
+            ),
+            delete_fn=None,
+            list_fields=["name", "resource_name", "category", "source", "is_kit_cache", "is_active"],
+        ),
+        CollectionSpec(
+            key="resource-capabilities",
+            title="Resource Capabilities",
+            record_field="id",
+            fields=resource_capability_fields,
+            list_fn=lambda: resource_types_router.list_capabilities(include_inactive=True, category="All"),
+            get_fn=_get_resource_capability,
+            create_fn=_create_resource_capability,
+            update_fn=_update_resource_capability,
+            delete_fn=None,
+            list_fields=["name", "category", "description", "is_active"],
         ),
         CollectionSpec(
             key="console-users",
@@ -643,7 +1087,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             record_field="int_id",
             fields=[
                 FieldSpec("username", "Username"),
-                FieldSpec("password", "Password"),
+                FieldSpec("password", "Password", input_type="password"),
                 FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
                 FieldSpec("notes", "Notes", input_type="textarea"),
             ],
@@ -1224,8 +1668,25 @@ def _field_input_html(
 ) -> str:
     safe_value = escape(str(value)) if value is not None else ""
     if field.input_type == "checkbox":
-        checked = "checked" if str(value).strip().lower() in {"1", "true", "yes", "y", "on"} else ""
+        is_checked = (
+            field.name in {"is_active", "active"} and value is None
+        ) or str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+        checked = "checked" if is_checked else ""
         return f'<input type="checkbox" name="{escape(field.name)}" {checked}>'
+    if field.input_type == "password":
+        return f'<input type="password" name="{escape(field.name)}" value="{safe_value}" autocomplete="new-password">'
+    if field.input_type == "number" or (field.input_type == "text" and field.value_type in {"int", "float"}):
+        step = "1" if field.value_type == "int" else "0.1"
+        return f'<input type="number" step="{step}" name="{escape(field.name)}" value="{safe_value}">'
+    if field.input_type == "combo":
+        options = list((combo_options or {}).get(field.name, []))
+        list_id = f"list-{field.name}"
+        options_html = "".join(f'<option value="{escape(str(opt_id))}">{escape(str(label))}</option>' for opt_id, label in options)
+        return (
+            f'<input type="text" name="{escape(field.name)}" value="{safe_value}" '
+            f'list="{escape(list_id)}" autocomplete="off">'
+            f'<datalist id="{escape(list_id)}">{options_html}</datalist>'
+        )
     if field.input_type in ("select_fk", "select"):
         options = list((combo_options or {}).get(field.name, []))
         current = str(value) if value not in (None, "") else ""
@@ -1260,11 +1721,101 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         organization = str(doc.get("home_unit") or "").strip()
         combo_options["home_unit"] = org_rank_options["organization_options"]
         combo_options["rank"] = [(r, r) for r in org_rank_options["rank_by_org"].get(organization, [])]
+        combo_options["emergency_blood_type"] = [(value, value) for value in _BLOOD_TYPE_OPTIONS]
+        combo_options["contact_state"] = [(value, value) for value in _STATE_CODES]
         combo_depends["rank"] = "home_unit"
         depmap_json = json.dumps(org_rank_options["rank_by_org"], separators=(",", ":")).replace("</", "<\\/")
         depmap_scripts += f'<script type="application/json" data-combo-depmap-for="home_unit">{depmap_json}</script>'
     if spec.key in {"equipment", "vehicles", "aircraft"}:
         combo_options["organization"] = _organization_combo_options()
+    if spec.key == "vehicles":
+        from sarapp_db.api.routers import vehicles as vehicles_router
+
+        type_options = [
+            (str(row.get("id")), str(row.get("name") or row.get("id")))
+            for row in vehicles_router.list_vehicle_types()
+            if row.get("id") is not None
+        ]
+        status_options = [
+            (str(row.get("id")), str(row.get("name") or row.get("id")))
+            for row in vehicles_router.list_vehicle_statuses()
+            if row.get("id") is not None
+        ]
+        if not type_options:
+            type_options = [(value, value) for value in _VEHICLE_TYPE_OPTIONS]
+        if not status_options:
+            status_options = [(value, value) for value in _VEHICLE_STATUS_OPTIONS]
+        combo_options["type_id"] = type_options
+        combo_options["status_id"] = status_options
+        combo_options["resource_type_id"] = _resource_type_combo_options()
+    if spec.key == "aircraft":
+        existing_aircraft = spec.list_fn()
+        base_values = sorted({
+            str(row.get("base") or "").strip()
+            for row in existing_aircraft
+            if str(row.get("base") or "").strip()
+        })
+        combo_options["type"] = [(value, value) for value in _AIRCRAFT_TYPE_OPTIONS]
+        combo_options["status"] = [(value, value) for value in _AIRCRAFT_STATUS_OPTIONS]
+        combo_options["fuel_type"] = [(value, value) for value in _AIRCRAFT_FUEL_OPTIONS]
+        combo_options["med_config"] = [(value, value) for value in _AIRCRAFT_MED_CONFIG_OPTIONS]
+        combo_options["base"] = [(value, value) for value in base_values]
+    if spec.key == "rank-structures":
+        from sarapp_db.api.routers import organizations as organizations_router
+
+        org_types = [
+            (str(t.get("int_id")), str(t.get("name")))
+            for t in organizations_router.list_org_types(search="")
+            if t.get("name")
+        ]
+        combo_options["organization_type_id"] = sorted(org_types, key=lambda t: t[1].lower())
+    if spec.key == "ranks":
+        from sarapp_db.api.routers import organizations as organizations_router
+
+        rank_structures = [
+            (str(r.get("int_id")), str(r.get("name")))
+            for r in organizations_router.list_rank_structures(search="")
+            if r.get("name")
+        ]
+        combo_options["rank_structure_id"] = sorted(rank_structures, key=lambda t: t[1].lower())
+    if spec.key == "resource-types":
+        from modules.admin.resource_types.models.resource_type_models import RESOURCE_CATEGORIES, RESOURCE_SOURCES
+
+        combo_options["category"] = [(value, value) for value in RESOURCE_CATEGORIES]
+        combo_options["source"] = [(value, value) for value in RESOURCE_SOURCES]
+    if spec.key == "hospitals":
+        combo_options["state"] = [(value, value) for value in _STATE_CODES]
+    if spec.key == "hazard-types":
+        from modules.admin.hazard_types.models.hazard_type_models import HAZARD_CATEGORIES
+
+        combo_options["category"] = [(value, value) for value in HAZARD_CATEGORIES]
+    if spec.key in {"objective-templates", "strategy-templates"}:
+        combo_options["priority"] = [(value, value) for value in ["Low", "Normal", "High", "Immediate"]]
+    if spec.key == "objective-templates":
+        combo_options["default_section"] = [
+            (value, value)
+            for value in ["", "Command", "Operations", "Planning", "Logistics", "Finance/Admin", "Safety"]
+        ]
+    if spec.key == "strategy-templates":
+        from sarapp_db.api.routers import objective_templates as objective_templates_router
+
+        objective_options = [
+            (
+                str(row.get("int_id_master") or row.get("int_id")),
+                str(row.get("title") or row.get("code") or row.get("int_id_master") or row.get("int_id")),
+            )
+            for row in objective_templates_router.list_objective_templates(search="", include_archived=True, tag="")
+            if row.get("int_id_master") is not None or row.get("int_id") is not None
+        ]
+        combo_options["objective_template_id"] = sorted(objective_options, key=lambda t: t[1].lower())
+        combo_options["assignment_kind"] = [
+            (value, value)
+            for value in ["Ground", "Air", "UAS", "Medical", "Communications", "Logistics", "Other"]
+        ]
+    if spec.key == "radio-channels":
+        combo_options["mode"] = [(value, value) for value in ["FM", "AM", "P25", "DMR", "NXDN", "LTE", "Other"]]
+    if spec.key == "canned-comm-entries":
+        combo_options["priority"] = [(value, value) for value in ["", "Low", "Normal", "High", "Urgent"]]
     if spec.key == "organizations":
         from sarapp_db.api.routers import organizations as organizations_router
 
@@ -1322,7 +1873,7 @@ def _rank_structure_ranks_html(structure_id: int, root_path: str) -> str:
             f'<input type="text" name="rank_code_{index}" value="{escape(str(rank.get("rank_code") or ""))}"></td>'
             f'<td><input type="text" name="rank_name_{index}" value="{escape(str(rank.get("rank_name") or rank.get("name") or ""))}"></td>'
             f'<td><input type="text" name="short_display_{index}" value="{escape(str(rank.get("short_display") or ""))}"></td>'
-            f'<td><input type="text" name="sort_order_{index}" value="{escape(str(rank.get("sort_order") or rank.get("rank_order") or 0 if rank else ""))}"></td>'
+            f'<td><input type="number" step="1" name="sort_order_{index}" value="{escape(str(rank.get("sort_order") or rank.get("rank_order") or 0 if rank else ""))}"></td>'
             f'<td><label class="compact-check"><input type="checkbox" name="is_active_{index}" {"checked" if active else ""}> Active</label></td>'
             f"<td>{delete_cell}</td>"
             "</tr>"
@@ -1431,7 +1982,8 @@ def _coerce_fields_payload(
         if not raw:
             continue
         if field and field.input_type == "checkbox":
-            body[key] = 1 if raw.lower() in {"1", "true", "yes", "y", "on"} else 0
+            checked = raw.lower() in {"1", "true", "yes", "y", "on"}
+            body[key] = int(checked) if field.value_type == "int" else checked
         elif field and field.value_type == "int":
             body[key] = int(raw)
         elif field and field.value_type == "float":
@@ -1602,6 +2154,8 @@ def create_master_gui_router() -> APIRouter:
         list_cell_fn = spec.list_cell_fn
         personnel_org_rank_options: dict[str, Any] | None = None
         organization_options: list[tuple[str, str]] = []
+        vehicle_type_options: list[tuple[str, str]] = []
+        vehicle_status_options: list[tuple[str, str]] = []
         if collection_key == "personnel":
             short_by_org_name = _org_short_name_by_name()
             personnel_org_rank_options = _personnel_org_rank_options()
@@ -1612,7 +2166,26 @@ def create_master_gui_router() -> APIRouter:
                     return _format_home_unit(row_doc.get("home_unit"), _short_by_name)
                 return row_doc.get(field_name)
         elif collection_key in {"equipment", "vehicles", "aircraft"}:
+            short_by_org_name = _org_short_name_by_name()
             organization_options = _organization_combo_options()
+            if collection_key == "vehicles":
+                from sarapp_db.api.routers import vehicles as vehicles_router
+
+                vehicle_type_options = [
+                    (str(row.get("id")), str(row.get("name") or row.get("id")))
+                    for row in vehicles_router.list_vehicle_types()
+                    if row.get("id") is not None
+                ] or [(value, value) for value in _VEHICLE_TYPE_OPTIONS]
+                vehicle_status_options = [
+                    (str(row.get("id")), str(row.get("name") or row.get("id")))
+                    for row in vehicles_router.list_vehicle_statuses()
+                    if row.get("id") is not None
+                ] or [(value, value) for value in _VEHICLE_STATUS_OPTIONS]
+
+            def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
+                if field_name == "organization":
+                    return _format_organization(row_doc.get("organization"), _short_by_name)
+                return row_doc.get(field_name)
 
         inline_fields = set(spec.inline_edit_fields or [])
         rows = []
@@ -1635,6 +2208,20 @@ def create_master_gui_router() -> APIRouter:
                         options = [
                             {"id": str(opt_id), "label": str(label)}
                             for opt_id, label in organization_options
+                        ]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    elif collection_key == "vehicles" and f.name == "type_id":
+                        options = [
+                            {"id": str(opt_id), "label": str(label)}
+                            for opt_id, label in vehicle_type_options
+                        ]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    elif collection_key == "vehicles" and f.name == "status_id":
+                        options = [
+                            {"id": str(opt_id), "label": str(label)}
+                            for opt_id, label in vehicle_status_options
                         ]
                         if raw_value and str(raw_value) not in {option["id"] for option in options}:
                             options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
@@ -1885,6 +2472,8 @@ def create_master_gui_router() -> APIRouter:
         display_value = display_doc.get(field_name, "")
         if collection_key == "personnel" and field_name == "home_unit":
             display_value = _format_home_unit(display_value, _org_short_name_by_name())
+        if field_name == "organization":
+            display_value = _format_organization(display_value, _org_short_name_by_name())
 
         return JSONResponse({"display": _stringify(display_value), "raw": _stringify(value)})
 

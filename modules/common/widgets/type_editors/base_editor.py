@@ -13,6 +13,7 @@ from PySide6.QtCore import (
     Qt,
 )
 from PySide6.QtGui import QBrush, QColor, QKeySequence, QPalette, QShortcut
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 from utils.itemview_delegates import RowOutlineSelectionDelegate
 from PySide6.QtWidgets import (
     QApplication,
@@ -166,6 +167,12 @@ class BaseTypeEditorDialog(QWidget):
     columns: List[ColumnSpec] = []
     repository = None
     has_priority_field: bool = False
+    # MasterCollections name this editor's data lives in, for the
+    # "last synced" status label — task_types/team_types are lockdown
+    # collections today (no local writes, and not yet pulled down from the
+    # central catalog either), so the label will honestly read "not
+    # available for this catalog yet" until that changes. See backlog.md.
+    sync_collection: str | None = None
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -185,6 +192,8 @@ class BaseTypeEditorDialog(QWidget):
         self._install_shortcuts()
         self._load_settings()
         self.refresh()
+        if self.sync_collection:
+            refresh_sync_status_label(self, self.sync_status_label, self.sync_collection)
 
     # --- ui ---------------------------------------------------------------------
     def _build_ui(self) -> None:
@@ -205,6 +214,9 @@ class BaseTypeEditorDialog(QWidget):
         self.show_archived.setCheckable(True)
         self.show_archived.toggled.connect(self._on_show_archived_toggled)
         toolbar.addWidget(self.show_archived)
+
+        self.sync_status_label = make_sync_status_label()
+        toolbar.addWidget(self.sync_status_label)
 
         spacer = QWidget(self)
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
