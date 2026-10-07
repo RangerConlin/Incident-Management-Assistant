@@ -8,8 +8,7 @@ from utils.catalog_cache import catalog_cache
 
 
 @pytest.fixture(autouse=True)
-def _isolate(monkeypatch):
-    monkeypatch.setattr(repo_module, "seed_if_needed", lambda: None)
+def _isolate():
     catalog_cache.invalidate()
     yield
     catalog_cache.invalidate()

@@ -59,6 +59,29 @@ def _clear_equipment():
     get_client()["sarapp_central_master"]["equipment"].delete_many({"name": {"$regex": "^GUI Test"}})
 
 
+def _clear_vehicles():
+    from sarapp_db.mongo.database_manager import get_client
+
+    get_client()["sarapp_central_master"]["vehicles"].delete_many({"vehicle_id": {"$regex": "^GUI Test"}})
+
+
+def _clear_organization_catalog():
+    from sarapp_db.mongo.collection_names import MasterCollections
+    from sarapp_db.mongo.database_manager import get_client
+
+    db = get_client()["sarapp_central_master"]
+    db[MasterCollections.ORGANIZATION_TYPES].delete_many({"name": {"$regex": "^GUI Test"}})
+    db[MasterCollections.ORGANIZATIONS].delete_many({"name": {"$regex": "^GUI Test"}})
+    db[MasterCollections.RANK_STRUCTURES].delete_many({"name": {"$regex": "^GUI Test"}})
+    db[MasterCollections.RANKS].delete_many({"rank_name": {"$regex": "^GUI Test"}})
+
+
+def _clear_console_users():
+    from sarapp_db.mongo.database_manager import get_client
+
+    get_client()["sarapp_central_master"]["master_gui_users"].delete_many({"username": {"$regex": "^gui-test"}})
+
+
 
 
 def test_gui_requires_login(monkeypatch) -> None:
@@ -91,6 +114,12 @@ def test_login_then_index_lists_collections(monkeypatch) -> None:
     assert response.status_code == 200
     assert "Personnel" in response.text
     assert "Equipment" in response.text
+    assert "Vehicles" in response.text
+    assert "Organization Types" in response.text
+    assert "Rank Structures" in response.text
+    assert "Organizations" in response.text
+    assert "Ranks" in response.text
+    assert "Console Users" in response.text
 
 
 def test_create_and_edit_personnel_record(monkeypatch) -> None:
@@ -116,17 +145,75 @@ def test_create_and_edit_personnel_record(monkeypatch) -> None:
         edit_page = client.get(f"/central-master/gui/personnel/{record_id}")
         assert edit_page.status_code == 200
         assert "GUI Test Person" in edit_page.text
+        assert "Emergency Primary Name" in edit_page.text
+        assert "Contact Address 1" in edit_page.text
+        assert "Certifications" in edit_page.text
 
         updated = client.post(
             f"/central-master/gui/personnel/{record_id}",
-            data={"name": "GUI Test Person Updated", "primary_role": "Searcher"},
+            data={
+                "name": "GUI Test Person Updated",
+                "primary_role": "Searcher",
+                "emergency_primary_name": "GUI Test Contact",
+                "contact_city": "Testville",
+            },
         )
         assert updated.status_code == 303
 
         edit_page_after = client.get(f"/central-master/gui/personnel/{record_id}")
         assert "GUI Test Person Updated" in edit_page_after.text
+        assert "GUI Test Contact" in edit_page_after.text
+        assert "Testville" in edit_page_after.text
     finally:
         _clear_personnel()
+
+
+def test_personnel_organization_and_rank_are_catalog_dropdowns(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_personnel()
+    _clear_organization_catalog()
+    try:
+        client.post(
+            "/central-master/gui/rank-structures/new",
+            data={"name": "GUI Test Personnel Rank Structure", "is_active": "on"},
+        )
+
+        from sarapp_db.api.routers.organizations import list_rank_structures
+
+        structure = next(d for d in list_rank_structures(search="GUI Test Personnel Rank Structure"))
+        structure_id = structure["int_id"]
+        client.post(
+            "/central-master/gui/ranks/new",
+            data={
+                "rank_structure_id": str(structure_id),
+                "rank_code": "TL",
+                "rank_name": "GUI Test Team Leader",
+                "short_display": "TL",
+                "sort_order": "1",
+                "is_active": "on",
+            },
+        )
+        client.post(
+            "/central-master/gui/organizations/new",
+            data={
+                "name": "GUI Test Personnel Org",
+                "default_rank_structure_id": str(structure_id),
+                "is_active": "on",
+            },
+        )
+
+        new_page = client.get("/central-master/gui/personnel/new")
+        assert new_page.status_code == 200
+        assert 'name="home_unit"' in new_page.text
+        assert "GUI Test Personnel Org" in new_page.text
+        assert 'data-org-select="1"' in new_page.text
+        assert 'data-rank-select="1"' in new_page.text
+        assert 'name="rank" disabled' in new_page.text
+        assert "TL - GUI Test Team Leader" in new_page.text
+    finally:
+        _clear_personnel()
+        _clear_organization_catalog()
 
 
 def test_personnel_delete_removes_record(monkeypatch) -> None:
@@ -254,6 +341,7 @@ def test_equipment_export_and_import_round_trip(monkeypatch) -> None:
         exported = client.get("/central-master/gui/equipment/export?format=csv")
         assert exported.status_code == 200
         assert "GUI Test Export Radio" in exported.text
+        assert "ID Number" in exported.text
 
         from sarapp_db.api.routers.equipment import list_equipment
 
@@ -271,6 +359,126 @@ def test_equipment_export_and_import_round_trip(monkeypatch) -> None:
         assert reimported[0]["serial_number"] == "SN-1"
     finally:
         _clear_equipment()
+
+
+def test_equipment_form_matches_desktop_catalog_fields(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_equipment()
+    try:
+        created = client.post(
+            "/central-master/gui/equipment/new",
+            data={
+                "name": "GUI Test Field Radio",
+                "type": "Radio",
+                "id_number": "EQ-1",
+                "serial_number": "SN-1",
+                "condition": "Serviceable",
+                "notes": "Ready",
+            },
+        )
+        assert created.status_code == 303
+
+        from sarapp_db.api.routers.equipment import list_equipment
+
+        doc = next(d for d in list_equipment(search="GUI Test Field Radio", limit=200))
+        edit_page = client.get(f"/central-master/gui/equipment/{doc['equipment_record']}")
+
+        assert edit_page.status_code == 200
+        assert "ID Number" in edit_page.text
+        assert "Condition" in edit_page.text
+        assert "Ready" in edit_page.text
+    finally:
+        _clear_equipment()
+
+
+def test_collection_table_has_search_sort_and_row_resize_controls(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_equipment()
+    try:
+        client.post(
+            "/central-master/gui/equipment/new",
+            data={"name": "GUI Test Grid Radio", "type": "Radio", "condition": "Serviceable"},
+        )
+
+        response = client.get("/central-master/gui/equipment")
+
+        assert response.status_code == 200
+        assert 'data-grid-search="grid-equipment"' in response.text
+        assert 'class="sortable"' in response.text
+        assert "row-resizer" in response.text
+        assert "GUI Test Grid Radio" in response.text
+    finally:
+        _clear_equipment()
+
+
+def test_vehicle_catalog_create_edit_delete(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_vehicles()
+    try:
+        created = client.post(
+            "/central-master/gui/vehicles/new",
+            data={
+                "vehicle_id": "GUI Test Vehicle 1",
+                "vin": "VIN-1",
+                "license_plate": "PLATE-1",
+                "year": "2024",
+                "make": "Ford",
+                "model": "F-150",
+                "capacity": "5",
+                "type_id": "Utility",
+                "status_id": "Available",
+                "organization": "GUI Test Org",
+                "tags": "truck",
+            },
+        )
+        assert created.status_code == 303
+        assert created.headers["location"] == "/central-master/gui/vehicles"
+
+        from sarapp_db.api.routers.vehicles import list_vehicles
+
+        doc = next(
+            d for d in list_vehicles(search="GUI Test Vehicle 1", status_filter="", type_filter="")
+            if d["vehicle_id"] == "GUI Test Vehicle 1"
+        )
+        record_id = doc["vehicle_record"]
+        assert doc["year"] == 2024
+        assert doc["capacity"] == 5
+
+        edit_page = client.get(f"/central-master/gui/vehicles/{record_id}")
+        assert edit_page.status_code == 200
+        assert "License Plate" in edit_page.text
+        assert "Resource Type ID" in edit_page.text
+
+        updated = client.post(
+            f"/central-master/gui/vehicles/{record_id}",
+            data={
+                "vehicle_id": "GUI Test Vehicle 1",
+                "vin": "VIN-1",
+                "license_plate": "PLATE-2",
+                "year": "2024",
+                "make": "Ford",
+                "model": "F-150",
+                "capacity": "6",
+                "type_id": "Utility",
+                "status_id": "In Service",
+                "organization": "GUI Test Org",
+                "tags": "truck",
+            },
+        )
+        assert updated.status_code == 303
+
+        updated_doc = next(d for d in list_vehicles(search="GUI Test Vehicle 1", status_filter="", type_filter=""))
+        assert updated_doc["license_plate"] == "PLATE-2"
+        assert updated_doc["capacity"] == 6
+
+        deleted = client.post(f"/central-master/gui/vehicles/{record_id}/delete")
+        assert deleted.status_code == 303
+        assert list_vehicles(search="GUI Test Vehicle 1", status_filter="", type_filter="") == []
+    finally:
+        _clear_vehicles()
 
 
 def test_equipment_delete_removes_record(monkeypatch) -> None:
@@ -296,3 +504,153 @@ def test_equipment_delete_removes_record(monkeypatch) -> None:
         assert remaining == []
     finally:
         _clear_equipment()
+
+
+def test_organization_type_create_edit_delete(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_organization_catalog()
+    try:
+        created = client.post(
+            "/central-master/gui/organization-types/new",
+            data={"name": "GUI Test Org Type", "description": "Initial", "sort_order": "42", "is_active": "on"},
+        )
+        assert created.status_code == 303
+        assert created.headers["location"] == "/central-master/gui/organization-types"
+
+        from sarapp_db.api.routers.organizations import list_org_types
+
+        doc = next(d for d in list_org_types(search="GUI Test Org Type") if d["name"] == "GUI Test Org Type")
+        record_id = doc["int_id"]
+        assert doc["sort_order"] == 42
+        assert doc["is_active"] == 1
+
+        updated = client.post(
+            f"/central-master/gui/organization-types/{record_id}",
+            data={"name": "GUI Test Org Type Updated", "description": "Updated", "sort_order": "43"},
+        )
+        assert updated.status_code == 303
+
+        updated_doc = next(d for d in list_org_types(search="GUI Test Org Type Updated"))
+        assert updated_doc["sort_order"] == 43
+        assert updated_doc["is_active"] == 0
+
+        deleted = client.post(f"/central-master/gui/organization-types/{record_id}/delete")
+        assert deleted.status_code == 303
+        assert list_org_types(search="GUI Test Org Type Updated") == []
+    finally:
+        _clear_organization_catalog()
+
+
+def test_organizations_and_ranks_are_importable(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_organization_catalog()
+    try:
+        client.post(
+            "/central-master/gui/rank-structures/new",
+            data={"name": "GUI Test Import Structure", "is_active": "on"},
+        )
+
+        from sarapp_db.api.routers.organizations import list_organizations, list_rank_structures, list_ranks
+
+        structure = next(d for d in list_rank_structures(search="GUI Test Import Structure"))
+        structure_id = structure["int_id"]
+        org_csv = (
+            "Name,Short Name,Default Rank Structure ID,Active\n"
+            f"GUI Test Imported Org,GTIO,{structure_id},Yes\n"
+        )
+        rank_csv = (
+            "Rank Structure ID,Rank Code,Rank Name,Short Display,Sort Order,Active\n"
+            f"{structure_id},IMP,GUI Test Imported Rank,IMP,7,Yes\n"
+        )
+
+        imported_orgs = client.post(
+            "/central-master/gui/organizations/import",
+            files={"file": ("organizations.csv", org_csv.encode("utf-8"), "text/csv")},
+        )
+        imported_ranks = client.post(
+            "/central-master/gui/ranks/import",
+            files={"file": ("ranks.csv", rank_csv.encode("utf-8"), "text/csv")},
+        )
+
+        assert imported_orgs.status_code == 200
+        assert imported_ranks.status_code == 200
+        assert "1 Organizations imported" in imported_orgs.text
+        assert "1 Ranks imported" in imported_ranks.text
+
+        org = next(d for d in list_organizations(search="GUI Test Imported Org"))
+        assert org["short_name"] == "GTIO"
+        assert org["default_rank_structure_id"] == structure_id
+
+        ranks = list_ranks(structure_id=structure_id, search="GUI Test Imported Rank")
+        assert len(ranks) == 1
+        assert ranks[0]["sort_order"] == 7
+    finally:
+        _clear_organization_catalog()
+
+
+def test_rank_structure_and_rank_are_master_catalog_gui_collections(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_organization_catalog()
+    try:
+        created_structure = client.post(
+            "/central-master/gui/rank-structures/new",
+            data={"name": "GUI Test Rank Structure", "description": "Ranks", "sort_order": "5", "is_active": "on"},
+        )
+        assert created_structure.status_code == 303
+
+        from sarapp_db.api.routers.organizations import list_rank_structures, list_ranks
+
+        structure = next(d for d in list_rank_structures(search="GUI Test Rank Structure"))
+        structure_id = structure["int_id"]
+
+        created_rank = client.post(
+            "/central-master/gui/ranks/new",
+            data={
+                "rank_structure_id": str(structure_id),
+                "rank_code": "GUI",
+                "rank_name": "GUI Test Rank",
+                "short_display": "GUI",
+                "sort_order": "1",
+                "is_active": "on",
+            },
+        )
+        assert created_rank.status_code == 303
+
+        ranks = list_ranks(structure_id=structure_id, search="GUI Test Rank")
+        assert len(ranks) == 1
+        assert ranks[0]["rank_structure_id"] == structure_id
+        assert ranks[0]["sort_order"] == 1
+        assert ranks[0]["is_active"] == 1
+    finally:
+        _clear_organization_catalog()
+
+
+def test_console_user_can_be_created_and_used_for_login(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_console_users()
+    try:
+        created = client.post(
+            "/central-master/gui/console-users/new",
+            data={
+                "username": "gui-test-user",
+                "password": "user-secret",
+                "is_active": "on",
+                "notes": "created by test",
+            },
+        )
+        assert created.status_code == 303
+
+        login_client = _client(monkeypatch)
+        login = login_client.post(
+            "/central-master/gui/login",
+            data={"username": "gui-test-user", "password": "user-secret"},
+        )
+
+        assert login.status_code == 303
+        assert login.headers["location"] == "/central-master/gui"
+    finally:
+        _clear_console_users()

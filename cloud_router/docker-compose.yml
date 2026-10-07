@@ -29,6 +29,10 @@ services:
       - SARAPP_ROUTER_MAX_WS_CHANNELS=${SARAPP_ROUTER_MAX_WS_CHANNELS:-100}
       - SARAPP_ROUTER_MAX_BODY_BYTES=${SARAPP_ROUTER_MAX_BODY_BYTES:-20971520}
       - SARAPP_ROUTER_REGISTER_RATE_LIMIT=${SARAPP_ROUTER_REGISTER_RATE_LIMIT:-10}
+      - CENTRAL_MASTER_ADMIN_USERNAME=${CENTRAL_MASTER_ADMIN_USERNAME:-admin}
+      - CENTRAL_MASTER_ADMIN_PASSWORD=${CENTRAL_MASTER_ADMIN_PASSWORD:-change-me}
+      - CENTRAL_MASTER_ADMIN_PASSWORD_SHA256=${CENTRAL_MASTER_ADMIN_PASSWORD_SHA256:-}
+      - CENTRAL_MASTER_SESSION_SECRET=${CENTRAL_MASTER_SESSION_SECRET:?CENTRAL_MASTER_SESSION_SECRET must be set}
       # Embedded central master-catalog database (optional). Leave unset to
       # run cloud_router as a plain stateless proxy with no database, as
       # before. See Design Documents/Instructions/cloud_router_architecture.md.

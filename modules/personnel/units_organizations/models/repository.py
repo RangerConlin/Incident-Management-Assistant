@@ -11,8 +11,6 @@ from typing import Any
 from utils.api_client import api_client
 from utils.catalog_cache import catalog_cache
 
-from .seed_data import seed_if_needed
-
 _CATALOG_ORG_TYPES = "organization_types"
 _CATALOG_RANK_STRUCTURES = "rank_structures"
 _CATALOG_ORGANIZATIONS = "organizations"
@@ -29,9 +27,6 @@ class DeleteResult:
 
 class UnitsOrganizationsRepository:
     """API-backed repository for the Units and Organizations master-data editor."""
-
-    def __init__(self) -> None:
-        seed_if_needed()
 
     # ---- Lookup helpers -------------------------------------------------------
     def list_organization_types(self, include_inactive: bool = True) -> list[dict[str, Any]]:

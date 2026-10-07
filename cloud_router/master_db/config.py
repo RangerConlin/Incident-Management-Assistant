@@ -1,11 +1,9 @@
 """Settings for the central master-catalog web GUI.
 
 Same env-var-driven, session-cookie auth pattern as
-``cloud_server/config.py`` + ``cloud_server/dashboard.py`` — a single shared
-admin login, not SARApp user accounts (see `master_collection_inventory.md`'s
-`users`/`user_sessions` collections, which are catalog data, not GUI
-operator accounts). Per-operator accounts/audit trail are tracked as a
-later enhancement in `backlog.md`.
+``cloud_server/config.py`` + ``cloud_server/dashboard.py``. The env admin
+account is the bootstrap login; additional simple console users are managed
+inside the central master GUI.
 """
 
 from __future__ import annotations

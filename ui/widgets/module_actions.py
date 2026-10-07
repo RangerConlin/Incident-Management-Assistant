@@ -29,7 +29,6 @@ MODULE_ACTIONS: dict[str, str] = {
     "edit.safety_templates": "Safety Analysis Templates",
     "edit.task_types": "Task Types",
     "edit.team_types": "Team Types",
-    "edit.units_organizations": "Units and Organizations",
     "edit.vehicles": "Vehicles",
     "command.incident_dashboard": "Incident Command Dashboard",
     "command.unit_log": "Command Unit Log ICS-214",

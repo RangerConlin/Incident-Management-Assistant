@@ -57,10 +57,22 @@ Required environment variables (see `docker-compose.yml`):
   to register a tunnel.
 - `SARAPP_CLOUD_ROUTER_HOST` — public DNS host Traefik should route to this
   router, for example `sarapp.arcadiacommandsolutions.com`.
+- `CENTRAL_MASTER_SESSION_SECRET` — stable random string used to sign the
+  central master console login cookie. Generate with `openssl rand -base64 48`.
 - `SARAPP_SERVER_NAME` (optional)
 - `SARAPP_ROUTER_*` tuning knobs (request timeout, heartbeat interval,
   max pending requests, max body bytes, register rate limit) — see
   `router/config.py`.
+
+Central master console bootstrap account variables:
+
+- `CENTRAL_MASTER_ADMIN_USERNAME` (default `admin`)
+- `CENTRAL_MASTER_ADMIN_PASSWORD` (default `change-me`)
+- `CENTRAL_MASTER_ADMIN_PASSWORD_SHA256` (optional; takes precedence over the
+  plaintext password)
+
+The bootstrap account is controlled by `.env`. Additional simple console
+users are managed inside the cloud master catalog GUI under Console Users.
 
 Traefik is part of the standard deployment for this service. The compose file
 always includes Traefik labels. The expected defaults are:

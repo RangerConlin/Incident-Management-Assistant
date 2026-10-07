@@ -8,8 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import BaseModel
 
-from sarapp_db.mongo.mongo_client import get_client
-from sarapp_db.mongo.database_manager import DB_MASTER
+from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.int_id import _ensure_record_ids, next_record_id
 
@@ -22,7 +21,7 @@ _DEFAULT_TYPES = ["Passenger Vehicle", "Utility", "Support", "Other"]
 
 
 def _col():
-    return get_client()[DB_MASTER][MasterCollections.VEHICLES]
+    return get_master_db()[MasterCollections.VEHICLES]
 
 
 def _utcnow() -> str:

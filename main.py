@@ -753,7 +753,6 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
         self._add_action(m_edit, "Team Types", None, "edit.team_types")
-        self._add_action(m_edit, "Units and Organizations", None, "edit.units_organizations")
         self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
 
         # ----- View (moved under Menu) -----
@@ -1131,7 +1130,6 @@ class MainWindow(QMainWindow):
             "edit.gar_templates": self.open_edit_gar_templates,
             "communications.217": self.open_edit_comms_resources,
             "edit.safety_templates": self.open_edit_safety_templates,
-            "edit.units_organizations": self.open_edit_units_organizations,
 
             # ----- Command -----
             "command.unit_log": self.open_command_unit_log,
