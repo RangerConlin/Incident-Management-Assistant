@@ -279,10 +279,14 @@ def test_push_assigns_person_record_master_once_and_pull_propagates_it(sync_env)
 
 
 def test_push_rejected_for_non_syncable_collection(sync_env):
+    # organizations is a "lockdown" collection (see mongodb_schema_decisions.md)
+    # — central-authoritative, never pushed from a local catalog — so it's
+    # guaranteed to stay out of SYNCABLE_MASTER_COLLECTIONS, unlike
+    # hazard_types/gar_templates/etc., which have since been added.
     sent = central_client.push_one(
         config.central_master_url(),
         config.sync_token(),
-        collection="hazard_types",
+        collection="organizations",
         doc={"_id": "x", "updated_at": "2026-01-01T00:00:00"},
     )
     assert sent is False

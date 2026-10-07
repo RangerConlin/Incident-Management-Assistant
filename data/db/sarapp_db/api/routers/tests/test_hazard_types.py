@@ -86,6 +86,7 @@ def test_search_uses_new_fields() -> None:
         assert response.json() == [
             {
                 "id": 1,
+                "id_master": None,
                 "name": "Vehicle Movement",
                 "category": "Vehicle",
                 "default_spe_band": "Possible",

@@ -6,11 +6,24 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.database_manager import get_master_db, is_central_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+# Lockdown collections (see mongodb_schema_decisions.md and backlog.md's
+# dual-key/lockdown split): task/team types are admin-controlled
+# taxonomies, not something a field user creates ad hoc. Writes are
+# central-catalog authoritative only. incident_types has no write endpoint
+# at all (read-only with hardcoded fallback defaults below), so it needs
+# no separate guard.
+_LOCKDOWN_DETAIL = "Task/team types are central-catalog authoritative; edit them on the central catalog."
+
+
+def _require_central(repo: BaseRepository) -> None:
+    if not is_central_master_db(repo._db):
+        raise HTTPException(status_code=403, detail=_LOCKDOWN_DETAIL)
 
 
 class TaskTypesRepository(BaseRepository):
@@ -189,6 +202,7 @@ def get_task_type(int_id: int) -> dict[str, Any]:
 @router.post("/task-types", status_code=201)
 def create_task_type(body: UpsertLookupRequest) -> dict[str, Any]:
     repo = _task_types_repo()
+    _require_central(repo)
     int_id = _create_repo(repo, body.model_dump())
     return {"id": int_id}
 
@@ -196,6 +210,7 @@ def create_task_type(body: UpsertLookupRequest) -> dict[str, Any]:
 @router.put("/task-types/{int_id}")
 def update_task_type(int_id: int, body: UpsertLookupRequest) -> dict[str, Any]:
     repo = _task_types_repo()
+    _require_central(repo)
     if not _get_repo(repo, int_id):
         raise HTTPException(404, f"Task type {int_id} not found")
     _update_repo(repo, int_id, body.model_dump())
@@ -205,6 +220,7 @@ def update_task_type(int_id: int, body: UpsertLookupRequest) -> dict[str, Any]:
 @router.delete("/task-types/{int_id}")
 def delete_task_type(int_id: int) -> dict[str, Any]:
     repo = _task_types_repo()
+    _require_central(repo)
     _soft_delete_repo(repo, int_id)
     return {"ok": True}
 
@@ -212,6 +228,7 @@ def delete_task_type(int_id: int) -> dict[str, Any]:
 @router.patch("/task-types/{int_id}/restore")
 def restore_task_type(int_id: int) -> dict[str, Any]:
     repo = _task_types_repo()
+    _require_central(repo)
     _restore_repo(repo, int_id)
     return {"ok": True}
 
@@ -248,6 +265,7 @@ def get_team_type(int_id: int) -> dict[str, Any]:
 @router.post("/team-types", status_code=201)
 def create_team_type(body: UpsertLookupRequest) -> dict[str, Any]:
     repo = _team_types_repo()
+    _require_central(repo)
     int_id = _create_repo(repo, body.model_dump())
     return {"id": int_id}
 
@@ -255,6 +273,7 @@ def create_team_type(body: UpsertLookupRequest) -> dict[str, Any]:
 @router.put("/team-types/{int_id}")
 def update_team_type(int_id: int, body: UpsertLookupRequest) -> dict[str, Any]:
     repo = _team_types_repo()
+    _require_central(repo)
     if not _get_repo(repo, int_id):
         raise HTTPException(404, f"Team type {int_id} not found")
     _update_repo(repo, int_id, body.model_dump())
@@ -264,6 +283,7 @@ def update_team_type(int_id: int, body: UpsertLookupRequest) -> dict[str, Any]:
 @router.delete("/team-types/{int_id}")
 def delete_team_type(int_id: int) -> dict[str, Any]:
     repo = _team_types_repo()
+    _require_central(repo)
     _soft_delete_repo(repo, int_id)
     return {"ok": True}
 
@@ -271,6 +291,7 @@ def delete_team_type(int_id: int) -> dict[str, Any]:
 @router.patch("/team-types/{int_id}/restore")
 def restore_team_type(int_id: int) -> dict[str, Any]:
     repo = _team_types_repo()
+    _require_central(repo)
     _restore_repo(repo, int_id)
     return {"ok": True}
 

@@ -170,6 +170,13 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     from sarapp_db.api.routers import canned_comm_entries
     app.include_router(canned_comm_entries.router, prefix="/api/master/canned-comm-entries", tags=["communications"])
 
+    # task_types/team_types/incident_types are master-catalog data, not
+    # incident-scoped — mounted here (both modes) rather than inside
+    # include_incident_routers below, so the central catalog can enforce
+    # its own lockdown guard on them (see lookup_types.py, backlog.md).
+    from sarapp_db.api.routers import lookup_types
+    app.include_router(lookup_types.router, prefix="/api/lookup", tags=["lookup-types"])
+
     if mode == "master_only":
         from sarapp_db.api.routers import sync as sync_router
         app.include_router(sync_router.router, prefix="/api/sync", tags=["sync"])
@@ -203,9 +210,6 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
 
         from sarapp_db.api.routers import incident_transfer
         app.include_router(incident_transfer.router, prefix="/api", tags=["incident-transfer"])
-
-        from sarapp_db.api.routers import lookup_types
-        app.include_router(lookup_types.router, prefix="/api/lookup", tags=["lookup-types"])
 
         app.include_router(communications.incident_router, prefix="/api", tags=["communications"])
 

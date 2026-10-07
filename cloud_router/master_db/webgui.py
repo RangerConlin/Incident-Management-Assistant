@@ -775,7 +775,9 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     .inline-edit-input {{ width:100%; padding:4px 6px; font:inherit; border-radius:4px; border:1px solid var(--accent); background:var(--field); color:var(--text); }}
     .inline-edit-input[type="checkbox"] {{ width:auto; }}
     .inline-edit-wrap {{ position:relative; min-width:180px; }}
-    .inline-edit-list {{ position:absolute; z-index:6; top:calc(100% + 2px); left:0; right:0; max-height:240px; overflow:auto; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.35); }}
+    .inline-edit-wrap.selecting .inline-edit-input {{ padding-right:24px; }}
+    .inline-edit-wrap.selecting::after {{ content:"v"; position:absolute; right:8px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:.78rem; }}
+    .inline-edit-list {{ position:fixed; z-index:50; max-height:240px; overflow:auto; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.35); }}
     .inline-edit-option {{ padding:8px 10px; cursor:pointer; font-size:.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
     .inline-edit-option:hover {{ background:rgba(103,183,255,.12); }}
     .empty-row td {{ color:var(--muted); text-align:center; padding:22px; white-space:normal; }}
@@ -977,6 +979,10 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
           const matches = (needle
             ? options.filter((opt) => opt.label.toLowerCase().includes(needle))
             : options).slice(0, 50);
+          const rect = input.getBoundingClientRect();
+          optionList.style.left = `${{rect.left}}px`;
+          optionList.style.top = `${{rect.bottom + 2}}px`;
+          optionList.style.width = `${{rect.width}}px`;
           optionList.innerHTML = "";
           matches.forEach((opt) => {{
             const row = document.createElement("div");
@@ -999,7 +1005,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
           input.checked = ["1", "true", "yes", "y", "on"].includes(rawValue.toLowerCase());
         }} else if (editorType === "select") {{
           wrapper = document.createElement("div");
-          wrapper.className = "inline-edit-wrap";
+          wrapper.className = "inline-edit-wrap selecting";
           input.type = "text";
           input.value = (options.find((opt) => opt.id === rawValue) || {{ label: rawValue }}).label;
           input.setAttribute("autocomplete", "off");
@@ -1060,6 +1066,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
           input.addEventListener("blur", () => window.setTimeout(() => {{ if (!settled) save(); }}, 0));
         }} else if (editorType === "select") {{
           input.addEventListener("focus", () => renderOptions(input.value));
+          input.addEventListener("click", () => renderOptions(input.value));
           input.addEventListener("input", () => {{
             selectedValue = "";
             renderOptions(input.value);
