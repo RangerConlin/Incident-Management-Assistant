@@ -15,13 +15,20 @@ from fastapi import APIRouter, HTTPException
 
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
-from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
+from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
 
 router = APIRouter()
+
+_RECORD_FIELD = "int_id"
+_MASTER_RECORD_FIELD = "int_id_master"
 
 
 def _col():
     return get_master_db()[MasterCollections.STRATEGY_TEMPLATES]
+
+
+def _record_field(col) -> str:
+    return dual_key_field(col.database, _RECORD_FIELD, _MASTER_RECORD_FIELD)
 
 
 def _now() -> str:
@@ -45,7 +52,8 @@ def list_strategy_templates(
     tag: str = "",
 ) -> list[dict[str, Any]]:
     col = _col()
-    _ensure_int_ids(col)
+    field = _record_field(col)
+    _ensure_record_ids(col, field)
     query: dict[str, Any] = {}
     if not include_archived:
         query["active"] = {"$ne": False}
@@ -56,7 +64,7 @@ def list_strategy_templates(
         query["$or"] = [{"title": pattern}, {"description": pattern}]
     if tag:
         query["tags"] = tag.strip()
-    docs = list(col.find(query, sort=[("updated_at", -1), ("int_id", -1)]))
+    docs = list(col.find(query, sort=[("updated_at", -1), (field, -1)]))
     return [_strip(d) for d in docs]
 
 
@@ -74,10 +82,11 @@ def list_tags() -> list[str]:
 @router.post("", status_code=201)
 def create_strategy_template(body: dict[str, Any]) -> dict[str, Any]:
     col = _col()
+    field = _record_field(col)
     now = _now()
     tags = [t.strip() for t in (body.get("tags") or []) if str(t).strip()]
     doc = {
-        "int_id": next_int_id(col),
+        field: next_record_id(col, field),
         "objective_template_id": body.get("objective_template_id"),
         "title": str(body.get("title") or ""),
         "description": str(body.get("description") or ""),
@@ -96,7 +105,8 @@ def create_strategy_template(body: dict[str, Any]) -> dict[str, Any]:
 
 @router.get("/{template_id}")
 def get_strategy_template(template_id: int) -> dict[str, Any]:
-    doc = _col().find_one({"int_id": template_id})
+    col = _col()
+    doc = col.find_one({_record_field(col): template_id})
     if not doc:
         raise HTTPException(404, f"Strategy template {template_id} not found")
     return _strip(doc)
@@ -115,7 +125,7 @@ def update_strategy_template(template_id: int, body: dict[str, Any]) -> dict[str
     if "tags" in body:
         update["tags"] = [t.strip() for t in (body["tags"] or []) if str(t).strip()]
     doc = col.find_one_and_update(
-        {"int_id": template_id},
+        {_record_field(col): template_id},
         {"$set": update},
         return_document=True,
     )
@@ -126,16 +136,18 @@ def update_strategy_template(template_id: int, body: dict[str, Any]) -> dict[str
 
 @router.delete("/{template_id}", status_code=204)
 def delete_strategy_template(template_id: int) -> None:
-    result = _col().delete_one({"int_id": template_id})
+    col = _col()
+    result = col.delete_one({_record_field(col): template_id})
     if result.deleted_count == 0:
         raise HTTPException(404, f"Strategy template {template_id} not found")
 
 
 @router.patch("/{template_id}/active")
 def set_active(template_id: int, body: dict[str, Any]) -> dict[str, Any]:
+    col = _col()
     active = bool(body.get("active", True))
-    doc = _col().find_one_and_update(
-        {"int_id": template_id},
+    doc = col.find_one_and_update(
+        {_record_field(col): template_id},
         {"$set": {"active": active, "updated_at": _now()}},
         return_document=True,
     )

@@ -40,6 +40,14 @@ _DUAL_KEY_MASTER_FIELDS = {
     "equipment": "equipment_record_master",
     "vehicles": "vehicle_record_master",
     "aircraft": "aircraft_record_master",
+    "hazard_types": "id_master",
+    "gar_templates": "id_master",
+    "canned_comm_entries": "id_master",
+    "hospitals": "id_master",
+    "objective_templates": "int_id_master",
+    "strategy_templates": "int_id_master",
+    "radio_channels": "channel_id_master",
+    "safety_analysis_templates": "template_id_master",
 }
 
 

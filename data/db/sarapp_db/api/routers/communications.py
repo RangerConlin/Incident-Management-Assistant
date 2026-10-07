@@ -11,11 +11,14 @@ from pydantic import BaseModel
 
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
-from sarapp_db.mongo.int_id import _ensure_int_ids
+from sarapp_db.mongo.int_id import _ensure_int_ids, dual_key_field
 from sarapp_db.mongo.repository import BaseRepository
 
 master_router = APIRouter()
 incident_router = APIRouter()
+
+_CHANNEL_RECORD_FIELD = "channel_id"
+_CHANNEL_MASTER_RECORD_FIELD = "channel_id_master"
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +65,10 @@ class IncidentPersonnelRepository(BaseRepository):
 
 def _radio_channels_repo() -> RadioChannelsRepository:
     return RadioChannelsRepository(get_master_db())
+
+
+def _channel_record_field(repo: RadioChannelsRepository) -> str:
+    return dual_key_field(repo._db, _CHANNEL_RECORD_FIELD, _CHANNEL_MASTER_RECORD_FIELD)
 
 
 def _incident_channels_repo(incident_id: str) -> IncidentChannelsRepository:
@@ -118,7 +125,9 @@ def _infer_band(freq: float | None) -> str:
 # ---------------------------------------------------------------------------
 
 def _map_master_channel(doc: Dict[str, Any]) -> Dict[str, Any]:
-    channel_id_str = str(doc.get("channel_id", ""))
+    # Central-created docs carry channel_id_master instead of channel_id
+    # (see _channel_record_field / dual_key_field) — read whichever is set.
+    channel_id_str = str(doc.get("channel_id") if doc.get("channel_id") is not None else doc.get("channel_id_master", ""))
     try:
         int_id = int(channel_id_str)
     except ValueError:
@@ -380,7 +389,7 @@ def list_master_channels(
 @master_router.get("/master-channels/{channel_id}")
 def get_master_channel(channel_id: int):
     repo = _radio_channels_repo()
-    doc = repo.find_one({"channel_id": str(channel_id)})
+    doc = repo.find_one({_channel_record_field(repo): str(channel_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Channel not found")
     doc.pop("_id", None)
@@ -402,11 +411,11 @@ _MASTER_CHANNEL_FIELD_MAP = {
 }
 
 
-def _next_master_channel_id(repo: RadioChannelsRepository) -> str:
+def _next_master_channel_id(repo: RadioChannelsRepository, field: str) -> str:
     max_id = 0
     for d in repo.find_many({}):
         try:
-            n = int(str(d.get("channel_id", "0")))
+            n = int(str(d.get(field, "0")))
             if n > max_id:
                 max_id = n
         except (ValueError, TypeError):
@@ -417,9 +426,10 @@ def _next_master_channel_id(repo: RadioChannelsRepository) -> str:
 @master_router.post("/master-channels")
 def create_master_channel(body: Dict[str, Any] = Body(...)):
     repo = _radio_channels_repo()
-    new_id = _next_master_channel_id(repo)
+    field = _channel_record_field(repo)
+    new_id = _next_master_channel_id(repo, field)
     doc = {
-        "channel_id": new_id,
+        field: new_id,
         "channel_name": str(body.get("name") or "").strip(),
         "function": body.get("function"),
         "freq_rx": body.get("rx_freq"),
@@ -440,7 +450,7 @@ def create_master_channel(body: Dict[str, Any] = Body(...)):
 @master_router.patch("/master-channels/{channel_id}")
 def update_master_channel(channel_id: int, patch: Dict[str, Any] = Body(...)):
     repo = _radio_channels_repo()
-    doc = repo.find_one({"channel_id": str(channel_id)})
+    doc = repo.find_one({_channel_record_field(repo): str(channel_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Channel not found")
     update: Dict[str, Any] = {}
@@ -456,7 +466,7 @@ def update_master_channel(channel_id: int, patch: Dict[str, Any] = Body(...)):
 @master_router.delete("/master-channels/{channel_id}")
 def delete_master_channel(channel_id: int):
     repo = _radio_channels_repo()
-    doc = repo.find_one({"channel_id": str(channel_id)})
+    doc = repo.find_one({_channel_record_field(repo): str(channel_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Channel not found")
     repo.delete_one(doc["_id"])

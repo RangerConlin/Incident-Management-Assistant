@@ -7,11 +7,14 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.int_id import dual_key_field
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 _SEARCHABLE = ["title", "category", "message", "priority", "status_update"]
+_RECORD_FIELD = "id"
+_MASTER_RECORD_FIELD = "id_master"
 
 
 class CannedCommEntriesRepository(BaseRepository):
@@ -27,10 +30,14 @@ def _repo() -> CannedCommEntriesRepository:
     return CannedCommEntriesRepository(get_master_db())
 
 
-def _next_id(repo: CannedCommEntriesRepository) -> int:
-    docs = repo.find_many({}, sort=[("id", -1)], limit=1)
+def _record_field(repo: CannedCommEntriesRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+
+
+def _next_id(repo: CannedCommEntriesRepository, field: str) -> int:
+    docs = repo.find_many({}, sort=[(field, -1)], limit=1)
     doc = docs[0] if docs else None
-    return int(doc["id"]) + 1 if doc and doc.get("id") is not None else 1
+    return int(doc[field]) + 1 if doc and doc.get(field) is not None else 1
 
 
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
@@ -63,7 +70,8 @@ def list_entries(
 
 @router.get("/{entry_id}")
 def get_entry(entry_id: int) -> dict[str, Any]:
-    doc = _repo().find_one({"id": entry_id, "deleted": {"$ne": True}})
+    repo = _repo()
+    doc = repo.find_one({_record_field(repo): entry_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Entry not found")
     return _normalize(doc)
@@ -72,15 +80,16 @@ def get_entry(entry_id: int) -> dict[str, Any]:
 @router.post("", status_code=201)
 def create_entry(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _repo()
+    field = _record_field(repo)
     title = str(body.get("title") or "").strip()
     if not title:
         raise HTTPException(status_code=422, detail="title is required")
     message = str(body.get("message") or "").strip()
     if not message:
         raise HTTPException(status_code=422, detail="message is required")
-    new_id = _next_id(repo)
+    new_id = _next_id(repo, field)
     doc: dict[str, Any] = {
-        "id": new_id,
+        field: new_id,
         "title": title,
         "category": (body.get("category") or "").strip() or None,
         "message": message,
@@ -96,7 +105,7 @@ def create_entry(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 @router.patch("/{entry_id}")
 def update_entry(entry_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"id": entry_id})
+    existing = repo.find_one({_record_field(repo): entry_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Entry not found")
     update: dict[str, Any] = {}
@@ -114,7 +123,7 @@ def update_entry(entry_id: int, body: dict[str, Any] = Body(...)) -> dict[str, A
 @router.delete("/{entry_id}", status_code=204)
 def delete_entry(entry_id: int) -> None:
     repo = _repo()
-    existing = repo.find_one({"id": entry_id})
+    existing = repo.find_one({_record_field(repo): entry_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Entry not found")
     repo.delete_one(existing["_id"])

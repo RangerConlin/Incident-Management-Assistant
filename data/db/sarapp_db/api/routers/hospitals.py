@@ -9,11 +9,14 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.int_id import dual_key_field
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 _SEARCHABLE = ["name", "city", "state", "code", "contact_name", "address"]
+_RECORD_FIELD = "id"
+_MASTER_RECORD_FIELD = "id_master"
 
 
 class HospitalsRepository(BaseRepository):
@@ -28,10 +31,14 @@ def _repo() -> HospitalsRepository:
     return HospitalsRepository(get_master_db())
 
 
-def _next_id(repo: HospitalsRepository) -> int:
-    docs = repo.find_many({}, sort=[("id", -1)], limit=1)
+def _record_field(repo: HospitalsRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+
+
+def _next_id(repo: HospitalsRepository, field: str) -> int:
+    docs = repo.find_many({}, sort=[(field, -1)], limit=1)
     doc = docs[0] if docs else None
-    return int(doc["id"]) + 1 if doc and doc.get("id") is not None else 1
+    return int(doc[field]) + 1 if doc and doc.get(field) is not None else 1
 
 
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
@@ -53,7 +60,7 @@ def _assert_unique(repo: HospitalsRepository, field: str, value: str, exclude_id
         "deleted": {"$ne": True},
     }
     if exclude_id is not None:
-        query["id"] = {"$ne": int(exclude_id)}
+        query[_record_field(repo)] = {"$ne": int(exclude_id)}
     if repo.find_one(query) is not None:
         raise HTTPException(status_code=409, detail=f"A hospital with the same {field} already exists")
 
@@ -71,7 +78,8 @@ def list_hospitals(search: str = Query("")) -> list[dict[str, Any]]:
 
 @router.get("/{hospital_id}")
 def get_hospital(hospital_id: int) -> dict[str, Any]:
-    doc = _repo().find_one({"id": hospital_id, "deleted": {"$ne": True}})
+    repo = _repo()
+    doc = repo.find_one({_record_field(repo): hospital_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Hospital not found")
     return _normalize(doc)
@@ -80,6 +88,7 @@ def get_hospital(hospital_id: int) -> dict[str, Any]:
 @router.post("", status_code=201)
 def create_hospital(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _repo()
+    field = _record_field(repo)
     name = str(body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="Hospital name is required")
@@ -88,10 +97,11 @@ def create_hospital(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     if code:
         _assert_unique(repo, "code", str(code), None)
     body.pop("_id", None)
-    body.pop("id", None)
-    new_id = _next_id(repo)
+    body.pop(_RECORD_FIELD, None)
+    body.pop(_MASTER_RECORD_FIELD, None)
+    new_id = _next_id(repo, field)
     doc: dict[str, Any] = {
-        "id": new_id,
+        field: new_id,
         "hospital_id": str(new_id),
         **body,
         "name": name,
@@ -104,7 +114,7 @@ def create_hospital(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 @router.patch("/{hospital_id}")
 def update_hospital(hospital_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"id": hospital_id, "deleted": {"$ne": True}})
+    existing = repo.find_one({_record_field(repo): hospital_id, "deleted": {"$ne": True}})
     if not existing:
         raise HTTPException(status_code=404, detail="Hospital not found")
     if "name" in body:
@@ -116,7 +126,8 @@ def update_hospital(hospital_id: int, body: dict[str, Any] = Body(...)) -> dict[
     if body.get("code"):
         _assert_unique(repo, "code", str(body["code"]), hospital_id)
     body.pop("_id", None)
-    body.pop("id", None)
+    body.pop(_RECORD_FIELD, None)
+    body.pop(_MASTER_RECORD_FIELD, None)
     body["hospital_id"] = str(hospital_id)
     repo.update_one(existing["_id"], body)
     return _normalize(repo.find_by_id(existing["_id"]))
@@ -125,7 +136,7 @@ def update_hospital(hospital_id: int, body: dict[str, Any] = Body(...)) -> dict[
 @router.delete("/{hospital_id}", status_code=204)
 def delete_hospital(hospital_id: int) -> None:
     repo = _repo()
-    existing = repo.find_one({"id": hospital_id})
+    existing = repo.find_one({_record_field(repo): hospital_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Hospital not found")
     repo.update_one(existing["_id"], {"deleted": True})

@@ -203,6 +203,13 @@ def _vehicle_create_payload(vehicle_body_cls: type, body: dict[str, Any]) -> Any
     return vehicle_body_cls(**payload)
 
 
+def _aircraft_create_payload(aircraft_body_cls: type, body: dict[str, Any]) -> Any:
+    payload = {key: value for key, value in body.items() if value is not None}
+    if not payload.get("aircraft_id") and payload.get("tail_number"):
+        payload["aircraft_id"] = payload["tail_number"]
+    return aircraft_body_cls(**payload)
+
+
 def _rank_display_text(rank_row: dict[str, Any]) -> str:
     code = str(rank_row.get("rank_code") or "").strip()
     name = str(rank_row.get("rank_name") or rank_row.get("name") or "").strip()
@@ -395,6 +402,10 @@ def _personnel_org_rank_options() -> dict[str, Any]:
     }
 
 
+def _organization_combo_options() -> list[tuple[str, str]]:
+    return _personnel_org_rank_options()["organization_options"]
+
+
 def _build_collection_specs() -> dict[str, CollectionSpec]:
     # Imported lazily (not at module import time) so this module can be
     # imported without sarapp_db being on the path yet in contexts that
@@ -403,6 +414,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     from sarapp_db.api.routers import equipment as equipment_router
     from sarapp_db.api.routers import organizations as organizations_router
     from sarapp_db.api.routers import vehicles as vehicles_router
+    from sarapp_db.api.routers import aircraft as aircraft_router
     from modules.personnel.catalog_io import (
         PERSONNEL_FIELDS,
         PERSONNEL_FIELD_LABELS,
@@ -423,7 +435,11 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         for f in PERSONNEL_FIELDS
     ]
     equipment_fields = [
-        FieldSpec(f.key, f.label, input_type="textarea" if f.key == "notes" else "text")
+        FieldSpec(
+            f.key,
+            f.label,
+            input_type="select" if f.key == "organization" else "textarea" if f.key == "notes" else "text",
+        )
         for f in EQUIPMENT_EXPORT_FIELDS
     ]
     vehicle_fields = [
@@ -436,9 +452,30 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec("capacity", "Capacity", value_type="int"),
         FieldSpec("type_id", "Type"),
         FieldSpec("status_id", "Status"),
-        FieldSpec("organization", "Organization"),
+        FieldSpec("organization", "Organization", input_type="select"),
         FieldSpec("resource_type_id", "Resource Type ID", value_type="int"),
         FieldSpec("tags", "Tags", input_type="textarea"),
+    ]
+    aircraft_fields = [
+        FieldSpec("aircraft_id", "Aircraft ID"),
+        FieldSpec("callsign", "Callsign"),
+        FieldSpec("type", "Type"),
+        FieldSpec("make", "Make"),
+        FieldSpec("model", "Model"),
+        FieldSpec("base", "Base"),
+        FieldSpec("current_location", "Current Location"),
+        FieldSpec("status", "Status"),
+        FieldSpec("organization", "Organization", input_type="select"),
+        FieldSpec("fuel_type", "Fuel Type"),
+        FieldSpec("range_nm", "Range NM", value_type="int"),
+        FieldSpec("endurance_hr", "Endurance Hours", value_type="float"),
+        FieldSpec("cruise_kt", "Cruise KT", value_type="int"),
+        FieldSpec("crew_min", "Minimum Crew", value_type="int"),
+        FieldSpec("crew_max", "Maximum Crew", value_type="int"),
+        FieldSpec("serial_number", "Serial Number"),
+        FieldSpec("year", "Year", value_type="int"),
+        FieldSpec("owner_operator", "Owner / Operator"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
     ]
 
     specs = [
@@ -469,8 +506,8 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             import_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
             form_row_fn=lambda doc: personnel_export_row(doc, personnel_catalog_by_id),
             form_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
-            list_fields=["first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
-            inline_edit_fields=["first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
+            list_fields=["person_id", "first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
+            inline_edit_fields=["person_id", "first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
         ),
         CollectionSpec(
             key="equipment",
@@ -488,6 +525,8 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             import_payload_fn=lambda row: {
                 key: row.get(key, "") for key in equipment_export_field_keys if row.get(key)
             },
+            list_fields=["name", "type", "id_number", "serial_number", "organization", "condition"],
+            inline_edit_fields=["organization"],
         ),
         CollectionSpec(
             key="vehicles",
@@ -501,6 +540,23 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             ),
             update_fn=vehicles_router.update_vehicle,
             delete_fn=vehicles_router.delete_vehicle,
+            list_fields=["vehicle_id", "license_plate", "type_id", "status_id", "organization"],
+            inline_edit_fields=["organization"],
+        ),
+        CollectionSpec(
+            key="aircraft",
+            title="Aircraft",
+            record_field="aircraft_record_master",
+            fields=aircraft_fields,
+            list_fn=lambda: aircraft_router.list_aircraft(search="", status="", type_filter=""),
+            get_fn=aircraft_router.get_aircraft,
+            create_fn=lambda body: aircraft_router.create_aircraft(
+                _aircraft_create_payload(aircraft_router.AircraftBody, body)
+            ),
+            update_fn=aircraft_router.update_aircraft,
+            delete_fn=aircraft_router.delete_aircraft,
+            list_fields=["aircraft_id", "callsign", "type", "status", "organization", "base"],
+            inline_edit_fields=["organization"],
         ),
         CollectionSpec(
             key="organization-types",
@@ -718,6 +774,10 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     .inline-cell.saving {{ opacity:.5; }}
     .inline-edit-input {{ width:100%; padding:4px 6px; font:inherit; border-radius:4px; border:1px solid var(--accent); background:var(--field); color:var(--text); }}
     .inline-edit-input[type="checkbox"] {{ width:auto; }}
+    .inline-edit-wrap {{ position:relative; min-width:180px; }}
+    .inline-edit-list {{ position:absolute; z-index:6; top:calc(100% + 2px); left:0; right:0; max-height:240px; overflow:auto; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.35); }}
+    .inline-edit-option {{ padding:8px 10px; cursor:pointer; font-size:.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+    .inline-edit-option:hover {{ background:rgba(103,183,255,.12); }}
     .empty-row td {{ color:var(--muted); text-align:center; padding:22px; white-space:normal; }}
     .form-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px 16px; }}
     .field {{ min-width:0; }}
@@ -877,23 +937,90 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
         if (span.querySelector("input")) return;
         const field = span.dataset.field;
         const record = span.dataset.record;
-        const isCheckbox = span.dataset.checkbox === "1";
+        const editorType = span.dataset.editor || "text";
         const rawValue = span.dataset.rawValue || "";
         const originalHtml = span.innerHTML;
+        let options = [];
+        try {{
+          options = JSON.parse(span.dataset.options || "[]");
+        }} catch (err) {{
+          options = [];
+        }}
+        if (collectionKey === "personnel" && field === "rank") {{
+          let rankByOrg = {{}};
+          try {{
+            rankByOrg = JSON.parse(table.dataset.rankByOrg || "{{}}");
+          }} catch (err) {{
+            rankByOrg = {{}};
+          }}
+          const row = span.closest("tr");
+          const homeUnitCell = row ? row.querySelector('.inline-cell[data-field="home_unit"]') : null;
+          const homeUnit = homeUnitCell ? (homeUnitCell.dataset.rawValue || "") : "";
+          const rankValues = rankByOrg[homeUnit] || [];
+          if (rankValues.length) {{
+            options = rankValues.map((value) => ({{ id: value, label: value }}));
+            if (rawValue && !rankValues.includes(rawValue)) {{
+              options.unshift({{ id: rawValue, label: rawValue }});
+            }}
+          }}
+        }}
 
         const input = document.createElement("input");
         input.className = "inline-edit-input";
-        if (isCheckbox) {{
+        let wrapper = null;
+        let optionList = null;
+        let selectedValue = rawValue;
+
+        function renderOptions(filterText) {{
+          if (!optionList) return;
+          const needle = filterText.trim().toLowerCase();
+          const matches = (needle
+            ? options.filter((opt) => opt.label.toLowerCase().includes(needle))
+            : options).slice(0, 50);
+          optionList.innerHTML = "";
+          matches.forEach((opt) => {{
+            const row = document.createElement("div");
+            row.className = "inline-edit-option";
+            row.textContent = opt.label;
+            row.addEventListener("mousedown", (mouseEvent) => {{
+              mouseEvent.preventDefault();
+              selectedValue = opt.id;
+              input.value = opt.label;
+              optionList.hidden = true;
+              save();
+            }});
+            optionList.appendChild(row);
+          }});
+          optionList.hidden = matches.length === 0;
+        }}
+
+        if (editorType === "checkbox") {{
           input.type = "checkbox";
           input.checked = ["1", "true", "yes", "y", "on"].includes(rawValue.toLowerCase());
+        }} else if (editorType === "select") {{
+          wrapper = document.createElement("div");
+          wrapper.className = "inline-edit-wrap";
+          input.type = "text";
+          input.value = (options.find((opt) => opt.id === rawValue) || {{ label: rawValue }}).label;
+          input.setAttribute("autocomplete", "off");
+          optionList = document.createElement("div");
+          optionList.className = "inline-edit-list";
+          optionList.hidden = true;
         }} else {{
           input.type = "text";
           input.value = rawValue;
         }}
         span.innerHTML = "";
-        span.appendChild(input);
+        if (wrapper) {{
+          wrapper.appendChild(input);
+          wrapper.appendChild(optionList);
+          span.appendChild(wrapper);
+        }} else {{
+          span.appendChild(input);
+        }}
         input.focus();
-        if (!isCheckbox) input.select();
+        if (editorType !== "checkbox") input.select();
+        if (editorType === "select") renderOptions("");
 
         let settled = false;
         function cancel() {{
@@ -904,7 +1031,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
         function save() {{
           if (settled) return;
           settled = true;
-          const value = isCheckbox ? (input.checked ? "1" : "") : input.value;
+          const value = editorType === "checkbox" ? (input.checked ? "1" : "") : editorType === "select" ? selectedValue : input.value;
           span.classList.add("saving");
           const body = new URLSearchParams({{ value: value }});
           fetch(`${{window.location.pathname.split("/gui/")[0]}}/gui/${{collectionKey}}/${{record}}/inline/${{field}}`, {{
@@ -928,9 +1055,19 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
             }});
         }}
 
-        if (isCheckbox) {{
+        if (editorType === "checkbox") {{
           input.addEventListener("change", save);
           input.addEventListener("blur", () => window.setTimeout(() => {{ if (!settled) save(); }}, 0));
+        }} else if (editorType === "select") {{
+          input.addEventListener("focus", () => renderOptions(input.value));
+          input.addEventListener("input", () => {{
+            selectedValue = "";
+            renderOptions(input.value);
+          }});
+          input.addEventListener("blur", () => window.setTimeout(() => {{
+            if (optionList) optionList.hidden = true;
+            if (!settled) save();
+          }}, 150));
         }} else {{
           input.addEventListener("blur", save);
         }}
@@ -1103,6 +1240,10 @@ def _cell_html(value: Any) -> str:
     return escape(text)
 
 
+def _json_attr(value: Any) -> str:
+    return escape(json.dumps(value, separators=(",", ":")).replace("</", "<\\/"), quote=True)
+
+
 def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit_label: str) -> str:
     combo_options: dict[str, list[tuple[str, str]]] = {}
     combo_depends: dict[str, str] = {}
@@ -1115,6 +1256,8 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         combo_depends["rank"] = "home_unit"
         depmap_json = json.dumps(org_rank_options["rank_by_org"], separators=(",", ":")).replace("</", "<\\/")
         depmap_scripts += f'<script type="application/json" data-combo-depmap-for="home_unit">{depmap_json}</script>'
+    if spec.key in {"equipment", "vehicles", "aircraft"}:
+        combo_options["organization"] = _organization_combo_options()
     if spec.key == "organizations":
         from sarapp_db.api.routers import organizations as organizations_router
 
@@ -1450,13 +1593,19 @@ def create_master_gui_router() -> APIRouter:
         shown_fields = [field_by_name[name] for name in shown_names if name in field_by_name and name != "sort_order"]
         header_cells = "".join(f'<th class="sortable">{escape(f.label)}</th>' for f in shown_fields)
         list_cell_fn = spec.list_cell_fn
+        personnel_org_rank_options: dict[str, Any] | None = None
+        organization_options: list[tuple[str, str]] = []
         if collection_key == "personnel":
             short_by_org_name = _org_short_name_by_name()
+            personnel_org_rank_options = _personnel_org_rank_options()
+            organization_options = personnel_org_rank_options["organization_options"]
 
             def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
                 if field_name == "home_unit":
                     return _format_home_unit(row_doc.get("home_unit"), _short_by_name)
                 return row_doc.get(field_name)
+        elif collection_key in {"equipment", "vehicles", "aircraft"}:
+            organization_options = _organization_combo_options()
 
         inline_fields = set(spec.inline_edit_fields or [])
         rows = []
@@ -1468,10 +1617,30 @@ def create_master_gui_router() -> APIRouter:
                 display_value = list_cell_fn(display_doc, f.name) if list_cell_fn else display_doc.get(f.name, "")
                 if f.name in inline_fields:
                     raw_value = display_doc.get(f.name, "")
+                    editor_type = "checkbox" if f.input_type == "checkbox" else "select" if f.input_type in {"select", "select_fk"} else "text"
+                    options: list[dict[str, str]] = []
+                    if personnel_org_rank_options and f.name == "home_unit":
+                        options = [
+                            {"id": str(opt_id), "label": str(label)}
+                            for opt_id, label in personnel_org_rank_options["organization_options"]
+                        ]
+                    elif f.name == "organization":
+                        options = [
+                            {"id": str(opt_id), "label": str(label)}
+                            for opt_id, label in organization_options
+                        ]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    elif personnel_org_rank_options and f.name == "rank":
+                        home_unit = str(display_doc.get("home_unit") or "").strip()
+                        rank_options = personnel_org_rank_options["rank_by_org"].get(home_unit, [])
+                        if raw_value and raw_value not in rank_options:
+                            rank_options = [str(raw_value), *rank_options]
+                        options = [{"id": str(value), "label": str(value)} for value in rank_options]
                     cells.append(
                         f'<td data-inline-td><span class="inline-cell" data-field="{escape(f.name)}" '
                         f'data-record="{record_id}" data-raw-value="{escape(_stringify(raw_value))}" '
-                        f'data-checkbox="{"1" if f.input_type == "checkbox" else "0"}">'
+                        f'data-editor="{editor_type}" data-options="{_json_attr(options)}">'
                         f"{_cell_html(display_value)}</span></td>"
                     )
                 else:
@@ -1487,6 +1656,11 @@ def create_master_gui_router() -> APIRouter:
             f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(shown_fields) + 1}">'
             "No matching records.</td></tr>"
         )
+        inline_table_attrs = ""
+        if inline_fields:
+            inline_table_attrs = f' data-inline-collection="{escape(collection_key)}"'
+            if collection_key == "personnel" and personnel_org_rank_options:
+                inline_table_attrs += f' data-rank-by-org="{_json_attr(personnel_org_rank_options["rank_by_org"])}"'
         body = f"""{_back_link(f"{root_path}/gui", "Back to Collections")}<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
   <p class="card-subtitle">{len(docs)} record{"s" if len(docs) != 1 else ""}</p></div></div>
   <div class="grid-toolbar">
@@ -1501,7 +1675,7 @@ def create_master_gui_router() -> APIRouter:
     <input class="grid-search" type="text" data-grid-search="{table_id}" placeholder="Search this table">
   </div>
   <div class="table-wrap">
-    <table id="{table_id}"{f' data-inline-collection="{escape(collection_key)}"' if inline_fields else ""}>
+    <table id="{table_id}"{inline_table_attrs}>
       <thead><tr><th>Edit</th>{header_cells}</tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>

@@ -22,9 +22,13 @@ from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.int_id import dual_key_field
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+_RECORD_FIELD = "id"
+_MASTER_RECORD_FIELD = "id_master"
 
 
 class GarTemplatesRepository(BaseRepository):
@@ -36,9 +40,13 @@ def _repo() -> GarTemplatesRepository:
     return GarTemplatesRepository(get_master_db())
 
 
-def _next_int_id(repo: GarTemplatesRepository) -> int:
-    docs = repo.find_many({"id": {"$exists": True}}, sort=[("id", -1)], limit=1)
-    return int((docs[0] if docs else {}).get("id") or 0) + 1
+def _record_field(repo: GarTemplatesRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+
+
+def _next_int_id(repo: GarTemplatesRepository, field: str) -> int:
+    docs = repo.find_many({field: {"$exists": True}}, sort=[(field, -1)], limit=1)
+    return int((docs[0] if docs else {}).get(field) or 0) + 1
 
 
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
@@ -143,14 +151,16 @@ def list_gar_templates(include_inactive: bool = False) -> list[dict[str, Any]]:
 @router.post("", status_code=201)
 def create_gar_template(body: SaveGarTemplateRequest) -> dict[str, Any]:
     repo = _repo()
-    doc = {"id": _next_int_id(repo), **_payload_for_write(body)}
+    field = _record_field(repo)
+    doc = {field: _next_int_id(repo, field), **_payload_for_write(body)}
     saved = repo.insert_one(doc)
     return _normalize(saved)
 
 
 @router.get("/{template_id}")
 def get_gar_template(template_id: int) -> dict[str, Any]:
-    doc = _repo().find_one({"id": template_id})
+    repo = _repo()
+    doc = repo.find_one({_record_field(repo): template_id})
     if doc is None:
         raise HTTPException(404, "GAR template not found")
     return _normalize(doc)
@@ -159,11 +169,12 @@ def get_gar_template(template_id: int) -> dict[str, Any]:
 @router.put("/{template_id}")
 def save_gar_template(template_id: int, body: SaveGarTemplateRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"id": template_id})
+    field = _record_field(repo)
+    existing = repo.find_one({field: template_id})
     if existing is None:
         raise HTTPException(404, "GAR template not found")
     updates = {
-        "id": template_id,
+        field: template_id,
         **_payload_for_write(body),
         "created_by": existing.get("created_by", ""),
     }
@@ -175,7 +186,8 @@ def save_gar_template(template_id: int, body: SaveGarTemplateRequest) -> dict[st
 @router.post("/{template_id}/clone", status_code=201)
 def clone_gar_template(template_id: int) -> dict[str, Any]:
     repo = _repo()
-    original = repo.find_one({"id": template_id})
+    field = _record_field(repo)
+    original = repo.find_one({field: template_id})
     if original is None:
         raise HTTPException(404, "GAR template not found")
     base_name = str(original.get("name") or "").strip()
@@ -185,9 +197,9 @@ def clone_gar_template(template_id: int) -> dict[str, Any]:
     clone = {
         key: value
         for key, value in original.items()
-        if key not in {"_id", "created_at", "updated_at", "created_by", "updated_by", "id"}
+        if key not in {"_id", "created_at", "updated_at", "created_by", "updated_by", _RECORD_FIELD, _MASTER_RECORD_FIELD}
     }
-    clone["id"] = _next_int_id(repo)
+    clone[field] = _next_int_id(repo, field)
     clone["name"] = f"{base_name} Copy {copy_num}"
     clone["created_by"] = ""
     clone["updated_by"] = ""
@@ -198,7 +210,7 @@ def clone_gar_template(template_id: int) -> dict[str, Any]:
 @router.patch("/{template_id}/active")
 def set_gar_template_active(template_id: int, body: SetActiveRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"id": template_id})
+    existing = repo.find_one({_record_field(repo): template_id})
     if existing is None:
         raise HTTPException(404, "GAR template not found")
     repo.update_one(existing["_id"], {"active": body.active})

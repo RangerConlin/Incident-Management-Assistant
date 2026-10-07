@@ -30,6 +30,7 @@ FIELDS: list[FieldSpec] = [
     FieldSpec("type", "Type"),
     FieldSpec("id_number", "ID Number"),
     FieldSpec("serial_number", "Serial Number"),
+    FieldSpec("organization", "Organization"),
     FieldSpec("condition", "Condition"),
     FieldSpec("notes", "Notes"),
 ]

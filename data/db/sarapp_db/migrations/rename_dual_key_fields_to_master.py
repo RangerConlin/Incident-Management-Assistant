@@ -42,6 +42,14 @@ _DUAL_KEY_FIELDS: dict[str, tuple[str, str]] = {
     "equipment": ("equipment_record", "equipment_record_master"),
     "vehicles": ("vehicle_record", "vehicle_record_master"),
     "aircraft": ("aircraft_record", "aircraft_record_master"),
+    "hazard_types": ("id", "id_master"),
+    "gar_templates": ("id", "id_master"),
+    "canned_comm_entries": ("id", "id_master"),
+    "hospitals": ("id", "id_master"),
+    "objective_templates": ("int_id", "int_id_master"),
+    "strategy_templates": ("int_id", "int_id_master"),
+    "radio_channels": ("channel_id", "channel_id_master"),
+    "safety_analysis_templates": ("template_id", "template_id_master"),
 }
 
 

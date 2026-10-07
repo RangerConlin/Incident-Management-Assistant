@@ -7,9 +7,13 @@ from fastapi import APIRouter, Body, HTTPException
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.int_id import dual_key_field
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+_RECORD_FIELD = "template_id"
+_MASTER_RECORD_FIELD = "template_id_master"
 
 
 class SafetyAnalysisTemplatesRepository(BaseRepository):
@@ -23,10 +27,14 @@ def _repo() -> SafetyAnalysisTemplatesRepository:
     return SafetyAnalysisTemplatesRepository(get_master_db())
 
 
-def _next_id(repo: SafetyAnalysisTemplatesRepository) -> int:
-    docs = repo.find_many({}, sort=[("template_id", -1)], limit=1)
+def _record_field(repo: SafetyAnalysisTemplatesRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+
+
+def _next_id(repo: SafetyAnalysisTemplatesRepository, field: str) -> int:
+    docs = repo.find_many({}, sort=[(field, -1)], limit=1)
     last = docs[0] if docs else None
-    return (last["template_id"] + 1) if last and last.get("template_id") else 1
+    return (last[field] + 1) if last and last.get(field) else 1
 
 
 def _clean_doc(doc: dict[str, Any]) -> dict[str, Any]:
@@ -60,7 +68,7 @@ def list_templates(
 @router.get("/{template_id}")
 def get_template(template_id: int) -> dict[str, Any]:
     repo = _repo()
-    doc = repo.find_one({"template_id": template_id})
+    doc = repo.find_one({_record_field(repo): template_id})
     if doc is None:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     return _clean_doc(doc)
@@ -69,12 +77,13 @@ def get_template(template_id: int) -> dict[str, Any]:
 @router.post("")
 def create_template(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _repo()
+    field = _record_field(repo)
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
-    tid = _next_id(repo)
+    tid = _next_id(repo, field)
     doc = {
-        "template_id": tid,
+        field: tid,
         "name": name,
         "description": body.get("description", ""),
         "scenario_type": body.get("scenario_type", "General"),
@@ -92,7 +101,7 @@ def create_template(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 @router.put("/{template_id}")
 def update_template(template_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"template_id": template_id})
+    existing = repo.find_one({_record_field(repo): template_id})
     if existing is None:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     name = (body.get("name") or "").strip()
@@ -114,7 +123,7 @@ def update_template(template_id: int, body: dict[str, Any] = Body(...)) -> dict[
 @router.delete("/{template_id}")
 def delete_template(template_id: int) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"template_id": template_id})
+    existing = repo.find_one({_record_field(repo): template_id})
     if existing is None:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     repo.delete_one(existing["_id"])
@@ -124,12 +133,13 @@ def delete_template(template_id: int) -> dict[str, Any]:
 @router.post("/{template_id}/clone")
 def clone_template(template_id: int) -> dict[str, Any]:
     repo = _repo()
-    doc = repo.find_one({"template_id": template_id})
+    field = _record_field(repo)
+    doc = repo.find_one({field: template_id})
     if doc is None:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
-    new_id = _next_id(repo)
+    new_id = _next_id(repo, field)
     new_doc = {k: v for k, v in doc.items() if k not in ("_id", "created_at", "updated_at")}
-    new_doc["template_id"] = new_id
+    new_doc[field] = new_id
     new_doc["name"] = doc["name"] + " (Copy)"
     repo.insert_one(new_doc)
     return {"template_id": new_id}
@@ -138,7 +148,7 @@ def clone_template(template_id: int) -> dict[str, Any]:
 @router.patch("/{template_id}/active")
 def set_active(template_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"template_id": template_id})
+    existing = repo.find_one({_record_field(repo): template_id})
     if existing is None:
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     repo.update_one(existing["_id"], {"is_active": bool(body.get("active", True))})

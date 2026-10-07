@@ -65,6 +65,12 @@ def _clear_vehicles():
     get_client()["sarapp_central_master"]["vehicles"].delete_many({"vehicle_id": {"$regex": "^GUI Test"}})
 
 
+def _clear_aircraft():
+    from sarapp_db.mongo.database_manager import get_client
+
+    get_client()["sarapp_central_master"]["aircraft"].delete_many({"aircraft_id": {"$regex": "^GUI Test"}})
+
+
 def _clear_organization_catalog():
     from sarapp_db.mongo.collection_names import MasterCollections
     from sarapp_db.mongo.database_manager import get_client
@@ -270,7 +276,13 @@ def test_personnel_grid_supports_inline_field_edit(monkeypatch) -> None:
 
         listing = client.get("/central-master/gui/personnel")
         assert 'data-inline-collection="personnel"' in listing.text
+        assert "Personnel ID" in listing.text
+        assert 'data-field="person_id"' in listing.text
         assert 'class="inline-cell"' in listing.text
+        assert 'data-editor="text"' in listing.text
+        assert 'data-editor="checkbox"' in listing.text
+        assert 'data-editor="select"' in listing.text
+        assert 'data-rank-by-org=' in listing.text
 
         updated = client.post(
             f"/central-master/gui/personnel/{record_id}/inline/callsign", data={"value": "Echo-9"}
@@ -293,6 +305,65 @@ def test_personnel_grid_supports_inline_field_edit(monkeypatch) -> None:
         assert refreshed["is_medic"] is True
     finally:
         _clear_personnel()
+
+
+def test_asset_catalogs_use_searchable_organization_picker(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_equipment()
+    _clear_vehicles()
+    _clear_aircraft()
+    _clear_organization_catalog()
+    try:
+        client.post(
+            "/central-master/gui/organizations/new",
+            data={
+                "name": "GUI Test Asset Org",
+                "short_name": "GTAO",
+                "is_active": "on",
+            },
+        )
+
+        for route in (
+            "/central-master/gui/equipment/new",
+            "/central-master/gui/vehicles/new",
+            "/central-master/gui/aircraft/new",
+        ):
+            page = client.get(route)
+            assert page.status_code == 200
+            assert 'name="organization"' in page.text
+            assert 'data-fk-combo="1"' in page.text
+            assert "GUI Test Asset Org" in page.text
+
+        client.post(
+            "/central-master/gui/equipment/new",
+            data={"name": "GUI Test Org Equipment", "organization": "GUI Test Asset Org"},
+        )
+        client.post(
+            "/central-master/gui/vehicles/new",
+            data={"vehicle_id": "GUI Test Org Vehicle", "organization": "GUI Test Asset Org"},
+        )
+        client.post(
+            "/central-master/gui/aircraft/new",
+            data={"aircraft_id": "GUI Test Org Aircraft", "organization": "GUI Test Asset Org"},
+        )
+
+        for route in (
+            "/central-master/gui/equipment",
+            "/central-master/gui/vehicles",
+            "/central-master/gui/aircraft",
+        ):
+            listing = client.get(route)
+            assert listing.status_code == 200
+            assert 'data-inline-collection=' in listing.text
+            assert 'data-field="organization"' in listing.text
+            assert 'data-editor="select"' in listing.text
+            assert "GUI Test Asset Org" in listing.text
+    finally:
+        _clear_equipment()
+        _clear_vehicles()
+        _clear_aircraft()
+        _clear_organization_catalog()
 
 
 def test_personnel_delete_removes_record(monkeypatch) -> None:

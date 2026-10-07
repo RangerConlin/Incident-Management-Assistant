@@ -9,9 +9,13 @@ from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.int_id import dual_key_field
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+_RECORD_FIELD = "id"
+_MASTER_RECORD_FIELD = "id_master"
 
 SPE_SEVERITY_RANGE = (1, 5)
 SPE_PROBABILITY_RANGE = (1, 5)
@@ -58,9 +62,13 @@ def _repo() -> HazardTypesRepository:
     return HazardTypesRepository(get_master_db())
 
 
-def _next_int_id(repo: HazardTypesRepository) -> int:
-    docs = repo.find_many({"id": {"$exists": True}}, sort=[("id", -1)], limit=1)
-    return int((docs[0] if docs else {}).get("id") or 0) + 1
+def _record_field(repo: HazardTypesRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+
+
+def _next_int_id(repo: HazardTypesRepository, field: str) -> int:
+    docs = repo.find_many({field: {"$exists": True}}, sort=[(field, -1)], limit=1)
+    return int((docs[0] if docs else {}).get(field) or 0) + 1
 
 
 def _spe_score(severity: int, probability: int, exposure: int) -> int:
@@ -186,6 +194,7 @@ def search_hazard_types(
         results.append(
             {
                 "id": doc.get("id"),
+                "id_master": doc.get("id_master"),
                 "name": doc.get("name", ""),
                 "category": doc.get("category", ""),
                 "default_spe_band": ((doc.get("default_spe") or {}).get("band") or ""),
@@ -200,8 +209,9 @@ def search_hazard_types(
 @router.post("", status_code=201)
 def create_hazard_type(body: SaveHazardTypeRequest) -> dict[str, Any]:
     repo = _repo()
+    field = _record_field(repo)
     doc = {
-        "id": _next_int_id(repo),
+        field: _next_int_id(repo, field),
         **_payload_for_write(body),
     }
     saved = repo.insert_one(doc)
@@ -210,7 +220,8 @@ def create_hazard_type(body: SaveHazardTypeRequest) -> dict[str, Any]:
 
 @router.get("/{hazard_type_id}")
 def get_hazard_type(hazard_type_id: int) -> dict[str, Any]:
-    doc = _repo().find_one({"id": hazard_type_id})
+    repo = _repo()
+    doc = repo.find_one({_record_field(repo): hazard_type_id})
     if doc is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
     return _normalize(doc)
@@ -219,11 +230,12 @@ def get_hazard_type(hazard_type_id: int) -> dict[str, Any]:
 @router.put("/{hazard_type_id}")
 def save_hazard_type(hazard_type_id: int, body: SaveHazardTypeRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"id": hazard_type_id})
+    field = _record_field(repo)
+    existing = repo.find_one({field: hazard_type_id})
     if existing is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
     updates = {
-        "id": hazard_type_id,
+        field: hazard_type_id,
         **_payload_for_write(body),
         "created_by": existing.get("created_by", ""),
     }
@@ -235,7 +247,8 @@ def save_hazard_type(hazard_type_id: int, body: SaveHazardTypeRequest) -> dict[s
 @router.post("/{hazard_type_id}/clone", status_code=201)
 def clone_hazard_type(hazard_type_id: int) -> dict[str, Any]:
     repo = _repo()
-    original = repo.find_one({"id": hazard_type_id})
+    field = _record_field(repo)
+    original = repo.find_one({field: hazard_type_id})
     if original is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
     base_name = str(original.get("name") or "").strip()
@@ -245,9 +258,9 @@ def clone_hazard_type(hazard_type_id: int) -> dict[str, Any]:
     clone = {
         key: value
         for key, value in original.items()
-        if key not in {"_id", "created_at", "updated_at", "created_by", "updated_by", "id"}
+        if key not in {"_id", "created_at", "updated_at", "created_by", "updated_by", _RECORD_FIELD, _MASTER_RECORD_FIELD}
     }
-    clone["id"] = _next_int_id(repo)
+    clone[field] = _next_int_id(repo, field)
     clone["name"] = f"{base_name} Copy {copy_num}"
     clone["created_by"] = ""
     clone["updated_by"] = ""
@@ -258,7 +271,7 @@ def clone_hazard_type(hazard_type_id: int) -> dict[str, Any]:
 @router.patch("/{hazard_type_id}/active")
 def set_hazard_type_active(hazard_type_id: int, body: SetActiveRequest) -> dict[str, Any]:
     repo = _repo()
-    existing = repo.find_one({"id": hazard_type_id})
+    existing = repo.find_one({_record_field(repo): hazard_type_id})
     if existing is None:
         raise HTTPException(status_code=404, detail="Hazard type not found")
     repo.update_one(existing["_id"], {"active": body.active})
