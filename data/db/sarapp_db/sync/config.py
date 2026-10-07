@@ -16,7 +16,7 @@ DEFAULT_INTERVAL_SECONDS = 60.0
 
 # Collections known to copy fields from a master record are added here one
 # at a time as each is verified end to end — see backlog.md.
-SYNCABLE_MASTER_COLLECTIONS = ("personnel", "equipment")
+SYNCABLE_MASTER_COLLECTIONS = ("personnel", "equipment", "vehicles", "aircraft")
 
 
 def central_master_url() -> str:

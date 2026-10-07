@@ -1,0 +1,5 @@
+name,category,description,is_active,type_short,organization,is_drone,is_aviation,created_at,updated_at
+Ground Team,,,True,gtm,CAP,False,False,2025-09-25T08:40:44,2025-09-25T08:40:44
+Ground Team/UAS,,,True,gtmuas,CAP,True,False,2025-09-25T08:40:44,2025-09-25T08:40:44
+Aircraft,,,True,fixedwing,,False,True,2025-09-25T08:40:44,2025-09-25T08:40:44
+Helicopter,,,True,helo,,False,True,2025-09-25T08:40:44,2025-09-25T08:40:44

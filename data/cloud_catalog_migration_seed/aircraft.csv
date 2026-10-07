@@ -1,0 +1,12 @@
+aircraft_id,callsign,type,make,model,base,current_location,status,organization,fuel_type,range_nm,endurance_hr,cruise_kt,crew_min,crew_max,adsb_hex,radio_vhf_air,radio_vhf_sar,radio_uhf,cap_hoist,cap_nvg,cap_flir,cap_ifr,payload_kg,med_config,serial_number,year,owner_operator,registration_exp,inspection_due,last_100hr,next_100hr,notes
+N296CP,CAP2020,Fixed-Wing,Cessna,C182T,KBTL,,Available,,Jet A,0,0.0,0,1,4,,False,False,False,False,False,False,False,0.0,None,,,,,,,,
+N305CP,CAP2035,,,C172S,1D2,,Out of Service,,,,,,,,,,,,,,,,,,,,,,,,,
+N329CP,CAP2032,,,T206H,KPTK,,Available,,,,,,,,,,,,,,,,,,,,,,,,,
+N452CP,CAP2021,,,C182T,KGRR,,Out of Service,,,,,,,,,,,,,,,,,,,,,,,,,
+N640CP,CAP2040,,,C182T,KMGN,,Available,,,,,,,,,,,,,,,,,,,,,,,,,
+N657CP,CAP2026,,,C182T,KCAD,,Available,,,,,,,,,,,,,,,,,,,,,,,,,
+N813CP,CAP2029,,,C182T,KCAD,,Out of Service,,,,,,,,,,,,,,,,,,,,,,,,,
+N934CP,CAP2034,,,C182T,KFNT,,Available,,,,,,,,,,,,,,,,,,,,,,,,,
+N976CP,CAP2027,,,C182T,KARB,,Available,,,,,,,,,,,,,,,,,,,,,,,,,
+N992CP,CAP2028,,,C172R,KOZW,,Available,,,,,,,,,,,,,,,,,,,,,,,,,
+N99606,CAP2025,,,C172P,KPHN,,Available,,,,,,,,,,,,,,,,,,,,,,,,,

@@ -2,6 +2,24 @@
 
 from __future__ import annotations
 
+from pymongo.database import Database
+
+
+def dual_key_field(db: Database, local_field: str, master_field: str) -> str:
+    """Pick which record-id field a collection should mint/query against,
+    given this db: `master_field` on the central catalog, `local_field`
+    everywhere else (a local catalog's own sarapp_master).
+
+    This is the general form of the person_record/person_record_master
+    pattern — see Design Documents/Instructions/mongodb_schema_decisions.md
+    ("Personnel: central-vs-local record ids") for the full reasoning.
+    Every other "dual-key" master collection follows the same shape with
+    its own field names.
+    """
+    from sarapp_db.mongo.database_manager import is_central_master_db
+
+    return master_field if is_central_master_db(db) else local_field
+
 
 def _ensure_record_ids(col, field: str) -> int:
     """Backfill *_record on any documents missing it. Returns current max."""

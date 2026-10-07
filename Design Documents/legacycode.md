@@ -62,6 +62,14 @@ Add entries below this line.
 - Removal Condition: the Developer menu no longer exposes Template Debug, or the panel is rewritten to inspect the canonical `forms/sets/**/mapping.json` registry instead.
 - Verification: `rg -n "TemplateDebugPanel|template_debug_panel|Template Debug|template_registry|renderer_bridge" modules main.py` confirms no live menu registration or imports remain.
 
+### Legacy `personnel_certifications` collection read-fallback
+- Status: `legacy-compat-active`
+- Location: `data/db/sarapp_db/api/routers/certifications.py` (`LegacyPersonnelCertificationsRepository`, `_legacy_rows`, called from `list_personnel_certs`)
+- Purpose: certifications are now stored embedded on each `personnel` document (`PersonnelDocument.certifications`, see `data/db/sarapp_db/schemas/personnel_schema.py`). `list_personnel_certs` only reads the separate `personnel_certifications` collection when a person's embedded list is empty, and if it finds rows there, copies them into the embedded list and self-heals (never writes to the legacy collection again). `set_personnel_cert`/`delete_personnel_cert` never touch the legacy collection at all.
+- Legacy Source: a pre-embedding data shape where a person's certifications lived in their own `personnel_certifications` collection row per assignment instead of embedded on the personnel document.
+- Removal Condition: every personnel record with certification data has had its embedded `certifications` list backfilled (e.g. via a one-time migration script that runs the same copy-and-set logic for every person instead of lazily on first read), after which `LegacyPersonnelCertificationsRepository`/`_legacy_rows`/the fallback branch in `list_personnel_certs` can be deleted along with the `personnel_certifications` collection itself.
+- Verification: `rg -n "personnel_certifications|LegacyPersonnelCertifications" data/db/sarapp_db` shows no writers, only this read-fallback.
+
 ### Legacy data/forms catalog and map-generator assets
 - Status: `legacy-compat-candidate`
 - Location: `data/forms/**`, `modules/devtools/services/form_catalog.py`, `modules/devtools/services/fema_fetch.py`, `modules/devtools/services/pdf_mapgen.py`, `modules/devtools/services/form_identify.py`

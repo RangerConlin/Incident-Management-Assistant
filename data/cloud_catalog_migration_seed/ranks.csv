@@ -1,0 +1,41 @@
+Rank Structure ID,Rank Structure Name,Rank Code,Rank Name,Short Display,Sort Order,Active
+,Fire Department (Standard),FF,Firefighter,FF,0,Yes
+,Fire Department (Standard),ENG,Engineer / Driver,ENG,1,Yes
+,Fire Department (Standard),LT,Lieutenant,LT,2,Yes
+,Fire Department (Standard),CPT,Captain,CPT,3,Yes
+,Fire Department (Standard),BC,Battalion Chief,BC,4,Yes
+,Fire Department (Standard),DC,Division Chief,DC,5,Yes
+,Fire Department (Standard),AC,Assistant Chief,AC,6,Yes
+,Fire Department (Standard),DCH,Deputy Chief,DCH,7,Yes
+,Fire Department (Standard),CH,Fire Chief,CH,8,Yes
+,Law Enforcement (Standard),PO,Police Officer,PO,0,Yes
+,Law Enforcement (Standard),SPO,Senior Police Officer,SPO,1,Yes
+,Law Enforcement (Standard),CPL,Corporal,CPL,2,Yes
+,Law Enforcement (Standard),SGT,Sergeant,SGT,3,Yes
+,Law Enforcement (Standard),LT,Lieutenant,LT,4,Yes
+,Law Enforcement (Standard),CPT,Captain,CPT,5,Yes
+,Law Enforcement (Standard),MAJ,Major / Commander,MAJ,6,Yes
+,Law Enforcement (Standard),DCH,Deputy Chief,DCH,7,Yes
+,Law Enforcement (Standard),CH,Chief of Police,CH,8,Yes
+,EMS (Standard),EMT,EMT,EMT,0,Yes
+,EMS (Standard),AEMT,Advanced EMT,AEMT,1,Yes
+,EMS (Standard),PM,Paramedic,PM,2,Yes
+,EMS (Standard),FTO,Field Training Officer,FTO,3,Yes
+,EMS (Standard),SUP,Supervisor,SUP,4,Yes
+,EMS (Standard),CPT,Captain,CPT,5,Yes
+,EMS (Standard),BC,Battalion Chief,BC,6,Yes
+,EMS (Standard),CH,Chief,CH,7,Yes
+,Search and Rescue (Standard),MEM,Member,MEM,0,Yes
+,Search and Rescue (Standard),SMEM,Senior Member,SMEM,1,Yes
+,Search and Rescue (Standard),TL,Team Leader,TL,2,Yes
+,Search and Rescue (Standard),OPL,Operations Leader,OPL,3,Yes
+,Search and Rescue (Standard),PLN,Planning Lead,PLN,4,Yes
+,Search and Rescue (Standard),LOG,Logistics Lead,LOG,5,Yes
+,Search and Rescue (Standard),SC,Section Chief,SC,6,Yes
+,Search and Rescue (Standard),IC,Incident Commander,IC,7,Yes
+,Volunteer / NGO (Standard),VOL,Volunteer,VOL,0,Yes
+,Volunteer / NGO (Standard),LV,Lead Volunteer,LV,1,Yes
+,Volunteer / NGO (Standard),TL,Team Leader,TL,2,Yes
+,Volunteer / NGO (Standard),COOR,Coordinator,COOR,3,Yes
+,Volunteer / NGO (Standard),MGR,Manager,MGR,4,Yes
+,Volunteer / NGO (Standard),DIR,Director,DIR,5,Yes

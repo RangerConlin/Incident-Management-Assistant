@@ -182,7 +182,7 @@ def test_create_and_edit_personnel_record(monkeypatch) -> None:
         from sarapp_db.api.routers.personnel import list_personnel
 
         doc = next(d for d in list_personnel(search="", limit=200) if d["name"] == "GUI Test Person")
-        record_id = doc["person_record"]
+        record_id = doc["person_record_master"]
 
         edit_page = client.get(f"/central-master/gui/personnel/{record_id}")
         assert edit_page.status_code == 200
@@ -266,7 +266,7 @@ def test_personnel_grid_supports_inline_field_edit(monkeypatch) -> None:
         from sarapp_db.api.routers.personnel import list_personnel
 
         doc = next(d for d in list_personnel(search="", limit=200) if d["name"] == "GUI Test Inline Person")
-        record_id = doc["person_record"]
+        record_id = doc["person_record_master"]
 
         listing = client.get("/central-master/gui/personnel")
         assert 'data-inline-collection="personnel"' in listing.text
@@ -288,7 +288,7 @@ def test_personnel_grid_supports_inline_field_edit(monkeypatch) -> None:
         )
         assert rejected.status_code == 404
 
-        refreshed = next(d for d in list_personnel(search="", limit=200) if d["person_record"] == record_id)
+        refreshed = next(d for d in list_personnel(search="", limit=200) if d["person_record_master"] == record_id)
         assert refreshed["callsign"] == "Echo-9"
         assert refreshed["is_medic"] is True
     finally:
@@ -309,7 +309,7 @@ def test_personnel_delete_removes_record(monkeypatch) -> None:
         from sarapp_db.api.routers.personnel import list_personnel
 
         doc = next(d for d in list_personnel(search="", limit=200) if d["name"] == "GUI Test Delete Person")
-        record_id = doc["person_record"]
+        record_id = doc["person_record_master"]
 
         edit_page = client.get(f"/central-master/gui/personnel/{record_id}")
         assert "Delete" in edit_page.text
@@ -480,7 +480,7 @@ def test_equipment_form_matches_desktop_catalog_fields(monkeypatch) -> None:
         from sarapp_db.api.routers.equipment import list_equipment
 
         doc = next(d for d in list_equipment(search="GUI Test Field Radio", limit=200))
-        edit_page = client.get(f"/central-master/gui/equipment/{doc['equipment_record']}")
+        edit_page = client.get(f"/central-master/gui/equipment/{doc['equipment_record_master']}")
 
         assert edit_page.status_code == 200
         assert "ID Number" in edit_page.text
@@ -544,7 +544,7 @@ def test_vehicle_catalog_create_edit_delete(monkeypatch) -> None:
             d for d in list_vehicles(search="GUI Test Vehicle 1", status_filter="", type_filter="")
             if d["vehicle_id"] == "GUI Test Vehicle 1"
         )
-        record_id = doc["vehicle_record"]
+        record_id = doc["vehicle_record_master"]
         assert doc["year"] == 2024
         assert doc["capacity"] == 5
 
@@ -596,7 +596,7 @@ def test_equipment_delete_removes_record(monkeypatch) -> None:
         from sarapp_db.api.routers.equipment import list_equipment
 
         doc = next(d for d in list_equipment(search="", limit=200) if d["name"] == "GUI Test Radio")
-        record_id = doc["equipment_record"]
+        record_id = doc["equipment_record_master"]
 
         deleted = client.post(f"/central-master/gui/equipment/{record_id}/delete")
         assert deleted.status_code == 303

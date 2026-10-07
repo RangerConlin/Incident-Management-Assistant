@@ -10,11 +10,12 @@ from pydantic import BaseModel
 
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
-from sarapp_db.mongo.int_id import _ensure_record_ids, next_record_id
+from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
 
 router = APIRouter()
 
 _RECORD_FIELD = "vehicle_record"
+_MASTER_RECORD_FIELD = "vehicle_record_master"
 
 _DEFAULT_STATUSES = ["Available", "In Service", "Out of Service", "Retired"]
 _DEFAULT_TYPES = ["Passenger Vehicle", "Utility", "Support", "Other"]
@@ -22,6 +23,10 @@ _DEFAULT_TYPES = ["Passenger Vehicle", "Utility", "Support", "Other"]
 
 def _col():
     return get_master_db()[MasterCollections.VEHICLES]
+
+
+def _record_field(col) -> str:
+    return dual_key_field(col.database, _RECORD_FIELD, _MASTER_RECORD_FIELD)
 
 
 def _utcnow() -> str:
@@ -32,12 +37,13 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
     d["vehicle_record"] = d.get("vehicle_record")
+    d["vehicle_record_master"] = d.get("vehicle_record_master")
     d["vehicle_id"] = d.get("vehicle_id") or ""
     return d
 
 
 def _find_by_record(col, vehicle_record: int) -> dict[str, Any] | None:
-    return col.find_one({_RECORD_FIELD: vehicle_record})
+    return col.find_one({_record_field(col): vehicle_record})
 
 
 @router.get("")
@@ -47,7 +53,7 @@ def list_vehicles(
     type_filter: str = Query(""),
 ) -> list[dict[str, Any]]:
     col = _col()
-    _ensure_record_ids(col, _RECORD_FIELD)
+    _ensure_record_ids(col, _record_field(col))
     query: dict[str, Any] = {}
     if status_filter:
         query["status_id"] = status_filter
@@ -116,10 +122,11 @@ class VehicleBody(BaseModel):
 @router.post("", status_code=201)
 def create_vehicle(body: VehicleBody) -> dict[str, Any]:
     col = _col()
-    next_id = next_record_id(col, _RECORD_FIELD)
+    field = _record_field(col)
+    next_id = next_record_id(col, field)
     now = _utcnow()
     doc: dict[str, Any] = {
-        _RECORD_FIELD: next_id,
+        field: next_id,
         **body.model_dump(),
         "created_at": now,
         "updated_at": now,
@@ -139,6 +146,7 @@ def update_vehicle(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     body.pop(_RECORD_FIELD, None)
+    body.pop(_MASTER_RECORD_FIELD, None)
     body.pop("_id", None)
     body["updated_at"] = _utcnow()
     col.update_one({"_id": existing["_id"]}, {"$set": body})

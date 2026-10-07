@@ -445,7 +445,9 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         CollectionSpec(
             key="personnel",
             title="Personnel",
-            record_field="person_record",
+            # The central catalog mints person_record_master, not
+            # person_record — see data/db/sarapp_db/schemas/personnel_schema.py.
+            record_field="person_record_master",
             fields=personnel_fields,
             # Called as plain Python functions, not through FastAPI's request
             # pipeline — any parameter whose real default is a
@@ -473,7 +475,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         CollectionSpec(
             key="equipment",
             title="Equipment",
-            record_field="equipment_record",
+            record_field="equipment_record_master",
             fields=equipment_fields,
             list_fn=lambda: equipment_router.list_equipment(search="", limit=10000),
             get_fn=equipment_router.get_equipment,
@@ -490,7 +492,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         CollectionSpec(
             key="vehicles",
             title="Vehicles",
-            record_field="vehicle_record",
+            record_field="vehicle_record_master",
             fields=vehicle_fields,
             list_fn=lambda: vehicles_router.list_vehicles(search="", status_filter="", type_filter=""),
             get_fn=vehicles_router.get_vehicle,

@@ -23,7 +23,8 @@ class PersonnelCertification(BaseModel):
 class PersonnelDocument(TimestampedDocument):
     """A responder or staff member in the agency master roster."""
 
-    person_record: int  # Auto-assigned internal integer key; unique index; never shown to users
+    person_record: Optional[int] = None  # Server-local auto-assigned key; unique per server. Never set on the central catalog (sarapp_central_master), which uses person_record_master instead.
+    person_record_master: Optional[int] = None  # Agency-wide auto-assigned key; only ever minted by the central catalog, either at creation (if connected) or on first sync of a record created offline. Clients should not rely on this being set.
     person_id: str = ""  # User-entered visible ID (badge number, employee number, etc.)
     first_name: str = ""
     last_name: str = ""

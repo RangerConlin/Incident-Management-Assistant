@@ -8,10 +8,23 @@ from typing import Any
 from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.collection_names import MasterCollections
-from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.database_manager import get_master_db, is_central_master_db
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+# Lockdown collections (see Design Documents/Instructions/
+# mongodb_schema_decisions.md "Personnel: central-vs-local record ids" and
+# backlog.md's dual-key/lockdown split): organization types, rank
+# structures, organizations, and ranks are admin-controlled taxonomies, not
+# something a field user creates ad hoc. Writes are central-catalog
+# authoritative only; a local catalog is read-only/pull-only for these.
+_LOCKDOWN_DETAIL = "Organizations/ranks are central-catalog authoritative; edit them on the central catalog."
+
+
+def _require_central(repo: BaseRepository) -> None:
+    if not is_central_master_db(repo._db):
+        raise HTTPException(status_code=403, detail=_LOCKDOWN_DETAIL)
 
 
 class OrganizationTypesRepository(BaseRepository):
@@ -180,6 +193,7 @@ def list_org_types(search: str = "") -> list[dict[str, Any]]:
 @router.post("/types", status_code=201)
 def create_org_type(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _org_types_repo()
+    _require_central(repo)
     doc = repo.insert_one({
         "int_id": _next_int_id(repo),
         "name": body.get("name", ""),
@@ -201,6 +215,7 @@ def get_org_type(type_id: int) -> dict[str, Any]:
 @router.patch("/types/{type_id}")
 def update_org_type(type_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _org_types_repo()
+    _require_central(repo)
     updates = {field: body[field] for field in ("name", "description", "is_active", "sort_order") if field in body}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -214,6 +229,7 @@ def update_org_type(type_id: int, body: dict[str, Any] = Body(...)) -> dict[str,
 @router.delete("/types/{type_id}", status_code=204)
 def delete_org_type(type_id: int) -> None:
     repo = _org_types_repo()
+    _require_central(repo)
     doc = repo.find_one({"int_id": type_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Organization type not found")
@@ -235,6 +251,7 @@ def list_rank_structures(search: str = "") -> list[dict[str, Any]]:
 @router.post("/rank-structures", status_code=201)
 def create_rank_structure(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _rank_structures_repo()
+    _require_central(repo)
     doc = repo.insert_one({
         "int_id": _next_int_id(repo),
         "name": body.get("name", ""),
@@ -264,6 +281,7 @@ def get_rank_structure(structure_id: int) -> dict[str, Any]:
 @router.patch("/rank-structures/{structure_id}")
 def update_rank_structure(structure_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _rank_structures_repo()
+    _require_central(repo)
     updates = {
         field: body[field]
         for field in (
@@ -289,6 +307,7 @@ def update_rank_structure(structure_id: int, body: dict[str, Any] = Body(...)) -
 @router.delete("/rank-structures/{structure_id}", status_code=204)
 def delete_rank_structure(structure_id: int) -> None:
     repo = _rank_structures_repo()
+    _require_central(repo)
     doc = repo.find_one({"int_id": structure_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Rank structure not found")
@@ -304,6 +323,7 @@ def delete_rank_structure(structure_id: int) -> None:
 @router.post("/rank-structures/{structure_id}/duplicate")
 def duplicate_rank_structure(structure_id: int, body: dict[str, Any] = Body(default={})) -> dict[str, Any]:
     repo = _rank_structures_repo()
+    _require_central(repo)
     ranks_repo = _ranks_repo()
     src = repo.find_one({"int_id": structure_id})
     if not src:
@@ -361,6 +381,7 @@ def list_organizations(search: str = "") -> list[dict[str, Any]]:
 @router.post("/organizations", status_code=201)
 def create_organization(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _organizations_repo()
+    _require_central(repo)
     doc = {"int_id": _next_int_id(repo)}
     for field in _ORGANIZATION_FIELDS:
         if field in body:
@@ -389,6 +410,7 @@ def get_organization(org_id: int) -> dict[str, Any]:
 @router.patch("/organizations/{org_id}")
 def update_organization(org_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _organizations_repo()
+    _require_central(repo)
     updates = {field: body[field] for field in _ORGANIZATION_FIELDS if field in body}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -407,6 +429,7 @@ def update_organization(org_id: int, body: dict[str, Any] = Body(...)) -> dict[s
 @router.delete("/organizations/{org_id}", status_code=204)
 def delete_organization(org_id: int) -> None:
     repo = _organizations_repo()
+    _require_central(repo)
     doc = repo.find_one({"int_id": org_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -436,6 +459,7 @@ def list_ranks(structure_id: int | None = Query(None), search: str = "") -> list
 @router.post("/ranks", status_code=201)
 def create_rank(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _ranks_repo()
+    _require_central(repo)
     doc = repo.insert_one({
         "int_id": _next_int_id(repo),
         "rank_structure_id": body.get("rank_structure_id"),
@@ -459,6 +483,7 @@ def get_rank(rank_id: int) -> dict[str, Any]:
 @router.patch("/ranks/{rank_id}")
 def update_rank(rank_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _ranks_repo()
+    _require_central(repo)
     updates = {
         field: body[field]
         for field in ("rank_code", "rank_name", "short_display", "sort_order", "is_active", "name", "abbreviation", "rank_order")
@@ -476,6 +501,7 @@ def update_rank(rank_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any
 @router.delete("/ranks/{rank_id}", status_code=204)
 def delete_rank(rank_id: int) -> None:
     repo = _ranks_repo()
+    _require_central(repo)
     doc = repo.find_one({"int_id": rank_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Rank not found")
@@ -490,6 +516,7 @@ def get_rank_structure_override(org_id: int) -> dict[str, Any] | None:
 @router.post("/organizations/{org_id}/rank-structure-override")
 def set_rank_structure_override(org_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _overrides_repo()
+    _require_central(repo)
     existing = repo.find_one({"organization_id": org_id})
     payload = {"organization_id": org_id, "rank_structure_id": body.get("rank_structure_id")}
     if existing:
@@ -503,6 +530,7 @@ def set_rank_structure_override(org_id: int, body: dict[str, Any] = Body(...)) -
 @router.delete("/organizations/{org_id}/rank-structure-override", status_code=204)
 def delete_rank_structure_override(org_id: int) -> None:
     repo = _overrides_repo()
+    _require_central(repo)
     doc = repo.find_one({"organization_id": org_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Override not found")

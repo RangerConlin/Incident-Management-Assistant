@@ -170,6 +170,18 @@ def test_pull_and_apply_downloads_central_only_changes(sync_env):
     assert checkpoint.get_last_pulled_at(_system_db(), "personnel") == "2026-01-01T00:00:00"
 
 
+def test_push_assigns_equipment_record_master_once(sync_env):
+    """Same dual-key pattern as personnel, generalized in sync.py's
+    _DUAL_KEY_MASTER_FIELDS — proves it isn't personnel-specific code."""
+    repo = _LocalEquipmentRepository(_local_db())
+    saved = repo.insert_one({"name": "Radio Kit 11", "equipment_record": 4})
+    assert saved.get("equipment_record_master") is None
+
+    central_doc = _central_db()["equipment"].find_one({"_id": saved["_id"]})
+    assert central_doc is not None
+    assert isinstance(central_doc["equipment_record_master"], int)
+
+
 def test_local_hard_delete_relays_as_tombstone_and_a_second_pull_removes_it_elsewhere(sync_env):
     """equipment.delete_equipment hard-deletes locally. That delete must
     still reach the central database (as a tombstone, since a literal
@@ -226,6 +238,44 @@ def test_failed_delete_is_queued_then_drained_on_retry(sync_env, monkeypatch):
     assert _central_db()["equipment"].find_one({"_id": saved["_id"]}) is None
     assert _central_db()["sync_tombstones"].find_one({"doc_id": saved["_id"]}) is not None
     assert outbox.list_pending(_system_db()) == []
+
+
+def test_push_assigns_person_record_master_once_and_pull_propagates_it(sync_env):
+    """A personnel record created offline has no person_record_master (see
+    personnel_schema.py) — only the central catalog ever mints one, the
+    first time it sees the record. That assignment must then flow back out
+    to any other server that pulls the record afterward."""
+    repo = _LocalPersonnelRepository(_local_db())
+    saved = repo.insert_one({"name": "Dana", "person_record": 7})
+    assert saved.get("person_record_master") is None
+
+    central_doc = _central_db()["personnel"].find_one({"_id": saved["_id"]})
+    assert central_doc is not None
+    assigned = central_doc["person_record_master"]
+    assert isinstance(assigned, int)
+
+    # Pushing the exact same unchanged document again must not mint a
+    # second id — the field is already set, so apply_incoming treats it as
+    # skipped_same_or_older and the mint helper is never reached.
+    second_push = central_client.push_one(
+        config.central_master_url(), config.sync_token(), collection="personnel", doc=saved
+    )
+    assert second_push is True
+    assert _central_db()["personnel"].find_one({"_id": saved["_id"]})["person_record_master"] == assigned
+
+    other_server_db_name = "TEST_SYNC_OTHER_SERVER_MASTER_PERSONNEL"
+    get_client().drop_database(other_server_db_name)
+    other_server_db = get_client()[other_server_db_name]
+    try:
+        pull_and_apply("personnel", local_master_db=other_server_db)
+        pulled = other_server_db["personnel"].find_one({"_id": saved["_id"]})
+        assert pulled is not None
+        assert pulled["person_record_master"] == assigned
+        # The local-only person_record travels along untouched — it is
+        # meaningless on a different server, but nothing strips it.
+        assert pulled["person_record"] == 7
+    finally:
+        get_client().drop_database(other_server_db_name)
 
 
 def test_push_rejected_for_non_syncable_collection(sync_env):

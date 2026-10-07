@@ -1,0 +1,6 @@
+Name,Description,Organization Type ID,Organization Type Name,Template,System Template,Sort Order,Active
+EMS (Standard),Common EMS rank progression,,EMS,,Yes,0,Yes
+Fire Department (Standard),Common municipal fire service rank progression,,,,Yes,0,Yes
+Law Enforcement (Standard),Typical police/sheriff rank progression,,Law Enforcement,,Yes,0,Yes
+Search and Rescue (Standard),Typical SAR team role progression,,,,Yes,0,Yes
+Volunteer / NGO (Standard),Generic volunteer/NGO leadership progression,,,,Yes,0,Yes

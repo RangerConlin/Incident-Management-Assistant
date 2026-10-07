@@ -63,6 +63,17 @@ def validate_incident_id(incident_id: str) -> None:
         )
 
 
+def is_central_master_db(db: Database) -> bool:
+    """True when `db` is cloud_router's embedded central catalog
+    (sarapp_central_master), false for a local catalog's own sarapp_master.
+
+    See Design Documents/Instructions/mongodb_schema_decisions.md's
+    terminology section (local catalog vs. central catalog) and "Personnel:
+    central-vs-local record ids" for the dual-key pattern this underpins.
+    """
+    return db.name == DB_CENTRAL_MASTER
+
+
 def get_incident_db_name(incident_id: str) -> str:
     """Return the MongoDB database name for a given incident_id."""
     validate_incident_id(incident_id)

@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import hmac
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, Header, HTTPException, Query
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.int_id import next_record_id
 from sarapp_db.sync.config import SYNCABLE_MASTER_COLLECTIONS
 from sarapp_db.sync.relay import apply_incoming
 
@@ -23,6 +25,41 @@ router = APIRouter()
 
 _TOKEN_ENV_VAR = "SARAPP_CLOUD_ROUTER_TOKEN"
 _PULL_BATCH_LIMIT = 500
+
+# A record created offline by a LAN/cloud server has no *_record_master
+# field yet (see mongodb_schema_decisions.md "Personnel: central-vs-local
+# record ids") — only the central catalog ever mints one, sequentially, the
+# first time it sees such a record. Bumping updated_at here is what makes
+# the assigned value flow back out on that server's next pull. Every
+# "dual-key" master collection gets an entry here naming its own master
+# field; a collection with no entry is either not dual-keyed at all, or is
+# "lockdown" (central-authoritative, nothing ever created locally to mint
+# an id for in the first place).
+_DUAL_KEY_MASTER_FIELDS = {
+    "personnel": "person_record_master",
+    "equipment": "equipment_record_master",
+    "vehicles": "vehicle_record_master",
+    "aircraft": "aircraft_record_master",
+}
+
+
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _assign_master_record_if_missing(collection: str, doc_id: Any) -> None:
+    master_field = _DUAL_KEY_MASTER_FIELDS.get(collection)
+    if master_field is None:
+        return
+    col = get_master_db()[collection]
+    stored = col.find_one({"_id": doc_id})
+    if stored is None or stored.get(master_field) is not None:
+        return
+    next_id = next_record_id(col, master_field)
+    col.update_one(
+        {"_id": doc_id},
+        {"$set": {master_field: next_id, "updated_at": _utcnow()}},
+    )
 
 
 def _require_token(x_sarapp_sync_token: str | None) -> None:
@@ -74,6 +111,8 @@ def push(
         raise HTTPException(status_code=400, detail="doc with an _id is required")
 
     result = apply_incoming(get_master_db(), collection, doc)
+    if result in ("inserted", "applied"):
+        _assign_master_record_if_missing(collection, doc["_id"])
     return {"result": result}
 
 

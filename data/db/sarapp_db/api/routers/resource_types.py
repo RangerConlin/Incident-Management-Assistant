@@ -9,19 +9,29 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from sarapp_db.mongo.mongo_client import get_client
-from sarapp_db.mongo.database_manager import DB_MASTER
+from sarapp_db.mongo.database_manager import get_master_db, is_central_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 
 router = APIRouter()
 
+# Lockdown collection (see mongodb_schema_decisions.md and backlog.md's
+# dual-key/lockdown split): resource types/capabilities are an admin-
+# controlled taxonomy, not something a field user creates ad hoc. Writes
+# are central-catalog authoritative only.
+_LOCKDOWN_DETAIL = "Resource types/capabilities are central-catalog authoritative; edit them on the central catalog."
+
+
+def _require_central(db) -> None:
+    if not is_central_master_db(db):
+        raise HTTPException(status_code=403, detail=_LOCKDOWN_DETAIL)
+
 
 def _col():
-    return get_client()[DB_MASTER][MasterCollections.RESOURCE_TYPES]
+    return get_master_db()[MasterCollections.RESOURCE_TYPES]
 
 
 def _cap_col():
-    return get_client()[DB_MASTER][MasterCollections.RESOURCE_CAPABILITIES]
+    return get_master_db()[MasterCollections.RESOURCE_CAPABILITIES]
 
 
 def _utcnow() -> str:
@@ -190,6 +200,7 @@ class SaveResourceTypeRequest(BaseModel):
 @router.post("", status_code=201)
 def create_resource_type(body: SaveResourceTypeRequest) -> dict[str, Any]:
     col = _col()
+    _require_central(col.database)
     new_int_id = _next_int_id(col, "resource_type_id")
     now = _utcnow()
     doc: dict[str, Any] = {
@@ -221,6 +232,7 @@ def get_resource_type(resource_type_id: str) -> dict[str, Any]:
 @router.put("/{resource_type_id}")
 def save_resource_type(resource_type_id: str, body: SaveResourceTypeRequest) -> dict[str, Any]:
     col = _col()
+    _require_central(col.database)
     now = _utcnow()
     existing = col.find_one({"resource_type_id": resource_type_id})
     if existing is None:
@@ -247,6 +259,7 @@ class ReplaceComponentsRequest(BaseModel):
 @router.patch("/{resource_type_id}/components")
 def replace_components(resource_type_id: str, body: ReplaceComponentsRequest) -> dict[str, Any]:
     col = _col()
+    _require_central(col.database)
     result = col.update_one(
         {"resource_type_id": resource_type_id},
         {"$set": {"components": body.components, "updated_at": _utcnow()}},
@@ -263,6 +276,7 @@ def replace_components(resource_type_id: str, body: ReplaceComponentsRequest) ->
 @router.post("/{resource_type_id}/clone", status_code=201)
 def clone_resource_type(resource_type_id: str) -> dict[str, Any]:
     col = _col()
+    _require_central(col.database)
     original = col.find_one({"resource_type_id": resource_type_id})
     if original is None:
         raise HTTPException(status_code=404, detail="Resource type not found")
@@ -296,6 +310,7 @@ class SetActiveRequest(BaseModel):
 @router.patch("/{resource_type_id}/active")
 def set_resource_type_active(resource_type_id: str, body: SetActiveRequest) -> dict[str, Any]:
     col = _col()
+    _require_central(col.database)
     result = col.update_one(
         {"resource_type_id": resource_type_id},
         {"$set": {"is_active": body.active, "updated_at": _utcnow()}},
@@ -322,6 +337,7 @@ class SaveCapabilityRequest(BaseModel):
 @router.post("/capabilities/save", status_code=201)
 def save_capability(body: SaveCapabilityRequest) -> dict[str, Any]:
     col = _cap_col()
+    _require_central(col.database)
     now = _utcnow()
     if body.capability_id:
         existing = col.find_one({"capability_id": body.capability_id})
@@ -354,6 +370,7 @@ def save_capability(body: SaveCapabilityRequest) -> dict[str, Any]:
 @router.patch("/capabilities/{capability_id}/active")
 def set_capability_active(capability_id: str, body: SetActiveRequest) -> dict[str, Any]:
     col = _cap_col()
+    _require_central(col.database)
     result = col.update_one(
         {"capability_id": capability_id},
         {"$set": {"is_active": body.active, "updated_at": _utcnow()}},

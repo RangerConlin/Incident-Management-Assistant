@@ -1,0 +1,2 @@
+hospital_id,name,hospital_type,phone,fax,email,contact,address,city,state,zip,notes,is_active
+1,Henry Ford - Jackson,,517-205-4811,,,,205 N East Ave,Jackson,MI,49201,,True

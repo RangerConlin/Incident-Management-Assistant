@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from sarapp_db.mongo.mongo_client import get_client
+from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
 
@@ -21,7 +21,7 @@ router = APIRouter()
 
 
 def _col():
-    return get_client()["sarapp_master"][MasterCollections.STRATEGY_TEMPLATES]
+    return get_master_db()[MasterCollections.STRATEGY_TEMPLATES]
 
 
 def _now() -> str:

@@ -15,11 +15,23 @@ from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
-from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
+from sarapp_db.mongo.database_manager import get_incident_db, get_master_db, is_central_master_db
 from sarapp_db.mongo.repository import BaseRepository
 
 master_router = APIRouter()
 incident_router = APIRouter()
+
+# Lockdown collections (see mongodb_schema_decisions.md and backlog.md's
+# dual-key/lockdown split): the form catalog (families/templates/versions)
+# is admin-controlled, not something a field user creates ad hoc. Writes
+# are central-catalog authoritative only — incident form *instances*
+# (incident_router, below) are unaffected, those are ordinary incident data.
+_LOCKDOWN_DETAIL = "The form catalog is central-catalog authoritative; edit it on the central catalog."
+
+
+def _require_central(repo: BaseRepository) -> None:
+    if not is_central_master_db(repo._db):
+        raise HTTPException(status_code=403, detail=_LOCKDOWN_DETAIL)
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +273,7 @@ def list_families(code: Optional[str] = None, category: Optional[str] = None, ac
 @master_router.post("/families", status_code=201)
 def create_family(body: Dict[str, Any] = Body(...)):
     repo = _families_repo()
+    _require_central(repo)
     _ensure_int_ids(repo)
     int_id = _next_int_id(repo)
     doc = {
@@ -342,6 +355,7 @@ def list_templates(
 @master_router.post("/templates", status_code=201)
 def create_template(body: Dict[str, Any] = Body(...)):
     tmpl_repo = _templates_repo()
+    _require_central(tmpl_repo)
     _ensure_int_ids(tmpl_repo)
     int_id = _next_int_id(tmpl_repo)
     doc = {
@@ -384,6 +398,7 @@ def get_template(template_id: int):
 @master_router.patch("/templates/{template_id}/retire")
 def retire_template(template_id: int, user_id: Optional[str] = None):
     tmpl_repo = _templates_repo()
+    _require_central(tmpl_repo)
     doc = tmpl_repo.find_one({"int_id": template_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -432,6 +447,7 @@ def get_template_version(template_id: int, version_id: int):
 def create_template_version(template_id: int, body: Dict[str, Any] = Body(...)):
     tmpl_repo = _templates_repo()
     ver_repo = _versions_repo()
+    _require_central(ver_repo)
     _ensure_int_ids(ver_repo)
     now = _utcnow()
     int_id = _next_int_id(ver_repo)

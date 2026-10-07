@@ -9,12 +9,13 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
-from sarapp_db.mongo.int_id import _ensure_record_ids, next_record_id
+from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
 _RECORD_FIELD = "person_record"
+_MASTER_RECORD_FIELD = "person_record_master"
 _DUPLICATE_FIELDS = (
     "person_id",
     "name",
@@ -47,10 +48,15 @@ def _personnel_repo() -> PersonnelRepository:
     return PersonnelRepository(get_master_db())
 
 
+def _record_field(repo: PersonnelRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+
+
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
     d["person_record"] = d.get("person_record")
+    d["person_record_master"] = d.get("person_record_master")
     d["person_id"] = d.get("person_id") or ""
     d["primary_role"] = d.get("primary_role") or d.get("role") or ""
     d["phone"] = d.get("phone")
@@ -61,7 +67,7 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
 
 
 def _find_person(repo: PersonnelRepository, record_id: int) -> dict[str, Any] | None:
-    return repo.find_one({_RECORD_FIELD: record_id})
+    return repo.find_one({_record_field(repo): record_id})
 
 
 def _matches_personnel_search(doc: dict[str, Any], term: str) -> bool:
@@ -94,8 +100,9 @@ def _find_person_id_duplicate(
     visible_id = _clean_scalar(person_id)
     if not visible_id:
         return None
-    for doc in repo.find_many({}, sort=[("person_record", 1)]):
-        if exclude_record is not None and doc.get("person_record") == exclude_record:
+    field = _record_field(repo)
+    for doc in repo.find_many({}, sort=[(field, 1)]):
+        if exclude_record is not None and doc.get(field) == exclude_record:
             continue
         if _clean_scalar(doc.get("person_id")) == visible_id:
             return doc
@@ -128,8 +135,9 @@ def _find_exact_duplicate(
     exclude_record: int | None = None,
 ) -> dict[str, Any] | None:
     target = _duplicate_fingerprint(body)
-    for doc in repo.find_many({}, sort=[("person_record", 1)]):
-        if exclude_record is not None and doc.get("person_record") == exclude_record:
+    field = _record_field(repo)
+    for doc in repo.find_many({}, sort=[(field, 1)]):
+        if exclude_record is not None and doc.get(field) == exclude_record:
             continue
         if _duplicate_fingerprint(doc) == target:
             return doc
@@ -143,7 +151,7 @@ def search_personnel(
 ) -> list[dict[str, Any]]:
     term = (q or "").strip()
     repo = _personnel_repo()
-    _ensure_record_ids(repo._col, _RECORD_FIELD)
+    _ensure_record_ids(repo._col, _record_field(repo))
     docs = repo.find_many({}, sort=[("name", 1)])
     if not term:
         return [_normalize(d) for d in docs[:limit]]
@@ -162,7 +170,7 @@ def list_personnel(
     limit: int = Query(200),
 ) -> list[dict[str, Any]]:
     repo = _personnel_repo()
-    _ensure_record_ids(repo._col, _RECORD_FIELD)
+    _ensure_record_ids(repo._col, _record_field(repo))
     docs = repo.find_many({}, sort=[("name", 1)])
     if search.strip():
         filtered = []
@@ -180,16 +188,18 @@ def list_personnel(
 @router.post("", status_code=201)
 def create_person(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _personnel_repo()
+    field = _record_field(repo)
     body = dict(body)
     body.pop("_id", None)
     body.pop(_RECORD_FIELD, None)
+    body.pop(_MASTER_RECORD_FIELD, None)
     person_id_duplicate = _find_person_id_duplicate(repo, body.get("person_id"))
     if person_id_duplicate:
         raise HTTPException(
             status_code=409,
             detail=(
                 "A personnel record with this person_id already exists "
-                f"(person_record {person_id_duplicate.get('person_record')})."
+                f"({field} {person_id_duplicate.get(field)})."
             ),
         )
 
@@ -199,14 +209,20 @@ def create_person(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
             status_code=409,
             detail=(
                 "An identical personnel record already exists "
-                f"(person_record {duplicate.get('person_record')})."
+                f"({field} {duplicate.get(field)})."
             ),
         )
 
-    next_id = next_record_id(repo._col, _RECORD_FIELD)
+    # On a server with its own local roster (full mode), this mints the
+    # server-local person_record. On the central catalog (master_only mode,
+    # see _is_central), there is no local roster to mint for — this mints
+    # person_record_master instead, immediately, since a record created
+    # directly on central never goes through the offline-sync path that
+    # leaves person_record_master null. See personnel_schema.py.
+    next_id = next_record_id(repo._col, field)
     now = _utcnow()
     doc: dict[str, Any] = {
-        _RECORD_FIELD: next_id,
+        field: next_id,
         **body,
         "created_at": now,
         "updated_at": now,
@@ -237,15 +253,17 @@ def update_person(
     body = dict(body)
     body.pop("_id", None)
     body.pop(_RECORD_FIELD, None)
+    body.pop(_MASTER_RECORD_FIELD, None)
     body.pop("incident_history", None)
 
+    field = _record_field(repo)
     duplicate = _find_exact_duplicate(repo, body, exclude_record=person_record)
     if duplicate:
         raise HTTPException(
             status_code=409,
             detail=(
                 "Updating this person would duplicate existing personnel record "
-                f"{duplicate.get('person_record')}."
+                f"{duplicate.get(field)}."
             ),
         )
 
