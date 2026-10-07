@@ -98,6 +98,8 @@ def _clear_seed_catalog_rows():
         "EMS (Standard)",
         "Search and Rescue (Standard)",
         "Volunteer / NGO (Standard)",
+        "CAP Cadet (Standard)",
+        "CAP Senior Member (Standard)",
     ]
     rank_names = [
         "Firefighter", "Engineer / Driver", "Lieutenant", "Captain",
@@ -108,6 +110,13 @@ def _clear_seed_catalog_rows():
         "Chief", "Member", "Senior Member", "Team Leader", "Operations Leader",
         "Planning Lead", "Logistics Lead", "Section Chief", "Incident Commander",
         "Volunteer", "Lead Volunteer", "Coordinator", "Manager", "Director",
+        "Cadet Airman Basic", "Cadet Airman", "Cadet Airman First Class",
+        "Cadet Senior Airman", "Cadet Staff Sergeant", "Cadet Technical Sergeant",
+        "Cadet Master Sergeant", "Cadet Senior Master Sergeant",
+        "Cadet Chief Master Sergeant", "Cadet Second Lieutenant",
+        "Cadet First Lieutenant", "Cadet Captain", "Cadet Major",
+        "Cadet Lieutenant Colonel", "Cadet Colonel", "Second Lieutenant",
+        "First Lieutenant", "Major", "Lieutenant Colonel", "Colonel",
     ]
     db = get_client()["sarapp_central_master"]
     db[MasterCollections.ORGANIZATION_TYPES].delete_many({"name": {"$in": org_type_names}})
@@ -240,9 +249,8 @@ def test_personnel_organization_and_rank_are_catalog_dropdowns(monkeypatch) -> N
         assert new_page.status_code == 200
         assert 'name="home_unit"' in new_page.text
         assert "GUI Test Personnel Org" in new_page.text
-        assert 'data-org-select="1"' in new_page.text
-        assert 'data-rank-select="1"' in new_page.text
-        assert 'name="rank" disabled' in new_page.text
+        assert 'data-combo-depends="home_unit"' in new_page.text
+        assert 'data-combo-depmap-for="home_unit"' in new_page.text
         assert "TL - GUI Test Team Leader" in new_page.text
     finally:
         _clear_personnel()
@@ -325,7 +333,7 @@ def test_personnel_export_xlsx_round_trips_through_import(monkeypatch) -> None:
     try:
         client.post(
             "/central-master/gui/personnel/new",
-            data={"name": "GUI Test Roundtrip Person", "primary_role": "Medic", "callsign": "Echo-2"},
+            data={"name": "GUI Test Roundtrip Person", "callsign": "Echo-2"},
         )
 
         exported = client.get("/central-master/gui/personnel/export?format=xlsx")
@@ -351,7 +359,6 @@ def test_personnel_export_xlsx_round_trips_through_import(monkeypatch) -> None:
         reimported = list_personnel(search="GUI Test Roundtrip Person", limit=200)
         assert len(reimported) == 1
         assert reimported[0]["callsign"] == "Echo-2"
-        assert reimported[0]["primary_role"] == "Medic"
     finally:
         _clear_personnel()
 
@@ -445,7 +452,7 @@ def test_equipment_form_matches_desktop_catalog_fields(monkeypatch) -> None:
         _clear_equipment()
 
 
-def test_collection_table_has_search_sort_and_row_resize_controls(monkeypatch) -> None:
+def test_collection_table_has_search_sort_and_row_edit_link(monkeypatch) -> None:
     client = _client(monkeypatch)
     _login(client)
     _clear_equipment()
@@ -460,7 +467,7 @@ def test_collection_table_has_search_sort_and_row_resize_controls(monkeypatch) -
         assert response.status_code == 200
         assert 'data-grid-search="grid-equipment"' in response.text
         assert 'class="sortable"' in response.text
-        assert "row-resizer" in response.text
+        assert 'data-row-href=' in response.text
         assert "Delete All" in response.text
         assert "confirm-dialog" in response.text
         assert "data-confirm-title=" in response.text
@@ -785,6 +792,15 @@ def test_master_catalog_seed_csvs_are_uploadable(monkeypatch) -> None:
         ranks = list_ranks(structure_id=fire_structure["int_id"], search="Firefighter")
         assert len(ranks) == 1
         assert ranks[0]["rank_code"] == "FF"
+
+        cap_cadet_structure = next(row for row in list_rank_structures(search="CAP Cadet"))
+        cadet_ranks = list_ranks(structure_id=cap_cadet_structure["int_id"], search="Cadet Airman Basic")
+        assert len(cadet_ranks) == 1
+        assert cadet_ranks[0]["rank_code"] == "C/AB"
+
+        cap_senior_structure = next(row for row in list_rank_structures(search="CAP Senior Member"))
+        senior_ranks = list_ranks(structure_id=cap_senior_structure["int_id"], search="Colonel")
+        assert any(r["rank_code"] == "COL" for r in senior_ranks)
     finally:
         _clear_seed_catalog_rows()
 

@@ -556,8 +556,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_person_id.setPlaceholderText("Personnel ID / Badge #")
         self.txt_name = QtWidgets.QLineEdit()
         self.txt_callsign = QtWidgets.QLineEdit()
-        self.txt_role = QtWidgets.QLineEdit()
-        self.txt_role.setPlaceholderText("e.g. Search Team Leader")
         self.txt_rank = QtWidgets.QComboBox()
         self.txt_rank.setEditable(True)
         self.txt_rank.setInsertPolicy(QtWidgets.QComboBox.InsertPolicy.NoInsert)
@@ -579,12 +577,10 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         grid.addWidget(QtWidgets.QLabel("Callsign:"), 0, 4)
         grid.addWidget(self.txt_callsign, 0, 5)
 
-        grid.addWidget(QtWidgets.QLabel("Role/Title:"), 1, 0)
-        grid.addWidget(self.txt_role, 1, 1)
-        grid.addWidget(QtWidgets.QLabel("Rank:"), 1, 2)
-        grid.addWidget(self.txt_rank, 1, 3)
-        grid.addWidget(QtWidgets.QLabel("Organization:"), 1, 4)
-        grid.addWidget(self.txt_org, 1, 5)
+        grid.addWidget(QtWidgets.QLabel("Rank:"), 1, 0)
+        grid.addWidget(self.txt_rank, 1, 1)
+        grid.addWidget(QtWidgets.QLabel("Organization:"), 1, 2)
+        grid.addWidget(self.txt_org, 1, 3)
 
         grid.addWidget(QtWidgets.QLabel("Email:"), 2, 0)
         grid.addWidget(self.txt_email, 2, 1)
@@ -713,7 +709,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.txt_person_id.setText(doc.get("person_id") or "")
         self.txt_name.setText(doc.get("name") or "")
         self.txt_callsign.setText(doc.get("callsign") or "")
-        self.txt_role.setText(doc.get("primary_role") or doc.get("role") or "")
         self.txt_org.setCurrentText(doc.get("home_unit") or doc.get("organization") or "")
         self._set_rank_options(self.txt_org.currentText(), doc.get("rank") or "")
         self.txt_email.setText(doc.get("email") or "")
@@ -788,7 +783,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         doc = {
             "name": name,
             "callsign": self.txt_callsign.text().strip(),
-            "primary_role": self.txt_role.text().strip(),
             "rank": self.txt_rank.currentText().strip(),
             "home_unit": self.txt_org.currentText().strip(),
             "email": self.txt_email.text().strip(),

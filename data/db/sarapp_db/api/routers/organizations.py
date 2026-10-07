@@ -340,8 +340,8 @@ def duplicate_rank_structure(structure_id: int, body: dict[str, Any] = Body(defa
 _ORGANIZATION_FIELDS = (
     "name", "short_name", "parent_organization_id", "organization_type_id",
     "default_rank_structure_id", "is_active", "notes", "external_id",
-    "callsign_prefix", "sort_order", "call_sign", "org_type_id",
-    "parent_id", "rank_structure_id",
+    "callsign_prefix", "address", "latitude", "longitude", "sort_order",
+    "call_sign", "org_type_id", "parent_id", "rank_structure_id",
 )
 
 

@@ -46,7 +46,7 @@ class FieldSpec:
     name: str
     label: str
     input_type: str = "text"  # "text" | "checkbox" | "textarea"
-    value_type: str = "str"  # "str" | "int" | "bool"
+    value_type: str = "str"  # "str" | "int" | "float" | "bool"
 
 
 @dataclass(frozen=True)
@@ -80,6 +80,13 @@ class CollectionSpec:
     # Keyed by FieldSpec.name; falls back to the raw field value when a
     # field has no entry here.
     list_cell_fn: Optional[Callable[[dict[str, Any], str], Any]] = None
+    # Subset of `fields` (by name) shown as columns in the list-table view.
+    # None means show every field in `fields`. Keeps wide records (e.g.
+    # personnel's emergency-contact/certification fields) off the grid
+    # while still editable on the record's own page. "sort_order" is
+    # always dropped from the grid separately (see list_collection), so it
+    # does not need to be excluded here too.
+    list_fields: Optional[list[str]] = None
 
 
 def _field_keys(spec: CollectionSpec) -> list[str]:
@@ -311,6 +318,9 @@ def _organization_fields() -> list[FieldSpec]:
         FieldSpec("default_rank_structure_id", "Default Rank Structure ID", input_type="select_fk", value_type="int"),
         FieldSpec("callsign_prefix", "Callsign Prefix"),
         FieldSpec("external_id", "External ID"),
+        FieldSpec("address", "Address", input_type="textarea"),
+        FieldSpec("latitude", "Latitude", value_type="float"),
+        FieldSpec("longitude", "Longitude", value_type="float"),
         FieldSpec("notes", "Notes", input_type="textarea"),
         FieldSpec("sort_order", "Sort Order", value_type="int"),
         FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
@@ -340,12 +350,13 @@ def _personnel_org_rank_options() -> dict[str, Any]:
         if row.get("int_id") is not None
     }
     rank_by_org: dict[str, list[str]] = {}
-    org_names: list[str] = []
+    org_options: list[tuple[str, str]] = []
     for org in orgs:
         name = str(org.get("name") or "").strip()
         if not name or not int(org.get("is_active", 1)):
             continue
-        org_names.append(name)
+        short_name = str(org.get("short_name") or "").strip()
+        org_options.append((name, f"{short_name} - {name}" if short_name else name))
         structure_id = org.get("effective_rank_structure_id")
         try:
             ranks = rank_structures.get(int(structure_id), []) if structure_id is not None else []
@@ -358,7 +369,7 @@ def _personnel_org_rank_options() -> dict[str, Any]:
                 rank_options.append(display)
         rank_by_org[name] = rank_options
     return {
-        "organizations": sorted(org_names, key=str.lower),
+        "organization_options": sorted(org_options, key=lambda pair: pair[1].lower()),
         "rank_by_org": rank_by_org,
     }
 
@@ -435,6 +446,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             import_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
             form_row_fn=lambda doc: personnel_export_row(doc, personnel_catalog_by_id),
             form_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
+            list_fields=["name", "callsign", "rank", "home_unit", "status", "phone", "is_medic"],
         ),
         CollectionSpec(
             key="equipment",
@@ -516,7 +528,8 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
                 "name", "short_name", "parent_organization_id", "parent_organization_name",
                 "organization_type_id", "organization_type_name",
                 "default_rank_structure_id", "default_rank_structure_name",
-                "callsign_prefix", "external_id", "notes", "sort_order", "is_active",
+                "callsign_prefix", "external_id", "address", "latitude", "longitude",
+                "notes", "sort_order", "is_active",
             ],
             export_field_labels={
                 "parent_organization_name": "Parent Organization Name",
@@ -525,6 +538,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             },
             import_payload_fn=_organization_import_payload,
             list_cell_fn=_organization_list_cell,
+            list_fields=["name", "short_name", "parent_organization_id", "organization_type_id", "is_active"],
         ),
         CollectionSpec(
             key="ranks",
@@ -664,25 +678,31 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     table {{ width:100%; border-collapse:separate; border-spacing:0; min-width:900px; }}
     .nested-edit-table {{ min-width:760px; }}
     .nested-edit-table input[type=text] {{ min-width:120px; }}
-    th, td {{ padding:10px 12px; border-bottom:1px solid var(--line-soft); text-align:left; vertical-align:top; }}
-    th {{ color:var(--muted); font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; position:sticky; top:0; background:var(--panel-2); z-index:1; user-select:none; }}
+    th, td {{ padding:0 12px; border-bottom:1px solid var(--line-soft); text-align:left; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:320px; height:42px; }}
+    th {{ color:var(--muted); font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; position:sticky; top:0; background:var(--panel-2); z-index:1; user-select:none; height:38px; }}
+    tbody tr {{ height:42px; cursor:pointer; }}
     tbody tr:hover {{ background:rgba(103,183,255,.06); }}
     th.sortable {{ cursor:pointer; }}
     th.sortable::after {{ content:""; display:inline-block; margin-left:6px; color:var(--accent); }}
     th.sortable[data-dir="asc"]::after {{ content:"^"; }}
     th.sortable[data-dir="desc"]::after {{ content:"v"; }}
     tr.hidden {{ display:none; }}
-    .record-cell {{ white-space:nowrap; }}
-    .row-resizer {{ display:inline-block; width:12px; height:18px; margin-left:8px; cursor:ns-resize; vertical-align:middle; border-top:2px solid #4b5d70; border-bottom:2px solid #4b5d70; opacity:.8; }}
-    .empty-row td {{ color:var(--muted); text-align:center; padding:22px; }}
+    .record-cell {{ white-space:nowrap; cursor:default; }}
+    .row-edit-link {{ min-height:28px; padding:4px 10px; }}
+    .empty-row td {{ color:var(--muted); text-align:center; padding:22px; white-space:normal; }}
     .form-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px 16px; }}
     .field {{ min-width:0; }}
     input[type=text], input[type=password], input[type=file], textarea, select {{ font:inherit; padding:9px 10px; border-radius:6px; border:1px solid #405160; background:var(--field); color:var(--text); width:100%; }}
     input:focus, textarea:focus, select:focus {{ outline:2px solid rgba(103,183,255,.35); border-color:var(--accent); }}
     select:disabled {{ color:#74808d; background:#141a20; cursor:not-allowed; }}
-    .fk-select-filter {{ margin-bottom:4px; }}
     .back-link {{ margin:0 0 14px; }}
     .back-link a {{ color:var(--muted); font-size:.9rem; }}
+    .brand-link {{ color:inherit; text-decoration:none; }}
+    .brand-link:hover {{ text-decoration:none; opacity:.85; }}
+    .fk-combo {{ position:relative; }}
+    .fk-combo-list {{ position:absolute; z-index:5; top:calc(100% + 2px); left:0; right:0; max-height:280px; overflow:auto; background:var(--panel-2); border:1px solid var(--line); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.35); }}
+    .fk-combo-option {{ padding:8px 10px; cursor:pointer; font-size:.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+    .fk-combo-option:hover, .fk-combo-option.active {{ background:rgba(103,183,255,.12); }}
     label {{ display:block; margin:0 0 5px; color:var(--muted); font-size:.88rem; }}
     .compact-check {{ display:inline-flex; align-items:center; gap:6px; margin:0; color:var(--text); white-space:nowrap; }}
     .form-actions {{ margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
@@ -707,7 +727,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
 <body>
   <header>
     <div class="topbar">
-    <div class="brand"><strong>SARApp Central Master Database</strong><span>Agency-wide catalog console</span></div>
+    <div class="brand"><a class="brand-link" href="{root_path}/gui"><strong>SARApp Central Master Database</strong></a><span>Agency-wide catalog console</span></div>
     <nav><a href="{root_path}/gui">Collections</a><a href="{root_path}/gui/logout">Logout</a></nav>
     </div>
   </header>
@@ -809,77 +829,98 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     }});
   }});
 
-  document.querySelectorAll(".row-resizer").forEach((handle) => {{
-    handle.addEventListener("mousedown", (event) => {{
-      event.preventDefault();
-      const row = handle.closest("tr");
-      const startY = event.clientY;
-      const startHeight = row.getBoundingClientRect().height;
-      function move(moveEvent) {{
-        row.style.height = Math.max(32, startHeight + moveEvent.clientY - startY) + "px";
-      }}
-      function up() {{
-        document.removeEventListener("mousemove", move);
-        document.removeEventListener("mouseup", up);
-      }}
-      document.addEventListener("mousemove", move);
-      document.addEventListener("mouseup", up);
+  document.querySelectorAll("tbody tr[data-row-href]").forEach((row) => {{
+    row.addEventListener("dblclick", (event) => {{
+      if (event.target.closest("a, button, input, textarea, select")) return;
+      window.location.href = row.dataset.rowHref;
     }});
   }});
 
-  document.querySelectorAll("[data-org-select]").forEach((orgSelect) => {{
-    const form = orgSelect.closest("form");
-    const rankSelect = form ? form.querySelector("[data-rank-select]") : null;
-    if (!rankSelect) return;
-    let rankMap = {{}};
+  // Searchable combobox for foreign-key pickers (organization/type/rank-
+  // structure/home-unit selects) — a plain <select> with 150-200 options is
+  // unusable, so this renders a text input + filtered dropdown list backed
+  // by a JSON options array, with the real value kept in a hidden input.
+  const fkCombos = new Map();
+
+  function initFkCombo(combo) {{
+    const hidden = combo.querySelector(".fk-combo-value");
+    const input = combo.querySelector(".fk-combo-input");
+    const list = combo.querySelector(".fk-combo-list");
+    const dataEl = combo.querySelector(".fk-combo-options");
+    let options = [];
     try {{
-      rankMap = JSON.parse(orgSelect.dataset.rankMap || "{{}}");
+      options = JSON.parse((dataEl && dataEl.textContent) || "[]");
     }} catch (err) {{
-      rankMap = {{}};
+      options = [];
     }}
-    function refreshRanks() {{
-      const current = rankSelect.value || rankSelect.dataset.current || "";
-      const ranks = rankMap[orgSelect.value] || [];
-      rankSelect.innerHTML = '<option value=""></option>';
-      for (const rank of ranks) {{
-        const option = document.createElement("option");
-        option.value = rank;
-        option.textContent = rank;
-        if (rank === current) option.selected = true;
-        rankSelect.appendChild(option);
-      }}
-      rankSelect.disabled = !orgSelect.value;
-      if (!ranks.includes(current)) rankSelect.value = "";
-      rankSelect.dataset.current = rankSelect.value;
-    }}
-    orgSelect.addEventListener("change", () => {{
-      rankSelect.dataset.current = "";
-      refreshRanks();
-    }});
-    refreshRanks();
-  }});
 
-  document.querySelectorAll("select[data-search-select]").forEach((select) => {{
-    if (select.options.length < 8) return;
-    const filter = document.createElement("input");
-    filter.type = "text";
-    filter.placeholder = "Type to search…";
-    filter.className = "fk-select-filter";
-    select.insertAdjacentElement("beforebegin", filter);
-    const allOptions = Array.from(select.options).map((opt) => ({{ value: opt.value, text: opt.textContent }}));
-    filter.addEventListener("input", () => {{
-      const needle = filter.value.trim().toLowerCase();
-      const current = select.value;
-      select.innerHTML = "";
-      for (const opt of allOptions) {{
-        if (needle && !opt.text.toLowerCase().includes(needle) && opt.value !== "") continue;
-        const option = document.createElement("option");
-        option.value = opt.value;
-        option.textContent = opt.text;
-        if (opt.value === current) option.selected = true;
-        select.appendChild(option);
-      }}
+    function render(filterText) {{
+      const needle = filterText.trim().toLowerCase();
+      const matches = (needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options).slice(0, 50);
+      list.innerHTML = "";
+      matches.forEach((opt) => {{
+        const row = document.createElement("div");
+        row.className = "fk-combo-option";
+        row.textContent = opt.label;
+        row.addEventListener("mousedown", (event) => {{
+          event.preventDefault();
+          hidden.value = opt.id;
+          input.value = opt.label;
+          list.hidden = true;
+          hidden.dispatchEvent(new Event("fkcombo:change", {{ bubbles: true }}));
+        }});
+        list.appendChild(row);
+      }});
+      list.hidden = matches.length === 0;
+    }}
+
+    input.addEventListener("focus", () => {{ if (!input.disabled) render(""); }});
+    input.addEventListener("input", () => {{
+      hidden.value = "";
+      render(input.value);
     }});
+    input.addEventListener("blur", () => {{
+      window.setTimeout(() => {{ list.hidden = true; }}, 150);
+    }});
+
+    const entry = {{
+      hidden: hidden,
+      input: input,
+      setOptions(nextOptions) {{
+        options = nextOptions;
+      }},
+    }};
+    fkCombos.set(hidden.name, entry);
+    return entry;
+  }}
+
+  document.querySelectorAll("[data-fk-combo]").forEach(initFkCombo);
+
+  document.querySelectorAll("[data-combo-depends]").forEach((combo) => {{
+    const dependsName = combo.dataset.comboDepends;
+    const controller = fkCombos.get(dependsName);
+    const hidden = combo.querySelector(".fk-combo-value");
+    const dependent = fkCombos.get(hidden.name);
+    const mapScript = document.querySelector(`[data-combo-depmap-for="${{dependsName}}"]`);
+    if (!controller || !dependent || !mapScript) return;
+    let depMap = {{}};
+    try {{
+      depMap = JSON.parse(mapScript.textContent || "{{}}");
+    }} catch (err) {{
+      depMap = {{}};
+    }}
+
+    function refresh() {{
+      const options = (depMap[controller.hidden.value] || []).map((value) => ({{ id: value, label: value }}));
+      dependent.setOptions(options);
+      dependent.input.disabled = options.length === 0;
+      if (!options.some((opt) => opt.id === dependent.hidden.value)) {{
+        dependent.hidden.value = "";
+        dependent.input.value = "";
+      }}
+    }}
+    controller.hidden.addEventListener("fkcombo:change", refresh);
+    refresh();
   }});
 }})();
 </script>
@@ -892,44 +933,53 @@ def _back_link(href: str, label: str) -> str:
     return f'<p class="back-link"><a href="{href}">&larr; {escape(label)}</a></p>'
 
 
+def _combo_html(
+    name: str,
+    value: Any,
+    options: list[tuple[str, str]],
+    *,
+    placeholder: str = "Type to search…",
+    disabled: bool = False,
+    depends_on: str | None = None,
+) -> str:
+    current = str(value) if value not in (None, "") else ""
+    current_label = next((label for opt_id, label in options if opt_id == current), current)
+    options_json = json.dumps(
+        [{"id": opt_id, "label": label} for opt_id, label in options], separators=(",", ":")
+    ).replace("</", "<\\/")
+    depends_attr = f' data-combo-depends="{escape(depends_on)}"' if depends_on else ""
+    disabled_attr = " disabled" if disabled else ""
+    return (
+        f'<div class="fk-combo" data-fk-combo="1"{depends_attr}>'
+        f'<input type="hidden" name="{escape(name)}" value="{escape(current)}" class="fk-combo-value">'
+        f'<input type="text" class="fk-combo-input" value="{escape(current_label)}" '
+        f'placeholder="{escape(placeholder)}" autocomplete="off"{disabled_attr}>'
+        f'<div class="fk-combo-list" hidden></div>'
+        f'<script type="application/json" class="fk-combo-options">{options_json}</script>'
+        f"</div>"
+    )
+
+
 def _field_input_html(
     field: FieldSpec,
     value: Any,
     *,
-    select_options: dict[str, list[str]] | None = None,
-    select_data: dict[str, str] | None = None,
-    select_fk_options: dict[str, list[tuple[int, str]]] | None = None,
+    combo_options: dict[str, list[tuple[str, str]]] | None = None,
+    combo_depends: dict[str, str] | None = None,
 ) -> str:
     safe_value = escape(str(value)) if value is not None else ""
     if field.input_type == "checkbox":
         checked = "checked" if str(value).strip().lower() in {"1", "true", "yes", "y", "on"} else ""
         return f'<input type="checkbox" name="{escape(field.name)}" {checked}>'
-    if field.input_type == "select_fk":
-        options = list((select_fk_options or {}).get(field.name, []))
+    if field.input_type in ("select_fk", "select"):
+        options = list((combo_options or {}).get(field.name, []))
         current = str(value) if value not in (None, "") else ""
-        option_html = ['<option value=""></option>']
-        option_html.extend(
-            f'<option value="{escape(str(opt_id))}"{" selected" if str(opt_id) == current else ""}>{escape(str(opt_label))}</option>'
-            for opt_id, opt_label in options
+        if field.input_type == "select" and current and current not in {opt_id for opt_id, _ in options}:
+            options = [(current, current)] + options
+        disabled = field.input_type == "select" and field.name == "rank" and not options and not current
+        return _combo_html(
+            field.name, value, options, disabled=disabled, depends_on=(combo_depends or {}).get(field.name)
         )
-        return (
-            f'<select name="{escape(field.name)}" class="fk-select" data-search-select="1">'
-            f'{"".join(option_html)}</select>'
-        )
-    if field.input_type == "select":
-        options = list((select_options or {}).get(field.name, []))
-        if safe_value and str(value) not in options:
-            options.insert(0, str(value))
-        disabled = " disabled" if field.name == "rank" and not options and not str(value or "").strip() else ""
-        data_attrs = "".join(
-            f' data-{escape(key)}="{escape(val)}"' for key, val in (select_data or {}).items()
-        )
-        option_html = ['<option value=""></option>']
-        option_html.extend(
-            f'<option value="{escape(option)}"{" selected" if option == str(value or "") else ""}>{escape(option)}</option>'
-            for option in options
-        )
-        return f'<select name="{escape(field.name)}"{disabled}{data_attrs}>{"".join(option_html)}</select>'
     if field.input_type == "textarea":
         return f'<textarea name="{escape(field.name)}" rows="3">{safe_value}</textarea>'
     return f'<input type="text" name="{escape(field.name)}" value="{safe_value}">'
@@ -943,47 +993,50 @@ def _cell_html(value: Any) -> str:
 
 
 def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit_label: str) -> str:
-    select_options: dict[str, list[str]] = {}
-    select_data_by_field: dict[str, dict[str, str]] = {}
-    select_fk_options: dict[str, list[tuple[int, str]]] = {}
+    combo_options: dict[str, list[tuple[str, str]]] = {}
+    combo_depends: dict[str, str] = {}
+    depmap_scripts = ""
     if spec.key == "personnel":
         org_rank_options = _personnel_org_rank_options()
         organization = str(doc.get("home_unit") or "").strip()
-        select_options["home_unit"] = org_rank_options["organizations"]
-        select_options["rank"] = org_rank_options["rank_by_org"].get(organization, [])
-        rank_by_org_json = json.dumps(org_rank_options["rank_by_org"], separators=(",", ":"))
-        select_data_by_field["home_unit"] = {"org-select": "1", "rank-map": rank_by_org_json}
-        select_data_by_field["rank"] = {"rank-select": "1", "current": str(doc.get("rank") or "")}
+        combo_options["home_unit"] = org_rank_options["organization_options"]
+        combo_options["rank"] = [(r, r) for r in org_rank_options["rank_by_org"].get(organization, [])]
+        combo_depends["rank"] = "home_unit"
+        depmap_json = json.dumps(org_rank_options["rank_by_org"], separators=(",", ":")).replace("</", "<\\/")
+        depmap_scripts += f'<script type="application/json" data-combo-depmap-for="home_unit">{depmap_json}</script>'
     if spec.key == "organizations":
         from sarapp_db.api.routers import organizations as organizations_router
 
         self_id = doc.get("int_id")
         orgs = [
-            (o.get("int_id"), o.get("name"))
+            (
+                str(o.get("int_id")),
+                f"{o.get('short_name')} - {o.get('name')}" if o.get("short_name") else str(o.get("name")),
+            )
             for o in organizations_router.list_organizations(search="")
             if o.get("name") and o.get("int_id") != self_id
         ]
         org_types = [
-            (t.get("int_id"), t.get("name"))
+            (str(t.get("int_id")), str(t.get("name")))
             for t in organizations_router.list_org_types(search="")
             if t.get("name")
         ]
         rank_structures = [
-            (r.get("int_id"), r.get("name"))
+            (str(r.get("int_id")), str(r.get("name")))
             for r in organizations_router.list_rank_structures(search="")
             if r.get("name")
         ]
-        select_fk_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
-        select_fk_options["organization_type_id"] = sorted(org_types, key=lambda t: t[1].lower())
-        select_fk_options["default_rank_structure_id"] = sorted(rank_structures, key=lambda t: t[1].lower())
+        combo_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
+        combo_options["organization_type_id"] = sorted(org_types, key=lambda t: t[1].lower())
+        combo_options["default_rank_structure_id"] = sorted(rank_structures, key=lambda t: t[1].lower())
 
     rows = []
     for field in spec.fields:
         rows.append(
             f'<div class="field"><label for="{escape(field.name)}">{escape(field.label)}</label>'
-            f"{_field_input_html(field, doc.get(field.name), select_options=select_options, select_data=select_data_by_field.get(field.name), select_fk_options=select_fk_options)}</div>"
+            f"{_field_input_html(field, doc.get(field.name), combo_options=combo_options, combo_depends=combo_depends)}</div>"
         )
-    return f"""<form method="post" action="{action}"><div class="form-grid">{''.join(rows)}</div>
+    return f"""<form method="post" action="{action}">{depmap_scripts}<div class="form-grid">{''.join(rows)}</div>
   <div class="form-actions"><button type="submit">{escape(submit_label)}</button></div>
 </form>"""
 
@@ -1090,6 +1143,9 @@ def _parse_form_body(spec: CollectionSpec, form: dict[str, str]) -> dict[str, An
         elif field.value_type == "int":
             raw = str(form.get(field.name, "")).strip()
             body[field.name] = int(raw) if raw else None
+        elif field.value_type == "float":
+            raw = str(form.get(field.name, "")).strip()
+            body[field.name] = float(raw) if raw else None
         else:
             body[field.name] = form.get(field.name, "")
     return body
@@ -1117,6 +1173,8 @@ def _coerce_fields_payload(
             body[key] = 1 if raw.lower() in {"1", "true", "yes", "y", "on"} else 0
         elif field and field.value_type == "int":
             body[key] = int(raw)
+        elif field and field.value_type == "float":
+            body[key] = float(raw)
         else:
             body[key] = raw
     return body
@@ -1276,21 +1334,25 @@ def create_master_gui_router() -> APIRouter:
 
         docs = spec.list_fn()
         table_id = f"grid-{collection_key}"
-        header_cells = "".join(f'<th class="sortable">{escape(f.label)}</th>' for f in spec.fields)
+        field_by_name = {f.name: f for f in spec.fields}
+        shown_names = spec.list_fields or [f.name for f in spec.fields]
+        shown_fields = [field_by_name[name] for name in shown_names if name in field_by_name and name != "sort_order"]
+        header_cells = "".join(f'<th class="sortable">{escape(f.label)}</th>' for f in shown_fields)
         rows = []
         for doc in docs:
             record_id = doc.get(spec.record_field)
             display_doc = _form_doc(spec, doc)
             cells = "".join(
                 f"<td>{_cell_html(spec.list_cell_fn(doc, f.name) if spec.list_cell_fn else display_doc.get(f.name, ''))}</td>"
-                for f in spec.fields
+                for f in shown_fields
             )
+            row_href = f"{root_path}/gui/{collection_key}/{record_id}"
             rows.append(
-                f'<tr data-row><td class="record-cell"><a href="{root_path}/gui/{collection_key}/{record_id}">{record_id}</a>'
-                f'<span class="row-resizer" title="Drag to resize row"></span></td>{cells}</tr>'
+                f'<tr data-row data-row-href="{row_href}"><td class="record-cell">'
+                f'<a class="button-link secondary row-edit-link" href="{row_href}">Edit</a></td>{cells}</tr>'
             )
         rows.append(
-            f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(spec.fields) + 1}">'
+            f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(shown_fields) + 1}">'
             "No matching records.</td></tr>"
         )
         body = f"""{_back_link(f"{root_path}/gui", "Back to Collections")}<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
@@ -1308,7 +1370,7 @@ def create_master_gui_router() -> APIRouter:
   </div>
   <div class="table-wrap">
     <table id="{table_id}">
-      <thead><tr><th class="sortable">{escape(spec.record_field)}</th>{header_cells}</tr></thead>
+      <thead><tr><th>Edit</th>{header_cells}</tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
   </div>

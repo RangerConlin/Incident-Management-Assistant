@@ -174,7 +174,6 @@ def personnel_export_row(doc: dict[str, Any], catalog_by_id: Optional[dict[int, 
         "first_name": first_name,
         "last_name": last_name,
         "callsign": clean_text(doc.get("callsign")),
-        "primary_role": clean_text(doc.get("primary_role") or doc.get("role") or doc.get("title")),
         "rank": clean_text(doc.get("rank")),
         "home_unit": clean_text(doc.get("home_unit")),
         "title": clean_text(doc.get("title")),
@@ -218,11 +217,6 @@ def build_personnel_import_payload(row: dict[str, Any], catalog_by_code: Optiona
         raise ValueError("Name is required.")
 
     home_unit = clean_text(row.get("home_unit"))
-    primary_role = clean_text(row.get("primary_role"))
-    if not primary_role:
-        primary_role = clean_text(row.get("role"))
-    if not primary_role:
-        primary_role = clean_text(row.get("title"))
 
     emergency = {
         "primary_name": clean_text(row.get("emergency_primary_name")),
@@ -256,7 +250,6 @@ def build_personnel_import_payload(row: dict[str, Any], catalog_by_code: Optiona
         "first_name": first_name,
         "last_name": last_name,
         "callsign": clean_text(row.get("callsign")),
-        "primary_role": primary_role,
         "rank": clean_text(row.get("rank")),
         "home_unit": home_unit,
         "title": clean_text(row.get("title")),
@@ -282,7 +275,6 @@ PERSONNEL_FIELDS: list[FieldSpec] = [
     FieldSpec("first_name", "First Name"),
     FieldSpec("last_name", "Last Name"),
     FieldSpec("callsign", "Callsign"),
-    FieldSpec("primary_role", "Role"),
     FieldSpec("rank", "Rank"),
     FieldSpec("home_unit", "Organization"),
     FieldSpec("title", "Title"),
