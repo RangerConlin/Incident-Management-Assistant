@@ -194,6 +194,98 @@ def _rank_display_text(rank_row: dict[str, Any]) -> str:
     return short or code or name
 
 
+def _org_type_id_by_name(name: Any) -> int | None:
+    from sarapp_db.api.routers import organizations as organizations_router
+
+    wanted = str(name or "").strip().lower()
+    if not wanted:
+        return None
+    for row in organizations_router.list_org_types(search=""):
+        if str(row.get("name") or "").strip().lower() == wanted:
+            try:
+                return int(row.get("int_id"))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _rank_structure_id_by_name(name: Any) -> int | None:
+    from sarapp_db.api.routers import organizations as organizations_router
+
+    wanted = str(name or "").strip().lower()
+    if not wanted:
+        return None
+    for row in organizations_router.list_rank_structures(search=""):
+        if str(row.get("name") or "").strip().lower() == wanted:
+            try:
+                return int(row.get("int_id"))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _rank_structure_import_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload = _coerce_fields_payload(_rank_structure_fields(), row)
+    org_type_name = row.get("organization_type_name")
+    if org_type_name and payload.get("organization_type_id") is None:
+        payload["organization_type_id"] = _org_type_id_by_name(org_type_name)
+    return payload
+
+
+def _organization_import_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload = _coerce_fields_payload(_organization_fields(), row)
+    structure_name = row.get("default_rank_structure_name")
+    if structure_name and payload.get("default_rank_structure_id") is None:
+        payload["default_rank_structure_id"] = _rank_structure_id_by_name(structure_name)
+    return payload
+
+
+def _rank_import_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload = _coerce_fields_payload(_rank_fields(), row)
+    structure_name = row.get("rank_structure_name")
+    if structure_name and payload.get("rank_structure_id") is None:
+        payload["rank_structure_id"] = _rank_structure_id_by_name(structure_name)
+    return payload
+
+
+def _rank_structure_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("organization_type_id", "Organization Type ID", value_type="int"),
+        FieldSpec("is_template", "Template", input_type="checkbox", value_type="int"),
+        FieldSpec("is_system_template", "System Template", input_type="checkbox", value_type="int"),
+        FieldSpec("sort_order", "Sort Order", value_type="int"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
+    ]
+
+
+def _organization_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("short_name", "Short Name"),
+        FieldSpec("parent_organization_id", "Parent Organization ID", value_type="int"),
+        FieldSpec("organization_type_id", "Organization Type ID", value_type="int"),
+        FieldSpec("default_rank_structure_id", "Default Rank Structure ID", value_type="int"),
+        FieldSpec("callsign_prefix", "Callsign Prefix"),
+        FieldSpec("external_id", "External ID"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+        FieldSpec("sort_order", "Sort Order", value_type="int"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
+    ]
+
+
+def _rank_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("rank_structure_id", "Rank Structure ID", value_type="int"),
+        FieldSpec("rank_code", "Rank Code"),
+        FieldSpec("rank_name", "Rank Name"),
+        FieldSpec("short_display", "Short Display"),
+        FieldSpec("sort_order", "Sort Order", value_type="int"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
+    ]
+
+
 def _personnel_org_rank_options() -> dict[str, Any]:
     from sarapp_db.api.routers import organizations as organizations_router
 
@@ -352,60 +444,57 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             key="rank-structures",
             title="Rank Structures",
             record_field="int_id",
-            fields=[
-                FieldSpec("name", "Name"),
-                FieldSpec("description", "Description", input_type="textarea"),
-                FieldSpec("organization_type_id", "Organization Type ID", value_type="int"),
-                FieldSpec("is_template", "Template", input_type="checkbox", value_type="int"),
-                FieldSpec("is_system_template", "System Template", input_type="checkbox", value_type="int"),
-                FieldSpec("sort_order", "Sort Order", value_type="int"),
-                FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
-            ],
+            fields=_rank_structure_fields(),
             list_fn=lambda: organizations_router.list_rank_structures(search=""),
             get_fn=organizations_router.get_rank_structure,
             create_fn=organizations_router.create_rank_structure,
             update_fn=organizations_router.update_rank_structure,
             delete_fn=organizations_router.delete_rank_structure,
+            export_fields=[
+                "name", "description", "organization_type_id", "organization_type_name",
+                "is_template", "is_system_template", "sort_order", "is_active",
+            ],
+            export_field_labels={
+                "organization_type_name": "Organization Type Name",
+            },
+            import_payload_fn=_rank_structure_import_payload,
         ),
         CollectionSpec(
             key="organizations",
             title="Organizations",
             record_field="int_id",
-            fields=[
-                FieldSpec("name", "Name"),
-                FieldSpec("short_name", "Short Name"),
-                FieldSpec("parent_organization_id", "Parent Organization ID", value_type="int"),
-                FieldSpec("organization_type_id", "Organization Type ID", value_type="int"),
-                FieldSpec("default_rank_structure_id", "Default Rank Structure ID", value_type="int"),
-                FieldSpec("callsign_prefix", "Callsign Prefix"),
-                FieldSpec("external_id", "External ID"),
-                FieldSpec("notes", "Notes", input_type="textarea"),
-                FieldSpec("sort_order", "Sort Order", value_type="int"),
-                FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
-            ],
+            fields=_organization_fields(),
             list_fn=lambda: organizations_router.list_organizations(search=""),
             get_fn=organizations_router.get_organization,
             create_fn=organizations_router.create_organization,
             update_fn=organizations_router.update_organization,
             delete_fn=organizations_router.delete_organization,
+            export_fields=[
+                "name", "short_name", "parent_organization_id", "organization_type_id",
+                "default_rank_structure_id", "default_rank_structure_name",
+                "callsign_prefix", "external_id", "notes", "sort_order", "is_active",
+            ],
+            export_field_labels={
+                "default_rank_structure_name": "Default Rank Structure Name",
+            },
+            import_payload_fn=_organization_import_payload,
         ),
         CollectionSpec(
             key="ranks",
             title="Ranks",
             record_field="int_id",
-            fields=[
-                FieldSpec("rank_structure_id", "Rank Structure ID", value_type="int"),
-                FieldSpec("rank_code", "Rank Code"),
-                FieldSpec("rank_name", "Rank Name"),
-                FieldSpec("short_display", "Short Display"),
-                FieldSpec("sort_order", "Sort Order", value_type="int"),
-                FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
-            ],
+            fields=_rank_fields(),
             list_fn=lambda: organizations_router.list_ranks(structure_id=None, search=""),
             get_fn=organizations_router.get_rank,
             create_fn=organizations_router.create_rank,
             update_fn=organizations_router.update_rank,
             delete_fn=organizations_router.delete_rank,
+            export_fields=[
+                "rank_structure_id", "rank_structure_name", "rank_code",
+                "rank_name", "short_display", "sort_order", "is_active",
+            ],
+            export_field_labels={"rank_structure_name": "Rank Structure Name"},
+            import_payload_fn=_rank_import_payload,
         ),
         CollectionSpec(
             key="console-users",
@@ -484,44 +573,144 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{escape(title)}</title>
   <style>
-    body {{ margin:0; font-family:Segoe UI, Arial, sans-serif; background:#101418; color:#e8eef5; }}
-    header {{ display:flex; align-items:center; justify-content:space-between; padding:16px 24px; background:#17202a; border-bottom:1px solid #2d3a46; }}
-    main {{ padding:24px; max-width:1600px; margin:0 auto; }}
-    a {{ color:#7db7ff; }}
-    .card {{ border:1px solid #2d3a46; border-radius:6px; padding:16px; background:#151c23; margin-bottom:16px; }}
+    :root {{
+      color-scheme: dark;
+      --bg:#0d1218;
+      --panel:#151c24;
+      --panel-2:#111820;
+      --line:#2a3745;
+      --line-soft:#22303c;
+      --text:#e8eef5;
+      --muted:#94a6b8;
+      --accent:#67b7ff;
+      --accent-strong:#2f7fca;
+      --danger:#a64040;
+      --field:#0f151b;
+    }}
+    * {{ box-sizing:border-box; }}
+    body {{ margin:0; font-family:Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }}
+    header {{ border-bottom:1px solid var(--line); background:#111922; }}
+    .topbar {{ width:min(1600px, calc(100vw - 32px)); margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:18px 0; }}
+    .brand {{ display:flex; flex-direction:column; gap:3px; }}
+    .brand strong {{ font-size:1.06rem; }}
+    .brand span {{ color:var(--muted); font-size:.86rem; }}
+    main {{ padding:24px 0 32px; width:min(1600px, calc(100vw - 32px)); margin:0 auto; }}
+    h1 {{ margin:0 0 12px; font-size:1.35rem; letter-spacing:0; }}
+    h2 {{ margin:0; font-size:1rem; }}
+    p {{ line-height:1.5; }}
+    a {{ color:var(--accent); text-decoration:none; }}
+    a:hover {{ text-decoration:underline; }}
+    .card {{ border:1px solid var(--line); border-radius:8px; padding:18px; background:var(--panel); margin-bottom:16px; }}
+    .card-head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:14px; }}
+    .card-subtitle {{ color:var(--muted); margin:0; }}
+    .collection-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px; margin-top:12px; }}
+    .collection-tile {{ display:block; padding:15px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); color:var(--text); }}
+    .collection-tile:hover {{ text-decoration:none; border-color:#3c88c8; }}
+    .collection-tile span {{ display:block; color:var(--muted); font-size:.84rem; margin-top:5px; }}
     .grid-toolbar {{ display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin:12px 0; }}
-    .grid-actions a {{ margin-right:12px; }}
-    .grid-search {{ max-width:420px; }}
-    .table-wrap {{ overflow:auto; border:1px solid #2d3a46; border-radius:6px; max-height:70vh; }}
+    .grid-actions {{ display:flex; flex-wrap:wrap; gap:8px; }}
+    .button-link, button {{ font:inherit; display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:8px 12px; border-radius:6px; border:1px solid var(--line); background:var(--accent-strong); color:white; cursor:pointer; text-decoration:none; }}
+    .button-link.secondary {{ background:var(--panel-2); color:var(--text); }}
+    .button-link:hover {{ text-decoration:none; border-color:#3c88c8; }}
+    .grid-search {{ max-width:420px; min-width:min(100%, 260px); }}
+    .table-wrap {{ overflow:auto; border:1px solid var(--line); border-radius:8px; max-height:72vh; background:var(--panel); }}
     table {{ width:100%; border-collapse:separate; border-spacing:0; min-width:900px; }}
-    th, td {{ padding:8px; border-bottom:1px solid #2d3a46; text-align:left; vertical-align:top; }}
-    th {{ color:#a7b6c5; font-weight:600; position:sticky; top:0; background:#17202a; z-index:1; user-select:none; }}
+    .nested-edit-table {{ min-width:760px; }}
+    .nested-edit-table input[type=text] {{ min-width:120px; }}
+    th, td {{ padding:10px 12px; border-bottom:1px solid var(--line-soft); text-align:left; vertical-align:top; }}
+    th {{ color:var(--muted); font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; position:sticky; top:0; background:var(--panel-2); z-index:1; user-select:none; }}
+    tbody tr:hover {{ background:rgba(103,183,255,.06); }}
     th.sortable {{ cursor:pointer; }}
-    th.sortable::after {{ content:""; display:inline-block; margin-left:6px; color:#7db7ff; }}
-    th.sortable[data-dir="asc"]::after {{ content:"▲"; }}
-    th.sortable[data-dir="desc"]::after {{ content:"▼"; }}
+    th.sortable::after {{ content:""; display:inline-block; margin-left:6px; color:var(--accent); }}
+    th.sortable[data-dir="asc"]::after {{ content:"^"; }}
+    th.sortable[data-dir="desc"]::after {{ content:"v"; }}
     tr.hidden {{ display:none; }}
     .record-cell {{ white-space:nowrap; }}
-    .row-resizer {{ display:inline-block; width:10px; height:16px; margin-left:8px; cursor:ns-resize; vertical-align:middle; border-top:2px solid #405160; border-bottom:2px solid #405160; }}
-    .empty-row td {{ color:#9cadbd; text-align:center; padding:18px; }}
-    input[type=text], input[type=password], textarea, select {{ font:inherit; padding:8px 10px; border-radius:4px; border:1px solid #405160; background:#0f151b; color:#e8eef5; width:100%; box-sizing:border-box; }}
+    .row-resizer {{ display:inline-block; width:12px; height:18px; margin-left:8px; cursor:ns-resize; vertical-align:middle; border-top:2px solid #4b5d70; border-bottom:2px solid #4b5d70; opacity:.8; }}
+    .empty-row td {{ color:var(--muted); text-align:center; padding:22px; }}
+    .form-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px 16px; }}
+    .field {{ min-width:0; }}
+    input[type=text], input[type=password], input[type=file], textarea, select {{ font:inherit; padding:9px 10px; border-radius:6px; border:1px solid #405160; background:var(--field); color:var(--text); width:100%; }}
+    input:focus, textarea:focus, select:focus {{ outline:2px solid rgba(103,183,255,.35); border-color:var(--accent); }}
     select:disabled {{ color:#74808d; background:#141a20; cursor:not-allowed; }}
-    label {{ display:block; margin:10px 0 4px; color:#a7b6c5; }}
-    button {{ font:inherit; padding:8px 14px; border-radius:4px; border:1px solid #405160; background:#2f6fad; color:white; cursor:pointer; }}
-    .danger {{ background:#8f3434; }}
-    .muted {{ color:#9cadbd; }}
-    nav a {{ margin-left:16px; }}
+    label {{ display:block; margin:0 0 5px; color:var(--muted); font-size:.88rem; }}
+    .compact-check {{ display:inline-flex; align-items:center; gap:6px; margin:0; color:var(--text); white-space:nowrap; }}
+    .form-actions {{ margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
+    .danger {{ background:var(--danger); }}
+    .muted {{ color:var(--muted); }}
+    dialog {{ width:min(440px, calc(100vw - 32px)); border:1px solid var(--line); border-radius:8px; padding:0; background:var(--panel); color:var(--text); }}
+    dialog::backdrop {{ background:rgba(0,0,0,.55); }}
+    .confirm-box {{ padding:18px; }}
+    .confirm-box p {{ color:var(--muted); }}
+    .confirm-actions {{ display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }}
+    nav {{ display:flex; gap:8px; align-items:center; }}
+    nav a {{ color:var(--text); padding:8px 10px; border:1px solid transparent; border-radius:6px; }}
+    nav a:hover {{ text-decoration:none; border-color:var(--line); background:var(--panel); }}
     form.inline {{ display:inline; }}
+    @media (max-width: 720px) {{
+      .topbar, .card-head {{ flex-direction:column; align-items:flex-start; }}
+      main, .topbar {{ width:min(100vw - 20px, 1600px); }}
+      .grid-search {{ max-width:none; }}
+    }}
   </style>
 </head>
 <body>
   <header>
-    <strong>SARApp Central Master Database</strong>
+    <div class="topbar">
+    <div class="brand"><strong>SARApp Central Master Database</strong><span>Agency-wide catalog console</span></div>
     <nav><a href="{root_path}/gui">Collections</a><a href="{root_path}/gui/logout">Logout</a></nav>
+    </div>
   </header>
   <main>{body}</main>
+<dialog id="confirm-dialog">
+  <div class="confirm-box">
+    <h2 id="confirm-title">Are you sure?</h2>
+    <p id="confirm-message">This action cannot be undone.</p>
+    <div class="confirm-actions">
+      <button type="button" class="button-link secondary" id="confirm-cancel">Cancel</button>
+      <button type="button" class="danger" id="confirm-accept">Delete</button>
+    </div>
+  </div>
+</dialog>
 <script>
 (function() {{
+  const confirmDialog = document.getElementById("confirm-dialog");
+  const confirmTitle = document.getElementById("confirm-title");
+  const confirmMessage = document.getElementById("confirm-message");
+  const confirmCancel = document.getElementById("confirm-cancel");
+  const confirmAccept = document.getElementById("confirm-accept");
+  let pendingForm = null;
+
+  function closeConfirm() {{
+    pendingForm = null;
+    if (confirmDialog && confirmDialog.open) confirmDialog.close();
+  }}
+
+  if (confirmCancel) confirmCancel.addEventListener("click", closeConfirm);
+  if (confirmAccept) confirmAccept.addEventListener("click", () => {{
+    const form = pendingForm;
+    pendingForm = null;
+    if (confirmDialog && confirmDialog.open) confirmDialog.close();
+    if (form) form.submit();
+  }});
+
+  document.querySelectorAll("form[data-confirm]").forEach((form) => {{
+    form.addEventListener("submit", (event) => {{
+      if (form.dataset.confirmed === "1") return;
+      event.preventDefault();
+      pendingForm = form;
+      if (confirmTitle) confirmTitle.textContent = form.dataset.confirmTitle || "Are you sure?";
+      if (confirmMessage) confirmMessage.textContent = form.dataset.confirm || "This action cannot be undone.";
+      if (confirmAccept) confirmAccept.textContent = form.dataset.confirmAction || "Delete";
+      if (confirmDialog && typeof confirmDialog.showModal === "function") {{
+        confirmDialog.showModal();
+      }} else if (window.confirm(form.dataset.confirm || "This action cannot be undone.")) {{
+        form.dataset.confirmed = "1";
+        form.submit();
+      }}
+    }});
+  }});
+
   function cellText(row, index) {{
     const cell = row.children[index];
     return cell ? cell.textContent.trim().toLowerCase() : "";
@@ -678,12 +867,103 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
     rows = []
     for field in spec.fields:
         rows.append(
-            f'<label for="{escape(field.name)}">{escape(field.label)}</label>'
-            f"{_field_input_html(field, doc.get(field.name), select_options=select_options, select_data=select_data_by_field.get(field.name))}"
+            f'<div class="field"><label for="{escape(field.name)}">{escape(field.label)}</label>'
+            f"{_field_input_html(field, doc.get(field.name), select_options=select_options, select_data=select_data_by_field.get(field.name))}</div>"
         )
-    return f"""<form method="post" action="{action}">{''.join(rows)}
-  <p style="margin-top:16px;"><button type="submit">{escape(submit_label)}</button></p>
+    return f"""<form method="post" action="{action}"><div class="form-grid">{''.join(rows)}</div>
+  <div class="form-actions"><button type="submit">{escape(submit_label)}</button></div>
 </form>"""
+
+
+def _rank_structure_ranks_html(structure_id: int, root_path: str) -> str:
+    from sarapp_db.api.routers import organizations as organizations_router
+
+    ranks = organizations_router.list_ranks(structure_id=structure_id, search="")
+    editable_rows = list(ranks) + [{} for _ in range(3)]
+    row_html: list[str] = []
+    for index, rank in enumerate(editable_rows):
+        rank_id = rank.get("int_id") or rank.get("id") or ""
+        active = int(rank.get("is_active", 1)) if rank else 1
+        delete_cell = (
+            f'<label class="compact-check"><input type="checkbox" name="delete_{index}"> Delete</label>'
+            if rank_id
+            else ""
+        )
+        row_html.append(
+            "<tr>"
+            f'<td><input type="hidden" name="rank_id_{index}" value="{escape(str(rank_id))}">'
+            f'<input type="text" name="rank_code_{index}" value="{escape(str(rank.get("rank_code") or ""))}"></td>'
+            f'<td><input type="text" name="rank_name_{index}" value="{escape(str(rank.get("rank_name") or rank.get("name") or ""))}"></td>'
+            f'<td><input type="text" name="short_display_{index}" value="{escape(str(rank.get("short_display") or ""))}"></td>'
+            f'<td><input type="text" name="sort_order_{index}" value="{escape(str(rank.get("sort_order") or rank.get("rank_order") or 0 if rank else ""))}"></td>'
+            f'<td><label class="compact-check"><input type="checkbox" name="is_active_{index}" {"checked" if active else ""}> Active</label></td>'
+            f"<td>{delete_cell}</td>"
+            "</tr>"
+        )
+    return f"""<section class="card">
+  <div class="card-head"><div><h1>Ranks In This Structure</h1>
+  <p class="card-subtitle">Edit the rank rows for this template here. Blank rows are ignored.</p></div></div>
+  <form method="post" action="{root_path}/gui/rank-structures/{structure_id}/ranks">
+    <input type="hidden" name="row_count" value="{len(editable_rows)}">
+    <div class="table-wrap">
+      <table class="nested-edit-table">
+        <thead><tr><th>Rank Code</th><th>Rank Name</th><th>Short Display</th><th>Sort Order</th><th>Active</th><th>Delete</th></tr></thead>
+        <tbody>{''.join(row_html)}</tbody>
+      </table>
+    </div>
+    <div class="form-actions"><button type="submit">Save Ranks</button></div>
+  </form>
+</section>"""
+
+
+def _parse_rank_rows(structure_id: int, form: dict[str, Any]) -> None:
+    from sarapp_db.api.routers import organizations as organizations_router
+
+    try:
+        row_count = int(form.get("row_count") or 0)
+    except (TypeError, ValueError):
+        row_count = 0
+    for index in range(row_count):
+        rank_id_text = str(form.get(f"rank_id_{index}") or "").strip()
+        rank_code = str(form.get(f"rank_code_{index}") or "").strip()
+        rank_name = str(form.get(f"rank_name_{index}") or "").strip()
+        short_display = str(form.get(f"short_display_{index}") or "").strip()
+        sort_order_text = str(form.get(f"sort_order_{index}") or "").strip()
+        try:
+            sort_order = int(sort_order_text) if sort_order_text else 0
+        except ValueError:
+            sort_order = 0
+        is_active = 1 if f"is_active_{index}" in form else 0
+        delete_requested = f"delete_{index}" in form
+
+        if rank_id_text:
+            rank_id = int(rank_id_text)
+            if delete_requested:
+                organizations_router.delete_rank(rank_id)
+                continue
+            organizations_router.update_rank(
+                rank_id,
+                {
+                    "rank_code": rank_code,
+                    "rank_name": rank_name,
+                    "short_display": short_display,
+                    "sort_order": sort_order,
+                    "is_active": is_active,
+                },
+            )
+            continue
+
+        if rank_code or rank_name or short_display:
+            organizations_router.create_rank(
+                {
+                    "rank_structure_id": structure_id,
+                    "rank_code": rank_code,
+                    "rank_name": rank_name,
+                    "short_display": short_display,
+                    "sort_order": sort_order,
+                    "is_active": is_active,
+                }
+            )
 
 
 def _parse_form_body(spec: CollectionSpec, form: dict[str, str]) -> dict[str, Any]:
@@ -705,10 +985,17 @@ def _parse_form_body(spec: CollectionSpec, form: dict[str, str]) -> dict[str, An
 def _coerce_import_payload(spec: CollectionSpec, row: dict[str, str]) -> dict[str, Any]:
     if spec.import_payload_fn is not None:
         return spec.import_payload_fn(row)
+    return _coerce_fields_payload(spec.fields, row, keys=_field_keys(spec))
 
+def _coerce_fields_payload(
+    fields: list[FieldSpec],
+    row: dict[str, str],
+    *,
+    keys: list[str] | None = None,
+) -> dict[str, Any]:
     body: dict[str, Any] = {}
-    field_by_name = {field.name: field for field in spec.fields}
-    for key in _field_keys(spec):
+    field_by_name = {field.name: field for field in fields}
+    for key in keys or [field.name for field in fields]:
         field = field_by_name.get(key)
         raw = str(row.get(key, "")).strip()
         if not raw:
@@ -812,12 +1099,13 @@ def create_master_gui_router() -> APIRouter:
     @router.get("/gui/login", response_class=HTMLResponse)
     def login_page(request: Request) -> HTMLResponse:
         body = """
-<div class="card" style="max-width:420px;margin:64px auto;">
+<div class="card" style="max-width:440px;margin:64px auto;">
   <h1>Central Master Database</h1>
+  <p class="muted">Sign in to manage master catalog records and console users.</p>
   <form method="post">
-    <label>Username</label><input type="text" name="username" autocomplete="username">
-    <label>Password</label><input type="password" name="password" autocomplete="current-password">
-    <p style="margin-top:16px;"><button type="submit">Sign in</button></p>
+    <div class="field"><label>Username</label><input type="text" name="username" autocomplete="username"></div>
+    <div class="field" style="margin-top:12px;"><label>Password</label><input type="password" name="password" autocomplete="current-password"></div>
+    <div class="form-actions"><button type="submit">Sign in</button></div>
   </form>
 </div>"""
         return _page("Login", body, request)
@@ -850,13 +1138,15 @@ def create_master_gui_router() -> APIRouter:
         except HTTPException:
             return _redirect_login(request)
         root_path = request.scope.get("root_path") or ""
+        visible_specs = [spec for spec in specs.values() if spec.key != "ranks"]
         items = "".join(
-            f'<tr><td><a href="{root_path}/gui/{escape(spec.key)}">{escape(spec.title)}</a></td></tr>'
-            for spec in specs.values()
+            f'<a class="collection-tile" href="{root_path}/gui/{escape(spec.key)}">{escape(spec.title)}'
+            f'<span>{len(spec.fields)} editable fields</span></a>'
+            for spec in visible_specs
         )
-        body = f"""<section class="card"><h1>Master Catalog Collections</h1>
-  <table>{items}</table>
-  <p class="muted">More collections are added to this GUI incrementally — see backlog.md.</p>
+        body = f"""<section class="card"><div class="card-head"><div><h1>Master Catalog Collections</h1>
+  <p class="card-subtitle">Central source for personnel, equipment, vehicles, organizations, ranks, and console access.</p></div></div>
+  <div class="collection-grid">{items}</div>
 </section>"""
         return _page("Collections", body, request)
 
@@ -887,13 +1177,16 @@ def create_master_gui_router() -> APIRouter:
             f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(spec.fields) + 1}">'
             "No matching records.</td></tr>"
         )
-        body = f"""<section class="card"><h1>{escape(spec.title)}</h1>
+        body = f"""<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
+  <p class="card-subtitle">{len(docs)} record{"s" if len(docs) != 1 else ""}</p></div></div>
   <div class="grid-toolbar">
     <div class="grid-actions">
-      <a href="{root_path}/gui/{collection_key}/new">+ New {escape(spec.title)}</a>
-      <a href="{root_path}/gui/{collection_key}/export?format=csv">Export CSV</a>
-      <a href="{root_path}/gui/{collection_key}/export?format=xlsx">Export XLSX</a>
-      <a href="{root_path}/gui/{collection_key}/import">Import</a>
+      <a class="button-link" href="{root_path}/gui/{collection_key}/new">New {escape(spec.title)}</a>
+      <a class="button-link secondary" href="{root_path}/gui/{collection_key}/export?format=csv">Export CSV</a>
+      <a class="button-link secondary" href="{root_path}/gui/{collection_key}/export?format=xlsx">Export XLSX</a>
+      <a class="button-link secondary" href="{root_path}/gui/{collection_key}/import">Import</a>
+      {f'''<a class="button-link secondary" href="{root_path}/gui/ranks/import">Import Ranks</a>''' if collection_key == "rank-structures" else ""}
+      {f'''<form class="inline" method="post" action="{root_path}/gui/{collection_key}/delete-all" data-confirm-title="Delete all {escape(spec.title)}?" data-confirm="This will permanently delete every record currently in {escape(spec.title)}. This cannot be undone." data-confirm-action="Delete all"><button type="submit" class="danger">Delete All</button></form>''' if spec.delete_fn is not None else ""}
     </div>
     <input class="grid-search" type="text" data-grid-search="{table_id}" placeholder="Search this table">
   </div>
@@ -968,7 +1261,7 @@ def create_master_gui_router() -> APIRouter:
   <p class="muted">Upload a CSV or XLSX file exported from this page or the desktop Edit-menu panel — same columns, matched by header.</p>
   <form method="post" enctype="multipart/form-data" action="{root_path}/gui/{collection_key}/import">
     <input type="file" name="file" accept=".csv,.xlsx" required>
-    <p style="margin-top:16px;"><button type="submit">Import</button></p>
+    <div class="form-actions"><button type="submit">Import</button></div>
   </form>
 </section>"""
         return _page(f"Import {spec.title}", body, request)
@@ -1002,9 +1295,28 @@ def create_master_gui_router() -> APIRouter:
         body = f"""<section class="card"><h1>Import Complete</h1>
   <p>{created} {escape(spec.title)} imported{f", {len(errors)} error(s)" if errors else ""}.</p>
   {error_html}
-  <p><a href="{root_path}/gui/{collection_key}">Back to {escape(spec.title)}</a></p>
+  <p><a class="button-link secondary" href="{root_path}/gui/{collection_key}">Back to {escape(spec.title)}</a></p>
 </section>"""
         return _page("Import Complete", body, request)
+
+    @router.post("/gui/{collection_key}/delete-all")
+    def delete_all_records(request: Request, collection_key: str) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        if spec.delete_fn is None:
+            raise HTTPException(status_code=405, detail="Collection does not support delete")
+        docs = spec.list_fn()
+        for doc in docs:
+            record_id = doc.get(spec.record_field)
+            if record_id is not None:
+                spec.delete_fn(int(record_id))
+        root_path = request.scope.get("root_path") or ""
+        return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
 
     @router.get("/gui/{collection_key}/{record_id}", response_class=HTMLResponse, response_model=None)
     def edit_form(request: Request, collection_key: str, record_id: int) -> Response:
@@ -1021,14 +1333,27 @@ def create_master_gui_router() -> APIRouter:
             spec, _form_doc(spec, doc), action=f"{root_path}/gui/{collection_key}/{record_id}", submit_label="Save"
         )
         delete_button = (
-            f"""<form class="inline" method="post" action="{root_path}/gui/{collection_key}/{record_id}/delete">
+            f"""<form class="inline" method="post" action="{root_path}/gui/{collection_key}/{record_id}/delete" data-confirm-title="Delete {escape(spec.title)} {record_id}?" data-confirm="This will permanently delete this record. This cannot be undone." data-confirm-action="Delete">
   <button type="submit" class="danger">Delete</button>
 </form>"""
             if spec.delete_fn is not None
             else ""
         )
-        body = f'<section class="card"><h1>{escape(spec.title)} {record_id}</h1>{form}{delete_button}</section>'
+        body = f'<section class="card"><h1>{escape(spec.title)} {record_id}</h1>{form}<div class="form-actions">{delete_button}</div></section>'
+        if spec.key == "rank-structures":
+            body += _rank_structure_ranks_html(record_id, root_path)
         return _page(f"Edit {spec.title}", body, request)
+
+    @router.post("/gui/rank-structures/{record_id}/ranks")
+    async def update_rank_structure_ranks(request: Request, record_id: int) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        form = dict((await request.form()).items())
+        _parse_rank_rows(record_id, form)
+        root_path = request.scope.get("root_path") or ""
+        return RedirectResponse(f"{root_path}/gui/rank-structures/{record_id}", status_code=303)
 
     @router.post("/gui/{collection_key}/{record_id}")
     async def update_record(request: Request, collection_key: str, record_id: int) -> Response:

@@ -82,6 +82,39 @@ def _clear_console_users():
     get_client()["sarapp_central_master"]["master_gui_users"].delete_many({"username": {"$regex": "^gui-test"}})
 
 
+def _clear_seed_catalog_rows():
+    from sarapp_db.mongo.collection_names import MasterCollections
+    from sarapp_db.mongo.database_manager import get_client
+
+    org_type_names = [
+        "Air Agency", "Ground SAR", "Law Enforcement", "Fire/Rescue", "EMS",
+        "Government", "Volunteer Organization", "NGO", "Federal", "State",
+        "County", "Municipal", "Military", "Private Contractor", "Amateur Radio",
+        "Aviation Support", "Communications Unit", "Other",
+    ]
+    rank_structure_names = [
+        "Fire Department (Standard)",
+        "Law Enforcement (Standard)",
+        "EMS (Standard)",
+        "Search and Rescue (Standard)",
+        "Volunteer / NGO (Standard)",
+    ]
+    rank_names = [
+        "Firefighter", "Engineer / Driver", "Lieutenant", "Captain",
+        "Battalion Chief", "Division Chief", "Assistant Chief", "Deputy Chief",
+        "Fire Chief", "Police Officer", "Senior Police Officer", "Corporal",
+        "Sergeant", "Major / Commander", "Chief of Police", "EMT",
+        "Advanced EMT", "Paramedic", "Field Training Officer", "Supervisor",
+        "Chief", "Member", "Senior Member", "Team Leader", "Operations Leader",
+        "Planning Lead", "Logistics Lead", "Section Chief", "Incident Commander",
+        "Volunteer", "Lead Volunteer", "Coordinator", "Manager", "Director",
+    ]
+    db = get_client()["sarapp_central_master"]
+    db[MasterCollections.ORGANIZATION_TYPES].delete_many({"name": {"$in": org_type_names}})
+    db[MasterCollections.RANK_STRUCTURES].delete_many({"name": {"$in": rank_structure_names}})
+    db[MasterCollections.RANKS].delete_many({"rank_name": {"$in": rank_names}})
+
+
 
 
 def test_gui_requires_login(monkeypatch) -> None:
@@ -118,7 +151,7 @@ def test_login_then_index_lists_collections(monkeypatch) -> None:
     assert "Organization Types" in response.text
     assert "Rank Structures" in response.text
     assert "Organizations" in response.text
-    assert "Ranks" in response.text
+    assert 'href="/central-master/gui/ranks"' not in response.text
     assert "Console Users" in response.text
 
 
@@ -265,6 +298,26 @@ def test_personnel_export_csv_contains_record(monkeypatch) -> None:
         _clear_personnel()
 
 
+def test_personnel_export_row_preserves_split_names_and_alternate_fields() -> None:
+    from modules.personnel.catalog_io import personnel_export_row
+
+    row = personnel_export_row(
+        {
+            "personnel_id": "P-77",
+            "full_name": "Taylor Morgan",
+            "medic": True,
+            "certs": [{"certification_type_id": 2003, "level": 2}],
+        },
+        {2003: {"code": "EMT", "name": "Emergency Medical Technician"}},
+    )
+
+    assert row["person_id"] == "P-77"
+    assert row["first_name"] == "Taylor"
+    assert row["last_name"] == "Morgan"
+    assert row["is_medic"] == "Yes"
+    assert row["certifications"] == "EMT:2"
+
+
 def test_personnel_export_xlsx_round_trips_through_import(monkeypatch) -> None:
     client = _client(monkeypatch)
     _login(client)
@@ -408,6 +461,9 @@ def test_collection_table_has_search_sort_and_row_resize_controls(monkeypatch) -
         assert 'data-grid-search="grid-equipment"' in response.text
         assert 'class="sortable"' in response.text
         assert "row-resizer" in response.text
+        assert "Delete All" in response.text
+        assert "confirm-dialog" in response.text
+        assert "data-confirm-title=" in response.text
         assert "GUI Test Grid Radio" in response.text
     finally:
         _clear_equipment()
@@ -502,6 +558,24 @@ def test_equipment_delete_removes_record(monkeypatch) -> None:
 
         remaining = [d for d in list_equipment(search="", limit=200) if d["name"] == "GUI Test Radio"]
         assert remaining == []
+    finally:
+        _clear_equipment()
+
+
+def test_equipment_delete_all_removes_records(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_equipment()
+    try:
+        client.post("/central-master/gui/equipment/new", data={"name": "GUI Test Radio A", "type": "Radio"})
+        client.post("/central-master/gui/equipment/new", data={"name": "GUI Test Radio B", "type": "Radio"})
+
+        deleted = client.post("/central-master/gui/equipment/delete-all")
+        assert deleted.status_code == 303
+
+        from sarapp_db.api.routers.equipment import list_equipment
+
+        assert list_equipment(search="GUI Test Radio", limit=200) == []
     finally:
         _clear_equipment()
 
@@ -626,6 +700,93 @@ def test_rank_structure_and_rank_are_master_catalog_gui_collections(monkeypatch)
         assert ranks[0]["is_active"] == 1
     finally:
         _clear_organization_catalog()
+
+
+def test_rank_structure_edit_page_manages_nested_ranks(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_organization_catalog()
+    try:
+        created_structure = client.post(
+            "/central-master/gui/rank-structures/new",
+            data={"name": "GUI Test Nested Rank Structure", "description": "Ranks", "is_active": "on"},
+        )
+        assert created_structure.status_code == 303
+
+        from sarapp_db.api.routers.organizations import list_rank_structures, list_ranks
+
+        structure = next(d for d in list_rank_structures(search="GUI Test Nested Rank Structure"))
+        structure_id = structure["int_id"]
+
+        edit_page = client.get(f"/central-master/gui/rank-structures/{structure_id}")
+        assert edit_page.status_code == 200
+        assert "Ranks In This Structure" in edit_page.text
+        assert f"/central-master/gui/rank-structures/{structure_id}/ranks" in edit_page.text
+
+        saved = client.post(
+            f"/central-master/gui/rank-structures/{structure_id}/ranks",
+            data={
+                "row_count": "1",
+                "rank_id_0": "",
+                "rank_code_0": "CAP",
+                "rank_name_0": "GUI Test Captain",
+                "short_display_0": "Capt",
+                "sort_order_0": "10",
+                "is_active_0": "on",
+            },
+        )
+        assert saved.status_code == 303
+
+        ranks = list_ranks(structure_id=structure_id, search="GUI Test Captain")
+        assert len(ranks) == 1
+        assert ranks[0]["rank_code"] == "CAP"
+        assert ranks[0]["sort_order"] == 10
+
+        rank_id = ranks[0]["int_id"]
+        deleted = client.post(
+            f"/central-master/gui/rank-structures/{structure_id}/ranks",
+            data={
+                "row_count": "1",
+                "rank_id_0": str(rank_id),
+                "rank_code_0": "CAP",
+                "rank_name_0": "GUI Test Captain",
+                "short_display_0": "Capt",
+                "sort_order_0": "10",
+                "is_active_0": "on",
+                "delete_0": "on",
+            },
+        )
+        assert deleted.status_code == 303
+        assert list_ranks(structure_id=structure_id, search="GUI Test Captain") == []
+    finally:
+        _clear_organization_catalog()
+
+
+def test_master_catalog_seed_csvs_are_uploadable(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_seed_catalog_rows()
+    seed_dir = pathlib.Path(__file__).resolve().parents[2] / "data" / "master_catalog_seed"
+    try:
+        for route, filename in [
+            ("/central-master/gui/organization-types/import", "organization_types.csv"),
+            ("/central-master/gui/rank-structures/import", "rank_structures.csv"),
+            ("/central-master/gui/ranks/import", "ranks.csv"),
+        ]:
+            data = (seed_dir / filename).read_bytes()
+            response = client.post(route, files={"file": (filename, data, "text/csv")})
+            assert response.status_code == 200
+            assert "error(s)" not in response.text
+
+        from sarapp_db.api.routers.organizations import list_org_types, list_rank_structures, list_ranks
+
+        assert any(row["name"] == "Fire/Rescue" for row in list_org_types(search="Fire/Rescue"))
+        fire_structure = next(row for row in list_rank_structures(search="Fire Department"))
+        ranks = list_ranks(structure_id=fire_structure["int_id"], search="Firefighter")
+        assert len(ranks) == 1
+        assert ranks[0]["rank_code"] == "FF"
+    finally:
+        _clear_seed_catalog_rows()
 
 
 def test_console_user_can_be_created_and_used_for_login(monkeypatch) -> None:
