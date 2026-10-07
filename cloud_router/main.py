@@ -3,14 +3,19 @@
 Runs as a headless service. No GUI. Intended to be started by a process
 manager (systemd, Docker, etc.) or directly from the command line.
 
-This process is a stateless reverse-tunnel proxy: it has no MongoDB
-connection of its own. LAN servers dial out to it and register under a
-connect code; field/remote devices hit `/r/<connect_code>/...` and their
-requests are forwarded down the matching tunnel. See
+This process is primarily a stateless reverse-tunnel proxy: LAN/cloud
+servers dial out to it and register under a connect code; field/remote
+devices hit `/r/<connect_code>/...` and their requests are forwarded down
+the matching tunnel. It still never holds or forwards incident data of its
+own. Optionally, when SARAPP_CLOUD_ROUTER_MONGO_URI is set, it also owns an
+embedded central master-catalog database (agency-wide personnel/equipment/
+vehicle/template data, mounted at /central-master) that each server's local
+master catalog syncs with. See
 `Design Documents/Instructions/cloud_router_architecture.md`.
 
 Environment variables:
-    SARAPP_CLOUD_ROUTER_TOKEN   Shared secret LAN servers must present to register a tunnel
+    SARAPP_CLOUD_ROUTER_TOKEN       Shared secret LAN servers must present to register a tunnel
+    SARAPP_CLOUD_ROUTER_MONGO_URI   Optional. Enables the embedded central master database when set.
 
 Usage:
     python main.py

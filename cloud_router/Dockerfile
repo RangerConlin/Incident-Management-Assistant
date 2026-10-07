@@ -2,10 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Build context is the repo root (see docker-compose.yml) so this image can
+# also vendor the shared sarapp_db package for the embedded central master
+# database — same layout cloud_server/Dockerfile uses.
+COPY cloud_router/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY . .
+COPY cloud_router /app
+COPY data/db/sarapp_db /app/sarapp_db
 
 ENV PYTHONPATH=/app
 

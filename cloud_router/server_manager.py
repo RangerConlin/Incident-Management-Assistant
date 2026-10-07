@@ -1,9 +1,11 @@
 """SARApp cloud router runtime.
 
-Runs as a headless service. Unlike a LAN server, this process has no MongoDB
-connection and runs no ``sarapp_db`` routers — it is a stateless reverse
-proxy that forwards field-device traffic to whichever LAN server has
-registered a reverse tunnel under a given connect code. See
+Runs as a headless service. Primarily a stateless reverse proxy that
+forwards field-device traffic to whichever LAN/cloud server has registered a
+reverse tunnel under a given connect code — it never holds or forwards
+incident data itself. It also optionally owns an embedded central
+master-catalog database (see ``master_db/``), mounted into the same app by
+``router.app.create_router_app()``. See
 ``Design Documents/Instructions/cloud_router_architecture.md``.
 """
 

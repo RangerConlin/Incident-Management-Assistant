@@ -3,6 +3,12 @@
 This file lists the MongoDB collections that can currently be created inside
 the shared master database named `sarapp_master`.
 
+This same schema also describes the central `sarapp_central_master` database
+now embedded in `cloud_router/` (see `cloud_router_architecture.md`) — it is
+served by the identical master routers/schemas listed here, just pointed at
+a different, centralized Mongo instance. Centralization does not fork the
+schema; collection names and shapes stay the same in both places.
+
 Source of truth for most names is `data/db/sarapp_db/mongo/collection_names.py`.
 This inventory also includes live master collections referenced directly by
 routers but not yet represented by a `MasterCollections` constant. It does not

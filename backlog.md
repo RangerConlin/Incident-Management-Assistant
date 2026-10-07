@@ -228,6 +228,14 @@ Cost Summary
         avoid adding new duplicate collections or fields.
     - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
     - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
+    - Central master database (`cloud_router/master_db/`, embedded `sarapp_central_master` Mongo — see `Design Documents/Instructions/cloud_router_architecture.md`): the Mongo + router-reuse wiring exists, but these remain unbuilt:
+      - Web GUI for editing the central catalog (no master-data CRUD web UI exists anywhere yet — today it's desktop-app-only over LAN/localhost).
+      - `master_link` sub-document (incident-local record ↔ master record, two-way sync, surfaced conflicts) — schema design is written but not implemented; see `Design Documents/Instructions/mongodb_schema_decisions.md` once that section is added.
+      - The actual change-stream sync relay between each server's local `sarapp_master` and the central database (see the new section in `Design Documents/Instructions/realtime_architecture_roadmap.md`); `data/db/sync_local_to_cloud.py`'s crude one-way full-replace script should be deleted once this lands, not kept as a fallback.
+      - Per-operator GUI accounts/audit trail for the central catalog GUI (MVP is a single shared admin login, same pattern as `cloud_server/dashboard.py`).
+      - Automatic incident→master write-back (MVP treats this as an explicit, operator-initiated action, not automatic).
+      - Admin conflict-resolution panel surfacing `sync_state == "conflict"` records.
+      - `utils/catalog_cache.py` invalidation for remotely-synced master changes (today it only invalidates after locally-initiated writes).
 
 **************************************************************************************************************
 [GIS]

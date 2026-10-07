@@ -1,10 +1,15 @@
-"""FastAPI app for the cloud router: reverse-tunnel registration plus the
-field-device-facing HTTP/WebSocket proxy.
+"""FastAPI app for the cloud router: reverse-tunnel registration, the
+field-device-facing HTTP/WebSocket proxy, and (when configured) the embedded
+central master-catalog database.
 
-This app never imports ``sarapp_db`` and never talks to MongoDB directly —
-all incident data access happens on the LAN server at the far end of the
-tunnel. See ``Design Documents/Instructions/cloud_router_architecture.md``
-for the full protocol this module implements.
+This app still never holds or forwards incident data directly — that always
+lives on the LAN/cloud server at the far end of a tunnel. It does, however,
+optionally mount an embedded agency-wide master-catalog database (personnel,
+equipment, vehicles, templates, etc. — the same ``sarapp_db`` master routers
+every server already uses) under ``/central-master``, via
+``master_db.create_master_app()``. See
+``Design Documents/Instructions/cloud_router_architecture.md`` for the full
+protocol this module implements and the central-database architecture.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ from .dashboard import DASHBOARD_HTML
 from .metrics import metrics
 from .rate_limit import SlidingWindowLimiter
 from .registry import TunnelBackpressureError, TunnelConnection, TunnelUnavailableError, registry
+from master_db.app import create_master_app
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +53,14 @@ def _token_valid(candidate: str, expected: str) -> bool:
 
 def create_router_app(*, server_info_fn: Callable[[], dict[str, Any]] | None = None) -> FastAPI:
     app = FastAPI(title="SARApp Cloud Router")
+
+    # Embedded central master-catalog database (optional — only mounted when
+    # SARAPP_CLOUD_ROUTER_MONGO_URI is configured). Mounted first, before any
+    # of the proxy/tunnel routes below, so it never competes with the
+    # "/r/{connect_code}/{path}" catch-all for path matching.
+    master_app = create_master_app()
+    if master_app is not None:
+        app.mount("/central-master", master_app)
 
     # Per-app so each router instance (and each test) gets an isolated window,
     # and so the limit is read from config at app-creation time rather than

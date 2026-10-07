@@ -1,10 +1,19 @@
 """
 SARApp database manager.
 
-Provides helpers for obtaining the three logical MongoDB databases:
+Provides helpers for obtaining the three logical MongoDB databases every
+LAN/cloud server owns:
     - sarapp_system              (server configuration and state)
-    - sarapp_master              (agency-wide reference data)
+    - sarapp_master              (agency-wide reference data, local to this server)
     - sarapp_incident_<id>       (per-incident operational data)
+
+A fourth database, sarapp_central_master, exists only inside cloud_router's
+own embedded Mongo instance (see Design Documents/Instructions/
+cloud_router_architecture.md). It holds the authoritative, centralized
+agency-wide catalog that each server's local sarapp_master syncs with. It is
+schema-identical to sarapp_master but deliberately named differently so a
+misconfigured SARAPP_MONGO_URI can never cause a server to mistake its own
+local master DB for the central one, or vice versa.
 
 Used by the SARApp server runtime only. The desktop UI never calls this directly.
 """
@@ -12,6 +21,7 @@ Used by the SARApp server runtime only. The desktop UI never calls this directly
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import TYPE_CHECKING
 
@@ -25,6 +35,14 @@ logger = logging.getLogger(__name__)
 DB_SYSTEM = "sarapp_system"
 DB_MASTER = "sarapp_master"
 DB_INCIDENT_PREFIX = "sarapp_incident_"
+DB_CENTRAL_MASTER = "sarapp_central_master"
+
+# cloud_router sets this to DB_CENTRAL_MASTER before calling create_app(mode=
+# "master_only") so the existing master routers (personnel.py, equipment.py,
+# etc.) write to sarapp_central_master instead of sarapp_master, with zero
+# changes to router code. Every LAN/cloud server leaves this unset and keeps
+# using sarapp_master as always.
+_MASTER_DB_NAME_ENV_VAR = "SARAPP_MASTER_DB_NAME"
 
 # Only allow alphanumeric characters, hyphens, and underscores in incident IDs.
 _SAFE_INCIDENT_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
@@ -56,9 +74,28 @@ def get_system_db() -> Database:
     return get_client()[DB_SYSTEM]
 
 
+def _master_db_name() -> str:
+    return os.environ.get(_MASTER_DB_NAME_ENV_VAR, "").strip() or DB_MASTER
+
+
 def get_master_db() -> Database:
-    """Return the sarapp_master database handle from the shared Mongo client."""
-    return get_client()[DB_MASTER]
+    """Return the master-catalog database handle from the shared Mongo client.
+
+    Normally sarapp_master. Inside cloud_router's "master_only" process this
+    resolves to sarapp_central_master instead (see _MASTER_DB_NAME_ENV_VAR),
+    so the same master routers serve the central catalog unmodified.
+    """
+    return get_client()[_master_db_name()]
+
+
+def get_central_master_db() -> Database:
+    """Return the sarapp_central_master database handle directly.
+
+    Only meaningful inside cloud_router's process, where SARAPP_MONGO_URI
+    points at cloud_router's own embedded Mongo instance rather than a LAN
+    or cloud server's local database.
+    """
+    return get_client()[DB_CENTRAL_MASTER]
 
 
 def get_incident_db(incident_id: str) -> Database:
@@ -95,8 +132,13 @@ class DatabaseManager:
         return self._get_client()[DB_SYSTEM]
 
     def get_master_db(self) -> Database:
-        """Return the sarapp_master database handle."""
-        return self._get_client()[DB_MASTER]
+        """Return the master-catalog database handle (sarapp_master, or
+        sarapp_central_master inside cloud_router's master_only process)."""
+        return self._get_client()[_master_db_name()]
+
+    def get_central_master_db(self) -> Database:
+        """Return the sarapp_central_master database handle (cloud_router only)."""
+        return self._get_client()[DB_CENTRAL_MASTER]
 
     def get_incident_db(self, incident_id: str) -> Database:
         """

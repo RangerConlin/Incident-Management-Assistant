@@ -67,3 +67,56 @@ Use environment variables or a Compose `.env` file for deployment settings:
 
 Never hardcode `SARAPP_MONGO_URI`, dashboard passwords, or session secrets.
 
+## Central Master Database (cloud_router, 2026-10)
+
+`cloud_router/` optionally owns its own embedded MongoDB instance and
+database — `sarapp_central_master` — holding the authoritative, centralized
+agency-wide catalog (personnel, equipment, vehicles, aircraft, hospitals,
+certifications, organizations, templates, forms, etc. — the same collections
+documented in `master_collection_inventory.md`). This is a deliberate,
+confirmed exception to `cloud_router/`'s "no database" rule, made because
+every LAN/cloud server previously ran its own fully independent copy of this
+catalog (`sarapp_master`) with no single source of truth across the org.
+
+**Relationship to each server's local `sarapp_master`:** `sarapp_master` and
+`sarapp_central_master` are schema-identical but are separate databases on
+separate MongoDB instances — a LAN/cloud server's local master catalog is not
+replaced by the central one; it syncs with it (sync design below, not yet
+implemented — see `realtime_architecture_roadmap.md`). The distinct name
+exists specifically so a misconfigured `SARAPP_MONGO_URI` can never cause a
+server to read/write the wrong one.
+
+**Implementation — reuse, not duplication:** the central database is served
+by the *existing* master-catalog routers/schemas in `data/db/sarapp_db/api/
+routers/` completely unmodified. `data/db/sarapp_db/api/app.py::create_app()`
+takes a `mode` argument: `mode="full"` (the default, used by every LAN/cloud
+server and the offline server) mounts every router; `mode="master_only"`
+mounts just the master-catalog subset and omits every incident-scoped
+router. `cloud_router/master_db/app.py::create_master_app()` calls
+`create_app(mode="master_only")` after pointing the process at its own Mongo
+instance (`SARAPP_CLOUD_ROUTER_MONGO_URI` → the process's `SARAPP_MONGO_URI`)
+and redirecting `get_master_db()` to `sarapp_central_master` instead of
+`sarapp_master` via the `SARAPP_MASTER_DB_NAME` environment variable — see
+`data/db/sarapp_db/mongo/database_manager.py`. `cloud_router/router/app.py`
+mounts the result as a sub-app at `/central-master`, so the central catalog
+is reachable at `/central-master/api/master/...`, the same paths every
+desktop client already calls over LAN/localhost.
+
+This is optional: leaving `SARAPP_CLOUD_ROUTER_MONGO_URI` unset at deploy
+time keeps `cloud_router/` running as the plain stateless proxy it always
+was, with no embedded database mounted.
+
+**Still to be designed/built** (tracked in `backlog.md`):
+- A web GUI for editing the central catalog (no such GUI exists yet anywhere
+  — today master data is only edited through the desktop app's admin panels
+  over LAN/localhost).
+- Durable `master_link` records tying an incident-local copy of a master
+  record (e.g. a person added to an incident roster) back to the master
+  record it came from, with two-way sync and surfaced conflicts.
+- The actual sync mechanism between each server's local `sarapp_master` and
+  this central database. A literal cross-WAN MongoDB replica set does not
+  fit the existing dial-out tunnel topology (LAN servers are not
+  independently reachable); the working plan is MongoDB change streams
+  relayed over the existing tunnel/API channel instead — see the addition to
+  `realtime_architecture_roadmap.md`.
+
