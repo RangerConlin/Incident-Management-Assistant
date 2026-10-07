@@ -9,7 +9,17 @@ services:
     container_name: sarapp-cloud
     restart: unless-stopped
     ports:
+      # Direct host port remains useful for local diagnostics. Public
+      # production access is expected to come through Traefik below.
       - "8765:8765"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
+      - traefik.http.routers.sarapp-cloud-router.rule=Host(`${SARAPP_CLOUD_ROUTER_HOST:?SARAPP_CLOUD_ROUTER_HOST must be set}`)
+      - traefik.http.routers.sarapp-cloud-router.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.sarapp-cloud-router.tls=${TRAEFIK_TLS:-true}
+      - traefik.http.routers.sarapp-cloud-router.service=sarapp-cloud-router
+      - traefik.http.services.sarapp-cloud-router.loadbalancer.server.port=8765
     environment:
       - SARAPP_CLOUD_ROUTER_TOKEN=${SARAPP_CLOUD_ROUTER_TOKEN:?SARAPP_CLOUD_ROUTER_TOKEN must be set}
       - SARAPP_SERVER_NAME=${SARAPP_SERVER_NAME:-SARApp Cloud Router}
@@ -28,6 +38,7 @@ services:
       - mongo
     networks:
       - sarapp-net
+      - traefik
 
   mongo:
     image: mongo:7
@@ -43,3 +54,6 @@ volumes:
 
 networks:
   sarapp-net:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}

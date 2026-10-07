@@ -55,10 +55,35 @@ Required environment variables (see `docker-compose.yml`):
 
 - `SARAPP_CLOUD_ROUTER_TOKEN` — shared secret LAN/cloud servers must present
   to register a tunnel.
+- `SARAPP_CLOUD_ROUTER_HOST` — public DNS host Traefik should route to this
+  router, for example `sarapp.arcadiacommandsolutions.com`.
 - `SARAPP_SERVER_NAME` (optional)
 - `SARAPP_ROUTER_*` tuning knobs (request timeout, heartbeat interval,
   max pending requests, max body bytes, register rate limit) — see
   `router/config.py`.
+
+Traefik is part of the standard deployment for this service. The compose file
+always includes Traefik labels and attaches the router container to the
+external Traefik network. The expected defaults are:
+
+- `TRAEFIK_NETWORK=traefik`
+- `TRAEFIK_ENTRYPOINT=websecure`
+- `TRAEFIK_TLS=true`
+
+The external Docker network named by `TRAEFIK_NETWORK` must already exist and
+the Traefik container must be attached to it. With the defaults above and
+`SARAPP_CLOUD_ROUTER_HOST=sarapp.example.com`, the router should be reachable
+at:
+
+- `https://sarapp.example.com/dashboard` — read-only router status dashboard.
+- `wss://sarapp.example.com/tunnel/register` — LAN/cloud server tunnel
+  registration endpoint.
+- `https://sarapp.example.com/r/<CONNECT_CODE>/...` — public forwarded client
+  traffic.
+
+The compose file also publishes `8765:8765` directly for emergency diagnostics,
+but production access should go through Traefik rather than relying on that
+port being open to the internet.
 
 ## Deploying the VPS checkout
 
