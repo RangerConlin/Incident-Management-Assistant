@@ -256,6 +256,45 @@ def test_personnel_organization_and_rank_are_catalog_dropdowns(monkeypatch) -> N
         _clear_organization_catalog()
 
 
+def test_personnel_grid_supports_inline_field_edit(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_personnel()
+    try:
+        client.post("/central-master/gui/personnel/new", data={"name": "GUI Test Inline Person"})
+
+        from sarapp_db.api.routers.personnel import list_personnel
+
+        doc = next(d for d in list_personnel(search="", limit=200) if d["name"] == "GUI Test Inline Person")
+        record_id = doc["person_record"]
+
+        listing = client.get("/central-master/gui/personnel")
+        assert 'data-inline-collection="personnel"' in listing.text
+        assert 'class="inline-cell"' in listing.text
+
+        updated = client.post(
+            f"/central-master/gui/personnel/{record_id}/inline/callsign", data={"value": "Echo-9"}
+        )
+        assert updated.status_code == 200
+        assert updated.json()["display"] == "Echo-9"
+
+        medic_updated = client.post(
+            f"/central-master/gui/personnel/{record_id}/inline/is_medic", data={"value": "1"}
+        )
+        assert medic_updated.status_code == 200
+
+        rejected = client.post(
+            f"/central-master/gui/personnel/{record_id}/inline/notes", data={"value": "nope"}
+        )
+        assert rejected.status_code == 404
+
+        refreshed = next(d for d in list_personnel(search="", limit=200) if d["person_record"] == record_id)
+        assert refreshed["callsign"] == "Echo-9"
+        assert refreshed["is_medic"] is True
+    finally:
+        _clear_personnel()
+
+
 def test_personnel_delete_removes_record(monkeypatch) -> None:
     client = _client(monkeypatch)
     _login(client)

@@ -33,7 +33,7 @@ from html import escape
 from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from master_db.config import MasterGuiSettings, hash_password, load_settings
 
@@ -87,6 +87,12 @@ class CollectionSpec:
     # always dropped from the grid separately (see list_collection), so it
     # does not need to be excluded here too.
     list_fields: Optional[list[str]] = None
+    # Field names (subset of `list_fields`/`fields`) that can be edited
+    # in place in the list-table grid via double-click, instead of only
+    # through the record's full edit page. None/empty disables inline
+    # editing for this collection entirely (the grid row still
+    # double-click-navigates to the edit page in that case).
+    inline_edit_fields: Optional[list[str]] = None
 
 
 def _field_keys(spec: CollectionSpec) -> list[str]:
@@ -249,6 +255,21 @@ def _rank_structure_id_by_name(name: Any) -> int | None:
             except (TypeError, ValueError):
                 return None
     return None
+
+
+def _org_short_name_by_name() -> dict[str, str]:
+    from sarapp_db.api.routers import organizations as organizations_router
+
+    return {
+        str(o.get("name") or ""): str(o.get("short_name") or "")
+        for o in organizations_router.list_organizations(search="")
+    }
+
+
+def _format_home_unit(name: Any, short_by_name: dict[str, str]) -> str:
+    name = str(name or "")
+    short = short_by_name.get(name, "")
+    return f"{short} - {name}" if short and name else name
 
 
 def _organization_list_cell(doc: dict[str, Any], field_name: str) -> Any:
@@ -447,6 +468,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             form_row_fn=lambda doc: personnel_export_row(doc, personnel_catalog_by_id),
             form_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
             list_fields=["first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
+            inline_edit_fields=["first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
         ),
         CollectionSpec(
             key="equipment",
@@ -689,6 +711,11 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     tr.hidden {{ display:none; }}
     .record-cell {{ white-space:nowrap; cursor:default; }}
     .row-edit-link {{ min-height:28px; padding:4px 10px; }}
+    td[data-inline-td] {{ cursor:text; }}
+    .inline-cell {{ display:block; }}
+    .inline-cell.saving {{ opacity:.5; }}
+    .inline-edit-input {{ width:100%; padding:4px 6px; font:inherit; border-radius:4px; border:1px solid var(--accent); background:var(--field); color:var(--text); }}
+    .inline-edit-input[type="checkbox"] {{ width:auto; }}
     .empty-row td {{ color:var(--muted); text-align:center; padding:22px; white-space:normal; }}
     .form-grid {{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px 16px; }}
     .field {{ min-width:0; }}
@@ -833,6 +860,88 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     row.addEventListener("dblclick", (event) => {{
       if (event.target.closest("a, button, input, textarea, select")) return;
       window.location.href = row.dataset.rowHref;
+    }});
+  }});
+
+  // Inline cell editing — double-clicking a cell in a table whose <table>
+  // carries data-inline-collection (currently just Personnel) edits that
+  // one field in place via a small fetch to /inline/<field>, instead of
+  // navigating to the record's full edit page.
+  document.querySelectorAll("table[data-inline-collection]").forEach((table) => {{
+    const collectionKey = table.dataset.inlineCollection;
+    table.querySelectorAll(".inline-cell").forEach((span) => {{
+      span.addEventListener("dblclick", (event) => {{
+        event.stopPropagation();
+        if (span.querySelector("input")) return;
+        const field = span.dataset.field;
+        const record = span.dataset.record;
+        const isCheckbox = span.dataset.checkbox === "1";
+        const rawValue = span.dataset.rawValue || "";
+        const originalHtml = span.innerHTML;
+
+        const input = document.createElement("input");
+        input.className = "inline-edit-input";
+        if (isCheckbox) {{
+          input.type = "checkbox";
+          input.checked = ["1", "true", "yes", "y", "on"].includes(rawValue.toLowerCase());
+        }} else {{
+          input.type = "text";
+          input.value = rawValue;
+        }}
+        span.innerHTML = "";
+        span.appendChild(input);
+        input.focus();
+        if (!isCheckbox) input.select();
+
+        let settled = false;
+        function cancel() {{
+          if (settled) return;
+          settled = true;
+          span.innerHTML = originalHtml;
+        }}
+        function save() {{
+          if (settled) return;
+          settled = true;
+          const value = isCheckbox ? (input.checked ? "1" : "") : input.value;
+          span.classList.add("saving");
+          const body = new URLSearchParams({{ value: value }});
+          fetch(`${{window.location.pathname.split("/gui/")[0]}}/gui/${{collectionKey}}/${{record}}/inline/${{field}}`, {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/x-www-form-urlencoded" }},
+            body: body.toString(),
+          }})
+            .then((response) => {{
+              if (!response.ok) throw new Error("save failed");
+              return response.json();
+            }})
+            .then((data) => {{
+              span.dataset.rawValue = data.raw || "";
+              span.textContent = data.display || "";
+              span.classList.remove("saving");
+            }})
+            .catch(() => {{
+              span.classList.remove("saving");
+              span.innerHTML = originalHtml;
+              window.alert("Could not save that change.");
+            }});
+        }}
+
+        if (isCheckbox) {{
+          input.addEventListener("change", save);
+          input.addEventListener("blur", () => window.setTimeout(() => {{ if (!settled) save(); }}, 0));
+        }} else {{
+          input.addEventListener("blur", save);
+        }}
+        input.addEventListener("keydown", (keyEvent) => {{
+          if (keyEvent.key === "Enter") {{
+            keyEvent.preventDefault();
+            save();
+          }} else if (keyEvent.key === "Escape") {{
+            keyEvent.preventDefault();
+            cancel();
+          }}
+        }});
+      }});
     }});
   }});
 
@@ -1340,32 +1449,37 @@ def create_master_gui_router() -> APIRouter:
         header_cells = "".join(f'<th class="sortable">{escape(f.label)}</th>' for f in shown_fields)
         list_cell_fn = spec.list_cell_fn
         if collection_key == "personnel":
-            from sarapp_db.api.routers import organizations as organizations_router
-
-            short_by_org_name = {
-                str(o.get("name") or ""): str(o.get("short_name") or "")
-                for o in organizations_router.list_organizations(search="")
-            }
+            short_by_org_name = _org_short_name_by_name()
 
             def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
                 if field_name == "home_unit":
-                    name = str(row_doc.get("home_unit") or "")
-                    short = _short_by_name.get(name, "")
-                    return f"{short} - {name}" if short and name else name
+                    return _format_home_unit(row_doc.get("home_unit"), _short_by_name)
                 return row_doc.get(field_name)
 
+        inline_fields = set(spec.inline_edit_fields or [])
         rows = []
         for doc in docs:
             record_id = doc.get(spec.record_field)
             display_doc = _form_doc(spec, doc)
-            cells = "".join(
-                f"<td>{_cell_html(list_cell_fn(display_doc, f.name) if list_cell_fn else display_doc.get(f.name, ''))}</td>"
-                for f in shown_fields
-            )
+            cells = []
+            for f in shown_fields:
+                display_value = list_cell_fn(display_doc, f.name) if list_cell_fn else display_doc.get(f.name, "")
+                if f.name in inline_fields:
+                    raw_value = display_doc.get(f.name, "")
+                    cells.append(
+                        f'<td data-inline-td><span class="inline-cell" data-field="{escape(f.name)}" '
+                        f'data-record="{record_id}" data-raw-value="{escape(_stringify(raw_value))}" '
+                        f'data-checkbox="{"1" if f.input_type == "checkbox" else "0"}">'
+                        f"{_cell_html(display_value)}</span></td>"
+                    )
+                else:
+                    cells.append(f"<td>{_cell_html(display_value)}</td>")
+            cells_html = "".join(cells)
             row_href = f"{root_path}/gui/{collection_key}/{record_id}"
+            row_attr = "" if inline_fields else f' data-row-href="{row_href}"'
             rows.append(
-                f'<tr data-row data-row-href="{row_href}"><td class="record-cell">'
-                f'<a class="button-link secondary row-edit-link" href="{row_href}">Edit</a></td>{cells}</tr>'
+                f'<tr data-row{row_attr}><td class="record-cell">'
+                f'<a class="button-link secondary row-edit-link" href="{row_href}">Edit</a></td>{cells_html}</tr>'
             )
         rows.append(
             f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(shown_fields) + 1}">'
@@ -1385,7 +1499,7 @@ def create_master_gui_router() -> APIRouter:
     <input class="grid-search" type="text" data-grid-search="{table_id}" placeholder="Search this table">
   </div>
   <div class="table-wrap">
-    <table id="{table_id}">
+    <table id="{table_id}"{f' data-inline-collection="{escape(collection_key)}"' if inline_fields else ""}>
       <thead><tr><th>Edit</th>{header_cells}</tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
@@ -1551,6 +1665,45 @@ def create_master_gui_router() -> APIRouter:
         _parse_rank_rows(record_id, form)
         root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/rank-structures/{record_id}", status_code=303)
+
+    @router.post("/gui/{collection_key}/{record_id}/inline/{field_name}", response_model=None)
+    async def inline_update_field(
+        request: Request, collection_key: str, record_id: int, field_name: str
+    ) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return JSONResponse({"error": "login required"}, status_code=401)
+        spec = specs.get(collection_key)
+        if spec is None or field_name not in (spec.inline_edit_fields or []):
+            return JSONResponse({"error": "field is not inline-editable"}, status_code=404)
+        field = next((f for f in spec.fields if f.name == field_name), None)
+        if field is None:
+            return JSONResponse({"error": "unknown field"}, status_code=404)
+
+        form = dict((await request.form()).items())
+        raw = str(form.get("value", "")).strip()
+        if field.input_type == "checkbox":
+            value: Any = 1 if raw.lower() in {"1", "true", "yes", "y", "on"} else 0
+        elif field.value_type == "int":
+            value = int(raw) if raw else None
+        elif field.value_type == "float":
+            value = float(raw) if raw else None
+        else:
+            value = raw
+
+        try:
+            spec.update_fn(record_id, {field_name: value})
+        except HTTPException as exc:
+            return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+
+        doc = spec.get_fn(record_id)
+        display_doc = _form_doc(spec, doc)
+        display_value = display_doc.get(field_name, "")
+        if collection_key == "personnel" and field_name == "home_unit":
+            display_value = _format_home_unit(display_value, _org_short_name_by_name())
+
+        return JSONResponse({"display": _stringify(display_value), "raw": _stringify(value)})
 
     @router.post("/gui/{collection_key}/{record_id}")
     async def update_record(request: Request, collection_key: str, record_id: int) -> Response:
